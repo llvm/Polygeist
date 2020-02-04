@@ -147,6 +147,45 @@ Value MLIRCodegen::createAssignementOp(__isl_take pet_expr *expr) {
   return lhs;
 }
 
+Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
+                                  BinaryOpType type) {
+  auto typeLhs = lhs.getType();
+  auto typeRhs = rhs.getType();
+  if (typeLhs != typeRhs)
+    return nullptr;
+  if (((!typeLhs.isInt()) && (!typeLhs.isFloat())) ||
+      ((!typeRhs.isInt()) && (!typeRhs.isFloat())))
+    return nullptr;
+  switch (type) {
+  case BinaryOpType::ADD: {
+    if (typeLhs.isFloat())
+      return builder_.create<MulFOp>(loc, lhs, rhs);
+    else
+      return builder_.create<MulIOp>(loc, lhs, rhs);
+  }
+  case BinaryOpType::SUB: {
+    if (typeLhs.isFloat())
+      return builder_.create<SubFOp>(loc, lhs, rhs);
+    else
+      return builder_.create<SubIOp>(loc, lhs, rhs);
+  }
+  case BinaryOpType::MUL: {
+    if (typeLhs.isFloat())
+      return builder_.create<MulFOp>(loc, lhs, rhs);
+    else
+      return builder_.create<MulIOp>(loc, lhs, rhs);
+  }
+  case BinaryOpType::DIV: {
+    if (typeLhs.isFloat())
+      return builder_.create<DivFOp>(loc, lhs, rhs);
+    else
+      return nullptr;
+  }
+  default:
+    llvm_unreachable("operation not supported yet.");
+  }
+}
+
 Value MLIRCodegen::createAssignementWithOp(__isl_take pet_expr *expr) {
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
@@ -159,19 +198,19 @@ Value MLIRCodegen::createAssignementWithOp(__isl_take pet_expr *expr) {
   Value op;
   switch (pet_expr_op_get_type(expr)) {
   case pet_op_mul_assign: {
-    op = builder_.create<MulFOp>(location, rhs, rhsLoad);
+    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::MUL);
     break;
   }
   case pet_op_add_assign: {
-    op = builder_.create<AddFOp>(location, rhs, rhsLoad);
+    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::ADD);
     break;
   }
   case pet_op_sub_assign: {
-    op = builder_.create<SubFOp>(location, rhs, rhsLoad);
+    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::SUB);
     break;
   }
   case pet_op_div_assign: {
-    op = builder_.create<DivFOp>(location, rhs, rhsLoad);
+    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::DIV);
     break;
   }
   case pet_op_and_assign:
@@ -230,17 +269,20 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   }
   case pet_op_add: {
     pet_expr_free(expr);
-    return builder_.create<AddFOp>(location, lhs, rhs);
+    return createBinaryOp(location, lhs, rhs, BinaryOpType::ADD);
   }
   case pet_op_sub: {
     pet_expr_free(expr);
-    return builder_.create<SubFOp>(location, lhs, rhs);
+    return createBinaryOp(location, lhs, rhs, BinaryOpType::SUB);
   }
   case pet_op_mul: {
     pet_expr_free(expr);
-    return builder_.create<MulFOp>(location, lhs, rhs);
+    return createBinaryOp(location, lhs, rhs, BinaryOpType::MUL);
   }
-  case pet_op_div:
+  case pet_op_div: {
+    pet_expr_free(expr);
+    return createBinaryOp(location, lhs, rhs, BinaryOpType::DIV);
+  }
   case pet_op_mod:
   case pet_op_shl:
   case pet_op_shr:
