@@ -412,6 +412,7 @@ MLIRCodegen::MLIRCodegen(MLIRContext &context, Scop &scop)
 }
 
 void MLIRCodegen::dump() { theModule_.dump(); }
+void MLIRCodegen::print(raw_ostream &os) { theModule_.print(os); }
 
 LogicalResult MLIRCodegen::verifyModule() {
   if (failed(verify(theModule_)))

@@ -58,8 +58,11 @@ class MLIRCodegen {
 public:
   MLIRCodegen(mlir::MLIRContext &context, pet::Scop &scop);
 
-  // dump the current state.
+  // dump the current state of "theModule_"
   void dump();
+
+  // print the current state of "theModule_";
+  void print(llvm::raw_ostream &os);
 
   // verify if the module after we have finished
   // constructing it, this will check the structural
