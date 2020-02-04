@@ -137,13 +137,14 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   return op;
 }
 
-Value MLIRCodegen::createAssignementOp(__isl_take pet_expr *expr) {
+Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
   Value lhs = createStore(pet_expr_get_arg(expr, 0), rhs);
   if (!lhs)
     return nullptr;
+  pet_expr_free(expr);
   return lhs;
 }
 
@@ -186,7 +187,7 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
   }
 }
 
-Value MLIRCodegen::createAssignementWithOp(__isl_take pet_expr *expr) {
+Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
@@ -237,7 +238,7 @@ Value MLIRCodegen::createAssignementWithOp(__isl_take pet_expr *expr) {
 Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   // handle corner cases (i.e., pet_*_assing)
   if (pet_expr_op_get_type(expr) == pet_op_assign)
-    return createAssignementOp(expr);
+    return createAssignmentOp(expr);
   if ((pet_expr_op_get_type(expr) == pet_op_add_assign) ||
       (pet_expr_op_get_type(expr) == pet_op_sub_assign) ||
       (pet_expr_op_get_type(expr) == pet_op_mul_assign) ||
@@ -245,7 +246,7 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
       (pet_expr_op_get_type(expr) == pet_op_and_assign) ||
       (pet_expr_op_get_type(expr) == pet_op_xor_assign) ||
       (pet_expr_op_get_type(expr) == pet_op_or_assign))
-    return createAssignementWithOp(expr);
+    return createAssignmentWithOp(expr);
 
   Value lhs = createExpr(pet_expr_get_arg(expr, 0));
   if (!lhs)
