@@ -16,8 +16,7 @@ static isl::ast_expr getUpperBound(isl::ast_node nodeFor) {
   return condition.get_op_arg(1);
 }
 
-// TODO: move this into islExprBuilder. Is Int enough
-// or should we return a Value? see:
+// TODO: Is Int enough or should we return a Value? see:
 // https://github.com/llvm/llvm-project/blob/2c1a142a78ffe8ed06fd7bfd17750afdceeaecc9/polly/lib/CodeGen/IslExprBuilder.cpp#L746
 static int createIntFromIslExpr(isl::ast_expr expression) {
   if (isl_ast_expr_get_type(expression.get()) != isl_ast_expr_int)

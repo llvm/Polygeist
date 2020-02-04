@@ -234,9 +234,8 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
 }
 
 // TODO: check pet_expr_free, there is a better way of doing it?
-// TODO: add remaining corner cases and op types.
 Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
-  // handle corner cases (i.e., pet_*_assing)
+  // handle pet_*_assing
   if (pet_expr_op_get_type(expr) == pet_op_assign)
     return createAssignmentOp(expr);
   if ((pet_expr_op_get_type(expr) == pet_op_add_assign) ||
@@ -360,7 +359,6 @@ static mlir::Type getType(const PetArray &array, MLIRContext &context) {
 
 // TODO: handle properly affineMapComposition while
 // building class MemRefType.
-// TODO: for variable we create memref<f64> is this correct?
 Type MLIRCodegen::getTensorType(MLIRContext &context,
                                 const PetArray &inputTensor) {
   auto tensorType = getType(inputTensor, context);
