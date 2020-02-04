@@ -16,6 +16,8 @@
 
 namespace codegen {
 
+enum class BinaryOpType { ADD, MUL, SUB, DIV };
+
 class SymbolTable {
 public:
   SymbolTable() = default;
@@ -139,6 +141,10 @@ private:
 
   // create an assignement op with operation (i.e., pet_op_add_assign)
   mlir::Value createAssignementWithOp(__isl_take pet_expr *expr);
+
+  // create a binary operation.
+  mlir::Value createBinaryOp(mlir::Location &loc, mlir::Value &lhs,
+                             mlir::Value &rhs, BinaryOpType type);
 };
 
 } // end namespace codegen
