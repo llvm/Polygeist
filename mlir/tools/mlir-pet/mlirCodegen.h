@@ -137,10 +137,10 @@ private:
   mlir::Value createOp(__isl_take pet_expr *expr);
 
   // create an assignement op (pet_expr_assign)
-  mlir::Value createAssignementOp(__isl_take pet_expr *expr);
+  mlir::Value createAssignmentOp(__isl_take pet_expr *expr);
 
   // create an assignement op with operation (i.e., pet_op_add_assign)
-  mlir::Value createAssignementWithOp(__isl_take pet_expr *expr);
+  mlir::Value createAssignmentWithOp(__isl_take pet_expr *expr);
 
   // create a binary operation.
   mlir::Value createBinaryOp(mlir::Location &loc, mlir::Value &lhs,
