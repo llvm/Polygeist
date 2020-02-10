@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   // MLIRbuilder.dump();
 
   if (outputFileName.empty()) {
-    MLIRbuilder.dump();
+    MLIRbuilder.print(outs());
     return 0;
   }
 
