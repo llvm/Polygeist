@@ -27,6 +27,9 @@
 
 using namespace mlir;
 
+typedef std::map<mlir::Block*, std::map<std::vector<mlir::Value*>, mlir::StoreOp>> StoreMap;
+
+
 namespace {
 // The store to load forwarding relies on three conditions:
 //
@@ -63,7 +66,7 @@ namespace {
 struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
-  void forwardStoreToLoad(mlir::LoadOp loadOp);
+  void forwardStoreToLoad(mlir::LoadOp loadOp, StoreMap);
 
   // A list of memref's that are potentially dead / could be eliminated.
   SmallPtrSet<Value, 4> memrefsToErase;
@@ -84,7 +87,7 @@ std::unique_ptr<OperationPass<FuncOp>> mlir::createMemRefDataFlowOptPass() {
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-void MemRefDataFlowOpt::forwardStoreToLoad(mlir::LoadOp loadOp) {
+void MemRefDataFlowOpt::forwardStoreToLoad(mlir::LoadOp loadOp, StoreMap SM) {
   // First pass over the use list to get the minimum number of surrounding
   // loops common between the load op and the store op, with min taken across
   // all store ops.
@@ -107,12 +110,13 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::LoadOp loadOp) {
   // forwarding candidates). Each forwarding candidate will be checked for a
   // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
   SmallVector<Operation *, 8> depSrcStores;
+  if (storeOps.size() > 1) return;
 
   for (auto storeOp : storeOps) {
     if (storeOp.getIndices().size() != loadOp.getIndices().size()) {
       continue;
     }
-    for(int i=0; i<storeOp.getIndices().size(); i++) {
+    for(size_t i=0; i<storeOp.getIndices().size(); i++) {
       if (storeOp.getIndices()[i] != loadOp.getIndices()[i]) {
         return;
       }
@@ -148,10 +152,57 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::LoadOp loadOp) {
   Value storeVal =
     cast<mlir::StoreOp>(lastWriteStoreOp).getValueToStore();
   loadOp.replaceAllUsesWith(storeVal);
-  // Record the memref for a later sweep to optimize away.
-  memrefsToErase.insert(loadOp.getMemRef());
   // Record this to erase later.
   loadOpsToErase.push_back(loadOp);
+}
+
+ bool isPromotable(mlir::Value AI) {
+   for (auto U : AI.getUsers()) {
+     if (auto LO = dyn_cast<LoadOp>(U)) {
+       for(auto idx : LO.getIndices()) {
+         if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
+           llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  ldue to " << idx << "\n";
+           return false;
+         }
+       }
+       continue;
+     } else if (auto SO = dyn_cast<StoreOp>(U)) {
+       for(auto idx : SO.getIndices()) {
+         if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
+           llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  sdue to " << idx << "\n";
+           return false;
+         }
+       }
+       continue;
+     } else if (isa<DeallocOp>(U)) {
+       continue;
+     } else {
+      llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue to " << U << "\n";
+       return false;
+     }
+   }
+   return true;
+ }
+
+StoreMap getLastStored(mlir::Value AI, DominanceInfo *domInfo) {
+  StoreMap lastStored;
+   for (auto U : AI.getUsers()) {
+     if (auto SO = dyn_cast<StoreOp>(U)) {
+       std::vector<mlir::Value*> vec;
+       for(auto idx : SO.getIndices()) {
+         vec.push_back(&idx);
+       }
+       auto found = lastStored[SO.getOperation()->getBlock()].find(vec);
+       if (found == lastStored[SO.getOperation()->getBlock()].end()) {
+         lastStored[SO.getOperation()->getBlock()][vec] = SO;
+       } else {
+         if (domInfo->dominates(found->second, SO)) {
+           found->second = SO;
+         }
+       }
+     }
+   }
+   return lastStored;
 }
 
 void MemRefDataFlowOpt::runOnFunction() {
@@ -165,7 +216,29 @@ void MemRefDataFlowOpt::runOnFunction() {
   memrefsToErase.clear();
 
   // Walk all load's and perform store to load forwarding.
-  f.walk([&](mlir::LoadOp loadOp) { forwardStoreToLoad(loadOp); });
+  f.walk([&](mlir::AllocaOp AI) { 
+    if (isPromotable(AI)) {
+      auto lastStored = getLastStored(AI, domInfo);
+      for (auto U : AI.getResult().getUsers()) {
+        if (auto LO = dyn_cast<LoadOp>(U)) {
+          forwardStoreToLoad(LO, lastStored);
+        }
+      }
+      memrefsToErase.insert(AI);
+    }
+  });
+    // Walk all load's and perform store to load forwarding.
+  f.walk([&](mlir::AllocOp AI) { 
+    if (isPromotable(AI)) {
+      auto lastStored = getLastStored(AI, domInfo);
+      for (auto U : AI.getResult().getUsers()) {
+        if (auto LO = dyn_cast<LoadOp>(U)) {
+          forwardStoreToLoad(LO, lastStored);
+        }
+      }
+      memrefsToErase.insert(AI);
+    }
+  });
 
   // Erase all load op's whose results were replaced with store fwd'ed ones.
   for (auto *loadOp : loadOpsToErase)

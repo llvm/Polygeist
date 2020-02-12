@@ -62,7 +62,7 @@ protected:
   /// Return true if the specified block is reachable from the entry
   /// block of its region.
   bool isReachableFromEntry(Block *a) const;
-
+public:
   /// A mapping of regions to their base dominator tree.
   DenseMap<Region *, std::unique_ptr<base>> dominanceInfos;
 };

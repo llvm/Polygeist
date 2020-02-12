@@ -295,3 +295,7 @@ SuccessorRange::SuccessorRange(Operation *term) : SuccessorRange(nullptr, 0) {
   if ((count = term->getNumSuccessors()))
     base = term->getBlockOperands().data();
 }
+
+bool Block::isLegalToHoistInto() const {
+  return true;
+}

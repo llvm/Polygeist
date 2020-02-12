@@ -735,8 +735,12 @@ static LogicalResult verify(CallOp op) {
     return op.emitOpError("incorrect number of operands for callee");
 
   for (unsigned i = 0, e = fnType.getNumInputs(); i != e; ++i)
-    if (op.getOperand(i).getType() != fnType.getInput(i))
+    if (op.getOperand(i).getType() != fnType.getInput(i)) {
+      op.dump();
+      op.getOperand(i).dump();
+      fnType.getInput(i).dump();
       return op.emitOpError("operand type mismatch");
+    }
 
   if (fnType.getNumResults() != op.getNumResults())
     return op.emitOpError("incorrect number of results for callee");
@@ -1129,8 +1133,8 @@ static LogicalResult verify(ConstantOp &op) {
   }
 
   if (type.isa<ShapedType>()) {
-    if (!value.isa<ElementsAttr>())
-      return op.emitOpError("requires 'value' to be a shaped constant");
+    //if (!value.isa<ElementsAttr>())
+    //  return op.emitOpError("requires 'value' to be a shaped constant");
     return success();
   }
 
