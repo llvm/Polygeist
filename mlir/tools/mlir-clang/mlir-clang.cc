@@ -86,7 +86,6 @@ int main(int argc, char **argv) {
   auto module = mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
   parseMLIR(inputFileName.c_str(), cfunction, includeDirs, module);
-
   mlir::PassManager pm(&context);
 
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();

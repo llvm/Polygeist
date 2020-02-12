@@ -1164,8 +1164,8 @@ static LogicalResult verify(ConstantOp &op) {
   }
 
   if (type.isa<ShapedType>()) {
-    if (!value.isa<ElementsAttr>())
-      return op.emitOpError("requires 'value' to be a shaped constant");
+    //if (!value.isa<ElementsAttr>())
+    //  return op.emitOpError("requires 'value' to be a shaped constant");
     return success();
   }
 
