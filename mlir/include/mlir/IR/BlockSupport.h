@@ -76,6 +76,29 @@ private:
   friend RangeBaseT;
 };
 
+/// This class implements the constant successor iterators for Block.
+class ConstSuccessorRange final
+    : public llvm::detail::indexed_accessor_range_base<
+          ConstSuccessorRange, const BlockOperand *, const Block *, const Block *, const Block *> {
+public:
+  using RangeBaseT::RangeBaseT;
+  ConstSuccessorRange(Block *block);
+  ConstSuccessorRange(Operation *term);
+
+private:
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static const BlockOperand *offset_base(const BlockOperand *object, ptrdiff_t index) {
+    return object + index;
+  }
+  /// See `llvm::detail::indexed_accessor_range_base` for details.
+  static const Block *dereference_iterator(const BlockOperand *object, ptrdiff_t index) {
+    return object[index].get();
+  }
+
+  /// Allow access to `offset_base` and `dereference_iterator`.
+  friend RangeBaseT;
+};
+
 //===----------------------------------------------------------------------===//
 // BlockRange
 //===----------------------------------------------------------------------===//

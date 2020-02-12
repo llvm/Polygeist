@@ -351,3 +351,7 @@ Block *BlockRange::dereference_iterator(OwnerT object, ptrdiff_t index) {
     return operand[index].get();
   return object.dyn_cast<Block *const *>()[index];
 }
+
+bool Block::isLegalToHoistInto() const {
+  return true;
+}

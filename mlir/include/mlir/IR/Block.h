@@ -126,10 +126,13 @@ public:
 
   // Iteration over the operations in the block.
   using iterator = OpListType::iterator;
+  using const_iterator = OpListType::const_iterator;
   using reverse_iterator = OpListType::reverse_iterator;
 
   iterator begin() { return operations.begin(); }
   iterator end() { return operations.end(); }
+  const_iterator begin() const { return operations.begin(); }
+  const_iterator end() const { return operations.end(); }
   reverse_iterator rbegin() { return operations.rbegin(); }
   reverse_iterator rend() { return operations.rend(); }
 
@@ -247,6 +250,8 @@ public:
   succ_iterator succ_begin() { return getSuccessors().begin(); }
   succ_iterator succ_end() { return getSuccessors().end(); }
   SuccessorRange getSuccessors() { return SuccessorRange(this); }
+
+  bool isLegalToHoistInto() const;
 
   //===--------------------------------------------------------------------===//
   // Operation Walkers
