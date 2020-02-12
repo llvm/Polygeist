@@ -343,7 +343,8 @@ void LoopBase<BlockT, LoopT>::verifyLoop() const {
     dbgs() << "The following blocks are unreachable in the loop: ";
     for (auto BB : Blocks) {
       if (!VisitedBBs.count(BB)) {
-        dbgs() << *BB << "\n";
+        dbgs() << BB << "\n";
+        //dbgs() << *BB << "\n";
       }
     }
     assert(false && "Unreachable block in loop");

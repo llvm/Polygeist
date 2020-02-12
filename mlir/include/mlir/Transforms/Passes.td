@@ -415,6 +415,11 @@ def ParallelLower : FunctionPass<"parallel-lower-opt"> {
   let constructor = "mlir::createParallelLowerPass()";
 }
 
+def LoopRestructure : FunctionPass<"loop-restructure"> {
+  let constructor = "mlir::createLoopRestructurePass()";
+}
+
+
 def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   let summary = "Normalize memrefs";
    let description = [{
