@@ -11,7 +11,7 @@
 set(ISL_FOUND FALSE)
 
 message(STATUS "Looking for ISL")
-find_path(ISL_PATH_ISLROOT isl-noexceptions.h PATHS $ENV{HOME}/isl/install/ NO_DEFAULT_PATH)
+find_path(ISL_PATH_ISLROOT isl-noexceptions.h PATHS $ENV{HOME}/isl/install/include/isl NO_DEFAULT_PATH)
 
 if(ISL_PATH_ISLROOT)
     get_filename_component(ISL_PATH ${ISL_PATH_ISLROOT}/.. ABSOLUTE)
