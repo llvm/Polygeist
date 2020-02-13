@@ -90,19 +90,25 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
 
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
-    if (failed(getSymbol(expr, scalar)))
+    if (failed(getSymbol(expr, scalar))) {
+      pet_expr_free(expr);
       return nullptr;
+    }
     pet_expr_free(expr);
     return scalar;
   }
 
   Value symbol;
-  if (failed(getSymbol(expr, symbol)))
+  if (failed(getSymbol(expr, symbol))) {
+    pet_expr_free(expr);
     return nullptr;
+  }
 
   SmallVector<Value, 4> loopIvs;
-  if (failed(getSymbolInductionVar(expr, loopIvs)))
+  if (failed(getSymbolInductionVar(expr, loopIvs))) {
+    pet_expr_free(expr);
     return nullptr;
+  }
 
   pet_expr_free(expr);
   auto location = builder_.getUnknownLoc();
@@ -117,19 +123,25 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
 
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
-    if (failed(getSymbol(expr, scalar)))
+    if (failed(getSymbol(expr, scalar))) {
+      pet_expr_free(expr);
       return nullptr;
+    }
     pet_expr_free(expr);
     return scalar;
   }
 
   Value symbol;
-  if (failed(getSymbol(expr, symbol)))
+  if (failed(getSymbol(expr, symbol))) {
+    pet_expr_free(expr);
     return nullptr;
+  }
 
   SmallVector<Value, 4> loopIvs;
-  if (failed(getSymbolInductionVar(expr, loopIvs)))
+  if (failed(getSymbolInductionVar(expr, loopIvs))) {
+    pet_expr_free(expr);
     return nullptr;
+  }
 
   pet_expr_free(expr);
   auto location = builder_.getUnknownLoc();
@@ -230,6 +242,7 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
   Value lhs = createStore(pet_expr_get_arg(expr, 0), op);
   if (!lhs)
     return nullptr;
+  pet_expr_free(expr);
   return lhs;
 }
 
@@ -317,7 +330,7 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   return nullptr;
 }
 
-Value MLIRCodegen::createExpr(__isl_take pet_expr *expr) {
+Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
   switch (pet_expr_get_type(expr)) {
   case pet_expr_error:
     return nullptr;
@@ -333,12 +346,12 @@ Value MLIRCodegen::createExpr(__isl_take pet_expr *expr) {
   case pet_expr_op:
     return createOp(expr);
   }
+
   return nullptr;
 }
 
-LogicalResult MLIRCodegen::createStmt(__isl_take pet_expr *expr) {
+LogicalResult MLIRCodegen::createStmt(__isl_keep pet_expr *expr) {
   auto Value = createExpr(expr);
-  pet_expr_free(expr);
   if (!Value)
     return failure();
   return success();
