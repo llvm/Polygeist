@@ -1,0 +1,2 @@
+// RUN: mlir-pet --help
+

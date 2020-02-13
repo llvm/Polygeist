@@ -1,3 +1,8 @@
+# pet project.
+
+set(PET_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(PET_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
 find_package(PET REQUIRED)
 find_package(ISL REQUIRED)
 
@@ -38,3 +43,5 @@ target_link_libraries(mlir-pet PRIVATE
   MLIRAnalysis
 
 )
+
+add_subdirectory(test)
