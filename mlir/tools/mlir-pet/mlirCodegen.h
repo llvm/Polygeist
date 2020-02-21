@@ -148,6 +148,9 @@ private:
   // create a binary operation.
   mlir::Value createBinaryOp(mlir::Location &loc, mlir::Value &lhs,
                              mlir::Value &rhs, BinaryOpType type);
+
+  // create a constant operation.
+  mlir::Value createConstantOp(__isl_take pet_expr *expr, pet::ElementType type);
 };
 
 } // end namespace codegen

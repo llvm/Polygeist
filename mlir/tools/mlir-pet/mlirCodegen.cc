@@ -95,6 +95,8 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
       return nullptr;
     }
     pet_expr_free(expr);
+    // FIXME: handle store/load for scalar values.
+    // see (simpleLoop.c)
     return scalar;
   }
 
@@ -121,6 +123,9 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   if (!op)
     llvm_unreachable("expect non null value");
 
+  auto location = builder_.getUnknownLoc();
+  SmallVector<Value, 4> loopIvs;
+
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
     if (failed(getSymbol(expr, scalar))) {
@@ -128,6 +133,7 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
       return nullptr;
     }
     pet_expr_free(expr);
+    // FIXME: handle store/load for scalar values.
     return scalar;
   }
 
@@ -136,22 +142,20 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
     pet_expr_free(expr);
     return nullptr;
   }
-
-  SmallVector<Value, 4> loopIvs;
+ 
   if (failed(getSymbolInductionVar(expr, loopIvs))) {
     pet_expr_free(expr);
     return nullptr;
   }
 
-  pet_expr_free(expr);
-  auto location = builder_.getUnknownLoc();
+  pet_expr_free(expr); 
   builder_.create<AffineStoreOp>(location, op, symbol, loopIvs);
   return op;
 }
 
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
-  if (!rhs)
+  if (!rhs) 
     return nullptr;
   Value lhs = createStore(pet_expr_get_arg(expr, 0), rhs);
   if (!lhs)
@@ -164,7 +168,7 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
   auto typeLhs = lhs.getType();
   auto typeRhs = rhs.getType();
-  if (typeLhs != typeRhs)
+  if (typeLhs != typeRhs) 
     return nullptr;
   if (((!typeLhs.isInt()) && (!typeLhs.isFloat())) ||
       ((!typeRhs.isInt()) && (!typeRhs.isFloat())))
@@ -330,17 +334,51 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   return nullptr;
 }
 
+Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr, ElementType type) { 
+  auto loc = builder_.getUnknownLoc();
+  switch(type) {
+    case ElementType::INT: {
+      isl::val value = isl::manage(pet_expr_int_get_val(expr));
+      int valueAsInt = std::stoi(value.to_str());
+      auto valueAttr = 
+        builder_.getIntegerAttr(builder_.getIntegerType(32), valueAsInt); 
+      pet_expr_free(expr);
+      return builder_.create<ConstantOp>(
+        loc, builder_.getIntegerType(32), valueAttr);
+    }
+    case ElementType::FLOAT: {
+      float valueAsFloat = std::stof(std::string(pet_expr_double_get_str(expr)));
+      auto valueAttr =
+        builder_.getFloatAttr(builder_.getF32Type(), valueAsFloat);
+      pet_expr_free(expr);
+      return builder_.create<ConstantOp>(loc, builder_.getF32Type(), valueAttr);
+    }
+    case ElementType::DOUBLE: {
+      // XXX: here pet only exposes get_str method, why?
+      double valueAsDouble = std::stod(std::string(pet_expr_double_get_str(expr)));
+      auto valueAttr =
+        builder_.getFloatAttr(builder_.getF64Type(), valueAsDouble);
+      pet_expr_free(expr);
+      return builder_.create<ConstantOp>(loc, builder_.getF64Type(), valueAttr);
+    }
+  }
+  return nullptr;
+}
+
 Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
   switch (pet_expr_get_type(expr)) {
   case pet_expr_error:
     return nullptr;
   case pet_expr_access:
     return createLoad(expr);
-  case pet_expr_call:
-  case pet_expr_cast:
   case pet_expr_int:
-  case pet_expr_double: {
-    outs() << "not handled!";
+    return createConstantOp(expr, ElementType::INT);
+  case pet_expr_double:
+    // XXX: How to distinguish FLOAT and DOUBLE, here?
+    return createConstantOp(expr, ElementType::FLOAT);
+  case pet_expr_call:
+  case pet_expr_cast: {
+    llvm_unreachable("type not handled");
     return nullptr;
   }
   case pet_expr_op:
