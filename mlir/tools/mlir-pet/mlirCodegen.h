@@ -1,8 +1,8 @@
 #ifndef PETMLIR_MLIR_CODEGENERATION_H
 #define PETMLIR_MLIR_CODEGENERATION_H
 
-#include "mlir/Dialect/AffineOps/AffineOps.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/MLIRContext.h"
@@ -150,7 +150,8 @@ private:
                              mlir::Value &rhs, BinaryOpType type);
 
   // create a constant operation.
-  mlir::Value createConstantOp(__isl_take pet_expr *expr, pet::ElementType type);
+  mlir::Value createConstantOp(__isl_take pet_expr *expr,
+                               pet::ElementType type);
 };
 
 } // end namespace codegen
