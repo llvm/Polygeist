@@ -9,6 +9,19 @@
 #include "llvm/Support/WithColor.h"
 #include <fstream>
 
+using namespace llvm;
+static cl::opt<std::string> outputFileName("o",
+                                           cl::desc("Specify output filename"),
+                                           cl::value_desc("out"));
+static cl::opt<std::string> inputFileName(cl::Positional,
+                                          cl::desc("<Specify input file>"),
+                                          cl::Required);
+
+static cl::opt<bool>
+    showDialects("show-dialects",
+                 llvm::cl::desc("Print the list of registered dialects"),
+                 llvm::cl::init(false));
+
 int main(int argc, char **argv) {
 
   using namespace mlir;
@@ -16,16 +29,7 @@ int main(int argc, char **argv) {
   using namespace util;
   using namespace ast;
   using namespace codegen;
-  using namespace llvm;
 
-  cl::opt<std::string> outputFileName("o", cl::desc("Specify output filename"),
-                                      cl::value_desc("out"));
-  cl::opt<std::string> inputFileName(
-      cl::Positional, cl::desc("<Specify input file>"), cl::Required);
-
-  cl::opt<bool> showDialects(
-      "show-dialects", llvm::cl::desc("Print the list of registered dialects"),
-      llvm::cl::init(false));
   cl::ParseCommandLineOptions(argc, argv);
 
   std::ifstream inputFile(inputFileName);
