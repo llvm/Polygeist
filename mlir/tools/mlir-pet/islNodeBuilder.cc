@@ -82,7 +82,7 @@ void IslNodeBuilder::createUser(isl::ast_node userNode) {
 
 void IslNodeBuilder::createBlock(isl::ast_node blockNode) {
   auto list = blockNode.block_get_children();
-  for (size_t i = 0; i < list.n_ast_node(); i++)
+  for (int i = 0; i < list.n_ast_node(); i++)
     MLIRFromISLAstImpl(list.get_ast_node(i));
 }
 
