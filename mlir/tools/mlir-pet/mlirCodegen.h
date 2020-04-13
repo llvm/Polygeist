@@ -99,7 +99,7 @@ private:
 
   // The symbol table maps a declared variable to
   // a value.
-  codegen::SymbolTable symbolTable_;
+  SymbolTable symbolTable_;
 
   // The loop table maps a loop id to a value
   LoopTable loopTable_;
