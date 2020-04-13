@@ -2,6 +2,7 @@
 #include "mlir/Analysis/Verifier.h"
 #include "mlir/IR/Attributes.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 using namespace codegen;
 using namespace mlir;
@@ -96,7 +97,6 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
     }
     pet_expr_free(expr);
     // FIXME: handle store/load for scalar values.
-    // see (simpleLoop.c)
     return scalar;
   }
 
@@ -142,20 +142,20 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
     pet_expr_free(expr);
     return nullptr;
   }
- 
+
   if (failed(getSymbolInductionVar(expr, loopIvs))) {
     pet_expr_free(expr);
     return nullptr;
   }
 
-  pet_expr_free(expr); 
+  pet_expr_free(expr);
   builder_.create<AffineStoreOp>(location, op, symbol, loopIvs);
   return op;
 }
 
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
-  if (!rhs) 
+  if (!rhs)
     return nullptr;
   Value lhs = createStore(pet_expr_get_arg(expr, 0), rhs);
   if (!lhs)
@@ -168,7 +168,7 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
   auto typeLhs = lhs.getType();
   auto typeRhs = rhs.getType();
-  if (typeLhs != typeRhs) 
+  if (typeLhs != typeRhs)
     return nullptr;
   if (((!typeLhs.isInt()) && (!typeLhs.isFloat())) ||
       ((!typeRhs.isInt()) && (!typeRhs.isFloat())))
@@ -176,9 +176,9 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
   switch (type) {
   case BinaryOpType::ADD: {
     if (typeLhs.isFloat())
-      return builder_.create<MulFOp>(loc, lhs, rhs);
+      return builder_.create<AddFOp>(loc, lhs, rhs);
     else
-      return builder_.create<MulIOp>(loc, lhs, rhs);
+      return builder_.create<AddIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::SUB: {
     if (typeLhs.isFloat())
@@ -250,8 +250,38 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
   return lhs;
 }
 
+// TODO: here we need to check the type of the variable
+// we are incrementing. For now we assume only float.
+Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
+  auto loc = builder_.getUnknownLoc();
+  Value rhs = createExpr(pet_expr_get_arg(expr, 0));
+  if (!rhs)
+    return nullptr;
+  Value constant = createConstantFloatOp(1.0, loc);
+  Value operation = nullptr;
+  switch (pet_expr_op_get_type(expr)) {
+  case pet_op_post_inc: {
+    operation = createBinaryOp(loc, rhs, constant, BinaryOpType::ADD);
+    break;
+  }
+  case pet_op_post_dec: {
+    operation = createBinaryOp(loc, rhs, constant, BinaryOpType::SUB);
+    break;
+  }
+  default:
+    llvm_unreachable("handle only post_inc and post_dec");
+  }
+
+  Value lhs = createStore(pet_expr_get_arg(expr, 0), operation);
+  if (!lhs)
+    return nullptr;
+  pet_expr_free(expr);
+  return lhs;
+}
+
 // TODO: check pet_expr_free, there is a better way of doing it?
 Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
   // handle pet_*_assing
   if (pet_expr_op_get_type(expr) == pet_op_assign)
     return createAssignmentOp(expr);
@@ -263,6 +293,11 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
       (pet_expr_op_get_type(expr) == pet_op_xor_assign) ||
       (pet_expr_op_get_type(expr) == pet_op_or_assign))
     return createAssignmentWithOp(expr);
+
+  if ((pet_expr_op_get_type(expr) == pet_op_post_inc) ||
+      (pet_expr_op_get_type(expr) == pet_op_post_dec)) {
+    return createPostInc(expr);
+  }
 
   Value lhs = createExpr(pet_expr_get_arg(expr, 0));
   if (!lhs)
@@ -310,8 +345,6 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   case pet_op_lt:
   case pet_op_gt:
   case pet_op_minus:
-  case pet_op_post_inc:
-  case pet_op_post_dec:
   case pet_op_pre_inc:
   case pet_op_pre_dec:
   case pet_op_address_of:
@@ -329,40 +362,50 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
     llvm_unreachable("operation not handled");
     return nullptr;
   }
+  case pet_op_post_inc:
+  case pet_op_post_dec: {
+    llvm_unreachable("not expected here");
+    return nullptr;
+  }
   }
   emitError(location, "invalid binary operator");
   return nullptr;
 }
 
-Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr, ElementType type) { 
+Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
+                                    ElementType type) {
   auto loc = builder_.getUnknownLoc();
-  switch(type) {
-    case ElementType::INT: {
-      isl::val value = isl::manage(pet_expr_int_get_val(expr));
-      int valueAsInt = std::stoi(value.to_str());
-      auto valueAttr = 
-        builder_.getIntegerAttr(builder_.getIntegerType(32), valueAsInt); 
-      pet_expr_free(expr);
-      return builder_.create<ConstantOp>(
-        loc, builder_.getIntegerType(32), valueAttr);
-    }
-    case ElementType::FLOAT: {
-      float valueAsFloat = std::stof(std::string(pet_expr_double_get_str(expr)));
-      auto valueAttr =
-        builder_.getFloatAttr(builder_.getF32Type(), valueAsFloat);
-      pet_expr_free(expr);
-      return builder_.create<ConstantOp>(loc, builder_.getF32Type(), valueAttr);
-    }
-    case ElementType::DOUBLE: {
-      // XXX: here pet only exposes get_str method, why?
-      double valueAsDouble = std::stod(std::string(pet_expr_double_get_str(expr)));
-      auto valueAttr =
+  switch (type) {
+  case ElementType::INT: {
+    isl::val value = isl::manage(pet_expr_int_get_val(expr));
+    int valueAsInt = std::stoi(value.to_str());
+    auto valueAttr =
+        builder_.getIntegerAttr(builder_.getIntegerType(32), valueAsInt);
+    pet_expr_free(expr);
+    return builder_.create<ConstantOp>(loc, builder_.getIntegerType(32),
+                                       valueAttr);
+  }
+  case ElementType::FLOAT: {
+    float valueAsFloat = std::stof(std::string(pet_expr_double_get_str(expr)));
+    pet_expr_free(expr);
+    return createConstantFloatOp(valueAsFloat, loc);
+  }
+  case ElementType::DOUBLE: {
+    // XXX: here pet only exposes get_str method, why?
+    double valueAsDouble =
+        std::stod(std::string(pet_expr_double_get_str(expr)));
+    auto valueAttr =
         builder_.getFloatAttr(builder_.getF64Type(), valueAsDouble);
-      pet_expr_free(expr);
-      return builder_.create<ConstantOp>(loc, builder_.getF64Type(), valueAttr);
-    }
+    pet_expr_free(expr);
+    return builder_.create<ConstantOp>(loc, builder_.getF64Type(), valueAttr);
+  }
   }
   return nullptr;
+}
+
+Value MLIRCodegen::createConstantFloatOp(float val, Location &loc) {
+  auto valueAttr = builder_.getFloatAttr(builder_.getF32Type(), val);
+  return builder_.create<ConstantOp>(loc, builder_.getF32Type(), valueAttr);
 }
 
 Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
@@ -389,6 +432,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
 }
 
 LogicalResult MLIRCodegen::createStmt(__isl_keep pet_expr *expr) {
+  // pet_expr_dump(expr);
   auto Value = createExpr(expr);
   if (!Value)
     return failure();
@@ -472,8 +516,8 @@ LogicalResult MLIRCodegen::verifyModule() {
 }
 
 AffineForOp MLIRCodegen::createLoop(int upperBound, int lowerBound, int step) {
-  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lowerBound,
-                                           upperBound, step);
+  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), upperBound,
+                                           lowerBound, step);
   loop.getBody()->clear();
   builder_.setInsertionPointToStart(loop.getBody());
   builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
