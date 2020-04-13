@@ -1,5 +1,6 @@
 #include "islNodeBuilder.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 using namespace codegen;
 using namespace mlir;
@@ -35,9 +36,9 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto iteratorId = iterator.get_id().to_str();
   auto upperBound = getUpperBound(forNode);
 
-  auto lowerBoundAsInt = createIntFromIslExpr(lowerBound);
-  auto incrementAsInt = createIntFromIslExpr(increment);
-  auto upperBoundAsInt = createIntFromIslExpr(upperBound);
+  auto lowerBoundAsInt = std::abs(createIntFromIslExpr(lowerBound));
+  auto incrementAsInt = std::abs(createIntFromIslExpr(increment));
+  auto upperBoundAsInt = std::abs(createIntFromIslExpr(upperBound));
 
   auto loop =
       MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsInt, incrementAsInt);
@@ -90,6 +91,7 @@ void IslNodeBuilder::createIf(isl::ast_node ifNode) {
 }
 
 void IslNodeBuilder::MLIRFromISLAstImpl(isl::ast_node node) {
+  // std::cout << node.to_str() << "\n";
   switch (isl_ast_node_get_type(node.get())) {
   case isl_ast_node_error:
     llvm_unreachable("code generation error");

@@ -152,6 +152,10 @@ private:
   // create a constant operation.
   mlir::Value createConstantOp(__isl_take pet_expr *expr,
                                pet::ElementType type);
+  mlir::Value createConstantFloatOp(float val, mlir::Location &loc);
+
+  // create postInc operation.
+  mlir::Value createPostInc(__isl_take pet_expr *expr);
 };
 
 } // end namespace codegen

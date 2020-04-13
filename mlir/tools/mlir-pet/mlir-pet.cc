@@ -22,17 +22,32 @@ int main(int argc, char **argv) {
                                       cl::value_desc("out"));
   cl::opt<std::string> inputFileName(
       cl::Positional, cl::desc("<Specify input file>"), cl::Required);
+
+  cl::opt<bool> showDialects(
+      "show-dialects", llvm::cl::desc("Print the list of registered dialects"),
+      llvm::cl::init(false));
   cl::ParseCommandLineOptions(argc, argv);
 
   std::ifstream inputFile(inputFileName);
-  if (!inputFile.good())
+  if (!inputFile.good()) {
+    outs() << "Not able to open file: " << inputFileName << "\n";
     return -1;
+  }
 
   auto ctx = ScopedCtx();
   auto petScop = Scop::parseFile(ctx, inputFileName);
   // petScop.dump();
 
+  registerDialect<AffineDialect>();
+  registerDialect<StandardOpsDialect>();
   MLIRContext context;
+  if (showDialects) {
+    outs() << "Registered Dialects:\n";
+    for (Dialect *dialect : context.getRegisteredDialects()) {
+      outs() << dialect->getNamespace() << "\n";
+    }
+    return 0;
+  }
   MLIRCodegen MLIRbuilder(context, petScop);
 
   auto ISLAst = IslAst(petScop);
