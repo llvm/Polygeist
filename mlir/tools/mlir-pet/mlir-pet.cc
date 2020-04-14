@@ -5,22 +5,32 @@
 #include "mlirCodegen.h"
 #include "scop.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
 #include <fstream>
+#include <iostream>
 
 using namespace llvm;
+
+static cl::OptionCategory toolOptions("pet to mlir - tool options");
+
 static cl::opt<std::string> outputFileName("o",
                                            cl::desc("Specify output filename"),
-                                           cl::value_desc("out"));
+                                           cl::value_desc("out"),
+                                           cl::cat(toolOptions));
+
 static cl::opt<std::string> inputFileName(cl::Positional,
                                           cl::desc("<Specify input file>"),
-                                          cl::Required);
+                                          cl::Required, cl::cat(toolOptions));
 
 static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
-                 llvm::cl::init(false));
+                 llvm::cl::init(false), cl::cat(toolOptions));
+
+static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
+                                         cl::cat(toolOptions));
 
 int main(int argc, char **argv) {
 
@@ -30,6 +40,8 @@ int main(int argc, char **argv) {
   using namespace ast;
   using namespace codegen;
 
+  InitLLVM y(argc, argv);
+
   cl::ParseCommandLineOptions(argc, argv);
 
   std::ifstream inputFile(inputFileName);
@@ -38,7 +50,22 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  auto ctx = ScopedCtx();
+  // pass include paths to pet.
+  struct pet_options *options;
+  options = pet_options_new_with_defaults();
+  std::vector<char *> arguments;
+  char argument1[] = "program";
+  char argumentI[] = "-I";
+  arguments.push_back(argument1);
+  for (const auto &includePath : includeDirs) {
+    std::cout << "push back " << includePath << std::endl;
+    arguments.push_back(argumentI);
+    arguments.push_back(const_cast<char *>(includePath.c_str()));
+  }
+  int argsCount = arguments.size();
+  argsCount = pet_options_parse(options, argsCount, &arguments[0], ISL_ARG_ALL);
+  auto ctx = ScopedCtx(isl_ctx_alloc_with_options(&pet_options_args, options));
+
   auto petScop = Scop::parseFile(ctx, inputFileName);
   // petScop.dump();
 
