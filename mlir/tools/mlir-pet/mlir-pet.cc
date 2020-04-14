@@ -58,7 +58,6 @@ int main(int argc, char **argv) {
   char argumentI[] = "-I";
   arguments.push_back(argument1);
   for (const auto &includePath : includeDirs) {
-    std::cout << "push back " << includePath << std::endl;
     arguments.push_back(argumentI);
     arguments.push_back(const_cast<char *>(includePath.c_str()));
   }
