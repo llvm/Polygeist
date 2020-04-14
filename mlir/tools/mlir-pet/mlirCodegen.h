@@ -46,12 +46,20 @@ private:
 
 public:
   decltype(symbolTable_.begin()) begin() { return symbolTable_.begin(); }
+  decltype(symbolTable_.cbegin()) begin() const {
+    return symbolTable_.cbegin();
+  }
 };
 
+// We access the induction variable by position as
+// isl and pet use different id for the idv vars
+// (i.e., 'c0' (isl) and 'i' (pet). Thus we prefer
+// to use a different table to collect induction vars
+// instead of using the symbol table.
 class LoopTable : public SymbolTable {
 public:
   // get value at position "pos"
-  mlir::LogicalResult getElemAtPos(size_t pos, mlir::Value &value);
+  mlir::LogicalResult getElemAtPos(size_t pos, mlir::Value &value) const;
 };
 
 class MLIRCodegen {
@@ -128,13 +136,14 @@ private:
   // get the symbol "expr". The symbol variable must be
   // declared before the invocation of this function and available
   // in the symbol table.
-  mlir::LogicalResult getSymbol(__isl_keep pet_expr *expr, mlir::Value &scalar);
+  mlir::LogicalResult getSymbol(__isl_keep pet_expr *expr,
+                                mlir::Value &scalar) const;
 
   // get the induction variables associated with "expr". The induction variables
   // must be available in the loop table.
   mlir::LogicalResult
   getSymbolInductionVar(__isl_keep pet_expr *expr,
-                        llvm::SmallVector<mlir::Value, 4> &loopIvs);
+                        llvm::SmallVector<mlir::Value, 4> &loopIvs) const;
 
   // create op from pet_expr_op "expr"
   mlir::Value createOp(__isl_take pet_expr *expr);

@@ -48,7 +48,8 @@ static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
   return false;
 }
 
-LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr, Value &scalar) {
+LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
+                                     Value &scalar) const {
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   if (failed(symbolTable_.find(arrayId.to_str(), scalar)))
     return failure();
@@ -57,7 +58,7 @@ LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr, Value &scalar) {
 
 LogicalResult
 MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
-                                   SmallVector<Value, 4> &loopIvs) {
+                                   SmallVector<Value, 4> &loopIvs) const {
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   auto petArray = scop_.getArrayFromId(arrayId);
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
@@ -562,7 +563,7 @@ LogicalResult codegen::SymbolTable::find(std::string id) const {
   return find(id, dummy);
 }
 
-LogicalResult LoopTable::getElemAtPos(size_t pos, Value &value) {
+LogicalResult LoopTable::getElemAtPos(size_t pos, Value &value) const {
   if (pos > size())
     return failure();
   auto it = begin();
