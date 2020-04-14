@@ -29,10 +29,10 @@ public:
   mlir::LogicalResult erase(std::string id);
 
   // find element with id "id" and bind to value.
-  mlir::LogicalResult find(std::string id, mlir::Value &value);
+  mlir::LogicalResult find(std::string id, mlir::Value &value) const;
 
   // find element with id "id"
-  mlir::LogicalResult find(std::string id);
+  mlir::LogicalResult find(std::string id) const;
 
   // get size.
   size_t size() const;
