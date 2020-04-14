@@ -69,6 +69,21 @@ int main(int argc, char **argv) {
   auto petScop = Scop::parseFile(ctx, inputFileName);
   // petScop.dump();
 
+  // check if the schedule is bounded.
+  auto isUnBounded = [](isl::set set) -> bool { return !(set.is_bounded()); };
+
+  std::vector<isl::set> domains;
+  auto schedule = petScop.getSchedule();
+  schedule.get_domain().foreach_set([&](isl::set set) {
+    domains.push_back(set);
+    return isl_stat_ok;
+  });
+  int unBounded = count_if(domains.begin(), domains.end(), isUnBounded);
+  if (unBounded != 0) {
+    outs() << "schedule must be bounded\n";
+    return -1;
+  }
+
   registerDialect<AffineDialect>();
   registerDialect<StandardOpsDialect>();
   MLIRContext context;
