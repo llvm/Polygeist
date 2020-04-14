@@ -76,6 +76,7 @@ void IslNodeBuilder::createUser(isl::ast_node userNode) {
   auto expr = pet_tree_expr_get_expr(body);
 
   if (failed(MLIRBuilder_.createStmt(expr))) {
+    MLIRBuilder_.dump();
     llvm_unreachable("cannot generate statement");
   }
 }
