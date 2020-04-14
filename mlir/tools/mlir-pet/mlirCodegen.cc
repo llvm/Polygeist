@@ -549,7 +549,7 @@ LogicalResult codegen::SymbolTable::erase(std::string id) {
   return success();
 }
 
-LogicalResult codegen::SymbolTable::find(std::string id, Value &val) {
+LogicalResult codegen::SymbolTable::find(std::string id, Value &val) const {
   auto it = symbolTable_.find(id);
   if (it == symbolTable_.end())
     return failure();
@@ -557,7 +557,7 @@ LogicalResult codegen::SymbolTable::find(std::string id, Value &val) {
   return success();
 }
 
-LogicalResult codegen::SymbolTable::find(std::string id) {
+LogicalResult codegen::SymbolTable::find(std::string id) const {
   Value dummy;
   return find(id, dummy);
 }
