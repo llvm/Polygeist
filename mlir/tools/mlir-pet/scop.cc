@@ -2,6 +2,7 @@
 #include "ctx.h"
 #include "operator.h"
 #include "llvm/Support/raw_ostream.h"
+#include <iostream>
 
 using namespace pet;
 using namespace llvm;
@@ -36,10 +37,10 @@ size_t PetArray::getDimensionality() const {
 }
 
 // TODO: likely not a good way to convert isl::val to int64_t.
+// TODO: handle in case the extent is parametric.
 int64_t PetArray::getExtentOnDimension(size_t dim) const {
-  if (dim > extent_.get_space().dim(isl::dim::out))
-    llvm_unreachable("dim should be less than the array dimensionality");
-
+  assert((dim <= extent_.get_space().dim(isl::dim::out)) &&
+         "dim should be less than the array dimensionality");
   auto pwaffMax = extent_.dim_max(dim);
   auto pwaffMin = extent_.dim_min(dim);
 
@@ -81,11 +82,28 @@ static ElementType getType(std::string typeAsString) {
   llvm_unreachable("unknown type");
 }
 
+isl::set getExtent(isl::union_map accesses, isl::space arraySpace) {
+  auto uSet = accesses.range();
+  uSet = uSet.coalesce();
+  uSet = uSet.detect_equalities();
+  uSet = uSet.coalesce();
+
+  if (uSet.is_empty())
+    return isl::set::empty(arraySpace);
+
+  return uSet.extract_set(arraySpace);
+}
+
 Scop::Scop(pet_scop *scop) : scop_(scop) {
+  auto reads = isl::manage(pet_scop_get_may_reads(scop));
+  auto writes = isl::manage(pet_scop_get_may_writes(scop));
+
   size_t size = scop_->n_array;
   for (size_t i = 0; i < size; i++) {
     auto context = isl::manage_copy(scop_->arrays[i]->context);
-    auto extent = isl::manage_copy(scop_->arrays[i]->extent);
+    auto extent =
+        getExtent(reads.unite(writes),
+                  isl::manage_copy(scop_->arrays[i]->extent).get_space());
     auto valueBounds = isl::manage_copy(scop_->arrays[i]->value_bounds);
     auto elementType = getType(std::string(scop_->arrays[i]->element_type));
     auto elementIsRecord = scop_->arrays[i]->element_is_record;
@@ -121,9 +139,7 @@ isl::union_map Scop::getScheduleAsUnionMap() const {
   return getSchedule().get_map();
 }
 
-isl::set Scop::getContext() const {
-  return isl::manage_copy(pet_scop_get_context(scop_));
-}
+isl::set Scop::getContext() const { return isl::manage_copy(scop_->context); }
 
 static isl::id getStmtId(const pet_stmt *stmt) {
   isl::set domain = isl::manage_copy(stmt->domain);
