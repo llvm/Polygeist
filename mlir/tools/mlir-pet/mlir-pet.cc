@@ -71,6 +71,15 @@ int main(int argc, char **argv) {
   // check if the schedule is bounded.
   auto isUnBounded = [](isl::set set) -> bool { return !(set.is_bounded()); };
 
+  // bail-out if we have symbolic constants.
+  auto contextSet = petScop.getContext();
+  auto params = contextSet.get_space().dim(isl::dim::param);
+  if (params > 0) {
+    outs() << "we do not allow symbolic constant at the moment."
+           << "\n";
+    return -1;
+  }
+
   std::vector<isl::set> domains;
   auto schedule = petScop.getSchedule();
   schedule.get_domain().foreach_set([&](isl::set set) {
