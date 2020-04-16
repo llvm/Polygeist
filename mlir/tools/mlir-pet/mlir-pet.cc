@@ -29,6 +29,14 @@ static cl::opt<bool>
                  llvm::cl::desc("Print the list of registered dialects"),
                  llvm::cl::init(false), cl::cat(toolOptions));
 
+static cl::opt<bool> reschedule("reschedule",
+                                llvm::cl::desc("Reschedule with ISL"),
+                                llvm::cl::init(false), cl::cat(toolOptions));
+
+static cl::opt<bool> printSchedule("print-schedule",
+                                   llvm::cl::desc("Pretty print the schedule"),
+                                   llvm::cl::init(false), cl::cat(toolOptions));
+
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 // check if the schedule is bounded.
@@ -43,6 +51,30 @@ static bool isUnbounded(isl::schedule schedule) {
   });
   int unBounded = count_if(domains.begin(), domains.end(), isUnBoundedSet);
   return unBounded != 0;
+}
+
+static void printScheduleWithIsl(isl::schedule schedule,
+                                 llvm::raw_ostream &os) {
+  auto ctx = schedule.get_ctx().get();
+  auto *p = isl_printer_to_str(ctx);
+  p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);
+  p = isl_printer_print_schedule(p, schedule.get());
+  auto *str = isl_printer_get_str(p);
+  os << str << "\n";
+  free(str);
+  isl_printer_free(p);
+}
+
+static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
+  auto proximity = scop.getAllDependences();
+  auto validity = scop.getAllDependences();
+
+  auto sc = isl::schedule_constraints::on_domain(scop.getDomain());
+  sc = sc.set_proximity(proximity);
+  sc = sc.set_validity(validity);
+  sc = sc.set_coincidence(validity);
+  auto schedule = sc.compute_schedule();
+  return schedule;
 }
 
 int main(int argc, char **argv) {
@@ -95,6 +127,18 @@ int main(int argc, char **argv) {
     outs() << "schedule must be bounded\n";
     return -1;
   }
+
+  if (reschedule) {
+    auto newSchedule = rescheduleWithIsl(petScop);
+    if (!newSchedule) {
+      outs() << "failed to reschedule\n";
+      return -1;
+    }
+    petScop.schedule() = newSchedule;
+  }
+
+  if (printSchedule)
+    printScheduleWithIsl(petScop.getSchedule(), outs());
 
   registerDialect<AffineDialect>();
   registerDialect<StandardOpsDialect>();

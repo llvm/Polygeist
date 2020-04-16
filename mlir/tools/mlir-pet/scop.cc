@@ -95,8 +95,8 @@ isl::set getExtent(isl::union_map accesses, isl::space arraySpace) {
 }
 
 Scop::Scop(pet_scop *scop) : scop_(scop) {
-  auto reads = isl::manage(pet_scop_get_may_reads(scop));
-  auto writes = isl::manage(pet_scop_get_may_writes(scop));
+  auto reads = getReads();
+  auto writes = getMayWrites();
 
   size_t size = scop_->n_array;
   for (size_t i = 0; i < size; i++) {
@@ -135,8 +135,59 @@ isl::schedule Scop::getSchedule() const {
   return isl::manage_copy(scop_->schedule);
 }
 
+IslCopyRefWrapper<isl::schedule> Scop::schedule() {
+  return IslCopyRefWrapper<isl::schedule>(scop_->schedule);
+}
+
 isl::union_map Scop::getScheduleAsUnionMap() const {
   return getSchedule().get_map();
+}
+
+isl::union_set Scop::getDomain() const {
+  auto schedule = getSchedule();
+  return schedule.get_domain();
+}
+
+isl::union_map Scop::getReads() const {
+  return isl::manage(pet_scop_get_may_reads(scop_));
+}
+
+isl::union_map Scop::getMayWrites() const {
+  return isl::manage(pet_scop_get_may_writes(scop_));
+}
+
+isl::union_map Scop::getMustWrites() const {
+  return isl::manage(pet_scop_get_must_writes(scop_));
+}
+
+isl::union_map Scop::getAllDependences() const {
+  // For the simplest possible dependence analysis, get rid of reference tags.
+  auto reads = getReads().domain_factor_domain();
+  auto mayWrites = getMayWrites().domain_factor_domain();
+  auto mustWrites = getMustWrites().domain_factor_domain();
+  auto schedule = getSchedule();
+
+  // False dependences (output and anti).
+  // Sinks are writes, sources are reads and writes.
+  auto falseDepsFlow = isl::union_access_info(mayWrites.unite(mustWrites))
+                           .set_may_source(mayWrites.unite(reads))
+                           .set_must_source(mustWrites)
+                           .set_schedule(schedule)
+                           .compute_flow();
+
+  isl::union_map falseDeps = falseDepsFlow.get_may_dependence();
+
+  // Flow dependences.
+  // Sinks are reads and sources are writes.
+  auto flowDepsFlow = isl::union_access_info(reads)
+                          .set_may_source(mayWrites)
+                          .set_must_source(mustWrites)
+                          .set_schedule(schedule)
+                          .compute_flow();
+
+  isl::union_map flowDeps = flowDepsFlow.get_may_dependence();
+
+  return flowDeps.unite(falseDeps);
 }
 
 isl::set Scop::getContext() const { return isl::manage_copy(scop_->context); }
