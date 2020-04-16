@@ -1,6 +1,7 @@
 #ifndef PETMLIR_PET_SCOP_H
 #define PETMLIR_PET_SCOP_H
 
+#include "typeTraits.h"
 #include "llvm/ADT/SmallVector.h"
 #include "isl/isl-noexceptions.h"
 
@@ -86,6 +87,30 @@ private:
   int outer_;
 };
 
+template <typename T>
+/// A wrapper class around an isl C object, convertible (with copy) to the
+/// respective isl C++ type and assignable from such type.
+/// This class is inteded to provide access to isl C objects hidden inside
+/// other objects without exposing isl C API.
+class IslCopyRefWrapper {
+public:
+  IslCopyRefWrapper(isl_unwrap_t<T> &r) : ref(r) {}
+
+  const T &operator=(const T &rhs) {
+    // This will create a C++ wrapper, destroy it immediatly and thus call the
+    // appropriate cleaning function for ref.
+    isl::manage(ref);
+
+    ref = rhs.copy();
+    return rhs;
+  }
+
+  operator T() { return isl::manage_copy(ref); }
+
+private:
+  isl_unwrap_t<T> &ref;
+};
+
 class Scop {
 public:
   explicit Scop(pet_scop *scop);
@@ -109,8 +134,21 @@ public:
   isl::schedule getSchedule() const;
   isl::union_map getScheduleAsUnionMap() const;
 
+  // modify schedule.
+  IslCopyRefWrapper<isl::schedule> schedule();
+
   // return a copy of the context.
   isl::set getContext() const;
+
+  // get scop domain.
+  isl::union_set getDomain() const;
+
+  isl::union_map getReads() const;
+  isl::union_map getMayWrites() const;
+  isl::union_map getMustWrites() const;
+
+  // get all deps.
+  isl::union_map getAllDependences() const;
 
   // return the statement associated with "id".
   pet_stmt *getStmt(isl::id id) const;
