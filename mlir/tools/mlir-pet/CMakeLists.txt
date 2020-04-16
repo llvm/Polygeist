@@ -8,10 +8,10 @@ find_package(ISL REQUIRED)
 
 add_llvm_executable(mlir-pet
   mlir-pet.cc
-  scop.cc
-  islAst.cc
-  mlirCodegen.cc
-  islNodeBuilder.cc
+  Lib/scop.cc
+  Lib/islAst.cc
+  Lib/mlirCodegen.cc
+  Lib/islNodeBuilder.cc
 )
 
 message(STATUS "PET include and lib path ->")
@@ -44,4 +44,4 @@ target_link_libraries(mlir-pet PRIVATE
 
 )
 
-add_subdirectory(test)
+add_subdirectory(Test)
