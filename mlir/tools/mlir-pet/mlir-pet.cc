@@ -31,6 +31,19 @@ static cl::opt<bool>
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
+// check if the schedule is bounded.
+static bool isUnbounded(isl::schedule schedule) {
+  auto isUnBoundedSet = [](isl::set set) -> bool {
+    return !(set.is_bounded());
+  };
+  std::vector<isl::set> domains;
+  schedule.get_domain().foreach_set([&](isl::set set) {
+    domains.push_back(set);
+    return isl_stat_ok;
+  });
+  int unBounded = count_if(domains.begin(), domains.end(), isUnBoundedSet);
+  return unBounded != 0;
+}
 
 int main(int argc, char **argv) {
 
@@ -68,9 +81,6 @@ int main(int argc, char **argv) {
   auto petScop = Scop::parseFile(ctx, inputFileName);
   // petScop.dump();
 
-  // check if the schedule is bounded.
-  auto isUnBounded = [](isl::set set) -> bool { return !(set.is_bounded()); };
-
   // bail-out if we have symbolic constants.
   auto contextSet = petScop.getContext();
   auto params = contextSet.get_space().dim(isl::dim::param);
@@ -80,14 +90,8 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  std::vector<isl::set> domains;
-  auto schedule = petScop.getSchedule();
-  schedule.get_domain().foreach_set([&](isl::set set) {
-    domains.push_back(set);
-    return isl_stat_ok;
-  });
-  int unBounded = count_if(domains.begin(), domains.end(), isUnBounded);
-  if (unBounded != 0) {
+  // bail-out if the schedule domain is unbounded.
+  if (isUnbounded(petScop.getSchedule())) {
     outs() << "schedule must be bounded\n";
     return -1;
   }
