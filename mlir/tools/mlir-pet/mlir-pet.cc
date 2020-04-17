@@ -72,7 +72,7 @@ static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
   auto proximity = scop.getAllDependences();
   auto validity = scop.getAllDependences();
 
-  auto sc = isl::schedule_constraints::on_domain(scop.getDomain());
+  auto sc = isl::schedule_constraints::on_domain(scop.getNonKilledDomain());
 
   sc = sc.set_proximity(proximity);
   sc = sc.set_validity(validity);
