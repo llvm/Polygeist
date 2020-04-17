@@ -1,9 +1,9 @@
 #include "Lib/ctx.h"
 #include "Lib/islAst.h"
 #include "Lib/islNodeBuilder.h"
-#include "mlir/IR/MLIRContext.h"
 #include "Lib/mlirCodegen.h"
 #include "Lib/scop.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -111,6 +111,10 @@ int main(int argc, char **argv) {
   auto ctx = ScopedCtx(isl_ctx_alloc_with_options(&pet_options_args, options));
 
   auto petScop = Scop::parseFile(ctx, inputFileName);
+  if (!petScop.isValid()) {
+    outs() << "Invalid scop\n";
+    return -1;
+  }
   // petScop.dump();
 
   // bail-out if we have symbolic constants.

@@ -95,28 +95,30 @@ isl::set getExtent(isl::union_map accesses, isl::space arraySpace) {
 }
 
 Scop::Scop(pet_scop *scop) : scop_(scop) {
-  auto reads = getReads();
-  auto writes = getMayWrites();
+  if (scop) {
+    auto reads = getReads();
+    auto writes = getMayWrites();
 
-  size_t size = scop_->n_array;
-  for (size_t i = 0; i < size; i++) {
-    auto context = isl::manage_copy(scop_->arrays[i]->context);
-    auto extent =
-        getExtent(reads.unite(writes),
-                  isl::manage_copy(scop_->arrays[i]->extent).get_space());
-    auto valueBounds = isl::manage_copy(scop_->arrays[i]->value_bounds);
-    auto elementType = getType(std::string(scop_->arrays[i]->element_type));
-    auto elementIsRecord = scop_->arrays[i]->element_is_record;
-    auto elementSize = scop_->arrays[i]->element_size;
-    auto liveOut = scop_->arrays[i]->live_out;
-    auto uniquelyDefined = scop_->arrays[i]->uniquely_defined;
-    auto declared = scop_->arrays[i]->declared;
-    auto exposed = scop_->arrays[i]->exposed;
-    auto outer = scop_->arrays[i]->outer;
-    auto name = std::string(extent.get_tuple_name());
-    petArrays_.push_back(PetArray(
-        name, context, extent, valueBounds, elementType, elementIsRecord,
-        elementSize, liveOut, uniquelyDefined, declared, exposed, outer));
+    size_t size = scop_->n_array;
+    for (size_t i = 0; i < size; i++) {
+      auto context = isl::manage_copy(scop_->arrays[i]->context);
+      auto extent =
+          getExtent(reads.unite(writes),
+                    isl::manage_copy(scop_->arrays[i]->extent).get_space());
+      auto valueBounds = isl::manage_copy(scop_->arrays[i]->value_bounds);
+      auto elementType = getType(std::string(scop_->arrays[i]->element_type));
+      auto elementIsRecord = scop_->arrays[i]->element_is_record;
+      auto elementSize = scop_->arrays[i]->element_size;
+      auto liveOut = scop_->arrays[i]->live_out;
+      auto uniquelyDefined = scop_->arrays[i]->uniquely_defined;
+      auto declared = scop_->arrays[i]->declared;
+      auto exposed = scop_->arrays[i]->exposed;
+      auto outer = scop_->arrays[i]->outer;
+      auto name = std::string(extent.get_tuple_name());
+      petArrays_.push_back(PetArray(
+          name, context, extent, valueBounds, elementType, elementIsRecord,
+          elementSize, liveOut, uniquelyDefined, declared, exposed, outer));
+    }
   }
 }
 
@@ -203,6 +205,8 @@ isl::union_map Scop::getAllDependences() const {
 }
 
 isl::set Scop::getContext() const { return isl::manage_copy(scop_->context); }
+
+bool Scop::isValid() const { return scop_ != nullptr; }
 
 static isl::id getStmtId(const pet_stmt *stmt) {
   isl::set domain = isl::manage_copy(stmt->domain);
