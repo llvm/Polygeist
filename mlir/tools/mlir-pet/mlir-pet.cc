@@ -37,6 +37,10 @@ static cl::opt<bool> dumpSchedule("dump-schedule",
                                   llvm::cl::desc("Pretty print the schedule"),
                                   llvm::cl::init(false), cl::cat(toolOptions));
 
+static cl::opt<bool> dumpScop("dump-scop",
+                              llvm::cl::desc("Pretty print the scop"),
+                              llvm::cl::init(false), cl::cat(toolOptions));
+
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 // check if the schedule is bounded.
@@ -69,6 +73,7 @@ static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
   auto validity = scop.getAllDependences();
 
   auto sc = isl::schedule_constraints::on_domain(scop.getDomain());
+
   sc = sc.set_proximity(proximity);
   sc = sc.set_validity(validity);
   sc = sc.set_coincidence(validity);
@@ -114,7 +119,9 @@ int main(int argc, char **argv) {
     outs() << "Invalid scop\n";
     return -1;
   }
-  // petScop.dump();
+
+  if (dumpScop)
+    petScop.dump();
 
   // bail-out if we have symbolic constants.
   auto contextSet = petScop.getContext();
