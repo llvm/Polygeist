@@ -143,6 +143,9 @@ public:
   // get scop domain.
   isl::union_set getDomain() const;
 
+  // get non-killed domain.
+  isl::union_set getNonKilledDomain() const;
+
   isl::union_map getReads() const;
   isl::union_map getMayWrites() const;
   isl::union_map getMustWrites() const;

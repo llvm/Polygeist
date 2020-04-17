@@ -148,6 +148,18 @@ isl::union_set Scop::getDomain() const {
   return schedule.get_domain();
 }
 
+isl::union_set Scop::getNonKilledDomain() const {
+  isl::union_set domain = isl::union_set::empty(getContext().get_space());
+  for (int i = 0; i < scop_->n_stmt; i++) {
+    struct pet_stmt *stmt = scop_->stmts[i];
+    if (pet_stmt_is_kill(stmt))
+      continue;
+    auto domainI = isl::manage(stmt->domain);
+    domain = domain.add_set(domainI);
+  }
+  return domain;
+}
+
 isl::union_map Scop::getReads() const {
   return isl::manage(pet_scop_get_may_reads(scop_));
 }
