@@ -33,9 +33,9 @@ static cl::opt<bool> reschedule("reschedule",
                                 llvm::cl::desc("Reschedule with ISL"),
                                 llvm::cl::init(false), cl::cat(toolOptions));
 
-static cl::opt<bool> printSchedule("print-schedule",
-                                   llvm::cl::desc("Pretty print the schedule"),
-                                   llvm::cl::init(false), cl::cat(toolOptions));
+static cl::opt<bool> dumpSchedule("dump-schedule",
+                                  llvm::cl::desc("Pretty print the schedule"),
+                                  llvm::cl::init(false), cl::cat(toolOptions));
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
@@ -53,8 +53,7 @@ static bool isUnbounded(isl::schedule schedule) {
   return unBounded != 0;
 }
 
-static void printScheduleWithIsl(isl::schedule schedule,
-                                 llvm::raw_ostream &os) {
+static void dumpScheduleWithIsl(isl::schedule schedule, llvm::raw_ostream &os) {
   auto ctx = schedule.get_ctx().get();
   auto *p = isl_printer_to_str(ctx);
   p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);
@@ -141,8 +140,8 @@ int main(int argc, char **argv) {
     petScop.schedule() = newSchedule;
   }
 
-  if (printSchedule)
-    printScheduleWithIsl(petScop.getSchedule(), outs());
+  if (dumpSchedule)
+    dumpScheduleWithIsl(petScop.getSchedule(), outs());
 
   registerDialect<AffineDialect>();
   registerDialect<StandardOpsDialect>();
