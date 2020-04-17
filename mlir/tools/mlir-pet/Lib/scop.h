@@ -163,6 +163,9 @@ public:
   // return the petArray with id "id"
   PetArray getArrayFromId(isl::id id);
 
+  // is teh current scop a valid one?
+  bool isValid() const;
+
 private:
   // pointer to pet_scop.
   pet_scop *scop_;
