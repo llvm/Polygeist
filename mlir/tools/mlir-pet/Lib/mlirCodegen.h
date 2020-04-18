@@ -139,6 +139,9 @@ private:
   mlir::LogicalResult getSymbol(__isl_keep pet_expr *expr,
                                 mlir::Value &scalar) const;
 
+  // check if "expr" is already in the symbol table.
+  mlir::LogicalResult isInSymbolTable(__isl_keep pet_expr *expr) const;
+
   // get the induction variables associated with "expr". The induction variables
   // must be available in the loop table.
   mlir::LogicalResult
@@ -165,6 +168,9 @@ private:
 
   // create postInc operation.
   mlir::Value createPostInc(__isl_take pet_expr *expr);
+
+  // create alloc operation.
+  mlir::Value createAllocOp(__isl_keep pet_expr *expr, mlir::Type t);
 };
 
 } // end namespace codegen
