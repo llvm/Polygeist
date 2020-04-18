@@ -51,8 +51,8 @@ static size_t getShapeExpr(__isl_keep pet_expr *expr) {
 // helper function. Is pet_expr a multi-dimensional access?
 static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
   // std::cout << __func__ << std::endl;
-  if (pet_expr_get_type(expr) != pet_expr_access)
-    llvm_unreachable("expect pet_expr_access type");
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access type");
   auto dims = getShapeExpr(expr);
   if (dims != 0)
     return true;
@@ -136,8 +136,8 @@ MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
 
 Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
   // std::cout << __func__ << std::endl;
-  if (pet_expr_get_type(expr) != pet_expr_access)
-    llvm_unreachable("expect pet_expr_access type");
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access type");
 
   auto location = builder_.getUnknownLoc();
   if (!isMultiDimensionalArray(expr)) {
@@ -168,10 +168,9 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
 
 Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   // std::cout << __func__ << std::endl;
-  if (pet_expr_get_type(expr) != pet_expr_access)
-    llvm_unreachable("expect pet_expr_access type");
-  if (!op)
-    llvm_unreachable("expect non null value");
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access type");
+  assert(op && "expect non null value");
 
   auto location = builder_.getUnknownLoc();
   SmallVector<Value, 4> loopIvs;
