@@ -156,7 +156,7 @@ isl::union_set Scop::getNonKilledDomain() const {
     struct pet_stmt *stmt = scop_->stmts[i];
     if (pet_stmt_is_kill(stmt))
       continue;
-    auto domainI = isl::manage(stmt->domain);
+    auto domainI = isl::manage_copy(stmt->domain);
     domain = domain.add_set(domainI);
   }
   return domain;
