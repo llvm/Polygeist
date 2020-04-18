@@ -37,21 +37,55 @@ static SmallVector<int, 4> getIndexesPos(isl::multi_pw_aff muaff) {
   return indexPos;
 }
 
-// helper function. Is pet_expr a multi-dimensional access?
-static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
-  if (pet_expr_get_type(expr) != pet_expr_access)
-    llvm_unreachable("expect pet_expr_access type");
+// helper function. Convert the given "expr" into corresponding
+// MemRefType.
+static size_t getShapeExpr(__isl_keep pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access");
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
   auto dimSpaceOut = indexes.get_space().dim(isl::dim::out);
-  if (dimSpaceOut != 0)
+  return dimSpaceOut;
+}
+
+// helper function. Is pet_expr a multi-dimensional access?
+static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
+  if (pet_expr_get_type(expr) != pet_expr_access)
+    llvm_unreachable("expect pet_expr_access type");
+  auto dims = getShapeExpr(expr);
+  if (dims != 0)
     return true;
   return false;
+}
+
+// helper function. Convert the given pet_expr to the
+// corresponding MemRefType. Since pet_expr does not
+// carry any type information the type should be provided
+// to this function.
+static MemRefType convertExprToMemRef(__isl_keep pet_expr *expr, Type t) {
+  // std::cout << __func__ << std::endl;
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access");
+  auto dims = getShapeExpr(expr);
+  // for scalar create a memref<1xtype>
+  if (dims == 0)
+    dims = 1;
+  return MemRefType::get(dims, t);
 }
 
 LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
                                      Value &scalar) const {
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   if (failed(symbolTable_.find(arrayId.to_str(), scalar)))
+    return failure();
+  return success();
+}
+
+LogicalResult MLIRCodegen::isInSymbolTable(__isl_keep pet_expr *expr) const {
+  // std::cout << __func__ << std::endl;
+  auto id = isl::manage(pet_expr_access_get_id(expr));
+  if (failed(symbolTable_.find(id.to_str())))
     return failure();
   return success();
 }
@@ -86,10 +120,26 @@ MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
 // TODO: check that expr is freed for all the possible
 // exit points. Do we want also to free in case we return
 // nullptr? Can we do a C++ wrapper around pet_expr?
+// FIXME: pet allows also expression that are like:
+// ref_id: __pet_ref_3
+// index: { S_2[] -> [(123)] }
+// depth: 1
+// read: 1
+// write: 0
+// to be of type pet_expr_access. This will
+// trigger 'tuple has not id' in isMultiDimensionalArray.
+// To reproduce use:
+// int main() {
+//  int i = 10;
+//  i = i + 23;
+// }
+
 Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
   if (pet_expr_get_type(expr) != pet_expr_access)
     llvm_unreachable("expect pet_expr_access type");
 
+  auto location = builder_.getUnknownLoc();
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
     if (failed(getSymbol(expr, scalar))) {
@@ -97,7 +147,6 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
       return nullptr;
     }
     pet_expr_free(expr);
-    // FIXME: handle store/load for scalar values.
     return scalar;
   }
 
@@ -114,11 +163,11 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
   }
 
   pet_expr_free(expr);
-  auto location = builder_.getUnknownLoc();
   return builder_.create<AffineLoadOp>(location, symbol, loopIvs);
 }
 
 Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
+  // std::cout << __func__ << std::endl;
   if (pet_expr_get_type(expr) != pet_expr_access)
     llvm_unreachable("expect pet_expr_access type");
   if (!op)
@@ -130,12 +179,17 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
     if (failed(getSymbol(expr, scalar))) {
+      // if not in symbol table allocate
+      // the scalar.
+      scalar = createAllocOp(expr, op.getType());
+      Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
+      builder_.create<AffineStoreOp>(location, op, scalar, zeroIndex);
       pet_expr_free(expr);
-      return nullptr;
+      return op;
+    } else {
+      pet_expr_free(expr);
+      return op;
     }
-    pet_expr_free(expr);
-    // FIXME: handle store/load for scalar values.
-    return scalar;
   }
 
   Value symbol;
@@ -154,19 +208,35 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   return op;
 }
 
+Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t) {
+  // std::cout << __func__ << std::endl;
+  assert((pet_expr_get_type(expr) == pet_expr_access) &&
+         "expect pet_expr_access");
+  auto location = builder_.getUnknownLoc();
+  auto memRefType = convertExprToMemRef(expr, t);
+  auto alloc = builder_.create<AllocOp>(location, memRefType);
+  auto id = isl::manage(pet_expr_access_get_id(expr));
+  symbolTable_.insert(id.to_str(), alloc);
+  return alloc;
+}
+
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
+
   Value lhs = createStore(pet_expr_get_arg(expr, 0), rhs);
   if (!lhs)
     return nullptr;
+
   pet_expr_free(expr);
   return lhs;
 }
 
 Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
+  // std::cout << __func__ << std::endl;
   auto typeLhs = lhs.getType();
   auto typeRhs = rhs.getType();
   if (typeLhs != typeRhs)
@@ -174,6 +244,7 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
   if (((!typeLhs.isInt()) && (!typeLhs.isFloat())) ||
       ((!typeRhs.isInt()) && (!typeRhs.isFloat())))
     return nullptr;
+
   switch (type) {
   case BinaryOpType::ADD: {
     if (typeLhs.isFloat())
@@ -375,6 +446,7 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
 
 Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
                                     ElementType type) {
+  // std::cout << __func__ << std::endl;
   auto loc = builder_.getUnknownLoc();
   switch (type) {
   case ElementType::INT: {
@@ -410,6 +482,7 @@ Value MLIRCodegen::createConstantFloatOp(float val, Location &loc) {
 }
 
 Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
+  // std::cout << __func__ << std::endl;
   switch (pet_expr_get_type(expr)) {
   case pet_expr_error:
     return nullptr;
@@ -434,6 +507,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
 
 LogicalResult MLIRCodegen::createStmt(__isl_keep pet_expr *expr) {
   // pet_expr_dump(expr);
+  // std::cout << __func__ << std::endl;
   auto Value = createExpr(expr);
   if (!Value)
     return failure();
@@ -511,8 +585,10 @@ void MLIRCodegen::dump() { theModule_.dump(); }
 void MLIRCodegen::print(raw_ostream &os) { theModule_.print(os); }
 
 LogicalResult MLIRCodegen::verifyModule() {
-  if (failed(verify(theModule_)))
+  if (failed(verify(theModule_))) {
+    theModule_.dump();
     return failure();
+  }
   return success();
 }
 
