@@ -1,6 +1,7 @@
 #include "mlirCodegen.h"
 #include "mlir/Analysis/Verifier.h"
 #include "mlir/IR/Attributes.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <iostream>
 
@@ -8,6 +9,8 @@ using namespace codegen;
 using namespace mlir;
 using namespace llvm;
 using namespace pet;
+
+#define DEBUG_TYPE "pet-to-mlir-codegen"
 
 LoopTable &MLIRCodegen::getLoopTable() { return loopTable_; }
 
@@ -40,7 +43,7 @@ static SmallVector<int, 4> getIndexesPos(isl::multi_pw_aff muaff) {
 // helper function. Convert the given "expr" into corresponding
 // MemRefType.
 static size_t getShapeExpr(__isl_keep pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
@@ -50,7 +53,7 @@ static size_t getShapeExpr(__isl_keep pet_expr *expr) {
 
 // helper function. Is pet_expr a multi-dimensional access?
 static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access type");
   auto dims = getShapeExpr(expr);
@@ -64,7 +67,7 @@ static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
 // carry any type information the type should be provided
 // to this function.
 static MemRefType convertExprToMemRef(__isl_keep pet_expr *expr, Type t) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
   auto dims = getShapeExpr(expr);
@@ -83,7 +86,7 @@ LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
 }
 
 LogicalResult MLIRCodegen::isInSymbolTable(__isl_keep pet_expr *expr) const {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto id = isl::manage(pet_expr_access_get_id(expr));
   if (failed(symbolTable_.find(id.to_str())))
     return failure();
@@ -135,7 +138,7 @@ MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
 // }
 
 Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access type");
 
@@ -167,7 +170,7 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
 }
 
 Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access type");
   assert(op && "expect non null value");
@@ -208,7 +211,7 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
 }
 
 Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
   auto location = builder_.getUnknownLoc();
@@ -220,7 +223,7 @@ Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t) {
 }
 
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
@@ -235,7 +238,6 @@ Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
 
 Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
-  // std::cout << __func__ << std::endl;
   auto typeLhs = lhs.getType();
   auto typeRhs = rhs.getType();
   if (typeLhs != typeRhs)
@@ -275,6 +277,7 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
 }
 
 Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
@@ -352,7 +355,7 @@ Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
 
 // TODO: check pet_expr_free, there is a better way of doing it?
 Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   // handle pet_*_assing
   if (pet_expr_op_get_type(expr) == pet_op_assign)
     return createAssignmentOp(expr);
@@ -445,7 +448,7 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
 
 Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
                                     ElementType type) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto loc = builder_.getUnknownLoc();
   switch (type) {
   case ElementType::INT: {
@@ -481,7 +484,7 @@ Value MLIRCodegen::createConstantFloatOp(float val, Location &loc) {
 }
 
 Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   switch (pet_expr_get_type(expr)) {
   case pet_expr_error:
     return nullptr;
@@ -506,7 +509,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
 
 LogicalResult MLIRCodegen::createStmt(__isl_keep pet_expr *expr) {
   // pet_expr_dump(expr);
-  // std::cout << __func__ << std::endl;
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto Value = createExpr(expr);
   if (!Value)
     return failure();
