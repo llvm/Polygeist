@@ -150,6 +150,11 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
       return nullptr;
     }
     pet_expr_free(expr);
+    // emit the load only if we are dealing with a memref.
+    if (scalar.getType().dyn_cast<MemRefType>()) {
+      Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
+      scalar = builder_.create<AffineLoadOp>(location, scalar, zeroIndex);
+    }
     return scalar;
   }
 
@@ -180,18 +185,15 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
 
   if (!isMultiDimensionalArray(expr)) {
     Value scalar;
+    Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
     if (failed(getSymbol(expr, scalar))) {
       // if not in symbol table allocate
       // the scalar.
       scalar = createAllocOp(expr, op.getType());
-      Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
-      builder_.create<AffineStoreOp>(location, op, scalar, zeroIndex);
-      pet_expr_free(expr);
-      return op;
-    } else {
-      pet_expr_free(expr);
-      return op;
     }
+    builder_.create<AffineStoreOp>(location, op, scalar, zeroIndex);
+    pet_expr_free(expr);
+    return op;
   }
 
   Value symbol;
@@ -238,6 +240,7 @@ Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
 
 Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto typeLhs = lhs.getType();
   auto typeRhs = rhs.getType();
   if (typeLhs != typeRhs)
