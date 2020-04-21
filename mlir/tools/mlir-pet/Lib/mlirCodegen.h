@@ -170,10 +170,22 @@ private:
   mlir::Value createPostInc(__isl_take pet_expr *expr);
 
   // create alloc operation.
-  mlir::Value createAllocOp(__isl_keep pet_expr *expr, mlir::Type t);
+  mlir::Value createDefinition(__isl_take pet_expr *expr);
+  mlir::Value createAllocOp(__isl_keep pet_expr *expr, mlir::Type t,
+                            mlir::Value v = nullptr);
 
   // create call operation.
   mlir::Value createCallOp(__isl_take pet_expr *expr);
+
+  // check if 'expr' is a multi-dimensional array.
+  bool isMultiDimensionalArray(__isl_keep pet_expr *expr) const;
+
+  // get 'expr' dimensionality.
+  size_t getDimensionalityExpr(__isl_keep pet_expr *expr) const;
+
+  // return memref type for 'expr'
+  mlir::MemRefType convertExprToMemRef(__isl_keep pet_expr *expr,
+                                       mlir::Type t) const;
 };
 
 } // end namespace codegen
