@@ -486,6 +486,63 @@ Value MLIRCodegen::createConstantFloatOp(float val, Location &loc) {
   return builder_.create<ConstantOp>(loc, builder_.getF32Type(), valueAttr);
 }
 
+// insert a symbol reference to "fName", inserting it into the module
+// if necessary.
+static FlatSymbolRefAttr
+getOrInsertFunction(OpBuilder &rewriter, ModuleOp module, std::string fName,
+                    const llvm::ArrayRef<mlir::Type> typeOperands,
+                    const llvm::ArrayRef<mlir::Type> typeResults = {}) {
+  auto *context = module.getContext();
+  if (module.lookupSymbol(fName))
+    return SymbolRefAttr::get(fName, context);
+  auto libFnInfoType =
+      FunctionType::get(typeOperands, typeResults, rewriter.getContext());
+  mlir::OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(module.getBody(),
+                             std::prev(module.getBody()->end()));
+  rewriter.create<FuncOp>(module.getLoc(), fName, libFnInfoType,
+                          llvm::ArrayRef<mlir::NamedAttribute>{});
+  return mlir::SymbolRefAttr::get(fName, context);
+}
+
+// TODO: ensure the memref is a f32.
+Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
+  auto nameFunc = std::string(pet_expr_call_get_name(expr));
+  assert((nameFunc == "print_memref_f32") && "only print name");
+  assert((pet_expr_get_n_arg(expr) == 1) && "must have 1 arg only");
+
+  auto subExpr = pet_expr_get_arg(expr, 0);
+  assert((pet_expr_get_type(subExpr) == pet_expr_access) &&
+         "expect pet_expr_access");
+
+  Value symbol = nullptr;
+  if (failed(getSymbol(subExpr, symbol)))
+    llvm_unreachable("must be in symbol table");
+
+  // for now we allow only memref.
+  auto memRef = symbol.getType().dyn_cast_or_null<MemRefType>();
+  if (!memRef)
+    return nullptr;
+
+  // cast the memref to unranked type.
+  auto loc = builder_.getUnknownLoc();
+  auto newMemRefType =
+      UnrankedMemRefType::get(memRef.getElementType(), memRef.getMemorySpace());
+  auto castedMemRef = builder_.create<MemRefCastOp>(loc, symbol, newMemRefType);
+
+  // insert the function.
+  auto module = castedMemRef.getParentOfType<ModuleOp>();
+  auto symbolFn =
+      getOrInsertFunction(builder_, module, "print_memref_f32",
+                          llvm::ArrayRef<Type>{castedMemRef.getType()});
+  builder_.create<CallOp>(loc, symbolFn, /*return type*/ llvm::ArrayRef<Type>{},
+                          llvm::ArrayRef<Value>{castedMemRef});
+
+  pet_expr_free(subExpr);
+  pet_expr_free(expr);
+  return symbol;
+}
+
 Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   switch (pet_expr_get_type(expr)) {
@@ -499,6 +556,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
     // XXX: How to distinguish FLOAT and DOUBLE, here?
     return createConstantOp(expr, ElementType::FLOAT);
   case pet_expr_call:
+    return createCallOp(expr);
   case pet_expr_cast: {
     llvm_unreachable("type not handled");
     return nullptr;
