@@ -14,7 +14,7 @@ int main(void) {
        for (int j = 0; j < 151; j++)
 	  C[i][j] += alpha * A[i][k] * B[k][j];
     }
-  }
+  } 
 #pragma endscop
 
   return 0;
