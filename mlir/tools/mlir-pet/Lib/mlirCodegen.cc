@@ -683,7 +683,7 @@ LogicalResult MLIRCodegen::declare(std::string id, mlir::Value value) {
 MLIRCodegen::MLIRCodegen(MLIRContext &context, Scop &scop)
     : scop_(scop), builder_(&context) {
   theModule_ = ModuleOp::create(builder_.getUnknownLoc());
-  auto inputTensors = scop_.getInputTensors();
+  auto inputTensors = scop_.getInputArrays();
   auto argTypes = getFunctionArgumentsTypes(context, inputTensors);
   auto funcType = builder_.getFunctionType(argTypes, llvm::None);
   FuncOp function(
