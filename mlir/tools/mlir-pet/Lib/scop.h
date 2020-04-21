@@ -156,9 +156,9 @@ public:
   // return the statement associated with "id".
   pet_stmt *getStmt(isl::id id) const;
 
-  // return the tensors that are inputs of
+  // return the arrays that are inputs of
   // the current scop.
-  llvm::SmallVector<PetArray, 4> getInputTensors();
+  llvm::SmallVector<PetArray, 4> getInputArrays();
 
   // return the petArray with id "id"
   PetArray getArrayFromId(isl::id id);

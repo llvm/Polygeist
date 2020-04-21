@@ -222,7 +222,7 @@ pet_stmt *Scop::getStmt(isl::id id) const {
   return nullptr;
 }
 
-SmallVector<PetArray, 4> Scop::getInputTensors() {
+SmallVector<PetArray, 4> Scop::getInputArrays() {
   SmallVector<PetArray, 4> res;
   for (const auto petArray : petArrays_) {
     if (!petArray.isDeclared())
