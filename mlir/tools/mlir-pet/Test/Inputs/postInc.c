@@ -1,11 +1,14 @@
-float A[1024];
-
-int main(void) {
+void print_memref_f32(float a);
+int main() {
 
 #pragma scop
+  float a = 0.0;
+
   for (int i = 0; i < 1024; i++) {
-    A[i]++;
+    a++;
   }
+
+  print_memref_f32(a);
 #pragma endscop
-  return A[100];
+  return 0;
 }
