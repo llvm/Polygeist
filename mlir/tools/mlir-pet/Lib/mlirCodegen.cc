@@ -40,41 +40,46 @@ static SmallVector<int, 4> getIndexesPos(isl::multi_pw_aff muaff) {
   return indexPos;
 }
 
-// helper function. Convert the given "expr" into corresponding
-// MemRefType.
-static size_t getShapeExpr(__isl_keep pet_expr *expr) {
+size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
-  auto indexes = isl::manage(pet_expr_access_get_index(expr));
-  auto dimSpaceOut = indexes.get_space().dim(isl::dim::out);
-  return dimSpaceOut;
+  auto idArray = isl::manage(pet_expr_access_get_id(expr));
+  return scop_.getArrayFromId(idArray).getDimensionality();
 }
 
-// helper function. Is pet_expr a multi-dimensional access?
-static bool isMultiDimensionalArray(__isl_keep pet_expr *expr) {
+bool MLIRCodegen::isMultiDimensionalArray(__isl_keep pet_expr *expr) const {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access type");
-  auto dims = getShapeExpr(expr);
+  auto dims = getDimensionalityExpr(expr);
   if (dims != 0)
     return true;
   return false;
 }
 
-// helper function. Convert the given pet_expr to the
+// Convert the given pet_expr to the
 // corresponding MemRefType. Since pet_expr does not
 // carry any type information the type should be provided
 // to this function.
-static MemRefType convertExprToMemRef(__isl_keep pet_expr *expr, Type t) {
+MemRefType MLIRCodegen::convertExprToMemRef(__isl_keep pet_expr *expr,
+                                            Type t) const {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
-  auto dims = getShapeExpr(expr);
+  auto dims = getDimensionalityExpr(expr);
   // for scalar create a memref<1xtype>
   if (dims == 0)
-    dims = 1;
-  return MemRefType::get(dims, t);
+    return MemRefType::get(1, t);
+
+  auto idArray = isl::manage(pet_expr_access_get_id(expr));
+  auto petArray = scop_.getArrayFromId(idArray);
+  assert((dims == petArray.getDimensionality()) && "must be equal");
+  std::vector<int64_t> extent;
+  for (size_t i = 0; i < dims; i++)
+    extent.push_back(petArray.getExtentOnDimension(i));
+
+  return MemRefType::get(extent, t);
 }
 
 LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
@@ -96,6 +101,7 @@ LogicalResult MLIRCodegen::isInSymbolTable(__isl_keep pet_expr *expr) const {
 LogicalResult
 MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
                                    SmallVector<Value, 4> &loopIvs) const {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   auto petArray = scop_.getArrayFromId(arrayId);
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
@@ -189,17 +195,18 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
     if (failed(getSymbol(expr, scalar))) {
       // if not in symbol table allocate
       // the scalar.
-      scalar = createAllocOp(expr, op.getType());
+      scalar = createAllocOp(expr, op.getType(), op);
     }
     builder_.create<AffineStoreOp>(location, op, scalar, zeroIndex);
     pet_expr_free(expr);
     return op;
   }
 
+  // if the array is not in the symbol
+  // table allocate it.
   Value symbol;
   if (failed(getSymbol(expr, symbol))) {
-    pet_expr_free(expr);
-    return nullptr;
+    symbol = createAllocOp(expr, op.getType(), op);
   }
 
   if (failed(getSymbolInductionVar(expr, loopIvs))) {
@@ -212,13 +219,28 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   return op;
 }
 
-Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t) {
+// Value is null if we come from a pet_kill_op, while
+// it is not null if we come from the createStoreOp.
+// This is because kill_stmt can be removed when
+// rescheduling.
+Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t, Value v) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
   auto location = builder_.getUnknownLoc();
   auto memRefType = convertExprToMemRef(expr, t);
+  if (v) {
+    auto operation = v.getDefiningOp();
+    auto func = operation->getParentOfType<FuncOp>();
+    // insert the allocations as first operations
+    // in the scop FuncOp.
+    builder_.setInsertionPointToStart(&func.front());
+  }
   auto alloc = builder_.create<AllocOp>(location, memRefType);
+  if (v) {
+    auto operation = v.getDefiningOp();
+    builder_.setInsertionPointAfter(operation);
+  }
   auto id = isl::manage(pet_expr_access_get_id(expr));
   symbolTable_.insert(id.to_str(), alloc);
   return alloc;
@@ -226,6 +248,7 @@ Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t) {
 
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
+  pet_expr_dump(expr);
   Value rhs = createExpr(pet_expr_get_arg(expr, 1));
   if (!rhs)
     return nullptr;
@@ -356,6 +379,38 @@ Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
   return lhs;
 }
 
+Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
+  assert((pet_expr_get_n_arg(expr) == 1) && "expect single arg for kill");
+  auto arg = pet_expr_get_arg(expr, 0);
+  auto argType = pet_expr_get_type(arg);
+  assert((argType == pet_expr_access) &&
+         "expect pet_expr_access as arg for kill");
+  auto idArray = isl::manage(pet_expr_access_get_id(arg));
+  auto petArray = scop_.getArrayFromId(idArray);
+  auto elementType = petArray.getType();
+
+  pet_expr_free(expr);
+
+  Value allocation = nullptr;
+  switch (elementType) {
+  case ElementType::FLOAT: {
+    allocation = createAllocOp(arg, builder_.getF32Type());
+    break;
+  }
+  case ElementType::DOUBLE: {
+    allocation = createAllocOp(arg, builder_.getF64Type());
+    break;
+  }
+  case ElementType::INT: {
+    allocation = createAllocOp(arg, builder_.getIntegerType(32));
+    break;
+  }
+  }
+  pet_expr_free(arg);
+  return allocation;
+}
+
 // TODO: check pet_expr_free, there is a better way of doing it?
 Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
@@ -374,6 +429,10 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   if ((pet_expr_op_get_type(expr) == pet_op_post_inc) ||
       (pet_expr_op_get_type(expr) == pet_op_post_dec)) {
     return createPostInc(expr);
+  }
+
+  if ((pet_expr_op_get_type(expr) == pet_op_kill)) {
+    return createDefinition(expr);
   }
 
   Value lhs = createExpr(pet_expr_get_arg(expr, 0));
@@ -426,7 +485,6 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
   case pet_op_pre_dec:
   case pet_op_address_of:
   case pet_op_assume:
-  case pet_op_kill:
   case pet_op_and:
   case pet_op_xor:
   case pet_op_or:
@@ -439,6 +497,7 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
     llvm_unreachable("operation not handled");
     return nullptr;
   }
+  case pet_op_kill:
   case pet_op_post_inc:
   case pet_op_post_dec: {
     llvm_unreachable("not expected here");
