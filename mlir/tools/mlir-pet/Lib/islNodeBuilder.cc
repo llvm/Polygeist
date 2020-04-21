@@ -38,7 +38,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
 
   auto lowerBoundAsInt = std::abs(createIntFromIslExpr(lowerBound));
   auto incrementAsInt = std::abs(createIntFromIslExpr(increment));
-  auto upperBoundAsInt = std::abs(createIntFromIslExpr(upperBound));
+  auto upperBoundAsInt = std::abs(createIntFromIslExpr(upperBound)) + 1;
 
   auto loop =
       MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsInt, incrementAsInt);
