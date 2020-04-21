@@ -171,6 +171,9 @@ private:
 
   // create alloc operation.
   mlir::Value createAllocOp(__isl_keep pet_expr *expr, mlir::Type t);
+
+  // create call operation.
+  mlir::Value createCallOp(__isl_take pet_expr *expr);
 };
 
 } // end namespace codegen
