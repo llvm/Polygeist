@@ -582,7 +582,6 @@ getOrInsertFunction(OpBuilder &rewriter, ModuleOp module, std::string fName,
   return mlir::SymbolRefAttr::get(fName, context);
 }
 
-// TODO: ensure the memref is a f32.
 Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
   auto nameFunc = std::string(pet_expr_call_get_name(expr));
   assert((nameFunc == "print_memref_f32") && "only print name");
@@ -598,8 +597,19 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
 
   // for now we allow only memref.
   auto memRef = symbol.getType().dyn_cast_or_null<MemRefType>();
-  if (!memRef)
+  if (!memRef) {
+    LLVM_DEBUG(dbgs() << "createCallOp supports only memref");
     return nullptr;
+  }
+
+  // enforce memref to be a f32.
+  auto elemType = memRef.getElementType();
+  if (!elemType.isF32()) {
+    LLVM_DEBUG(
+        dbgs()
+        << "createCallOp supports only memref with elements of type F32");
+    return nullptr;
+  }
 
   // cast the memref to unranked type.
   auto loc = builder_.getUnknownLoc();
