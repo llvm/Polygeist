@@ -353,11 +353,23 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
 // TODO: here we need to check the type of the variable
 // we are incrementing. For now we assume only float.
 Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto loc = builder_.getUnknownLoc();
   Value rhs = createExpr(pet_expr_get_arg(expr, 0));
   if (!rhs)
     return nullptr;
-  Value constant = createConstantFloatOp(1.0, loc);
+
+  Value constant = nullptr;
+  auto rhsType = rhs.getType();
+  if (rhsType.isF32())
+    constant = createConstantFloatOp(1, loc);
+  if (rhsType.isF64())
+    constant = createConstantDoubleOp(1, loc);
+  if (rhsType.isInteger(32))
+    constant = createConstantIntOp(1, loc);
+
+  assert(constant && "unsupported type: expect F32, F64 or int (32 bit)");
+
   Value operation = nullptr;
   switch (pet_expr_op_get_type(expr)) {
   case pet_op_post_inc: {
@@ -516,11 +528,8 @@ Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
   case ElementType::INT: {
     isl::val value = isl::manage(pet_expr_int_get_val(expr));
     int valueAsInt = std::stoi(value.to_str());
-    auto valueAttr =
-        builder_.getIntegerAttr(builder_.getIntegerType(32), valueAsInt);
     pet_expr_free(expr);
-    return builder_.create<ConstantOp>(loc, builder_.getIntegerType(32),
-                                       valueAttr);
+    return createConstantIntOp(valueAsInt, loc);
   }
   case ElementType::FLOAT: {
     float valueAsFloat = std::stof(std::string(pet_expr_double_get_str(expr)));
@@ -531,10 +540,8 @@ Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
     // XXX: here pet only exposes get_str method, why?
     double valueAsDouble =
         std::stod(std::string(pet_expr_double_get_str(expr)));
-    auto valueAttr =
-        builder_.getFloatAttr(builder_.getF64Type(), valueAsDouble);
     pet_expr_free(expr);
-    return builder_.create<ConstantOp>(loc, builder_.getF64Type(), valueAttr);
+    return createConstantDoubleOp(valueAsDouble, loc);
   }
   }
   return nullptr;
@@ -543,6 +550,17 @@ Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
 Value MLIRCodegen::createConstantFloatOp(float val, Location &loc) {
   auto valueAttr = builder_.getFloatAttr(builder_.getF32Type(), val);
   return builder_.create<ConstantOp>(loc, builder_.getF32Type(), valueAttr);
+}
+
+Value MLIRCodegen::createConstantDoubleOp(double val, Location &loc) {
+  auto valueAttr = builder_.getFloatAttr(builder_.getF64Type(), val);
+  return builder_.create<ConstantOp>(loc, builder_.getF64Type(), valueAttr);
+}
+
+Value MLIRCodegen::createConstantIntOp(int val, Location &loc) {
+  auto valueAttr = builder_.getIntegerAttr(builder_.getIntegerType(32), val);
+  return builder_.create<ConstantOp>(loc, builder_.getIntegerType(32),
+                                     valueAttr);
 }
 
 // insert a symbol reference to "fName", inserting it into the module
