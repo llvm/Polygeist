@@ -261,6 +261,10 @@ Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   return lhs;
 }
 
+static bool isInt(Type type) { return type.isa<IntegerType>(); }
+
+static bool isFloat(Type type) { return type.isa<FloatType>(); }
+
 Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
                                   BinaryOpType type) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
@@ -268,31 +272,31 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
   auto typeRhs = rhs.getType();
   if (typeLhs != typeRhs)
     return nullptr;
-  if (((!typeLhs.isInt()) && (!typeLhs.isFloat())) ||
-      ((!typeRhs.isInt()) && (!typeRhs.isFloat())))
+  if (((!isInt(typeLhs)) && (!isFloat(typeLhs))) ||
+      ((!isInt(typeRhs)) && (!isFloat(typeRhs))))
     return nullptr;
 
   switch (type) {
   case BinaryOpType::ADD: {
-    if (typeLhs.isFloat())
+    if (isFloat(typeLhs))
       return builder_.create<AddFOp>(loc, lhs, rhs);
     else
       return builder_.create<AddIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::SUB: {
-    if (typeLhs.isFloat())
+    if (isFloat(typeLhs))
       return builder_.create<SubFOp>(loc, lhs, rhs);
     else
       return builder_.create<SubIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::MUL: {
-    if (typeLhs.isFloat())
+    if (isFloat(typeLhs))
       return builder_.create<MulFOp>(loc, lhs, rhs);
     else
       return builder_.create<MulIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::DIV: {
-    if (typeLhs.isFloat())
+    if (isFloat(typeLhs))
       return builder_.create<DivFOp>(loc, lhs, rhs);
     else
       return nullptr;
