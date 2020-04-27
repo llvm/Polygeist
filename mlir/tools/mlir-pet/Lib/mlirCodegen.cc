@@ -249,7 +249,15 @@ Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t, Value v) {
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   pet_expr_dump(expr);
-  Value rhs = createExpr(pet_expr_get_arg(expr, 1));
+
+  // get type for lhs.
+  auto lhsPetExpr = pet_expr_get_arg(expr, 0);
+  Value symbolLhs = nullptr;
+  if (failed(getSymbol(lhsPetExpr, symbolLhs)))
+    llvm_unreachable("symbol must be available in symbol table");
+  pet_expr_free(lhsPetExpr);
+
+  Value rhs = createExpr(pet_expr_get_arg(expr, 1), symbolLhs.getType());
   if (!rhs)
     return nullptr;
 
@@ -635,7 +643,23 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
   return symbol;
 }
 
-Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
+static ElementType getElementTypeFromMLIRType(Type t) {
+  // default.
+  if (!t)
+    return ElementType::FLOAT;
+  // type is valid and must be a memref.
+  auto memRef = t.dyn_cast<MemRefType>();
+  assert(memRef && "expect memref type for conversion");
+  auto memRefElemType = memRef.getElementType();
+  if (memRefElemType.isF32())
+    return ElementType::FLOAT;
+  if (memRefElemType.isF64())
+    return ElementType::DOUBLE;
+  llvm_unreachable("expect type F32 or F64");
+  return ElementType::FLOAT;
+}
+
+Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   switch (pet_expr_get_type(expr)) {
   case pet_expr_error:
@@ -644,9 +668,10 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr) {
     return createLoad(expr);
   case pet_expr_int:
     return createConstantOp(expr, ElementType::INT);
-  case pet_expr_double:
-    // XXX: How to distinguish FLOAT and DOUBLE, here?
-    return createConstantOp(expr, ElementType::FLOAT);
+  case pet_expr_double: {
+    auto floatType = getElementTypeFromMLIRType(t);
+    return createConstantOp(expr, floatType);
+  }
   case pet_expr_call:
     return createCallOp(expr);
   case pet_expr_cast: {

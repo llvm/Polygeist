@@ -125,7 +125,7 @@ private:
   mlir::LogicalResult declare(std::string id, mlir::Value value);
 
   // create a new expr from the pet_expr "expr"
-  mlir::Value createExpr(__isl_take pet_expr *expr);
+  mlir::Value createExpr(__isl_take pet_expr *expr, mlir::Type t = nullptr);
 
   // create a load op from the pet_expr_access "expr".
   mlir::Value createLoad(__isl_take pet_expr *expr);
