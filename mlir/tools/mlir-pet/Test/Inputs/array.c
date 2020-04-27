@@ -1,8 +1,8 @@
 void print_memref_f32(float a);
 
 int main() {
-#pragma scop 
-  
+#pragma scop
+
   float A[2][2];
   float B[2][2];
 
@@ -14,7 +14,7 @@ int main() {
     for (int j = 0; j < 2; j++)
       A[i][j] = A[i][j] + 2.0;
 
- for (int i = 0; i < 2; i++)
+  for (int i = 0; i < 2; i++)
     for (int j = 0; j < 2; j++)
       B[i][j] = 3.0;
 

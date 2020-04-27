@@ -8,12 +8,12 @@ float x[1024];
 float w[1024];
 float z[1024];
 float y[1024];
-float alpha  = 1.0;
+float alpha = 1.0;
 float beta = 1.0;
 
 int main() {
 
-#pragma scop 
+#pragma scop
 
   for (int i = 0; i < 1024; i++)
     for (int j = 0; j < 1024; j++)
@@ -28,7 +28,7 @@ int main() {
 
   for (int i = 0; i < 1024; i++)
     for (int j = 0; j < 1024; j++)
-      w[i] = w[i] +  alpha * A[i][j] * x[j];
+      w[i] = w[i] + alpha * A[i][j] * x[j];
 
 #pragma endscop
   return 0;
