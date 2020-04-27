@@ -41,6 +41,9 @@ static cl::opt<bool> dumpScop("dump-scop",
                               llvm::cl::desc("Pretty print the scop"),
                               llvm::cl::init(false), cl::cat(toolOptions));
 
+static cl::opt<bool> dumpAst("dump-ast", llvm::cl::desc("Pretty print the ast"),
+                             llvm::cl::init(false), cl::cat(toolOptions));
+
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 // check if the schedule is bounded.
@@ -122,6 +125,9 @@ int main(int argc, char **argv) {
 
   if (dumpScop)
     petScop.dump();
+
+  if (dumpAst)
+    IslAst(petScop).dump();
 
   // bail-out if we have symbolic constants.
   auto contextSet = petScop.getContext();
