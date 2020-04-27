@@ -276,27 +276,28 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
       ((!isInt(typeRhs)) && (!isFloat(typeRhs))))
     return nullptr;
 
+  auto isLhsFloat = isFloat(typeLhs);
   switch (type) {
   case BinaryOpType::ADD: {
-    if (isFloat(typeLhs))
+    if (isLhsFloat)
       return builder_.create<AddFOp>(loc, lhs, rhs);
     else
       return builder_.create<AddIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::SUB: {
-    if (isFloat(typeLhs))
+    if (isLhsFloat)
       return builder_.create<SubFOp>(loc, lhs, rhs);
     else
       return builder_.create<SubIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::MUL: {
-    if (isFloat(typeLhs))
+    if (isLhsFloat)
       return builder_.create<MulFOp>(loc, lhs, rhs);
     else
       return builder_.create<MulIOp>(loc, lhs, rhs);
   }
   case BinaryOpType::DIV: {
-    if (isFloat(typeLhs))
+    if (isLhsFloat)
       return builder_.create<DivFOp>(loc, lhs, rhs);
     else
       return nullptr;
