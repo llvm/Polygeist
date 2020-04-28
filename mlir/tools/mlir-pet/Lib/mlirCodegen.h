@@ -79,7 +79,9 @@ public:
 
   // create an affineForOp.
   mlir::AffineForOp createLoop(int lowerBound, int upperBound, int step);
-
+  mlir::AffineForOp createLoop(std::string lb_id, std::string ub_id, int step);
+  mlir::AffineForOp createLoop(int lb, std::string ub_id, int step);
+  mlir::AffineForOp createLoop(std::string lb_id, int ub, int step);
   // return a reference to loop table.
   LoopTable &getLoopTable();
 

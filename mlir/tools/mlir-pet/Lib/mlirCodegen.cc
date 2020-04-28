@@ -772,13 +772,83 @@ LogicalResult MLIRCodegen::verifyModule() {
   return success();
 }
 
-AffineForOp MLIRCodegen::createLoop(int upperBound, int lowerBound, int step) {
-  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), upperBound,
-                                           lowerBound, step);
+AffineForOp MLIRCodegen::createLoop(int lb, int ub, int step) {
+
+  auto loop =
+      builder_.create<AffineForOp>(builder_.getUnknownLoc(), lb, ub, step);
   loop.getBody()->clear();
   builder_.setInsertionPointToStart(loop.getBody());
   builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
+
+  return loop;
+}
+
+AffineForOp MLIRCodegen::createLoop(int lb, std::string ub_id, int step) {
+
+  Value ub;
+  if (failed(this->getLoopTable().find(ub_id, ub)))
+    llvm_unreachable("Couldn't find the bound in the loop table.");
+
+  auto lbMap = AffineMap::getConstantMap(lb, builder_.getContext());
+  auto ubMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+
+  ValueRange ubOperands = ValueRange(ub);
+  ValueRange lbOperands = {};
+  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lbOperands,
+                                           lbMap, ubOperands, ubMap, step);
+  loop.getBody()->clear();
+
+  builder_.setInsertionPointToStart(loop.getBody());
+  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.setInsertionPointToStart(loop.getBody());
+
+  return loop;
+}
+
+AffineForOp MLIRCodegen::createLoop(std::string lb_id, int ub, int step) {
+  Value lb;
+  if (failed(this->getLoopTable().find(lb_id, lb)))
+    llvm_unreachable("Couldn't find the bound in the loop table.");
+
+  auto ubMap = AffineMap::getConstantMap(ub, builder_.getContext());
+  auto lbMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+
+  ValueRange ubOperands = {};
+  ValueRange lbOperands = ValueRange(lb);
+
+  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lbOperands,
+                                           lbMap, ubOperands, ubMap, step);
+  loop.getBody()->clear();
+
+  builder_.setInsertionPointToStart(loop.getBody());
+  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.setInsertionPointToStart(loop.getBody());
+
+  return loop;
+}
+
+AffineForOp MLIRCodegen::createLoop(std::string lb_id, std::string ub_id,
+                                    int step) {
+  Value ub, lb;
+  if (failed(this->getLoopTable().find(ub_id, ub)))
+    llvm_unreachable("Couldn't find the bound in the loop table.");
+  if (failed(this->getLoopTable().find(lb_id, lb)))
+    llvm_unreachable("Couldn't find the bound in the loop table.");
+
+  auto lbMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+  auto ubMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+
+  ValueRange ubOperands = ValueRange(ub);
+  ValueRange lbOperands = ValueRange(lb);
+  auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lbOperands,
+                                           lbMap, ubOperands, ubMap, step);
+  loop.getBody()->clear();
+
+  builder_.setInsertionPointToStart(loop.getBody());
+  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.setInsertionPointToStart(loop.getBody());
+
   return loop;
 }
 
