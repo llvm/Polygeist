@@ -25,7 +25,12 @@ static int createIntFromIslExpr(isl::ast_expr expression) {
   auto val = expression.get_val();
   return std::stoi(val.to_str());
 }
-
+bool isInt(isl::ast_expr expression) {
+  return isl_ast_expr_get_type(expression.get()) == isl_ast_expr_int;
+}
+bool isId(isl::ast_expr expression) {
+  return isl_ast_expr_get_type(expression.get()) == isl_ast_expr_id;
+}
 // TODO: See how we can get location information.
 // TODO: handle degenerate loop (see isl_ast_node_for_is_degenerate)
 // TODO: See how to handle more complex expression in the loop.
@@ -35,13 +40,52 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto iterator = forNode.for_get_iterator();
   auto iteratorId = iterator.get_id().to_str();
   auto upperBound = getUpperBound(forNode);
-
-  auto lowerBoundAsInt = std::abs(createIntFromIslExpr(lowerBound));
   auto incrementAsInt = std::abs(createIntFromIslExpr(increment));
-  auto upperBoundAsInt = std::abs(createIntFromIslExpr(upperBound)) + 1;
 
-  auto loop =
-      MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsInt, incrementAsInt);
+  AffineForOp loop;
+  // symbolic upper bound
+  if (isInt(lowerBound) && isId(upperBound)) {
+    // get id from node type
+    auto upperBoundId = isl::manage(isl_ast_expr_get_id(upperBound.get()));
+    // access string name
+    auto upperBoundProcessed = isl_id_get_name(upperBoundId.get());
+
+    auto lowerBoundProcessed = std::abs(createIntFromIslExpr(lowerBound));
+    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
+                                   incrementAsInt);
+  }
+
+  // both symbolic
+  else if (isId(lowerBound) && isId(upperBound)) {
+    // upperBound processing
+    auto upperBoundId = isl::manage(isl_ast_expr_get_id(upperBound.get()));
+    auto upperBoundProcessed = isl_id_get_name(upperBoundId.get());
+    // lowerBound processing
+    auto lowerBoundId = isl::manage(isl_ast_expr_get_id(lowerBound.get()));
+    auto lowerBoundProcessed = isl_id_get_name(lowerBoundId.get());
+
+    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
+                                   incrementAsInt);
+  }
+
+  // symbolic lower bound
+  else if (isId(lowerBound) && isInt(upperBound)) {
+    // get id from node type
+    auto lowerBoundId = isl::manage(isl_ast_expr_get_id(lowerBound.get()));
+    // access string name
+    auto lowerBoundProcessed = isl_id_get_name(lowerBoundId.get());
+    auto upperBoundProcessed = std::abs(createIntFromIslExpr(upperBound) + 1);
+    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
+                                   incrementAsInt);
+  }
+
+  // double integer bounds
+  else {
+    auto upperBoundProcessed = std::abs(createIntFromIslExpr(upperBound) + 1);
+    auto lowerBoundProcessed = std::abs(createIntFromIslExpr(lowerBound));
+    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
+                                   incrementAsInt);
+  }
 
   auto resInsertion =
       MLIRBuilder_.getLoopTable().insert(iteratorId, loop.getInductionVar());
