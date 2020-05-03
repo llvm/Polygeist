@@ -1,6 +1,6 @@
 #include "mlirCodegen.h"
-#include "mlir/Analysis/Verifier.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Verifier.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include <iostream>
