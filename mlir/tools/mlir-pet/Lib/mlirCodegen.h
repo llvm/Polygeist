@@ -151,7 +151,7 @@ private:
                         llvm::SmallVector<mlir::Value, 4> &loopIvs) const;
 
   // create op from pet_expr_op "expr"
-  mlir::Value createOp(__isl_take pet_expr *expr);
+  mlir::Value createOp(__isl_take pet_expr *expr, mlir::Type t);
 
   // create an assignement op (pet_expr_assign)
   mlir::Value createAssignmentOp(__isl_take pet_expr *expr);
