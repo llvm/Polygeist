@@ -363,8 +363,6 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
   return lhs;
 }
 
-// TODO: here we need to check the type of the variable
-// we are incrementing. For now we assume only float.
 Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto loc = builder_.getUnknownLoc();
@@ -437,7 +435,7 @@ Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
 }
 
 // TODO: check pet_expr_free, there is a better way of doing it?
-Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
+Value MLIRCodegen::createOp(__isl_take pet_expr *expr, Type t) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   // handle pet_*_assing
   if (pet_expr_op_get_type(expr) == pet_op_assign)
@@ -460,10 +458,10 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr) {
     return createDefinition(expr);
   }
 
-  Value lhs = createExpr(pet_expr_get_arg(expr, 0));
+  Value lhs = createExpr(pet_expr_get_arg(expr, 0), t);
   if (!lhs)
     return nullptr;
-  Value rhs = createExpr(pet_expr_get_arg(expr, 1));
+  Value rhs = createExpr(pet_expr_get_arg(expr, 1), t);
   if (!rhs)
     return nullptr;
   auto location = builder_.getUnknownLoc();
@@ -679,7 +677,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
     return nullptr;
   }
   case pet_expr_op:
-    return createOp(expr);
+    return createOp(expr, t);
   }
 
   return nullptr;
