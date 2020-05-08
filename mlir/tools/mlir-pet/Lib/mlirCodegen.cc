@@ -17,27 +17,41 @@ LoopTable &MLIRCodegen::getLoopTable() { return loopTable_; }
 // helper function to get the indexes of the output dimensions
 // by comparing them with the input dimensions. This function
 // assume "muaff" *not* to be scheduled.
-static SmallVector<int, 4> getIndexesPos(isl::multi_pw_aff muaff) {
+LogicalResult MLIRCodegen::getIndexes(isl::multi_pw_aff muaff,
+                                      SmallVector<Value, 4> &loopIvs) {
   auto spaceDimOut = muaff.get_space().dim(isl::dim::out);
   if (spaceDimOut == 0)
     llvm_unreachable("expect multi-dimensional array");
-  SmallVector<int, 4> indexPos{};
+  auto loc = builder_.getUnknownLoc();
   auto umap = isl::union_map::from(muaff);
   if (umap.n_map() != 1)
-    return {};
+    return failure();
   auto map = isl::map::from_union_map(umap);
   for (size_t i = 0; i < map.dim(isl::dim::out); i++) {
     isl::pw_aff pwaff = muaff.get_pw_aff(i);
     pwaff.foreach_piece([&](isl::set s, isl::aff a) -> isl_stat {
       for (size_t j = 0; j < map.dim(isl::dim::in); j++) {
+        // we need to compare input and output dimensions at the
+        // same position.
+        if (i != j)
+          continue;
         auto val = a.get_coefficient_val(isl::dim::in, j);
-        if (!val.is_zero())
-          indexPos.push_back(j);
+        if (!val.is_zero()) {
+          Value v = nullptr;
+          // TODO: catch this error.
+          if (failed(loopTable_.getElemAtPos(j, v)))
+            assert(0 && "cannot get loop from loop table");
+          loopIvs.push_back(v);
+        } else {
+          auto constantIndex =
+              builder_.create<ConstantIndexOp>(loc, std::stoi(val.to_str()));
+          loopIvs.push_back(constantIndex);
+        }
       }
       return isl_stat_ok;
     });
   }
-  return indexPos;
+  return success();
 }
 
 size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
@@ -100,29 +114,22 @@ LogicalResult MLIRCodegen::isInSymbolTable(__isl_keep pet_expr *expr) const {
 
 LogicalResult
 MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
-                                   SmallVector<Value, 4> &loopIvs) const {
+                                   SmallVector<Value, 4> &loopIvs) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   auto petArray = scop_.getArrayFromId(arrayId);
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
-  auto indexesPos = getIndexesPos(indexes);
 
-  if (petArray.getDimensionality() != indexesPos.size())
+  if (failed(getIndexes(indexes, loopIvs)))
+    return failure();
+
+  if (petArray.getDimensionality() != loopIvs.size())
     return failure();
 
   Value symbol;
   if (failed(getSymbol(expr, symbol)))
     return failure();
 
-  if (loopTable_.size() < indexesPos.size())
-    return failure();
-
-  for (size_t i = 0; i < indexesPos.size(); i++) {
-    Value val;
-    if (failed(loopTable_.getElemAtPos(indexesPos[i], val)))
-      return failure();
-    loopIvs.push_back(val);
-  }
   return success();
 }
 
@@ -261,6 +268,7 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   }
 
   if (failed(getSymbolInductionVar(expr, loopIvs))) {
+    std::cout << "exit here\n";
     pet_expr_free(expr);
     return nullptr;
   }

@@ -148,7 +148,7 @@ private:
   // must be available in the loop table.
   mlir::LogicalResult
   getSymbolInductionVar(__isl_keep pet_expr *expr,
-                        llvm::SmallVector<mlir::Value, 4> &loopIvs) const;
+                        llvm::SmallVector<mlir::Value, 4> &loopIvs);
 
   // create op from pet_expr_op "expr"
   mlir::Value createOp(__isl_take pet_expr *expr, mlir::Type t);
@@ -197,9 +197,14 @@ private:
   mlir::MemRefType convertExprToMemRef(__isl_keep pet_expr *expr,
                                        mlir::Type t) const;
 
+  // apply "expr" to loopIvs
   llvm::SmallVector<mlir::Value, 4>
   applyAccessExpression(__isl_keep pet_expr *expr,
                         llvm::SmallVector<mlir::Value, 4> &loopIvs);
+
+  // collect constant indexes.
+  mlir::LogicalResult getIndexes(isl::multi_pw_aff mpwaff,
+                                 llvm::SmallVector<mlir::Value, 4> &loopIvs);
 };
 
 } // end namespace codegen
