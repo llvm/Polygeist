@@ -196,6 +196,10 @@ private:
   // return memref type for 'expr'
   mlir::MemRefType convertExprToMemRef(__isl_keep pet_expr *expr,
                                        mlir::Type t) const;
+
+  llvm::SmallVector<mlir::Value, 4>
+  applyAccessExpression(__isl_keep pet_expr *expr,
+                        llvm::SmallVector<mlir::Value, 4> &loopIvs);
 };
 
 } // end namespace codegen

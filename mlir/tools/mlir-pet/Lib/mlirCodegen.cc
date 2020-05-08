@@ -126,6 +126,55 @@ MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
   return success();
 }
 
+static int getStride(isl::aff aff) {
+  auto val = aff.get_constant_val();
+  assert((val.is_zero() || val.is_one() || val.is_negone()) &&
+         "expect 1, -1 or 0");
+  if (val.is_one())
+    return 1;
+  if (val.is_negone())
+    return -1;
+  return 0;
+}
+
+SmallVector<Value, 4>
+MLIRCodegen::applyAccessExpression(__isl_keep pet_expr *expr,
+                                   SmallVector<Value, 4> &loopIvs) {
+  assert(loopIvs.size() && "must be non empty");
+  SmallVector<Value, 4> res;
+  auto mpwaff = isl::manage(pet_expr_access_get_index(expr));
+
+  SmallVector<isl::pw_aff, 2> pwaffs;
+  for (size_t i = 0; i < mpwaff.dim(isl::dim::out); i++)
+    pwaffs.push_back(mpwaff.get_pw_aff(i));
+
+  assert((loopIvs.size() == pwaffs.size()) && "expect same size");
+
+  auto ctx = loopIvs[0].getContext();
+  auto loc = builder_.getUnknownLoc();
+  for (const auto &iv : loopIvs) {
+    auto pwaff = pwaffs[&iv - &loopIvs[0]];
+    assert(pwaff.n_piece() == 1 && "expect single piece");
+    isl::aff aff = nullptr;
+    auto extractAff = [&](isl::set s, isl::aff a) {
+      aff = a;
+      return isl_stat_ok;
+    };
+    pwaff.foreach_piece(extractAff);
+    AffineExpr i;
+    bindDims(ctx, i);
+    auto stride = getStride(aff);
+    if (stride == 0) {
+      res.push_back(iv);
+      continue;
+    }
+    auto affineMap = AffineMap::get(1, 0, i + stride);
+    auto newVal = builder_.create<AffineApplyOp>(loc, affineMap, iv);
+    res.push_back(newVal);
+  }
+  return res;
+}
+
 // TODO: check that expr is freed for all the possible
 // exit points. Do we want also to free in case we return
 // nullptr? Can we do a C++ wrapper around pet_expr?
@@ -175,6 +224,8 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
     pet_expr_free(expr);
     return nullptr;
   }
+
+  loopIvs = applyAccessExpression(expr, loopIvs);
 
   pet_expr_free(expr);
   return builder_.create<AffineLoadOp>(location, symbol, loopIvs);
