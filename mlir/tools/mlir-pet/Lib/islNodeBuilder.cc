@@ -17,9 +17,7 @@ static isl::ast_expr getUpperBound(isl::ast_node nodeFor) {
   return condition.get_op_arg(1);
 }
 
-// TODO: Is Int enough or should we return a Value? see:
-// https://github.com/llvm/llvm-project/blob/2c1a142a78ffe8ed06fd7bfd17750afdceeaecc9/polly/lib/CodeGen/IslExprBuilder.cpp#L746
-static int createIntFromIslExpr(isl::ast_expr expression) {
+static int getIntFromIslExpr(isl::ast_expr expression) {
   if (isl_ast_expr_get_type(expression.get()) != isl_ast_expr_int)
     llvm_unreachable("expect isl_ast_expr_int expression");
   auto val = expression.get_val();
@@ -40,7 +38,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto iterator = forNode.for_get_iterator();
   auto iteratorId = iterator.get_id().to_str();
   auto upperBound = getUpperBound(forNode);
-  auto incrementAsInt = std::abs(createIntFromIslExpr(increment));
+  auto incrementAsInt = std::abs(getIntFromIslExpr(increment));
 
   AffineForOp loop;
   // symbolic upper bound
@@ -50,7 +48,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     // access string name
     auto upperBoundProcessed = isl_id_get_name(upperBoundId.get());
 
-    auto lowerBoundProcessed = std::abs(createIntFromIslExpr(lowerBound));
+    auto lowerBoundProcessed = std::abs(getIntFromIslExpr(lowerBound));
     loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
                                    incrementAsInt);
   }
@@ -74,15 +72,15 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     auto lowerBoundId = isl::manage(isl_ast_expr_get_id(lowerBound.get()));
     // access string name
     auto lowerBoundProcessed = isl_id_get_name(lowerBoundId.get());
-    auto upperBoundProcessed = std::abs(createIntFromIslExpr(upperBound) + 1);
+    auto upperBoundProcessed = std::abs(getIntFromIslExpr(upperBound) + 1);
     loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
                                    incrementAsInt);
   }
 
   // double integer bounds
   else {
-    auto upperBoundProcessed = std::abs(createIntFromIslExpr(upperBound) + 1);
-    auto lowerBoundProcessed = std::abs(createIntFromIslExpr(lowerBound));
+    auto upperBoundProcessed = std::abs(getIntFromIslExpr(upperBound) + 1);
+    auto lowerBoundProcessed = std::abs(getIntFromIslExpr(lowerBound));
     loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
                                    incrementAsInt);
   }
