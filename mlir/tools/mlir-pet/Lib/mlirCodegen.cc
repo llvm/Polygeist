@@ -833,14 +833,15 @@ AffineForOp MLIRCodegen::createLoop(int lb, int ub, int step) {
   return loop;
 }
 
-AffineForOp MLIRCodegen::createLoop(int lb, std::string ub_id, int step) {
+AffineForOp MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
+                                    int step) {
 
   Value ub;
-  if (failed(this->getLoopTable().find(ub_id, ub)))
+  if (failed(this->getLoopTable().find(ubId, ub)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
 
   auto lbMap = AffineMap::getConstantMap(lb, builder_.getContext());
-  auto ubMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+  auto ubMap = AffineMap::get(1, 0, ubExpr);
 
   ValueRange ubOperands = ValueRange(ub);
   ValueRange lbOperands = {};
@@ -855,13 +856,16 @@ AffineForOp MLIRCodegen::createLoop(int lb, std::string ub_id, int step) {
   return loop;
 }
 
-AffineForOp MLIRCodegen::createLoop(std::string lb_id, int ub, int step) {
+AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
+                                    int step) {
   Value lb;
-  if (failed(this->getLoopTable().find(lb_id, lb)))
+  if (failed(this->getLoopTable().find(lbId, lb))) {
+    std::cout << lbId << std::endl;
     llvm_unreachable("Couldn't find the bound in the loop table.");
+  }
 
   auto ubMap = AffineMap::getConstantMap(ub, builder_.getContext());
-  auto lbMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+  auto lbMap = AffineMap::get(1, 0, lbExpr);
 
   ValueRange ubOperands = {};
   ValueRange lbOperands = ValueRange(lb);
@@ -877,16 +881,17 @@ AffineForOp MLIRCodegen::createLoop(std::string lb_id, int ub, int step) {
   return loop;
 }
 
-AffineForOp MLIRCodegen::createLoop(std::string lb_id, std::string ub_id,
+AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
+                                    AffineExpr ubExpr, std::string ubId,
                                     int step) {
   Value ub, lb;
-  if (failed(this->getLoopTable().find(ub_id, ub)))
+  if (failed(this->getLoopTable().find(ubId, ub)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
-  if (failed(this->getLoopTable().find(lb_id, lb)))
+  if (failed(this->getLoopTable().find(lbId, lb)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
 
-  auto lbMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
-  auto ubMap = AffineMap::getMultiDimIdentityMap(1, builder_.getContext());
+  auto lbMap = AffineMap::get(1, 0, lbExpr);
+  auto ubMap = AffineMap::get(1, 0, ubExpr);
 
   ValueRange ubOperands = ValueRange(ub);
   ValueRange lbOperands = ValueRange(lb);

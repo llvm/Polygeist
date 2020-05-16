@@ -17,18 +17,73 @@ static isl::ast_expr getUpperBound(isl::ast_node nodeFor) {
   return condition.get_op_arg(1);
 }
 
+static bool isInt(isl::ast_expr expression) {
+  return isl_ast_expr_get_type(expression.get()) == isl_ast_expr_int;
+}
+
 static int getIntFromIslExpr(isl::ast_expr expression) {
   if (isl_ast_expr_get_type(expression.get()) != isl_ast_expr_int)
     llvm_unreachable("expect isl_ast_expr_int expression");
   auto val = expression.get_val();
   return std::stoi(val.to_str());
 }
-bool isInt(isl::ast_expr expression) {
-  return isl_ast_expr_get_type(expression.get()) == isl_ast_expr_int;
+
+// Simplistic function that looks for an expression of type coeff * i + inc or i
+// + inc.
+static AffineExpr getAffineFromIslExpr(isl::ast_expr expr, MLIRContext *ctx) {
+  assert(((isl_ast_expr_get_type(expr.get()) == isl_ast_expr_id) ||
+          (isl_ast_expr_get_type(expr.get()) == isl_ast_expr_op)) &&
+         "expect isl_ast_expr_id or isl_ast_epxr op");
+  AffineExpr i;
+  bindDims(ctx, i);
+  if (isl_ast_expr_get_type(expr.get()) == isl_ast_expr_id)
+    return i;
+
+  int coeff = 1;
+  int inc = 1;
+  auto sumOrMinusExpr = isl_ast_expr_get_op_type(expr.get());
+  assert(((sumOrMinusExpr == isl_ast_op_add) ||
+          (sumOrMinusExpr == isl_ast_op_minus)) &&
+         "expect isl_ast_sum or isl_ast_minus");
+
+  // assume the rhs of the sum is an expr_int.
+  auto rhsSum = expr.get_op_arg(1);
+  assert((isl_ast_expr_get_type(rhsSum.get()) == isl_ast_expr_int) &&
+         "expect an isl_ast_expr_int");
+  auto incVal = rhsSum.get_val();
+  inc = std::stoi(incVal.to_str());
+
+  // check if we have a nested mul.
+  auto mulOrId = expr.get_op_arg(0);
+  assert(((isl_ast_expr_get_type(mulOrId.get()) == isl_ast_expr_id) ||
+          (isl_ast_expr_get_type(mulOrId.get()) == isl_ast_expr_op)) &&
+         "expect isl_ast_expr_id or isl_ast_expr_op");
+  if (isl_ast_expr_get_type(mulOrId.get()) == isl_ast_expr_id)
+    return i + inc;
+
+  // if so get the value of the mul.
+  auto mulType = isl_ast_expr_get_op_type(mulOrId.get());
+  assert((mulType == isl_ast_op_mul) && "expect isl_ast_mul");
+  auto lhsMul = mulOrId.get_op_arg(0);
+  assert((isl_ast_expr_get_type(lhsMul.get()) == isl_ast_expr_int) &&
+         "expect an isl_ast_expr_int");
+  auto coeffVal = lhsMul.get_val();
+  coeff = std::stoi(coeffVal.to_str());
+  return coeff * i + inc;
 }
-bool isId(isl::ast_expr expression) {
-  return isl_ast_expr_get_type(expression.get()) == isl_ast_expr_id;
+
+// walk an isl::ast_expr looking for an isl_ast_expr_id if
+// any.
+static void getBoundId(isl::ast_expr expr, std::string &id) {
+  if (isl_ast_expr_get_type(expr.get()) == isl_ast_expr_id)
+    id = expr.get_id().to_str();
+  if (isl_ast_expr_get_type(expr.get()) == isl_ast_expr_int)
+    return;
+  if (isl_ast_expr_get_type(expr.get()) == isl_ast_expr_op)
+    for (int i = 0; i < expr.get_op_n_arg(); i++)
+      getBoundId(expr.get_op_arg(i), id);
 }
+
 // TODO: See how we can get location information.
 // TODO: handle degenerate loop (see isl_ast_node_for_is_degenerate)
 // TODO: See how to handle more complex expression in the loop.
@@ -40,49 +95,37 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto upperBound = getUpperBound(forNode);
   auto incrementAsInt = std::abs(getIntFromIslExpr(increment));
 
+  auto ctx = MLIRBuilder_.getContext();
   AffineForOp loop;
-  // symbolic upper bound
-  if (isInt(lowerBound) && isId(upperBound)) {
-    // get id from node type
-    auto upperBoundId = isl::manage(isl_ast_expr_get_id(upperBound.get()));
-    // access string name
-    auto upperBoundProcessed = isl_id_get_name(upperBoundId.get());
-
-    auto lowerBoundProcessed = std::abs(getIntFromIslExpr(lowerBound));
-    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
+  if (isInt(lowerBound) && isInt(upperBound)) {
+    auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
+    auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
+    loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsInt,
                                    incrementAsInt);
-  }
-
-  // both symbolic
-  else if (isId(lowerBound) && isId(upperBound)) {
-    // upperBound processing
-    auto upperBoundId = isl::manage(isl_ast_expr_get_id(upperBound.get()));
-    auto upperBoundProcessed = isl_id_get_name(upperBoundId.get());
-    // lowerBound processing
-    auto lowerBoundId = isl::manage(isl_ast_expr_get_id(lowerBound.get()));
-    auto lowerBoundProcessed = isl_id_get_name(lowerBoundId.get());
-
-    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
-                                   incrementAsInt);
-  }
-
-  // symbolic lower bound
-  else if (isId(lowerBound) && isInt(upperBound)) {
-    // get id from node type
-    auto lowerBoundId = isl::manage(isl_ast_expr_get_id(lowerBound.get()));
-    // access string name
-    auto lowerBoundProcessed = isl_id_get_name(lowerBoundId.get());
-    auto upperBoundProcessed = std::abs(getIntFromIslExpr(upperBound) + 1);
-    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
-                                   incrementAsInt);
-  }
-
-  // double integer bounds
-  else {
-    auto upperBoundProcessed = std::abs(getIntFromIslExpr(upperBound) + 1);
-    auto lowerBoundProcessed = std::abs(getIntFromIslExpr(lowerBound));
-    loop = MLIRBuilder_.createLoop(lowerBoundProcessed, upperBoundProcessed,
-                                   incrementAsInt);
+  } else if (isInt(lowerBound) && !isInt(upperBound)) {
+    auto upperBoundAsExpr = getAffineFromIslExpr(upperBound, ctx);
+    std::string upperBoundId = "";
+    getBoundId(upperBound, upperBoundId);
+    auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
+    loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsExpr,
+                                   upperBoundId, incrementAsInt);
+  } else if (!isInt(lowerBound) && isInt(upperBound)) {
+    auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
+    auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
+    std::string lowerBoundId = "";
+    getBoundId(lowerBound, lowerBoundId);
+    loop = MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
+                                   upperBoundAsInt, incrementAsInt);
+  } else {
+    auto upperBoundAsExpr = getAffineFromIslExpr(upperBound, ctx);
+    auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
+    std::string upperBoundId = "";
+    getBoundId(upperBound, upperBoundId);
+    std::string lowerBoundId = "";
+    getBoundId(lowerBound, lowerBoundId);
+    loop =
+        MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
+                                upperBoundAsExpr, upperBoundId, incrementAsInt);
   }
 
   auto resInsertion =
