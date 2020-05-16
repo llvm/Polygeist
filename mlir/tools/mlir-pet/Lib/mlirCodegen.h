@@ -66,6 +66,8 @@ class MLIRCodegen {
 public:
   MLIRCodegen(mlir::MLIRContext &context, pet::Scop &scop);
 
+  mlir::MLIRContext *getContext() { return theModule_.getContext(); };
+
   // dump the current state of "theModule_"
   void dump();
 
@@ -78,10 +80,15 @@ public:
   mlir::LogicalResult verifyModule();
 
   // create an affineForOp.
-  mlir::AffineForOp createLoop(int lowerBound, int upperBound, int step);
-  mlir::AffineForOp createLoop(std::string lb_id, std::string ub_id, int step);
-  mlir::AffineForOp createLoop(int lb, std::string ub_id, int step);
-  mlir::AffineForOp createLoop(std::string lb_id, int ub, int step);
+  mlir::AffineForOp createLoop(int lb, int ub, int step);
+  mlir::AffineForOp createLoop(int lb, mlir::AffineExpr ubExpr,
+                               std::string ubId, int step);
+  mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
+                               int step);
+  mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb,
+                               mlir::AffineExpr ubExpr, std::string ub,
+                               int step);
+
   // return a reference to loop table.
   LoopTable &getLoopTable();
 
