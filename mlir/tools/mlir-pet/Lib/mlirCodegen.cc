@@ -14,30 +14,51 @@ using namespace pet;
 
 LoopTable &MLIRCodegen::getLoopTable() { return loopTable_; }
 
+static int getConstantValFromPwaff(isl::pw_aff pwaff) {
+  int res = 0;
+  pwaff.foreach_piece([&res](isl::set s, isl::aff a) -> isl_stat {
+    auto val = a.get_constant_val();
+    res = std::stoi(val.to_str());
+    return isl_stat_ok;
+  });
+  return res;
+}
+
 // helper function to get the indexes of the output dimensions
 // by comparing them with the input dimensions. This function
 // assume "muaff" *not* to be scheduled.
-static SmallVector<int, 4> getIndexesPos(isl::multi_pw_aff muaff) {
+LogicalResult MLIRCodegen::getIndexes(isl::multi_pw_aff muaff,
+                                      SmallVector<Value, 4> &loopIvs) {
   auto spaceDimOut = muaff.get_space().dim(isl::dim::out);
   if (spaceDimOut == 0)
     llvm_unreachable("expect multi-dimensional array");
-  SmallVector<int, 4> indexPos{};
+  auto loc = builder_.getUnknownLoc();
   auto umap = isl::union_map::from(muaff);
   if (umap.n_map() != 1)
-    return {};
+    return failure();
   auto map = isl::map::from_union_map(umap);
   for (size_t i = 0; i < map.dim(isl::dim::out); i++) {
     isl::pw_aff pwaff = muaff.get_pw_aff(i);
+    if (pwaff.is_cst()) {
+      auto constantIndex =
+          builder_.create<ConstantIndexOp>(loc, getConstantValFromPwaff(pwaff));
+      loopIvs.push_back(constantIndex);
+      continue;
+    }
     pwaff.foreach_piece([&](isl::set s, isl::aff a) -> isl_stat {
       for (size_t j = 0; j < map.dim(isl::dim::in); j++) {
         auto val = a.get_coefficient_val(isl::dim::in, j);
-        if (!val.is_zero())
-          indexPos.push_back(j);
+        if (!val.is_zero()) {
+          Value v = nullptr;
+          if (failed(loopTable_.getElemAtPos(j, v)))
+            llvm_unreachable("index not found in symbol table.");
+          loopIvs.push_back(v);
+        }
       }
       return isl_stat_ok;
     });
   }
-  return indexPos;
+  return success();
 }
 
 size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
@@ -100,29 +121,18 @@ LogicalResult MLIRCodegen::isInSymbolTable(__isl_keep pet_expr *expr) const {
 
 LogicalResult
 MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
-                                   SmallVector<Value, 4> &loopIvs) const {
+                                   SmallVector<Value, 4> &loopIvs) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   auto petArray = scop_.getArrayFromId(arrayId);
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
-  auto indexesPos = getIndexesPos(indexes);
-
-  if (petArray.getDimensionality() != indexesPos.size())
+  if (failed(getIndexes(indexes, loopIvs)))
     return failure();
 
   Value symbol;
   if (failed(getSymbol(expr, symbol)))
     return failure();
 
-  if (loopTable_.size() < indexesPos.size())
-    return failure();
-
-  for (size_t i = 0; i < indexesPos.size(); i++) {
-    Value val;
-    if (failed(loopTable_.getElemAtPos(indexesPos[i], val)))
-      return failure();
-    loopIvs.push_back(val);
-  }
   return success();
 }
 
