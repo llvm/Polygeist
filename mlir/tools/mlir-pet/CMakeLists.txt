@@ -1,47 +1,52 @@
 # pet project.
 
-set(PET_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(PET_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+option(MLIR_PET_BUILD "Build MLIR-pet" OFF)
+if (MLIR_PET_BUILD)
 
-find_package(PET REQUIRED)
-find_package(ISL REQUIRED)
+  set(PET_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+  set(PET_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
-add_llvm_executable(mlir-pet
-  mlir-pet.cc
-  Lib/scop.cc
-  Lib/islAst.cc
-  Lib/mlirCodegen.cc
-  Lib/islNodeBuilder.cc
-)
+  find_package(PET REQUIRED)
+  find_package(ISL REQUIRED)
 
-message(STATUS "PET include and lib path ->")
-message(STATUS ${PET_INCLUDE_PATH})
-message(STATUS ${PET_LIBRARY})
-message(STATUS "ISL include and lib path ->")
-message(STATUS ${ISL_INCLUDE_PATH})
-message(STATUS ${ISL_LIBRARY})
+  add_llvm_tool(mlir-pet
+    mlir-pet.cc
+    Lib/scop.cc
+    Lib/islAst.cc
+    Lib/mlirCodegen.cc
+    Lib/islNodeBuilder.cc
+  )
 
-#debug
-option(PET-TO-MLIR-VERBOSE "debug" OFF)
-if (PET-TO-MLIR-VERBOSE)
-  add_definitions("-DDEBUG")
-endif (PET-TO-MLIR-VERBOSE)
+  message(STATUS "PET include and lib path ->")
+  message(STATUS ${PET_INCLUDE_PATH})
+  message(STATUS ${PET_LIBRARY})
+  message(STATUS "ISL include and lib path ->")
+  message(STATUS ${ISL_INCLUDE_PATH})
+  message(STATUS ${ISL_LIBRARY})
 
-target_include_directories(mlir-pet PRIVATE
-  ${PET_INCLUDE_PATH}
-  ${ISL_INCLUDE_PATH}
-)
+  #debug
+  option(PET-TO-MLIR-VERBOSE "debug" OFF)
+  if (PET-TO-MLIR-VERBOSE)
+    add_definitions("-DDEBUG")
+  endif (PET-TO-MLIR-VERBOSE)
 
-target_link_libraries(mlir-pet PRIVATE 
-  ${PET_LIBRARY}
-  ${ISL_LIBRARY}
-  LLVMCore
-  LLVMSupport
-  
-  MLIRSupport
-  MLIRIR
-  MLIRAnalysis
+  target_include_directories(mlir-pet PRIVATE
+    ${PET_INCLUDE_PATH}
+    ${ISL_INCLUDE_PATH}
+  )
 
-)
+  target_link_libraries(mlir-pet PRIVATE
+    ${PET_LIBRARY}
+    ${ISL_LIBRARY}
+    LLVMCore
+    LLVMSupport
 
-add_subdirectory(Test)
+    MLIRSupport
+    MLIRIR
+    MLIRAnalysis
+
+  )
+
+  add_subdirectory(Test)
+
+endif()

@@ -11,7 +11,7 @@
 set(PET_FOUND FALSE)
 
 message(STATUS "Looking for PET")
-find_path(PET_PATH_PETROOT pet.h PATHS $ENV{HOME}/pet/install/include NO_DEFAULT_PATH)
+find_path(PET_PATH_PETROOT pet.h)
 
 if(PET_PATH_PETROOT)
     get_filename_component(PET_PATH ${PET_PATH_PETROOT}/.. ABSOLUTE)
