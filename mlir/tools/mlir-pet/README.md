@@ -43,6 +43,7 @@ cmake ../llvm \
   -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -G Ninja  # optional, to use ninja instead of make
 make install  # or ninja; preferably with -j <num-cores>
@@ -82,6 +83,7 @@ cmake ../llvm \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_PROJECTS="mlir;clang" \
   -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
   -DMLIR_PET_BUILD=On \
   -G Ninja  # optional, to use ninja instead of make
 make install-mlir-pet  # or ninja install-mlir-pet; preferably with -j <num-cores>
