@@ -924,14 +924,21 @@ AffineForOp MLIRCodegen::createLoop(int lb, int ub, int step) {
 }
 
 AffineForOp MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
-                                    int step) {
+                                    int step, bool leqBound) {
 
   Value ub;
   if (failed(this->getLoopTable().find(ubId, ub)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
 
   auto lbMap = AffineMap::getConstantMap(lb, builder_.getContext());
-  auto ubMap = AffineMap::get(1, 0, ubExpr);
+  mlir::AffineMap ubMap;
+
+  if (leqBound) {
+    AffineExpr affExpr = getAffineConstantExpr(1, builder_.getContext());
+    ubMap = AffineMap::get(1, 0, affExpr + ubExpr);
+  } else {
+    ubMap = AffineMap::get(1, 0, ubExpr);
+  }
 
   ValueRange ubOperands = ValueRange(ub);
   ValueRange lbOperands = {};
