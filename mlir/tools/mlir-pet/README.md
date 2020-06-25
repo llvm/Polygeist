@@ -88,3 +88,12 @@ cmake ../llvm \
   -G Ninja  # optional, to use ninja instead of make
 make install-mlir-pet  # or ninja install-mlir-pet; preferably with -j <num-cores>
 ```
+
+### How to run
+
+```
+git clone https://github.com/Meinersbur/polybench
+cd polybench/polybench-code
+for i in `cat utilities/benchmark_list`; do FNAME=`basename $i`; echo $FNAME; clang -E -Iutilities -DPOLYBENCH_USE_SCALAR_LB $i > /tmp/$FNAME; mlir-pet  /tmp/$FNAME; done
+```
+
