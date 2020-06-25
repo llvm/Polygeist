@@ -101,7 +101,7 @@ public:
   // create an affineForOp.
   mlir::AffineForOp createLoop(int lb, int ub, int step);
   mlir::AffineForOp createLoop(int lb, mlir::AffineExpr ubExpr,
-                               std::string ubId, int step);
+                               std::string ubId, int step, bool leqBound);
   mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
                                int step);
   mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb,

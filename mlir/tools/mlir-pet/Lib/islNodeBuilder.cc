@@ -8,12 +8,15 @@ using namespace llvm;
 using namespace pet;
 
 // TODO: check loop direction.
-static isl::ast_expr getUpperBound(isl::ast_node nodeFor) {
+static isl::ast_expr getUpperBound(isl::ast_node nodeFor, bool *leqBound) {
   if (isl_ast_node_get_type(nodeFor.get()) != isl_ast_node_for)
     llvm_unreachable("expect a for node");
   isl::ast_expr condition = nodeFor.for_get_cond();
   if (isl_ast_expr_get_type(condition.get()) != isl_ast_expr_op)
     llvm_unreachable("conditional expression is not an atomic upper bound");
+  // set the flag for leq to increment symbolic bound
+  if (isl_ast_expr_get_op_type(condition.get()) == isl_ast_expr_op_le)
+    *leqBound = true;
   return condition.get_op_arg(1);
 }
 
@@ -92,11 +95,14 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto increment = forNode.for_get_inc();
   auto iterator = forNode.for_get_iterator();
   auto iteratorId = iterator.get_id().to_str();
-  auto upperBound = getUpperBound(forNode);
+  // flag for leq to increment symbolic bound
+  bool leqBound = false;
+  auto upperBound = getUpperBound(forNode, &leqBound);
   auto incrementAsInt = std::abs(getIntFromIslExpr(increment));
 
   auto ctx = MLIRBuilder_.getContext();
   AffineForOp loop;
+
   if (isInt(lowerBound) && isInt(upperBound)) {
     auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
     auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
@@ -108,7 +114,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     getBoundId(upperBound, upperBoundId);
     auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
     loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsExpr,
-                                   upperBoundId, incrementAsInt);
+                                   upperBoundId, incrementAsInt, leqBound);
   } else if (!isInt(lowerBound) && isInt(upperBound)) {
     auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
     auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
