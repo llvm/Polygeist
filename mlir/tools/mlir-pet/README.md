@@ -54,7 +54,7 @@ make install  # or ninja; preferably with -j <num-cores>
 cd $ISL_DIR
 ./autogen.sh
 ./configure --prefix=$INSTALL_DIR
-make install  # preferablt with -j <num-cores>
+make install  # preferably with -j <num-cores>
 ```
 
 Note do _NOT_ configure `--with-clang` as it would overwrite the bindings
@@ -65,7 +65,7 @@ header.
 ```
 cd $PET_DIR
 ./autogen.sh
-./configure --with-clang-prefix=$INSTALL_DIR --with-isl=system \
+./configure --prefix=$INSTALL_DIR --with-clang-prefix=$INSTALL_DIR --with-isl=system \
   --with-isl-prefix=$INSTALL_DIR
 make install  # preferablt with -j <num-cores>
 ```
