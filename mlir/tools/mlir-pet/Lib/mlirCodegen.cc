@@ -309,8 +309,7 @@ Value MLIRCodegen::createAllocOp(__isl_keep pet_expr *expr, Type t, Value v) {
 
 Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
-  pet_expr_dump(expr);
-
+  // pet_expr_dump(expr);
   // get type for lhs.
   auto lhsPetExpr = pet_expr_get_arg(expr, 0);
   Value symbolLhs = nullptr;
@@ -463,6 +462,11 @@ Value MLIRCodegen::createPostInc(__isl_take pet_expr *expr) {
   return lhs;
 }
 
+// Kill statement are introduced automatically for locally
+// defined variables (scalars and/or vectors). One at the poin
+// of the declaration and one when the declaration goes out of
+// scope.
+// Use --reschedule options to avoid emission of kill stmts.
 Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_n_arg(expr) == 1) && "expect single arg for kill");
@@ -470,6 +474,15 @@ Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
   auto argType = pet_expr_get_type(arg);
   assert((argType == pet_expr_access) &&
          "expect pet_expr_access as arg for kill");
+  // avoid to emit a declaration if we hit a kill
+  // statement and the array is already in the symbol
+  // table.
+  Value symbol = nullptr;
+  if (succeeded(getSymbol(arg, symbol))) {
+    pet_expr_free(arg);
+    pet_expr_free(expr);
+    return symbol;
+  }
   auto idArray = isl::manage(pet_expr_access_get_id(arg));
   auto petArray = scop_.getArrayFromId(idArray);
   auto elementType = petArray.getType();
