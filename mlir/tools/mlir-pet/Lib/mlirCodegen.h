@@ -44,6 +44,10 @@ private:
   // the symbol table maps a loop value to the loop id.
   std::map<std::string, mlir::Value> symbolTable_;
 
+protected:
+  // dump helper.
+  void dumpImpl() const;
+
 public:
   decltype(symbolTable_.begin()) begin() { return symbolTable_.begin(); }
   decltype(symbolTable_.cbegin()) begin() const {
@@ -59,7 +63,22 @@ public:
 class LoopTable : public SymbolTable {
 public:
   // get value at position "pos"
-  mlir::LogicalResult getElemAtPos(size_t pos, mlir::Value &value) const;
+  mlir::LogicalResult getValueAtPos(size_t pos, mlir::Value &value) const;
+  mlir::LogicalResult getIdAtPos(size_t pos, std::string &valueId) const;
+  // check if a mapping is in the table.
+  mlir::LogicalResult lookUpPetMapping(std::string idPet) const;
+  mlir::LogicalResult lookUpIslMapping(std::string idIsl,
+                                       std::string &mapping) const;
+  // insert a new mapping for induction variables.
+  // i.e., i mapped with c0.
+  void insertMapping(std::string idPet, std::string idIsl);
+
+  // dump the current state.
+  void dump() const;
+
+private:
+  // mapped indVars. (i.e., i -> c0)
+  std::map<std::string, std::string> mappedIndVars_;
 };
 
 class MLIRCodegen {
@@ -102,6 +121,10 @@ public:
   // is used by islNodeBuilder to move the insertion point
   // after the body of a loop has been created.
   void setInsertionPointAfter(mlir::AffineForOp *op);
+
+  // This should not be public, but it is used by IslNodeBuilder.
+  mlir::LogicalResult getIndVarSymbol(std::string idIsl,
+                                      mlir::Value &indVar) const;
 
 private:
   // current scop. For each scop we create a mlir::FuncOp.
@@ -147,6 +170,8 @@ private:
   // in the symbol table.
   mlir::LogicalResult getSymbol(__isl_keep pet_expr *expr,
                                 mlir::Value &scalar) const;
+  mlir::LogicalResult getIndVarSymbol(__isl_keep pet_expr *expr,
+                                      mlir::Value &indVar) const;
 
   // check if "expr" is already in the symbol table.
   mlir::LogicalResult isInSymbolTable(__isl_keep pet_expr *expr) const;
