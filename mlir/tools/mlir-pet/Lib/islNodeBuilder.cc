@@ -136,6 +136,14 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   // create loop body.
   MLIRFromISLAstImpl(forNode.for_get_body());
 
+  // update indvar before erasing if it is visible
+  // outside the loop. If it is visible outside the
+  // loop, the value will be in the symbol table.
+  mlir::Value indVar;
+  if (succeeded(MLIRBuilder_.getIndVarSymbol(iteratorId, indVar))) {
+    // TODO: finish me.
+  }
+
   // induction variable goes out of scop. Remove from
   // loopTable
   MLIRBuilder_.getLoopTable().erase(iteratorId);

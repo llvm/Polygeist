@@ -50,8 +50,12 @@ LogicalResult MLIRCodegen::getIndexes(isl::multi_pw_aff muaff,
         auto val = a.get_coefficient_val(isl::dim::in, j);
         if (!val.is_zero()) {
           Value v = nullptr;
-          if (failed(loopTable_.getElemAtPos(j, v)))
+          std::string valueId = "null";
+          if (failed(loopTable_.getValueAtPos(j, v)) ||
+              (failed(loopTable_.getIdAtPos(j, valueId))))
             llvm_unreachable("index not found in symbol table.");
+          loopTable_.insertMapping(std::string(a.get_dim_name(isl::dim::in, j)),
+                                   valueId);
           loopIvs.push_back(v);
         }
       }
@@ -107,6 +111,26 @@ LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
                                      Value &scalar) const {
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
   if (failed(symbolTable_.find(arrayId.to_str(), scalar)))
+    return failure();
+  return success();
+}
+
+LogicalResult MLIRCodegen::getIndVarSymbol(__isl_keep pet_expr *expr,
+                                           Value &indVar) const {
+  auto indVarId = isl::manage(pet_expr_access_get_id(expr));
+  if (failed(loopTable_.lookUpPetMapping(indVarId.to_str())))
+    return failure();
+  if (failed(symbolTable_.find(indVarId.to_str(), indVar)))
+    return failure();
+  return success();
+}
+
+LogicalResult MLIRCodegen::getIndVarSymbol(std::string id,
+                                           Value &indVar) const {
+  std::string petId = "null";
+  if (failed(loopTable_.lookUpIslMapping(id, petId)))
+    return failure();
+  if (failed(symbolTable_.find(petId, indVar)))
     return failure();
   return success();
 }
@@ -312,6 +336,17 @@ Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   // pet_expr_dump(expr);
   // get type for lhs.
   auto lhsPetExpr = pet_expr_get_arg(expr, 0);
+
+  // check if we are dealing with an induction variable.
+  // If so, do not update it. We will update at the end
+  // of the for.
+  Value indVar = nullptr;
+  if (succeeded(getIndVarSymbol(lhsPetExpr, indVar))) {
+    pet_expr_free(expr);
+    pet_expr_free(lhsPetExpr);
+    return indVar;
+  }
+
   Value symbolLhs = nullptr;
   if (failed(getSymbol(lhsPetExpr, symbolLhs)))
     llvm_unreachable("symbol must be available in symbol table");
@@ -605,28 +640,54 @@ Value MLIRCodegen::createOp(__isl_take pet_expr *expr, Type t) {
   return nullptr;
 }
 
+// the type of the pet expr may discord with the passed value type.
+// Consider y[0] = 0 where y is a memref<f64>.
+// In this case, type will be double but `0` will be
+// a pet_expr_int.
+// Thus we first switch on the type of pet_expr `expr` then we adjust
+// the type obtained to match `type<
 Value MLIRCodegen::createConstantOp(__isl_take pet_expr *expr,
                                     ElementType type) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto loc = builder_.getUnknownLoc();
+
+  int valueAsInt = std::numeric_limits<int>::max();
+  std::string valueAsDoubleOrFloat;
+  switch (pet_expr_get_type(expr)) {
+  case pet_expr_int: {
+    valueAsInt = std::stoi(isl::manage(pet_expr_int_get_val(expr)).to_str());
+    break;
+  }
+  case pet_expr_double: {
+    valueAsDoubleOrFloat = std::string(pet_expr_double_get_str(expr));
+    break;
+  }
+  default:
+    llvm_unreachable("expect only pet_expr_int or double");
+  }
+
   switch (type) {
   case ElementType::INT: {
-    isl::val value = isl::manage(pet_expr_int_get_val(expr));
-    int valueAsInt = std::stoi(value.to_str());
+    int intForConstant = (valueAsInt == std::numeric_limits<int>::max())
+                             ? std::stoi(valueAsDoubleOrFloat)
+                             : valueAsInt;
     pet_expr_free(expr);
-    return createConstantIntOp(valueAsInt, loc);
+    return createConstantIntOp(intForConstant, loc);
   }
   case ElementType::FLOAT: {
-    float valueAsFloat = std::stof(std::string(pet_expr_double_get_str(expr)));
+    float floatForConstant = (valueAsInt == std::numeric_limits<int>::max())
+                                 ? std::stof(valueAsDoubleOrFloat)
+                                 : (float)valueAsInt;
     pet_expr_free(expr);
-    return createConstantFloatOp(valueAsFloat, loc);
+    return createConstantFloatOp(floatForConstant, loc);
   }
   case ElementType::DOUBLE: {
     // XXX: here pet only exposes get_str method, why?
-    double valueAsDouble =
-        std::stod(std::string(pet_expr_double_get_str(expr)));
+    double doubleForConstant = (valueAsInt == std::numeric_limits<int>::max())
+                                   ? std::stod(valueAsDoubleOrFloat)
+                                   : (double)valueAsInt;
     pet_expr_free(expr);
-    return createConstantDoubleOp(valueAsDouble, loc);
+    return createConstantDoubleOp(doubleForConstant, loc);
   }
   }
   return nullptr;
@@ -727,7 +788,9 @@ static ElementType getElementTypeFromMLIRType(Type t) {
     return ElementType::FLOAT;
   if (memRefElemType.isF64())
     return ElementType::DOUBLE;
-  llvm_unreachable("expect type F32 or F64");
+  if (memRefElemType.isInteger(32))
+    return ElementType::INT;
+  llvm_unreachable("expect type F32/F64/Int32");
   return ElementType::FLOAT;
 }
 
@@ -739,7 +802,6 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
   case pet_expr_access:
     return createLoad(expr);
   case pet_expr_int:
-    return createConstantOp(expr, ElementType::INT);
   case pet_expr_double: {
     auto floatType = getElementTypeFromMLIRType(t);
     return createConstantOp(expr, floatType);
@@ -788,9 +850,9 @@ Type MLIRCodegen::getTensorType(MLIRContext &context,
   size_t dimensionality = inputTensor.getDimensionality();
   for (size_t i = 0; i < dimensionality; i++)
     shape.push_back(inputTensor.getExtentOnDimension(i));
-  if (dimensionality)
-    return MemRefType::get(shape, tensorType);
-  return tensorType;
+  if (dimensionality == 0)
+    return MemRefType::get({1}, tensorType);
+  return MemRefType::get(shape, tensorType);
 }
 
 SmallVector<Type, 8> MLIRCodegen::getFunctionArgumentsTypes(
@@ -883,7 +945,6 @@ AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
                                     int step) {
   Value lb;
   if (failed(this->getLoopTable().find(lbId, lb))) {
-    std::cout << lbId << std::endl;
     llvm_unreachable("Couldn't find the bound in the loop table.");
   }
 
@@ -966,7 +1027,7 @@ LogicalResult codegen::SymbolTable::find(std::string id) const {
   return find(id, dummy);
 }
 
-LogicalResult LoopTable::getElemAtPos(size_t pos, Value &value) const {
+LogicalResult LoopTable::getValueAtPos(size_t pos, Value &value) const {
   if (pos > size())
     return failure();
   auto it = begin();
@@ -975,11 +1036,52 @@ LogicalResult LoopTable::getElemAtPos(size_t pos, Value &value) const {
   return success();
 }
 
+LogicalResult LoopTable::getIdAtPos(size_t pos, std::string &valueId) const {
+  if (pos > size())
+    return failure();
+  auto it = begin();
+  std::advance(it, pos);
+  valueId = it->first;
+  return success();
+}
+
+LogicalResult LoopTable::lookUpPetMapping(std::string id) const {
+  auto it = mappedIndVars_.find(id);
+  if (it != mappedIndVars_.end())
+    return success();
+  return failure();
+}
+
+LogicalResult LoopTable::lookUpIslMapping(std::string id,
+                                          std::string &res) const {
+  for (auto it = mappedIndVars_.begin(); it != mappedIndVars_.end(); it++)
+    if (it->second == id) {
+      res = it->first;
+      return success();
+    }
+  return failure();
+}
+
+void LoopTable::insertMapping(std::string idPet, std::string idIsl) {
+  mappedIndVars_.insert(std::make_pair(idPet, idIsl));
+}
+
 size_t codegen::SymbolTable::size() const { return symbolTable_.size(); }
 
-void codegen::SymbolTable::dump() const {
-  outs() << "Loop table: \n";
+void codegen::SymbolTable::dumpImpl() const {
   outs() << "   size: " << symbolTable_.size() << "\n";
   for (auto it = symbolTable_.begin(); it != symbolTable_.end(); it++)
     outs() << "   id: " << it->first << "\n";
+}
+
+void codegen::SymbolTable::dump() const {
+  outs() << "Symbol table: \n";
+  dumpImpl();
+}
+
+void codegen::LoopTable::dump() const {
+  outs() << "Loop Table: \n";
+  dumpImpl();
+  for (auto it = mappedIndVars_.begin(); it != mappedIndVars_.end(); it++)
+    outs() << "   Loop id " << it->first << " --> " << it->second << "\n";
 }
