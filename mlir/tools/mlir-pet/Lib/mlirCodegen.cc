@@ -29,6 +29,21 @@ static int getConstantValFromPwaff(isl::pw_aff pwaff) {
 // assume "muaff" *not* to be scheduled.
 LogicalResult MLIRCodegen::getIndexes(isl::multi_pw_aff muaff,
                                       SmallVector<Value, 4> &loopIvs) {
+  auto space = muaff.get_space();
+  auto spaceDimIn = space.dim(isl::dim::in);
+  assert(loopTable_.size() == spaceDimIn);
+  // map islId with petId for induction variables.
+  // i.e., S[i, j, k] with a loop table containing
+  // c0, c1, c2, will map to i = c0 - j = c1 - k = c2
+  for (size_t i = 0; i < spaceDimIn; i++) {
+    assert(space.has_dim_id(isl::dim::in, i));
+    auto dimId = space.get_dim_id(isl::dim::in, i).to_str();
+    auto petId = dimId.substr(0, dimId.find("@"));
+    std::string islId;
+    if (failed(loopTable_.getIdAtPos(i, islId)))
+      llvm_unreachable("index not found in symbol table.");
+    loopTable_.insertMapping(petId, islId);
+  }
   auto spaceDimOut = muaff.get_space().dim(isl::dim::out);
   if (spaceDimOut == 0)
     llvm_unreachable("expect multi-dimensional array");
@@ -51,11 +66,8 @@ LogicalResult MLIRCodegen::getIndexes(isl::multi_pw_aff muaff,
         if (!val.is_zero()) {
           Value v = nullptr;
           std::string valueId = "null";
-          if (failed(loopTable_.getValueAtPos(j, v)) ||
-              (failed(loopTable_.getIdAtPos(j, valueId))))
+          if (failed(loopTable_.getValueAtPos(j, v)))
             llvm_unreachable("index not found in symbol table.");
-          loopTable_.insertMapping(std::string(a.get_dim_name(isl::dim::in, j)),
-                                   valueId);
           loopIvs.push_back(v);
         }
       }
