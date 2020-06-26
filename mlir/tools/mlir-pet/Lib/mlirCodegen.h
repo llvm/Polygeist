@@ -123,8 +123,8 @@ public:
   void setInsertionPointAfter(mlir::AffineForOp *op);
 
   // This should not be public, but it is used by IslNodeBuilder.
-  mlir::LogicalResult getIndVarSymbol(std::string idIsl,
-                                      mlir::Value &indVar) const;
+  mlir::LogicalResult getSymbolInductionVar(std::string idIsl,
+                                            mlir::Value &indVar) const;
 
 private:
   // current scop. For each scop we create a mlir::FuncOp.
@@ -170,8 +170,8 @@ private:
   // in the symbol table.
   mlir::LogicalResult getSymbol(__isl_keep pet_expr *expr,
                                 mlir::Value &scalar) const;
-  mlir::LogicalResult getIndVarSymbol(__isl_keep pet_expr *expr,
-                                      mlir::Value &indVar) const;
+  mlir::LogicalResult getSymbolInductionVar(__isl_keep pet_expr *expr,
+                                            mlir::Value &indVar) const;
 
   // check if "expr" is already in the symbol table.
   mlir::LogicalResult isInSymbolTable(__isl_keep pet_expr *expr) const;

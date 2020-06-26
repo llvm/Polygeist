@@ -127,8 +127,8 @@ LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
   return success();
 }
 
-LogicalResult MLIRCodegen::getIndVarSymbol(__isl_keep pet_expr *expr,
-                                           Value &indVar) const {
+LogicalResult MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
+                                                 Value &indVar) const {
   auto indVarId = isl::manage(pet_expr_access_get_id(expr));
   if (failed(loopTable_.lookUpPetMapping(indVarId.to_str())))
     return failure();
@@ -137,8 +137,8 @@ LogicalResult MLIRCodegen::getIndVarSymbol(__isl_keep pet_expr *expr,
   return success();
 }
 
-LogicalResult MLIRCodegen::getIndVarSymbol(std::string id,
-                                           Value &indVar) const {
+LogicalResult MLIRCodegen::getSymbolInductionVar(std::string id,
+                                                 Value &indVar) const {
   std::string petId = "null";
   if (failed(loopTable_.lookUpIslMapping(id, petId)))
     return failure();
@@ -346,7 +346,7 @@ Value MLIRCodegen::createAssignmentOp(__isl_take pet_expr *expr) {
   // If so, do not update it. We will update at the end
   // of the for.
   Value indVar = nullptr;
-  if (succeeded(getIndVarSymbol(lhsPetExpr, indVar))) {
+  if (succeeded(getSymbolInductionVar(lhsPetExpr, indVar))) {
     pet_expr_free(expr);
     pet_expr_free(lhsPetExpr);
     return indVar;

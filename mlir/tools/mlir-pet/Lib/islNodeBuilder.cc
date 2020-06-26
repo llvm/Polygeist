@@ -140,7 +140,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   // outside the loop. If it is visible outside the
   // loop, the value will be in the symbol table.
   mlir::Value indVar;
-  if (succeeded(MLIRBuilder_.getIndVarSymbol(iteratorId, indVar))) {
+  if (succeeded(MLIRBuilder_.getSymbolInductionVar(iteratorId, indVar))) {
     // TODO: finish me.
   }
 
