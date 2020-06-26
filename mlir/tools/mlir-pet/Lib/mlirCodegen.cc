@@ -782,9 +782,8 @@ getOrInsertFunction(OpBuilder &rewriter, ModuleOp module, std::string fName,
   return mlir::SymbolRefAttr::get(fName, context);
 }
 
-Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
+Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr, Type t) {
   auto nameFunc = std::string(pet_expr_call_get_name(expr));
-  assert((nameFunc == "print_memref_f32") && "only print name");
   assert((pet_expr_get_n_arg(expr) == 1) && "must have 1 arg only");
 
   auto subExpr = pet_expr_get_arg(expr, 0);
@@ -802,15 +801,6 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
     return nullptr;
   }
 
-  // enforce memref to be a f32.
-  auto elemType = memRef.getElementType();
-  if (!elemType.isF32()) {
-    LLVM_DEBUG(
-        dbgs()
-        << "createCallOp supports only memref with elements of type F32");
-    return nullptr;
-  }
-
   // cast the memref to unranked type.
   auto loc = builder_.getUnknownLoc();
   auto newMemRefType =
@@ -819,14 +809,31 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
 
   // insert the function.
   auto module = castedMemRef.getParentOfType<ModuleOp>();
-  auto symbolFn =
-      getOrInsertFunction(builder_, module, "print_memref_f32",
-                          llvm::ArrayRef<Type>{castedMemRef.getType()});
-  builder_.create<CallOp>(loc, symbolFn, /*return type*/ llvm::ArrayRef<Type>{},
-                          llvm::ArrayRef<Value>{castedMemRef});
 
   pet_expr_free(subExpr);
   pet_expr_free(expr);
+
+  // void function.
+  if (!t) {
+    auto symbolFn =
+        getOrInsertFunction(builder_, module, nameFunc,
+                            llvm::ArrayRef<Type>{castedMemRef.getType()});
+    builder_.create<CallOp>(loc, symbolFn, /*return type*/ ArrayRef<Type>{},
+                            ArrayRef<Value>{castedMemRef});
+    return symbol;
+  }
+  // memref<* x TYPE> -> TYPE (single result).
+  if (auto typeArg = t.dyn_cast_or_null<MemRefType>()) {
+    auto symbolFn = getOrInsertFunction(
+        builder_, module, nameFunc, ArrayRef<Type>{castedMemRef.getType()},
+        ArrayRef<Type>{typeArg.getElementType()});
+    symbol = builder_
+                 .create<CallOp>(loc, symbolFn,
+                                 ArrayRef<Type>{typeArg.getElementType()},
+                                 ArrayRef<Value>{castedMemRef})
+                 .getResult(0);
+    return symbol;
+  }
   return symbol;
 }
 
@@ -862,7 +869,7 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
     return createConstantOp(expr, type);
   }
   case pet_expr_call:
-    return createCallOp(expr);
+    return createCallOp(expr, t);
   case pet_expr_cast: {
     llvm_unreachable("type not handled");
     return nullptr;

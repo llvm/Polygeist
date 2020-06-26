@@ -217,7 +217,7 @@ private:
                             mlir::Value v = nullptr);
 
   // create call operation.
-  mlir::Value createCallOp(__isl_take pet_expr *expr);
+  mlir::Value createCallOp(__isl_take pet_expr *expr, mlir::Type t);
 
   // check if 'expr' is a multi-dimensional array.
   bool isMultiDimensionalArray(__isl_keep pet_expr *expr) const;
