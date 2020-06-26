@@ -82,6 +82,9 @@ size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access");
   auto idArray = isl::manage(pet_expr_access_get_id(expr));
+  // if the expression has no id, it is not an array.
+  if (!idArray)
+    return 0;
   return scop_.getArrayFromId(idArray).getDimensionality();
 }
 
@@ -122,6 +125,29 @@ MemRefType MLIRCodegen::convertExprToMemRef(__isl_keep pet_expr *expr,
 LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
                                      Value &scalar) const {
   auto arrayId = isl::manage(pet_expr_access_get_id(expr));
+  if (!arrayId) {
+    // in case we don't have any id, we are dealing with
+    // in induction variable expression. Currently, we
+    // assume a simple form of such expression, with a
+    // single induction variable.
+    auto index = isl::manage(pet_expr_access_get_index(expr));
+    assert(index.dim(isl::dim::out) == 1);
+    auto pwaff = index.get_pw_aff(0);
+    assert(pwaff.n_piece() == 1);
+    std::string indVarSymbol;
+    auto getIndVarId = [&indVarSymbol](isl::set set, isl::aff aff) {
+      for (int i = 0; i < aff.dim(isl::dim::in); i++) {
+        isl::val coeff = aff.get_coefficient_val(isl::dim::in, i);
+        if (!coeff.is_zero())
+          indVarSymbol = std::string(aff.get_dim_name(isl::dim::in, i));
+      }
+      return isl_stat_ok;
+    };
+    pwaff.foreach_piece(getIndVarId);
+    if (failed(symbolTable_.find(indVarSymbol, scalar)))
+      return failure();
+    return success();
+  }
   if (failed(symbolTable_.find(arrayId.to_str(), scalar)))
     return failure();
   return success();
@@ -214,24 +240,37 @@ MLIRCodegen::applyAccessExpression(__isl_keep pet_expr *expr,
   return res;
 }
 
-// TODO: check that expr is freed for all the possible
-// exit points. Do we want also to free in case we return
-// nullptr? Can we do a C++ wrapper around pet_expr?
-// FIXME: pet allows also expression that are like:
-// ref_id: __pet_ref_3
-// index: { S_2[] -> [(123)] }
-// depth: 1
-// read: 1
-// write: 0
-// to be of type pet_expr_access. This will
-// trigger 'tuple has not id' in isMultiDimensionalArray.
-// To reproduce use:
-// int main() {
-//  int i = 10;
-//  i = i + 23;
-// }
+Value MLIRCodegen::composeInductionExpression(__isl_keep pet_expr *expr,
+                                              Value indVar) {
+  // an induction expr does not have an outer array id.
+  auto id = isl::manage(pet_expr_access_get_id(expr));
+  if (id)
+    return indVar;
+  auto muaff = isl::manage(pet_expr_access_get_index(expr));
+  assert(muaff.dim(isl::dim::out) == 1);
+  auto pwaff = muaff.get_pw_aff(0);
+
+  int increment = 0;
+  auto extractExpr = [&](isl::set set, isl::aff aff) {
+    for (int i = 0; i < aff.dim(isl::dim::out); i++) {
+      isl::val incr = aff.get_constant_val();
+      increment = std::stoi(incr.to_str());
+    }
+    return isl_stat_ok;
+  };
+  pwaff.foreach_piece(extractExpr);
+  if (!increment)
+    return indVar;
+  // FIXME: We assume  i + something atm
+  // an i with type int
+  auto loc = builder_.getUnknownLoc();
+  Value incrVal = createConstantIntOp(increment, loc);
+  indVar = createBinaryOp(loc, indVar, incrVal, BinaryOpType::ADD);
+  return indVar;
+}
 
 Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
+  // pet_expr_dump(expr);
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   assert((pet_expr_get_type(expr) == pet_expr_access) &&
          "expect pet_expr_access type");
@@ -243,12 +282,16 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
       pet_expr_free(expr);
       return nullptr;
     }
-    pet_expr_free(expr);
     // emit the load only if we are dealing with a memref.
     if (scalar.getType().dyn_cast<MemRefType>()) {
       Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
       scalar = builder_.create<AffineLoadOp>(location, scalar, zeroIndex);
     }
+    // if we are dealing with a complex expr (i.e., i + 1) for
+    // the induction variable we may need to create
+    // extra operations.
+    scalar = composeInductionExpression(expr, scalar);
+    pet_expr_free(expr);
     return scalar;
   }
 
@@ -265,7 +308,6 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
   }
 
   loopIvs = applyAccessExpression(expr, loopIvs);
-
   pet_expr_free(expr);
   return builder_.create<AffineLoadOp>(location, symbol, loopIvs);
 }
@@ -417,11 +459,18 @@ Value MLIRCodegen::createBinaryOp(Location &loc, Value &lhs, Value &rhs,
 
 Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
-  Value rhs = createExpr(pet_expr_get_arg(expr, 1));
-  if (!rhs)
-    return nullptr;
+
+  auto rhsExpr = pet_expr_get_arg(expr, 0);
+  Value symbolRhs = nullptr;
+  if (failed(getSymbol(rhsExpr, symbolRhs)))
+    llvm_unreachable("symbol must be available in symbol table");
+  pet_expr_free(rhsExpr);
+
   Value rhsLoad = createLoad(pet_expr_get_arg(expr, 0));
   if (!rhsLoad)
+    return nullptr;
+  Value rhs = createExpr(pet_expr_get_arg(expr, 1), symbolRhs.getType());
+  if (!rhs)
     return nullptr;
 
   auto location = builder_.getUnknownLoc();
@@ -782,6 +831,7 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr) {
 }
 
 static ElementType getElementTypeFromMLIRType(Type t) {
+  LLVM_DEBUG(dbgs() << __func__ << "\n");
   // default.
   if (!t)
     return ElementType::FLOAT;
@@ -808,8 +858,8 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
     return createLoad(expr);
   case pet_expr_int:
   case pet_expr_double: {
-    auto floatType = getElementTypeFromMLIRType(t);
-    return createConstantOp(expr, floatType);
+    auto type = getElementTypeFromMLIRType(t);
+    return createConstantOp(expr, type);
   }
   case pet_expr_call:
     return createCallOp(expr);
@@ -825,7 +875,6 @@ Value MLIRCodegen::createExpr(__isl_keep pet_expr *expr, Type t) {
 }
 
 LogicalResult MLIRCodegen::createStmt(__isl_keep pet_expr *expr) {
-  // pet_expr_dump(expr);
   LLVM_DEBUG(dbgs() << __func__ << "\n");
   auto Value = createExpr(expr);
   if (!Value)
