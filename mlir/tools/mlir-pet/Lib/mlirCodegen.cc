@@ -159,16 +159,9 @@ LogicalResult
 MLIRCodegen::getSymbolInductionVar(__isl_keep pet_expr *expr,
                                    SmallVector<Value, 4> &loopIvs) {
   LLVM_DEBUG(dbgs() << __func__ << "\n");
-  auto arrayId = isl::manage(pet_expr_access_get_id(expr));
-  auto petArray = scop_.getArrayFromId(arrayId);
   auto indexes = isl::manage(pet_expr_access_get_index(expr));
   if (failed(getIndexes(indexes, loopIvs)))
     return failure();
-
-  Value symbol;
-  if (failed(getSymbol(expr, symbol)))
-    return failure();
-
   return success();
 }
 
