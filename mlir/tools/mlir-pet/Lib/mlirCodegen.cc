@@ -436,11 +436,11 @@ Value MLIRCodegen::createAssignmentWithOp(__isl_take pet_expr *expr) {
     break;
   }
   case pet_op_sub_assign: {
-    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::SUB);
+    op = createBinaryOp(location, rhsLoad, rhs, BinaryOpType::SUB);
     break;
   }
   case pet_op_div_assign: {
-    op = createBinaryOp(location, rhs, rhsLoad, BinaryOpType::DIV);
+    op = createBinaryOp(location, rhsLoad, rhs, BinaryOpType::DIV);
     break;
   }
   case pet_op_and_assign:
