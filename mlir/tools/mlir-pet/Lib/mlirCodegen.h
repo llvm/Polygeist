@@ -233,6 +233,9 @@ private:
   llvm::SmallVector<mlir::Value, 4>
   applyAccessExpression(__isl_keep pet_expr *expr,
                         llvm::SmallVector<mlir::Value, 4> &loopIvs);
+  // create expr `expr` for induction variable `indvar`.
+  mlir::Value composeInductionExpression(__isl_keep pet_expr *expr,
+                                         mlir::Value indVar);
 
   // get indexes as mlir::Value from 'muaff'.
   mlir::LogicalResult getIndexes(isl::multi_pw_aff muaff,
