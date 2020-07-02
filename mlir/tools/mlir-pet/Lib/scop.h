@@ -5,8 +5,8 @@
 #include "llvm/ADT/SmallVector.h"
 #include "isl/isl-noexceptions.h"
 
-class pet_scop;
-class pet_stmt;
+struct pet_scop;
+struct pet_stmt;
 
 namespace pet {
 
