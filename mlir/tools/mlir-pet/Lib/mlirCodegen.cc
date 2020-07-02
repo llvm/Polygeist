@@ -968,14 +968,9 @@ LogicalResult MLIRCodegen::verifyModule() {
 }
 
 AffineForOp MLIRCodegen::createLoop(int lb, int ub, int step) {
-
   auto loop =
       builder_.create<AffineForOp>(builder_.getUnknownLoc(), lb, ub, step);
-  loop.getBody()->clear();
   builder_.setInsertionPointToStart(loop.getBody());
-  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
-  builder_.setInsertionPointToStart(loop.getBody());
-
   return loop;
 }
 
