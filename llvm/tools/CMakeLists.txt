@@ -37,6 +37,9 @@ add_llvm_external_project(clang)
 add_llvm_external_project(lld)
 add_llvm_external_project(lldb)
 add_llvm_external_project(mlir)
+add_llvm_external_project(isl)
+# Pet depends on isl and clang, so place it afterward.
+add_llvm_external_project(pet)
 # Flang depends on mlir, so place it afterward
 add_llvm_external_project(flang)
 
