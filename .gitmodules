@@ -1,0 +1,6 @@
+[submodule "isl/isl"]
+	path = isl/isl
+	url = https://github.com/chelini/isl.git
+[submodule "pet/pet"]
+	path = pet/pet
+	url = https://repo.or.cz/pet.git
