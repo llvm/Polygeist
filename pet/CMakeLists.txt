@@ -57,6 +57,7 @@ set(PET_FILES
 
 add_library(PET STATIC ${PET_FILES})
 target_include_directories(PET PUBLIC "../isl/isl/include")
+target_include_directories(PET PUBLIC "${LLVM_BINARY_DIR}/tools/isl/include")
 target_include_directories(PET PRIVATE "../clang/include")
 target_include_directories(PET PRIVATE "${LLVM_BINARY_DIR}/tools/clang/include")
 target_link_libraries(PET PUBLIC clangFrontend clangParse clangSema clangAST clangLex clangBasic clangDriver clangSerialization ISL)
