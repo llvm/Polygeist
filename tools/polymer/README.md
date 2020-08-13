@@ -22,3 +22,14 @@ cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_TARGETS_TO_BUILD="X8
 ninja
 ninja check-mlir
 ```
+
+Build and test PLUTO ([prerequisites](https://github.com/kumasento/pluto)):
+
+```
+cd mlir-polyhedral
+cd pluto && git submodule init && git submodule update
+./autogen.sh
+./configure --enable-debug
+make
+make test
+```
