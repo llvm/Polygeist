@@ -1,6 +1,6 @@
-# mlir-polyhedral
+# Polymer
 
-Polyhedral analysis for MLIR code by PLUTO and ISL.
+Bridging polyhedral analysis tools (PLUTO/ISL) to the MLIR framework.
 
 ## Setup
 
