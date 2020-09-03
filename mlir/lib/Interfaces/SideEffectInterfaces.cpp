@@ -22,7 +22,7 @@ using namespace mlir;
 //===----------------------------------------------------------------------===//
 
 bool MemoryEffects::Effect::classof(const SideEffects::Effect *effect) {
-  return isa<Allocate, Free, Read, Write>(effect);
+  return effect->isa<Allocate, Free, Read, Write>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -65,10 +65,10 @@ static bool wouldOpBeTriviallyDeadImpl(Operation *rootOp) {
       if (!llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
             // We can drop allocations if the value is a result of the
             // operation.
-            if (isa<MemoryEffects::Allocate>(it.getEffect()))
+            if (it.getEffect().isa<MemoryEffects::Allocate>())
               return it.getValue() && it.getValue().getDefiningOp() == op;
             // Otherwise, the effect must be a read.
-            return isa<MemoryEffects::Read>(it.getEffect());
+            return it.getEffect().isa<MemoryEffects::Read>();
           })) {
         return false;
       }

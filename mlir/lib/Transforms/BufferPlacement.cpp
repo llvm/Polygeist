@@ -269,7 +269,7 @@ private:
           effects, std::back_inserter(allocateResultEffects),
           [=](MemoryEffects::EffectInstance &it) {
             Value value = it.getValue();
-            return isa<MemoryEffects::Allocate>(it.getEffect()) && value &&
+            return it.getEffect().isa<MemoryEffects::Allocate>() && value &&
                    value.isa<OpResult>() &&
                    it.getResource() !=
                        SideEffects::AutomaticAllocationScopeResource::get();
@@ -559,7 +559,7 @@ private:
             effectInterface.getEffectsOnValue(entry.allocValue, effects);
             return llvm::any_of(
                 effects, [&](MemoryEffects::EffectInstance &it) {
-                  return isa<MemoryEffects::Free>(it.getEffect());
+                  return it.getEffect().isa<MemoryEffects::Free>();
                 });
           });
       // Assign the associated dealloc operation (if any).

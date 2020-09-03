@@ -15,9 +15,50 @@
 #define MLIR_INTERFACES_SIDEEFFECTS_H
 
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/StorageUniquerSupport.h"
 
 namespace mlir {
 namespace SideEffects {
+
+namespace detail {
+class EffectUniquer;
+} // namespace detail
+
+/// The default storage class for Effects. Only contains the type ID of the
+/// effect.
+class EffectStorage : public StorageUniquer::BaseStorage {
+  friend StorageUniquer;
+  friend MLIRContext;
+
+public:
+  /// Constructs a storage with the given type ID.
+  explicit EffectStorage(const TypeID &id) : typeID(id) {}
+
+  /// Returns type ID of the storage.
+  TypeID getTypeID() const { return typeID; }
+
+private:
+  /// Friends can construct a storage and initialize it later.
+  EffectStorage() {}
+  void initialize(const TypeID &id) { typeID = id; }
+
+  /// Type ID of the effect.
+  TypeID typeID;
+};
+
+namespace detail {
+/// A utility class to get or create unique instances of side effects within an
+/// MLIRContext.
+class EffectUniquer {
+public:
+  /// Get a uniqued non-parametric side effect.
+  // TODO: support parametric side effects
+  template <typename T> static T get(MLIRContext *ctx) {
+    return ctx->getEffectUniquer().get<typename T::ImplType>(T::getTypeID());
+  }
+};
+} // namespace detail
+
 //===----------------------------------------------------------------------===//
 // Effects
 //===----------------------------------------------------------------------===//
@@ -25,49 +66,54 @@ namespace SideEffects {
 /// This class represents a base class for a specific effect type.
 class Effect {
 public:
-  /// This base class is used for derived effects that are non-parametric.
-  template <typename DerivedEffect, typename BaseEffect = Effect>
-  class Base : public BaseEffect {
-  public:
-    using BaseT = Base<DerivedEffect>;
-
-    /// Return the unique identifier for the base effects class.
-    static TypeID getEffectID() { return TypeID::get<DerivedEffect>(); }
-
-    /// 'classof' used to support llvm style cast functionality.
-    static bool classof(const ::mlir::SideEffects::Effect *effect) {
-      return effect->getEffectID() == BaseT::getEffectID();
-    }
-
-    /// Returns a unique instance for the derived effect class.
-    static DerivedEffect *get() {
-      return BaseEffect::template get<DerivedEffect>();
-    }
-    using BaseEffect::get;
-
-  protected:
-    Base() : BaseEffect(BaseT::getEffectID()) {}
-  };
+  template <typename DerivedEffect, typename BaseEffect = Effect,
+            typename StorageType = EffectStorage>
+  using Base =
+      mlir::detail::StorageUserBase<DerivedEffect, BaseEffect, StorageType,
+                                    detail::EffectUniquer>;
+  using ImplType = EffectStorage;
 
   /// Return the unique identifier for the base effects class.
-  TypeID getEffectID() const { return id; }
+  TypeID getTypeID() const { return impl->getTypeID(); }
 
-  /// Returns a unique instance for the given effect class.
-  template <typename DerivedEffect> static DerivedEffect *get() {
-    static_assert(std::is_base_of<Effect, DerivedEffect>::value,
-                  "expected DerivedEffect to inherit from Effect");
+  /// Support for LLVM-style casting.
+  template <typename U> bool isa() const;
+  template <typename First, typename Second, typename... Rest> bool isa() const;
+  template <typename U> U dyn_cast() const;
+  template <typename U> U dyn_cast_or_null() const;
+  template <typename U> U cast() const;
 
-    static DerivedEffect instance;
-    return &instance;
-  }
+  /// Support casting to itself.
+  static bool classof(Effect) { return true; }
+
+  Effect() : impl(nullptr) {}
+  /*implicit*/ Effect(ImplType *impl) : impl(impl) {}
+  Effect(const Effect &) = default;
 
 protected:
-  Effect(TypeID id) : id(id) {}
-
-private:
-  /// The id of the derived effect class.
-  TypeID id;
+  ImplType *impl;
 };
+
+template <typename U> bool Effect::isa() const {
+  assert(impl && "isa<> used on a null attribute.");
+  return U::classof(*this);
+}
+
+template <typename First, typename Second, typename... Rest>
+bool Effect::isa() const {
+  return isa<First>() || isa<Second, Rest...>();
+}
+
+template <typename U> U Effect::dyn_cast() const {
+  return isa<U>() ? U(impl) : U(nullptr);
+}
+template <typename U> U Effect::dyn_cast_or_null() const {
+  return (impl && isa<U>()) ? U(impl) : U(nullptr);
+}
+template <typename U> U Effect::cast() const {
+  assert(isa<U>());
+  return U(impl);
+}
 
 //===----------------------------------------------------------------------===//
 // Resources
@@ -135,14 +181,14 @@ struct AutomaticAllocationScopeResource
 /// argument) that the effect is applied to.
 template <typename EffectT> class EffectInstance {
 public:
-  EffectInstance(EffectT *effect, Resource *resource = DefaultResource::get())
+  EffectInstance(EffectT effect, Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource) {}
-  EffectInstance(EffectT *effect, Value value,
+  EffectInstance(EffectT effect, Value value,
                  Resource *resource = DefaultResource::get())
       : effect(effect), resource(resource), value(value) {}
 
   /// Return the effect being applied.
-  EffectT *getEffect() const { return effect; }
+  EffectT getEffect() const { return effect; }
 
   /// Return the value the effect is applied on, or nullptr if there isn't a
   /// known value being affected.
@@ -153,7 +199,7 @@ public:
 
 private:
   /// The specific effect being applied.
-  EffectT *effect;
+  EffectT effect;
 
   /// The resource that the given value resides in.
   Resource *resource;
@@ -197,22 +243,30 @@ using EffectInstance = SideEffects::EffectInstance<Effect>;
 /// The following effect indicates that the operation allocates from some
 /// resource. An 'allocate' effect implies only allocation of the resource, and
 /// not any visible mutation or dereference.
-struct Allocate : public Effect::Base<Allocate> {};
+struct Allocate : public Effect::Base<Allocate> {
+  using Base::Base;
+};
 
 /// The following effect indicates that the operation frees some resource that
 /// has been allocated. An 'allocate' effect implies only de-allocation of the
 /// resource, and not any visible allocation, mutation or dereference.
-struct Free : public Effect::Base<Free> {};
+struct Free : public Effect::Base<Free> {
+  using Base::Base;
+};
 
 /// The following effect indicates that the operation reads from some resource.
 /// A 'read' effect implies only dereferencing of the resource, and not any
 /// visible mutation.
-struct Read : public Effect::Base<Read> {};
+struct Read : public Effect::Base<Read> {
+  using Base::Base;
+};
 
 /// The following effect indicates that the operation writes to some resource. A
 /// 'write' effect implies only mutating a resource, and not any visible
 /// dereference or read.
-struct Write : public Effect::Base<Write> {};
+struct Write : public Effect::Base<Write> {
+  using Base::Base;
+};
 } // namespace MemoryEffects
 
 //===----------------------------------------------------------------------===//

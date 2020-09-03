@@ -32,13 +32,13 @@ struct SideEffectsPass
       for (MemoryEffects::EffectInstance instance : effects) {
         auto diag = op.emitRemark() << "found an instance of ";
 
-        if (isa<MemoryEffects::Allocate>(instance.getEffect()))
+        if (instance.getEffect().isa<MemoryEffects::Allocate>())
           diag << "'allocate'";
-        else if (isa<MemoryEffects::Free>(instance.getEffect()))
+        else if (instance.getEffect().isa<MemoryEffects::Free>())
           diag << "'free'";
-        else if (isa<MemoryEffects::Read>(instance.getEffect()))
+        else if (instance.getEffect().isa<MemoryEffects::Read>())
           diag << "'read'";
-        else if (isa<MemoryEffects::Write>(instance.getEffect()))
+        else if (instance.getEffect().isa<MemoryEffects::Write>())
           diag << "'write'";
 
         if (instance.getValue())

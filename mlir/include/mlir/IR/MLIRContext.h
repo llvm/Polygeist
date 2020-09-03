@@ -156,6 +156,10 @@ public:
   /// instances. This should not be used directly.
   StorageUniquer &getAttributeUniquer();
 
+  /// Returns the storage uniquer used for constructing uniqued side effects.
+  /// This should not be used directly.
+  StorageUniquer &getEffectUniquer();
+
   /// These APIs are tracking whether the context will be used in a
   /// multithreading environment: this has no effect other than enabling
   /// assertions on misuses of some APIs.

@@ -51,7 +51,7 @@ Value Aliases::find(Value v) {
       // original buffer.
       if (llvm::any_of(
               effects, [](const MemoryEffects::EffectInstance &instance) {
-                return isa<MemoryEffects::Allocate>(instance.getEffect());
+                return instance.getEffect().isa<MemoryEffects::Allocate>();
               }))
         return v;
     }

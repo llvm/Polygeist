@@ -91,7 +91,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
                                               }] # baseEffect # [{>> &effects) {
       getEffects(effects);
       llvm::erase_if(effects, [&](auto &it) {
-        return !llvm::isa<Effect>(it.getEffect());
+        return !it.getEffect().template isa<Effect>();
       });
     }
 
@@ -100,7 +100,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
       SmallVector<SideEffects::EffectInstance<}] # baseEffect # [{>, 4> effects;
       getEffects(effects);
       return llvm::any_of(effects, [](const auto &it) {
-        return llvm::isa<Effect>(it.getEffect());
+        return it.getEffect().template isa<Effect>();
       });
     }
 
@@ -109,7 +109,7 @@ class EffectOpInterfaceBase<string name, string baseEffect>
       SmallVector<SideEffects::EffectInstance<}] # baseEffect # [{>, 4> effects;
       getEffects(effects);
       return !effects.empty() && llvm::all_of(effects, [](const auto &it) {
-        return isa<Effect>(it.getEffect());
+        return it.getEffect().template isa<Effect>();
       });
     }
 

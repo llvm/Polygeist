@@ -1641,7 +1641,7 @@ void OpEmitter::genSideEffectInterfaceMethods() {
       }
 
       body << "  effects.emplace_back(" << location.effect.getName()
-           << "::get()";
+           << "::get(getContext())";
 
       // If the effect isn't static, it has a specific value attached to it.
       if (location.kind != EffectKind::Static)

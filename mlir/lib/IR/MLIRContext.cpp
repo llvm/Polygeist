@@ -24,6 +24,7 @@
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Types.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
@@ -345,6 +346,13 @@ public:
   UnknownLoc unknownLocAttr;
   DictionaryAttr emptyDictionaryAttr;
 
+  //===--------------------------------------------------------------------===//
+  // Side effect uniquing
+  //===--------------------------------------------------------------------===//
+
+  /// Effect uniquing.
+  StorageUniquer effectUniquer;
+
 public:
   MLIRContextImpl() : identifiers(identifierAllocator) {}
   ~MLIRContextImpl() {
@@ -418,6 +426,19 @@ MLIRContext::MLIRContext(bool loadAllDialects) : impl(new MLIRContextImpl()) {
   impl->affineUniquer
       .registerParametricStorageType<AffineConstantExprStorage>();
   impl->affineUniquer.registerParametricStorageType<AffineDimExprStorage>();
+
+  // Register the memory effects with the uniquer.
+  auto registerMemoryEffect = [this](TypeID typeID) {
+    impl->effectUniquer
+        .registerSingletonStorageType<SideEffects::EffectStorage>(
+            typeID, [typeID](SideEffects::EffectStorage *storage) {
+              storage->initialize(typeID);
+            });
+  };
+  registerMemoryEffect(MemoryEffects::Allocate::getTypeID());
+  registerMemoryEffect(MemoryEffects::Free::getTypeID());
+  registerMemoryEffect(MemoryEffects::Read::getTypeID());
+  registerMemoryEffect(MemoryEffects::Write::getTypeID());
 }
 
 MLIRContext::~MLIRContext() {}
@@ -830,6 +851,10 @@ Location UnknownLoc::get(MLIRContext *context) {
 /// Return empty dictionary.
 DictionaryAttr DictionaryAttr::getEmpty(MLIRContext *context) {
   return context->getImpl().emptyDictionaryAttr;
+}
+
+StorageUniquer &MLIRContext::getEffectUniquer() {
+  return getImpl().effectUniquer;
 }
 
 //===----------------------------------------------------------------------===//

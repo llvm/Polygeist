@@ -639,13 +639,13 @@ void SideEffectOp::getEffects(
     DictionaryAttr effectElement = element.cast<DictionaryAttr>();
 
     // Get the specific memory effect.
-    MemoryEffects::Effect *effect =
-        llvm::StringSwitch<MemoryEffects::Effect *>(
+    MemoryEffects::Effect effect =
+        llvm::StringSwitch<MemoryEffects::Effect>(
             effectElement.get("effect").cast<StringAttr>().getValue())
-            .Case("allocate", MemoryEffects::Allocate::get())
-            .Case("free", MemoryEffects::Free::get())
-            .Case("read", MemoryEffects::Read::get())
-            .Case("write", MemoryEffects::Write::get());
+            .Case("allocate", MemoryEffects::Allocate::get(getContext()))
+            .Case("free", MemoryEffects::Free::get(getContext()))
+            .Case("read", MemoryEffects::Read::get(getContext()))
+            .Case("write", MemoryEffects::Write::get(getContext()));
 
     // Check for a result to affect.
     Value value;
