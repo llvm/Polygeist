@@ -439,6 +439,13 @@ MLIRContext::MLIRContext(bool loadAllDialects) : impl(new MLIRContextImpl()) {
   registerMemoryEffect(MemoryEffects::Free::getTypeID());
   registerMemoryEffect(MemoryEffects::Read::getTypeID());
   registerMemoryEffect(MemoryEffects::Write::getTypeID());
+  
+  impl->effectUniquer.registerParametricStorageType<
+      AffineMemoryEffects::IntegerSetEffectStorage>(
+      AffineMemoryEffects::Read::getTypeID());
+  impl->effectUniquer.registerParametricStorageType<
+      AffineMemoryEffects::IntegerSetEffectStorage>(
+      AffineMemoryEffects::Write::getTypeID());
 }
 
 MLIRContext::~MLIRContext() {}

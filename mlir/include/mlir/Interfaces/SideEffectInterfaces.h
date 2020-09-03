@@ -14,6 +14,7 @@
 #ifndef MLIR_INTERFACES_SIDEEFFECTS_H
 #define MLIR_INTERFACES_SIDEEFFECTS_H
 
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/StorageUniquerSupport.h"
 
@@ -27,6 +28,7 @@ class EffectUniquer;
 /// The default storage class for Effects. Only contains the type ID of the
 /// effect.
 class EffectStorage : public StorageUniquer::BaseStorage {
+  friend detail::EffectUniquer;
   friend StorageUniquer;
   friend MLIRContext;
 
@@ -53,8 +55,20 @@ class EffectUniquer {
 public:
   /// Get a uniqued non-parametric side effect.
   // TODO: support parametric side effects
-  template <typename T> static T get(MLIRContext *ctx) {
+  template <typename T>
+  static typename std::enable_if<
+      std::is_same<typename T::ImplType, EffectStorage>::value, T>::type
+  get(MLIRContext *ctx) {
     return ctx->getEffectUniquer().get<typename T::ImplType>(T::getTypeID());
+  }
+
+  template <typename T, typename... Args>
+  static typename std::enable_if<
+      !std::is_same<typename T::ImplType, EffectStorage>::value, T>::type
+  get(MLIRContext *ctx, Args &&...args) {
+    return ctx->getEffectUniquer().get<typename T::ImplType>(
+        [](EffectStorage *storage) { storage->initialize(T::getTypeID()); },
+        T::getTypeID(), std::forward<Args>(args)...);
   }
 };
 } // namespace detail
@@ -268,6 +282,69 @@ struct Write : public Effect::Base<Write> {
   using Base::Base;
 };
 } // namespace MemoryEffects
+
+//===----------------------------------------------------------------------===//
+// Affine Memory Effects
+//===----------------------------------------------------------------------===//
+
+namespace AffineMemoryEffects {
+/// Storage class for integer-set based side effects.
+// This is similar to type/attribute storage and everything that isn't already
+// owned by the context should be copied into the allocator.
+class IntegerSetEffectStorage : public SideEffects::EffectStorage {
+public:
+  explicit IntegerSetEffectStorage(IntegerSet indices)
+      : EffectStorage(TypeID::get<IntegerSetEffectStorage>()),
+        affectedIndices(indices) {}
+
+  using KeyTy = IntegerSet;
+
+  bool operator==(const KeyTy &other) const { return other == affectedIndices; }
+
+  static IntegerSetEffectStorage *
+  construct(StorageUniquer::StorageAllocator &allocator, IntegerSet indices) {
+    return new (allocator.allocate<IntegerSetEffectStorage>())
+        IntegerSetEffectStorage(indices);
+  }
+
+  IntegerSet getAffectedIndices() const { return affectedIndices; }
+
+private:
+  IntegerSet affectedIndices;
+};
+
+/// Base class for side effects that are associated with an integer set.
+struct Effect : public SideEffects::Effect {
+  using SideEffects::Effect::Effect;
+
+  /// Individual effects must derive this class.
+  template <typename DerivedEffect>
+  class IntegerSetEffectBase
+      : public SideEffects::Effect::Base<DerivedEffect, Effect,
+                                         IntegerSetEffectStorage> {
+  public:
+    using Base<DerivedEffect, Effect, IntegerSetEffectStorage>::Base;
+    IntegerSet getAffectedIndices() {
+      return this->getImpl()->getAffectedIndices();
+    }
+
+    static TypeID getTypeID() { return TypeID::get<DerivedEffect>(); }
+  };
+};
+
+using EffectInstance = SideEffects::EffectInstance<Effect>;
+
+/// "Read" side effect associated with an integer set.
+struct Read : public Effect::IntegerSetEffectBase<Read> {
+  using IntegerSetEffectBase::IntegerSetEffectBase;
+};
+
+/// "Write" side effect associated with an integer set.
+struct Write : public Effect::IntegerSetEffectBase<Write> {
+  using IntegerSetEffectBase::IntegerSetEffectBase;
+};
+
+} // namespace AffineMemoryEffects
 
 //===----------------------------------------------------------------------===//
 // SideEffect Utilities

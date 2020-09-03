@@ -9,6 +9,8 @@
 #include "TestDialect.h"
 #include "mlir/Pass/Pass.h"
 
+#include "mlir/IR/IntegerSet.h"
+
 using namespace mlir;
 
 namespace {

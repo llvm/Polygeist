@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -795,6 +796,117 @@ void ParallelOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
+
+/// Returns the domain of the surrounding SCF parallel loop as an integer set.
+/// This domain is bounded by loop lower and upper bounds if they are constant.
+/// The domain is created in the space with 2N dimensions, where first N
+/// dimensions correspond to loop induction variables and the second N
+/// dimensions are left unconstrained with the intention of being used as
+/// indicators of how the loop iterators are modified to serve as subscripts.
+/// For example, a 2D loop going from 0 to 10 on both dimensions, will have
+/// the domain
+///   affine_set<(i,j,i',j') : (i >= 0 and 9 - i >= 0 and
+///                             j >= 0 and 9 - j >= 0)>
+/// which can be extended to
+///   affine_set<(i,j,i',j') : (<...> and i' - i - 1 == 0)
+/// to express the access
+///   affine.load %memref[%i + 1]
+/// in this loop.
+// TODO: we may want a different representation than affine, based on SSA values
+// for example.
+static IntegerSet getSurroundingDomain(Operation *op) {
+  auto loop = op->getParentOfType<ParallelOp>();
+  if (!loop)
+    return IntegerSet::get(0, 0, llvm::None, llvm::None);
+
+  MLIRContext *ctx = op->getContext();
+  SmallVector<AffineExpr, 8> boundExprs;
+  SmallVector<bool, 8> boundEqFlags;
+  unsigned numIters = loop.getNumLoops();
+  for (unsigned i = 0; i < numIters; ++i) {
+    APInt lb, ub, step;
+    AffineExpr boundDim = getAffineDimExpr(i, ctx);
+    // Add lower bound if constant.
+    if (matchPattern(loop.lowerBound()[i], m_ConstantInt(&lb))) {
+      AffineExpr cst = getAffineConstantExpr(lb.getSExtValue(), ctx);
+      boundExprs.push_back(boundDim - cst);
+      boundEqFlags.push_back(false);
+
+      // If both the lower bound and the step are constant, we can define a
+      // modular "sieve" constraint.
+      if (matchPattern(loop.step()[i], m_ConstantInt(&step)) &&
+          !step.isOneValue()) {
+        AffineExpr mod =
+            getAffineConstantExpr(lb.getSExtValue() % step.getZExtValue(), ctx);
+        boundExprs.push_back(boundDim % step.getZExtValue() - mod);
+        boundEqFlags.push_back(true);
+      }
+    }
+    // Add upper bound if constant.
+    if (matchPattern(loop.upperBound()[i], m_ConstantInt(&ub))) {
+      AffineExpr cst = getAffineConstantExpr(ub.getSExtValue(), ctx);
+      boundExprs.push_back(cst - 1 - boundDim);
+      boundEqFlags.push_back(false);
+    }
+  }
+  return IntegerSet::get(numIters * 2, 0, boundExprs, boundEqFlags);
+}
+
+/// Intersects the given integer set with the set of constraints. The
+/// constraints are expected to live in the same space as the integer set.
+static IntegerSet intersect(IntegerSet domain, ArrayRef<AffineExpr> constraints,
+                            ArrayRef<bool> eqFlags) {
+  auto allConstraints = llvm::to_vector<8>(domain.getConstraints());
+  auto allFlags = llvm::to_vector<8>(domain.getEqFlags());
+  allConstraints.append(constraints.begin(), constraints.end());
+  allFlags.append(eqFlags.begin(), eqFlags.end());
+  return IntegerSet::get(domain.getNumDims(), domain.getNumSymbols(),
+                         allConstraints, allFlags);
+}
+
+/// Given a "read" or "write" memory effect, create the corresponding effect
+/// associated with the given integer set.
+static AffineMemoryEffects::Effect
+deriveAffineEffectFromMemory(MLIRContext *ctx,
+                             const MemoryEffects::EffectInstance &instance,
+                             IntegerSet indices) {
+  if (instance.getEffect().isa<MemoryEffects::Read>())
+    return AffineMemoryEffects::Read::get(ctx, indices);
+  if (instance.getEffect().isa<MemoryEffects::Write>())
+    return AffineMemoryEffects::Write::get(ctx, indices);
+
+  llvm_unreachable("only read/write effects are supported");
+}
+
+/// Given an effect instance for the given operation, populate `effects` with
+/// corresponding side that apply to all iterations of the immediately enclosing
+/// SCF parallel loop except the current iteration. For an ND loop, this is
+/// expressed as multiple effects (interpreted as set union) with
+///   integer_set<(i1, ..., in, i1', ..., in') :
+///               (<..domain..> and ik - ik' - 1 >= 0)>,
+///   integer_set<(i1, ..., in, i1', ..., in') :
+///               (<..domain..> and ik' - ik - 1 >= 0)>  forall k in [1,n].
+/// Note the potential for combinatorial explosion.
+static void effectWithHoleAtCurrentIter(
+    const MemoryEffects::EffectInstance &instance, Operation *op,
+    SmallVectorImpl<AffineMemoryEffects::EffectInstance> &effects) {
+  IntegerSet domain = getSurroundingDomain(op);
+  MLIRContext *ctx = domain.getContext();
+  SmallVector<AffineExpr, 8> boundExprs;
+  unsigned numIters = domain.getNumDims() / 2;
+  for (unsigned pos = 0; pos < numIters; ++pos) {
+    assert(pos < domain.getNumDims() / 2);
+    AffineExpr boundDim = getAffineDimExpr(pos, ctx);
+    AffineExpr accessDim = getAffineDimExpr(domain.getNumDims() / 2 + pos, ctx);
+    IntegerSet left = intersect(domain, boundDim - accessDim - 1, false);
+    IntegerSet right = intersect(domain, accessDim - boundDim - 1, false);
+    effects.emplace_back(deriveAffineEffectFromMemory(ctx, instance, left),
+                         instance.getValue());
+    effects.emplace_back(deriveAffineEffectFromMemory(ctx, instance, right),
+                         instance.getValue());
+  }
+}
+
 void print(OpAsmPrinter &out, BarrierOp) {
   out << BarrierOp::getOperationName();
 }
@@ -823,6 +935,14 @@ void BarrierOp::getEffects(
     if (auto iface = dyn_cast<MemoryEffectOpInterface>(it))
       iface.getEffects<MemoryEffects::Write>(effects);
   }
+}
+
+void BarrierOp::getEffects(
+    SmallVectorImpl<AffineMemoryEffects::EffectInstance> &effects) {
+  SmallVector<MemoryEffects::EffectInstance, 8> writes;
+  getEffects(writes);
+  for (const MemoryEffects::EffectInstance &instance : writes)
+    effectWithHoleAtCurrentIter(instance, *this, effects);
 }
 
 //===----------------------------------------------------------------------===//

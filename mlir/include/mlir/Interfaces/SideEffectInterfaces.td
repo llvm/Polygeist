@@ -227,6 +227,16 @@ class MemWrite<Resource resource>
 def MemWrite : MemWrite<DefaultResource>;
 
 //===----------------------------------------------------------------------===//
+// Affine Memory Effects
+//===----------------------------------------------------------------------===//
+
+def AffineMemoryEffectsOpInterface
+  : EffectOpInterfaceBase<"AffineMemoryEffectsOpInterface",
+                          "AffineMemoryEffects::Effect"> {
+  let cppNamespace = "::mlir";
+}
+
+//===----------------------------------------------------------------------===//
 // Effect Traits
 //===----------------------------------------------------------------------===//
 
