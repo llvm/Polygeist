@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
@@ -1097,6 +1098,39 @@ void ParallelOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
   results.insert<CollapseSingleIterationLoops, RemoveEmptyParallelLoops>(
       context);
+}
+
+//===----------------------------------------------------------------------===//
+// BarrierOp
+//===----------------------------------------------------------------------===//
+void print(OpAsmPrinter &out, BarrierOp) {
+  out << BarrierOp::getOperationName();
+}
+
+LogicalResult verify(BarrierOp) { return success(); }
+
+ParseResult parseBarrierOp(OpAsmParser &, OperationState &) {
+  return success();
+}
+
+void BarrierOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+
+  // Collect Write effect instances from other operations in the block. Note
+  // that the implementation of getEffects erases all effect instances that have
+  // the type other than the template parameter, so if this ever needs to
+  // collect different effect types, the filtering will have to be done locally.
+  Operation *op = getOperation();
+  for (Operation *it = op->getPrevNode(); it != nullptr;
+       it = it->getPrevNode()) {
+    if (auto iface = dyn_cast<MemoryEffectOpInterface>(it))
+      iface.getEffects<MemoryEffects::Write>(effects);
+  }
+  for (Operation *it = op->getNextNode(); it != nullptr;
+       it = it->getNextNode()) {
+    if (auto iface = dyn_cast<MemoryEffectOpInterface>(it))
+      iface.getEffects<MemoryEffects::Write>(effects);
+  }
 }
 
 //===----------------------------------------------------------------------===//
