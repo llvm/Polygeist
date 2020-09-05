@@ -893,9 +893,9 @@ static mlir::Type getType(const PetArray &array, MLIRContext &context) {
   auto type = array.getType();
   switch (type) {
   case ElementType::FLOAT:
-    return FloatType::get(StandardTypes::F32, &context);
+    return FloatType::getF32(&context);
   case ElementType::DOUBLE:
-    return FloatType::get(StandardTypes::F64, &context);
+    return FloatType::getF64(&context);
   case ElementType::INT:
     return IntegerType::get(32, &context);
   }
@@ -921,7 +921,7 @@ SmallVector<Type, 8> MLIRCodegen::getFunctionArgumentsTypes(
   SmallVector<Type, 8> argTypes;
   if (!inputTensors.size())
     return {};
-  for (const auto inputTensor : inputTensors)
+  for (const auto& inputTensor : inputTensors)
     argTypes.push_back(getTensorType(context, inputTensor));
   return argTypes;
 }
@@ -998,7 +998,7 @@ AffineForOp MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
   loop.getBody()->clear();
 
   builder_.setInsertionPointToStart(loop.getBody());
-  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
   return loop;
@@ -1022,7 +1022,7 @@ AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
   loop.getBody()->clear();
 
   builder_.setInsertionPointToStart(loop.getBody());
-  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
   return loop;
@@ -1047,7 +1047,7 @@ AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
   loop.getBody()->clear();
 
   builder_.setInsertionPointToStart(loop.getBody());
-  builder_.create<AffineTerminatorOp>(builder_.getUnknownLoc());
+  builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
   return loop;

@@ -156,12 +156,17 @@ int main(int argc, char **argv) {
   if (dumpSchedule)
     dumpScheduleWithIsl(petScop.getSchedule(), outs());
 
-  registerDialect<AffineDialect>();
-  registerDialect<StandardOpsDialect>();
+  //registerDialect<AffineDialect>();
+  //registerDialect<StandardOpsDialect>();
   MLIRContext context;
+
+  context.getOrLoadDialect<AffineDialect>();
+  context.getOrLoadDialect<StandardOpsDialect>();
+  //MLIRContext context;
+
   if (showDialects) {
     outs() << "Registered Dialects:\n";
-    for (Dialect *dialect : context.getRegisteredDialects()) {
+    for (Dialect *dialect : context.getLoadedDialects()) {
       outs() << dialect->getNamespace() << "\n";
     }
     return 0;
@@ -190,3 +195,4 @@ int main(int argc, char **argv) {
   out.keep();
   return 0;
 }
+// ./clang -O3 -mllvm -polly -c test.c -mllvm -polly-process-unprofitable -mllvm -polly-export

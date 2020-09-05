@@ -4,6 +4,7 @@ include_directories("pet")
 include_directories("pet/include")
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
+set(CLANG_PREFIX "\"${LLVM_BINARY_DIR}\"")
 configure_file("config.h.cmake" "${CMAKE_CURRENT_BINARY_DIR}/config.h")
 
 # Write configure result
@@ -12,8 +13,6 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/gitversion.h.tmp"
   "#define GIT_HEAD_ID \"abcdef\"")
 configure_file("${CMAKE_CURRENT_BINARY_DIR}/gitversion.h.tmp"
   "${CMAKE_CURRENT_BINARY_DIR}/gitversion.h" COPYONLY)
-
-set(CLANG_PREFIX ${LLVM_BINARY_DIR})
 
 set(PET_FILES
   pet/aff.c
@@ -56,6 +55,7 @@ set(PET_FILES
   )
 
 add_library(PET STATIC ${PET_FILES})
+add_dependencies(PET clang)
 target_include_directories(PET PUBLIC "../isl/isl/include")
 target_include_directories(PET PUBLIC "${LLVM_BINARY_DIR}/tools/isl/include")
 target_include_directories(PET PRIVATE "../clang/include")
