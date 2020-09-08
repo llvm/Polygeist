@@ -4,6 +4,7 @@
 #include "Lib/mlirCodegen.h"
 #include "Lib/scop.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -162,6 +163,7 @@ int main(int argc, char **argv) {
 
   context.getOrLoadDialect<AffineDialect>();
   context.getOrLoadDialect<StandardOpsDialect>();
+  context.getOrLoadDialect<mlir::scf::SCFDialect>();
   //MLIRContext context;
 
   if (showDialects) {

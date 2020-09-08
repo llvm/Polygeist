@@ -285,7 +285,7 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
     // emit the load only if we are dealing with a memref.
     if (scalar.getType().dyn_cast<MemRefType>()) {
       Value zeroIndex = builder_.create<ConstantIndexOp>(location, 0);
-      scalar = builder_.create<AffineLoadOp>(location, scalar, zeroIndex);
+      scalar = builder_.create<LoadOp>(location, scalar, zeroIndex);
     }
     // if we are dealing with a complex expr (i.e., i + 1) for
     // the induction variable we may need to create
@@ -309,7 +309,7 @@ Value MLIRCodegen::createLoad(__isl_take pet_expr *expr) {
 
   loopIvs = applyAccessExpression(expr, loopIvs);
   pet_expr_free(expr);
-  return builder_.create<AffineLoadOp>(location, symbol, loopIvs);
+  return builder_.create<LoadOp>(location, symbol, loopIvs);
 }
 
 Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
@@ -329,7 +329,7 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
       // the scalar.
       scalar = createAllocOp(expr, op.getType(), op);
     }
-    builder_.create<AffineStoreOp>(location, op, scalar, zeroIndex);
+    builder_.create<StoreOp>(location, op, scalar, zeroIndex);
     pet_expr_free(expr);
     return op;
   }
@@ -347,7 +347,7 @@ Value MLIRCodegen::createStore(__isl_take pet_expr *expr, Value op) {
   }
 
   pet_expr_free(expr);
-  builder_.create<AffineStoreOp>(location, op, symbol, loopIvs);
+  builder_.create<StoreOp>(location, op, symbol, loopIvs);
   return op;
 }
 
@@ -782,8 +782,18 @@ getOrInsertFunction(OpBuilder &rewriter, ModuleOp module, std::string fName,
   return mlir::SymbolRefAttr::get(fName, context);
 }
 
+#include "mlir/Dialect/SCF/SCF.h"
 Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr, Type t) {
   auto nameFunc = std::string(pet_expr_call_get_name(expr));
+  if (nameFunc == "barrier") {
+    auto loc = builder_.getUnknownLoc();
+    builder_.create<mlir::scf::BarrierOp>(loc, /*return type*/ ArrayRef<Type>{},
+                            ArrayRef<Value>{});
+    // even though barrier doesn't have a meaningful return right now
+    // mlir-pet assumes that a null return indicates error
+    // Thus we return constant 0.
+    return createConstantIntOp(0, loc);
+  }
   assert((pet_expr_get_n_arg(expr) == 1) && "must have 1 arg only");
 
   auto subExpr = pet_expr_get_arg(expr, 0);
@@ -967,16 +977,36 @@ LogicalResult MLIRCodegen::verifyModule() {
   return success();
 }
 
-AffineForOp MLIRCodegen::createLoop(int lb, int ub, int step) {
-  auto loop =
-      builder_.create<AffineForOp>(builder_.getUnknownLoc(), lb, ub, step);
-  builder_.setInsertionPointToStart(loop.getBody());
-  return loop;
+Operation* MLIRCodegen::createLoop(int lb, int ub, int step, std::string iteratorId, bool parallel) {
+  if (parallel) {
+    auto loc = builder_.getUnknownLoc();
+    auto loop =
+        builder_.create<scf::ParallelOp>(loc, SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, lb)}),
+                                              SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, ub)}), 
+                                              SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, step)}));
+    builder_.setInsertionPointToStart(loop.getBody());
+
+    auto resInsertion =
+        getLoopTable().insert(iteratorId, loop.getInductionVars()[0]);
+    if (failed(resInsertion))
+      llvm_unreachable("failed to insert in loop table");
+    return loop;
+  } else {
+    auto loop =
+        builder_.create<AffineForOp>(builder_.getUnknownLoc(), lb, ub, step);
+    builder_.setInsertionPointToStart(loop.getBody());
+
+    auto resInsertion =
+        getLoopTable().insert(iteratorId, loop.getInductionVar());
+    if (failed(resInsertion))
+      llvm_unreachable("failed to insert in loop table");
+    return loop;
+  }
 }
 
-AffineForOp MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
-                                    int step, bool leqBound) {
-
+Operation* MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
+                                    int step, bool leqBound, std::string iteratorId, bool parallel) {
+  assert(!parallel);
   Value ub;
   if (failed(this->getLoopTable().find(ubId, ub)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
@@ -993,19 +1023,26 @@ AffineForOp MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
 
   ValueRange ubOperands = ValueRange(ub);
   ValueRange lbOperands = {};
+
   auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lbOperands,
-                                           lbMap, ubOperands, ubMap, step);
+                                          lbMap, ubOperands, ubMap, step);
   loop.getBody()->clear();
 
   builder_.setInsertionPointToStart(loop.getBody());
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
+  auto resInsertion =
+      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  if (failed(resInsertion))
+    llvm_unreachable("failed to insert in loop table");
+
   return loop;
 }
 
-AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
-                                    int step) {
+Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
+                                    int step, std::string iteratorId, bool parallel) {
+  assert(!parallel);
   Value lb;
   if (failed(this->getLoopTable().find(lbId, lb))) {
     llvm_unreachable("Couldn't find the bound in the loop table.");
@@ -1025,12 +1062,17 @@ AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
+  auto resInsertion =
+      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  if (failed(resInsertion))
+    llvm_unreachable("failed to insert in loop table");
   return loop;
 }
 
-AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
+Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
                                     AffineExpr ubExpr, std::string ubId,
-                                    int step) {
+                                    int step, std::string iteratorId, bool parallel) {
+  assert(!parallel);
   Value ub, lb;
   if (failed(this->getLoopTable().find(ubId, ub)))
     llvm_unreachable("Couldn't find the bound in the loop table.");
@@ -1050,6 +1092,10 @@ AffineForOp MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
+  auto resInsertion =
+      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  if (failed(resInsertion))
+    llvm_unreachable("failed to insert in loop table");
   return loop;
 }
 
@@ -1057,8 +1103,8 @@ void MLIRCodegen::createReturn() {
   builder_.create<ReturnOp>(builder_.getUnknownLoc());
 }
 
-void MLIRCodegen::setInsertionPointAfter(AffineForOp *affineForOp) {
-  builder_.setInsertionPointAfter(affineForOp->getOperation());
+void MLIRCodegen::setInsertionPointAfter(Operation *op) {
+  builder_.setInsertionPointAfter(op);
 }
 
 LogicalResult codegen::SymbolTable::insert(std::string id, Value value) {

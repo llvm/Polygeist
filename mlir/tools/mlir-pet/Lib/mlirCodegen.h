@@ -98,15 +98,15 @@ public:
   // properties of the IR.
   mlir::LogicalResult verifyModule();
 
-  // create an affineForOp.
-  mlir::AffineForOp createLoop(int lb, int ub, int step);
-  mlir::AffineForOp createLoop(int lb, mlir::AffineExpr ubExpr,
-                               std::string ubId, int step, bool leqBound);
-  mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
-                               int step);
-  mlir::AffineForOp createLoop(mlir::AffineExpr lbExpr, std::string lb,
+  // create an affineForOp or parallelforop.
+  mlir::Operation* createLoop(int lb, int ub, int step, std::string iteratorId, bool parallel);
+  mlir::Operation* createLoop(int lb, mlir::AffineExpr ubExpr,
+                               std::string ubId, int step, bool leqBound, std::string iteratorId, bool parallel);
+  mlir::Operation* createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
+                               int step, std::string iteratorId, bool parallel);
+  mlir::Operation* createLoop(mlir::AffineExpr lbExpr, std::string lb,
                                mlir::AffineExpr ubExpr, std::string ub,
-                               int step);
+                               int step, std::string iteratorId, bool parallel);
 
   // return a reference to loop table.
   LoopTable &getLoopTable();
@@ -120,7 +120,7 @@ public:
   // set the insertion point after the loop op. This method
   // is used by islNodeBuilder to move the insertion point
   // after the body of a loop has been created.
-  void setInsertionPointAfter(mlir::AffineForOp *op);
+  void setInsertionPointAfter(mlir::Operation *op);
 
   // This should not be public, but it is used by IslNodeBuilder.
   mlir::LogicalResult getSymbolInductionVar(std::string idIsl,

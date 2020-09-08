@@ -101,27 +101,29 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto incrementAsInt = std::abs(getIntFromIslExpr(increment));
 
   auto ctx = MLIRBuilder_.getContext();
-  AffineForOp loop;
+  Operation* loop;
+  //TODO isparallel
+  bool isparallel = true;
 
   if (isInt(lowerBound) && isInt(upperBound)) {
     auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
     auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
     loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsInt,
-                                   incrementAsInt);
+                                   incrementAsInt, iteratorId, isparallel);
   } else if (isInt(lowerBound) && !isInt(upperBound)) {
     auto upperBoundAsExpr = getAffineFromIslExpr(upperBound, ctx);
     std::string upperBoundId = "";
     getBoundId(upperBound, upperBoundId);
     auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
     loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsExpr,
-                                   upperBoundId, incrementAsInt, leqBound);
+                                   upperBoundId, incrementAsInt, leqBound, iteratorId, isparallel);
   } else if (!isInt(lowerBound) && isInt(upperBound)) {
     auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
     auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
     std::string lowerBoundId = "";
     getBoundId(lowerBound, lowerBoundId);
     loop = MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
-                                   upperBoundAsInt, incrementAsInt);
+                                   upperBoundAsInt, incrementAsInt, iteratorId, isparallel);
   } else {
     auto upperBoundAsExpr = getAffineFromIslExpr(upperBound, ctx);
     auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
@@ -131,13 +133,8 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     getBoundId(lowerBound, lowerBoundId);
     loop =
         MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
-                                upperBoundAsExpr, upperBoundId, incrementAsInt);
+                                upperBoundAsExpr, upperBoundId, incrementAsInt, iteratorId, isparallel);
   }
-
-  auto resInsertion =
-      MLIRBuilder_.getLoopTable().insert(iteratorId, loop.getInductionVar());
-  if (failed(resInsertion))
-    llvm_unreachable("failed to insert in loop table");
 
   // create loop body.
   MLIRFromISLAstImpl(forNode.for_get_body());
@@ -155,7 +152,7 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   MLIRBuilder_.getLoopTable().erase(iteratorId);
 
   // set the insertion point after the loop operation.
-  MLIRBuilder_.setInsertionPointAfter(&loop);
+  MLIRBuilder_.setInsertionPointAfter(loop);
 }
 
 void IslNodeBuilder::createUser(isl::ast_node userNode) {
