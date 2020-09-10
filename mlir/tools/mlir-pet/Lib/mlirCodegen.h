@@ -83,7 +83,7 @@ private:
 
 class MLIRCodegen {
 public:
-  MLIRCodegen(mlir::MLIRContext &context, pet::Scop &scop);
+  MLIRCodegen(mlir::MLIRContext &context);
 
   mlir::MLIRContext *getContext() { return theModule_.getContext(); };
 
@@ -126,9 +126,7 @@ public:
   mlir::LogicalResult getSymbolInductionVar(std::string idIsl,
                                             mlir::Value &indVar) const;
 
-private:
-  // current scop. For each scop we create a mlir::FuncOp.
-  pet::Scop &scop_;
+public:
 
   // The builder is an helper class to create IR inside
   // a function.

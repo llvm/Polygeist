@@ -85,7 +85,7 @@ size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
   // if the expression has no id, it is not an array.
   if (!idArray)
     return 0;
-  return scop_.getArrayFromId(idArray).getDimensionality();
+  //return scop_.getArrayFromId(idArray).getDimensionality();
 }
 
 bool MLIRCodegen::isMultiDimensionalArray(__isl_keep pet_expr *expr) const {
@@ -113,6 +113,7 @@ MemRefType MLIRCodegen::convertExprToMemRef(__isl_keep pet_expr *expr,
     return MemRefType::get(1, t);
 
   auto idArray = isl::manage(pet_expr_access_get_id(expr));
+  /*
   auto petArray = scop_.getArrayFromId(idArray);
   assert((dims == petArray.getDimensionality()) && "must be equal");
   std::vector<int64_t> extent;
@@ -120,6 +121,7 @@ MemRefType MLIRCodegen::convertExprToMemRef(__isl_keep pet_expr *expr,
     extent.push_back(petArray.getExtentOnDimension(i));
 
   return MemRefType::get(extent, t);
+  */
 }
 
 LogicalResult MLIRCodegen::getSymbol(__isl_keep pet_expr *expr,
@@ -209,16 +211,22 @@ MLIRCodegen::applyAccessExpression(__isl_keep pet_expr *expr,
   SmallVector<Value, 4> res;
   auto mpwaff = isl::manage(pet_expr_access_get_index(expr));
 
+  auto islmap = isl_map_from_multi_pw_aff(pet_expr_access_get_index(expr));
+  isl_map_dump(islmap);
+
   SmallVector<isl::pw_aff, 2> pwaffs;
   for (size_t i = 0; i < mpwaff.dim(isl::dim::out); i++)
     pwaffs.push_back(mpwaff.get_pw_aff(i));
 
-  assert((loopIvs.size() == pwaffs.size()) && "expect same size");
+  //assert((loopIvs.size() == pwaffs.size()) && "expect same size");
 
   auto ctx = loopIvs[0].getContext();
   auto loc = builder_.getUnknownLoc();
-  for (const auto &iv : loopIvs) {
-    auto pwaff = pwaffs[&iv - &loopIvs[0]];
+  for(auto pwaff : pwaffs) {
+    //isl_pw_aff_dump(pwaff.get());
+    //llvm::errs() << pwaff.str() << "\n";
+  //for (const auto &iv : loopIvs) {
+    //auto pwaff = pwaffs[&iv - &loopIvs[0]];
     assert(pwaff.n_piece() == 1 && "expect single piece");
     isl::aff aff = nullptr;
     auto extractAff = [&](isl::set s, isl::aff a) {
@@ -226,9 +234,14 @@ MLIRCodegen::applyAccessExpression(__isl_keep pet_expr *expr,
       return isl_stat_ok;
     };
     pwaff.foreach_piece(extractAff);
+    isl_aff_dump(aff.get());
+    auto space = isl_aff_get_space(aff.get());
+    isl_space_dump(space);
     AffineExpr i;
     bindDims(ctx, i);
     auto stride = getStride(aff);
+    // todo fix
+    auto iv = loopIvs[0];
     if (stride == 0) {
       res.push_back(iv);
       continue;
@@ -573,6 +586,7 @@ Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
     return symbol;
   }
   auto idArray = isl::manage(pet_expr_access_get_id(arg));
+  /*
   auto petArray = scop_.getArrayFromId(idArray);
   auto elementType = petArray.getType();
 
@@ -595,6 +609,7 @@ Value MLIRCodegen::createDefinition(__isl_take pet_expr *expr) {
   }
   pet_expr_free(arg);
   return allocation;
+  */
 }
 
 // TODO: check pet_expr_free, there is a better way of doing it?
@@ -943,12 +958,14 @@ LogicalResult MLIRCodegen::declare(std::string id, mlir::Value value) {
   return success();
 }
 
-MLIRCodegen::MLIRCodegen(MLIRContext &context, Scop &scop)
-    : scop_(scop), builder_(&context) {
+MLIRCodegen::MLIRCodegen(MLIRContext &context)
+    : builder_(&context) {
   theModule_ = ModuleOp::create(builder_.getUnknownLoc());
-  auto inputTensors = scop_.getInputArrays();
-  auto argTypes = getFunctionArgumentsTypes(context, inputTensors);
-  auto funcType = builder_.getFunctionType(argTypes, llvm::None);
+  //auto inputTensors = scop_.getInputArrays();
+  //auto argTypes = getFunctionArgumentsTypes(context, inputTensors);
+  //auto funcType = builder_.getFunctionType(argTypes, llvm::None);
+  
+  /*
   FuncOp function(
       FuncOp::create(builder_.getUnknownLoc(), "scop_entry", funcType));
   if (!function)
@@ -964,6 +981,7 @@ MLIRCodegen::MLIRCodegen(MLIRContext &context, Scop &scop)
 
   builder_.setInsertionPointToStart(&entryBlock);
   theModule_.push_back(function);
+  */
 }
 
 void MLIRCodegen::dump() { theModule_.dump(); }

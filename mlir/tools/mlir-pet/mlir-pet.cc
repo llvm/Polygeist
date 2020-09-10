@@ -85,6 +85,8 @@ static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
   return schedule;
 }
 
+#include "Lib/clang-mlir.cc"
+
 int main(int argc, char **argv) {
 
   using namespace mlir;
@@ -103,60 +105,6 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  // pass include paths to pet.
-  struct pet_options *options;
-  options = pet_options_new_with_defaults();
-  std::vector<char *> arguments;
-  char argument1[] = "program";
-  char argumentI[] = "-I";
-  arguments.push_back(argument1);
-  for (const auto &includePath : includeDirs) {
-    arguments.push_back(argumentI);
-    arguments.push_back(const_cast<char *>(includePath.c_str()));
-  }
-  int argsCount = arguments.size();
-  argsCount = pet_options_parse(options, argsCount, &arguments[0], ISL_ARG_ALL);
-  auto ctx = ScopedCtx(isl_ctx_alloc_with_options(&pet_options_args, options));
-
-  auto petScop = Scop::parseFile(ctx, inputFileName);
-  if (!petScop.isValid()) {
-    outs() << "Invalid scop\n";
-    return -1;
-  }
-
-  if (dumpScop)
-    petScop.dump();
-
-  if (dumpAst)
-    IslAst(petScop).dump();
-
-  // bail-out if we have symbolic constants.
-  auto contextSet = petScop.getContext();
-  auto params = contextSet.get_space().dim(isl::dim::param);
-  if (params > 0) {
-    outs() << "we do not allow symbolic constant at the moment."
-           << "\n";
-    return -1;
-  }
-
-  // bail-out if the schedule domain is unbounded.
-  if (isUnbounded(petScop.getSchedule())) {
-    outs() << "schedule must be bounded\n";
-    return -1;
-  }
-
-  if (reschedule) {
-    auto newSchedule = rescheduleWithIsl(petScop);
-    if (!newSchedule) {
-      outs() << "failed to reschedule\n";
-      return -1;
-    }
-    petScop.schedule() = newSchedule;
-  }
-
-  if (dumpSchedule)
-    dumpScheduleWithIsl(petScop.getSchedule(), outs());
-
   //registerDialect<AffineDialect>();
   //registerDialect<StandardOpsDialect>();
   MLIRContext context;
@@ -164,6 +112,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<AffineDialect>();
   context.getOrLoadDialect<StandardOpsDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
+  context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   //MLIRContext context;
 
   if (showDialects) {
@@ -173,28 +122,12 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-  MLIRCodegen MLIRbuilder(context, petScop);
+  MLIRCodegen MLIRbuilder(context);
 
-  auto ISLAst = IslAst(petScop);
-  // ISLAst.dump();
+  parseMLIR(inputFileName.c_str(), MLIRbuilder);
 
-  auto ISLNodeBuilder = IslNodeBuilder(ISLAst, MLIRbuilder);
-  ISLNodeBuilder.MLIRFromISLAst();
-  // MLIRbuilder.dump();
-
-  if (outputFileName.empty()) {
-    MLIRbuilder.print(outs());
-    return 0;
-  }
-
-  std::error_code ec;
-  ToolOutputFile out(outputFileName, ec, sys::fs::OF_None);
-  if (ec) {
-    WithColor::error() << ec.message() << "\n";
-    return -1;
-  }
-  MLIRbuilder.print(out.os());
-  out.keep();
+  MLIRbuilder.print(outs());
   return 0;
 }
+
 // ./clang -O3 -mllvm -polly -c test.c -mllvm -polly-process-unprofitable -mllvm -polly-export

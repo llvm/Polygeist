@@ -1,6 +1,6 @@
 # pet project.
 
-add_llvm_tool(mlir-pet
+add_clang_tool(mlir-pet
   mlir-pet.cc
   Lib/scop.cc
   Lib/islAst.cc
@@ -17,8 +17,11 @@ endif (PET-TO-MLIR-VERBOSE)
 target_include_directories(mlir-pet PRIVATE
   "${LLVM_SOURCE_DIR}/../isl/isl/include"
   "${LLVM_SOURCE_DIR}/../pet/pet/include"
+  "${LLVM_SOURCE_DIR}/../clang/include"
+  "${CMAKE_BINARY_DIR}/tools/clang/include"
 )
 
+target_compile_definitions(mlir-pet PUBLIC -DLLVM_OBJ_ROOT="${CMAKE_BINARY_DIR}")
 target_link_libraries(mlir-pet PRIVATE
   LLVMCore
   LLVMSupport
@@ -26,6 +29,7 @@ target_link_libraries(mlir-pet PRIVATE
   MLIRSupport
   MLIRIR
   MLIRAnalysis
+  MLIRLLVMIR
 
   PET
   ISL
