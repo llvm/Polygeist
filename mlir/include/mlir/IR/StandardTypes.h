@@ -457,7 +457,8 @@ public:
 
   /// Return true if the specified element type is ok in a memref.
   static bool isValidElementType(Type type) {
-    return type.isIntOrIndexOrFloat() || type.isa<VectorType, ComplexType>();
+    return true;
+    //return type.isIntOrIndexOrFloat() || type.isa<VectorType, ComplexType>();
   }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
