@@ -20,7 +20,7 @@ target_include_directories(mlir-pet PRIVATE
   "${LLVM_SOURCE_DIR}/../clang/include"
   "${CMAKE_BINARY_DIR}/tools/clang/include"
 )
-
+# MLIRTransformsPassIncGen
 target_compile_definitions(mlir-pet PUBLIC -DLLVM_OBJ_ROOT="${CMAKE_BINARY_DIR}")
 target_link_libraries(mlir-pet PRIVATE
   LLVMCore
@@ -30,7 +30,8 @@ target_link_libraries(mlir-pet PRIVATE
   MLIRIR
   MLIRAnalysis
   MLIRLLVMIR
-
+  MLIRNVVMIR
+  MLIRTransforms
   PET
   ISL
 )

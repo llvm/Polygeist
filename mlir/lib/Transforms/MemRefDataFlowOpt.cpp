@@ -63,7 +63,7 @@ namespace {
 struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
-  void forwardStoreToLoad(AffineReadOpInterface loadOp);
+  void forwardStoreToLoad(mlir::LoadOp loadOp);
 
   // A list of memref's that are potentially dead / could be eliminated.
   SmallPtrSet<Value, 4> memrefsToErase;
@@ -84,14 +84,14 @@ std::unique_ptr<OperationPass<FuncOp>> mlir::createMemRefDataFlowOptPass() {
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp) {
+void MemRefDataFlowOpt::forwardStoreToLoad(mlir::LoadOp loadOp) {
   // First pass over the use list to get the minimum number of surrounding
   // loops common between the load op and the store op, with min taken across
   // all store ops.
-  SmallVector<Operation *, 8> storeOps;
+  SmallVector<mlir::StoreOp, 8> storeOps;
   unsigned minSurroundingLoops = getNestingDepth(loadOp);
   for (auto *user : loadOp.getMemRef().getUsers()) {
-    auto storeOp = dyn_cast<AffineWriteOpInterface>(user);
+    auto storeOp = dyn_cast<mlir::StoreOp>(user);
     if (!storeOp)
       continue;
     unsigned nsLoops = getNumCommonSurroundingLoops(*loadOp, *storeOp);
@@ -108,37 +108,15 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp) {
   // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
   SmallVector<Operation *, 8> depSrcStores;
 
-  for (auto *storeOp : storeOps) {
-    MemRefAccess srcAccess(storeOp);
-    MemRefAccess destAccess(loadOp);
-    // Find stores that may be reaching the load.
-    FlatAffineConstraints dependenceConstraints;
-    unsigned nsLoops = getNumCommonSurroundingLoops(*loadOp, *storeOp);
-    unsigned d;
-    // Dependences at loop depth <= minSurroundingLoops do NOT matter.
-    for (d = nsLoops + 1; d > minSurroundingLoops; d--) {
-      DependenceResult result = checkMemrefAccessDependence(
-          srcAccess, destAccess, d, &dependenceConstraints,
-          /*dependenceComponents=*/nullptr);
-      if (hasDependence(result))
-        break;
+  for (auto storeOp : storeOps) {
+    if (storeOp.getIndices().size() != loadOp.getIndices().size()) {
+      continue;
     }
-    if (d == minSurroundingLoops)
-      continue;
-
-    // Stores that *may* be reaching the load.
-    depSrcStores.push_back(storeOp);
-
-    // 1. Check if the store and the load have mathematically equivalent
-    // affine access functions; this implies that they statically refer to the
-    // same single memref element. As an example this filters out cases like:
-    //     store %A[%i0 + 1]
-    //     load %A[%i0]
-    //     store %A[%M]
-    //     load %A[%N]
-    // Use the AffineValueMap difference based memref access equality checking.
-    if (srcAccess != destAccess)
-      continue;
+    for(int i=0; i<storeOp.getIndices().size(); i++) {
+      if (storeOp.getIndices()[i] != loadOp.getIndices()[i]) {
+        return;
+      }
+    }
 
     // 2. The store has to dominate the load op to be candidate.
     if (!domInfo->dominates(storeOp, loadOp))
@@ -168,8 +146,8 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp) {
 
   // Perform the actual store to load forwarding.
   Value storeVal =
-    cast<AffineWriteOpInterface>(lastWriteStoreOp).getValueToStore();
-  loadOp.getValue().replaceAllUsesWith(storeVal);
+    cast<mlir::StoreOp>(lastWriteStoreOp).getValueToStore();
+  loadOp.replaceAllUsesWith(storeVal);
   // Record the memref for a later sweep to optimize away.
   memrefsToErase.insert(loadOp.getMemRef());
   // Record this to erase later.
@@ -179,10 +157,6 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp) {
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
-  if (!llvm::hasSingleElement(f)) {
-    markAllAnalysesPreserved();
-    return;
-  }
 
   domInfo = &getAnalysis<DominanceInfo>();
   postDomInfo = &getAnalysis<PostDominanceInfo>();
@@ -191,7 +165,7 @@ void MemRefDataFlowOpt::runOnFunction() {
   memrefsToErase.clear();
 
   // Walk all load's and perform store to load forwarding.
-  f.walk([&](AffineReadOpInterface loadOp) { forwardStoreToLoad(loadOp); });
+  f.walk([&](mlir::LoadOp loadOp) { forwardStoreToLoad(loadOp); });
 
   // Erase all load op's whose results were replaced with store fwd'ed ones.
   for (auto *loadOp : loadOpsToErase)
@@ -203,12 +177,15 @@ void MemRefDataFlowOpt::runOnFunction() {
   for (auto memref : memrefsToErase) {
     // If the memref hasn't been alloc'ed in this function, skip.
     Operation *defOp = memref.getDefiningOp();
-    if (!defOp || !isa<AllocOp>(defOp))
+    if (!defOp || !(isa<AllocOp>(defOp) || isa<AllocaOp>(defOp)))
       // TODO: if the memref was returned by a 'call' operation, we
       // could still erase it if the call had no side-effects.
       continue;
     if (llvm::any_of(memref.getUsers(), [&](Operation *ownerOp) {
-          return !isa<AffineWriteOpInterface, DeallocOp>(ownerOp);
+      bool cantHandle = !isa<StoreOp, DeallocOp>(ownerOp);
+      if (cantHandle)
+        ownerOp->dump();
+      return cantHandle;
         }))
       continue;
 
