@@ -25,6 +25,11 @@ static cl::opt<std::string> inputFileName(cl::Positional,
                                           cl::desc("<Specify input file>"),
                                           cl::Required, cl::cat(toolOptions));
 
+
+static cl::opt<std::string> cfunction(cl::Positional,
+                                          cl::desc("<Specify function>"),
+                                          cl::Required, cl::cat(toolOptions));
+
 static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
@@ -37,13 +42,6 @@ static cl::opt<bool> reschedule("reschedule",
 static cl::opt<bool> dumpSchedule("dump-schedule",
                                   llvm::cl::desc("Pretty print the schedule"),
                                   llvm::cl::init(false), cl::cat(toolOptions));
-
-static cl::opt<bool> dumpScop("dump-scop",
-                              llvm::cl::desc("Pretty print the scop"),
-                              llvm::cl::init(false), cl::cat(toolOptions));
-
-static cl::opt<bool> dumpAst("dump-ast", llvm::cl::desc("Pretty print the ast"),
-                             llvm::cl::init(false), cl::cat(toolOptions));
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
@@ -86,7 +84,8 @@ static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
 }
 
 #include "Lib/clang-mlir.cc"
-
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 int main(int argc, char **argv) {
 
   using namespace mlir;
@@ -113,6 +112,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<StandardOpsDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
+  context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   //MLIRContext context;
 
   if (showDialects) {
@@ -124,7 +124,18 @@ int main(int argc, char **argv) {
   }
   MLIRCodegen MLIRbuilder(context);
 
-  parseMLIR(inputFileName.c_str(), MLIRbuilder);
+  parseMLIR(inputFileName.c_str(), cfunction, includeDirs, MLIRbuilder);
+
+  mlir::PassManager pm(&context);
+
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createMemRefDataFlowOptPass());
+    optPM.addPass(mlir::createCSEPass());
+
+
+  if (mlir::failed(pm.run(MLIRbuilder.theModule_)))
+    return 4;
 
   MLIRbuilder.print(outs());
   return 0;
