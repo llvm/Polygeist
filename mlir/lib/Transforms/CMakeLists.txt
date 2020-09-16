@@ -17,6 +17,7 @@ add_mlir_library(MLIRTransforms
   MemRefDataFlowOpt.cpp
   NormalizeMemRefs.cpp
   OpStats.cpp
+  ParallelLower.cpp
   ParallelLoopCollapsing.cpp
   PipelineDataTransfer.cpp
   SCCP.cpp
