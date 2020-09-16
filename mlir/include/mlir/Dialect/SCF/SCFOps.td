@@ -36,6 +36,12 @@ class SCF_Op<string mnemonic, list<OpTrait> traits = []> :
   let parser = [{ return ::parse$cppClass(parser, result); }];
 }
 
+def ContainerOp : SCF_Op<"container",
+      [RecursiveSideEffects]> {
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region AnyRegion:$region);
+}
+
 def ForOp : SCF_Op<"for",
       [DeclareOpInterfaceMethods<LoopLikeOpInterface>,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
@@ -352,7 +358,8 @@ def ParallelOp : SCF_Op<"parallel",
 }
 
 def BarrierOp : SCF_Op<"barrier",
-    [HasParent<"ParallelOp">,
+    [
+     //HasParent<"ParallelOp","ContainerOp">,
      DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
      DeclareOpInterfaceMethods<AffineMemoryEffectsOpInterface>]> {
   let summary = "barrier for parallel loops";
@@ -427,7 +434,7 @@ def ReduceReturnOp :
 }
 
 def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["IfOp, ForOp", "ParallelOp"]>]> {
+                               ParentOneOf<["IfOp, ForOp", "ParallelOp", "ContainerOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "scf.yield" yields an SSA value from the SCF dialect op region and

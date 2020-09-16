@@ -28,6 +28,9 @@ class AffineForOp;
 // Passes
 //===----------------------------------------------------------------------===//
 
+// Lower to triple loop / symbolic barrier representation
+std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+
 /// Creates an instance of the BufferPlacement pass.
 std::unique_ptr<Pass> createBufferPlacementPass();
 
