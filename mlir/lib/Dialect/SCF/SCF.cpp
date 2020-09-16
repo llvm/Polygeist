@@ -99,6 +99,10 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
+static LogicalResult verify(ContainerOp op) {
+  return LogicalResult::Success;
+}
+
 static LogicalResult verify(ForOp op) {
   if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
     if (cst.getValue() <= 0)
@@ -162,6 +166,16 @@ static void printInitializationList(OpAsmPrinter &p,
   p << ")";
 }
 
+static void print(OpAsmPrinter &p, ContainerOp op) {
+  bool printBlockTerminators = false;
+  p << op.getOperationName();
+
+  p.printRegion(op.region(),
+                /*printEntryBlockArgs=*/false,
+                /*printBlockTerminators=*/printBlockTerminators);
+  p.printOptionalAttrDict(op.getAttrs());
+}
+
 static void print(OpAsmPrinter &p, ForOp op) {
   p << op.getOperationName() << " " << op.getInductionVar() << " = "
     << op.lowerBound() << " to " << op.upperBound() << " step " << op.step();
@@ -174,6 +188,25 @@ static void print(OpAsmPrinter &p, ForOp op) {
                 /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/op.hasIterOperands());
   p.printOptionalAttrDict(op.getAttrs());
+}
+
+static ParseResult parseContainerOp(OpAsmParser &parser, OperationState &result) {
+  auto &builder = parser.getBuilder();
+
+  // Parse the optional initial iteration arguments.
+  SmallVector<OpAsmParser::OperandType, 4> regionArgs, operands;
+  SmallVector<Type, 4> argTypes;
+
+  Region *body = result.addRegion();
+
+  if (parser.parseRegion(*body))
+    return failure();
+
+  // Parse the optional attribute list.
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+
+  return success();
 }
 
 static ParseResult parseForOp(OpAsmParser &parser, OperationState &result) {

@@ -31,6 +31,7 @@ target_link_libraries(mlir-pet PRIVATE
   MLIRAnalysis
   MLIRLLVMIR
   MLIRNVVMIR
+  MLIRGPU
   MLIRTransforms
   PET
   ISL

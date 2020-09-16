@@ -55,6 +55,9 @@ std::unique_ptr<FunctionPass> createFinalizingBufferizePass();
 /// Creates a pass that converts memref function results to out-params.
 std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 
+// Lower to triple loop / symbolic barrier representation
+std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+
 /// Creates an instance of the Canonicalizer pass.
 std::unique_ptr<Pass> createCanonicalizerPass();
 

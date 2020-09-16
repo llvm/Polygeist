@@ -105,6 +105,15 @@ public:
             }
             return mlir::MemRefType::get({(int64_t)pt->getSize().getLimitedValue()}, under);
         }
+        if (auto pt = dyn_cast<clang::IncompleteArrayType>(t)) {
+            auto under = getMLIRType(&*pt->getElementType());
+            if (auto mt = under.dyn_cast<mlir::MemRefType>()) {
+                auto shape2 = std::vector<int64_t>(mt.getShape());
+                shape2.insert(shape2.begin(), -1);
+                return mlir::MemRefType::get(shape2, mt.getElementType(), mt.getAffineMaps(), mt.getMemorySpace());
+            }
+            return mlir::MemRefType::get({-1}, under);
+        }
         //if (auto pt = dyn_cast<clang::RecordType>(t)) {
         //    llvm::errs() << " thing: " << pt->getName() << "\n";
         //}
@@ -199,12 +208,16 @@ public:
         return mcg.builder_.create<mlir::ConstantOp>(loc, ty, mcg.builder_.getIntegerAttr(ty, expr->getValue()));
     }
 
+    ValueWithOffsets VisitParenExpr(clang::ParenExpr* expr) {
+        return Visit(expr->getSubExpr());
+    }
+
     ValueWithOffsets VisitVarDecl(clang::VarDecl* decl) {
         unsigned memtype = 0;
 
         //if (decl->hasAttr<CUDADeviceAttr>() || decl->hasAttr<CUDAConstantAttr>() ||
         if (decl->hasAttr<CUDASharedAttr>()) {
-            memtype = 3;
+            memtype = 5;
         }
         auto op = createAllocOp(getMLIRType(&*decl->getType()), decl->getName().str(), memtype, /*isArray*/isa<clang::ArrayType>(decl->getType()));
         if (auto init = decl->getInit()) {
@@ -270,66 +283,64 @@ public:
         if (auto sr = dyn_cast<DeclRefExpr>(sr2->getSourceExpr())) {
             if (sr->getDecl()->getName() == "blockIdx") {
                 auto mlirType = getMLIRType(&*expr->getType());
-                auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockIdXOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "x"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_y") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockIdYOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "y"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_z") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockIdZOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "z"), mlirType);
                 }
             }
             if (sr->getDecl()->getName() == "blockDim") {
                 auto mlirType = getMLIRType(&*expr->getType());
-                auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockDimXOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "x"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_y") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockDimYOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "y"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_z") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::BlockDimZOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::BlockDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "z"), mlirType);
                 }
             }
             if (sr->getDecl()->getName() == "threadIdx") {
                 auto mlirType = getMLIRType(&*expr->getType());
                 auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::ThreadIdXOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::ThreadIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "x"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_y") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::ThreadIdYOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::ThreadIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "y"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_z") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::ThreadIdZOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::ThreadIdOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "z"), mlirType);
                 }
             }
             if (sr->getDecl()->getName() == "gridDim") {
                 auto mlirType = getMLIRType(&*expr->getType());
                 auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::GridDimXOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::GridDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "x"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_y") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::GridDimYOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::GridDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "y"), mlirType);
                 }
                 if (memberName == "__fetch_builtin_z") {
-                    return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
-                        mcg.builder_.create<mlir::NVVM::GridDimZOp>(loc, llvmType));
+                    return mcg.builder_.create<mlir::IndexCastOp>(loc,
+                        mcg.builder_.create<mlir::gpu::GridDimOp>(loc, mlir::IndexType::get(mcg.builder_.getContext()), "z"), mlirType);
                 }
             }
         }}}
@@ -341,6 +352,16 @@ public:
                 return nullptr;
             }
         }
+        
+        if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+        if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+            if (sr->getDecl()->getName() == "__shfl_up_sync") {
+                assert(0 && "__shfl_up_sync unhandled");
+                //mcg.builder_.create<mlir::NVVM::ShflBflyOp>(loc);
+                return nullptr;
+            }
+        }
+
 
         auto tocall = (mlir::Value)Visit(expr->getCallee());
         std::vector<mlir::Value> args;
@@ -498,6 +519,16 @@ public:
                         return mcg.builder_.create<mlir::UnsignedDivIOp>(loc, (mlir::Value)lhs, (mlir::Value)rhs);
                 }
             }
+            case clang::BinaryOperator::Opcode::BO_Rem:{
+                if (lhs.getType().isa<mlir::FloatType>()) {
+                    return mcg.builder_.create<mlir::RemFOp>(loc, (mlir::Value)lhs, (mlir::Value)rhs);
+                } else {
+                    if (signedType)
+                        return mcg.builder_.create<mlir::SignedRemIOp>(loc, (mlir::Value)lhs, (mlir::Value)rhs);
+                    else
+                        return mcg.builder_.create<mlir::UnsignedRemIOp>(loc, (mlir::Value)lhs, (mlir::Value)rhs);
+                }
+            }
             case clang::BinaryOperator::Opcode::BO_Add:{
                 if (lhs.getType().isa<mlir::FloatType>()) {
                     return mcg.builder_.create<mlir::AddFOp>(loc, (mlir::Value)lhs, (mlir::Value)rhs);
@@ -538,6 +569,23 @@ public:
                     result = mcg.builder_.create<mlir::AddFOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
                 } else {
                     result = mcg.builder_.create<mlir::AddIOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                }
+                mcg.builder_.create<mlir::StoreOp>(loc, result, lhs.val, off);
+                return ValueWithOffsets(prev, {});
+            }
+
+            case clang::BinaryOperator::Opcode::BO_MulAssign:{
+                auto off = lhs.offsets;
+                if (off.size() == 0) {
+                    off.push_back(getConstantIndex(0));
+                }
+                auto prev = mcg.builder_.create<mlir::LoadOp>(loc, lhs.val, off);
+                
+                mlir::Value result;
+                if (prev.getType().isa<mlir::FloatType>()) {
+                    result = mcg.builder_.create<mlir::MulFOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                } else {
+                    result = mcg.builder_.create<mlir::MulIOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
                 }
                 mcg.builder_.create<mlir::StoreOp>(loc, result, lhs.val, off);
                 return ValueWithOffsets(prev, {});
@@ -590,10 +638,27 @@ public:
     }
 
     ValueWithOffsets VisitCastExpr(CastExpr *E) {
-        auto scalar = Visit(E->getSubExpr());
         switch(E->getCastKind()) {
             case clang::CastKind::CK_LValueToRValue:{
-
+                if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
+                    if (dr->getDecl()->getName() == "warpSize") {
+                        bool foundVal = false;
+                        for(int i=scopes.size()-1; i>=0; i--) {
+                            auto found = scopes[i].find("warpSize");
+                            if (found != scopes[i].end()) {
+                                foundVal = true;
+                                break;
+                            }
+                        }
+                        if (!foundVal) {
+                            auto mlirType = getMLIRType(&*E->getType());
+                            auto llvmType = getLLVMTypeFromMLIRType(mlirType);
+                            return mcg.builder_.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
+                                mcg.builder_.create<mlir::NVVM::WarpSizeOp>(loc, llvmType));  
+                        }
+                    }
+                }
+                auto scalar = Visit(E->getSubExpr());
                 auto off = scalar.offsets;
                 if (off.size() == 0) {
                     off.push_back(getConstantIndex(0));
@@ -601,6 +666,7 @@ public:
                 return mcg.builder_.create<mlir::LoadOp>(loc, scalar.val, off);
             }
             case clang::CastKind::CK_IntegralToFloating:{
+                auto scalar = Visit(E->getSubExpr());
                 auto ty = getMLIRType(&*E->getType()).cast<mlir::FloatType>();
                 bool signedType = true;
                 if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
@@ -616,9 +682,11 @@ public:
             }
             // TODO
             case clang::CastKind::CK_IntegralCast:{
+                auto scalar = Visit(E->getSubExpr());
                 return scalar;
             }
             case clang::CastKind::CK_ArrayToPointerDecay:{
+                auto scalar = Visit(E->getSubExpr());
                 auto mt = scalar.val.getType().cast<mlir::MemRefType>();
                 auto shape2 = std::vector<int64_t>(mt.getShape());
                 shape2[0] = -1;
@@ -626,6 +694,7 @@ public:
                 return ValueWithOffsets(mcg.builder_.create<mlir::MemRefCastOp>(loc, scalar.val, nex), scalar.offsets);
             }
             case clang::CastKind::CK_FunctionToPointerDecay:{
+                auto scalar = Visit(E->getSubExpr());
                 return scalar;
             }
             default:
