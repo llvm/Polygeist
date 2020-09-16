@@ -55,6 +55,12 @@ def ConditionOp : SCF_Op<"condition",
   let verifier = ?;
 }
 
+def ContainerOp : SCF_Op<"container",
+      [RecursiveSideEffects]> {
+  let results = (outs Variadic<AnyType>:$results);
+  let regions = (region AnyRegion:$region);
+}
+
 def ForOp : SCF_Op<"for",
       [DeclareOpInterfaceMethods<LoopLikeOpInterface>,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
@@ -605,7 +611,7 @@ def WhileOp : SCF_Op<"while",
 }
 
 def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                               ParentOneOf<["IfOp, ForOp", "ParallelOp",
+                               ParentOneOf<["IfOp, ForOp", "ParallelOp", "ContainerOp",
                                             "WhileOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
