@@ -407,6 +407,10 @@ def MemRefDataFlowOpt : FunctionPass<"memref-dataflow-opt"> {
   let constructor = "mlir::createMemRefDataFlowOptPass()";
 }
 
+def ParallelLower : FunctionPass<"parallel-lower-opt"> {
+  let constructor = "mlir::createParallelLowerPass()";
+}
+
 def NormalizeMemRefs : Pass<"normalize-memrefs", "ModuleOp"> {
   let summary = "Normalize memrefs";
    let description = [{

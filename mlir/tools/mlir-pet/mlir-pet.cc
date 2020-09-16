@@ -5,6 +5,7 @@
 #include "Lib/scop.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -113,6 +114,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
+  context.getOrLoadDialect<mlir::gpu::GPUDialect>();
   //MLIRContext context;
 
   if (showDialects) {
@@ -132,6 +134,7 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCSEPass());
     optPM.addPass(mlir::createMemRefDataFlowOptPass());
     optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createParallelLowerPass());
 
 
   if (mlir::failed(pm.run(MLIRbuilder.theModule_)))
