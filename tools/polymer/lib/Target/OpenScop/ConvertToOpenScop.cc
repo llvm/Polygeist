@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "polymer/EmitOpenScop.h"
-#include "polymer/OslScop.h"
+#include "polymer/Support/OslScop.h"
+#include "polymer/Target/OpenScop.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/AffineStructures.h"
@@ -688,14 +688,14 @@ void ModuleEmitter::emitMLIRModule(ModuleOp module) {
 }
 } // namespace
 
-LogicalResult polymer::emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
+static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
   OpenScopEmitterState state(os);
   ModuleEmitter(state).emitMLIRModule(module);
 
   return failure(state.encounteredError);
 }
 
-void polymer::registerOpenScopEmitterTranslation() {
-  static TranslateFromMLIRRegistration toOpenScop("emit-openscop",
-                                                  polymer::emitOpenScop);
+void polymer::registerToOpenScopTranslation() {
+  static TranslateFromMLIRRegistration toOpenScop("mlir-to-openscop",
+                                                  emitOpenScop);
 }

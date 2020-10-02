@@ -2,11 +2,11 @@ set(LLVM_LINK_COMPONENTS
   Support
 )
 
-add_llvm_tool(emit-openscop
-  emit-openscop.cc
+add_llvm_tool(polymer-translate
+  polymer-translate.cc
 )
-llvm_update_compile_flags(emit-openscop)
-target_link_libraries(emit-openscop
+llvm_update_compile_flags(polymer-translate)
+target_link_libraries(polymer-translate
   PRIVATE
   MLIRStandardOps
   MLIRLoopAnalysis
@@ -21,5 +21,5 @@ target_link_libraries(emit-openscop
   MLIRSupport
   MLIRIR
 
-  POLYMEREmitOpenScop
+  PolymerTargetOpenScop
   )

@@ -3,8 +3,8 @@
 // This file declares the C++ wrapper for the Scop struct in OpenScop.
 //
 //===----------------------------------------------------------------------===//
-#ifndef POLYMER_OSLSCOP_H
-#define POLYMER_OSLSCOP_H
+#ifndef POLYMER_SUPPORT_OSLSCOP_H
+#define POLYMER_SUPPORT_OSLSCOP_H
 
 #include "mlir/Support/LLVM.h"
 
@@ -13,6 +13,11 @@
 #include <vector>
 
 struct osl_scop;
+struct osl_statement;
+
+namespace mlir {
+class LogicalResult;
+}
 
 namespace polymer {
 
@@ -20,7 +25,12 @@ namespace polymer {
 class OslScop {
 public:
   OslScop();
+  OslScop(osl_scop *scop) : scop(scop) {}
+
   ~OslScop();
+
+  /// Get the raw scop pointer.
+  osl_scop *get() { return scop; }
 
   /// Print the content of the Scop to the stdout.
   void print();
@@ -45,6 +55,12 @@ public:
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
   void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
+
+  /// Check whether the name refers to a symbol.
+  bool isSymbol(llvm::StringRef name);
+
+  /// Get statement by index.
+  mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt);
 
 private:
   osl_scop *scop;

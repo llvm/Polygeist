@@ -1,1 +1,2 @@
-add_subdirectory(EmitOpenScop)
+add_subdirectory(Support)
+add_subdirectory(Target)

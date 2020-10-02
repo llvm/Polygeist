@@ -17,7 +17,7 @@ config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
 
 # suffixes: A list of file extensions to treat as test files. This is overriden
 # by individual lit.local.cfg files in the test subdirectories.
-config.suffixes = ['.mlir']
+config.suffixes = ['.mlir', '.scop']
 
 # excludes: A list of directories or files to exclude from the testsuite even
 # if they match the suffixes pattern.
@@ -46,6 +46,6 @@ llvm_config.use_default_substitutions()
 
 tool_dirs = [config.polymer_tools_dir, config.llvm_tools_dir]
 tools = [
-    'emit-openscop'
+    'polymer-translate'
 ]
 llvm_config.add_tool_substitutions(tools, tool_dirs)
