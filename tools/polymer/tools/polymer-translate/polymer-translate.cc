@@ -1,10 +1,10 @@
-//===- emit-openscop.cc -----------------------------------------*- C++ -*-===//
+//===- polymer-translate.cc---------------------------------------*- C++
+//-*-===//
 //
-// This file implements the command-line tool that emits openscop format from
-// MLIR input files.
+// This file implements the command-line tool that converts between
 //
 //===----------------------------------------------------------------------===//
-#include "polymer/EmitOpenScop.h"
+#include "polymer/Target/OpenScop.h"
 
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -53,15 +53,17 @@ int main(int argc, char *argv[]) {
   registerDialect<mlir::StandardOpsDialect>();
   registerDialect<mlir::AffineDialect>();
 
-  registerOpenScopEmitterTranslation();
+  // Register translation.
+  registerToOpenScopTranslation();
+  registerFromOpenScopTranslation();
 
   // Add flags for all the registered translations.
   llvm::cl::opt<const TranslateFunction *, false, TranslationParser>
       translationRequested("", llvm::cl::desc("Translation to perform"),
                            llvm::cl::Required);
 
-  llvm::cl::ParseCommandLineOptions(argc, argv,
-                                    "OpenScop emitter from MLIR dialects\n");
+  llvm::cl::ParseCommandLineOptions(
+      argc, argv, "Translation between polyhedral representations and MLIR\n");
 
   std::string errorMessage;
   auto input = openInputFile(inputFilename, &errorMessage);

@@ -7,7 +7,7 @@ configure_lit_site_cfg(
 
 set(POLYMER_TEST_DEPENDS
   FileCheck count not
-  emit-openscop
+  polymer-translate
   )
 
 add_lit_testsuite(check-polymer "Running the Polymer regression tests"

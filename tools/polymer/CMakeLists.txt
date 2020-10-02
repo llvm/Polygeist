@@ -19,6 +19,8 @@ project(polymer LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
+set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_SOURCE_DIR}/cmake")
+
 find_package(MLIR REQUIRED CONFIG)
 
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
@@ -37,14 +39,18 @@ endif()
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
 # ------------------------------------------------- Dependencies
-# OpenScop
-# We should prevent the main CMakeLists.txt file in openscop to change the 
-# BUILD_SHARED_LIBS flag. 
-set(BUILD_SHARED_LIBS FALSE)
-# This should add a new library osl.
-add_subdirectory(openscop)
-include_directories("${CMAKE_SOURCE_DIR}/openscop/include")
-include_directories("${CMAKE_BINARY_DIR}/openscop/include")
+# Find whether the GMP package exists.
+find_package(GMP REQUIRED)
+# TODO: there could be a better way to do this?
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
+
+# Configure and build CLooG to ${CMAKE_BUILD_DIR}/openscop 
+include("${CMAKE_SOURCE_DIR}/cmake/OpenScop.cmake")
+include_directories("${OSL_INCLUDE_DIR}")
+
+# Configure and build CLooG/ISL to ${CMAKE_BUILD_DIR}/cloog
+include("${CMAKE_SOURCE_DIR}/cmake/CLooG.cmake")
+include_directories("${CLOOG_INCLUDE_DIR}")
 
 # ------------------------------------------------- This project
 set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include" ) # --src-root

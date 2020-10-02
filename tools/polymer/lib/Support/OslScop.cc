@@ -4,7 +4,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "polymer/OslScop.h"
+#include "polymer/Support/OslScop.h"
 
 #include "osl/osl.h"
 
@@ -12,9 +12,12 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "mlir/Support/LogicalResult.h"
+
 #include <vector>
 
 using namespace polymer;
+using namespace mlir;
 
 namespace {
 
@@ -177,4 +180,44 @@ void OslScop::addGeneric(int target, llvm::StringRef tag,
     osl_statement_p stmt = getOslStatement(scop, target - 1);
     osl_generic_add(&(stmt->extension), generic);
   }
+}
+
+/// We determine whether the name refers to a symbol by looking up the parameter
+/// list of the scop.
+bool OslScop::isSymbol(llvm::StringRef name) {
+  osl_generic_p parameters = scop->parameters;
+  if (!parameters)
+    return false;
+
+  assert(parameters->next == NULL &&
+         "Should only exist one parameters generic object.");
+  assert(osl_generic_has_URI(parameters, OSL_URI_STRINGS) &&
+         "Parameters should be of strings interface.");
+
+  // TODO: cache this result, otherwise we need O(N) each time calling this API.
+  osl_strings_p parameterNames =
+      reinterpret_cast<osl_strings_p>(parameters->data);
+  unsigned numParameters = osl_strings_size(parameterNames);
+
+  for (unsigned i = 0; i < numParameters; i++)
+    if (name.equals(parameterNames->string[i]))
+      return true;
+
+  return false;
+}
+
+LogicalResult OslScop::getStatement(unsigned index, osl_statement **stmt) {
+  // TODO: cache all the statements.
+  osl_statement_p curr = scop->statement;
+  if (!curr)
+    return failure();
+
+  for (unsigned i = 0; i < index; i++) {
+    curr = curr->next;
+    if (!curr)
+      return failure();
+  }
+
+  *stmt = curr;
+  return success();
 }
