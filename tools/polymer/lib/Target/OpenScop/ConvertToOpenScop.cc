@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Target/OpenScop.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -41,6 +42,16 @@ using namespace llvm;
 using namespace polymer;
 
 #define DEBUG_TYPE "emit-openscop"
+
+typedef llvm::DenseMap<mlir::Value, unsigned> MemRefToId;
+
+/// Map between a loop IV (mlir::Value) and its iterator name in Scop.
+typedef llvm::DenseMap<mlir::Value, std::string> LoopIVToName;
+
+std::string getMemrefName(unsigned id) {
+  std::string name = formatv("A{0}", id);
+  return name;
+}
 
 namespace {
 /// Extracted data from the domain constraints, will be used as the value of
@@ -104,7 +115,7 @@ buildPosToParamMap(const llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
 /// Create a context relation from parameters and add it to the scop.
 static void
 addContextToScop(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
-                 OslScop &scop) {
+                 OslScop *scop) {
   unsigned numParams = paramMap.size();
   unsigned numCols = 2 + numParams;
 
@@ -141,8 +152,8 @@ addContextToScop(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
 
   // Assuming no equality.
   unsigned numRows = ctxInEqs.size() / (numCols - 1);
-  scop.addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0, numParams,
-                   ctxEqs, ctxInEqs);
+  scop->addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0, numParams,
+                    ctxEqs, ctxInEqs);
 }
 
 /// Update the parameter (symbol) section of the domain constraints. We need to
@@ -207,29 +218,29 @@ static void getEqualities(FlatAffineConstraints &cst, std::vector<int64_t> &eqs,
 /// Gather information from the domain FlatAffineConstraints and put them into
 /// the scop as a DOMAIN relation. index gives the statement id.
 static void addDomainToScop(unsigned index, FlatAffineConstraints &domain,
-                            OslScop &scop) {
+                            OslScop *scop) {
   // First we clone the equalities and inequalities from the domain constraints.
   std::vector<int64_t> eqs, inEqs;
   getEqualities(domain, eqs);
   getEqualities(domain, inEqs, /*isEq=*/false);
 
   // Then put them into the scop as a DOMAIN relation.
-  scop.addRelation(index + 1, OSL_TYPE_DOMAIN, domain.getNumConstraints(),
-                   domain.getNumCols() + 1, domain.getNumDimIds(), 0,
-                   domain.getNumLocalIds(), domain.getNumSymbolIds(), eqs,
-                   inEqs);
+  scop->addRelation(index + 1, OSL_TYPE_DOMAIN, domain.getNumConstraints(),
+                    domain.getNumCols() + 1, domain.getNumDimIds(), 0,
+                    domain.getNumLocalIds(), domain.getNumSymbolIds(), eqs,
+                    inEqs);
 }
 
 namespace {
 /// Tree that holds scattering information. This node can represent an induction
 /// variable or a statement. A statement is constructed as a leaf node.
-class ScatteringTreeNode {
+class ScatTreeNode {
 public:
-  ScatteringTreeNode() {}
-  ScatteringTreeNode(mlir::Value iv) : iv(iv) {}
+  ScatTreeNode() {}
+  ScatTreeNode(mlir::Value iv) : iv(iv) {}
 
   /// Children of the current node.
-  std::vector<std::unique_ptr<ScatteringTreeNode>> children;
+  std::vector<std::unique_ptr<ScatTreeNode>> children;
 
   /// Mapping from IV to child ID.
   llvm::DenseMap<mlir::Value, unsigned> valueIdMap;
@@ -239,6 +250,26 @@ public:
 };
 } // namespace
 
+// Get the depth of the tree starting from the given root node.
+static unsigned getDepth(ScatTreeNode *root) {
+  assert(root && "The root node should not be NULL.");
+
+  llvm::SmallVector<std::pair<ScatTreeNode *, unsigned>, 8> nodes;
+  nodes.push_back(std::make_pair(root, 1));
+  unsigned maxDepth = 1;
+
+  while (!nodes.empty()) {
+    auto curr = nodes.back();
+    nodes.pop_back();
+    maxDepth = std::max(maxDepth, curr.second);
+
+    for (auto &child : curr.first->children)
+      nodes.push_back(std::make_pair(child.get(), curr.second + 1));
+  }
+
+  return maxDepth;
+}
+
 /// Insert a statement characterized by its enclosing operations into a
 /// "scattering tree". This is done by iterating through every enclosing for-op
 /// from the outermost to the innermost, and we try to traverse the tree by the
@@ -246,10 +277,10 @@ public:
 /// After that, we insert the current load/store statement into the tree as a
 /// leaf. In this progress, we keep track of all the IDs of each child we meet
 /// and the final leaf node, which will be used as the scattering.
-void insertStatement(ScatteringTreeNode *root,
-                     ArrayRef<Operation *> enclosingOps,
-                     SmallVectorImpl<unsigned> &scattering) {
-  ScatteringTreeNode *curr = root;
+static void insertStatement(ScatTreeNode *root,
+                            ArrayRef<Operation *> enclosingOps,
+                            SmallVectorImpl<unsigned> &scattering) {
+  ScatTreeNode *curr = root;
 
   for (unsigned i = 0, e = enclosingOps.size(); i < e; i++) {
     Operation *op = enclosingOps[i];
@@ -268,7 +299,7 @@ void insertStatement(ScatteringTreeNode *root,
           curr = curr->children[it->second].get();
         } else {
           // No existing node for such IV is found, create a new one.
-          auto node = std::make_unique<ScatteringTreeNode>(iv);
+          auto node = std::make_unique<ScatTreeNode>(iv);
 
           // Then insert the newly created node into the children set, update
           // the value to child ID map, and move the cursor to this new node.
@@ -283,13 +314,13 @@ void insertStatement(ScatteringTreeNode *root,
   }
 
   // Append the leaf node for statement
-  auto leaf = std::make_unique<ScatteringTreeNode>();
+  auto leaf = std::make_unique<ScatTreeNode>();
   curr->children.push_back(std::move(leaf));
   scattering.push_back(curr->children.size() - 1);
 }
 
 static void addScatteringToScop(unsigned index, ArrayRef<unsigned> scattering,
-                                FlatAffineConstraints &domain, OslScop &scop) {
+                                FlatAffineConstraints &domain, OslScop *scop) {
   // Elements (N of them) in `scattering` are constants, and there are IVs
   // interleaved them. Therefore, we have 2N - 1 number of scattering
   // equalities.
@@ -329,16 +360,16 @@ static void addScatteringToScop(unsigned index, ArrayRef<unsigned> scattering,
   }
 
   // Then put them into the scop as a SCATTERING relation.
-  scop.addRelation(index + 1, OSL_TYPE_SCATTERING, numScatteringEqualities,
-                   numScatteringCols, numScatteringEqualities,
-                   domain.getNumDimIds(), domain.getNumLocalIds(),
-                   domain.getNumSymbolIds(), eqs, inEqs);
+  scop->addRelation(index + 1, OSL_TYPE_SCATTERING, numScatteringEqualities,
+                    numScatteringCols, numScatteringEqualities,
+                    domain.getNumDimIds(), domain.getNumLocalIds(),
+                    domain.getNumSymbolIds(), eqs, inEqs);
 }
 
 /// Generate the access relation and add it to the scop.
 static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
                             ArrayRef<SmallVector<int64_t, 8>> flatExprs,
-                            FlatAffineConstraints &domain, OslScop &scop) {
+                            FlatAffineConstraints &domain, OslScop *scop) {
   // Number of equalities equals to the number of enclosing loop indices
   // plus 1 (the array itself).
   unsigned numAccessEqualities = domain.getNumDimIds() + 1;
@@ -399,13 +430,13 @@ static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
   }
 
   // Then put them into the scop as a ACCESS relation.
-  scop.addRelation(index + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-                   numAccessEqualities, numAccessCols, numAccessEqualities,
-                   domain.getNumDimIds(), domain.getNumLocalIds(),
-                   domain.getNumSymbolIds(), eqs, inEqs);
+  scop->addRelation(index + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
+                    numAccessEqualities, numAccessCols, numAccessEqualities,
+                    domain.getNumDimIds(), domain.getNumLocalIds(),
+                    domain.getNumSymbolIds(), eqs, inEqs);
 }
 
-static void addParameterNamesToScop(unsigned numParams, OslScop &scop) {
+static void addParameterNamesToScop(unsigned numParams, OslScop *scop) {
   if (numParams == 0)
     return;
 
@@ -415,27 +446,31 @@ static void addParameterNamesToScop(unsigned numParams, OslScop &scop) {
   for (unsigned i = 0; i < numParams; i++)
     ss << formatv("P{0}", i) << " ";
 
-  scop.addGeneric(-1, "strings", body);
+  scop->addGeneric(-1, "strings", body);
 }
-
-/// Map between a loop IV (mlir::Value) and its iterator name in Scop.
-typedef llvm::DenseMap<mlir::Value, std::string> LoopIVToName;
 
 /// Add the body extension to each statement. `stmtId` corresponds to the index
 /// of the statement in the scop (starting from 1), and `op` is the memory
 /// access operation. In the content of the body we need to decide the number of
 /// the original iterators and what they are. This can be retrieved from the
 /// access indices of the given op.
-static void addBodyExtensionToScop(int stmtId, Operation *op,
-                                   LoopIVToName &ivNameMap, OslScop &scop) {
+static void addBodyExtToScop(int stmtId, Operation *op, LoopIVToName &ivNameMap,
+                             OslSymbolTable &symTable,
+                             const MemRefToId &memrefIdMap, OslScop *scop) {
   assert((isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) &&
          "op should be an affine read/write operation,");
   // The string content of the body extension.
   std::string body;
   llvm::raw_string_ostream ss(body);
 
-  // Get loop IVs.
   MemRefAccess access(op);
+  llvm::SmallVector<llvm::StringRef, 8> args;
+
+  // The first argument is the memref name.
+  std::string memName = getMemrefName(memrefIdMap.lookup(access.memref));
+  args.push_back(memName);
+
+  // Get loop IVs.
   // Number of iterators.
   ss << access.indices.size() << " ";
   // Add iterator names.
@@ -447,19 +482,47 @@ static void addBodyExtensionToScop(int stmtId, Operation *op,
     // parameter.
     if (iv.dyn_cast<BlockArgument>()) {
       ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
+      args.push_back(ivNameMap[iv]);
       ss << ivNameMap[iv] << " ";
     }
   }
 
+  // Get statement ID following the pattern "S<ID>", e.g., S0, S1, etc. We
+  // assume the given op has not been added to stmtToOp before as a value.
+  unsigned numStmtOps = symTable.getNumOperations(OslSymbolTable::StmtOp);
+  std::string stmtName = formatv("S{0}", numStmtOps);
+  symTable.setOperation(stmtName, op, OslSymbolTable::StmtOp);
+
+  // Should start a new line before inserting the statement body.
+  ss << "\n" << stmtName << "(";
+  interleaveComma(args, ss);
+  ss << ")";
+
   // TODO: specify the statement body.
-  scop.addGeneric(stmtId + 1, "body", body);
+  scop->addGeneric(stmtId + 1, "body", body);
 }
 
-typedef llvm::DenseMap<mlir::Value, unsigned> MemRefToId;
+/// Add a <scatnames> extension for the whole scop. Given the total number of
+/// scattering IDs, we generate a list of names following the pattern: "c<id>",
+/// e.g., c0, c1, etc., for all odd number IDs, and "i<id/2>" for all even
+/// number IDs. This is to keep aligh with the iterator names generated by
+/// `addBodyExtToScop`.
+static void addScatnamesExtToScop(unsigned numScatNames, OslScop *scop) {
+  std::string body;
+  llvm::raw_string_ostream ss(body);
+
+  for (unsigned i = 0; i < numScatNames; i++) {
+    if (i % 2)
+      ss << formatv("i{0}", i / 2) << " ";
+    else
+      ss << formatv("c{0}", i) << " ";
+  }
+
+  scop->addGeneric(0, "scatnames", body);
+}
 
 /// Add the arrays extension to the whole Scop.
-static void addArraysExtensionToScop(const MemRefToId &memrefIdMap,
-                                     OslScop &scop) {
+static void addArraysExtToScop(const MemRefToId &memrefIdMap, OslScop *scop) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
@@ -467,7 +530,7 @@ static void addArraysExtensionToScop(const MemRefToId &memrefIdMap,
   for (auto const &it : memrefIdMap)
     ss << it.second << " " << formatv("A{0}", it.second) << " ";
 
-  scop.addGeneric(0, "arrays", body);
+  scop->addGeneric(0, "arrays", body);
 }
 
 namespace {
@@ -522,21 +585,52 @@ public:
       : OpenScopEmitterBase(state) {}
 
   /// Emit OpenScop definitions for all functions in the given module.
-  void emitMLIRModule(ModuleOp module);
+  void emitMLIRModule(ModuleOp module,
+                      llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops);
 
 private:
   /// Emit a OpenScop definition for a single function.
-  LogicalResult emitFuncOp(FuncOp func);
+  LogicalResult
+  emitFuncOp(FuncOp func,
+             llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops);
 };
 
-LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
-  // Initialize ja new Scop per FuncOp.
-  OslScop scop;
+LogicalResult ModuleEmitter::emitFuncOp(
+    mlir::FuncOp func, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
+  OslSymbolTable symTable;
+  auto scop = createOpenScopFromFuncOp(func, symTable);
+  if (!scop)
+    return failure();
+
+  scops.push_back(std::move(scop));
+  return success();
+}
+
+/// The entry function to the current OpenScop emitter.
+void ModuleEmitter::emitMLIRModule(
+    ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
+  // Emit a single OpenScop definition for each function.
+  for (auto &op : *module.getBody()) {
+    if (auto func = dyn_cast<mlir::FuncOp>(op)) {
+      if (failed(emitFuncOp(func, scops))) {
+        state.encounteredError = true;
+        return;
+      }
+    }
+  }
+}
+} // namespace
+
+std::unique_ptr<OslScop>
+polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
+                                  OslSymbolTable &symTable) {
+  // Initialize a new Scop per FuncOp.
+  auto scop = std::make_unique<OslScop>();
 
   // We iterate through every operation in the function and extract load/store
   // operations out into loadAndStoreOps.
   SmallVector<Operation *, 8> loadAndStoreOps;
-  func.getOperation()->walk([&](Operation *op) {
+  funcOp.getOperation()->walk([&](Operation *op) {
     if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op))
       loadAndStoreOps.push_back(op);
   });
@@ -554,7 +648,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
   std::vector<FlatAffineConstraints> domains(numStatements);
 
   // Create the root tree node.
-  ScatteringTreeNode root;
+  ScatTreeNode root;
   // Maintain the identifiers of memref objects
   MemRefToId memrefIdMap;
   // Maintain the mapping from the parameter Value and its numbering.
@@ -580,7 +674,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
 
     // Get the domain first, which is structured as FlatAffineConstraints.
     if (failed(getIndexSet(enclosingOpsList[i], &domains[i])))
-      return failure();
+      return nullptr;
 
     LLVM_DEBUG(domains[i].dump());
 
@@ -602,10 +696,10 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
 
     // Initialize a new statement in the scop. Maybe it is better to initialize
     // all statements at once?
-    scop.createStatement();
+    scop->createStatement();
 
     // Add the domain relation to the scop object.
-    addDomainToScop(i, domain, scop);
+    addDomainToScop(i, domain, scop.get());
 
     // Get the scattering. By using insertStatement, we create new nodes in the
     // scattering tree representation rooted at `root`, and get the result
@@ -615,7 +709,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
     insertStatement(&root, ops, scattering);
 
     // Add the scattering relation to the scop object.
-    addScatteringToScop(i, scattering, domain, scop);
+    addScatteringToScop(i, scattering, domain, scop.get());
 
     // TODO: can we wrap these calculation into a bigger data structure like
     // FlatAffineConstraints?
@@ -641,7 +735,7 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
 
     if (failed(getFlattenedAffineExprs(accessMap.getAffineMap(), &flatExprs,
                                        &localVarCst)))
-      return failure();
+      return nullptr;
 
     assert(flatExprs.size() > 0 &&
            "Number of flat expressions should be larger than 0.");
@@ -652,47 +746,55 @@ LogicalResult ModuleEmitter::emitFuncOp(mlir::FuncOp func) {
                << "Flat expr size: " << flatExprs[0].size() << "\n");
 
     // Insert the access relation into the scop.
-    addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain, scop);
+    addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain,
+                    scop.get());
 
     // Insert the body extension.
-    addBodyExtensionToScop(i, op, ivNameMap, scop);
+    addBodyExtToScop(i, op, ivNameMap, symTable, memrefIdMap, scop.get());
   }
 
   // Setup the context after iterated all statemenets.
-  addContextToScop(paramMap, scop);
+  addContextToScop(paramMap, scop.get());
   // Add arrays extension content.
-  addArraysExtensionToScop(memrefIdMap, scop);
+  addArraysExtToScop(memrefIdMap, scop.get());
+  // Add scatnames extension content.
+  addScatnamesExtToScop(getDepth(&root), scop.get());
   // Add parameter names
-  addParameterNamesToScop(paramMap.size(), scop);
+  addParameterNamesToScop(paramMap.size(), scop.get());
 
-  assert(scop.validate() && "Scop created cannot be validated.");
+  assert(scop->validate() && "Scop created cannot be validated.");
 
-  // Print the OpenScop representation to the ostream.
-  // TODO: relate STDOUT with the os stream in the emitter.
-  scop.print();
+  // Update the mapping from name to loop IV and memref.
+  for (auto it : ivNameMap)
+    symTable.setValue(it.second, it.first, OslSymbolTable::LoopIV);
+  for (auto it : memrefIdMap)
+    symTable.setValue(getMemrefName(it.second), it.first,
+                      OslSymbolTable::Memref);
+
+  return scop;
+}
+
+/// TODO: should decouple emitter and openscop builder.
+mlir::LogicalResult polymer::translateModuleToOpenScop(
+    mlir::ModuleOp module,
+    llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops,
+    llvm::raw_ostream &os) {
+  OpenScopEmitterState state(os);
+  ModuleEmitter(state).emitMLIRModule(module, scops);
 
   return success();
 }
 
-/// The entry function to the current OpenScop emitter.
-void ModuleEmitter::emitMLIRModule(ModuleOp module) {
-  // Emit a single OpenScop definition for each function.
-  for (auto &op : *module.getBody()) {
-    if (auto func = dyn_cast<mlir::FuncOp>(op)) {
-      if (failed(emitFuncOp(func))) {
-        state.encounteredError = true;
-        return;
-      }
-    }
-  }
-}
-} // namespace
-
 static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
-  OpenScopEmitterState state(os);
-  ModuleEmitter(state).emitMLIRModule(module);
+  llvm::SmallVector<std::unique_ptr<OslScop>, 8> scops;
 
-  return failure(state.encounteredError);
+  if (failed(translateModuleToOpenScop(module, scops, os)))
+    return failure();
+
+  for (auto &scop : scops)
+    scop->print();
+
+  return success();
 }
 
 void polymer::registerToOpenScopTranslation() {

@@ -46,6 +46,7 @@ llvm_config.use_default_substitutions()
 
 tool_dirs = [config.polymer_tools_dir, config.llvm_tools_dir]
 tools = [
+    'polymer-opt',
     'polymer-translate'
 ]
 llvm_config.add_tool_substitutions(tools, tool_dirs)
