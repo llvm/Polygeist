@@ -2,3 +2,4 @@
 set(LLVM_BUILD_TOOLS ON)
 
 add_subdirectory(polymer-translate)
+add_subdirectory(polymer-opt)

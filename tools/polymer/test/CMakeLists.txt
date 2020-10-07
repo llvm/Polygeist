@@ -8,6 +8,7 @@ configure_lit_site_cfg(
 set(POLYMER_TEST_DEPENDS
   FileCheck count not
   polymer-translate
+  polymer-opt
   )
 
 add_lit_testsuite(check-polymer "Running the Polymer regression tests"
