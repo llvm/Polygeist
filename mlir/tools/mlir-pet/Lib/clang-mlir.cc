@@ -184,7 +184,7 @@ public:
         Visit(stmt);
 
         auto endBlock = mcg.builder_.getInsertionBlock();
-        if (!endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
+        if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
             mcg.builder_.create<mlir::ReturnOp>(loc);
         }
         function.dump();
@@ -733,8 +733,12 @@ public:
     }
 
     ValueWithOffsets VisitReturnStmt(clang::ReturnStmt* stmt) {
-        auto rv = stmt->getRetValue() ? Visit(stmt->getRetValue()) : nullptr;
-        mcg.builder_.create<mlir::ReturnOp>(loc, (mlir::Value)rv);
+        if (stmt->getRetValue()) {
+            auto rv = (mlir::Value)Visit(stmt->getRetValue());
+            mcg.builder_.create<mlir::ReturnOp>(loc, rv);
+        } else {
+            mcg.builder_.create<mlir::ReturnOp>(loc);
+        }
         return nullptr;
     }
 };
