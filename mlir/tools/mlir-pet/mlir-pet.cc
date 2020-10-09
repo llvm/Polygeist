@@ -22,6 +22,10 @@ static cl::opt<std::string> outputFileName("o",
                                            cl::value_desc("out"),
                                            cl::cat(toolOptions));
 
+
+static cl::opt<bool> CudaLower("cuda-lower", cl::init(false), 
+                                           cl::desc("Add parallel loops around cuda"));
+
 static cl::opt<std::string> inputFileName(cl::Positional,
                                           cl::desc("<Specify input file>"),
                                           cl::Required, cl::cat(toolOptions));
@@ -134,7 +138,8 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCSEPass());
     optPM.addPass(mlir::createMemRefDataFlowOptPass());
     optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createParallelLowerPass());
+    if (CudaLower)
+      optPM.addPass(mlir::createParallelLowerPass());
 
 
   if (mlir::failed(pm.run(MLIRbuilder.theModule_)))
