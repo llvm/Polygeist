@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Target/OpenScop.h"
 
@@ -27,6 +28,7 @@
 #include "mlir/Translation.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
@@ -454,44 +456,61 @@ static void addParameterNamesToScop(unsigned numParams, OslScop *scop) {
 /// access operation. In the content of the body we need to decide the number of
 /// the original iterators and what they are. This can be retrieved from the
 /// access indices of the given op.
-static void addBodyExtToScop(int stmtId, Operation *op, LoopIVToName &ivNameMap,
-                             OslSymbolTable &symTable,
+static void addBodyExtToScop(int stmtId, OslScopStmtOpSet *opSet,
+                             LoopIVToName &ivNameMap, OslSymbolTable &symTable,
                              const MemRefToId &memrefIdMap, OslScop *scop) {
-  assert((isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) &&
-         "op should be an affine read/write operation,");
   // The string content of the body extension.
   std::string body;
   llvm::raw_string_ostream ss(body);
 
-  MemRefAccess access(op);
-  llvm::SmallVector<llvm::StringRef, 8> args;
+  llvm::SmallVector<MemRefAccess, 8> accesses;
+  llvm::SmallVector<std::string, 8> args;
 
-  // The first argument is the memref name.
-  std::string memName = getMemrefName(memrefIdMap.lookup(access.memref));
-  args.push_back(memName);
+  // The first set of arguments are memref names. There is no specific ordering
+  // of the names.
+  for (auto op : *opSet) {
+    if (isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op)) {
+      MemRefAccess access(op);
+      auto memRefType = access.memref.getType().cast<MemRefType>();
+
+      std::string memName = getMemrefName(memrefIdMap.lookup(access.memref));
+      // Each memref is followed by its number of dimensions.
+      args.push_back(memName);
+      args.push_back(std::to_string(memRefType.getShape().size()));
+
+      accesses.push_back(access);
+    }
+  }
 
   // Get loop IVs.
-  // Number of iterators.
-  ss << access.indices.size() << " ";
-  // Add iterator names.
-  for (auto iv : access.indices) {
-    // If `iv` doesn't exist in the ivNameMap, we insert a new one using format
-    // "i[number]". Sometimes parameters can exist in access.indices, we should
-    // distinguish them with IV by checking the type. If the type of the iv is
-    // BlockArgument, then it is an actual IV; otherwise it is a constant
-    // parameter.
-    if (iv.dyn_cast<BlockArgument>()) {
-      ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
-      args.push_back(ivNameMap[iv]);
-      ss << ivNameMap[iv] << " ";
+  SetVector<mlir::Value> ivArgs;
+  for (auto access : accesses) {
+    for (auto iv : access.indices) {
+      // If `iv` doesn't exist in the ivNameMap, we insert a new one using
+      // format "i[number]". Sometimes parameters can exist in access.indices,
+      // we should distinguish them with IV by checking the type. If the type of
+      // the iv is BlockArgument, then it is an actual IV; otherwise it is a
+      // constant parameter.
+      if (iv.dyn_cast<BlockArgument>()) {
+        ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
+        ivArgs.insert(iv);
+      }
     }
+  }
+
+  // Number of iterators.
+  ss << ivArgs.size() << " ";
+  // Add iterator names.
+  for (auto ivArg : ivArgs) {
+    args.push_back(ivNameMap[ivArg]);
+    ss << ivNameMap[ivArg] << " ";
   }
 
   // Get statement ID following the pattern "S<ID>", e.g., S0, S1, etc. We
   // assume the given op has not been added to stmtToOp before as a value.
-  unsigned numStmtOps = symTable.getNumOperations(OslSymbolTable::StmtOp);
-  std::string stmtName = formatv("S{0}", numStmtOps);
-  symTable.setOperation(stmtName, op, OslSymbolTable::StmtOp);
+  unsigned numStmtOpSets = symTable.getNumOpSets(OslSymbolTable::StmtOpSet);
+  std::string stmtName = formatv("S{0}", numStmtOpSets);
+  symTable.setOpSet(stmtName, *opSet, OslSymbolTable::StmtOpSet);
 
   // Should start a new line before inserting the statement body.
   ss << "\n" << stmtName << "(";
@@ -621,25 +640,49 @@ void ModuleEmitter::emitMLIRModule(
 }
 } // namespace
 
+static LogicalResult getDefOps(Operation *op, OslScopStmtOpSet &defOps) {
+  if (!op)
+    return success();
+
+  // Alloc will be omitted.
+  if (isa<AllocOp>(op))
+    return success();
+  // Keep the op in the given set.
+  defOps.insert(op);
+  // If the op visited is an affine.load or a constant op, this process will
+  // terminate.
+  if (isa<mlir::AffineLoadOp, mlir::ConstantOp>(op))
+    return success();
+  // Recursively visit other defining ops that are not in defOps.
+  for (auto operand : op->getOperands()) {
+    auto defOp = operand.getDefiningOp();
+    if (defOps.count(defOp) == 0 && failed(getDefOps(defOp, defOps)))
+      return failure();
+  }
+
+  return success();
+}
+
 std::unique_ptr<OslScop>
 polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
                                   OslSymbolTable &symTable) {
   // Initialize a new Scop per FuncOp.
   auto scop = std::make_unique<OslScop>();
 
-  // We iterate through every operation in the function and extract load/store
-  // operations out into loadAndStoreOps.
-  SmallVector<Operation *, 8> loadAndStoreOps;
+  // We iterate through every operation in the function and extract store
+  // operations out into storeOps. Each store op will be converted to an
+  // OpenScop statement.
+  SmallVector<Operation *, 8> storeOps;
   funcOp.getOperation()->walk([&](Operation *op) {
-    if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op))
-      loadAndStoreOps.push_back(op);
+    if (isa<mlir::AffineWriteOpInterface>(op))
+      storeOps.push_back(op);
   });
 
-  LLVM_DEBUG(llvm::dbgs() << "Found " << loadAndStoreOps.size()
+  LLVM_DEBUG(llvm::dbgs() << "Found " << storeOps.size()
                           << " number of load/store operations.\n");
 
   // Total number of statements.
-  unsigned numStatements = loadAndStoreOps.size();
+  unsigned numStatements = storeOps.size();
 
   // Cache all the enclosing operations for all statements.
   std::vector<SmallVector<Operation *, 4>> enclosingOpsList(numStatements);
@@ -658,28 +701,27 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
   // Mapping between loop IVs and their name in Scop.
   LoopIVToName ivNameMap;
 
-  // Pre-calculate domains.
+  SmallVector<OslScopStmtOpSet, 8> stmtOpSets;
+
+  // TODO: refactorize later
   for (unsigned i = 0; i < numStatements; i++) {
-    Operation *op = loadAndStoreOps[i];
-    LLVM_DEBUG(op->dump());
+    Operation *op = storeOps[i];
+    OslScopStmtOpSet stmtOpSet;
 
-    // Each statement in the MLIR affine case is a load/store, which means
-    // besides the domain and scattering relations, there will be only one
-    // additional access relation. In together there will be 3 of them.
-
-    // TODO: make getOpIndexSet publicly available
-    getEnclosingAffineForAndIfOps(*op, &enclosingOpsList[i]);
-    LLVM_DEBUG(llvm::dbgs() << "Number of enclosing operations: "
-                            << enclosingOpsList[i].size() << "\n");
-
-    // Get the domain first, which is structured as FlatAffineConstraints.
-    if (failed(getIndexSet(enclosingOpsList[i], &domains[i])))
+    // The set of statement operations are determined by the use-def chain ended
+    // at the corresponding affine.store op.
+    if (failed(getDefOps(op, stmtOpSet)))
       return nullptr;
 
-    LLVM_DEBUG(domains[i].dump());
+    // Get the domain and enclosing ops.
+    if (failed(stmtOpSet.getEnclosingOps(enclosingOpsList[i])) ||
+        failed(stmtOpSet.getDomain(domains[i], enclosingOpsList[i])))
+      return nullptr;
 
     // Update the paramMap.
     addParamsToMap(domains[i], paramMap);
+
+    stmtOpSets.push_back(stmtOpSet);
   }
 
   // Build the mapping from position to a specific parameter.
@@ -687,7 +729,6 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
 
   // Iterate through every statement.
   for (unsigned i = 0; i < numStatements; i++) {
-    Operation *op = loadAndStoreOps[i];
     FlatAffineConstraints domain = domains[i];
     auto ops = enclosingOpsList[i];
 
@@ -722,35 +763,45 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
         numScatteringEqualities + domain.getNumCols() + 1;
 
     // Get the access
-    MemRefAccess access(op);
-    auto it = memrefIdMap.find(access.memref);
-    if (it == memrefIdMap.end())
-      memrefIdMap[access.memref] = memrefIdMap.size() + 1;
-    auto memrefId = memrefIdMap[access.memref];
+    Operation *storeOp = nullptr;
+    OslScopStmtOpSet opSet = stmtOpSets[i];
+    for (auto op : opSet) {
+      if (isa<mlir::AffineStoreOp, mlir::AffineLoadOp>(op)) {
+        MemRefAccess access(op);
+        auto it = memrefIdMap.find(access.memref);
+        if (it == memrefIdMap.end())
+          memrefIdMap[access.memref] = memrefIdMap.size() + 1;
+        auto memrefId = memrefIdMap[access.memref];
 
-    AffineValueMap accessMap;
-    access.getAccessMap(&accessMap);
-    std::vector<SmallVector<int64_t, 8>> flatExprs;
-    FlatAffineConstraints localVarCst;
+        AffineValueMap accessMap;
+        access.getAccessMap(&accessMap);
+        std::vector<SmallVector<int64_t, 8>> flatExprs;
+        FlatAffineConstraints localVarCst;
 
-    if (failed(getFlattenedAffineExprs(accessMap.getAffineMap(), &flatExprs,
-                                       &localVarCst)))
-      return nullptr;
+        if (failed(getFlattenedAffineExprs(accessMap.getAffineMap(), &flatExprs,
+                                           &localVarCst)))
+          return nullptr;
 
-    assert(flatExprs.size() > 0 &&
-           "Number of flat expressions should be larger than 0.");
+        assert(flatExprs.size() > 0 &&
+               "Number of flat expressions should be larger than 0.");
 
-    LLVM_DEBUG(llvm::dbgs()
-               << "Number of flat exprs: " << flatExprs.size() << "\n");
-    LLVM_DEBUG(llvm::dbgs()
-               << "Flat expr size: " << flatExprs[0].size() << "\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Number of flat exprs: " << flatExprs.size() << "\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "Flat expr size: " << flatExprs[0].size() << "\n");
 
-    // Insert the access relation into the scop.
-    addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain,
-                    scop.get());
+        // Insert the access relation into the scop.
+        addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain,
+                        scop.get());
+      }
+
+      if (isa<mlir::AffineStoreOp>(op))
+        storeOp = op;
+    }
 
     // Insert the body extension.
-    addBodyExtToScop(i, op, ivNameMap, symTable, memrefIdMap, scop.get());
+    addBodyExtToScop(i, &stmtOpSets[i], ivNameMap, symTable, memrefIdMap,
+                     scop.get());
   }
 
   // Setup the context after iterated all statemenets.
@@ -762,7 +813,8 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
   // Add parameter names
   addParameterNamesToScop(paramMap.size(), scop.get());
 
-  assert(scop->validate() && "Scop created cannot be validated.");
+  // scop->print();
+  // assert(scop->validate() && "Scop created cannot be validated.");
 
   // Update the mapping from name to loop IV and memref.
   for (auto it : ivNameMap)

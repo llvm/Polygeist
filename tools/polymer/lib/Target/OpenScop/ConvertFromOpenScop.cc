@@ -9,6 +9,7 @@
 #include "osl/osl.h"
 
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Target/OpenScop.h"
 
@@ -369,22 +370,19 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   // Create the callee.
   // First, we create the callee function type.
   unsigned numArgs = args.size();
-  llvm::SmallVector<mlir::Type, 8> calleeArgTypes(numArgs);
+  llvm::SmallVector<mlir::Type, 8> calleeArgTypes;
 
   for (unsigned i = 0; i < numArgs; i++) {
     if (isMemrefArg(args[i])) {
-      // Memref
+      // Memref. A memref name and its number of dimensions.
       auto memName = args[i];
-      auto memShape = std::vector<int64_t>(numArgs - i - 1, -1);
+      auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
       MemRefType memType = MemRefType::get(memShape, b.getF32Type());
-      calleeArgTypes[i] = memType;
-    } else if (isResultArg(args[i])) {
-      // Result from other statements.
-      // TODO: we just assume all data types are scalar float32.
-      calleeArgTypes[i] = b.getF32Type();
+      calleeArgTypes.push_back(memType);
+      i++;
     } else {
       // Loop IV.
-      calleeArgTypes[i] = b.getIndexType();
+      calleeArgTypes.push_back(b.getIndexType());
     }
   }
 
@@ -401,13 +399,13 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
   // Initialise all the caller arguments. The first argument should be the
   // memory object, which is set to be a BlockArgument.
-  llvm::SmallVector<mlir::Value, 8> callerArgs(numArgs);
+  llvm::SmallVector<mlir::Value, 8> callerArgs;
   auto &entryBlock = *func.getBlocks().begin();
 
   for (unsigned i = 0; i < numArgs; i++) {
     if (isMemrefArg(args[i])) {
       // TODO: refactorize this.
-      auto memShape = std::vector<int64_t>(numArgs - i - 1, -1);
+      auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
       MemRefType memType = MemRefType::get(memShape, b.getF32Type());
 
       // TODO: refactorize these two lines into a single API.
@@ -416,31 +414,16 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
         memref = entryBlock.addArgument(memType);
         symTable->setValue(args[i], memref, OslSymbolTable::Memref);
       }
-      callerArgs[i] = memref;
-    } else if (isResultArg(args[i])) {
-      // TODO: remove this branch since it won't be triggered in the latest
-      // design.
-      auto srcOp = symTable->getOperation(args[i]);
-      if (!srcOp)
-        return failure();
-
-      auto caller = dyn_cast<mlir::CallOp>(srcOp);
-      auto srcCallee = dyn_cast<mlir::FuncOp>(calleeMap[caller.getCallee()]);
-      if (srcCallee.getNumResults() == 0) {
-        // TODO: still, we assume that the returned value is of type F32.
-        auto newCalleeType =
-            b.getFunctionType(srcCallee.getArgumentTypes(), b.getF32Type());
-        srcCallee.setType(newCalleeType);
-      }
-      callerArgs[i] = srcOp->getResult(0);
+      callerArgs.push_back(memref);
+      i++;
     } else if (auto val = symTable->getValue(args[i])) {
       // The rest of the arguments are access indices. They could be the loop
       // IVs or the parameters. Loop IV
-      callerArgs[i] = val;
+      callerArgs.push_back(val);
       // Symbol.
       // TODO: manage sym name by the symTable.
     } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
-      callerArgs[i] = symNameToArg.lookup(args[i]);
+      callerArgs.push_back(symNameToArg.lookup(args[i]));
       // TODO: what if an index is a constant?
     } else { // TODO: error handling
       llvm::errs() << "Cannot find " << args[i]
@@ -455,7 +438,10 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   auto callOp = b.create<CallOp>(UnknownLoc::get(context), callee, callerArgs);
 
   // Update StmtOpMap.
-  symTable->setOperation(calleeName, callOp, OslSymbolTable::StmtOp);
+  OslScopStmtOpSet opSet;
+  opSet.insert(callOp);
+  opSet.insert(callee);
+  symTable->setOpSet(calleeName, opSet, OslSymbolTable::StmtOpSet);
 
   return success();
 }
@@ -583,8 +569,8 @@ polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
       FileLineColLoc::get("", /*line=*/0, /*column=*/0, context)));
 
   OslSymbolTable symTable;
-  if (createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
-                               context))
+  if (!createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
+                                context))
     return {};
 
   return module;

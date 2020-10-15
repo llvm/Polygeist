@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/OslScopStmtOpSet.h"
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
@@ -26,12 +27,11 @@ Value OslSymbolTable::getValue(StringRef key) {
   return nullptr;
 }
 
-Operation *OslSymbolTable::getOperation(StringRef key) {
+OslSymbolTable::OpSet OslSymbolTable::getOpSet(StringRef key) {
   // If key corresponds to an Op of a statement.
-  if (nameToStmtOp.find(key) != nameToStmtOp.end())
-    return nameToStmtOp.lookup(key);
-
-  return nullptr;
+  assert(nameToStmtOpSet.find(key) != nameToStmtOpSet.end() &&
+         "Key is not found.");
+  return nameToStmtOpSet.lookup(key);
 }
 
 void OslSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
@@ -47,14 +47,13 @@ void OslSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
   }
 }
 
-void OslSymbolTable::setOperation(StringRef key, Operation *val,
-                                  SymbolType type) {
+void OslSymbolTable::setOpSet(StringRef key, OpSet val, SymbolType type) {
   switch (type) {
-  case StmtOp:
-    nameToStmtOp[key] = val;
+  case StmtOpSet:
+    nameToStmtOpSet[key] = val;
     break;
   default:
-    assert(false && "Symbole type for Operation not recognized.");
+    assert(false && "Symbole type for OpSet not recognized.");
   }
 }
 
@@ -69,12 +68,12 @@ unsigned OslSymbolTable::getNumValues(SymbolType type) {
   }
 }
 
-unsigned OslSymbolTable::getNumOperations(SymbolType type) {
+unsigned OslSymbolTable::getNumOpSets(SymbolType type) {
   switch (type) {
-  case StmtOp:
-    return nameToStmtOp.size();
+  case StmtOpSet:
+    return nameToStmtOpSet.size();
   default:
-    assert(false && "Symbole type for Operation not recognized.");
+    assert(false && "Symbole type for OpSet not recognized.");
   }
 }
 
@@ -86,10 +85,10 @@ void OslSymbolTable::getValueSymbols(SmallVectorImpl<StringRef> &symbols) {
   for (auto &it : nameToMemref)
     symbols.push_back(it.first());
 }
-void OslSymbolTable::getOperationSymbols(SmallVectorImpl<StringRef> &symbols) {
-  symbols.reserve(getNumOperations(StmtOp));
+void OslSymbolTable::getOpSetSymbols(SmallVectorImpl<StringRef> &symbols) {
+  symbols.reserve(getNumOpSets(StmtOpSet));
 
-  for (auto &it : nameToStmtOp)
+  for (auto &it : nameToStmtOpSet)
     symbols.push_back(it.first());
 }
 } // namespace polymer
