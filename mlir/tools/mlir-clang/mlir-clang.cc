@@ -1,8 +1,4 @@
-#include "Lib/ctx.h"
-#include "Lib/islAst.h"
-#include "Lib/islNodeBuilder.h"
-#include "Lib/mlirCodegen.h"
-#include "Lib/scop.h"
+//#include "Lib/mlirCodegen.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
@@ -15,7 +11,7 @@
 
 using namespace llvm;
 
-static cl::OptionCategory toolOptions("pet to mlir - tool options");
+static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<std::string> outputFileName("o",
                                            cl::desc("Specify output filename"),
@@ -50,43 +46,6 @@ static cl::opt<bool> dumpSchedule("dump-schedule",
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
-// check if the schedule is bounded.
-static bool isUnbounded(isl::schedule schedule) {
-  auto isUnBoundedSet = [](isl::set set) -> bool {
-    return !(set.is_bounded());
-  };
-  std::vector<isl::set> domains;
-  schedule.get_domain().foreach_set([&](isl::set set) {
-    domains.push_back(set);
-    return isl_stat_ok;
-  });
-  int unBounded = count_if(domains.begin(), domains.end(), isUnBoundedSet);
-  return unBounded != 0;
-}
-
-static void dumpScheduleWithIsl(isl::schedule schedule, llvm::raw_ostream &os) {
-  auto ctx = schedule.get_ctx().get();
-  auto *p = isl_printer_to_str(ctx);
-  p = isl_printer_set_yaml_style(p, ISL_YAML_STYLE_BLOCK);
-  p = isl_printer_print_schedule(p, schedule.get());
-  auto *str = isl_printer_get_str(p);
-  os << str << "\n";
-  free(str);
-  isl_printer_free(p);
-}
-
-static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
-  auto proximity = scop.getAllDependences();
-  auto validity = scop.getAllDependences();
-
-  auto sc = isl::schedule_constraints::on_domain(scop.getNonKilledDomain());
-
-  sc = sc.set_proximity(proximity);
-  sc = sc.set_validity(validity);
-  sc = sc.set_coincidence(validity);
-  auto schedule = sc.compute_schedule();
-  return schedule;
-}
 
 #include "Lib/clang-mlir.cc"
 #include "mlir/Pass/PassManager.h"
@@ -94,10 +53,6 @@ static isl::schedule rescheduleWithIsl(pet::Scop &scop) {
 int main(int argc, char **argv) {
 
   using namespace mlir;
-  using namespace pet;
-  using namespace util;
-  using namespace ast;
-  using namespace codegen;
 
   InitLLVM y(argc, argv);
 
@@ -128,9 +83,9 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-  MLIRCodegen MLIRbuilder(context);
+  auto module = mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
-  parseMLIR(inputFileName.c_str(), cfunction, includeDirs, MLIRbuilder);
+  parseMLIR(inputFileName.c_str(), cfunction, includeDirs, module);
 
   mlir::PassManager pm(&context);
 
@@ -142,10 +97,10 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createParallelLowerPass());
 
 
-  if (mlir::failed(pm.run(MLIRbuilder.theModule_)))
+  if (mlir::failed(pm.run(module)))
     return 4;
 
-  MLIRbuilder.print(outs());
+  module.print(outs());
   return 0;
 }
 
