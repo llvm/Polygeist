@@ -6,6 +6,7 @@
 
 #include "polymer/Transforms/InvariantScopTransform.h"
 #include "polymer/Support/OslScop.h"
+#include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Target/OpenScop.h"
 
@@ -62,7 +63,7 @@ struct InvariantScop : public OpConversionPattern<mlir::FuncOp> {
     }
 
     // TODO: remove this line.
-    scop->print();
+    // scop->print();
 
     auto moduleOp = dyn_cast<mlir::ModuleOp>(funcOp.getParentOp());
 
@@ -74,16 +75,23 @@ struct InvariantScop : public OpConversionPattern<mlir::FuncOp> {
     updateValueMapping(srcTable, dstTable, mapping);
 
     SmallVector<StringRef, 8> stmtSymbols;
-    srcTable.getOperationSymbols(stmtSymbols);
+    srcTable.getOpSetSymbols(stmtSymbols);
     for (auto stmtSym : stmtSymbols) {
       // The operation to be cloned.
-      auto srcOp = srcTable.getOperation(stmtSym);
+      auto srcOpSet = srcTable.getOpSet(stmtSym);
       // The clone destination.
-      auto dstOp = dstTable.getOperation(stmtSym);
+      auto dstOpSet = dstTable.getOpSet(stmtSym);
+      auto dstOp = dstOpSet.get(0);
 
       rewriter.setInsertionPoint(dstOp);
-      rewriter.clone(*srcOp, mapping);
+
+      for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
+        rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
+
+      // rewriter.setInsertionPoint(dstOp);
+      // rewriter.clone(*srcOp, mapping);
       rewriter.eraseOp(dstOp);
+      rewriter.eraseOp(dstOpSet.get(1));
     }
 
     // TODO: remove the callee function/update its function body.

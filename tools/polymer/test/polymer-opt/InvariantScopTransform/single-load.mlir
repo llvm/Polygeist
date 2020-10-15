@@ -7,3 +7,9 @@ func @single_load() -> () {
   }
   return
 }
+
+// CHECK: module {
+// CHECK:   func @main() {
+// CHECK:     return
+// CHECK:   }
+// CHECK: }

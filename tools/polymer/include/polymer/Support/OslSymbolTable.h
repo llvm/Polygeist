@@ -18,28 +18,33 @@ class Value;
 
 namespace polymer {
 
+class OslScopStmtOpSet;
+
 class OslSymbolTable {
 public:
-  enum SymbolType { LoopIV, Memref, StmtOp };
+  using OpSet = OslScopStmtOpSet;
+  using OpSetPtr = std::unique_ptr<OpSet>;
+
+  enum SymbolType { LoopIV, Memref, StmtOpSet };
 
   Value getValue(StringRef key);
 
-  Operation *getOperation(StringRef key);
+  OpSet getOpSet(StringRef key);
 
   void setValue(StringRef key, Value val, SymbolType type);
 
-  void setOperation(StringRef key, Operation *val, SymbolType type);
+  void setOpSet(StringRef key, OpSet val, SymbolType type);
 
   unsigned getNumValues(SymbolType type);
 
-  unsigned getNumOperations(SymbolType type);
+  unsigned getNumOpSets(SymbolType type);
 
   void getValueSymbols(SmallVectorImpl<StringRef> &symbols);
 
-  void getOperationSymbols(SmallVectorImpl<StringRef> &symbols);
+  void getOpSetSymbols(SmallVectorImpl<StringRef> &symbols);
 
 private:
-  StringMap<Operation *> nameToStmtOp;
+  StringMap<OpSet> nameToStmtOpSet;
   StringMap<Value> nameToLoopIV;
   StringMap<Value> nameToMemref;
 };
