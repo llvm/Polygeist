@@ -19,6 +19,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRNVVMIR
   MLIRGPU
   MLIRTransforms
+  MLIRTargetLLVMIRModuleTranslation
 
   clangBasic
   clangCodeGen
