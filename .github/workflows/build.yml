@@ -33,7 +33,7 @@ jobs:
     - name: cmake
       run: |
         cd build
-        CYMBL=OFF cmake ../src/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang
+        CYMBL=OFF cmake ../src/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
     - name: build
       run: |
         cd build
