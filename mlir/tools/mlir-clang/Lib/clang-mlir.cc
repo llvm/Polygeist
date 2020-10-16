@@ -100,9 +100,12 @@ struct MLIRASTConsumer;
 struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
 public:
     MLIRASTConsumer &Glob;
+    mlir::FuncOp function;
     mlir::ModuleOp &module;
     mlir::OpBuilder builder;
     mlir::Location loc;
+
+    mlir::Block* entryBlock;
 
     std::vector<std::map<std::string, mlir::Value>> scopes;
 
@@ -152,31 +155,16 @@ public:
         return op;
     }
 
-    mlir::Block* entryBlock;
-    mlir::FuncOp function;
-    MLIRScanner(MLIRASTConsumer &Glob, MangleContext& MC, FunctionDecl *fd, mlir::ModuleOp &module) : Glob(Glob),
-        module(module), builder(module.getContext()), loc(builder.getUnknownLoc()) {
+    MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function, FunctionDecl *fd, mlir::ModuleOp &module) : Glob(Glob),
+        module(module), function(function), builder(module.getContext()), loc(builder.getUnknownLoc()) {
         llvm::errs() << *fd << "\n";
-        auto mangled = getMangledNameImpl(MC, fd, fd);
-        if (module.lookupSymbol(mangled)) {
-            return;
-        }
+
         scopes.emplace_back();
-        std::vector<mlir::Type> types;
         std::vector<std::string> names;
         for(auto parm : fd->parameters()) {
-            types.push_back(getMLIRType(parm->getOriginalType()));
             names.push_back(parm->getName().str());
         }
         
-        //auto argTypes = getFunctionArgumentsTypes(mcg.getContext(), inputTensors);
-        auto rt = getMLIRType(fd->getReturnType());
-        std::vector<mlir::Type> rettypes;
-        if (!rt.isa<mlir::NoneType>()) {
-            rettypes.push_back(rt);
-        }
-        auto funcType = builder.getFunctionType(types, rettypes);
-        function = mlir::FuncOp(mlir::FuncOp::create(loc, mangled, funcType));
 
         entryBlock = function.addEntryBlock();
 
@@ -286,38 +274,9 @@ public:
         return ValueWithOffsets(lhs.val, v);
     }
 
-    mlir::Value EmitDirectCallee(GlobalDecl GD) {
-        const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
+    mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
 
-        /*
-        if (auto builtinID = FD->getBuiltinID()) {
-            // Replaceable builtin provide their own implementation of a builtin. Unless
-            // we are in the builtin implementation itself, don't call the actual
-            // builtin. If we are in the builtin implementation, avoid trivial infinite
-            // recursion.
-            if (!FD->isInlineBuiltinDeclaration() ||
-                CGF.CurFn->getName() == FD->getName())
-            return CGCallee::forBuiltin(builtinID, FD);
-        }
-        */
-        llvm::Constant *V = CGM.GetAddrOfFunction(GD);
-        if (!FD->hasPrototype()) {
-            if (const FunctionProtoType *Proto =
-                    FD->getType()->getAs<FunctionProtoType>()) {
-            // Ugly case: for a K&R-style definition, the type of the definition
-            // isn't the same as the type of a use.  Correct for this with a
-            // bitcast.
-            QualType NoProtoType =
-                CGM.getContext().getFunctionNoProtoType(Proto->getReturnType());
-            NoProtoType = CGM.getContext().getPointerType(NoProtoType);
-            V = llvm::ConstantExpr::getBitCast(V,
-                                            CGM.getTypes().ConvertType(NoProtoType));
-            }
-        }
-        return V;
-    }
-
-    mlir::Value EmitCallee(const Expr *E) {
+    mlir::FuncOp EmitCallee(const Expr *E) {
         E = E->IgnoreParens();
 
         // Look through function-to-pointer decay.
@@ -330,12 +289,12 @@ public:
         // Resolve direct calls.
         } else if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
             if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
-            return EmitDirectCallee(*this, FD);
+            return EmitDirectCallee(FD);
             }
         } else if (auto ME = dyn_cast<MemberExpr>(E)) {
             if (auto FD = dyn_cast<FunctionDecl>(ME->getMemberDecl())) {
-            EmitIgnoredExpr(ME->getBase());
-            return EmitDirectCallee(*this, FD);
+            //TODO EmitIgnoredExpr(ME->getBase());
+            return EmitDirectCallee(FD);
             }
 
         // Look through template substitutions.
@@ -443,9 +402,7 @@ public:
         for(auto a : expr->arguments()) {
             args.push_back(Visit(a));
         }
-        if (auto fo = tocall.getDefiningOp<mlir::FuncOp>()) {
-            return builder.create<mlir::CallOp>(loc, fo, args).getResult(0);
-        }
+        return builder.create<mlir::CallOp>(loc, tocall, args).getResult(0);
         llvm::errs() << "do not support indirecto call of " << tocall << "\n";
         assert(0 && "no indirect");
     }
@@ -875,9 +832,31 @@ struct MLIRASTConsumer : public ASTConsumer {
 	~MLIRASTConsumer() {
     }
 
-    mlir::FuncOp CreateMLIRFunction(FunctionDecl* FD) {
-        std::string name = CGM.getMangledName(FD);
+    std::map<const FunctionDecl*, mlir::FuncOp> functions;
+    mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl* FD) {
+        if (functions.find(FD) != functions.end()) {
+            return functions[FD];
+        }
+        std::string name = CGM.getMangledName(FD).str();
 
+        std::vector<mlir::Type> types;
+        std::vector<std::string> names;
+        for(auto parm : FD->parameters()) {
+            types.push_back(getMLIRType(parm->getOriginalType()));
+            names.push_back(parm->getName().str());
+        }
+        
+        //auto argTypes = getFunctionArgumentsTypes(mcg.getContext(), inputTensors);
+        auto rt = getMLIRType(FD->getReturnType());
+        std::vector<mlir::Type> rettypes;
+        if (!rt.isa<mlir::NoneType>()) {
+            rettypes.push_back(rt);
+        }
+        mlir::OpBuilder builder(module.getContext());
+        auto funcType = builder.getFunctionType(types, rettypes);
+        mlir::FuncOp function = mlir::FuncOp(mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+        functions[FD] = function;
+        return function;
     }
 
 	virtual bool HandleTopLevelDecl(DeclGroupRef dg) {
@@ -897,7 +876,7 @@ struct MLIRASTConsumer : public ASTConsumer {
             
             //if (fd->getName() != fn) continue;
             
-            MLIRScanner ms(*this, MC, fd, module);
+            MLIRScanner ms(*this, GetOrCreateMLIRFunction(fd), fd, module);
 		}
 
 		return true;
@@ -936,7 +915,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         }
         if (auto ST = dyn_cast<llvm::StructType>(t)) {
             bool notAllSame = false;
-            for(int i=1; i<ST->getNumElements(); i++) {
+            for(size_t i=1; i<ST->getNumElements(); i++) {
                 if (ST->getTypeAtIndex(i) != ST->getTypeAtIndex((size_t)0ULL)) {
                     notAllSame = true;
                     break;
@@ -970,7 +949,38 @@ class MLIRAction : public clang::ASTFrontendAction {
     }
 };
 
+    mlir::FuncOp MLIRScanner::EmitDirectCallee(GlobalDecl GD) {
+        const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
 
+        /*
+        if (auto builtinID = FD->getBuiltinID()) {
+            // Replaceable builtin provide their own implementation of a builtin. Unless
+            // we are in the builtin implementation itself, don't call the actual
+            // builtin. If we are in the builtin implementation, avoid trivial infinite
+            // recursion.
+            if (!FD->isInlineBuiltinDeclaration() ||
+                CGF.CurFn->getName() == FD->getName())
+            return CGCallee::forBuiltin(builtinID, FD);
+        }
+        */
+        mlir::FuncOp V = Glob.GetOrCreateMLIRFunction(FD);
+        /*
+        if (!FD->hasPrototype()) {
+            if (const FunctionProtoType *Proto =
+                    FD->getType()->getAs<FunctionProtoType>()) {
+            // Ugly case: for a K&R-style definition, the type of the definition
+            // isn't the same as the type of a use.  Correct for this with a
+            // bitcast.
+            QualType NoProtoType =
+                CGM.getContext().getFunctionNoProtoType(Proto->getReturnType());
+            NoProtoType = CGM.getContext().getPointerType(NoProtoType);
+            V = llvm::ConstantExpr::getBitCast(V,
+                                            CGM.getTypes().ConvertType(NoProtoType));
+            }
+        }
+        */
+        return V;
+    }
 
 mlir::Type MLIRScanner::getMLIRType(clang::QualType t) {
     return Glob.getMLIRType(t);
