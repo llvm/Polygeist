@@ -2247,8 +2247,8 @@ bool MemRefCastOp::areCastCompatible(Type a, Type b) {
   auto ubT = b.dyn_cast<UnrankedMemRefType>();
 
   if (aT && bT) {
-    if (aT.getElementType() != bT.getElementType())
-      return false;
+    //if (aT.getElementType() != bT.getElementType())
+    //  return false;
     if (aT.getAffineMaps() != bT.getAffineMaps()) {
       int64_t aOffset, bOffset;
       SmallVector<int64_t, 4> aStrides, bStrides;
