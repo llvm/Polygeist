@@ -46,6 +46,37 @@ using namespace mlir;
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/LogicalResult.h"
 
+#include "clang/AST/Mangle.h"
+#include "../../../../clang/lib/CodeGen/CodeGenModule.h"
+
+ // from clang codegenmodule
+ static std::string getMangledNameImpl(MangleContext& MC, GlobalDecl GD,
+                                       const NamedDecl *ND,
+                                       bool OmitMultiVersionMangling = false) {
+   SmallString<256> Buffer;
+   llvm::raw_svector_ostream Out(Buffer);
+   //MangleContext &MC = CGM.getCXXABI().getMangleContext();
+   if (MC.shouldMangleDeclName(ND))
+     MC.mangleName(GD.getWithDecl(ND), Out);
+   else {
+     IdentifierInfo *II = ND->getIdentifier();
+     assert(II && "Attempt to mangle unnamed decl.");
+     const auto *FD = dyn_cast<FunctionDecl>(ND);
+ 
+     if (FD &&
+         FD->getType()->castAs<clang::FunctionType>()->getCallConv() == CC_X86RegCall) {
+       Out << "__regcall3__" << II->getName();
+     } else if (FD && FD->hasAttr<CUDAGlobalAttr>() &&
+                GD.getKernelReferenceKind() == KernelReferenceKind::Stub) {
+       Out << "__device_stub__" << II->getName();
+     } else {
+       Out << II->getName();
+     }
+   }
+ 
+   return std::string(Out.str());
+ }
+ 
 struct ValueWithOffsets {
     mlir::Value val;
     std::vector<mlir::Value> offsets;
@@ -65,8 +96,10 @@ struct ValueWithOffsets {
     mlir::Type getType() { return val.getType(); }
 };
 
+struct MLIRASTConsumer;
 struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
 public:
+    MLIRASTConsumer &Glob;
     mlir::ModuleOp &module;
     mlir::OpBuilder builder;
     mlir::Location loc;
@@ -95,44 +128,8 @@ public:
         assert(0 && "unhandled mlir=>llvm type");
     }
 
-    mlir::Type getMLIRType(const clang::Type* t) {
-        if (t->isSpecificBuiltinType(BuiltinType::Float)) {
-            return builder.getF32Type();
-        }
-        if (t->isSpecificBuiltinType(BuiltinType::Void)) {
-            return builder.getNoneType();
-        }
-        if (t->isSpecificBuiltinType(BuiltinType::Int) || t->isSpecificBuiltinType(BuiltinType::UInt)) {
-            return builder.getI32Type();
-        }
-        if (auto pt = dyn_cast<clang::PointerType>(t)) {
-            return mlir::MemRefType::get(-1, getMLIRType(&*pt->getPointeeType()));
-        }
-        if (auto pt = dyn_cast<clang::ConstantArrayType>(t)) {
-            auto under = getMLIRType(&*pt->getElementType());
-            if (auto mt = under.dyn_cast<mlir::MemRefType>()) {
-                auto shape2 = std::vector<int64_t>(mt.getShape());
-                shape2.insert(shape2.begin(), (int64_t)pt->getSize().getLimitedValue());
-                return mlir::MemRefType::get(shape2, mt.getElementType(), mt.getAffineMaps(), mt.getMemorySpace());
-            }
-            return mlir::MemRefType::get({(int64_t)pt->getSize().getLimitedValue()}, under);
-        }
-        if (auto pt = dyn_cast<clang::IncompleteArrayType>(t)) {
-            auto under = getMLIRType(&*pt->getElementType());
-            if (auto mt = under.dyn_cast<mlir::MemRefType>()) {
-                auto shape2 = std::vector<int64_t>(mt.getShape());
-                shape2.insert(shape2.begin(), -1);
-                return mlir::MemRefType::get(shape2, mt.getElementType(), mt.getAffineMaps(), mt.getMemorySpace());
-            }
-            return mlir::MemRefType::get({-1}, under);
-        }
-        //if (auto pt = dyn_cast<clang::RecordType>(t)) {
-        //    llvm::errs() << " thing: " << pt->getName() << "\n";
-        //}
-        t->dump();
-        assert(0 && "unknown type to convert");
-        return nullptr;
-    }
+    mlir::Type getMLIRType(clang::QualType t);
+    size_t getTypeSize(clang::QualType t); 
 
     mlir::Value createAllocOp(mlir::Type t, std::string name, uint64_t memspace, bool isArray=false) {
         mlir::MemRefType mr;
@@ -157,27 +154,29 @@ public:
 
     mlir::Block* entryBlock;
     mlir::FuncOp function;
-    MLIRScanner(FunctionDecl *fd, mlir::ModuleOp &module) : module(module), builder(module.getContext()), loc(builder.getUnknownLoc()) {
+    MLIRScanner(MLIRASTConsumer &Glob, MangleContext& MC, FunctionDecl *fd, mlir::ModuleOp &module) : Glob(Glob),
+        module(module), builder(module.getContext()), loc(builder.getUnknownLoc()) {
         llvm::errs() << *fd << "\n";
-        if (module.lookupSymbol(fd->getName())) {
+        auto mangled = getMangledNameImpl(MC, fd, fd);
+        if (module.lookupSymbol(mangled)) {
             return;
         }
         scopes.emplace_back();
         std::vector<mlir::Type> types;
         std::vector<std::string> names;
         for(auto parm : fd->parameters()) {
-            types.push_back(getMLIRType(&*parm->getOriginalType()));
+            types.push_back(getMLIRType(parm->getOriginalType()));
             names.push_back(parm->getName().str());
         }
         
         //auto argTypes = getFunctionArgumentsTypes(mcg.getContext(), inputTensors);
-        auto rt = getMLIRType(&*fd->getReturnType());
+        auto rt = getMLIRType(fd->getReturnType());
         std::vector<mlir::Type> rettypes;
         if (!rt.isa<mlir::NoneType>()) {
             rettypes.push_back(rt);
         }
         auto funcType = builder.getFunctionType(types, rettypes);
-        function = mlir::FuncOp(mlir::FuncOp::create(loc, fd->getName(), funcType));
+        function = mlir::FuncOp(mlir::FuncOp::create(loc, mangled, funcType));
 
         entryBlock = function.addEntryBlock();
 
@@ -217,7 +216,7 @@ public:
     }
 
     ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral* expr) {
-        auto ty = getMLIRType(&*expr->getType()).cast<mlir::IntegerType>();
+        auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
         return builder.create<mlir::ConstantOp>(loc, ty, builder.getIntegerAttr(ty, expr->getValue()));
     }
 
@@ -232,7 +231,7 @@ public:
         if (decl->hasAttr<CUDASharedAttr>()) {
             memtype = 5;
         }
-        auto op = createAllocOp(getMLIRType(&*decl->getType()), decl->getName().str(), memtype, /*isArray*/isa<clang::ArrayType>(decl->getType()));
+        auto op = createAllocOp(getMLIRType(decl->getType()), decl->getName().str(), memtype, /*isArray*/isa<clang::ArrayType>(decl->getType()));
         if (auto init = decl->getInit()) {
             auto inite = Visit(init);
             if (!(mlir::Value)inite) {
@@ -287,15 +286,79 @@ public:
         return ValueWithOffsets(lhs.val, v);
     }
 
-    ValueWithOffsets VisitCallExpr(clang::CallExpr* expr) {
+    mlir::Value EmitDirectCallee(GlobalDecl GD) {
+        const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
 
+        /*
+        if (auto builtinID = FD->getBuiltinID()) {
+            // Replaceable builtin provide their own implementation of a builtin. Unless
+            // we are in the builtin implementation itself, don't call the actual
+            // builtin. If we are in the builtin implementation, avoid trivial infinite
+            // recursion.
+            if (!FD->isInlineBuiltinDeclaration() ||
+                CGF.CurFn->getName() == FD->getName())
+            return CGCallee::forBuiltin(builtinID, FD);
+        }
+        */
+        llvm::Constant *V = CGM.GetAddrOfFunction(GD);
+        if (!FD->hasPrototype()) {
+            if (const FunctionProtoType *Proto =
+                    FD->getType()->getAs<FunctionProtoType>()) {
+            // Ugly case: for a K&R-style definition, the type of the definition
+            // isn't the same as the type of a use.  Correct for this with a
+            // bitcast.
+            QualType NoProtoType =
+                CGM.getContext().getFunctionNoProtoType(Proto->getReturnType());
+            NoProtoType = CGM.getContext().getPointerType(NoProtoType);
+            V = llvm::ConstantExpr::getBitCast(V,
+                                            CGM.getTypes().ConvertType(NoProtoType));
+            }
+        }
+        return V;
+    }
+
+    mlir::Value EmitCallee(const Expr *E) {
+        E = E->IgnoreParens();
+
+        // Look through function-to-pointer decay.
+        if (auto ICE = dyn_cast<ImplicitCastExpr>(E)) {
+            if (ICE->getCastKind() == CK_FunctionToPointerDecay ||
+                ICE->getCastKind() == CK_BuiltinFnToFnPtr) {
+            return EmitCallee(ICE->getSubExpr());
+            }
+
+        // Resolve direct calls.
+        } else if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
+            if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
+            return EmitDirectCallee(*this, FD);
+            }
+        } else if (auto ME = dyn_cast<MemberExpr>(E)) {
+            if (auto FD = dyn_cast<FunctionDecl>(ME->getMemberDecl())) {
+            EmitIgnoredExpr(ME->getBase());
+            return EmitDirectCallee(*this, FD);
+            }
+
+        // Look through template substitutions.
+        } else if (auto NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
+            return EmitCallee(NTTP->getReplacement());
+
+        // Treat pseudo-destructor calls differently.
+        //} else if (auto PDE = dyn_cast<CXXPseudoDestructorExpr>(E)) {
+        //    return CGCallee::forPseudoDestructor(PDE);
+        }
+
+        assert(0 && "indirect references not handled");
+    }
+
+    ValueWithOffsets VisitCallExpr(clang::CallExpr* expr) {
+        if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
         if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
         if (auto ME = dyn_cast<MemberExpr>(ic->getSubExpr())) {
             auto memberName = ME->getMemberDecl()->getName() ;
         if (auto sr2 = dyn_cast<OpaqueValueExpr>(ME->getBase())) {
         if (auto sr = dyn_cast<DeclRefExpr>(sr2->getSourceExpr())) {
             if (sr->getDecl()->getName() == "blockIdx") {
-                auto mlirType = getMLIRType(&*expr->getType());
+                auto mlirType = getMLIRType(expr->getType());
                 if (memberName == "__fetch_builtin_x") {
                     return builder.create<mlir::IndexCastOp>(loc,
                         builder.create<mlir::gpu::BlockIdOp>(loc, mlir::IndexType::get(builder.getContext()), "x"), mlirType);
@@ -310,7 +373,7 @@ public:
                 }
             }
             if (sr->getDecl()->getName() == "blockDim") {
-                auto mlirType = getMLIRType(&*expr->getType());
+                auto mlirType = getMLIRType(expr->getType());
                 if (memberName == "__fetch_builtin_x") {
                     return builder.create<mlir::IndexCastOp>(loc,
                         builder.create<mlir::gpu::BlockDimOp>(loc, mlir::IndexType::get(builder.getContext()), "x"), mlirType);
@@ -325,7 +388,7 @@ public:
                 }
             }
             if (sr->getDecl()->getName() == "threadIdx") {
-                auto mlirType = getMLIRType(&*expr->getType());
+                auto mlirType = getMLIRType(expr->getType());
                 auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
                     return builder.create<mlir::IndexCastOp>(loc,
@@ -341,7 +404,7 @@ public:
                 }
             }
             if (sr->getDecl()->getName() == "gridDim") {
-                auto mlirType = getMLIRType(&*expr->getType());
+                auto mlirType = getMLIRType(expr->getType());
                 auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                 if (memberName == "__fetch_builtin_x") {
                     return builder.create<mlir::IndexCastOp>(loc,
@@ -375,8 +438,7 @@ public:
             }
         }
 
-
-        auto tocall = (mlir::Value)Visit(expr->getCallee());
+        auto tocall = EmitCallee(expr->getCallee());
         std::vector<mlir::Value> args;
         for(auto a : expr->arguments()) {
             args.push_back(Visit(a));
@@ -412,7 +474,7 @@ public:
         return Visit(expr->getResultExpr());
     }
 
-    ValueWithOffsets VisitUnaryOperator(UnaryOperator *U) {
+    ValueWithOffsets VisitUnaryOperator(clang::UnaryOperator *U) {
         auto sub = Visit(U->getSubExpr());
         // TODO note assumptions made here about unsigned / unordered
         bool signedType = true;
@@ -422,7 +484,7 @@ public:
             if (bit->isSignedInteger())
                 signedType = true;
         }
-        auto ty = getMLIRType(&*U->getType());
+        auto ty = getMLIRType(U->getType());
 
         switch(U->getOpcode()) {
             case clang::UnaryOperator::Opcode::UO_PreInc:
@@ -453,7 +515,20 @@ public:
         return Visit(expr->getReplacement());
     }
 
-    ValueWithOffsets VisitBinaryOperator(BinaryOperator *BO) {
+    ValueWithOffsets VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr* Uop) {
+        switch(Uop->getKind()) {
+            case UETT_SizeOf:{
+                auto value = getTypeSize(Uop->getTypeOfArgument());
+                auto ty = getMLIRType(Uop->getType()).cast<mlir::IntegerType>();
+                return builder.create<mlir::ConstantOp>(loc, ty, builder.getIntegerAttr(ty, value));
+            }
+            default:
+                Uop->dump();
+                assert(0 && "unhandled VisitUnaryExprOrTypeTraitExpr");
+        }
+    }
+
+    ValueWithOffsets VisitBinaryOperator(clang::BinaryOperator *BO) {
         auto lhs = Visit(BO->getLHS());
         if (!lhs.val) {
             BO->getLHS()->dump();
@@ -616,7 +691,20 @@ public:
         return Visit(AS->getSubStmt());
     }
 
+    ValueWithOffsets VisitExprWithCleanups(ExprWithCleanups* E) {
+        auto ret = Visit(E->getSubExpr());
+        for(auto & child : E->children()) {
+            child->dump();
+            assert(0 && "cleanup not handled");
+        }
+        return ret;
+    }
+
     ValueWithOffsets VisitDeclRefExpr (DeclRefExpr *E) {
+        if (auto FD = dyn_cast<FunctionDecl>(E->getDecl())) {
+
+        }
+
         return getValue(E->getDecl()->getName().str());
     }
 
@@ -664,7 +752,7 @@ public:
                             }
                         }
                         if (!foundVal) {
-                            auto mlirType = getMLIRType(&*E->getType());
+                            auto mlirType = getMLIRType(E->getType());
                             auto llvmType = getLLVMTypeFromMLIRType(mlirType);
                             return builder.create<mlir::LLVM::DialectCastOp>(loc, mlirType,
                                 builder.create<mlir::NVVM::WarpSizeOp>(loc, llvmType));  
@@ -680,7 +768,7 @@ public:
             }
             case clang::CastKind::CK_IntegralToFloating:{
                 auto scalar = Visit(E->getSubExpr());
-                auto ty = getMLIRType(&*E->getType()).cast<mlir::FloatType>();
+                auto ty = getMLIRType(E->getType()).cast<mlir::FloatType>();
                 bool signedType = true;
                 if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
                     if (bit->isUnsignedInteger())
@@ -709,6 +797,9 @@ public:
             case clang::CastKind::CK_FunctionToPointerDecay:{
                 auto scalar = Visit(E->getSubExpr());
                 return scalar;
+            }
+            case clang::CastKind::CK_NoOp:{
+                return Visit(E->getSubExpr());
             }
             default:
             E->dump();
@@ -748,6 +839,7 @@ public:
     ValueWithOffsets VisitReturnStmt(clang::ReturnStmt* stmt) {
         if (stmt->getRetValue()) {
             auto rv = (mlir::Value)Visit(stmt->getRetValue());
+            assert(rv);
             builder.create<mlir::ReturnOp>(loc, rv);
         } else {
             builder.create<mlir::ReturnOp>(loc);
@@ -757,24 +849,36 @@ public:
 };
 
 struct MLIRASTConsumer : public ASTConsumer {
+    std::string fn;
 	Preprocessor &PP;
 	ASTContext &ast_context;
 	DiagnosticsEngine &diags;
 	const char *function;
 	set<ValueDecl *> live_out;
 	mlir::ModuleOp &module;
+    MangleContext& MC;
+    LLVMContext lcontext;
+    llvm::Module llvmMod;
+    CodeGenOptions codegenops;
+    CodeGen::CodeGenModule CGM;
     bool error;
-    std::string fn;
 
 	MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &ast_context,
 		DiagnosticsEngine &diags, mlir::ModuleOp &module) :
 		fn(fn), PP(PP), ast_context(ast_context), diags(diags),
-		module(module), error(false)
+		module(module), MC(*ast_context.createMangleContext()), lcontext(), llvmMod("tmp", lcontext), codegenops(),
+        CGM(ast_context, PP.getHeaderSearchInfo().getHeaderSearchOpts(), PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
+         error(false)
 	{
 	}
 
 	~MLIRASTConsumer() {
-	}
+    }
+
+    mlir::FuncOp CreateMLIRFunction(FunctionDecl* FD) {
+        std::string name = CGM.getMangledName(FD);
+
+    }
 
 	virtual bool HandleTopLevelDecl(DeclGroupRef dg) {
 		DeclGroupRef::iterator it;
@@ -791,13 +895,64 @@ struct MLIRASTConsumer : public ASTConsumer {
             if (!fd->isGlobal()) continue;
             //llvm::errs() << *fd << "  " << fd->isGlobal() << "\n";
             
-            if (fd->getName() != fn) continue;
+            //if (fd->getName() != fn) continue;
             
-            MLIRScanner ms(fd, module);
+            MLIRScanner ms(*this, MC, fd, module);
 		}
 
 		return true;
 	}
+
+    
+    mlir::Type getMLIRType(clang::QualType t) {
+        llvm::Type* T = CGM.getTypes().ConvertType(t);
+        return getMLIRType(T);
+    }
+    mlir::Type getMLIRType(llvm::Type* t) {
+        mlir::OpBuilder builder(module.getContext());
+        if (t->isVoidTy()) {
+            return builder.getNoneType();
+        }
+        if (t->isFloatTy()) {
+            return builder.getF32Type();
+        }
+        if (t->isDoubleTy()) {
+            return builder.getF64Type();
+        }
+        if (auto IT = dyn_cast<llvm::IntegerType>(t)) {
+            return builder.getIntegerType(IT->getBitWidth());
+        }
+        if (auto pt = dyn_cast<llvm::PointerType>(t)) {
+            return mlir::MemRefType::get(-1, getMLIRType(pt->getElementType()), {}, pt->getAddressSpace());
+        }
+        if (auto pt = dyn_cast<llvm::ArrayType>(t)) {
+            auto under = getMLIRType(pt->getElementType());
+            if (auto mt = under.dyn_cast<mlir::MemRefType>()) {
+                auto shape2 = std::vector<int64_t>(mt.getShape());
+                shape2.insert(shape2.begin(), (int64_t)pt->getNumElements());
+                return mlir::MemRefType::get(shape2, mt.getElementType(), mt.getAffineMaps(), mt.getMemorySpace());
+            }
+            return mlir::MemRefType::get({(int64_t)pt->getNumElements()}, under);
+        }
+        if (auto ST = dyn_cast<llvm::StructType>(t)) {
+            bool notAllSame = false;
+            for(int i=1; i<ST->getNumElements(); i++) {
+                if (ST->getTypeAtIndex(i) != ST->getTypeAtIndex((size_t)0ULL)) {
+                    notAllSame = true;
+                    break;
+                }
+            }
+            if (!notAllSame) {
+                return mlir::MemRefType::get(ST->getNumElements(), getMLIRType(ST->getTypeAtIndex((size_t)0ULL)));
+            }
+        }
+        //if (auto pt = dyn_cast<clang::RecordType>(t)) {
+        //    llvm::errs() << " thing: " << pt->getName() << "\n";
+        //}
+        t->dump();
+        assert(0 && "unknown type to convert");
+        return nullptr;
+    }
 };
 
 #include "llvm/Support/Host.h"
@@ -814,6 +969,17 @@ class MLIRAction : public clang::ASTFrontendAction {
         return std::unique_ptr<clang::ASTConsumer> (new MLIRASTConsumer(fn, CI.getPreprocessor(), CI.getASTContext(), CI.getDiagnostics(), module));
     }
 };
+
+
+
+mlir::Type MLIRScanner::getMLIRType(clang::QualType t) {
+    return Glob.getMLIRType(t);
+}
+
+size_t MLIRScanner::getTypeSize(clang::QualType t) {
+    llvm::Type* T = Glob.CGM.getTypes().ConvertType(t);
+    return Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) / 8;
+}
 
 // -cc1 -triple nvptx64-nvidia-cuda -aux-triple x86_64-unknown-linux-gnu -S -disable-free -main-file-name saxpy.cu -mrelocation-model static -mframe-pointer=all -fno-rounding-math -fno-verbose-asm -no-integrated-as -aux-target-cpu x86-64 -fcuda-is-device -mlink-builtin-bitcode /usr/local/cuda/nvvm/libdevice/libdevice.10.bc -target-feature +ptx70 -target-sdk-version=11.0 -target-cpu sm_35 -fno-split-dwarf-inlining -debugger-tuning=gdb -v -resource-dir lib/clang/12.0.0 -internal-isystem lib/clang/12.0.0/include/cuda_wrappers -internal-isystem /usr/local/cuda/include -include __clang_cuda_runtime_wrapper.h -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0/backward -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0 -internal-isystem /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0/backward -internal-isystem /usr/local/include -internal-isystem lib/clang/12.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -internal-isystem /usr/local/include -internal-isystem lib/clang/12.0.0/include -internal-externc-isystem /usr/include/x86_64-linux-gnu -internal-externc-isystem /include -internal-externc-isystem /usr/include -fdeprecated-macro -fno-dwarf-directory-asm -fno-autolink -fdebug-compilation-dir /mnt/Data/git/MLIR-GPU/build -ferror-limit 19 -fgnuc-version=4.2.1 -fcxx-exceptions -fexceptions -o /tmp/saxpy-a8baec.s -x cuda bin/saxpy.cu 
 
