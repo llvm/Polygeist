@@ -1,11 +1,10 @@
-// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
+// RUN: polymer-translate %s -mlir-to-openscop -split-input-file | FileCheck %s
 
 // Consider local variables in the domain.
-// We will make this test valid when the diff D86421 is landed.
 
 #map = affine_map<(d0) -> (d0 floordiv 2)>
 
-func @load_store_if(%A : memref<?xf32>) -> () {
+func @load_store_local_vars_floordiv(%A : memref<?xf32>) -> () {
   %c0 = constant 0 : index
   %N = dim %A, %c0 : memref<?xf32>
   %M = affine.apply #map(%N)

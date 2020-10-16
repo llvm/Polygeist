@@ -57,6 +57,7 @@ public:
 
   LogicalResult process(clast_name *expr, AffineExpr &affExpr);
   LogicalResult process(clast_term *expr, AffineExpr &affExpr);
+  LogicalResult process(clast_binary *expr, AffineExpr &affExpr);
   LogicalResult process(clast_reduction *expr, AffineExpr &affExpr);
 
   LogicalResult processSumReduction(clast_reduction *expr, AffineExpr &affExpr);
@@ -105,10 +106,17 @@ LogicalResult AffineExprBuilder::process(clast_expr *expr,
     if (failed(process(reinterpret_cast<clast_term *>(expr), affExpr)))
       return failure();
     break;
+  case clast_expr_bin:
+    if (failed(process(reinterpret_cast<clast_binary *>(expr), affExpr)))
+      return failure();
+    break;
   case clast_expr_red:
     if (failed(process(reinterpret_cast<clast_reduction *>(expr), affExpr)))
       return failure();
     break;
+  default:
+    assert(false && "Unrecognized clast_expr_type.\n");
+    return failure();
   }
   return success();
 }
@@ -140,6 +148,35 @@ LogicalResult AffineExprBuilder::process(clast_term *expr,
 
     // Next create a constant AffineExpr.
     affExpr = b.getAffineConstantExpr(constant);
+  }
+
+  return success();
+}
+
+LogicalResult AffineExprBuilder::process(clast_binary *expr,
+                                         AffineExpr &affExpr) {
+  // Handle the LHS expression.
+  AffineExpr lhsAffExpr;
+  if (failed(process(expr->LHS, lhsAffExpr)))
+    return failure();
+
+  // Handle the RHS expression, which is an integer constant.
+  int64_t rhs;
+  if (failed(getI64(expr->RHS, &rhs)))
+    return failure();
+  AffineExpr rhsAffExpr = b.getAffineConstantExpr(rhs);
+
+  switch (expr->type) {
+  case clast_bin_fdiv:
+    affExpr = lhsAffExpr.floorDiv(rhsAffExpr);
+    break;
+  case clast_bin_cdiv:
+    affExpr = lhsAffExpr.ceilDiv(rhsAffExpr);
+    break;
+  default:
+    // TODO: bin/div are not handled.
+    assert(false && "Unrecognized clast_binary type.\n");
+    return failure();
   }
 
   return success();
