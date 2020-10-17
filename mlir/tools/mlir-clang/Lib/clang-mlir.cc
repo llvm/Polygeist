@@ -478,6 +478,19 @@ public:
         }
         if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
         if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+            if (sr->getDecl()->getName() == "atomicAdd") {
+                std::vector<ValueWithOffsets> args;
+                for(auto a : expr->arguments()) {
+                    args.push_back(Visit(a));
+                }
+                if (args[1].val.getType().isa<mlir::IntegerType>())
+                    return (mlir::Value)builder.create<mlir::AtomicRMWOp>(loc, args[1].val.getType(), AtomicRMWKind::addi, (mlir::Value)args[1], args[0].val, args[0].offsets);
+                else
+                    return (mlir::Value)builder.create<mlir::AtomicRMWOp>(loc, args[1].val.getType(), AtomicRMWKind::addf, (mlir::Value)args[1], args[0].val, args[0].offsets);
+            }
+        }
+        if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+        if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
             // TODO add pow to standard dialect
             if (sr->getDecl()->getName() == "__powf") {
                 auto mlirType = getMLIRType(expr->getType());
@@ -517,8 +530,6 @@ public:
     }
 
     ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr* expr) {
-        expr->getBaseExpr()->dump();
-        expr->getPropertyDecl()->dump();
         assert(0 && "unhandled ms propertyref");
         // TODO obviously fake
         return getConstantIndex(0);
@@ -544,7 +555,16 @@ public:
         auto ty = getMLIRType(U->getType());
 
         switch(U->getOpcode()) {
+            case clang::UnaryOperator::Opcode::UO_LNot:{
+                auto ty = ((mlir::Value)sub).getType().cast<mlir::IntegerType>();
+                auto c1 = (mlir::Value)builder.create<mlir::ConstantOp>(loc, ty, builder.getIntegerAttr(ty, 1));
+                return (mlir::Value)builder.create<mlir::XOrOp>(loc, (mlir::Value)sub, c1);
+            }
             case clang::UnaryOperator::Opcode::UO_Deref:{
+                auto v = sub.offsets;
+                return ValueWithOffsets(sub.val, v);
+            }
+            case clang::UnaryOperator::Opcode::UO_AddrOf:{
                 auto v = sub.offsets;
                 return ValueWithOffsets(sub.val, v);
             }
@@ -566,6 +586,21 @@ public:
                     next = builder.create<mlir::AddFOp>(loc, prev, builder.create<mlir::ConstantFloatOp>(loc, APFloat(ft.getFloatSemantics(), "1"), ft));
                 } else {
                     next = builder.create<mlir::AddIOp>(loc, prev, builder.create<mlir::ConstantIntOp>(loc, 1, ty.cast<mlir::IntegerType>()));
+                }
+                builder.create<mlir::StoreOp>(loc, next, sub.val, off);
+                return ValueWithOffsets( (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev : next, {});
+            }
+            case clang::UnaryOperator::Opcode::UO_PreDec:
+            case clang::UnaryOperator::Opcode::UO_PostDec:{
+                auto off = sub.offsets;
+                assert(off.size() != 0);
+                auto prev = builder.create<mlir::LoadOp>(loc, sub.val, off);
+
+                mlir::Value next;
+                if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
+                    next = builder.create<mlir::SubFOp>(loc, prev, builder.create<mlir::ConstantFloatOp>(loc, APFloat(ft.getFloatSemantics(), "1"), ft));
+                } else {
+                    next = builder.create<mlir::SubIOp>(loc, prev, builder.create<mlir::ConstantIntOp>(loc, 1, ty.cast<mlir::IntegerType>()));
                 }
                 builder.create<mlir::StoreOp>(loc, next, sub.val, off);
                 return ValueWithOffsets( (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev : next, {});
@@ -730,7 +765,7 @@ public:
                 }
                 assert(lhs.val.getType().cast<MemRefType>().getShape().size() == off.size());
                 builder.create<mlir::StoreOp>(loc, (mlir::Value)rhs, lhs.val, off);
-                return rhs;
+                return lhs;
             }
 
             case clang::BinaryOperator::Opcode::BO_Comma:{
@@ -780,6 +815,39 @@ public:
                 builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
                 return ValueWithOffsets(prev, {});
             }
+            case clang::BinaryOperator::Opcode::BO_DivAssign:{
+                auto off = lhs.offsets;
+                assert(off.size() != 0);
+                auto prev = builder.create<mlir::LoadOp>(loc, lhs.val, off);
+                
+                mlir::Value result;
+                if (prev.getType().isa<mlir::FloatType>()) {
+                    result = builder.create<mlir::DivFOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                } else {
+                    if (signedType)
+                        return (mlir::Value)builder.create<mlir::SignedDivIOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                    else
+                        return (mlir::Value)builder.create<mlir::UnsignedDivIOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                }
+                builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+                return ValueWithOffsets(prev, {});
+            }
+            case clang::BinaryOperator::Opcode::BO_ShrAssign:{
+                auto off = lhs.offsets;
+                assert(off.size() != 0);
+                auto prev = builder.create<mlir::LoadOp>(loc, lhs.val, off);
+                
+                mlir::Value result;
+
+                if (signedType)
+                    return (mlir::Value)builder.create<mlir::SignedShiftRightOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                else
+                    return (mlir::Value)builder.create<mlir::UnsignedShiftRightOp>(loc, (mlir::Value)prev, (mlir::Value)rhs);
+                builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+                return ValueWithOffsets(prev, {});
+            }
+
+            
 
             default:{defaultCase:
             BO->dump();
@@ -810,7 +878,17 @@ public:
     }
 
     ValueWithOffsets VisitOpaqueValueExpr(OpaqueValueExpr* E) {
-        return Visit(E->getSourceExpr());
+        assert(E->getSourceExpr());
+        for(auto c : E->children()) {
+            c->dump();
+        }
+        auto res = Visit(E->getSourceExpr());
+        if (!res.val) {
+            E->dump();
+            E->getSourceExpr()->dump();
+        }
+        assert(res.val);
+        return res;
     }
 
    ValueWithOffsets VisitMemberExpr(MemberExpr *ME) {
@@ -951,6 +1029,18 @@ public:
                     }
                 } else {
                     return (mlir::Value)builder.create<mlir::TruncateIOp>(loc, (mlir::Value)scalar, postTy);
+                }
+            }
+            case clang::CastKind::CK_FloatingCast:{
+                auto scalar = Visit(E->getSubExpr());
+                auto prevTy = scalar.getType().cast<mlir::FloatType>();
+                auto postTy = getMLIRType(E->getType()).cast<mlir::FloatType>();
+
+                if (prevTy == postTy) return scalar;
+                if (prevTy.getWidth() < postTy.getWidth()) {
+                    return (mlir::Value)builder.create<mlir::FPExtOp>(loc, (mlir::Value)scalar, postTy);
+                } else {
+                    return (mlir::Value)builder.create<mlir::FPTruncOp>(loc, (mlir::Value)scalar, postTy);
                 }
             }
             case clang::CastKind::CK_ArrayToPointerDecay:{
@@ -1228,7 +1318,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         //if (auto pt = dyn_cast<clang::RecordType>(t)) {
         //    llvm::errs() << " thing: " << pt->getName() << "\n";
         //}
-        t->dump();
+        llvm::errs() << *t << "\n";
         assert(0 && "unknown type to convert");
         return nullptr;
     }
