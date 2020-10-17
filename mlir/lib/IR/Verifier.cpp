@@ -144,9 +144,12 @@ LogicalResult OperationVerifier::verifyBlock(Block &block) {
   // Verify the non-terminator operations separately so that we can verify
   // they have no successors.
   for (auto &op : llvm::make_range(block.begin(), std::prev(block.end()))) {
-    if (op.getNumSuccessors() != 0)
+    if (op.getNumSuccessors() != 0) {
+      block.dump();
+      op.dump();
       return op.emitError(
           "operation with block successors must terminate its parent block");
+    }
 
     if (failed(verifyOperation(op)))
       return failure();
