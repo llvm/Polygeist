@@ -116,7 +116,7 @@ func @transpose(%A : memref<?x?xf32>) -> () {
 // CHECK: </arrays>
 //
 // CHECK: <scatnames>
-// CHECK: c0 i0 c2 i1
+// CHECK: c0 i0 c2 i1 c4
 // CHECK: </scatnames>
 //
 // CHECK: </OpenScop>

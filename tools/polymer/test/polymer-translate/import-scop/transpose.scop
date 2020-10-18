@@ -81,7 +81,7 @@ S0(A1, 2, A1, 2, i0, i1)
 </arrays>
 
 <scatnames>
-c0 i0 c2 i1
+c0 i0 c2 i1 c4
 </scatnames>
 
 </OpenScop>
