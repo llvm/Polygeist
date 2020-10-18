@@ -46,8 +46,10 @@ namespace {
 /// TODO: manage the priviledge.
 class AffineExprBuilder {
 public:
-  AffineExprBuilder(MLIRContext *context, OslScop *scop, CloogOptions *options)
-      : b(context), context(context), scop(scop), options(options) {
+  AffineExprBuilder(MLIRContext *context, OslSymbolTable *symTable,
+                    OslScop *scop, CloogOptions *options)
+      : b(context), context(context), symTable(symTable), scop(scop),
+        options(options) {
     reset();
   }
 
@@ -68,7 +70,9 @@ public:
   MLIRContext *context;
   /// The OslScop of the whole program.
   OslScop *scop;
-
+  ///
+  OslSymbolTable *symTable;
+  ///
   CloogOptions *options;
 
   llvm::SmallVector<llvm::StringRef, 4> symbolNames;
@@ -100,9 +104,6 @@ static LogicalResult getI64(cloog_int_t num, int64_t *res) {
 LogicalResult AffineExprBuilder::process(clast_expr *expr,
                                          AffineExpr &affExpr) {
 
-  fprintf(stdout, "Expr type: %d\n", expr->type);
-  clast_pprint_expr(options, stdout, expr);
-  fprintf(stdout, "\n");
   switch (expr->type) {
   case clast_expr_name:
     if (failed(process(reinterpret_cast<clast_name *>(expr), affExpr)))
@@ -132,10 +133,18 @@ LogicalResult AffineExprBuilder::process(clast_expr *expr,
 /// TODO: handle the dim case.
 LogicalResult AffineExprBuilder::process(clast_name *expr,
                                          AffineExpr &affExpr) {
-  assert(scop->isSymbol(expr->name) &&
-         "An expr name should refer to a symbol.");
-  affExpr = b.getAffineSymbolExpr(symbolNames.size());
-  symbolNames.push_back(expr->name);
+  if (scop->isSymbol(expr->name)) {
+    affExpr = b.getAffineSymbolExpr(symbolNames.size());
+    symbolNames.push_back(expr->name);
+  } else if (auto iv = symTable->getValue(expr->name)) {
+    affExpr = b.getAffineDimExpr(dimNames.size());
+    dimNames.push_back(expr->name);
+  } else {
+    llvm::errs()
+        << expr->name
+        << " is not a valid name can be found as a symbol or a loop IV.\n";
+    return failure();
+  }
 
   return success();
 }
@@ -280,7 +289,7 @@ private:
   ModuleOp module;
   /// The main function.
   FuncOp func;
-  /// The OpenScop object pointer.
+  /// The OpenScop object pointer./f
   OslScop *scop;
   /// The symbol table for labels in the OpenScop input.
   OslSymbolTable *symTable;
@@ -493,11 +502,22 @@ LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
                              AffineMap &affMap) {
-  AffineExprBuilder builder(context, scop, options);
+  AffineExprBuilder builder(context, symTable, scop, options);
   AffineExpr boundExpr;
   // Build the AffineExpr for the loop bound.
   if (failed(builder.process(expr, boundExpr)))
     return failure();
+
+  // Insert dim operands.
+  for (auto dimName : builder.dimNames) {
+    if (auto iv = symTable->getValue(dimName)) {
+      operands.push_back(iv);
+    } else {
+      llvm::errs() << "Dim " << dimName
+                   << " cannot be recognized as a value.\n";
+      return failure();
+    }
+  }
 
   // Create or get BlockArgument for the symbols. We assume all symbols come
   // from the BlockArgument of the generated function.
@@ -511,7 +531,6 @@ Importer::getAffineLoopBound(clast_expr *expr,
   // Create the AffineMap for loop bound.
   affMap = AffineMap::get(builder.dimNames.size(), builder.symbolNames.size(),
                           boundExpr);
-
   return success();
 }
 
@@ -546,7 +565,6 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "affine.for should only have one block argument.");
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
                      OslSymbolTable::LoopIV);
-  fprintf(stdout, "for-loop iterator: %s\n", forStmt->iterator);
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
