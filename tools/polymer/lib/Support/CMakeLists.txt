@@ -10,7 +10,13 @@ add_mlir_library(PolymerSupport
   MLIRAnalysis
   MLIRLoopAnalysis
 
-  libosl
-  libcloog
-  libisl
+  # libosl
+  # libcloog
+  # libisl
+  libplutoisl
+  libplutoosl
+  libplutopip
+  libplutocloog
+  libplutocandl
+  libpluto
 )

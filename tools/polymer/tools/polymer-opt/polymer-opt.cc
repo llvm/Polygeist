@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Transforms/InvariantScopTransform.h"
+#include "polymer/Transforms/PlutoTransform.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -73,6 +74,7 @@ int main(int argc, char *argv[]) {
   registerInlinerPass();
   // Register polymer specific passes.
   polymer::registerInvariantScopTransformPass();
+  polymer::registerPlutoTransformPass();
 
   // Register any pass manager command line options.
   registerMLIRContextCLOptions();

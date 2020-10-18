@@ -45,12 +45,12 @@ find_package(GMP REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
 
 # Configure and build OpenScop to ${CMAKE_BUILD_DIR}/openscop 
-include("${CMAKE_SOURCE_DIR}/cmake/OpenScop.cmake")
-include_directories("${OSL_INCLUDE_DIR}")
+# include("${CMAKE_SOURCE_DIR}/cmake/OpenScop.cmake")
+# include_directories("${OSL_INCLUDE_DIR}")
 
 # Configure and build CLooG/ISL to ${CMAKE_BUILD_DIR}/cloog
-include("${CMAKE_SOURCE_DIR}/cmake/CLooG.cmake")
-include_directories("${CLOOG_INCLUDE_DIR}")
+# include("${CMAKE_SOURCE_DIR}/cmake/CLooG.cmake")
+# include_directories("${CLOOG_INCLUDE_DIR}")
 
 # Configure and build PLUTO to ${CMAKE_BUILD_DIR}/pluto
 include("${CMAKE_SOURCE_DIR}/cmake/PLUTO.cmake")

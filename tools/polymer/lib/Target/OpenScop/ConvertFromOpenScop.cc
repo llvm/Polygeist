@@ -46,8 +46,8 @@ namespace {
 /// TODO: manage the priviledge.
 class AffineExprBuilder {
 public:
-  AffineExprBuilder(MLIRContext *context, OslScop *scop)
-      : b(context), context(context), scop(scop) {
+  AffineExprBuilder(MLIRContext *context, OslScop *scop, CloogOptions *options)
+      : b(context), context(context), scop(scop), options(options) {
     reset();
   }
 
@@ -68,6 +68,8 @@ public:
   MLIRContext *context;
   /// The OslScop of the whole program.
   OslScop *scop;
+
+  CloogOptions *options;
 
   llvm::SmallVector<llvm::StringRef, 4> symbolNames;
   llvm::SmallVector<llvm::StringRef, 4> dimNames;
@@ -97,6 +99,10 @@ static LogicalResult getI64(cloog_int_t num, int64_t *res) {
 
 LogicalResult AffineExprBuilder::process(clast_expr *expr,
                                          AffineExpr &affExpr) {
+
+  fprintf(stdout, "Expr type: %d\n", expr->type);
+  clast_pprint_expr(options, stdout, expr);
+  fprintf(stdout, "\n");
   switch (expr->type) {
   case clast_expr_name:
     if (failed(process(reinterpret_cast<clast_name *>(expr), affExpr)))
@@ -235,9 +241,9 @@ namespace {
 class Importer {
 public:
   Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
-           OslScop *scop)
+           OslScop *scop, CloogOptions *options)
       : b(context), context(context), module(module), scop(scop),
-        symTable(symTable) {
+        symTable(symTable), options(options) {
     b.setInsertionPointToStart(module.getBody());
   }
 
@@ -487,7 +493,7 @@ LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
                              AffineMap &affMap) {
-  AffineExprBuilder builder(context, scop);
+  AffineExprBuilder builder(context, scop, options);
   AffineExpr boundExpr;
   // Build the AffineExpr for the loop bound.
   if (failed(builder.process(expr, boundExpr)))
@@ -540,6 +546,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "affine.for should only have one block argument.");
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
                      OslSymbolTable::LoopIV);
+  fprintf(stdout, "for-loop iterator: %s\n", forStmt->iterator);
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
@@ -583,7 +590,7 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
   clast_stmt *rootStmt = cloog_clast_create(program, options);
 
   // Process the input.
-  Importer deserializer(context, module, &symTable, scop.get());
+  Importer deserializer(context, module, &symTable, scop.get(), options);
   if (failed(deserializer.processStmtList(rootStmt)))
     return nullptr;
 
