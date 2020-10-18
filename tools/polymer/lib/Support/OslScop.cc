@@ -142,11 +142,6 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
       stmt->scattering = rel;
     } else if (type == OSL_TYPE_ACCESS || type == OSL_TYPE_WRITE ||
                type == OSL_TYPE_READ) {
-      // Initialize a relation list for access if there isn't one.
-      if (!stmt->access)
-        stmt->access = osl_relation_list_malloc();
-
-      // Append a new list node.
       osl_relation_list_p relList = osl_relation_list_malloc();
       relList->elt = rel;
       osl_relation_list_add(&(stmt->access), relList);
