@@ -530,6 +530,12 @@ static void addScatnamesExtToScop(unsigned numScatNames, OslScop *scop) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
+  // The original # scatnames should be 1 (root) + n (IVs) + 1 (leaf), what we
+  // want here is 2 n (IVs) + 1 (leaf). We should perform the following update.
+  if (numScatNames < 2)
+    return;
+  numScatNames = (numScatNames - 2) * 2 + 1;
+
   for (unsigned i = 0; i < numScatNames; i++) {
     if (i % 2)
       ss << formatv("i{0}", i / 2) << " ";
