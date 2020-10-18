@@ -151,18 +151,22 @@ LogicalResult AffineExprBuilder::process(clast_name *expr,
 
 LogicalResult AffineExprBuilder::process(clast_term *expr,
                                          AffineExpr &affExpr) {
+  // First get the I64 representation of a cloog int.
+  int64_t constant;
+  if (failed(getI64(expr->val, &constant)))
+    return failure();
+
+  // Next create a constant AffineExpr.
+  affExpr = b.getAffineConstantExpr(constant);
+
+  // If var is not NULL, it means this term is var * val. We should create the
+  // expr that denotes var and multiplies it with the AffineExpr for val.
   if (expr->var) {
-    // TODO: finish implementing this
-    if (failed(process(expr->var, affExpr)))
-      return failure();
-  } else {
-    // First get the I64 representation of a cloog int.
-    int64_t constant;
-    if (failed(getI64(expr->val, &constant)))
+    AffineExpr varAffExpr;
+    if (failed(process(expr->var, varAffExpr)))
       return failure();
 
-    // Next create a constant AffineExpr.
-    affExpr = b.getAffineConstantExpr(constant);
+    affExpr = affExpr * varAffExpr;
   }
 
   return success();
@@ -210,10 +214,10 @@ LogicalResult AffineExprBuilder::process(clast_reduction *expr,
     if (failed(processSumReduction(expr, affExpr)))
       return failure();
     break;
-  case clast_red_min:
-  case clast_red_max:
   default:
-    break;
+    llvm::errs() << "Clast expr type: " << expr->type
+                 << " is not yet supported\n";
+    return failure();
   }
 
   return success();
@@ -406,6 +410,12 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   assert(body->expression != NULL && "The body expression should not be NULL.");
   assert(body->iterators != NULL && "The body iterators should not be NULL.");
 
+  // Maintain a set of body iterators.
+  // TODO: move this into a function.
+  llvm::DenseMap<llvm::StringRef, unsigned> iterNameMap;
+  for (unsigned i = 0; body->iterators->string[i] != NULL; i++)
+    iterNameMap[body->iterators->string[i]] = i;
+
   // TODO: print annotations
 
   // Parse the statement body.
@@ -477,7 +487,33 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
     } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
       callerArgs.push_back(symNameToArg.lookup(args[i]));
       // TODO: what if an index is a constant?
+    } else if (iterNameMap.find(args[i]) != iterNameMap.end()) {
+      // If the call arg is a iterator, and that iterator doesn't correspond to
+      // the known name of a loop IV, we should instead find the new call arg
+      // name in the <scatnames>.
+      unsigned ivIdx = iterNameMap[args[i]];
+
+      // HACK: we know that PLUTO generates its scatnames based on "t<id>", and
+      // we know the scattering PLUTO generates is like {root, i0, i1, ...,
+      // end}, where "i<id>" are iterator IDs for the current statement.
+      // Therefore, the id for scatname equals to the current iterator id
+      // plus 1. Note that we add 2 here mainly because t<id> starts from t1.
+      // TODO: make this robust.
+      std::string newArgName = "t" + std::to_string(ivIdx + 2);
+
+      if (auto iv = symTable->getValue(newArgName)) {
+        callerArgs.push_back(iv);
+        // We should set the symbol table for args[i], otherwise we cannot build
+        // a correct mapping from the original symbol table (only args[i] exists
+        // in it).
+        symTable->setValue(args[i], iv, OslSymbolTable::LoopIV);
+      } else {
+        llvm::errs() << "Cannot find the scatname " << newArgName
+                     << " as a valid loop IV.\n";
+        return failure();
+      }
     } else { // TODO: error handling
+
       llvm::errs() << "Cannot find " << args[i]
                    << " as a loop IV name or a symbole name. Please check if "
                       "the statement body uses the same iterator name as the "
