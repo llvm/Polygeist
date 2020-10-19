@@ -494,12 +494,22 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
       unsigned ivIdx = iterNameMap[args[i]];
 
       // HACK: we know that PLUTO generates its scatnames based on "t<id>", and
-      // we know the scattering PLUTO generates is like {root, i0, i1, ...,
-      // end}, where "i<id>" are iterator IDs for the current statement.
-      // Therefore, the id for scatname equals to the current iterator id
-      // plus 1. Note that we add 2 here mainly because t<id> starts from t1.
+      // we know the scattering PLUTO generates is like:
+      // {root, fk0, fk1, ..., fk<n>, i0, 0, i1, ..., 0}, where "i<id>" are
+      // iterator IDs for the current statement, and "fk<id>" are new loop
+      // indices inserted. Therefore, we should first examine how many
+      // fk-indices exist, and if it is N, the desired ID for our unknown
+      // "i<id>" input in the <scatnames> should be:
+      // id' = (id - N) * 2 + N + 1
+
       // TODO: make this robust.
-      std::string newArgName = "t" + std::to_string(ivIdx + 2);
+      // TODO: make it more efficient.
+      unsigned numFkIdx = 0;
+      for (auto &it : iterNameMap)
+        if (it.first.startswith("fk"))
+          numFkIdx++;
+      unsigned scatIdx = (ivIdx - numFkIdx) * 2 + 2 + numFkIdx;
+      std::string newArgName = "t" + std::to_string(scatIdx);
 
       if (auto iv = symTable->getValue(newArgName)) {
         callerArgs.push_back(iv);
