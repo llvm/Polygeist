@@ -1,4 +1,4 @@
-// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
+// RUN: polymer-translate %s -export-scop | FileCheck %s
 
 // Consider if operations in the domain.
 // We will make this test valid when the diff D86421 is landed.

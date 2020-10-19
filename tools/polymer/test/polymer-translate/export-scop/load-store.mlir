@@ -1,4 +1,4 @@
-// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
+// RUN: polymer-translate %s -export-scop | FileCheck %s
 
 func @load_store() -> () {
   %A = alloc() : memref<32xf32>
