@@ -23,6 +23,7 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
 #include "mlir/Translation.h"
@@ -651,8 +652,18 @@ static LogicalResult getDefOps(Operation *op, OslScopStmtOpSet &defOps) {
     return success();
 
   // Alloc will be omitted.
+  // TODO: extend this to a full list of omitted operation type.
   if (isa<AllocOp>(op))
     return success();
+
+  // Only operations with the NoSideEffect traits are allowed.
+  if (!isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op) &&
+      op->hasTrait<mlir::OpTrait::HasRecursiveSideEffects>()) {
+    op->emitError("A def-op that is not load/store should not have side "
+                  "effect.");
+    return failure();
+  }
+
   // Keep the op in the given set.
   defOps.insert(op);
   // If the op visited is an affine.load or a constant op, this process will
