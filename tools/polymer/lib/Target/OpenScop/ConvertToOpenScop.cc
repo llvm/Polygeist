@@ -867,6 +867,5 @@ static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
 }
 
 void polymer::registerToOpenScopTranslation() {
-  static TranslateFromMLIRRegistration toOpenScop("mlir-to-openscop",
-                                                  emitOpenScop);
+  static TranslateFromMLIRRegistration toOpenScop("export-scop", emitOpenScop);
 }

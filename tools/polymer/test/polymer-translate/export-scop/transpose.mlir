@@ -1,4 +1,4 @@
-// RUN: polymer-translate %s -mlir-to-openscop | FileCheck %s
+// RUN: polymer-translate %s -export-scop | FileCheck %s
 
 func @transpose(%A : memref<?x?xf32>) -> () {
   %c0 = constant 0 : index

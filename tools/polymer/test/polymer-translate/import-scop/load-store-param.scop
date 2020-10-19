@@ -1,4 +1,4 @@
-// RUN: polymer-translate %s -import-openscop | FileCheck %s
+// RUN: polymer-translate %s -import-scop | FileCheck %s
 
 <OpenScop>
 

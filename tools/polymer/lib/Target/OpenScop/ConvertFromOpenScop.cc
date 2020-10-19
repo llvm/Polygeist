@@ -687,7 +687,7 @@ namespace polymer {
 
 void registerFromOpenScopTranslation() {
   TranslateToMLIRRegistration fromLLVM(
-      "import-openscop", [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
+      "import-scop", [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
         return ::translateOpenScopToModule(sourceMgr, context);
       });
 }
