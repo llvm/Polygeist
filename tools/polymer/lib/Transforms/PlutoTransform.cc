@@ -67,7 +67,12 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
       return failure();
     }
 
+    // Should use isldep, candl cannot work well for this case.
+    // TODO: should discover why.
+    context->options->isldep = 1;
+
     PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
+
     pluto_compute_dep_directions(prog);
     pluto_compute_dep_satisfaction(prog);
     pluto_tile(prog);
