@@ -372,34 +372,46 @@ static void addScatteringToScop(unsigned index, ArrayRef<unsigned> scattering,
 /// Generate the access relation and add it to the scop.
 static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
                             ArrayRef<SmallVector<int64_t, 8>> flatExprs,
+                            ArrayRef<mlir::Value> indices,
+                            ArrayRef<mlir::Value> symbols,
                             FlatAffineConstraints &domain, OslScop *scop) {
-  // Number of equalities equals to the number of enclosing loop indices
-  // plus 1 (the array itself).
-  unsigned numAccessEqualities = domain.getNumDimIds() + 1;
-  unsigned numAccessCols = domain.getNumCols() + numAccessEqualities + 1;
+  // Number of equalities equals to the number of indices that this access
+  // relation uses, plus 1 that corresponds to the array itself.
+  unsigned numAccessIndices = flatExprs.size();
+  unsigned numAccessEqs = numAccessIndices + 1;
+  unsigned numAccessRawCols = domain.getNumCols() + numAccessEqs;
+  unsigned numAccessCols = numAccessRawCols + 1;
   unsigned numDimIds = domain.getNumDimIds();
   unsigned numSymbolIds = domain.getNumSymbolIds();
   unsigned numLocalIds = domain.getNumLocalIds();
 
   // Create equalities and inequalities.
   std::vector<int64_t> eqs, inEqs;
-  eqs.resize(numAccessEqualities * (numAccessCols - 1));
+  eqs.resize(numAccessEqs * numAccessRawCols);
 
-  for (unsigned i = 0; i < numAccessEqualities; i++) {
+  for (unsigned i = 0; i < numAccessEqs; i++) {
+    unsigned startIdx = i * numAccessRawCols;
+
     // The first section of a diagonal square matrix that points which axis the
     // current access relation is working on.
-    for (unsigned j = 0; j < numAccessEqualities; j++)
-      eqs[i * (numAccessCols - 1) + j] = -static_cast<int64_t>(i == j);
+    for (unsigned j = 0; j < numAccessIndices + 1; j++)
+      eqs[startIdx + j] = -static_cast<int64_t>(i == j);
+    startIdx += numAccessIndices + 1;
 
     // Set up the relation betwene the memref access position and the loop IVs.
     if (i == 0) {
       // The first row sets the array ID to the memref ID.
       for (unsigned j = 0; j < domain.getNumCols() - 1; j++)
-        eqs[i * (numAccessCols - 1) + j + numAccessEqualities] = 0;
-      eqs[i * (numAccessCols - 1) + numAccessCols - 2] = memrefId;
+        eqs[startIdx + j] = 0;
+      eqs[startIdx + domain.getNumCols() - 1] = memrefId;
     } else {
-      unsigned numFlatExprCols = flatExprs[i - 1].size();
       // Put the coefficients in the flat exprs into the access relation.
+      unsigned numFlatExprCols = flatExprs[i - 1].size();
+      unsigned numFlatExprDimIds = indices.size();
+      unsigned numFlatExprSymbolIds = symbols.size();
+      unsigned numFlatExprLocalIds =
+          numFlatExprCols - numFlatExprDimIds - numFlatExprSymbolIds - 1;
+
       // Note that numFlatExprCols may be smaller than the number of columns in
       // the domain constraints, mainly because the flatExprs are not aligned
       // with the position in domain constraints. Therefore, for those cases
@@ -408,33 +420,48 @@ static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
       // IDs; otherwise, we just place what in the flatExpr into the access
       // equalities.
       // TODO: properly handle local vars in the access equalities.
-      if (numFlatExprCols == numDimIds + numLocalIds + numSymbolIds + 1) {
-        // Input dims.
-        for (unsigned j = 0; j < numDimIds; j++)
-          eqs[i * (numAccessCols - 1) + j + numAccessEqualities] =
-              flatExprs[i - 1][j];
-        // Local dims.
-        for (unsigned j = 0; j < numLocalIds; j++)
-          eqs[i * (numAccessCols - 1) + j + numAccessEqualities + numDimIds] =
-              flatExprs[i - 1][j + numDimIds + numSymbolIds];
-        // Parameters.
-        for (unsigned j = 0; j < numSymbolIds; j++)
-          eqs[i * (numAccessCols - 1) + j + numAccessEqualities + numDimIds +
-              numLocalIds] = flatExprs[i - 1][j + numDimIds];
-        // Constant.
-        eqs[i * (numAccessCols - 1) + numAccessEqualities + numFlatExprCols -
-            1] = flatExprs[i - 1][numFlatExprCols - 1];
-      } else {
-        for (unsigned j = 0; j < numFlatExprCols; j++)
-          eqs[i * (numAccessCols - 1) + j + numAccessEqualities] =
-              flatExprs[i - 1][j];
+
+      // Input dims.
+      for (unsigned j = 0; j < numDimIds; j++)
+        eqs[startIdx + j] = 0; // initialize
+      // Set corresponding dim to 1.
+      for (unsigned j = 0; j < numFlatExprDimIds; j++) {
+        if (auto val = flatExprs[i - 1][j]) {
+          unsigned pos;
+          assert(domain.findId(indices[j], &pos) &&
+                 "Access index value not found in the domain constraints.");
+          eqs[startIdx + pos] = val;
+        }
       }
+      startIdx += numDimIds;
+
+      // Local dims.
+      for (unsigned j = 0; j < numLocalIds; j++)
+        eqs[startIdx + j] =
+            flatExprs[i - 1][j + numFlatExprDimIds + numFlatExprSymbolIds];
+      startIdx += numLocalIds;
+
+      // Parameters.
+      for (unsigned j = 0; j < numSymbolIds; j++)
+        eqs[startIdx + j] = 0; // initialize
+      for (unsigned j = 0; j < numFlatExprSymbolIds; j++) {
+        if (auto val = flatExprs[i - 1][j + numFlatExprDimIds]) {
+          unsigned pos;
+          assert(domain.findId(symbols[j], &pos) &&
+                 "Symbol value not found in the domain constraints.");
+          eqs[startIdx + pos - numDimIds] = val;
+        }
+      }
+      startIdx += numSymbolIds;
+
+      // Constant.
+      eqs[startIdx] = flatExprs[i - 1][numFlatExprCols - 1];
     }
   }
 
   // Then put them into the scop as a ACCESS relation.
   scop->addRelation(index + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-                    numAccessEqualities, numAccessCols, numAccessEqualities,
+                    numAccessEqs, numAccessCols, numAccessEqs,
                     domain.getNumDimIds(), domain.getNumLocalIds(),
                     domain.getNumSymbolIds(), eqs, inEqs);
 }
@@ -792,8 +819,22 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
 
         AffineValueMap accessMap;
         access.getAccessMap(&accessMap);
+
         std::vector<SmallVector<int64_t, 8>> flatExprs;
         FlatAffineConstraints localVarCst;
+
+        unsigned numAccessDims = accessMap.getNumDims();
+
+        // Setup symbols
+        mlir::SmallVector<mlir::Value, 8> symbols;
+        for (unsigned i = 0; i < accessMap.getNumSymbols(); i++)
+          symbols.push_back(accessMap.getOperand(i + numAccessDims));
+
+        // Setup indices
+        mlir::SmallVector<mlir::Value, 8> indices;
+        for (auto iv : access.indices)
+          if (iv.isa<BlockArgument>())
+            indices.push_back(iv);
 
         if (failed(getFlattenedAffineExprs(accessMap.getAffineMap(), &flatExprs,
                                            &localVarCst)))
@@ -808,8 +849,8 @@ polymer::createOpenScopFromFuncOp(mlir::FuncOp funcOp,
                    << "Flat expr size: " << flatExprs[0].size() << "\n");
 
         // Insert the access relation into the scop.
-        addAccessToScop(i, memrefId, !access.isStore(), flatExprs, domain,
-                        scop.get());
+        addAccessToScop(i, memrefId, !access.isStore(), flatExprs, indices,
+                        symbols, domain, scop.get());
       }
 
       if (isa<mlir::AffineStoreOp>(op))

@@ -85,8 +85,8 @@ func @transpose(%A : memref<?x?xf32>) -> () {
 // CHECK: 3 9 3 2 0 2
 // CHECK: # e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
 // CHECK:    0   -1    0    0    0    0    0    0    1    ## Arr == A1
-// CHECK:    0    0   -1    0    1    0    0    0    0    ## [1] == i0
-// CHECK:    0    0    0   -1    0    1    0    0    0    ## [2] == i1
+// CHECK:    0    0   -1    0    0    1    0    0    0    ## [1] == i1
+// CHECK:    0    0    0   -1    1    0    0    0    0    ## [2] == i0
 //
 // CHECK: READ
 // CHECK: 3 9 3 2 0 2
