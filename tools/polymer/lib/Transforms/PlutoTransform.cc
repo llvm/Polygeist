@@ -38,15 +38,24 @@ using namespace polymer;
 
 /// Insert value mapping into the given mapping object based on the provided src
 /// and dst symbol tables.
-static void updateValueMapping(OslSymbolTable &srcTable,
-                               OslSymbolTable &dstTable,
-                               BlockAndValueMapping &mapping) {
+static LogicalResult updateValueMapping(OslSymbolTable &srcTable,
+                                        OslSymbolTable &dstTable,
+                                        BlockAndValueMapping &mapping) {
   // TODO: check the symbol compatibility between srcTable and dstTable.
   SmallVector<StringRef, 8> symbols;
   srcTable.getValueSymbols(symbols);
 
-  for (auto sym : symbols)
-    mapping.map(srcTable.getValue(sym), dstTable.getValue(sym));
+  for (auto sym : symbols) {
+    if (auto dstVal = dstTable.getValue(sym))
+      mapping.map(srcTable.getValue(sym), dstVal);
+    else {
+      llvm::errs()
+          << "Symbol " << sym
+          << " in the source table is not found in the destination table.\n";
+      return failure();
+    }
+  }
+  return success();
 }
 
 namespace {
@@ -88,7 +97,8 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
 
     BlockAndValueMapping mapping;
     // TODO: refactorize this function and the following logic.
-    updateValueMapping(srcTable, dstTable, mapping);
+    if (failed(updateValueMapping(srcTable, dstTable, mapping)))
+      return failure();
 
     SmallVector<StringRef, 8> stmtSymbols;
     srcTable.getOpSetSymbols(stmtSymbols);
