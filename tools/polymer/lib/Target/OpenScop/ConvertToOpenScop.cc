@@ -513,15 +513,15 @@ static void addBodyExtToScop(int stmtId, OslScopStmtOpSet *opSet,
   // Get loop IVs.
   SetVector<mlir::Value> ivArgs;
   for (auto access : accesses) {
-    for (auto iv : access.indices) {
-      // If `iv` doesn't exist in the ivNameMap, we insert a new one using
+    for (auto idx : access.indices) {
+      // If `idx` doesn't exist in the ivNameMap, we insert a new one using
       // format "i[number]". Sometimes parameters can exist in access.indices,
       // we should distinguish them with IV by checking the type. If the type of
       // the iv is BlockArgument, then it is an actual IV; otherwise it is a
       // constant parameter.
-      if (iv.dyn_cast<BlockArgument>()) {
-        ivNameMap.try_emplace(iv, formatv("i{0}", ivNameMap.size()));
-        ivArgs.insert(iv);
+      if (idx.dyn_cast<BlockArgument>()) {
+        ivNameMap.try_emplace(idx, formatv("i{0}", ivNameMap.size()));
+        ivArgs.insert(idx);
       }
     }
   }
@@ -695,10 +695,12 @@ static LogicalResult getDefOps(Operation *op, OslScopStmtOpSet &defOps) {
   defOps.insert(op);
   // If the op visited is an affine.load or a constant op, this process will
   // terminate.
-  if (isa<mlir::AffineLoadOp, mlir::ConstantOp>(op))
+  if (isa<mlir::AffineApplyOp, mlir::ConstantOp>(op))
     return success();
   // Recursively visit other defining ops that are not in defOps.
   for (auto operand : op->getOperands()) {
+    if (operand.isa<BlockArgument>()) // loop IV.
+      continue;
     auto defOp = operand.getDefiningOp();
     if (defOps.count(defOp) == 0 && failed(getDefOps(defOp, defOps)))
       return failure();

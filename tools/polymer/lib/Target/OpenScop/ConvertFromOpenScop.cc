@@ -53,16 +53,26 @@ public:
     reset();
   }
 
-  LogicalResult process(clast_expr *expr, AffineExpr &affExpr);
+  LogicalResult process(clast_expr *expr,
+                        llvm::SmallVectorImpl<AffineExpr> &affExprs);
 
   void reset();
 
-  LogicalResult process(clast_name *expr, AffineExpr &affExpr);
-  LogicalResult process(clast_term *expr, AffineExpr &affExpr);
-  LogicalResult process(clast_binary *expr, AffineExpr &affExpr);
-  LogicalResult process(clast_reduction *expr, AffineExpr &affExpr);
+  LogicalResult process(clast_name *expr,
+                        llvm::SmallVectorImpl<AffineExpr> &affExprs);
+  LogicalResult process(clast_term *expr,
+                        llvm::SmallVectorImpl<AffineExpr> &affExprs);
+  LogicalResult process(clast_binary *expr,
+                        llvm::SmallVectorImpl<AffineExpr> &affExprs);
+  LogicalResult process(clast_reduction *expr,
+                        llvm::SmallVectorImpl<AffineExpr> &affExprs);
 
-  LogicalResult processSumReduction(clast_reduction *expr, AffineExpr &affExpr);
+  LogicalResult
+  processSumReduction(clast_reduction *expr,
+                      llvm::SmallVectorImpl<AffineExpr> &affExprs);
+  LogicalResult
+  processMinOrMaxReduction(clast_reduction *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs);
 
   /// OpBuilder used to create AffineExpr.
   OpBuilder b;
@@ -101,24 +111,25 @@ static LogicalResult getI64(cloog_int_t num, int64_t *res) {
   return success();
 }
 
-LogicalResult AffineExprBuilder::process(clast_expr *expr,
-                                         AffineExpr &affExpr) {
+LogicalResult
+AffineExprBuilder::process(clast_expr *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs) {
 
   switch (expr->type) {
   case clast_expr_name:
-    if (failed(process(reinterpret_cast<clast_name *>(expr), affExpr)))
+    if (failed(process(reinterpret_cast<clast_name *>(expr), affExprs)))
       return failure();
     break;
   case clast_expr_term:
-    if (failed(process(reinterpret_cast<clast_term *>(expr), affExpr)))
+    if (failed(process(reinterpret_cast<clast_term *>(expr), affExprs)))
       return failure();
     break;
   case clast_expr_bin:
-    if (failed(process(reinterpret_cast<clast_binary *>(expr), affExpr)))
+    if (failed(process(reinterpret_cast<clast_binary *>(expr), affExprs)))
       return failure();
     break;
   case clast_expr_red:
-    if (failed(process(reinterpret_cast<clast_reduction *>(expr), affExpr)))
+    if (failed(process(reinterpret_cast<clast_reduction *>(expr), affExprs)))
       return failure();
     break;
   default:
@@ -131,13 +142,14 @@ LogicalResult AffineExprBuilder::process(clast_expr *expr,
 /// Find the name in the scop to determine the type (dim or symbol). The
 /// position is decided by the size of dimNames/symbolNames.
 /// TODO: handle the dim case.
-LogicalResult AffineExprBuilder::process(clast_name *expr,
-                                         AffineExpr &affExpr) {
+LogicalResult
+AffineExprBuilder::process(clast_name *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   if (scop->isSymbol(expr->name)) {
-    affExpr = b.getAffineSymbolExpr(symbolNames.size());
+    affExprs.push_back(b.getAffineSymbolExpr(symbolNames.size()));
     symbolNames.push_back(expr->name);
   } else if (auto iv = symTable->getValue(expr->name)) {
-    affExpr = b.getAffineDimExpr(dimNames.size());
+    affExprs.push_back(b.getAffineDimExpr(dimNames.size()));
     dimNames.push_back(expr->name);
   } else {
     llvm::errs()
@@ -149,35 +161,43 @@ LogicalResult AffineExprBuilder::process(clast_name *expr,
   return success();
 }
 
-LogicalResult AffineExprBuilder::process(clast_term *expr,
-                                         AffineExpr &affExpr) {
+LogicalResult
+AffineExprBuilder::process(clast_term *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   // First get the I64 representation of a cloog int.
   int64_t constant;
   if (failed(getI64(expr->val, &constant)))
     return failure();
 
   // Next create a constant AffineExpr.
-  affExpr = b.getAffineConstantExpr(constant);
+  AffineExpr affExpr = b.getAffineConstantExpr(constant);
 
   // If var is not NULL, it means this term is var * val. We should create the
   // expr that denotes var and multiplies it with the AffineExpr for val.
   if (expr->var) {
-    AffineExpr varAffExpr;
-    if (failed(process(expr->var, varAffExpr)))
+    SmallVector<AffineExpr, 1> varAffExprs;
+    if (failed(process(expr->var, varAffExprs)))
       return failure();
+    assert(varAffExprs.size() == 1 &&
+           "There should be a single expression that stands for the var expr.");
 
-    affExpr = affExpr * varAffExpr;
+    affExpr = affExpr * varAffExprs[0];
   }
+
+  affExprs.push_back(affExpr);
 
   return success();
 }
 
-LogicalResult AffineExprBuilder::process(clast_binary *expr,
-                                         AffineExpr &affExpr) {
+LogicalResult
+AffineExprBuilder::process(clast_binary *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   // Handle the LHS expression.
-  AffineExpr lhsAffExpr;
-  if (failed(process(expr->LHS, lhsAffExpr)))
+  SmallVector<AffineExpr, 1> lhsAffExprs;
+  if (failed(process(expr->LHS, lhsAffExprs)))
     return failure();
+  assert(lhsAffExprs.size() == 1 &&
+         "There should be a single LHS affine expr.");
 
   // Handle the RHS expression, which is an integer constant.
   int64_t rhs;
@@ -185,12 +205,14 @@ LogicalResult AffineExprBuilder::process(clast_binary *expr,
     return failure();
   AffineExpr rhsAffExpr = b.getAffineConstantExpr(rhs);
 
+  AffineExpr affExpr;
+
   switch (expr->type) {
   case clast_bin_fdiv:
-    affExpr = lhsAffExpr.floorDiv(rhsAffExpr);
+    affExpr = lhsAffExprs[0].floorDiv(rhsAffExpr);
     break;
   case clast_bin_cdiv:
-    affExpr = lhsAffExpr.ceilDiv(rhsAffExpr);
+    affExpr = lhsAffExprs[0].ceilDiv(rhsAffExpr);
     break;
   default:
     // TODO: bin/div are not handled.
@@ -198,20 +220,28 @@ LogicalResult AffineExprBuilder::process(clast_binary *expr,
     return failure();
   }
 
+  affExprs.push_back(affExpr);
+
   return success();
 }
 
-LogicalResult AffineExprBuilder::process(clast_reduction *expr,
-                                         AffineExpr &affExpr) {
+LogicalResult
+AffineExprBuilder::process(clast_reduction *expr,
+                           llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   if (expr->n == 1) {
-    if (failed(process(expr->elts[0], affExpr)))
+    if (failed(process(expr->elts[0], affExprs)))
       return failure();
     return success();
   }
 
   switch (expr->type) {
   case clast_red_sum:
-    if (failed(processSumReduction(expr, affExpr)))
+    if (failed(processSumReduction(expr, affExprs)))
+      return failure();
+    break;
+  case clast_red_min:
+  case clast_red_max:
+    if (failed(processMinOrMaxReduction(expr, affExprs)))
       return failure();
     break;
   default:
@@ -223,27 +253,44 @@ LogicalResult AffineExprBuilder::process(clast_reduction *expr,
   return success();
 }
 
-LogicalResult AffineExprBuilder::processSumReduction(clast_reduction *expr,
-                                                     AffineExpr &affExpr) {
+LogicalResult AffineExprBuilder::processSumReduction(
+    clast_reduction *expr, llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   assert(expr->n >= 1 && "Number of reduction elements should be non-zero.");
   assert(expr->elts[0]->type == clast_expr_term &&
          "The first element should be a term.");
 
   // Build the reduction expression.
-  if (failed(process(expr->elts[0], affExpr)))
+  if (failed(process(expr->elts[0], affExprs)))
     return failure();
+  assert(affExprs.size() == 1 && "A single affine expr should be returned "
+                                 "after processing an expr in reduction.");
 
-  AffineExpr currExpr;
+  SmallVector<AffineExpr, 1> currExprs;
   for (unsigned i = 1; i < expr->n; ++i) {
     assert(expr->elts[i]->type == clast_expr_term &&
            "Each element in the reduction list should be a term.");
 
     clast_term *term = reinterpret_cast<clast_term *>(expr->elts[i]);
-    if (failed(process(term, currExpr)))
+    if (failed(process(term, currExprs)))
       return failure();
+    assert(currExprs.size() == 1 &&
+           "There should be one affine expr corresponds to a single term.");
 
     // TODO: deal with negative terms.
-    affExpr = affExpr + currExpr;
+    affExprs[0] = affExprs[0] + currExprs[0];
+  }
+
+  return success();
+}
+
+LogicalResult AffineExprBuilder::processMinOrMaxReduction(
+    clast_reduction *expr, llvm::SmallVectorImpl<AffineExpr> &affExprs) {
+  if (failed(process(expr->elts[0], affExprs)))
+    return failure();
+
+  for (unsigned i = 1; i < expr->n; i++) {
+    if (failed(process(expr->elts[i], affExprs)))
+      return failure();
   }
 
   return success();
@@ -332,13 +379,17 @@ LogicalResult Importer::processStmtList(clast_stmt *s) {
     } else if (CLAST_STMT_IS_A(s, stmt_for)) {
       if (failed(processStmt(reinterpret_cast<clast_for *>(s))))
         return failure();
-    } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
-      // TODO: fill this
-    } else if (CLAST_STMT_IS_A(s, stmt_block)) {
-      // TODO: fill this
     } else {
-      // TODO: fill this
+      llvm::errs() << "clast_stmt type not supported\n";
+      return failure();
     }
+    // } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
+    //   // TODO: fill this
+    // } else if (CLAST_STMT_IS_A(s, stmt_block)) {
+    //   // TODO: fill this
+    // } else {
+    //   // TODO: fill this
+    // }
   }
 
   // Post update the function type.
@@ -549,9 +600,9 @@ Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
                              AffineMap &affMap) {
   AffineExprBuilder builder(context, symTable, scop, options);
-  AffineExpr boundExpr;
+  SmallVector<AffineExpr, 4> boundExprs;
   // Build the AffineExpr for the loop bound.
-  if (failed(builder.process(expr, boundExpr)))
+  if (failed(builder.process(expr, boundExprs)))
     return failure();
 
   // Insert dim operands.
@@ -576,7 +627,8 @@ Importer::getAffineLoopBound(clast_expr *expr,
 
   // Create the AffineMap for loop bound.
   affMap = AffineMap::get(builder.dimNames.size(), builder.symbolNames.size(),
-                          boundExpr);
+                          boundExprs, context);
+
   return success();
 }
 
@@ -590,6 +642,18 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   llvm::SmallVector<mlir::Value, 8> lbOperands, ubOperands;
 
   assert((forStmt->LB && forStmt->UB) && "Unbounded loops are not allowed.");
+  // TODO: simplify these sanity checks.
+  assert(!(forStmt->LB->type == clast_expr_red &&
+           reinterpret_cast<clast_reduction *>(forStmt->LB)->type ==
+               clast_red_min) &&
+         "If the lower bound is a reduced result, it should not use min for "
+         "reduction.");
+  assert(!(forStmt->UB->type == clast_expr_red &&
+           reinterpret_cast<clast_reduction *>(forStmt->UB)->type ==
+               clast_red_max) &&
+         "If the lower bound is a reduced result, it should not use max for "
+         "reduction.");
+
   if (failed(getAffineLoopBound(forStmt->LB, lbOperands, lbMap)) ||
       failed(getAffineLoopBound(forStmt->UB, ubOperands, ubMap)))
     return failure();
