@@ -216,3 +216,16 @@ LogicalResult OslScop::getStatement(unsigned index, osl_statement **stmt) {
   *stmt = curr;
   return success();
 }
+
+osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
+  osl_generic_p ext = scop->extension;
+  osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
+
+  while (ext) {
+    if (osl_interface_equal(ext->interface, interface))
+      return ext;
+    ext = ext->next;
+  }
+
+  return nullptr;
+}

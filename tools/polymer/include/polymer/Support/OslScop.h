@@ -14,6 +14,7 @@
 
 struct osl_scop;
 struct osl_statement;
+struct osl_generic;
 
 namespace mlir {
 class LogicalResult;
@@ -61,6 +62,9 @@ public:
 
   /// Get statement by index.
   mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt);
+
+  /// Get extension by interface name
+  osl_generic *getExtension(llvm::StringRef interface) const;
 
 private:
   osl_scop *scop;

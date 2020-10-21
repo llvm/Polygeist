@@ -446,6 +446,52 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
   return success();
 }
 
+/// Builds the mapping from the iterator names in a statement to their
+/// corresponding names in <scatnames>, based on the matrix provided by the
+/// scattering relation.
+static LogicalResult buildIterToScatNameMap(
+    llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName,
+    osl_statement_p stmt, osl_generic_p scatnames) {
+  // Get the body from the statement.
+  osl_body_p body = osl_statement_get_body(stmt);
+  assert(body != nullptr && "The body of the statement should not be NULL.");
+  assert(body->expression != nullptr &&
+         "The body expression should not be NULL.");
+  assert(body->iterators != nullptr &&
+         "The body iterators should not be NULL.");
+
+  // Get iterator names.
+  unsigned numIterNames = osl_strings_size(body->iterators);
+  llvm::SmallVector<llvm::StringRef, 8> iterNames(numIterNames);
+  for (unsigned i = 0; i < numIterNames; i++)
+    iterNames[i] = body->iterators->string[i];
+
+  // Split the scatnames into a list of strings.
+  osl_strings_p scatNamesData =
+      reinterpret_cast<osl_scatnames_p>(scatnames->data)->names;
+  unsigned numScatNames = osl_strings_size(scatNamesData);
+
+  llvm::SmallVector<llvm::StringRef, 8> scatNames(numScatNames);
+  for (unsigned i = 0; i < numScatNames; i++)
+    scatNames[i] = scatNamesData->string[i];
+
+  // Get the scattering relation.
+  osl_relation_p scats = stmt->scattering;
+  assert(scats != nullptr && "scattering in the statement should not be NULL.");
+  assert(scats->nb_input_dims == iterNames.size() &&
+         "# input dims should equal to # iter names.");
+  assert(scats->nb_output_dims == scatNames.size() &&
+         "# output dims should equal to # scat names.");
+
+  // Build the mapping.
+  for (unsigned i = 0; i < scats->nb_output_dims; i++)
+    for (unsigned j = 0; j < scats->nb_input_dims; j++)
+      if (scats->m[i][j + scats->nb_output_dims + 1].dp)
+        iterToScatName[iterNames[j]] = scatNames[i];
+
+  return success();
+}
+
 /// Create a custom call operation for each user statement. A user statement
 /// should be in the format of <stmt-id>`(`<ssa-id>`)`, in which a SSA ID can be
 /// a memref, a loop IV, or a symbol parameter (defined as a block argument). We
@@ -461,11 +507,13 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   assert(body->expression != NULL && "The body expression should not be NULL.");
   assert(body->iterators != NULL && "The body iterators should not be NULL.");
 
-  // Maintain a set of body iterators.
-  // TODO: move this into a function.
-  llvm::DenseMap<llvm::StringRef, unsigned> iterNameMap;
-  for (unsigned i = 0; body->iterators->string[i] != NULL; i++)
-    iterNameMap[body->iterators->string[i]] = i;
+  // Map iterator names in the current statement to the values in <scatnames>.
+  osl_generic_p scatnames = scop->getExtension("scatnames");
+  assert(scatnames && "There should be a <scatnames> in the scop.");
+
+  llvm::DenseMap<llvm::StringRef, llvm::StringRef> iterToScatName;
+  if (failed(buildIterToScatNameMap(iterToScatName, stmt, scatnames)))
+    return failure();
 
   // TODO: print annotations
 
@@ -538,30 +586,8 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
     } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
       callerArgs.push_back(symNameToArg.lookup(args[i]));
       // TODO: what if an index is a constant?
-    } else if (iterNameMap.find(args[i]) != iterNameMap.end()) {
-      // If the call arg is a iterator, and that iterator doesn't correspond to
-      // the known name of a loop IV, we should instead find the new call arg
-      // name in the <scatnames>.
-      unsigned ivIdx = iterNameMap[args[i]];
-
-      // HACK: we know that PLUTO generates its scatnames based on "t<id>", and
-      // we know the scattering PLUTO generates is like:
-      // {root, fk0, fk1, ..., fk<n>, i0, 0, i1, ..., 0}, where "i<id>" are
-      // iterator IDs for the current statement, and "fk<id>" are new loop
-      // indices inserted. Therefore, we should first examine how many
-      // fk-indices exist, and if it is N, the desired ID for our unknown
-      // "i<id>" input in the <scatnames> should be:
-      // id' = (id - N) * 2 + N + 1
-
-      // TODO: make this robust.
-      // TODO: make it more efficient.
-      unsigned numFkIdx = 0;
-      for (auto &it : iterNameMap)
-        if (it.first.startswith("fk"))
-          numFkIdx++;
-      unsigned scatIdx = (ivIdx - numFkIdx) * 2 + 2 + numFkIdx;
-      std::string newArgName = "t" + std::to_string(scatIdx);
-
+    } else if (iterToScatName.find(args[i]) != iterToScatName.end()) {
+      auto newArgName = iterToScatName[args[i]];
       if (auto iv = symTable->getValue(newArgName)) {
         callerArgs.push_back(iv);
         // We should set the symbol table for args[i], otherwise we cannot build

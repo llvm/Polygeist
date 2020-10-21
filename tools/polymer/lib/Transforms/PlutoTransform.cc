@@ -75,6 +75,7 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
           "Cannot emit a valid OpenScop representation from the given FuncOp.");
       return failure();
     }
+    // scop->print();
 
     // Should use isldep, candl cannot work well for this case.
     // TODO: should discover why.
@@ -87,7 +88,7 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
     pluto_tile(prog);
 
     pluto_populate_scop(scop->get(), prog, context);
-    // osl_scop_print(stdout, scop->get());
+    osl_scop_print(stdout, scop->get());
 
     auto moduleOp = dyn_cast<mlir::ModuleOp>(funcOp.getParentOp());
 
