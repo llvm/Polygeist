@@ -1321,7 +1321,6 @@ struct MLIRASTConsumer : public ASTConsumer {
             if (!fd->hasBody())
 				continue;
             if (fd->getIdentifier() == nullptr) continue;
-            if (!fd->isGlobal()) continue;
             //llvm::errs() << *fd << "  " << fd->isGlobal() << "\n";
             
             if (fd->getName() == fn) {
