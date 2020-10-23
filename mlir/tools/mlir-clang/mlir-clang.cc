@@ -1,7 +1,7 @@
 //#include "Lib/mlirCodegen.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/IR/MLIRContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -18,18 +18,16 @@ static cl::opt<std::string> outputFileName("o",
                                            cl::value_desc("out"),
                                            cl::cat(toolOptions));
 
-
-static cl::opt<bool> CudaLower("cuda-lower", cl::init(false), 
-                                           cl::desc("Add parallel loops around cuda"));
+static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
+                               cl::desc("Add parallel loops around cuda"));
 
 static cl::opt<std::string> inputFileName(cl::Positional,
                                           cl::desc("<Specify input file>"),
                                           cl::Required, cl::cat(toolOptions));
 
-
 static cl::opt<std::string> cfunction(cl::Positional,
-                                          cl::desc("<Specify function>"),
-                                          cl::Required, cl::cat(toolOptions));
+                                      cl::desc("<Specify function>"),
+                                      cl::Required, cl::cat(toolOptions));
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -64,8 +62,8 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  //registerDialect<AffineDialect>();
-  //registerDialect<StandardOpsDialect>();
+  // registerDialect<AffineDialect>();
+  // registerDialect<StandardOpsDialect>();
   MLIRContext context;
 
   context.getOrLoadDialect<AffineDialect>();
@@ -74,7 +72,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
-  //MLIRContext context;
+  // MLIRContext context;
 
   if (showDialects) {
     outs() << "Registered Dialects:\n";
@@ -83,18 +81,18 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-  auto module = mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
+  auto module =
+      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
   parseMLIR(inputFileName.c_str(), cfunction, includeDirs, module);
   mlir::PassManager pm(&context);
 
-    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createMemRefDataFlowOptPass());
-    optPM.addPass(mlir::createCSEPass());
-    if (CudaLower)
-      optPM.addPass(mlir::createParallelLowerPass());
-
+  mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createMemRefDataFlowOptPass());
+  optPM.addPass(mlir::createCSEPass());
+  if (CudaLower)
+    optPM.addPass(mlir::createParallelLowerPass());
 
   if (mlir::failed(pm.run(module)))
     return 4;
@@ -103,4 +101,5 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-// ./clang -O3 -mllvm -polly -c test.c -mllvm -polly-process-unprofitable -mllvm -polly-export
+// ./clang -O3 -mllvm -polly -c test.c -mllvm -polly-process-unprofitable -mllvm
+// -polly-export

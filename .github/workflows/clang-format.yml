@@ -1,0 +1,17 @@
+name: run-clang-format
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+          fetch-depth: 1
+    - uses: DoozyX/clang-format-lint-action@v0.11
+      with:
+        source: './mlir/tools/mlir-clang'
+        clangFormatVersion: 11
+        style: llvm
