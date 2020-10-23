@@ -101,8 +101,8 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
   auto incrementAsInt = std::abs(getIntFromIslExpr(increment));
 
   auto ctx = MLIRBuilder_.getContext();
-  Operation* loop;
-  //TODO isparallel
+  Operation *loop;
+  // TODO isparallel
   bool isparallel = true;
 
   if (isInt(lowerBound) && isInt(upperBound)) {
@@ -116,14 +116,16 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     getBoundId(upperBound, upperBoundId);
     auto lowerBoundAsInt = getIntFromIslExpr(lowerBound);
     loop = MLIRBuilder_.createLoop(lowerBoundAsInt, upperBoundAsExpr,
-                                   upperBoundId, incrementAsInt, leqBound, iteratorId, isparallel);
+                                   upperBoundId, incrementAsInt, leqBound,
+                                   iteratorId, isparallel);
   } else if (!isInt(lowerBound) && isInt(upperBound)) {
     auto upperBoundAsInt = getIntFromIslExpr(upperBound) + 1;
     auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
     std::string lowerBoundId = "";
     getBoundId(lowerBound, lowerBoundId);
-    loop = MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
-                                   upperBoundAsInt, incrementAsInt, iteratorId, isparallel);
+    loop =
+        MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId, upperBoundAsInt,
+                                incrementAsInt, iteratorId, isparallel);
   } else {
     auto upperBoundAsExpr = getAffineFromIslExpr(upperBound, ctx);
     auto lowerBoundAsExpr = getAffineFromIslExpr(lowerBound, ctx);
@@ -131,9 +133,9 @@ void IslNodeBuilder::createFor(isl::ast_node forNode) {
     getBoundId(upperBound, upperBoundId);
     std::string lowerBoundId = "";
     getBoundId(lowerBound, lowerBoundId);
-    loop =
-        MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
-                                upperBoundAsExpr, upperBoundId, incrementAsInt, iteratorId, isparallel);
+    loop = MLIRBuilder_.createLoop(lowerBoundAsExpr, lowerBoundId,
+                                   upperBoundAsExpr, upperBoundId,
+                                   incrementAsInt, iteratorId, isparallel);
   }
 
   // create loop body.
