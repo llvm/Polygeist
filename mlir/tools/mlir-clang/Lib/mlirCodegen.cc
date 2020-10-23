@@ -85,7 +85,7 @@ size_t MLIRCodegen::getDimensionalityExpr(__isl_keep pet_expr *expr) const {
   // if the expression has no id, it is not an array.
   if (!idArray)
     return 0;
-  //return scop_.getArrayFromId(idArray).getDimensionality();
+  // return scop_.getArrayFromId(idArray).getDimensionality();
 }
 
 bool MLIRCodegen::isMultiDimensionalArray(__isl_keep pet_expr *expr) const {
@@ -218,15 +218,15 @@ MLIRCodegen::applyAccessExpression(__isl_keep pet_expr *expr,
   for (size_t i = 0; i < mpwaff.dim(isl::dim::out); i++)
     pwaffs.push_back(mpwaff.get_pw_aff(i));
 
-  //assert((loopIvs.size() == pwaffs.size()) && "expect same size");
+  // assert((loopIvs.size() == pwaffs.size()) && "expect same size");
 
   auto ctx = loopIvs[0].getContext();
   auto loc = builder_.getUnknownLoc();
-  for(auto pwaff : pwaffs) {
-    //isl_pw_aff_dump(pwaff.get());
-    //llvm::errs() << pwaff.str() << "\n";
-  //for (const auto &iv : loopIvs) {
-    //auto pwaff = pwaffs[&iv - &loopIvs[0]];
+  for (auto pwaff : pwaffs) {
+    // isl_pw_aff_dump(pwaff.get());
+    // llvm::errs() << pwaff.str() << "\n";
+    // for (const auto &iv : loopIvs) {
+    // auto pwaff = pwaffs[&iv - &loopIvs[0]];
     assert(pwaff.n_piece() == 1 && "expect single piece");
     isl::aff aff = nullptr;
     auto extractAff = [&](isl::set s, isl::aff a) {
@@ -803,7 +803,7 @@ Value MLIRCodegen::createCallOp(__isl_take pet_expr *expr, Type t) {
   if (nameFunc == "barrier") {
     auto loc = builder_.getUnknownLoc();
     builder_.create<mlir::scf::BarrierOp>(loc, /*return type*/ ArrayRef<Type>{},
-                            ArrayRef<Value>{});
+                                          ArrayRef<Value>{});
     // even though barrier doesn't have a meaningful return right now
     // mlir-pet assumes that a null return indicates error
     // Thus we return constant 0.
@@ -946,7 +946,7 @@ SmallVector<Type, 8> MLIRCodegen::getFunctionArgumentsTypes(
   SmallVector<Type, 8> argTypes;
   if (!inputTensors.size())
     return {};
-  for (const auto& inputTensor : inputTensors)
+  for (const auto &inputTensor : inputTensors)
     argTypes.push_back(getTensorType(context, inputTensor));
   return argTypes;
 }
@@ -958,13 +958,12 @@ LogicalResult MLIRCodegen::declare(std::string id, mlir::Value value) {
   return success();
 }
 
-MLIRCodegen::MLIRCodegen(MLIRContext &context)
-    : builder_(&context) {
+MLIRCodegen::MLIRCodegen(MLIRContext &context) : builder_(&context) {
   theModule_ = ModuleOp::create(builder_.getUnknownLoc());
-  //auto inputTensors = scop_.getInputArrays();
-  //auto argTypes = getFunctionArgumentsTypes(context, inputTensors);
-  //auto funcType = builder_.getFunctionType(argTypes, llvm::None);
-  
+  // auto inputTensors = scop_.getInputArrays();
+  // auto argTypes = getFunctionArgumentsTypes(context, inputTensors);
+  // auto funcType = builder_.getFunctionType(argTypes, llvm::None);
+
   /*
   FuncOp function(
       FuncOp::create(builder_.getUnknownLoc(), "scop_entry", funcType));
@@ -995,13 +994,14 @@ LogicalResult MLIRCodegen::verifyModule() {
   return success();
 }
 
-Operation* MLIRCodegen::createLoop(int lb, int ub, int step, std::string iteratorId, bool parallel) {
+Operation *MLIRCodegen::createLoop(int lb, int ub, int step,
+                                   std::string iteratorId, bool parallel) {
   if (parallel) {
     auto loc = builder_.getUnknownLoc();
-    auto loop =
-        builder_.create<scf::ParallelOp>(loc, SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, lb)}),
-                                              SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, ub)}), 
-                                              SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, step)}));
+    auto loop = builder_.create<scf::ParallelOp>(
+        loc, SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, lb)}),
+        SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, ub)}),
+        SmallVector<Value, 1>({builder_.create<ConstantIndexOp>(loc, step)}));
     builder_.setInsertionPointToStart(loop.getBody());
 
     auto resInsertion =
@@ -1022,8 +1022,9 @@ Operation* MLIRCodegen::createLoop(int lb, int ub, int step, std::string iterato
   }
 }
 
-Operation* MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
-                                    int step, bool leqBound, std::string iteratorId, bool parallel) {
+Operation *MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
+                                   int step, bool leqBound,
+                                   std::string iteratorId, bool parallel) {
   assert(!parallel);
   Value ub;
   if (failed(this->getLoopTable().find(ubId, ub)))
@@ -1043,23 +1044,23 @@ Operation* MLIRCodegen::createLoop(int lb, AffineExpr ubExpr, std::string ubId,
   ValueRange lbOperands = {};
 
   auto loop = builder_.create<AffineForOp>(builder_.getUnknownLoc(), lbOperands,
-                                          lbMap, ubOperands, ubMap, step);
+                                           lbMap, ubOperands, ubMap, step);
   loop.getBody()->clear();
 
   builder_.setInsertionPointToStart(loop.getBody());
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
-  auto resInsertion =
-      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  auto resInsertion = getLoopTable().insert(iteratorId, loop.getInductionVar());
   if (failed(resInsertion))
     llvm_unreachable("failed to insert in loop table");
 
   return loop;
 }
 
-Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
-                                    int step, std::string iteratorId, bool parallel) {
+Operation *MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
+                                   int step, std::string iteratorId,
+                                   bool parallel) {
   assert(!parallel);
   Value lb;
   if (failed(this->getLoopTable().find(lbId, lb))) {
@@ -1080,16 +1081,16 @@ Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId, int ub,
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
-  auto resInsertion =
-      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  auto resInsertion = getLoopTable().insert(iteratorId, loop.getInductionVar());
   if (failed(resInsertion))
     llvm_unreachable("failed to insert in loop table");
   return loop;
 }
 
-Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
-                                    AffineExpr ubExpr, std::string ubId,
-                                    int step, std::string iteratorId, bool parallel) {
+Operation *MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
+                                   AffineExpr ubExpr, std::string ubId,
+                                   int step, std::string iteratorId,
+                                   bool parallel) {
   assert(!parallel);
   Value ub, lb;
   if (failed(this->getLoopTable().find(ubId, ub)))
@@ -1110,8 +1111,7 @@ Operation* MLIRCodegen::createLoop(AffineExpr lbExpr, std::string lbId,
   builder_.create<AffineYieldOp>(builder_.getUnknownLoc());
   builder_.setInsertionPointToStart(loop.getBody());
 
-  auto resInsertion =
-      getLoopTable().insert(iteratorId, loop.getInductionVar());
+  auto resInsertion = getLoopTable().insert(iteratorId, loop.getInductionVar());
   if (failed(resInsertion))
     llvm_unreachable("failed to insert in loop table");
   return loop;
