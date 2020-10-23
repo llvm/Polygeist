@@ -99,14 +99,16 @@ public:
   mlir::LogicalResult verifyModule();
 
   // create an affineForOp or parallelforop.
-  mlir::Operation* createLoop(int lb, int ub, int step, std::string iteratorId, bool parallel);
-  mlir::Operation* createLoop(int lb, mlir::AffineExpr ubExpr,
-                               std::string ubId, int step, bool leqBound, std::string iteratorId, bool parallel);
-  mlir::Operation* createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
-                               int step, std::string iteratorId, bool parallel);
-  mlir::Operation* createLoop(mlir::AffineExpr lbExpr, std::string lb,
-                               mlir::AffineExpr ubExpr, std::string ub,
-                               int step, std::string iteratorId, bool parallel);
+  mlir::Operation *createLoop(int lb, int ub, int step, std::string iteratorId,
+                              bool parallel);
+  mlir::Operation *createLoop(int lb, mlir::AffineExpr ubExpr, std::string ubId,
+                              int step, bool leqBound, std::string iteratorId,
+                              bool parallel);
+  mlir::Operation *createLoop(mlir::AffineExpr lbExpr, std::string lb, int ub,
+                              int step, std::string iteratorId, bool parallel);
+  mlir::Operation *createLoop(mlir::AffineExpr lbExpr, std::string lb,
+                              mlir::AffineExpr ubExpr, std::string ub, int step,
+                              std::string iteratorId, bool parallel);
 
   // return a reference to loop table.
   LoopTable &getLoopTable();
@@ -127,7 +129,6 @@ public:
                                             mlir::Value &indVar) const;
 
 public:
-
   // The builder is an helper class to create IR inside
   // a function.
   mlir::OpBuilder builder_;
