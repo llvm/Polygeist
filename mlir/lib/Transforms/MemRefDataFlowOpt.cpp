@@ -276,7 +276,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   }
 
   // Last value stored in an individual block and the operation which stored it
-  std::map<mlir::Block*, mlir::Value> valueAtStartOfBlock;
+  std::map<mlir::Block*, mlir::BlockArgument> valueAtStartOfBlock;
   for(auto block : reachableBlocks) {
     auto arg = block->addArgument(subType);
     valueAtStartOfBlock[block] = arg;
@@ -334,11 +334,9 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
       continue;
     if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end())
       continue;
-    if (!valueAtStartOfBlock[block].isa<BlockArgument>())
-      continue;
 
-    auto blockArg = valueAtStartOfBlock[block].cast<BlockArgument>();
-    if (blockArg.getOwner() != block) continue;
+    auto blockArg = valueAtStartOfBlock[block];
+    assert(blockArg.getOwner() == block);
 
     mlir::Value val = nullptr;
     bool legal = true;
@@ -369,6 +367,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         assert(0 && "unknown branch");
       }
 
+      assert(pval != blockArg);
       if (val == nullptr) {
         val = pval;
       } else {
@@ -417,15 +416,17 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
 
     if (legal) {
       for(auto U : blockArg.getUsers()) {
-        if (auto block = U->getBlock())
+        if (auto block = U->getBlock()) {
           todo.push_back(block);
+          for(auto succ : block->getSuccessors())
+            todo.push_back(succ);
+        }
       }
       if (val != nullptr) {
         blockArg.replaceAllUsesWith(val);
-        valueAtStartOfBlock[block] = val;
       } else {
-        valueAtStartOfBlock.erase(block);
       }
+      valueAtStartOfBlock.erase(block);
 
       for(auto pred : block->getPredecessors()) {
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
