@@ -1,7 +1,7 @@
 float C[2000][2000];
 float A[2000][1200];
-int main(){
-float alpha, beta;
+int main() {
+  float alpha, beta;
 #pragma scop
   for (int i = 0; i < 2000; i++) {
     for (int j = 0; j <= i; j++)
@@ -12,5 +12,5 @@ float alpha, beta;
     }
   }
 #pragma endscop
-return 0;
+  return 0;
 }
