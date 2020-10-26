@@ -40,3 +40,7 @@ jobs:
         cymbld & disown
         sleep 10
         ninja -j1000 mlir-clang
+    - name: test
+      run: |
+        cd build
+        ninja -j1000 check-mlir-clang
