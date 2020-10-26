@@ -203,7 +203,7 @@ public:
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module)
-      : Glob(Glob), module(module), function(function),
+      : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
     // llvm::errs() << *fd << "\n";
 
@@ -1572,8 +1572,8 @@ struct MLIRASTConsumer : public ASTConsumer {
 #include "clang/Frontend/FrontendAction.h"
 class MLIRAction : public clang::ASTFrontendAction {
 public:
-  mlir::ModuleOp &module;
   std::string fn;
+  mlir::ModuleOp &module;
   MLIRAction(std::string fn, mlir::ModuleOp &module) : fn(fn), module(module) {}
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
