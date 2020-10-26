@@ -291,8 +291,9 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
       loadOp.replaceAllUsesWith(valueAtStartOfBlock[blk]);
       loadOpsToErase.push_back(loadOp);
     } else {
-      llvm::errs() << "no value at start of block:\n";
-      loadOp.dump();
+      // TODO inter-op
+      //llvm::errs() << "no value at start of block:\n";
+      //loadOp.dump();
     }
   }
 
@@ -464,7 +465,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
      if (auto LO = dyn_cast<LoadOp>(U)) {
        for(auto idx : LO.getIndices()) {
          if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
-           llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  ldue to " << idx << "\n";
+           // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  ldue to " << idx << "\n";
            return false;
          }
        }
@@ -472,7 +473,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
      } else if (auto SO = dyn_cast<StoreOp>(U)) {
        for(auto idx : SO.getIndices()) {
          if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
-           llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  sdue to " << idx << "\n";
+           // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  sdue to " << idx << "\n";
            return false;
          }
        }
@@ -480,7 +481,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
      } else if (isa<DeallocOp>(U)) {
        continue;
      } else {
-      llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue to " << U << "\n";
+       // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue to " << U << "\n";
        return false;
      }
    }
