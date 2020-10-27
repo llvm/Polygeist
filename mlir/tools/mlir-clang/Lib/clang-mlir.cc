@@ -616,6 +616,7 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
         {});
   }
   default: {
+  defaultCase:
     U->dump();
     assert(0 && "unhandled opcode");
   }
@@ -911,6 +912,7 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
 
   default: {
+  defaultCase:
     BO->dump();
     assert(0 && "unhandled opcode");
   }
