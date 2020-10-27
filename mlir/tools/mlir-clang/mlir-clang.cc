@@ -1,22 +1,13 @@
-//#include "Lib/mlirCodegen.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/WithColor.h"
 #include <fstream>
-#include <iostream>
 
 using namespace llvm;
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
-
-static cl::opt<std::string> outputFileName("o",
-                                           cl::desc("Specify output filename"),
-                                           cl::value_desc("out"),
-                                           cl::cat(toolOptions));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -33,14 +24,6 @@ static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
                  llvm::cl::init(false), cl::cat(toolOptions));
-
-static cl::opt<bool> reschedule("reschedule",
-                                llvm::cl::desc("Reschedule with ISL"),
-                                llvm::cl::init(false), cl::cat(toolOptions));
-
-static cl::opt<bool> dumpSchedule("dump-schedule",
-                                  llvm::cl::desc("Pretty print the schedule"),
-                                  llvm::cl::init(false), cl::cat(toolOptions));
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
