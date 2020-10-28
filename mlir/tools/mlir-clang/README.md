@@ -31,6 +31,6 @@ should be freely movable around the file system.
 ```
 git clone https://github.com/Meinersbur/polybench
 cd polybench/polybench-code
-for i in `cat utilities/benchmark_list`; do FNAME=`basename $i`; echo $FNAME; clang -E -Iutilities -DPOLYBENCH_USE_SCALAR_LB $i > /tmp/$FNAME; bin/mlir-pet  /tmp/$FNAME; done
+for i in `cat utilities/benchmark_list`; do FNAME=`basename $i`; echo $FNAME; clang -E -Iutilities -DPOLYBENCH_USE_SCALAR_LB $i > /tmp/$FNAME; bin/mlir-clang /tmp/$FNAME main; done
 ```
 
