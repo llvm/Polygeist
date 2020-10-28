@@ -747,7 +747,6 @@ public:
           {});
     }
     default: {
-    defaultCase:
       U->dump();
       assert(0 && "unhandled opcode");
     }
@@ -1048,7 +1047,6 @@ public:
     }
 
     default: {
-    defaultCase:
       BO->dump();
       assert(0 && "unhandled opcode");
     }
