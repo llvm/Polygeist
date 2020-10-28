@@ -4,8 +4,6 @@
 - working C and C++ toolchains (compiler, linker)
 - cmake
 - make or ninja
-- libgmp
-- libz
 
 ### Process
 
@@ -15,7 +13,7 @@ mkdir -p build
 cd build
 cmake ../llvm \
   -DLLVM_TARGETS_TO_BUILD="host;NVPTX" \
-  -DLLVM_ENABLE_PROJECTS="clang;isl;pet;mlir" \
+  -DLLVM_ENABLE_PROJECTS="clang;mlir" \
   -DLLVM_ENABLE_ASSERTIONS=On \
   -DCMAKE_BUILD_TYPE=Release \
   -G Ninja  # optional, to use ninja instead of make
