@@ -1692,7 +1692,8 @@ static bool parseMLIR(const char *filename, std::string fn,
     std::vector<const char *> Argv;
     Argv.push_back(binary);
     Argv.push_back(filename);
-    Argv.push_back("--cuda-gpu-arch=sm_35");
+    if (CudaLower)
+      Argv.push_back("--cuda-gpu-arch=sm_35");
     for (auto a : includeDirs) {
       Argv.push_back("-I");
       char *chars = (char *)malloc(a.length() + 1);
