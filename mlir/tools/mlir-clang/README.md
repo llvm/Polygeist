@@ -20,7 +20,7 @@ cmake ../llvm \
 make  # or ninja; preferably with -j <num-cores>
 ```
 
-Note that everything except libgmp is statically linked, the produced binary
+Note that everything is statically linked, the produced binary
 should be freely movable around the file system.
 
 
