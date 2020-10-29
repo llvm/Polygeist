@@ -1405,9 +1405,8 @@ public:
   MLIRAction(std::string fn, mlir::ModuleOp &module) : fn(fn), module(module) {}
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return std::unique_ptr<clang::ASTConsumer>(
-        new MLIRASTConsumer(fn, CI.getPreprocessor(), CI.getASTContext(),
-                            CI.getDiagnostics(), module));
+    return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
+        fn, CI.getPreprocessor(), CI.getASTContext(), module));
   }
 };
 
