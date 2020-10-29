@@ -84,6 +84,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   Preprocessor &PP;
   ASTContext &ast_context;
   mlir::ModuleOp &module;
+  clang::SourceManager &SM;
   MangleContext &MC;
   LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -92,8 +93,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   bool error;
 
   MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &ast_context,
-                  mlir::ModuleOp &module)
-      : fn(fn), PP(PP), ast_context(ast_context), module(module),
+                  mlir::ModuleOp &module, clang::SourceManager &SM)
+      : fn(fn), PP(PP), ast_context(ast_context), module(module), SM(SM),
         MC(*ast_context.createMangleContext()), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(ast_context, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
@@ -116,6 +117,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   llvm::Type *getLLVMType(clang::QualType t);
 
   mlir::Type getMLIRType(llvm::Type *t);
+
+  mlir::Location getMLIRLocation(clang::SourceLocation loc);
 };
 
 struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
@@ -137,8 +140,12 @@ public:
 
   mlir::Type getLLVMTypeFromMLIRType(mlir::Type t);
 
+  mlir::Location getMLIRLocation(clang::SourceLocation loc);
+
   mlir::Type getMLIRType(clang::QualType t);
+
   llvm::Type *getLLVMType(clang::QualType t);
+
   size_t getTypeSize(clang::QualType t);
 
   mlir::Value createAllocOp(mlir::Type t, std::string name, uint64_t memspace,
