@@ -182,6 +182,8 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   scopes.emplace_back();
 
+  auto loc = getMLIRLocation(fors->getForLoc());
+
   if (auto s = fors->getInit()) {
     Visit(s);
   }
@@ -1331,6 +1333,17 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
   return true;
 }
 
+mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
+  auto lineNumber = SM.getSpellingLineNumber(loc);
+  auto colNumber = SM.getSpellingColumnNumber(loc);
+  auto fileId = SM.getFilename(loc);
+
+  auto ctx = module.getContext();
+  auto mlirIdentifier = Identifier::get(fileId, ctx);
+  mlir::OpBuilder builder(ctx);
+  return builder.getFileLineColLoc(mlirIdentifier, lineNumber, colNumber);
+}
+
 mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType t) {
   if (t->isVoidType()) {
     mlir::OpBuilder builder(module.getContext());
@@ -1339,6 +1352,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType t) {
   llvm::Type *T = CGM.getTypes().ConvertType(t);
   return getMLIRType(T);
 }
+
 llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   if (t->isVoidType()) {
     return llvm::Type::getVoidTy(llvmMod.getContext());
@@ -1346,6 +1360,7 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   llvm::Type *T = CGM.getTypes().ConvertType(t);
   return T;
 }
+
 mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   mlir::OpBuilder builder(module.getContext());
   if (t->isVoidTy()) {
@@ -1405,8 +1420,9 @@ public:
   MLIRAction(std::string fn, mlir::ModuleOp &module) : fn(fn), module(module) {}
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
-        fn, CI.getPreprocessor(), CI.getASTContext(), module));
+    return std::unique_ptr<clang::ASTConsumer>(
+        new MLIRASTConsumer(fn, CI.getPreprocessor(), CI.getASTContext(),
+                            module, CI.getSourceManager()));
   }
 };
 
@@ -1445,9 +1461,14 @@ mlir::FuncOp MLIRScanner::EmitDirectCallee(GlobalDecl GD) {
   return V;
 }
 
+mlir::Location MLIRScanner::getMLIRLocation(clang::SourceLocation loc) {
+  return Glob.getMLIRLocation(loc);
+}
+
 mlir::Type MLIRScanner::getMLIRType(clang::QualType t) {
   return Glob.getMLIRType(t);
 }
+
 llvm::Type *MLIRScanner::getLLVMType(clang::QualType t) {
   return Glob.getLLVMType(t);
 }
