@@ -153,6 +153,7 @@ ValueWithOffsets MLIRScanner::VisitParenExpr(clang::ParenExpr *expr) {
 }
 
 ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
+  auto loc = getMLIRLocation(decl->getLocation());
   unsigned memtype = 0;
 
   // if (decl->hasAttr<CUDADeviceAttr>() || decl->hasAttr<CUDAConstantAttr>()
@@ -1176,6 +1177,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
+  auto loc = getMLIRLocation(stmt->getIfLoc());
   auto cond = (mlir::Value)Visit(stmt->getCond());
   assert(cond != nullptr);
 
@@ -1334,9 +1336,10 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
 }
 
 mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
-  auto lineNumber = SM.getSpellingLineNumber(loc);
-  auto colNumber = SM.getSpellingColumnNumber(loc);
-  auto fileId = SM.getFilename(loc);
+  auto spellingLoc = SM.getSpellingLoc(loc);
+  auto lineNumber = SM.getSpellingLineNumber(spellingLoc);
+  auto colNumber = SM.getSpellingColumnNumber(spellingLoc);
+  auto fileId = SM.getFilename(spellingLoc);
 
   auto ctx = module.getContext();
   auto mlirIdentifier = Identifier::get(fileId, ctx);
