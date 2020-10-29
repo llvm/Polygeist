@@ -83,9 +83,6 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::string fn;
   Preprocessor &PP;
   ASTContext &ast_context;
-  DiagnosticsEngine &diags;
-  const char *function;
-  set<ValueDecl *> live_out;
   mlir::ModuleOp &module;
   MangleContext &MC;
   LLVMContext lcontext;
@@ -95,8 +92,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   bool error;
 
   MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &ast_context,
-                  DiagnosticsEngine &diags, mlir::ModuleOp &module)
-      : fn(fn), PP(PP), ast_context(ast_context), diags(diags), module(module),
+                  mlir::ModuleOp &module)
+      : fn(fn), PP(PP), ast_context(ast_context), module(module),
         MC(*ast_context.createMangleContext()), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(ast_context, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
