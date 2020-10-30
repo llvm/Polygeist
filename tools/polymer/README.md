@@ -1,59 +1,59 @@
 # Polymer
 
-Bridging polyhedral analysis tools (PLUTO/ISL) to the MLIR framework.
+Bridging polyhedral analysis tools (Pluto/isl) to the MLIR framework.
 
 ## Setup
 
-Install prerequisites according to [these instructions](https://mlir.llvm.org/getting_started/).
+Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) and [Pluto](https://github.com/kumasento/pluto/blob/master/README.md), basically, you need:
+
+* `cmake` >= 3.13.4
+* Valid compiler tool-chain that supports C++ 14
+* Automatic build tools (for Pluto), including `autoconf`, `automake`, and `libtool`.
+* Pre-built LLVM tools (`clang` and `FileCheck`) and their header files are needed, mainly for building Pluto (NOTE: we could use the bundled LLVM for this purpose in the future, but for now it would be easier to just use those you can retrieve from system package manager).
+* `libgmp` that is required by isl.
+
+## Install
 
 Clone this project and its submodules:
 
 ```
-git clone --recursive https://github.com/kumasento/mlir-polyhedral
+git clone --recursive https://github.com/kumasento/polymer
 ```
 
 Build and test LLVM/MLIR:
 
-```
-cd mlir-polyhedral
+```sh
+# At the top-level directory within polymer
 mkdir llvm/build
 cd llvm/build
-cmake -G Ninja ../llvm -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_TARGETS_TO_BUILD="X86" -DLLVM_ENABLE_ASSERTIONS=ON -DCMAKE_BUILD_TYPE=DEBUG
-ninja
+cmake ../llvm \
+  -DLLVM_ENABLE_PROJECTS="mlir" \
+  -DLLVM_TARGETS_TO_BUILD="host" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DCMAKE_BUILD_TYPE=DEBUG \
+  -G Ninja
+ninja -j$(nproc)
 ninja check-mlir
 ```
 
-Build and test PLUTO ([prerequisites](https://github.com/kumasento/pluto)):
+`ninja check-mlir` should not expose any issue.
 
-```
-cd mlir-polyhedral
-cd pluto && git submodule init && git submodule update
-./autogen.sh
-./configure --enable-debug
-make
-make test
-```
+Build and test polymer:
 
-Build this project:
-
-```
+```sh
+# At the top-level directory within polymer
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DMLIR_DIR=./llvm/build/lib/cmake/mlir -DLLVM_DIR=./llvm/build/lib/cmake/llvm -DLLVM_ENABLE_ASSERTIONS=ON  -G "Ninja"
+cmake .. \
+  -DCMAKE_BUILD_TYPE=DEBUG \
+  -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+  -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -G Ninja
 ninja
+ninja check-polymer
 ```
 
+The build step for Pluto is integrated in the CMake workflow, see [here](cmake/PLUTO.cmake), and it is highly possible that your system configuration might not make it work. If that happens, feel free to post the error log under issues. There will be an alternative approach to install Pluto manually by yourself in the future.
 
-## Usage
-
-### Affine to Polyhedral Representation
-
-The MLIR world provides the Affine dialect, which is an abstraction for affine operations and analyses.
-
-It is natural to transform a program represented by Affine to a pure, mathematical form of polyhedral representation.
-
-We use [OpenSCoP](http://icps.u-strasbg.fr/people/bastoul/public_html/development/openscop/docs/openscop.pdf) as the target representation, which is pretty versatile and acceptable by PLuTo and other polyhedral tools.
-
-We provide a tool that emits OpenSCoP representation from pieces of Affine code.
-
-
+The final `ninja check-polymer` aims to the unit testing. It is possible that there are unresolved tests, but besides them, other tests should pass.
