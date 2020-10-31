@@ -11,6 +11,7 @@ Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) an
 * Automatic build tools (for Pluto), including `autoconf`, `automake`, and `libtool`.
 * Pre-built LLVM tools (`clang` and `FileCheck`) and their header files are needed, mainly for building Pluto (NOTE: we could use the bundled LLVM for this purpose in the future, but for now it would be easier to just use those you can retrieve from system package manager).
 * `libgmp` that is required by isl.
+* TeX for CLooG (NOTE: anyway to workaround this?)
 
 ## Install
 
