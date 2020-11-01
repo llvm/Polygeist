@@ -260,10 +260,12 @@ LogicalResult AffineExprBuilder::processSumReduction(
          "The first element should be a term.");
 
   // Build the reduction expression.
+  unsigned numAffExprs = affExprs.size();
   if (failed(process(expr->elts[0], affExprs)))
     return failure();
-  assert(affExprs.size() == 1 && "A single affine expr should be returned "
-                                 "after processing an expr in reduction.");
+  assert(numAffExprs + 1 == affExprs.size() &&
+         "A single affine expr should be appended after processing an expr in "
+         "reduction.");
 
   SmallVector<AffineExpr, 1> currExprs;
   for (unsigned i = 1; i < expr->n; ++i) {
@@ -277,7 +279,9 @@ LogicalResult AffineExprBuilder::processSumReduction(
            "There should be one affine expr corresponds to a single term.");
 
     // TODO: deal with negative terms.
-    affExprs[0] = affExprs[0] + currExprs[0];
+    // numAffExprs is the index for the current affExpr, i.e., the newly
+    // appended one from processing expr->elts[0].
+    affExprs[numAffExprs] = affExprs[numAffExprs] + currExprs[0];
   }
 
   return success();
