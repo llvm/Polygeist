@@ -217,6 +217,10 @@ LogicalResult OslScop::getStatement(unsigned index, osl_statement **stmt) {
   return success();
 }
 
+unsigned OslScop::getNumStatements() const {
+  return osl_statement_number(scop->statement);
+}
+
 osl_generic_p OslScop::getExtension(llvm::StringRef tag) const {
   osl_generic_p ext = scop->extension;
   osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
