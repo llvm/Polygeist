@@ -75,7 +75,13 @@ struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
           "Cannot emit a valid OpenScop representation from the given FuncOp.");
       return failure();
     }
-    // scop->print();
+
+    if (scop->getNumStatements() == 0) {
+      // TODO: Is there a good way to replace this pair?
+      rewriter.startRootUpdate(funcOp);
+      rewriter.finalizeRootUpdate(funcOp);
+      return success();
+    }
 
     // Should use isldep, candl cannot work well for this case.
     // TODO: should discover why.

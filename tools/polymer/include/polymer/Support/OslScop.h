@@ -63,6 +63,9 @@ public:
   /// Get statement by index.
   mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt);
 
+  /// Get the total number of statements
+  unsigned getNumStatements() const;
+
   /// Get extension by interface name
   osl_generic *getExtension(llvm::StringRef interface) const;
 
