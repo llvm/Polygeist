@@ -414,6 +414,17 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getName() == "expf" ||
+          sr->getDecl()->getName() == "exp") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back((mlir::Value)Visit(a));
+        }
+        return (mlir::Value)builder.create<mlir::ExpOp>(loc, args[0]);
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getName() == "atomicAdd") {
         std::vector<ValueWithOffsets> args;
         for (auto a : expr->arguments()) {
@@ -432,7 +443,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       // TODO add pow to standard dialect
-      if (sr->getDecl()->getName() == "__powf") {
+      if (sr->getDecl()->getName() == "__powf" ||
+          sr->getDecl()->getName() == "pow" ||
+          sr->getDecl()->getName() == "powf") {
         auto mlirType = getMLIRType(expr->getType());
         mlir::Type llvmType =
             mlir::LLVM::TypeFromLLVMIRTranslator(*mlirType.getContext())
@@ -461,6 +474,14 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         //}
         return nullptr;
       }
+      if (sr->getDecl()->getName() == "printf") {
+        llvm::errs() << "warning skipping printf\n";
+        // std::vector<mlir::Value> args;
+        // for(auto a : expr->arguments()) {
+        //    args.push_back((mlir::Value)Visit(a));
+        //}
+        return nullptr;
+      }
     }
 
   auto tocall = EmitCallee(expr->getCallee());
@@ -469,6 +490,12 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   size_t i = 0;
   for (auto a : expr->arguments()) {
     mlir::Value val = (mlir::Value)Visit(a);
+    if (i >= fnType.getInputs().size()) {
+      expr->dump();
+      tocall.dump();
+      fnType.dump();
+      assert(0 && "too many arguments in calls");
+    }
     if (val.getType() != fnType.getInput(i)) {
       if (auto MR1 = val.getType().dyn_cast<MemRefType>()) {
         if (auto MR2 = fnType.getInput(i).dyn_cast<MemRefType>()) {
@@ -818,7 +845,24 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
     assert(lhs.val.getType().cast<MemRefType>().getShape().size() ==
            off.size());
-    builder.create<mlir::StoreOp>(loc, (mlir::Value)rhs, lhs.val, off);
+    mlir::Value tostore = nullptr;
+
+    if (auto BO2 = dyn_cast<clang::BinaryOperator>(BO->getRHS())) {
+      if (BO2->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign) {
+
+        auto off = rhs.offsets;
+        assert(off.size() != 0);
+        assert(rhs.val.getType().cast<MemRefType>().getShape().size() ==
+               off.size());
+
+        tostore = builder.create<mlir::LoadOp>(loc, rhs.val, off);
+      }
+    }
+
+    if (tostore == nullptr) {
+      tostore = (mlir::Value)rhs;
+    }
+    builder.create<mlir::StoreOp>(loc, tostore, lhs.val, off);
     return lhs;
   }
 
@@ -939,6 +983,9 @@ ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
+  if (!E->getSourceExpr()) {
+    E->dump();
+  }
   assert(E->getSourceExpr());
   for (auto c : E->children()) {
     c->dump();
@@ -1128,7 +1175,12 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
       E->dump();
     }
 
-    if (auto UO = dyn_cast<clang::UnaryOperator>(E->getSubExpr())) {
+    auto Sub = E->getSubExpr();
+    while (auto SE = dyn_cast<ParenExpr>(Sub)) {
+      Sub = SE->getSubExpr();
+    }
+
+    if (auto UO = dyn_cast<clang::UnaryOperator>(Sub)) {
       if (UO->getOpcode() == clang::UnaryOperator::Opcode::UO_Deref) {
         auto off = scalar.offsets;
         assert(off.size() != 0);
