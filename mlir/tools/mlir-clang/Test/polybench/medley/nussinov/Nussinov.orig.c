@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s main %stdinclude | FileCheck %s
+// This test will fail until global variables are working
 // XFAIL: *
 /**
  * This version is stamped on May 10, 2016
@@ -76,8 +77,8 @@ void eassert_func(char *expr, bool value)
 #endif
 
 
-
-//#define MAX_SIZE 16307
+// NOTE THIS NEEDS TO EXIST HERE OTHERWISE MAX_SIZE UNDEFINED
+#define MAX_SIZE 16307
 
 #if ! defined FOUR_WAY_MAX_WITH_REDUNDANCY
 #define FOUR_WAY_MAX_WITH_REDUNDANCY false
