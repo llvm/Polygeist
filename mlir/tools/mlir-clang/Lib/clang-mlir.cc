@@ -1311,6 +1311,9 @@ void MLIRASTConsumer::run() {
 }
 
 bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
+  if (showAst)
+    astContext.getTranslationUnitDecl()->dump();
+
   DeclGroupRef::iterator it;
 
   if (error)

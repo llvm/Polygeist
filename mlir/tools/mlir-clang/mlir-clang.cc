@@ -20,6 +20,9 @@ static cl::opt<std::string> cfunction(cl::Positional,
                                       cl::desc("<Specify function>"),
                                       cl::Required, cl::cat(toolOptions));
 
+static cl::opt<bool> showAst("show-ast", llvm::cl::desc("Print the Clang AST"),
+                             llvm::cl::init(false), cl::cat(toolOptions));
+
 static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
