@@ -180,43 +180,143 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   return ValueWithOffsets(op, {zeroIndex});
 }
 
+bool MLIRScanner::getConstantLowerBound(clang::ForStmt *fors,
+                                        int64_t &lowerBound,
+                                        std::string &indVar,
+                                        mlir::Type &indVarType) {
+  auto init = fors->getInit();
+  if (auto declStmt = dyn_cast<DeclStmt>(init))
+    if (declStmt->isSingleDecl()) {
+      auto decl = declStmt->getSingleDecl();
+      if (auto varDecl = dyn_cast<VarDecl>(decl)) {
+        if (varDecl->hasInit()) {
+          auto init = varDecl->getInit();
+          if (auto litInt = dyn_cast<IntegerLiteral>(init)) {
+            indVar = varDecl->getName().str();
+            indVarType = getMLIRType(init->getType());
+            lowerBound = litInt->getValue().getSExtValue();
+            return true;
+          }
+        }
+      }
+    }
+  return false;
+}
+
+// Make sure that the induction variable initialized in
+// the for is the same as the one used in the condition.
+bool matchIndvar(const Expr *expr, std::string indVar) {
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr))
+    if (auto declRef = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      auto declRefName = declRef->getDecl()->getName().str();
+      if (declRefName == indVar)
+        return true;
+    }
+  return false;
+}
+
+bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
+                                        int64_t &upperBound,
+                                        std::string indVar) {
+  auto cond = fors->getCond();
+  if (auto binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
+    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT)
+      return false;
+
+    auto lhs = binaryOp->getLHS();
+    if (!matchIndvar(lhs, indVar))
+      return false;
+
+    auto rhs = binaryOp->getRHS();
+    if (auto litInt = dyn_cast<IntegerLiteral>(rhs)) {
+      upperBound = litInt->getValue().getSExtValue();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool MLIRScanner::getConstantStep(clang::ForStmt *fors, int64_t &step) {
+  auto inc = fors->getInc();
+  if (auto unaryOp = dyn_cast<clang::UnaryOperator>(inc))
+    if (unaryOp->isPrefix() || unaryOp->isPostfix()) {
+      step = 1;
+      return true;
+    }
+  return false;
+}
+
+// detect trivial for loops
+// for (int i = constant; i < other_constant; i++ or ++i)
+bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
+                                      AffineLoopDescriptor &descr) {
+  if (!getConstantLowerBound(fors, descr.lowerBound, descr.indVar,
+                             descr.indVarType))
+    return false;
+  if (!getConstantUpperBound(fors, descr.upperBound, descr.indVar))
+    return false;
+  if (!getConstantStep(fors, descr.step))
+    return false;
+  return true;
+}
+
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   scopes.emplace_back();
 
   auto loc = getMLIRLocation(fors->getForLoc());
 
-  if (auto s = fors->getInit()) {
-    Visit(s);
-  }
+  AffineLoopDescriptor affineLoopDescr;
+  if (Glob.scopLocList.isInScop(fors->getForLoc()) &&
+      isTrivialAffineLoop(fors, affineLoopDescr)) {
+    auto loop = builder.create<mlir::AffineForOp>(
+        loc, affineLoopDescr.lowerBound, affineLoopDescr.upperBound,
+        affineLoopDescr.step);
+    auto indVarValue = loop.getInductionVar();
 
-  auto &condB = *function.addBlock();
-  auto &bodyB = *function.addBlock();
+    builder.setInsertionPointToStart(loop.getBody());
+    auto idx = builder.create<mlir::IndexCastOp>(loc, indVarValue,
+                                                 affineLoopDescr.indVarType);
+    auto op = createAndSetAllocOp(affineLoopDescr.indVar, idx, 0);
 
-  auto &exitB = *function.addBlock();
+    // TODO: set loop context.
 
-  builder.create<mlir::BranchOp>(loc, &condB);
+    Visit(fors->getBody());
+    builder.setInsertionPointAfter(loop);
+  } else {
 
-  builder.setInsertionPointToStart(&condB);
+    if (auto s = fors->getInit()) {
+      Visit(s);
+    }
 
-  if (auto s = fors->getCond()) {
-    auto condRes = Visit(s);
-    builder.create<mlir::CondBranchOp>(loc, (mlir::Value)condRes, &bodyB,
-                                       &exitB);
-  }
+    auto &condB = *function.addBlock();
+    auto &bodyB = *function.addBlock();
 
-  loops.push_back((LoopContext){&condB, &exitB});
-  builder.setInsertionPointToStart(&bodyB);
-  Visit(fors->getBody());
-  if (auto s = fors->getInc()) {
-    Visit(s);
-  }
-  loops.pop_back();
-  if (builder.getInsertionBlock()->empty() ||
-      builder.getInsertionBlock()->back().isKnownNonTerminator()) {
+    auto &exitB = *function.addBlock();
+
     builder.create<mlir::BranchOp>(loc, &condB);
-  }
 
-  builder.setInsertionPointToStart(&exitB);
+    builder.setInsertionPointToStart(&condB);
+
+    if (auto s = fors->getCond()) {
+      auto condRes = Visit(s);
+      builder.create<mlir::CondBranchOp>(loc, (mlir::Value)condRes, &bodyB,
+                                         &exitB);
+    }
+
+    loops.push_back((LoopContext){&condB, &exitB});
+    builder.setInsertionPointToStart(&bodyB);
+    Visit(fors->getBody());
+    if (auto s = fors->getInc()) {
+      Visit(s);
+    }
+    loops.pop_back();
+    if (builder.getInsertionBlock()->empty() ||
+        builder.getInsertionBlock()->back().isKnownNonTerminator()) {
+      builder.create<mlir::BranchOp>(loc, &condB);
+    }
+
+    builder.setInsertionPointToStart(&exitB);
+  }
   scopes.pop_back();
   return nullptr;
 }
