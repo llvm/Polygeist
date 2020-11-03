@@ -32,6 +32,14 @@ struct LoopContext {
   mlir::Block *exitB;
 };
 
+struct AffineLoopDescriptor {
+  int64_t upperBound = std::numeric_limits<int64_t>::max();
+  int64_t lowerBound = std::numeric_limits<int64_t>::min();
+  int64_t step = std::numeric_limits<int64_t>::max();
+  mlir::Type indVarType = nullptr;
+  std::string indVar = "null";
+};
+
 struct ValueWithOffsets {
   mlir::Value val;
   std::vector<mlir::Value> offsets;
@@ -79,6 +87,98 @@ struct ValueWithOffsets {
   mlir::Type getType() { return val.getType(); }
 };
 
+/// The location of the scop, as delimited by scop and endscop
+/// pragmas by the user.
+/// "scop" and "endscop" are the source locations of the scop and
+/// endscop pragmas.
+/// "start_line" is the line number of the start position.
+struct ScopLoc {
+  ScopLoc() : end(0) {}
+
+  clang::SourceLocation scop;
+  clang::SourceLocation endscop;
+  unsigned startLine;
+  unsigned start;
+  unsigned end;
+};
+
+/// Taken from pet.cc
+/// List of pairs of #pragma scop and #pragma endscop locations.
+struct ScopLocList {
+  std::vector<ScopLoc> list;
+
+  // Add a new start (#pragma scop) location to the list.
+  // If the last #pragma scop did not have a matching
+  // #pragma endscop then overwrite it.
+  // "start" points to the location of the scop pragma.
+
+  void addStart(SourceManager &SM, SourceLocation start) {
+    ScopLoc loc;
+
+    loc.scop = start;
+    int line = SM.getExpansionLineNumber(start);
+    start = SM.translateLineCol(SM.getFileID(start), line, 1);
+    loc.startLine = line;
+    loc.start = SM.getFileOffset(start);
+    if (list.size() == 0 || list[list.size() - 1].end != 0)
+      list.push_back(loc);
+    else
+      list[list.size() - 1] = loc;
+  }
+
+  // Set the end location (#pragma endscop) of the last pair
+  // in the list.
+  // If there is no such pair of if the end of that pair
+  // is already set, then ignore the spurious #pragma endscop.
+  // "end" points to the location of the endscop pragma.
+
+  void addEnd(SourceManager &SM, SourceLocation end) {
+    if (list.size() == 0 || list[list.size() - 1].end != 0)
+      return;
+    list[list.size() - 1].endscop = end;
+    int line = SM.getExpansionLineNumber(end);
+    end = SM.translateLineCol(SM.getFileID(end), line + 1, 1);
+    list[list.size() - 1].end = SM.getFileOffset(end);
+  }
+
+  // Check if the current location is in the scop.
+  bool isInScop(SourceLocation target) {
+    if (!list.size())
+      return false;
+    for (auto &scopLoc : list)
+      if ((target >= scopLoc.scop) && (target <= scopLoc.endscop))
+        return true;
+    return false;
+  }
+};
+
+struct PragmaScopHandler : public PragmaHandler {
+  ScopLocList &scops;
+
+  PragmaScopHandler(ScopLocList &scops) : PragmaHandler("scop"), scops(scops) {}
+
+  virtual void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                            Token &scopTok) {
+    auto &SM = PP.getSourceManager();
+    auto loc = scopTok.getLocation();
+    scops.addStart(SM, loc);
+  }
+};
+
+struct PragmaEndScopHandler : public PragmaHandler {
+  ScopLocList &scops;
+
+  PragmaEndScopHandler(ScopLocList &scops)
+      : PragmaHandler("endscop"), scops(scops) {}
+
+  virtual void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
+                            Token &endScopTok) {
+    auto &SM = PP.getSourceManager();
+    auto loc = endScopTok.getLocation();
+    scops.addEnd(SM, loc);
+  }
+};
+
 struct MLIRASTConsumer : public ASTConsumer {
   std::string fn;
   Preprocessor &PP;
@@ -91,6 +191,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   CodeGenOptions codegenops;
   CodeGen::CodeGenModule CGM;
   bool error;
+  ScopLocList scopLocList;
 
   MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &astContext,
                   mlir::ModuleOp &module, clang::SourceManager &SM)
@@ -99,7 +200,10 @@ struct MLIRASTConsumer : public ASTConsumer {
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false) {}
+        error(false) {
+    PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
+    PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
+  }
 
   ~MLIRASTConsumer() {}
 
@@ -210,6 +314,16 @@ public:
   ValueWithOffsets VisitVarDecl(clang::VarDecl *decl);
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
+
+  bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+
+  bool getConstantUpperBound(clang::ForStmt *fors, int64_t &upperBound,
+                             std::string indVar);
+
+  bool getConstantLowerBound(clang::ForStmt *fors, int64_t &lowerBound,
+                             std::string &indvar, mlir::Type &indVarType);
+
+  bool getConstantStep(clang::ForStmt *fors, int64_t &step);
 
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
