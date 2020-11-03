@@ -82,7 +82,7 @@ struct ValueWithOffsets {
 struct MLIRASTConsumer : public ASTConsumer {
   std::string fn;
   Preprocessor &PP;
-  ASTContext &ast_context;
+  ASTContext &astContext;
   mlir::ModuleOp &module;
   clang::SourceManager &SM;
   MangleContext &MC;
@@ -92,12 +92,12 @@ struct MLIRASTConsumer : public ASTConsumer {
   CodeGen::CodeGenModule CGM;
   bool error;
 
-  MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &ast_context,
+  MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &astContext,
                   mlir::ModuleOp &module, clang::SourceManager &SM)
-      : fn(fn), PP(PP), ast_context(ast_context), module(module), SM(SM),
-        MC(*ast_context.createMangleContext()), lcontext(),
+      : fn(fn), PP(PP), astContext(astContext), module(module), SM(SM),
+        MC(*astContext.createMangleContext()), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
-        CGM(ast_context, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+        CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false) {}
 
