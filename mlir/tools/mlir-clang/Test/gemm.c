@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // RUN: mlir-clang %s | FileCheck %s
+=======
+// RUN: mlir-clang %s main | FileCheck %s
+>>>>>>> c50189a999e... Emit affine.for in pragma scop (#23)
 
 int main(void) {
 
@@ -24,6 +28,14 @@ int main(void) {
 }
 
 // CHECK: affine.for %arg0 = 0 to 1024 {
+<<<<<<< HEAD
 // CHECK-NEXT: affine.for %arg1 = 0 to 1024 {
 // CHECK-NEXT: affine.for %arg2 = 0 to 1024 {
 // CHECK: affine.store %{{.*}}, %{{.*}}[%arg0, %arg1] : memref<1024x1024xf32>
+=======
+// CHECK-NEXT: %{{.*}} = index_cast %arg0 : index to i32
+// CHECK-NEXT: affine.for %arg1 = 0 to 1024 {
+// CHECK-NEXT: %{{.*}} = index_cast %arg1 : index to i32
+// CHECK-NEXT: affine.for %arg2 = 0 to 1024 {
+// CHECK-NEXT: %{{.*}} = index_cast %arg2 : index to i32 
+>>>>>>> c50189a999e... Emit affine.for in pragma scop (#23)
