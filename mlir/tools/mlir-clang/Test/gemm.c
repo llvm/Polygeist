@@ -27,6 +27,8 @@ int main(void) {
   return 0;
 }
 
+// CHECK: #map0 = affine_map<(d0) -> (d0)>
+
 // CHECK: affine.for %arg0 = 0 to 1024 {
 <<<<<<< HEAD
 // CHECK-NEXT: affine.for %arg1 = 0 to 1024 {
@@ -38,4 +40,11 @@ int main(void) {
 // CHECK-NEXT: %{{.*}} = index_cast %arg1 : index to i32
 // CHECK-NEXT: affine.for %arg2 = 0 to 1024 {
 // CHECK-NEXT: %{{.*}} = index_cast %arg2 : index to i32 
+<<<<<<< HEAD
 >>>>>>> c50189a999e... Emit affine.for in pragma scop (#23)
+=======
+
+// CHECK: [[DIM1:%[0-9]+]] = affine.apply #map0(%arg0)
+// CHECK-NEXT: [[DIM2:%[0-9]+]] = affine.apply #map0(%arg1)
+// CHECK-NEXT: affine.store %{{.*}}, %{{.*}}[[DIM1]], [[DIM2]]
+>>>>>>> 30514225e2b... Emit affine.store for add and mul assignment operators
