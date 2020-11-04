@@ -10,6 +10,7 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
@@ -193,6 +194,9 @@ struct MLIRASTConsumer : public ASTConsumer {
   bool error;
   ScopLocList scopLocList;
 
+  /// The stateful type translator (contains named structs).
+  LLVM::TypeFromLLVMIRTranslator typeTranslator;
+
   MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &astContext,
                   mlir::ModuleOp &module, clang::SourceManager &SM)
       : fn(fn), PP(PP), astContext(astContext), module(module), SM(SM),
@@ -200,14 +204,28 @@ struct MLIRASTConsumer : public ASTConsumer {
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false) {
+        error(false), typeTranslator(*module.getContext()) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
 
   ~MLIRASTConsumer() {}
 
+  std::map<const FunctionDecl *, mlir::FuncOp> functions;
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
+
+  std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
+  mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
+
+  std::map<const VarDecl *, mlir::LLVM::GlobalOp> llvmGlobals;
+  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const VarDecl *VD);
+
+  /// Return a value representing an access into a global string with the given
+  /// name, creating the string if necessary.
+  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
+  mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
+                                          mlir::OpBuilder &builder,
+                                          StringRef value);
 
   std::deque<const FunctionDecl *> functionsToEmit;
   std::set<const FunctionDecl *> done;
@@ -329,7 +347,7 @@ public:
 
   mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
 
-  mlir::FuncOp EmitCallee(const Expr *E);
+  const clang::FunctionDecl *EmitCallee(const Expr *E);
 
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
 

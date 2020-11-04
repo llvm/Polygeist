@@ -27,34 +27,6 @@ using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
 
-// from clang codegenmodule
-static std::string getMangledNameImpl(MangleContext &MC, GlobalDecl GD,
-                                      const NamedDecl *ND,
-                                      bool OmitMultiVersionMangling = false) {
-  SmallString<256> Buffer;
-  llvm::raw_svector_ostream Out(Buffer);
-  // MangleContext &MC = CGM.getCXXABI().getMangleContext();
-  if (MC.shouldMangleDeclName(ND))
-    MC.mangleName(GD.getWithDecl(ND), Out);
-  else {
-    IdentifierInfo *II = ND->getIdentifier();
-    assert(II && "Attempt to mangle unnamed decl.");
-    const auto *FD = dyn_cast<FunctionDecl>(ND);
-
-    if (FD && FD->getType()->castAs<clang::FunctionType>()->getCallConv() ==
-                  CC_X86RegCall) {
-      Out << "__regcall3__" << II->getName();
-    } else if (FD && FD->hasAttr<CUDAGlobalAttr>() &&
-               GD.getKernelReferenceKind() == KernelReferenceKind::Stub) {
-      Out << "__device_stub__" << II->getName();
-    } else {
-      Out << II->getName();
-    }
-  }
-
-  return std::string(Out.str());
-}
-
 void MLIRScanner::setValue(std::string name, ValueWithOffsets &&val) {
   auto z = scopes.back().emplace(name, val);
   assert(z.second);
@@ -334,7 +306,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   return ValueWithOffsets(lhs.val, offsets);
 }
 
-mlir::FuncOp MLIRScanner::EmitCallee(const Expr *E) {
+const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
   E = E->IgnoreParens();
 
   // Look through function-to-pointer decay.
@@ -347,12 +319,12 @@ mlir::FuncOp MLIRScanner::EmitCallee(const Expr *E) {
     // Resolve direct calls.
   } else if (auto DRE = dyn_cast<DeclRefExpr>(E)) {
     if (auto FD = dyn_cast<FunctionDecl>(DRE->getDecl())) {
-      return EmitDirectCallee(FD);
+      return FD;
     }
   } else if (auto ME = dyn_cast<MemberExpr>(E)) {
     if (auto FD = dyn_cast<FunctionDecl>(ME->getMemberDecl())) {
       // TODO EmitIgnoredExpr(ME->getBase());
-      return EmitDirectCallee(FD);
+      return FD;
     }
 
     // Look through template substitutions.
@@ -565,26 +537,58 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      // TODO add pow to standard dialect
-      if (sr->getDecl()->getName() == "fprintf") {
-        llvm::errs() << "warning skipping fprintf\n";
-        // std::vector<mlir::Value> args;
-        // for(auto a : expr->arguments()) {
-        //    args.push_back((mlir::Value)Visit(a));
-        //}
-        return nullptr;
-      }
-      if (sr->getDecl()->getName() == "printf") {
-        llvm::errs() << "warning skipping printf\n";
-        // std::vector<mlir::Value> args;
-        // for(auto a : expr->arguments()) {
-        //    args.push_back((mlir::Value)Visit(a));
-        //}
+      if (sr->getDecl()->getName() == "fprintf" ||
+          sr->getDecl()->getName() == "printf") {
+
+        auto tocall = EmitCallee(expr->getCallee());
+        auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
+
+        std::vector<mlir::Value> args;
+        size_t i = 0;
+        for (auto a : expr->arguments()) {
+          if (i == 0 && sr->getDecl()->getName() == "fprintf") {
+            auto decl =
+                cast<DeclRefExpr>(cast<ImplicitCastExpr>(a)->getSubExpr());
+            args.push_back(builder.create<mlir::LLVM::AddressOfOp>(
+                loc,
+                Glob.GetOrCreateLLVMGlobal(cast<VarDecl>(decl->getDecl()))));
+            i++;
+            continue;
+          }
+
+          if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
+            if (auto IC2 = dyn_cast<ImplicitCastExpr>(IC1->getSubExpr())) {
+              if (auto slit =
+                      dyn_cast<clang::StringLiteral>(IC2->getSubExpr())) {
+                args.push_back(Glob.GetOrCreateGlobalLLVMString(
+                    loc, builder, slit->getString()));
+                i++;
+                continue;
+              }
+            }
+            if (auto slit = dyn_cast<clang::StringLiteral>(IC1->getSubExpr())) {
+              args.push_back(Glob.GetOrCreateGlobalLLVMString(
+                  loc, builder, slit->getString()));
+              i++;
+              continue;
+            }
+          }
+
+          mlir::Value val = (mlir::Value)Visit(a);
+          auto llvmType =
+              Glob.typeTranslator.translateType(getLLVMType(a->getType()));
+          val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
+          args.push_back(val);
+          i++;
+        }
+
+        builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args);
+
         return nullptr;
       }
     }
 
-  auto tocall = EmitCallee(expr->getCallee());
+  auto tocall = EmitDirectCallee(EmitCallee(expr->getCallee()));
   std::vector<mlir::Value> args;
   auto fnType = tocall.getType();
   size_t i = 0;
@@ -1419,7 +1423,76 @@ ValueWithOffsets MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   return nullptr;
 }
 
-std::map<const FunctionDecl *, mlir::FuncOp> functions;
+mlir::LLVM::LLVMFuncOp
+MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
+  if (llvmFunctions.find(FD) != llvmFunctions.end()) {
+    return llvmFunctions[FD];
+  }
+  std::string name = CGM.getMangledName(FD).str();
+  std::vector<mlir::LLVM::LLVMType> types;
+  for (auto parm : FD->parameters()) {
+    types.push_back(
+        typeTranslator.translateType(getLLVMType(parm->getOriginalType())));
+  }
+
+  auto rt = typeTranslator.translateType(getLLVMType(FD->getReturnType()));
+
+  auto llvmFnType =
+      LLVM::LLVMType::getFunctionTy(rt, types,
+                                    /*isVarArg=*/FD->isVariadic());
+
+  // Insert the function into the body of the parent module.
+
+  mlir::OpBuilder builder(module.getContext());
+  builder.setInsertionPointToStart(module.getBody());
+  return llvmFunctions[FD] = builder.create<LLVM::LLVMFuncOp>(module.getLoc(),
+                                                              name, llvmFnType);
+}
+
+mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const VarDecl *FD) {
+  if (llvmGlobals.find(FD) != llvmGlobals.end()) {
+    return llvmGlobals[FD];
+  }
+
+  auto rt = typeTranslator.translateType(
+      cast<llvm::PointerType>(getLLVMType(FD->getType()))->getElementType());
+
+  mlir::OpBuilder builder(module.getContext());
+  builder.setInsertionPointToStart(module.getBody());
+  // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
+  // TODO handle proper global linkage
+  auto lnk = LLVM::Linkage::External;
+  return llvmGlobals[FD] = builder.create<LLVM::GlobalOp>(
+             module.getLoc(), rt, /*constant*/ false, lnk, FD->getName(),
+             mlir::Attribute());
+}
+
+mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
+    mlir::Location loc, mlir::OpBuilder &builder, StringRef value) {
+  using namespace mlir;
+  // Create the global at the entry of the module.
+  if (llvmStringGlobals.find(value.str()) == llvmStringGlobals.end()) {
+    OpBuilder::InsertionGuard insertGuard(builder);
+    builder.setInsertionPointToStart(module.getBody());
+    auto type = LLVM::LLVMType::getArrayTy(
+        LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size());
+    llvmStringGlobals[value.str()] = builder.create<LLVM::GlobalOp>(
+        loc, type, /*isConstant=*/true, LLVM::Linkage::Internal,
+        "str" + std::to_string(llvmStringGlobals.size()),
+        builder.getStringAttr(value));
+  }
+
+  LLVM::GlobalOp global = llvmStringGlobals[value.str()];
+  // Get the pointer to the first character in the global string.
+  mlir::Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
+  mlir::Value cst0 = builder.create<LLVM::ConstantOp>(
+      loc, LLVM::LLVMType::getInt64Ty(builder.getContext()),
+      builder.getIntegerAttr(builder.getIndexType(), 0));
+  return builder.create<LLVM::GEPOp>(
+      loc, LLVM::LLVMType::getInt8PtrTy(builder.getContext()), globalPtr,
+      ArrayRef<mlir::Value>({cst0, cst0}));
+}
+
 mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   if (functions.find(FD) != functions.end()) {
     return functions[FD];
