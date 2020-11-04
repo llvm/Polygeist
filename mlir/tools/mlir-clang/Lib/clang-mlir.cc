@@ -1610,11 +1610,11 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
     OpBuilder::InsertionGuard insertGuard(builder);
     builder.setInsertionPointToStart(module.getBody());
     auto type = LLVM::LLVMType::getArrayTy(
-        LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size());
+        LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size()+1);
     llvmStringGlobals[value.str()] = builder.create<LLVM::GlobalOp>(
         loc, type, /*isConstant=*/true, LLVM::Linkage::Internal,
         "str" + std::to_string(llvmStringGlobals.size()),
-        builder.getStringAttr(value));
+        builder.getStringAttr(value+'\0'));
   }
 
   LLVM::GlobalOp global = llvmStringGlobals[value.str()];
@@ -1628,8 +1628,6 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
       ArrayRef<mlir::Value>({cst0, cst0}));
 }
 
-mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
-  if (functions.find(FD) != functions.end()) {
     return functions[FD];
   }
   std::string name = CGM.getMangledName(FD).str();
