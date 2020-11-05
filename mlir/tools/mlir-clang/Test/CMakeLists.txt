@@ -14,4 +14,4 @@ add_lit_testsuite(check-mlir-clang "Running the clang-to-mlir regression tests"
 set_target_properties(check-mlir-clang PROPERTIES FOLDER "clang-to-mlir tests")
 add_dependencies(check-mlir-clang
   FileCheck mlir-clang
-  llvm-config count not)
+  llvm-config count not mlir-cpu-runner mlir-opt)
