@@ -982,7 +982,11 @@ LogicalResult ModuleTranslation::convertFunctionSignatures() {
     llvm::FunctionCallee llvmFuncCst = llvmModule->getOrInsertFunction(
         function.getName(),
         cast<llvm::FunctionType>(convertType(function.getType())));
-    llvm::Function *llvmFunc = cast<llvm::Function>(llvmFuncCst.getCallee());
+    llvm::Value* fval = llvmFuncCst.getCallee();
+    while (auto CE = dyn_cast<llvm::ConstantExpr>(fval)) {
+      fval = CE->getOperand(0);
+    }
+    llvm::Function *llvmFunc = cast<llvm::Function>(fval);
     llvmFunc->setLinkage(convertLinkageToLLVM(function.linkage()));
     functionMapping[function.getName()] = llvmFunc;
 
