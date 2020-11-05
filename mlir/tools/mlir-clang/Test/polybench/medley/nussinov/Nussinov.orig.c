@@ -154,7 +154,7 @@ bool    N_array_has_been_read[MAX_SIZE][MAX_SIZE];
 			 (N_array_has_been_read[x][y] = (true)), \
 			 N_array[x][y]+0)
 #if SCALAR_REPLACEMENT  /* inside not check_deps */
-#error("Not yet ready to do scalar replacement and check_deps at the same time :-(")
+#error("Not yet ready to do scalar replacement and check_deps at the same time :-(\00")
 #else  /* else not scalar replacement (inside not check_deps) */
 #define MAX_N(x, y, v)	(eassert(0 <= x && x < size && 0 <= y && y < size), \
 			 eassert(!N_array_has_been_read[x][y]), \

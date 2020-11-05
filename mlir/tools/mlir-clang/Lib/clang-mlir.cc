@@ -133,6 +133,7 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (decl->hasAttr<CUDASharedAttr>()) {
     memtype = 5;
   }
+
   mlir::Type subType = getMLIRType(decl->getType());
   mlir::Value inite = nullptr;
   if (auto init = decl->getInit()) {
@@ -549,9 +550,10 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           if (i == 0 && sr->getDecl()->getName() == "fprintf") {
             auto decl =
                 cast<DeclRefExpr>(cast<ImplicitCastExpr>(a)->getSubExpr());
-            args.push_back(builder.create<mlir::LLVM::AddressOfOp>(
-                loc,
-                Glob.GetOrCreateLLVMGlobal(cast<VarDecl>(decl->getDecl()))));
+            args.push_back(builder.create<mlir::LLVM::LoadOp>(
+                loc, builder.create<mlir::LLVM::AddressOfOp>(
+                         loc, Glob.GetOrCreateLLVMGlobal(
+                                  cast<VarDecl>(decl->getDecl())))));
             i++;
             continue;
           }
@@ -585,6 +587,55 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args);
 
         return nullptr;
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getName() == "strcmp") {
+        // just have it return 1
+        auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+        return (mlir::Value)builder.create<mlir::ConstantOp>(
+            loc, ty, builder.getIntegerAttr(ty, 0));
+
+        auto tocall = EmitCallee(expr->getCallee());
+        auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
+
+        std::vector<mlir::Value> args;
+        size_t i = 0;
+        for (auto a : expr->arguments()) {
+          if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
+            if (auto IC2 = dyn_cast<ImplicitCastExpr>(IC1->getSubExpr())) {
+              if (auto slit =
+                      dyn_cast<clang::StringLiteral>(IC2->getSubExpr())) {
+                args.push_back(Glob.GetOrCreateGlobalLLVMString(
+                    loc, builder, slit->getString()));
+                i++;
+                continue;
+              }
+            }
+            if (auto slit = dyn_cast<clang::StringLiteral>(IC1->getSubExpr())) {
+              args.push_back(Glob.GetOrCreateGlobalLLVMString(
+                  loc, builder, slit->getString()));
+              i++;
+              continue;
+            }
+          }
+          // TODO
+          a->dump();
+          mlir::Value val = (mlir::Value)Visit(a);
+          auto llvmType =
+              Glob.typeTranslator.translateType(getLLVMType(a->getType()));
+          val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
+          args.push_back(val);
+          i++;
+        }
+
+        return ValueWithOffsets(
+            builder.create<mlir::LLVM::DialectCastOp>(
+                loc, getMLIRType(expr->getType()),
+                builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
+                    .getResult(0)),
+            {});
       }
     }
 
@@ -1267,6 +1318,36 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   switch (E->getCastKind()) {
   case clang::CastKind::CK_BitCast: {
+
+    if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
+      if (auto ic = dyn_cast<ImplicitCastExpr>(CI->getCallee()))
+        if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+          if (sr->getDecl()->getName() == "polybench_alloc_data") {
+            auto mt = getMLIRType(E->getType()).cast<mlir::MemRefType>();
+            auto inner = mt.getElementType().cast<mlir::MemRefType>();
+
+            auto shape = std::vector<int64_t>(mt.getShape());
+            shape[0] = 1;
+            auto mt0 =
+                mlir::MemRefType::get(shape, mt.getElementType(),
+                                      mt.getAffineMaps(), mt.getMemorySpace());
+
+            auto alloc = builder.create<mlir::AllocOp>(loc, inner);
+            auto alloc2 = builder.create<mlir::MemRefCastOp>(
+                loc, builder.create<mlir::AllocaOp>(loc, mt0), mt);
+
+            mlir::Value zeroIndex = getConstantIndex(0);
+            builder.create<mlir::StoreOp>(loc, alloc, alloc2, zeroIndex);
+            return ValueWithOffsets(alloc2, {getConstantIndex(0)});
+
+            // std::vector<mlir::Value> args;
+            // for (auto a : expr->arguments()) {
+            //  args.push_back((mlir::Value)Visit(a));
+            //}
+            // return (mlir::Value)builder.create<mlir::SqrtOp>(loc, args[0]);
+          }
+        }
+
     auto scalar = Visit(E->getSubExpr());
     auto ut = scalar.getType().cast<mlir::MemRefType>();
     auto mt = getMLIRType(E->getType()).cast<mlir::MemRefType>();
@@ -1589,8 +1670,7 @@ mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const VarDecl *FD) {
     return llvmGlobals[FD];
   }
 
-  auto rt = typeTranslator.translateType(
-      cast<llvm::PointerType>(getLLVMType(FD->getType()))->getElementType());
+  auto rt = typeTranslator.translateType(getLLVMType(FD->getType()));
 
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPointToStart(module.getBody());
@@ -1610,11 +1690,11 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
     OpBuilder::InsertionGuard insertGuard(builder);
     builder.setInsertionPointToStart(module.getBody());
     auto type = LLVM::LLVMType::getArrayTy(
-        LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size()+1);
+        LLVM::LLVMType::getInt8Ty(builder.getContext()), value.size() + 1);
     llvmStringGlobals[value.str()] = builder.create<LLVM::GlobalOp>(
         loc, type, /*isConstant=*/true, LLVM::Linkage::Internal,
         "str" + std::to_string(llvmStringGlobals.size()),
-        builder.getStringAttr(value+'\0'));
+        builder.getStringAttr(value.str() + '\0'));
   }
 
   LLVM::GlobalOp global = llvmStringGlobals[value.str()];
@@ -1628,6 +1708,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
       ArrayRef<mlir::Value>({cst0, cst0}));
 }
 
+mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
+  if (functions.find(FD) != functions.end()) {
     return functions[FD];
   }
   std::string name = CGM.getMangledName(FD).str();
