@@ -187,7 +187,7 @@ static Error compileAndExecuteVoidFunction(Options &options, ModuleOp module,
                                            CompileAndExecuteConfig config) {
   auto mainFunction = module.lookupSymbol<LLVM::LLVMFuncOp>(entryPoint);
   if (!mainFunction || mainFunction.empty())
-    return make_string_error("entry point not found");
+    return make_string_error("entry point not found " + entryPoint + std::to_string(!!mainFunction));
   void *empty = nullptr;
   return compileAndExecute(options, module, entryPoint, config, &empty);
 }
