@@ -74,6 +74,7 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
@@ -83,6 +84,3 @@ int main(int argc, char **argv) {
   module.print(outs());
   return 0;
 }
-
-// ./clang -O3 -mllvm -polly -c test.c -mllvm -polly-process-unprofitable -mllvm
-// -polly-export

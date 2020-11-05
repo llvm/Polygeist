@@ -133,220 +133,183 @@ int main(int argc, char** argv)
 }
 
 // CHECK: module {
-// CHECK-NEXT:   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str4("%0.2lf ")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str3("\0A")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str2("y")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str1("begin dump: %s")
-// CHECK-NEXT:   llvm.mlir.global internal constant @str0("==BEGIN DUMP_ARRAYS==\0A")
-// CHECK-NEXT:   llvm.mlir.global external @stderr() : !llvm.struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>
+// CHECK-NEXT:   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str4("%0.2lf \00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str3("\0A\00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str2("y\00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str1("begin dump: %s\00")
+// CHECK-NEXT:   llvm.mlir.global internal constant @str0("==BEGIN DUMP_ARRAYS==\0A\00")
+// CHECK-NEXT:   llvm.mlir.global external @stderr() : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
 // CHECK-NEXT:   llvm.func @fprintf(!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, ...) -> !llvm.i32
 // CHECK-NEXT:   func @main(%arg0: i32, %arg1: memref<?xmemref<?xi8>>) -> i32 {
-// CHECK-NEXT:     %c0 = constant 0 : index
 // CHECK-NEXT:     %c2000_i32 = constant 2000 : i32
-// CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %0 = addi %c2000_i32, %c0_i32 : i32
-// CHECK-NEXT:     %1 = zexti %0 : i32 to i64
-// CHECK-NEXT:     %c8_i64 = constant 8 : i64
-// CHECK-NEXT:     %2 = trunci %c8_i64 : i64 to i32
-// CHECK-NEXT:     %3 = call @polybench_alloc_data(%1, %2) : (i64, i32) -> memref<?xi8>
-// CHECK-NEXT:     %4 = memref_cast %3 : memref<?xi8> to memref<?xmemref<2000xf64>>
-// CHECK-NEXT:     %5 = call @polybench_alloc_data(%1, %2) : (i64, i32) -> memref<?xi8>
-// CHECK-NEXT:     %6 = memref_cast %5 : memref<?xi8> to memref<?xmemref<2000xf64>>
-// CHECK-NEXT:     %7 = load %4[%c0] : memref<?xmemref<2000xf64>>
-// CHECK-NEXT:     %8 = memref_cast %7 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:     %9 = memref_cast %8 : memref<?xf64> to memref<2000xf64>
-// CHECK-NEXT:     call @init_array(%c2000_i32, %9) : (i32, memref<2000xf64>) -> ()
-// CHECK-NEXT:     %10 = load %4[%c0] : memref<?xmemref<2000xf64>>
-// CHECK-NEXT:     %11 = memref_cast %10 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:     %12 = memref_cast %11 : memref<?xf64> to memref<2000xf64>
-// CHECK-NEXT:     %13 = load %6[%c0] : memref<?xmemref<2000xf64>>
-// CHECK-NEXT:     %14 = memref_cast %13 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:     %15 = memref_cast %14 : memref<?xf64> to memref<2000xf64>
-// CHECK-NEXT:     call @kernel_durbin(%c2000_i32, %12, %15) : (i32, memref<2000xf64>, memref<2000xf64>) -> ()
 // CHECK-NEXT:     %c42_i32 = constant 42 : i32
-// CHECK-NEXT:     %16 = cmpi "sgt", %arg0, %c42_i32 : i32
-// CHECK-NEXT:     %17 = index_cast %c0_i32 : i32 to index
-// CHECK-NEXT:     %18 = addi %c0, %17 : index
-// CHECK-NEXT:     %19 = load %arg1[%18] : memref<?xmemref<?xi8>>
-// CHECK-NEXT:     %cst = constant ""
-// CHECK-NEXT:     %20 = memref_cast %cst : memref<1xi8> to memref<?xi8>
-// CHECK-NEXT:     %21 = call @strcmp(%19, %20) : (memref<?xi8>, memref<?xi8>) -> i32
-// CHECK-NEXT:     %22 = trunci %21 : i32 to i1
+// CHECK-NEXT:     %c0_i32 = constant 0 : i32
 // CHECK-NEXT:     %true = constant true
-// CHECK-NEXT:     %23 = xor %22, %true : i1
-// CHECK-NEXT:     %24 = and %16, %23 : i1
-// CHECK-NEXT:     scf.if %24 {
-// CHECK-NEXT:       %27 = load %6[%c0] : memref<?xmemref<2000xf64>>
-// CHECK-NEXT:       %28 = memref_cast %27 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:       %29 = memref_cast %28 : memref<?xf64> to memref<2000xf64>
-// CHECK-NEXT:       call @print_array(%c2000_i32, %29) : (i32, memref<2000xf64>) -> ()
+// CHECK-NEXT:     %0 = alloc() : memref<2000xf64>
+// CHECK-NEXT:     %1 = alloc() : memref<2000xf64>
+// CHECK-NEXT:     %2 = memref_cast %0 : memref<2000xf64> to memref<?xf64>
+// CHECK-NEXT:     %3 = memref_cast %2 : memref<?xf64> to memref<2000xf64>
+// CHECK-NEXT:     call @init_array(%c2000_i32, %3) : (i32, memref<2000xf64>) -> ()
+// CHECK-NEXT:     %4 = memref_cast %1 : memref<2000xf64> to memref<?xf64>
+// CHECK-NEXT:     %5 = memref_cast %4 : memref<?xf64> to memref<2000xf64>
+// CHECK-NEXT:     call @kernel_durbin(%c2000_i32, %3, %5) : (i32, memref<2000xf64>, memref<2000xf64>) -> ()
+// CHECK-NEXT:     %6 = cmpi "sgt", %arg0, %c42_i32 : i32
+// CHECK-NEXT:     %7 = trunci %c0_i32 : i32 to i1
+// CHECK-NEXT:     %8 = xor %7, %true : i1
+// CHECK-NEXT:     %9 = and %6, %8 : i1
+// CHECK-NEXT:     scf.if %9 {
+// CHECK-NEXT:       call @print_array(%c2000_i32, %5) : (i32, memref<2000xf64>) -> ()
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %25 = memref_cast %4 : memref<?xmemref<2000xf64>> to memref<?xi8>
-// CHECK-NEXT:     call @free(%25) : (memref<?xi8>) -> ()
-// CHECK-NEXT:     %26 = memref_cast %6 : memref<?xmemref<2000xf64>> to memref<?xi8>
-// CHECK-NEXT:     call @free(%26) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func @polybench_alloc_data(i64, i32) -> memref<?xi8>
 // CHECK-NEXT:   func @init_array(%arg0: i32, %arg1: memref<2000xf64>) {
-// CHECK-NEXT:     %c0 = constant 0 : index
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
+// CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     br ^bb1(%c0_i32 : i32)
 // CHECK-NEXT:   ^bb1(%0: i32):  // 2 preds: ^bb0, ^bb2
 // CHECK-NEXT:     %1 = cmpi "slt", %0, %arg0 : i32
 // CHECK-NEXT:     cond_br %1, ^bb2, ^bb3
 // CHECK-NEXT:   ^bb2:  // pred: ^bb1
 // CHECK-NEXT:     %2 = index_cast %0 : i32 to index
-// CHECK-NEXT:     %3 = addi %c0, %2 : index
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %4 = addi %arg0, %c1_i32 : i32
-// CHECK-NEXT:     %5 = subi %4, %0 : i32
-// CHECK-NEXT:     %6 = sitofp %5 : i32 to f64
-// CHECK-NEXT:     store %6, %arg1[%3] : memref<2000xf64>
-// CHECK-NEXT:     %7 = addi %0, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%7 : i32)
+// CHECK-NEXT:     %3 = addi %arg0, %c1_i32 : i32
+// CHECK-NEXT:     %4 = subi %3, %0 : i32
+// CHECK-NEXT:     %5 = sitofp %4 : i32 to f64
+// CHECK-NEXT:     store %5, %arg1[%2] : memref<2000xf64>
+// CHECK-NEXT:     %6 = addi %0, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb1(%6 : i32)
 // CHECK-NEXT:   ^bb3:  // pred: ^bb1
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
-// CHECK-NEXT:     %c0 = constant 0 : index
-// CHECK-NEXT:     %0 = alloca() : memref<2000xf64>
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %1 = index_cast %c0_i32 : i32 to index
-// CHECK-NEXT:     %2 = addi %c0, %1 : index
-// CHECK-NEXT:     %3 = load %arg1[%2] : memref<2000xf64>
-// CHECK-NEXT:     %4 = negf %3 : f64
-// CHECK-NEXT:     store %4, %arg2[%2] : memref<2000xf64>
+// CHECK-NEXT:     %c0 = constant 0 : index
 // CHECK-NEXT:     %cst = constant 1.000000e+00 : f64
-// CHECK-NEXT:     %5 = load %arg1[%2] : memref<2000xf64>
-// CHECK-NEXT:     %6 = negf %5 : f64
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     br ^bb1(%6, %cst, %c1_i32 : f64, f64, i32)
-// CHECK-NEXT:   ^bb1(%7: f64, %8: f64, %9: i32):  // 2 preds: ^bb0, ^bb12
-// CHECK-NEXT:     %10 = cmpi "slt", %9, %arg0 : i32
-// CHECK-NEXT:     cond_br %10, ^bb2, ^bb3
-// CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     %11 = sitofp %c1_i32 : i32 to f64
-// CHECK-NEXT:     %12 = mulf %7, %7 : f64
-// CHECK-NEXT:     %13 = subf %11, %12 : f64
-// CHECK-NEXT:     %14 = mulf %13, %8 : f64
 // CHECK-NEXT:     %cst_0 = constant 0.000000e+00 : f64
+// CHECK-NEXT:     %0 = alloca() : memref<2000xf64>
+// CHECK-NEXT:     %1 = load %arg1[%c0] : memref<2000xf64>
+// CHECK-NEXT:     %2 = negf %1 : f64
+// CHECK-NEXT:     store %2, %arg2[%c0] : memref<2000xf64>
+// CHECK-NEXT:     %3 = load %arg1[%c0] : memref<2000xf64>
+// CHECK-NEXT:     %4 = negf %3 : f64
+// CHECK-NEXT:     br ^bb1(%4, %cst, %c1_i32 : f64, f64, i32)
+// CHECK-NEXT:   ^bb1(%5: f64, %6: f64, %7: i32):  // 2 preds: ^bb0, ^bb11
+// CHECK-NEXT:     %8 = cmpi "slt", %7, %arg0 : i32
+// CHECK-NEXT:     cond_br %8, ^bb2, ^bb3
+// CHECK-NEXT:   ^bb2:  // pred: ^bb1
+// CHECK-NEXT:     %9 = sitofp %c1_i32 : i32 to f64
+// CHECK-NEXT:     %10 = mulf %5, %5 : f64
+// CHECK-NEXT:     %11 = subf %9, %10 : f64
+// CHECK-NEXT:     %12 = mulf %11, %6 : f64
 // CHECK-NEXT:     br ^bb4(%cst_0, %c0_i32 : f64, i32)
 // CHECK-NEXT:   ^bb3:  // pred: ^bb1
 // CHECK-NEXT:     return
-// CHECK-NEXT:   ^bb4(%15: f64, %16: i32):  // 2 preds: ^bb2, ^bb5
-// CHECK-NEXT:     %17 = cmpi "slt", %16, %9 : i32
-// CHECK-NEXT:     cond_br %17, ^bb5, ^bb6
+// CHECK-NEXT:   ^bb4(%13: f64, %14: i32):  // 2 preds: ^bb2, ^bb5
+// CHECK-NEXT:     %15 = cmpi "slt", %14, %7 : i32
+// CHECK-NEXT:     cond_br %15, ^bb5, ^bb6
 // CHECK-NEXT:   ^bb5:  // pred: ^bb4
-// CHECK-NEXT:     %18 = subi %9, %16 : i32
-// CHECK-NEXT:     %19 = subi %18, %c1_i32 : i32
-// CHECK-NEXT:     %20 = index_cast %19 : i32 to index
-// CHECK-NEXT:     %21 = addi %c0, %20 : index
-// CHECK-NEXT:     %22 = load %arg1[%21] : memref<2000xf64>
-// CHECK-NEXT:     %23 = index_cast %16 : i32 to index
-// CHECK-NEXT:     %24 = addi %c0, %23 : index
-// CHECK-NEXT:     %25 = load %arg2[%24] : memref<2000xf64>
-// CHECK-NEXT:     %26 = mulf %22, %25 : f64
-// CHECK-NEXT:     %27 = addf %15, %26 : f64
-// CHECK-NEXT:     %28 = addi %16, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb4(%27, %28 : f64, i32)
+// CHECK-NEXT:     %16 = subi %7, %14 : i32
+// CHECK-NEXT:     %17 = subi %16, %c1_i32 : i32
+// CHECK-NEXT:     %18 = index_cast %17 : i32 to index
+// CHECK-NEXT:     %19 = load %arg1[%18] : memref<2000xf64>
+// CHECK-NEXT:     %20 = index_cast %14 : i32 to index
+// CHECK-NEXT:     %21 = load %arg2[%20] : memref<2000xf64>
+// CHECK-NEXT:     %22 = mulf %19, %21 : f64
+// CHECK-NEXT:     %23 = addf %13, %22 : f64
+// CHECK-NEXT:     %24 = addi %14, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb4(%23, %24 : f64, i32)
 // CHECK-NEXT:   ^bb6:  // pred: ^bb4
-// CHECK-NEXT:     %29 = index_cast %9 : i32 to index
-// CHECK-NEXT:     %30 = addi %c0, %29 : index
-// CHECK-NEXT:     %31 = load %arg1[%30] : memref<2000xf64>
-// CHECK-NEXT:     %32 = addf %31, %15 : f64
-// CHECK-NEXT:     %33 = negf %32 : f64
-// CHECK-NEXT:     %34 = divf %33, %14 : f64
+// CHECK-NEXT:     %25 = index_cast %7 : i32 to index
+// CHECK-NEXT:     %26 = load %arg1[%25] : memref<2000xf64>
+// CHECK-NEXT:     %27 = addf %26, %13 : f64
+// CHECK-NEXT:     %28 = negf %27 : f64
+// CHECK-NEXT:     %29 = divf %28, %12 : f64
 // CHECK-NEXT:     br ^bb7(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb7(%35: i32):  // 2 preds: ^bb6, ^bb8
-// CHECK-NEXT:     %36 = cmpi "slt", %35, %9 : i32
-// CHECK-NEXT:     cond_br %36, ^bb8, ^bb9
+// CHECK-NEXT:   ^bb7(%30: i32):  // 2 preds: ^bb6, ^bb8
+// CHECK-NEXT:     %31 = cmpi "slt", %30, %7 : i32
+// CHECK-NEXT:     cond_br %31, ^bb8, ^bb9(%c0_i32 : i32)
 // CHECK-NEXT:   ^bb8:  // pred: ^bb7
-// CHECK-NEXT:     %37 = memref_cast %0 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:     %38 = index_cast %35 : i32 to index
-// CHECK-NEXT:     %39 = addi %c0, %38 : index
-// CHECK-NEXT:     %40 = load %arg2[%39] : memref<2000xf64>
-// CHECK-NEXT:     %41 = subi %9, %35 : i32
-// CHECK-NEXT:     %42 = subi %41, %c1_i32 : i32
-// CHECK-NEXT:     %43 = index_cast %42 : i32 to index
-// CHECK-NEXT:     %44 = addi %c0, %43 : index
-// CHECK-NEXT:     %45 = load %arg2[%44] : memref<2000xf64>
-// CHECK-NEXT:     %46 = mulf %34, %45 : f64
-// CHECK-NEXT:     %47 = addf %40, %46 : f64
-// CHECK-NEXT:     store %47, %37[%39] : memref<?xf64>
-// CHECK-NEXT:     %48 = addi %35, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb7(%48 : i32)
-// CHECK-NEXT:   ^bb9:  // pred: ^bb7
-// CHECK-NEXT:     br ^bb10(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb10(%49: i32):  // 2 preds: ^bb9, ^bb11
-// CHECK-NEXT:     %50 = cmpi "slt", %49, %9 : i32
-// CHECK-NEXT:     cond_br %50, ^bb11, ^bb12
-// CHECK-NEXT:   ^bb11:  // pred: ^bb10
-// CHECK-NEXT:     %51 = index_cast %49 : i32 to index
-// CHECK-NEXT:     %52 = addi %c0, %51 : index
-// CHECK-NEXT:     %53 = memref_cast %0 : memref<2000xf64> to memref<?xf64>
-// CHECK-NEXT:     %54 = load %53[%52] : memref<?xf64>
-// CHECK-NEXT:     store %54, %arg2[%52] : memref<2000xf64>
-// CHECK-NEXT:     %55 = addi %49, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb10(%55 : i32)
-// CHECK-NEXT:   ^bb12:  // pred: ^bb10
-// CHECK-NEXT:     store %34, %arg2[%30] : memref<2000xf64>
-// CHECK-NEXT:     %56 = addi %9, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%34, %14, %56 : f64, f64, i32)
+// CHECK-NEXT:     %32 = index_cast %30 : i32 to index
+// CHECK-NEXT:     %33 = load %arg2[%32] : memref<2000xf64>
+// CHECK-NEXT:     %34 = subi %7, %30 : i32
+// CHECK-NEXT:     %35 = subi %34, %c1_i32 : i32
+// CHECK-NEXT:     %36 = index_cast %35 : i32 to index
+// CHECK-NEXT:     %37 = load %arg2[%36] : memref<2000xf64>
+// CHECK-NEXT:     %38 = mulf %29, %37 : f64
+// CHECK-NEXT:     %39 = addf %33, %38 : f64
+// CHECK-NEXT:     store %39, %0[%32] : memref<2000xf64>
+// CHECK-NEXT:     %40 = addi %30, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb7(%40 : i32)
+// CHECK-NEXT:   ^bb9(%41: i32):  // 2 preds: ^bb7, ^bb10
+// CHECK-NEXT:     %42 = cmpi "slt", %41, %7 : i32
+// CHECK-NEXT:     cond_br %42, ^bb10, ^bb11
+// CHECK-NEXT:   ^bb10:  // pred: ^bb9
+// CHECK-NEXT:     %43 = index_cast %41 : i32 to index
+// CHECK-NEXT:     %44 = load %0[%43] : memref<2000xf64>
+// CHECK-NEXT:     store %44, %arg2[%43] : memref<2000xf64>
+// CHECK-NEXT:     %45 = addi %41, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb9(%45 : i32)
+// CHECK-NEXT:   ^bb11:  // pred: ^bb9
+// CHECK-NEXT:     store %29, %arg2[%25] : memref<2000xf64>
+// CHECK-NEXT:     %46 = addi %7, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb1(%29, %12, %46 : f64, f64, i32)
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func @strcmp(memref<?xi8>, memref<?xi8>) -> i32
 // CHECK-NEXT:   func @print_array(%arg0: i32, %arg1: memref<2000xf64>) {
-// CHECK-NEXT:     %c0 = constant 0 : index
-// CHECK-NEXT:     %0 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:     %1 = llvm.mlir.addressof @str0 : !llvm.ptr<array<22 x i8>>
-// CHECK-NEXT:     %2 = llvm.mlir.constant(0 : index) : !llvm.i64
-// CHECK-NEXT:     %3 = llvm.getelementptr %1[%2, %2] : (!llvm.ptr<array<22 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %4 = llvm.call @fprintf(%0, %3) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
-// CHECK-NEXT:     %5 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:     %6 = llvm.mlir.addressof @str1 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %7 = llvm.getelementptr %6[%2, %2] : (!llvm.ptr<array<14 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %8 = llvm.mlir.addressof @str2 : !llvm.ptr<array<1 x i8>>
-// CHECK-NEXT:     %9 = llvm.getelementptr %8[%2, %2] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %10 = llvm.call @fprintf(%5, %7, %9) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     br ^bb1(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb1(%11: i32):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:     %12 = cmpi "slt", %11, %arg0 : i32
-// CHECK-NEXT:     cond_br %12, ^bb2, ^bb3
-// CHECK-NEXT:   ^bb2:  // pred: ^bb1
 // CHECK-NEXT:     %c20_i32 = constant 20 : i32
-// CHECK-NEXT:     %13 = remi_signed %11, %c20_i32 : i32
-// CHECK-NEXT:     %14 = cmpi "eq", %13, %c0_i32 : i32
-// CHECK-NEXT:     scf.if %14 {
-// CHECK-NEXT:       %34 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:       %35 = llvm.mlir.addressof @str3 : !llvm.ptr<array<1 x i8>>
-// CHECK-NEXT:       %36 = llvm.getelementptr %35[%2, %2] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:       %37 = llvm.call @fprintf(%34, %36) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
-// CHECK-NEXT:     }
-// CHECK-NEXT:     %15 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:     %16 = llvm.mlir.addressof @str4 : !llvm.ptr<array<7 x i8>>
-// CHECK-NEXT:     %17 = llvm.getelementptr %16[%2, %2] : (!llvm.ptr<array<7 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %18 = index_cast %11 : i32 to index
-// CHECK-NEXT:     %19 = addi %c0, %18 : index
-// CHECK-NEXT:     %20 = load %arg1[%19] : memref<2000xf64>
-// CHECK-NEXT:     %21 = llvm.mlir.cast %20 : f64 to !llvm.double
-// CHECK-NEXT:     %22 = llvm.call @fprintf(%15, %17, %21) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.double) -> !llvm.i32
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %23 = addi %11, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%23 : i32)
+// CHECK-NEXT:     %0 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %2 = llvm.mlir.addressof @str0 : !llvm.ptr<array<23 x i8>>
+// CHECK-NEXT:     %3 = llvm.mlir.constant(0 : index) : !llvm.i64
+// CHECK-NEXT:     %4 = llvm.getelementptr %2[%3, %3] : (!llvm.ptr<array<23 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %5 = llvm.call @fprintf(%1, %4) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
+// CHECK-NEXT:     %6 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %7 = llvm.load %6 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %8 = llvm.mlir.addressof @str1 : !llvm.ptr<array<15 x i8>>
+// CHECK-NEXT:     %9 = llvm.getelementptr %8[%3, %3] : (!llvm.ptr<array<15 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %10 = llvm.mlir.addressof @str2 : !llvm.ptr<array<2 x i8>>
+// CHECK-NEXT:     %11 = llvm.getelementptr %10[%3, %3] : (!llvm.ptr<array<2 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %12 = llvm.call @fprintf(%7, %9, %11) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
+// CHECK-NEXT:     br ^bb1(%c0_i32 : i32)
+// CHECK-NEXT:   ^bb1(%13: i32):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:     %14 = cmpi "slt", %13, %arg0 : i32
+// CHECK-NEXT:     cond_br %14, ^bb2, ^bb3
+// CHECK-NEXT:   ^bb2:  // pred: ^bb1
+// CHECK-NEXT:     %15 = remi_signed %13, %c20_i32 : i32
+// CHECK-NEXT:     %16 = cmpi "eq", %15, %c0_i32 : i32
+// CHECK-NEXT:     scf.if %16 {
+// CHECK-NEXT:       %38 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:       %39 = llvm.load %38 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:       %40 = llvm.mlir.addressof @str3 : !llvm.ptr<array<2 x i8>>
+// CHECK-NEXT:       %41 = llvm.getelementptr %40[%3, %3] : (!llvm.ptr<array<2 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:       %42 = llvm.call @fprintf(%39, %41) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     %17 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %18 = llvm.load %17 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %19 = llvm.mlir.addressof @str4 : !llvm.ptr<array<8 x i8>>
+// CHECK-NEXT:     %20 = llvm.getelementptr %19[%3, %3] : (!llvm.ptr<array<8 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %21 = index_cast %13 : i32 to index
+// CHECK-NEXT:     %22 = load %arg1[%21] : memref<2000xf64>
+// CHECK-NEXT:     %23 = llvm.mlir.cast %22 : f64 to !llvm.double
+// CHECK-NEXT:     %24 = llvm.call @fprintf(%18, %20, %23) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.double) -> !llvm.i32
+// CHECK-NEXT:     %25 = addi %13, %c1_i32 : i32
+// CHECK-NEXT:     br ^bb1(%25 : i32)
 // CHECK-NEXT:   ^bb3:  // pred: ^bb1
-// CHECK-NEXT:     %24 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:     %25 = llvm.mlir.addressof @str5 : !llvm.ptr<array<16 x i8>>
-// CHECK-NEXT:     %26 = llvm.getelementptr %25[%2, %2] : (!llvm.ptr<array<16 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %27 = llvm.mlir.addressof @str2 : !llvm.ptr<array<1 x i8>>
-// CHECK-NEXT:     %28 = llvm.getelementptr %27[%2, %2] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %29 = llvm.call @fprintf(%24, %26, %28) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
-// CHECK-NEXT:     %30 = llvm.mlir.addressof @stderr : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
-// CHECK-NEXT:     %31 = llvm.mlir.addressof @str6 : !llvm.ptr<array<22 x i8>>
-// CHECK-NEXT:     %32 = llvm.getelementptr %31[%2, %2] : (!llvm.ptr<array<22 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %33 = llvm.call @fprintf(%30, %32) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
+// CHECK-NEXT:     %26 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %27 = llvm.load %26 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %28 = llvm.mlir.addressof @str5 : !llvm.ptr<array<17 x i8>>
+// CHECK-NEXT:     %29 = llvm.getelementptr %28[%3, %3] : (!llvm.ptr<array<17 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %30 = llvm.mlir.addressof @str2 : !llvm.ptr<array<2 x i8>>
+// CHECK-NEXT:     %31 = llvm.getelementptr %30[%3, %3] : (!llvm.ptr<array<2 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %32 = llvm.call @fprintf(%27, %29, %31) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
+// CHECK-NEXT:     %33 = llvm.mlir.addressof @stderr : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %34 = llvm.load %33 : !llvm.ptr<ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>>
+// CHECK-NEXT:     %35 = llvm.mlir.addressof @str6 : !llvm.ptr<array<23 x i8>>
+// CHECK-NEXT:     %36 = llvm.getelementptr %35[%3, %3] : (!llvm.ptr<array<23 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %37 = llvm.call @fprintf(%34, %36) : (!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>) -> !llvm.i32
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @free(memref<?xi8>)
