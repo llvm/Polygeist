@@ -67,7 +67,8 @@ namespace {
 struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
-  void forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx);
+  // return if changed
+  bool forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx);
 
   // A list of memref's that are potentially dead / could be eliminated.
   SmallPtrSet<Value, 4> memrefsToErase;
@@ -107,27 +108,39 @@ bool matchesIndices(mlir::OperandRange ops, const std::vector<ssize_t> &idx) {
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx) {
+bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx) {
+  bool changed = false;
   std::set<mlir::LoadOp> loadOps;
   mlir::Type subType = nullptr;
   std::map<mlir::Block*, std::set<mlir::StoreOp> > storeOps;
   std::set<mlir::StoreOp> allStoreOps;
-  for (auto *user : AI.getUsers()) {
-    if (auto loadOp = dyn_cast<mlir::LoadOp>(user)) {
-      if (matchesIndices(loadOp.getIndices(), idx)) {
-        subType = loadOp.getType();
-        loadOps.insert(loadOp);
+
+  std::deque<mlir::Value> list = { AI };
+
+  while(list.size()) {
+    auto val = list.front();
+    list.pop_front();
+    for (auto *user : val.getUsers()) {
+      if (auto co = dyn_cast<mlir::MemRefCastOp>(user)) {
+        list.push_back(co);
+        continue;
       }
-    }
-    if (auto storeOp = dyn_cast<mlir::StoreOp>(user)) {
-      if (matchesIndices(storeOp.getIndices(), idx)) {
-        storeOps[storeOp.getOperation()->getBlock()].insert(storeOp);
-        allStoreOps.insert(storeOp);
+      if (auto loadOp = dyn_cast<mlir::LoadOp>(user)) {
+        if (matchesIndices(loadOp.getIndices(), idx)) {
+          subType = loadOp.getType();
+          loadOps.insert(loadOp);
+        }
+      }
+      if (auto storeOp = dyn_cast<mlir::StoreOp>(user)) {
+        if (matchesIndices(storeOp.getIndices(), idx)) {
+          storeOps[storeOp.getOperation()->getBlock()].insert(storeOp);
+          allStoreOps.insert(storeOp);
+        }
       }
     }
   }
 
-  if (loadOps.size() == 0) return;
+  if (loadOps.size() == 0) return changed;
   if (allStoreOps.size() == 1) {
     auto store = *allStoreOps.begin();
     for(auto loadOp : loadOps) {
@@ -136,7 +149,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         loadOpsToErase.push_back(loadOp);
       }
     }
-    return;
+    return changed;
   }
 
   // List of operations which may store that are not storeops
@@ -174,6 +187,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
       } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
+            changed = true;
             loadOp.replaceAllUsesWith(lastVal);
             // Record this to erase later.
             loadOpsToErase.push_back(loadOp);
@@ -192,7 +206,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
     lastStoreInBlock[&block] = lastVal;
   }
   
-  if (loadOps.size() == 0) return;
+  if (loadOps.size() == 0) return changed;
 
 
   std::set<Block*> unreachableBlocks;
@@ -288,6 +302,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   for(auto loadOp : loadOps) {
     auto blk = loadOp.getOperation()->getBlock();
     if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end()) {
+      changed = true;
       loadOp.replaceAllUsesWith(valueAtStartOfBlock[blk]);
       loadOpsToErase.push_back(loadOp);
     } else {
@@ -458,54 +473,76 @@ void MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
     }
   }
   }
+  return changed;
 }
 
  bool isPromotable(mlir::Value AI) {
-   for (auto U : AI.getUsers()) {
-     if (auto LO = dyn_cast<LoadOp>(U)) {
-       for(auto idx : LO.getIndices()) {
-         if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
-           // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  ldue to " << idx << "\n";
-           return false;
-         }
-       }
-       continue;
-     } else if (auto SO = dyn_cast<StoreOp>(U)) {
-       for(auto idx : SO.getIndices()) {
-         if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
-           // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  sdue to " << idx << "\n";
-           return false;
-         }
-       }
-       continue;
-     } else if (isa<DeallocOp>(U)) {
-       continue;
-     } else {
-       // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue to " << U << "\n";
-       return false;
-     }
+  std::deque<mlir::Value> list = { AI };
+
+  while(list.size()) {
+    auto val = list.front();
+    list.pop_front();
+
+    for (auto U : val.getUsers()) {
+      if (auto LO = dyn_cast<LoadOp>(U)) {
+        for(auto idx : LO.getIndices()) {
+          if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
+            //llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  ldue to " << idx << "\n";
+            return false;
+          }
+        }
+        continue;
+      } else if (auto SO = dyn_cast<StoreOp>(U)) {
+        if (SO.value() == val) return false;
+        for(auto idx : SO.getIndices()) {
+          if (!idx.getDefiningOp<ConstantOp>() && !idx.getDefiningOp<ConstantIndexOp>()) {
+            //llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  sdue to " << idx << "\n";
+            return false;
+          }
+        }
+        continue;
+      } else if (isa<DeallocOp>(U)) {
+        continue;
+      } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
+        continue;
+      } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+        list.push_back(CO);
+      } else {
+        //llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue to " << *U << "\n";
+        return false;
+      }
+    }
    }
    return true;
  }
 
 StoreMap getLastStored(mlir::Value AI, DominanceInfo *domInfo) {
   StoreMap lastStored;
-   for (auto U : AI.getUsers()) {
-     if (auto SO = dyn_cast<StoreOp>(U)) {
-       std::vector<ssize_t> vec;
-       for(auto idx : SO.getIndices()) {
-          if (auto op = idx.getDefiningOp<ConstantOp>()) {
-            vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
-          } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
-            vec.push_back(op.getValue());
-          } else {
-            assert(0 && "unhandled op");
+
+  std::deque<mlir::Value> list = { AI };
+
+  while(list.size()) {
+    auto val = list.front();
+    list.pop_front();
+    for (auto U : val.getUsers()) {
+      if (auto SO = dyn_cast<StoreOp>(U)) {
+        std::vector<ssize_t> vec;
+        for(auto idx : SO.getIndices()) {
+            if (auto op = idx.getDefiningOp<ConstantOp>()) {
+              vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
+            } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
+              vec.push_back(op.getValue());
+            } else {
+              assert(0 && "unhandled op");
+            }
           }
-        }
-       lastStored.insert(vec);
-     }
-   }
-   return lastStored;
+        lastStored.insert(vec);
+      } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+        list.push_back(CO);
+      }
+    }
+  }
+  return lastStored;
 }
 
 void MemRefDataFlowOpt::runOnFunction() {
@@ -515,6 +552,14 @@ void MemRefDataFlowOpt::runOnFunction() {
   domInfo = &getAnalysis<DominanceInfo>();
   postDomInfo = &getAnalysis<PostDominanceInfo>();
 
+  // Variable indicating that a memref has had a load removed
+  // and or been deleted. Because there can be memrefs of
+  // memrefs etc, we may need to do multiple passes (first
+  // to eliminate the outermost one, then inner ones)
+  bool changed;
+  do{
+    changed = false;
+
   loadOpsToErase.clear();
   memrefsToErase.clear();
 
@@ -523,7 +568,7 @@ void MemRefDataFlowOpt::runOnFunction() {
     if (isPromotable(AI)) {
       auto lastStored = getLastStored(AI, domInfo);
       for(auto &vec : lastStored) {
-        forwardStoreToLoad(AI, vec);
+        changed |= forwardStoreToLoad(AI, vec);
       }
       memrefsToErase.insert(AI);
     }
@@ -533,37 +578,61 @@ void MemRefDataFlowOpt::runOnFunction() {
     if (isPromotable(AI)) {
       auto lastStored = getLastStored(AI, domInfo);
       for(auto &vec : lastStored) {
-        forwardStoreToLoad(AI, vec);
+        changed |= forwardStoreToLoad(AI, vec);
       }
       memrefsToErase.insert(AI);
     }
   });
 
   // Erase all load op's whose results were replaced with store fwd'ed ones.
-  for (auto *loadOp : loadOpsToErase)
+  for (auto *loadOp : loadOpsToErase) {
+    changed = true;
     loadOp->erase();
+  }
 
   // Check if the store fwd'ed memrefs are now left with only stores and can
   // thus be completely deleted. Note: the canonicalize pass should be able
   // to do this as well, but we'll do it here since we collected these anyway.
   for (auto memref : memrefsToErase) {
+
     // If the memref hasn't been alloc'ed in this function, skip.
     Operation *defOp = memref.getDefiningOp();
     if (!defOp || !(isa<AllocOp>(defOp) || isa<AllocaOp>(defOp)))
       // TODO: if the memref was returned by a 'call' operation, we
       // could still erase it if the call had no side-effects.
       continue;
-    if (llvm::any_of(memref.getUsers(), [&](Operation *ownerOp) {
-      bool cantHandle = !isa<StoreOp, DeallocOp>(ownerOp);
-      if (cantHandle)
-        ownerOp->dump();
-      return cantHandle;
-        }))
-      continue;
 
-    // Erase all stores, the dealloc, and the alloc on the memref.
-    for (auto *user : llvm::make_early_inc_range(memref.getUsers()))
-      user->erase();
-    defOp->erase();
+    std::deque<mlir::Value> list = { memref };
+    std::set<mlir::Operation*> toErase;
+    bool error = false;
+    while(list.size()) {
+      auto val = list.front();
+      list.pop_front();
+
+      for (auto U : val.getUsers()) {
+        if (isa<StoreOp, DeallocOp>(U)) {
+          toErase.insert(U);
+        } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
+          toErase.insert(U);
+        } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+          toErase.insert(U);
+          list.push_back(CO);
+        } else {
+          error = true;
+          break;
+        }
+      }
+      if (error) break;
+    }
+
+    if (!error) {
+      for (auto *user : toErase)
+        user->erase();
+      defOp->erase();
+      changed = true;
+    } else {
+      //llvm::errs() << " failed to remove: " << memref << "\n";
+    }
   }
+  }while(changed);
 }
