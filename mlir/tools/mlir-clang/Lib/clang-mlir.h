@@ -281,6 +281,7 @@ public:
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
     // llvm::errs() << *fd << "\n";
+    // fd->dump();
 
     scopes.emplace_back();
     std::vector<std::string> names;
