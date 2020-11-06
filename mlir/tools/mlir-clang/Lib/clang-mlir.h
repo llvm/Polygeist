@@ -343,6 +343,11 @@ public:
 
   bool getConstantStep(clang::ForStmt *fors, int64_t &step);
 
+  bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
+                          std::vector<mlir::Value> &newIndexes);
+
+  bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
+
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
