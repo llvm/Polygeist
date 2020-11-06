@@ -774,6 +774,133 @@ MLIRScanner::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop) {
   }
 }
 
+bool isInAffineScope(Operation *op) {
+  auto *curOp = op;
+  while (auto *parentOp = curOp->getParentOp()) {
+    if (isa<mlir::AffineForOp>(parentOp))
+      return true;
+    curOp = parentOp;
+  }
+  return false;
+}
+
+bool hasAffineArith(Operation *op, AffineExpr &expr,
+                    mlir::Value &affineForIndVar) {
+  // skip IndexCastOp
+  if (isa<mlir::IndexCastOp>(op))
+    return hasAffineArith(op->getOperand(0).getDefiningOp(), expr,
+                          affineForIndVar);
+
+  // induction variable are modelled as memref<1xType>
+  // %1 = index_cast %induction : index to i32
+  // %2 = alloca() : memref<1xi32>
+  // store %1, %2[0] : memref<1xi32>
+  // ...
+  // %5 = load %2[0] : memref<1xf32>
+  if (isa<mlir::LoadOp>(op)) {
+    auto load = cast<mlir::LoadOp>(op);
+    auto loadOperand = load.getOperand(0);
+    if (loadOperand.getType().cast<MemRefType>().getShape().size() != 1)
+      return false;
+    auto maybeAllocaOp = loadOperand.getDefiningOp();
+    if (!isa<mlir::AllocaOp>(maybeAllocaOp))
+      return false;
+    auto allocaUsers = maybeAllocaOp->getUsers();
+    if (llvm::none_of(allocaUsers, [](mlir::Operation *op) {
+          if (isa<mlir::StoreOp>(op))
+            return true;
+          return false;
+        }))
+      return false;
+    for (auto user : allocaUsers)
+      if (auto storeOp = dyn_cast<mlir::StoreOp>(user)) {
+        auto storeOperand = storeOp.getOperand(0);
+        auto maybeIndexCast = storeOperand.getDefiningOp();
+        if (!isa<mlir::IndexCastOp>(maybeIndexCast))
+          return false;
+        auto indexCastOperand = maybeIndexCast->getOperand(0);
+        if (auto blockArg = indexCastOperand.dyn_cast<mlir::BlockArgument>()) {
+          if (auto affineForOp = dyn_cast<mlir::AffineForOp>(
+                  blockArg.getOwner()->getParentOp()))
+            affineForIndVar = affineForOp.getInductionVar();
+          else
+            return false;
+        }
+      }
+    return true;
+  }
+
+  // at this point we expect only AddIOp or MulIOp
+  if ((!isa<mlir::AddIOp>(op)) && (!isa<mlir::MulIOp>(op))) {
+    return false;
+  }
+
+  // make sure that the current op has at least one constant operand
+  // (ConstantIndexOp or ConstantIntOp)
+  if (llvm::none_of(op->getOperands(), [](mlir::Value operand) {
+        return (isa<mlir::ConstantIndexOp>(operand.getDefiningOp()) ||
+                isa<mlir::ConstantIntOp>(operand.getDefiningOp()));
+      }))
+    return false;
+
+  // build affine expression by adding or multiplying constants.
+  // and keep iterating on the non-constant index
+  mlir::Value nonCstOperand = nullptr;
+  for (auto operand : op->getOperands()) {
+    if (auto constantIndexOp =
+            dyn_cast<mlir::ConstantIndexOp>(operand.getDefiningOp())) {
+      if (isa<mlir::AddIOp>(op))
+        expr = expr + constantIndexOp.getValue();
+      else
+        expr = expr * constantIndexOp.getValue();
+    } else if (auto constantIntOp =
+                   dyn_cast<mlir::ConstantIntOp>(operand.getDefiningOp())) {
+      if (isa<mlir::AddIOp>(op))
+        expr = expr + constantIntOp.getValue();
+      else
+        expr = expr * constantIntOp.getValue();
+    } else
+      nonCstOperand = operand;
+  }
+  return hasAffineArith(nonCstOperand.getDefiningOp(), expr, affineForIndVar);
+}
+
+/// An index is valid if:
+/// - it is an index type
+/// - it is in an affine scope (i.e., the parent is an affine.for)
+/// - it is the result of multiplications or additions with
+/// constant values
+bool MLIRScanner::isValidIndex(mlir::Value index,
+                               std::vector<mlir::Value> &newIndexes) {
+  if (!index.getType().isIndex())
+    return false;
+  if (auto *defOp = index.getDefiningOp()) {
+    if (!isInAffineScope(defOp))
+      return false;
+    AffineExpr i;
+    bindDims(defOp->getContext(), i);
+    mlir::Value affineForIndVar = nullptr;
+    if (!hasAffineArith(defOp, i, affineForIndVar))
+      return false;
+    auto newIndex = builder.create<mlir::AffineApplyOp>(
+        loc, AffineMap::get(1, 0, i), affineForIndVar);
+    newIndexes.push_back(newIndex);
+  }
+  return true;
+}
+
+/// If indexes represent an affine access pattern return
+/// the affine expression to be used while creating an affine.store
+// TODO: Find better name as we don't only check but we
+// also return new mlir::Value(s).
+bool MLIRScanner::isValidAffineStore(mlir::Location loc,
+                                     std::vector<mlir::Value> indexes,
+                                     std::vector<mlir::Value> &newIndexes) {
+  return llvm::all_of(indexes, [this, &newIndexes](mlir::Value index) {
+    return isValidIndex(index, newIndexes);
+  });
+}
+
 ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto lhs = Visit(BO->getLHS());
   if (!lhs.val) {
@@ -987,7 +1114,12 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       result = builder.create<mlir::AddIOp>(loc, (mlir::Value)prev,
                                             (mlir::Value)rhs);
     }
-    builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+    std::vector<mlir::Value> newOff;
+    if (isValidAffineStore(loc, off, newOff)) {
+      assert(newOff.size() != 0);
+      builder.create<mlir::AffineStoreOp>(loc, result, lhs.val, newOff);
+    } else
+      builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
     return ValueWithOffsets(prev, {});
   }
   case clang::BinaryOperator::Opcode::BO_SubAssign: {
@@ -1019,7 +1151,12 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       result = builder.create<mlir::MulIOp>(loc, (mlir::Value)prev,
                                             (mlir::Value)rhs);
     }
-    builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+    std::vector<mlir::Value> newOff;
+    if (isValidAffineStore(loc, off, newOff)) {
+      assert(newOff.size() != 0);
+      builder.create<mlir::AffineStoreOp>(loc, result, lhs.val, newOff);
+    } else
+      builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
     return ValueWithOffsets(prev, {});
   }
   case clang::BinaryOperator::Opcode::BO_DivAssign: {
