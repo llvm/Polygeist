@@ -1218,8 +1218,6 @@ ValueWithOffsets MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
-  if (auto FD = dyn_cast<FunctionDecl>(E->getDecl())) {
-  }
   return getValue(E->getDecl()->getName().str());
 }
 
