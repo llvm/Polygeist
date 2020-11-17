@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | opt -O3 -S | lli - | FileCheck %s --check-prefix EXEC
 /**
  * This version is stamped on May 10, 2016
  *
@@ -102,3 +103,5 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
+
+// EXEC: {{[0-9]\.[0-9]+}}
