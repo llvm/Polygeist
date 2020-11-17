@@ -302,7 +302,8 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   return nullptr;
 }
 
-mlir::Value add(MLIRScanner &sc, mlir::OpBuilder& builder, mlir::Location loc, mlir::Value lhs, mlir::Value rhs) {
+mlir::Value add(MLIRScanner &sc, mlir::OpBuilder &builder, mlir::Location loc,
+                mlir::Value lhs, mlir::Value rhs) {
   assert(lhs);
   assert(rhs);
   if (auto op = lhs.getDefiningOp<ConstantOp>()) {
@@ -331,7 +332,8 @@ mlir::Value add(MLIRScanner &sc, mlir::OpBuilder& builder, mlir::Location loc, m
   return builder.create<mlir::AddIOp>(loc, lhs, rhs);
 }
 
-mlir::Value castToIndex(MLIRScanner& sc, mlir::OpBuilder& builder, mlir::Location loc, mlir::Value val) {
+mlir::Value castToIndex(MLIRScanner &sc, mlir::OpBuilder &builder,
+                        mlir::Location loc, mlir::Value val) {
   assert(val);
 
   if (auto op = val.getDefiningOp<ConstantOp>()) {
@@ -348,7 +350,8 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   auto offsets = lhs.offsets;
   auto idx = castToIndex(*this, builder, loc, rhs);
   assert(offsets.size() > 0);
-  offsets[offsets.size() - 1] = add(*this, builder, loc, lhs.offsets.back(), idx);
+  offsets[offsets.size() - 1] =
+      add(*this, builder, loc, lhs.offsets.back(), idx);
   return ValueWithOffsets(lhs.val, offsets);
 }
 
@@ -639,7 +642,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getName() == "strcmp") {
         // just have it return 1
         auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
-        //return (mlir::Value)builder.create<mlir::ConstantOp>(
+        // return (mlir::Value)builder.create<mlir::ConstantOp>(
         //    loc, ty, builder.getIntegerAttr(ty, 0));
 
         auto tocall = EmitCallee(expr->getCallee());
@@ -698,10 +701,15 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           if (i == 0) {
             tostore = (mlir::Value)Visit(a);
             i++;
-            LLVM::LLVMType indexType = LLVM::LLVMType::getIntNTy(module.getContext(), 64);
+            LLVM::LLVMType indexType =
+                LLVM::LLVMType::getIntNTy(module.getContext(), 64);
             auto one = builder.create<LLVM::ConstantOp>(
-      loc, indexType, builder.getIntegerAttr(builder.getIndexType(), 1));
-            alloc = builder.create<mlir::LLVM::AllocaOp>(loc, Glob.typeTranslator.translateType((getLLVMType(a->getType()))), one, 0);
+                loc, indexType,
+                builder.getIntegerAttr(builder.getIndexType(), 1));
+            alloc = builder.create<mlir::LLVM::AllocaOp>(
+                loc,
+                Glob.typeTranslator.translateType((getLLVMType(a->getType()))),
+                one, 0);
             args.push_back(alloc);
             continue;
           }
@@ -709,7 +717,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               Glob.typeTranslator.translateType(getLLVMType(a->getType()));
 
           if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
-            if (IC1->getCastKind() == clang::CastKind::CK_NullToPointer) {              
+            if (IC1->getCastKind() == clang::CastKind::CK_NullToPointer) {
               args.push_back(builder.create<mlir::LLVM::NullOp>(loc, llvmType));
               i++;
               continue;
@@ -722,17 +730,27 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
         assert(alloc);
 
-        auto co = builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args).getResult(0);
-        co = builder.create<mlir::LLVM::DialectCastOp>(loc, getMLIRType(expr->getType()), co);
+        auto co = builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args)
+                      .getResult(0);
+        co = builder.create<mlir::LLVM::DialectCastOp>(
+            loc, getMLIRType(expr->getType()), co);
         auto ret = ValueWithOffsets(co, {});
 
         auto loaded = builder.create<mlir::LLVM::LoadOp>(loc, alloc);
 
         auto st = loaded.getType().cast<LLVM::LLVMType>();
-        for(size_t i=0; i<st.getStructNumElements(); i++) {
-          mlir::Value ev = builder.create<mlir::LLVM::ExtractValueOp>(loc, st.getStructElementType(i), loaded, builder.getI64ArrayAttr(i));
-          ev = builder.create<mlir::LLVM::DialectCastOp>(loc, Glob.getMLIRType(Glob.reverseTypeTranslator.translateType(ev.getType().cast<LLVM::LLVMType>())), ev);
-          builder.create<mlir::StoreOp>(loc, ev, tostore, std::vector<mlir::Value>({getConstantIndex(i)}));
+        for (size_t i = 0; i < st.getStructNumElements(); i++) {
+          mlir::Value ev = builder.create<mlir::LLVM::ExtractValueOp>(
+              loc, st.getStructElementType(i), loaded,
+              builder.getI64ArrayAttr(i));
+          ev = builder.create<mlir::LLVM::DialectCastOp>(
+              loc,
+              Glob.getMLIRType(Glob.reverseTypeTranslator.translateType(
+                  ev.getType().cast<LLVM::LLVMType>())),
+              ev);
+          builder.create<mlir::StoreOp>(
+              loc, ev, tostore,
+              std::vector<mlir::Value>({getConstantIndex(i)}));
         }
 
         return ret;
@@ -806,7 +824,7 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   auto ty = getMLIRType(U->getType());
 
   switch (U->getOpcode()) {
-  case clang::UnaryOperator::Opcode::UO_Extension:{
+  case clang::UnaryOperator::Opcode::UO_Extension: {
     return sub;
   }
   case clang::UnaryOperator::Opcode::UO_LNot: {
@@ -1064,52 +1082,53 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
 
   switch (BO->getOpcode()) {
-    case clang::BinaryOperator::Opcode::BO_LAnd: {
-      mlir::Type types[] = {builder.getIntegerType(1)};
-      auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, (mlir::Value)lhs,
-                                                  /*hasElseRegion*/ true);
+  case clang::BinaryOperator::Opcode::BO_LAnd: {
+    mlir::Type types[] = {builder.getIntegerType(1)};
+    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, (mlir::Value)lhs,
+                                                /*hasElseRegion*/ true);
 
-      auto oldpoint = builder.getInsertionPoint();
-      auto oldblock = builder.getInsertionBlock();
-      builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    auto oldpoint = builder.getInsertionPoint();
+    auto oldblock = builder.getInsertionBlock();
+    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
 
-      auto rhs = Visit(BO->getRHS());
-      assert(rhs.val != nullptr);
-      mlir::Value truearray[] = {rhs.val};
-      builder.create<mlir::scf::YieldOp>(loc, truearray);
+    auto rhs = Visit(BO->getRHS());
+    assert(rhs.val != nullptr);
+    mlir::Value truearray[] = {rhs.val};
+    builder.create<mlir::scf::YieldOp>(loc, truearray);
 
-      builder.setInsertionPointToStart(&ifOp.elseRegion().back());
-      mlir::Value falsearray[] = {builder.create<mlir::ConstantOp>(
-          loc, types[0], builder.getIntegerAttr(types[0], 0))};
-      builder.create<mlir::scf::YieldOp>(loc, falsearray);
+    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    mlir::Value falsearray[] = {builder.create<mlir::ConstantOp>(
+        loc, types[0], builder.getIntegerAttr(types[0], 0))};
+    builder.create<mlir::scf::YieldOp>(loc, falsearray);
 
-      builder.setInsertionPoint(oldblock, oldpoint);
-      return ValueWithOffsets(ifOp.getResult(0), {});
-    }
-    case clang::BinaryOperator::Opcode::BO_LOr: {
-      mlir::Type types[] = {builder.getIntegerType(1)};
-      auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, (mlir::Value)lhs,
-                                                  /*hasElseRegion*/ true);
+    builder.setInsertionPoint(oldblock, oldpoint);
+    return ValueWithOffsets(ifOp.getResult(0), {});
+  }
+  case clang::BinaryOperator::Opcode::BO_LOr: {
+    mlir::Type types[] = {builder.getIntegerType(1)};
+    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, (mlir::Value)lhs,
+                                                /*hasElseRegion*/ true);
 
-      auto oldpoint = builder.getInsertionPoint();
-      auto oldblock = builder.getInsertionBlock();
-      builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    auto oldpoint = builder.getInsertionPoint();
+    auto oldblock = builder.getInsertionBlock();
+    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
 
-      mlir::Value truearray[] = {builder.create<mlir::ConstantOp>(
-          loc, types[0], builder.getIntegerAttr(types[0], 1))};
-      builder.create<mlir::scf::YieldOp>(loc, truearray);
+    mlir::Value truearray[] = {builder.create<mlir::ConstantOp>(
+        loc, types[0], builder.getIntegerAttr(types[0], 1))};
+    builder.create<mlir::scf::YieldOp>(loc, truearray);
 
-      builder.setInsertionPointToStart(&ifOp.elseRegion().back());
-      auto rhs = Visit(BO->getRHS());
-      assert(rhs.val != nullptr);
-      mlir::Value falsearray[] = {rhs.val};
-      builder.create<mlir::scf::YieldOp>(loc, falsearray);
+    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    auto rhs = Visit(BO->getRHS());
+    assert(rhs.val != nullptr);
+    mlir::Value falsearray[] = {rhs.val};
+    builder.create<mlir::scf::YieldOp>(loc, falsearray);
 
-      builder.setInsertionPoint(oldblock, oldpoint);
+    builder.setInsertionPoint(oldblock, oldpoint);
 
-      return ValueWithOffsets(ifOp.getResult(0), {});
-    }
-    default: break;
+    return ValueWithOffsets(ifOp.getResult(0), {});
+  }
+  default:
+    break;
   }
   auto rhs = Visit(BO->getRHS());
   if (!rhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
@@ -1464,18 +1483,21 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     }
   }
   auto base = Visit(ME->getBase());
-  //ME->getBase()->getType().getDesugaredType(Glob.astContext)->dump();
-  auto rd = cast<RecordType>(ME->getBase()->getType().getDesugaredType(Glob.astContext))->getDecl();
+  // ME->getBase()->getType().getDesugaredType(Glob.astContext)->dump();
+  auto rd = cast<RecordType>(
+                ME->getBase()->getType().getDesugaredType(Glob.astContext))
+                ->getDecl();
   auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
-  const FieldDecl* field = nullptr;
-  for(auto f : rd->fields()) {
+  const FieldDecl *field = nullptr;
+  for (auto f : rd->fields()) {
     if (f->getName() == memberName) {
       field = f;
     }
   }
-  //llvm::errs() << "md name: " << memberName << "\n";
+  // llvm::errs() << "md name: " << memberName << "\n";
   assert(field);
-  return ValueWithOffsets((mlir::Value)base, {getConstantIndex(layout.getLLVMFieldNo(field))});
+  return ValueWithOffsets((mlir::Value)base,
+                          {getConstantIndex(layout.getLLVMFieldNo(field))});
 }
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
@@ -1593,15 +1615,16 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
 
       if (val == nullptr) {
         llvm::errs() << "doing the nullptr variant: " << off[0] << "\n";
-        std::vector<mlir::Value> vals = { scalar.val };
-        for(auto v : off) {
+        std::vector<mlir::Value> vals = {scalar.val};
+        for (auto v : off) {
           auto llvmType = LLVM::LLVMType::getInt64Ty(builder.getContext());
-          v = builder.create<mlir::IndexCastOp>(
-            loc, v, builder.getIntegerType(64));
+          v = builder.create<mlir::IndexCastOp>(loc, v,
+                                                builder.getIntegerType(64));
           vals.push_back((mlir::Value)builder.create<mlir::LLVM::DialectCastOp>(
               loc, llvmType, v));
         }
-        val = builder.create<mlir::LLVM::GEPOp>(loc, scalar.val.getType(), vals);
+        val =
+            builder.create<mlir::LLVM::GEPOp>(loc, scalar.val.getType(), vals);
       }
       val = builder.create<mlir::LLVM::LoadOp>(loc, val);
       if (E->getType()->isPointerType())
@@ -1756,7 +1779,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_NoOp: {
     return Visit(E->getSubExpr());
   }
-  case clang::CastKind::CK_ToVoid:{
+  case clang::CastKind::CK_ToVoid: {
     Visit(E->getSubExpr());
     return nullptr;
   }
@@ -1918,7 +1941,6 @@ mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
                                mt.getAffineMaps(), memspace);
   }
 
-
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPointToStart(module.getBody());
   // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
@@ -1926,7 +1948,8 @@ mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
   auto lnk = LLVM::Linkage::External;
   // builder.getStringAttr("public")
   auto globalOp = builder.create<mlir::GlobalMemrefOp>(
-             module.getLoc(), FD->getName(), mlir::StringAttr(), mlir::TypeAttr::get(mr), mlir::Attribute(), false);
+      module.getLoc(), FD->getName(), mlir::StringAttr(),
+      mlir::TypeAttr::get(mr), mlir::Attribute(), false);
   // Private == internal, Public == External [in lowering]
   SymbolTable::setSymbolVisibility(globalOp, SymbolTable::Visibility::Private);
   return globals[FD] = globalOp;
@@ -1968,7 +1991,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   std::vector<std::string> names;
   for (auto parm : FD->parameters()) {
     if (name == "main" && types.size() == 1) {
-      types.push_back(typeTranslator.translateType(getLLVMType(parm->getOriginalType())));
+      types.push_back(
+          typeTranslator.translateType(getLLVMType(parm->getOriginalType())));
     } else {
       types.push_back(getMLIRType(parm->getOriginalType()));
     }
@@ -2017,8 +2041,8 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     VarDecl *fd = dyn_cast<clang::VarDecl>(*it);
     if (!fd)
       continue;
-    //std::string name = CGM.getMangledName(fd).str();
-    globalVariables[fd->getName().str()] = fd; 
+    // std::string name = CGM.getMangledName(fd).str();
+    globalVariables[fd->getName().str()] = fd;
   }
 
   for (it = dg.begin(); it != dg.end(); ++it) {
@@ -2132,9 +2156,9 @@ public:
   }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return std::unique_ptr<clang::ASTConsumer>(
-        new MLIRASTConsumer(emitIfFound, llvmStringGlobals, functions, CI.getPreprocessor(), CI.getASTContext(),
-                            module, CI.getSourceManager()));
+    return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
+        emitIfFound, llvmStringGlobals, functions, CI.getPreprocessor(),
+        CI.getASTContext(), module, CI.getSourceManager()));
   }
 };
 
@@ -2213,48 +2237,47 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   //    Clang->setInvocation(std::shared_ptr<CompilerInvocation>(invocation));
   bool Success;
   //{
-    const char *binary = "clang";
-    const unique_ptr<Driver> driver(
-        new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
-    std::vector<const char *> Argv;
-    Argv.push_back(binary);
-    for(auto a : filenames) {
-      char *chars = (char *)malloc(a.length() + 1);
-      memcpy(chars, a.data(), a.length());
-      chars[a.length()] = 0;
-      Argv.push_back(chars);
-    }
-    if (CudaLower)
-      Argv.push_back("--cuda-gpu-arch=sm_35");
-    for (auto a : includeDirs) {
-      Argv.push_back("-I");
-      char *chars = (char *)malloc(a.length() + 1);
-      memcpy(chars, a.data(), a.length());
-      chars[a.length()] = 0;
-      Argv.push_back(chars);
-    }
-    for (auto a : defines) {
-      char *chars = (char *)malloc(a.length() + 3);
-      chars[0] = '-';
-      chars[1] = 'D';
-      memcpy(chars+2, a.data(), a.length());
-      chars[2+a.length()] = 0;
-      Argv.push_back(chars);
-    }
+  const char *binary = "clang";
+  const unique_ptr<Driver> driver(
+      new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
+  std::vector<const char *> Argv;
+  Argv.push_back(binary);
+  for (auto a : filenames) {
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
+  if (CudaLower)
+    Argv.push_back("--cuda-gpu-arch=sm_35");
+  for (auto a : includeDirs) {
+    Argv.push_back("-I");
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
+  for (auto a : defines) {
+    char *chars = (char *)malloc(a.length() + 3);
+    chars[0] = '-';
+    chars[1] = 'D';
+    memcpy(chars + 2, a.data(), a.length());
+    chars[2 + a.length()] = 0;
+    Argv.push_back(chars);
+  }
 
-    Argv.push_back("-emit-ast");
+  Argv.push_back("-emit-ast");
 
-    const unique_ptr<Compilation> compilation(
-        driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
-    JobList &Jobs = compilation->getJobs();
-    if (Jobs.size() < 1)
-      return false;
+  const unique_ptr<Compilation> compilation(
+      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
+  JobList &Jobs = compilation->getJobs();
+  if (Jobs.size() < 1)
+    return false;
 
   MLIRAction Act(fn, module);
 
-  for(auto& job : Jobs) {
-      std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
-
+  for (auto &job : Jobs) {
+    std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
 
     Command *cmd = cast<Command>(&job);
     if (strcmp(cmd->getCreator().getName(), "clang"))
@@ -2264,70 +2287,70 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
 
     Success = CompilerInvocation::CreateFromArgs(Clang->getInvocation(), *args,
                                                  Diags);
-  //}
-  Clang->getInvocation().getFrontendOpts().DisableFree = false;
+    //}
+    Clang->getInvocation().getFrontendOpts().DisableFree = false;
 
-  // Infer the builtin include path if unspecified.
-  if (Clang->getHeaderSearchOpts().UseBuiltinIncludes &&
-      Clang->getHeaderSearchOpts().ResourceDir.empty())
-    Clang->getHeaderSearchOpts().ResourceDir =
-        LLVM_OBJ_ROOT "/lib/clang/" CLANG_VERSION_STRING;
+    // Infer the builtin include path if unspecified.
+    if (Clang->getHeaderSearchOpts().UseBuiltinIncludes &&
+        Clang->getHeaderSearchOpts().ResourceDir.empty())
+      Clang->getHeaderSearchOpts().ResourceDir =
+          LLVM_OBJ_ROOT "/lib/clang/" CLANG_VERSION_STRING;
 
-  // Create the actual diagnostics engine.
-  Clang->createDiagnostics();
-  if (!Clang->hasDiagnostics())
-    return false;
+    // Create the actual diagnostics engine.
+    Clang->createDiagnostics();
+    if (!Clang->hasDiagnostics())
+      return false;
 
-  DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
-  if (!Success)
-    return false;
+    DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
+    if (!Success)
+      return false;
 
-  // Create and execute the frontend action.
+    // Create and execute the frontend action.
 
-  // Create the target instance.
-  Clang->setTarget(TargetInfo::CreateTargetInfo(
-      Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
-  if (!Clang->hasTarget())
-    return false;
+    // Create the target instance.
+    Clang->setTarget(TargetInfo::CreateTargetInfo(
+        Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
+    if (!Clang->hasTarget())
+      return false;
 
-  // Create TargetInfo for the other side of CUDA and OpenMP compilation.
-  if ((Clang->getLangOpts().CUDA || Clang->getLangOpts().OpenMPIsDevice) &&
-      !Clang->getFrontendOpts().AuxTriple.empty()) {
-    auto TO = std::make_shared<clang::TargetOptions>();
-    TO->Triple = llvm::Triple::normalize(Clang->getFrontendOpts().AuxTriple);
-    TO->HostTriple = Clang->getTarget().getTriple().str();
-    Clang->setAuxTarget(
-        TargetInfo::CreateTargetInfo(Clang->getDiagnostics(), TO));
-  }
-
-  // Inform the target of the language options.
-  //
-  // FIXME: We shouldn't need to do this, the target should be immutable once
-  // created. This complexity should be lifted elsewhere.
-  Clang->getTarget().adjust(Clang->getLangOpts());
-
-  // Adjust target options based on codegen options.
-  Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
-                                         Clang->getTargetOpts());
-
-  for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-    // Reset the ID tables if we are reusing the SourceManager and parsing
-    // regular files.
-    if (Clang->hasSourceManager() && !Act.isModelParsingAction())
-      Clang->getSourceManager().clearIDTables();
-    if (Act.BeginSourceFile(*Clang, FIF)) {
-
-      llvm::Error err = Act.Execute();
-      if (err) {
-        llvm::errs() << "saw error: " << err << "\n";
-        return false;
-      }
-      assert(Clang->hasSourceManager());
-
-      Act.EndSourceFile();
-      // llvm::errs() << "ended source file\n";
+    // Create TargetInfo for the other side of CUDA and OpenMP compilation.
+    if ((Clang->getLangOpts().CUDA || Clang->getLangOpts().OpenMPIsDevice) &&
+        !Clang->getFrontendOpts().AuxTriple.empty()) {
+      auto TO = std::make_shared<clang::TargetOptions>();
+      TO->Triple = llvm::Triple::normalize(Clang->getFrontendOpts().AuxTriple);
+      TO->HostTriple = Clang->getTarget().getTriple().str();
+      Clang->setAuxTarget(
+          TargetInfo::CreateTargetInfo(Clang->getDiagnostics(), TO));
     }
-  }
+
+    // Inform the target of the language options.
+    //
+    // FIXME: We shouldn't need to do this, the target should be immutable once
+    // created. This complexity should be lifted elsewhere.
+    Clang->getTarget().adjust(Clang->getLangOpts());
+
+    // Adjust target options based on codegen options.
+    Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
+                                           Clang->getTargetOpts());
+
+    for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
+      // Reset the ID tables if we are reusing the SourceManager and parsing
+      // regular files.
+      if (Clang->hasSourceManager() && !Act.isModelParsingAction())
+        Clang->getSourceManager().clearIDTables();
+      if (Act.BeginSourceFile(*Clang, FIF)) {
+
+        llvm::Error err = Act.Execute();
+        if (err) {
+          llvm::errs() << "saw error: " << err << "\n";
+          return false;
+        }
+        assert(Clang->hasSourceManager());
+
+        Act.EndSourceFile();
+        // llvm::errs() << "ended source file\n";
+      }
+    }
   }
   return true;
 }
