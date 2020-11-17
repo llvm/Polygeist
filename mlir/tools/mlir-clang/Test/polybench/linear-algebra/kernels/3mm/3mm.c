@@ -1,5 +1,5 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
-// RUN: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -emit-llvm | opt -O3 -S | lli -
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | opt -O3 -S | lli - | FileCheck %s --check-prefix EXEC
 
 /**
  * This version is stamped on May 10, 2016
@@ -447,3 +447,5 @@ int main(int argc, char** argv)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func private @free(memref<?xi8>)
 // CHECK-NEXT: }
+
+// EXEC: {{[0-9]\.[0-9]+}}
