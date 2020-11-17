@@ -1,10 +1,10 @@
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/Target/LLVMIR.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
-#include "mlir/Target/LLVMIR.h"
 
 using namespace llvm;
 
@@ -14,10 +14,11 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
-                               cl::desc("Emit llvm"));
+                              cl::desc("Emit llvm"));
 
-static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore, cl::desc("<Specify input file>"),
-                                          cl::cat(toolOptions));
+static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
+                                           cl::desc("<Specify input file>"),
+                                           cl::cat(toolOptions));
 
 static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
@@ -32,13 +33,13 @@ static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 
 static cl::list<std::string> defines("D", cl::desc("defines"),
-                                         cl::cat(toolOptions));
+                                     cl::cat(toolOptions));
 
 #include "Lib/clang-mlir.cc"
-#include "mlir/Pass/PassManager.h"
-#include "mlir/Transforms/Passes.h"
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 int main(int argc, char **argv) {
 
   using namespace mlir;
@@ -47,12 +48,12 @@ int main(int argc, char **argv) {
 
   cl::ParseCommandLineOptions(argc, argv);
   assert(inputFileName.size());
-  for(auto inp : inputFileName) {
-  std::ifstream inputFile(inp);
-  if (!inputFile.good()) {
-    outs() << "Not able to open file: " << inp << "\n";
-    return -1;
-  }
+  for (auto inp : inputFileName) {
+    std::ifstream inputFile(inp);
+    if (!inputFile.good()) {
+      outs() << "Not able to open file: " << inp << "\n";
+      return -1;
+    }
   }
 
   // registerDialect<AffineDialect>();

@@ -21,8 +21,8 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 
-#include "../../../../clang/lib/CodeGen/CodeGenModule.h"
 #include "../../../../clang/lib/CodeGen/CGRecordLayout.h"
+#include "../../../../clang/lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
 using namespace std;
@@ -199,15 +199,19 @@ struct MLIRASTConsumer : public ASTConsumer {
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
   LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
-  MLIRASTConsumer(std::set<std::string>& emitIfFound, std::map<std::string, mlir::LLVM::GlobalOp>& llvmStringGlobals, 
-    std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP, ASTContext &astContext,
-                  mlir::ModuleOp &module, clang::SourceManager &SM)
-      : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals), functions(functions), PP(PP), astContext(astContext), module(module), SM(SM),
-        MC(*astContext.createMangleContext()), lcontext(),
+  MLIRASTConsumer(
+      std::set<std::string> &emitIfFound,
+      std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
+      std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
+      ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
+      : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
+        functions(functions), PP(PP), astContext(astContext), module(module),
+        SM(SM), MC(*astContext.createMangleContext()), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module.getContext()), reverseTypeTranslator(lcontext) {
+        error(false), typeTranslator(*module.getContext()),
+        reverseTypeTranslator(lcontext) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
@@ -230,7 +234,7 @@ struct MLIRASTConsumer : public ASTConsumer {
                                           mlir::OpBuilder &builder,
                                           StringRef value);
 
-  std::map<std::string, clang::VarDecl*> globalVariables;
+  std::map<std::string, clang::VarDecl *> globalVariables;
   std::map<const VarDecl *, mlir::GlobalMemrefOp> globals;
   mlir::GlobalMemrefOp GetOrCreateGlobal(const VarDecl *VD);
 
@@ -291,7 +295,6 @@ public:
     // fd->dump();
     SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
 
-
     scopes.emplace_back();
     std::vector<std::string> names;
     std::vector<bool> isReference;
@@ -317,14 +320,14 @@ public:
     scopes.emplace_back();
 
     Stmt *stmt = fd->getBody();
-    //stmt->dump();
+    // stmt->dump();
     Visit(stmt);
 
     auto endBlock = builder.getInsertionBlock();
     if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
       builder.create<mlir::ReturnOp>(loc);
     }
-    //function.dump();
+    // function.dump();
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
