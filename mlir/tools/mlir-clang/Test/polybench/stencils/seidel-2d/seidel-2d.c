@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s main %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %stdinclude | FileCheck %s
 /**
  * This version is stamped on May 10, 2016
  *

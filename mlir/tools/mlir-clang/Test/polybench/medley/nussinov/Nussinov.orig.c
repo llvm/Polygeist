@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s main %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %stdinclude | FileCheck %s
 // This test will fail until global variables are working
 // XFAIL: *
 /**

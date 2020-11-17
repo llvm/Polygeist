@@ -40,6 +40,11 @@ ValueWithOffsets MLIRScanner::getValue(std::string name) {
       return found->second;
     }
   }
+  if (Glob.globalVariables.find(name) != Glob.globalVariables.end()) {
+    auto gv = Glob.GetOrCreateGlobal(Glob.globalVariables[name]);
+    auto gv2 = builder.create<GetGlobalMemrefOp>(loc, gv.type(), gv.getName());
+    return ValueWithOffsets(gv2, {getConstantIndex(0)});
+  }
   llvm::errs() << "couldn't find " << name << "\n";
   assert(0 && "couldnt find value");
 }
@@ -144,8 +149,11 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
     subType = inite.getType();
   }
-  auto op = createAllocOp(subType, decl->getName().str(), memtype,
-                          /*isArray*/ isa<clang::ArrayType>(decl->getType()));
+  bool isArray = isa<clang::ArrayType>(decl->getType());
+  if (isa<llvm::StructType>(getLLVMType(decl->getType()))) {
+    isArray = true;
+  }
+  auto op = createAllocOp(subType, decl->getName().str(), memtype, isArray);
   mlir::Value zeroIndex = getConstantIndex(0);
   if (inite) {
     builder.create<mlir::StoreOp>(loc, inite, op, zeroIndex);
@@ -639,6 +647,70 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getName() == "gettimeofday") {
+        // just have it return 1
+        auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+                auto tocall = EmitCallee(expr->getCallee());
+        auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
+
+        std::vector<mlir::Value> args;
+        llvm::errs() << "visiting ";
+        expr->dump();
+        llvm::errs() << "\n";
+        size_t i = 0;
+        mlir::Value tostore = nullptr;
+        mlir::Value alloc;
+        for (auto a : expr->arguments()) {
+
+          if (i == 0) {
+            tostore = (mlir::Value)Visit(a);
+            i++;
+            LLVM::LLVMType indexType = LLVM::LLVMType::getIntNTy(module.getContext(), 64);
+            auto indexTy = indexType.cast<LLVM::LLVMType>();
+            auto one = builder.create<LLVM::ConstantOp>(
+      loc, indexType, builder.getIntegerAttr(builder.getIndexType(), 1));
+            alloc = builder.create<mlir::LLVM::AllocaOp>(loc, Glob.typeTranslator.translateType((getLLVMType(a->getType()))), one, 0);
+            alloc.dump();
+            args.push_back(alloc);
+            continue;
+          }
+          auto llvmType =
+              Glob.typeTranslator.translateType(getLLVMType(a->getType()));
+
+          if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
+            if (IC1->getCastKind() == clang::CastKind::CK_NullToPointer) {              
+              args.push_back(builder.create<mlir::LLVM::NullOp>(loc, llvmType));
+              i++;
+              continue;
+            }
+          }
+          llvm::errs() << "a: "; a->dump();
+          mlir::Value val = (mlir::Value)Visit(a);
+          val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
+          args.push_back(val);
+          i++;
+        }
+        assert(alloc);
+
+        auto co = builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args).getResult(0);
+        co = builder.create<mlir::LLVM::DialectCastOp>(loc, getMLIRType(expr->getType()), co);
+        auto ret = ValueWithOffsets(co, {});
+
+        auto loaded = builder.create<mlir::LLVM::LoadOp>(loc, alloc);
+
+        auto st = loaded.getType().cast<LLVM::LLVMType>();
+        for(size_t i=0; i<st.getStructNumElements(); i++) {
+          mlir::Value ev = builder.create<mlir::LLVM::ExtractValueOp>(loc, st.getStructElementType(i), loaded, builder.getI64ArrayAttr(i));
+          ev = builder.create<mlir::LLVM::DialectCastOp>(loc, Glob.getMLIRType(Glob.reverseTypeTranslator.translateType(ev.getType().cast<LLVM::LLVMType>())), ev);
+          builder.create<mlir::StoreOp>(loc, ev, tostore, std::vector<mlir::Value>({getConstantIndex(i)}));
+        }
+
+        return ret;
+      }
+    }
+
   auto tocall = EmitDirectCallee(EmitCallee(expr->getCallee()));
   std::vector<mlir::Value> args;
   auto fnType = tocall.getType();
@@ -706,6 +778,9 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   auto ty = getMLIRType(U->getType());
 
   switch (U->getOpcode()) {
+  case clang::UnaryOperator::Opcode::UO_Extension:{
+    return sub;
+  }
   case clang::UnaryOperator::Opcode::UO_LNot: {
     mlir::Value val = (mlir::Value)sub;
     auto ty = val.getType().cast<mlir::IntegerType>();
@@ -954,15 +1029,16 @@ bool MLIRScanner::isValidAffineStore(mlir::Location loc,
 
 ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto lhs = Visit(BO->getLHS());
-  if (!lhs.val) {
+  if (!lhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
+    BO->dump();
     BO->getLHS()->dump();
+    assert(lhs.val);
   }
-  assert(lhs.val);
   auto rhs = Visit(BO->getRHS());
-  if (!rhs.val) {
+  if (!rhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
     BO->getRHS()->dump();
+    assert(rhs.val);
   }
-  assert(rhs.val);
   // TODO note assumptions made here about unsigned / unordered
   bool signedType = true;
   if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
@@ -1311,12 +1387,38 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     }
   }
   auto base = Visit(ME->getBase());
-  assert(0 && "memberexpr unhandled");
-  return nullptr;
+  ME->getBase()->getType().getDesugaredType(Glob.astContext)->dump();
+  auto rd = cast<RecordType>(ME->getBase()->getType().getDesugaredType(Glob.astContext))->getDecl();
+  auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
+  const FieldDecl* field = nullptr;
+  for(auto f : rd->fields()) {
+    if (f->getName() == memberName) {
+      field = f;
+    }
+  }
+  assert(field);
+  return ValueWithOffsets((mlir::Value)base, {getConstantIndex(layout.getLLVMFieldNo(field))});
 }
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   switch (E->getCastKind()) {
+  /*
+  case clang::CastKind::CK_NullToPointer: {
+
+    auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
+                                    ut.getAffineMaps(), ut.getMemorySpace());
+    auto offs = scalar.offsets;
+    for (auto &off : offs) {
+      if (auto op = off.getDefiningOp<ConstantIndexOp>()) {
+        assert(op.getValue() == 0);
+      } else {
+        assert(0 && "cast of nonconstant op is not handled");
+      }
+    }
+
+    return ValueWithOffsets(Visit(E->getSubExpr()), {getConstantIndex(0)});
+  }
+  */
   case clang::CastKind::CK_BitCast: {
 
     if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
@@ -1542,6 +1644,10 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_NoOp: {
     return Visit(E->getSubExpr());
   }
+  case clang::CastKind::CK_ToVoid:{
+    Visit(E->getSubExpr());
+    return nullptr;
+  }
   default:
     E->dump();
     assert(0 && "unhandled cast");
@@ -1682,6 +1788,34 @@ mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const VarDecl *FD) {
              mlir::Attribute());
 }
 
+mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
+  if (globals.find(FD) != globals.end()) {
+    return globals[FD];
+  }
+
+  auto rt = getMLIRType(FD->getType());
+  unsigned memspace = 0;
+  bool isArray = isa<clang::ArrayType>(FD->getType());
+
+  mlir::MemRefType mr;
+  if (!isArray) {
+    mr = mlir::MemRefType::get(1, rt, {}, memspace);
+  } else {
+    auto mt = rt.cast<mlir::MemRefType>();
+    mr = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
+                               mt.getAffineMaps(), memspace);
+  }
+
+
+  mlir::OpBuilder builder(module.getContext());
+  builder.setInsertionPointToStart(module.getBody());
+  // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
+  // TODO handle proper global linkage
+  auto lnk = LLVM::Linkage::External;
+  return globals[FD] = builder.create<mlir::GlobalMemrefOp>(
+             module.getLoc(), FD->getName(), mlir::StringAttr(), mlir::TypeAttr::get(mr), mlir::Attribute(), false);
+}
+
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
     mlir::Location loc, mlir::OpBuilder &builder, StringRef value) {
   using namespace mlir;
@@ -1709,10 +1843,10 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
-  if (functions.find(FD) != functions.end()) {
-    return functions[FD];
-  }
   std::string name = CGM.getMangledName(FD).str();
+  if (functions.find(name) != functions.end()) {
+    return functions[name];
+  }
 
   std::vector<mlir::Type> types;
   std::vector<std::string> names;
@@ -1732,10 +1866,12 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   auto funcType = builder.getFunctionType(types, rettypes);
   mlir::FuncOp function = mlir::FuncOp(
       mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
-  functions[FD] = function;
+  functions[name] = function;
   module.push_back(function);
   if (FD->isDefined())
     functionsToEmit.push_back(FD);
+  else
+    emitIfFound.insert(FD->getName().str());
   return function;
 }
 
@@ -1755,6 +1891,15 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
 
   if (error)
     return true;
+
+  for (it = dg.begin(); it != dg.end(); ++it) {
+    VarDecl *fd = dyn_cast<clang::VarDecl>(*it);
+    if (!fd)
+      continue;
+    //std::string name = CGM.getMangledName(fd).str();
+    globalVariables[fd->getName().str()] = fd; 
+  }
+
   for (it = dg.begin(); it != dg.end(); ++it) {
     FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it);
     if (!fd)
@@ -1764,8 +1909,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (fd->getIdentifier() == nullptr)
       continue;
     // llvm::errs() << *fd << "  " << fd->isGlobal() << "\n";
-
-    if (fd->getName() == fn) {
+    if (emitIfFound.count(fd->getName().str())) {
       functionsToEmit.push_back(fd);
     }
   }
@@ -1858,13 +2002,17 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
 #include "clang/Frontend/FrontendAction.h"
 class MLIRAction : public clang::ASTFrontendAction {
 public:
-  std::string fn;
+  std::set<std::string> emitIfFound;
   mlir::ModuleOp &module;
-  MLIRAction(std::string fn, mlir::ModuleOp &module) : fn(fn), module(module) {}
+  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
+  std::map<std::string, mlir::FuncOp> functions;
+  MLIRAction(std::string fn, mlir::ModuleOp &module) : module(module) {
+    emitIfFound.insert(fn);
+  }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
     return std::unique_ptr<clang::ASTConsumer>(
-        new MLIRASTConsumer(fn, CI.getPreprocessor(), CI.getASTContext(),
+        new MLIRASTConsumer(emitIfFound, llvmStringGlobals, functions, CI.getPreprocessor(), CI.getASTContext(),
                             module, CI.getSourceManager()));
   }
 };
@@ -1921,47 +2069,11 @@ size_t MLIRScanner::getTypeSize(clang::QualType t) {
   return Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) / 8;
 }
 
-// -cc1 -triple nvptx64-nvidia-cuda -aux-triple x86_64-unknown-linux-gnu -S
-// -disable-free -main-file-name saxpy.cu -mrelocation-model static
-// -mframe-pointer=all -fno-rounding-math -fno-verbose-asm -no-integrated-as
-// -aux-target-cpu x86-64 -fcuda-is-device -mlink-builtin-bitcode
-// /usr/local/cuda/nvvm/libdevice/libdevice.10.bc -target-feature +ptx70
-// -target-sdk-version=11.0 -target-cpu sm_35 -fno-split-dwarf-inlining
-// -debugger-tuning=gdb -v -resource-dir lib/clang/12.0.0 -internal-isystem
-// lib/clang/12.0.0/include/cuda_wrappers -internal-isystem
-// /usr/local/cuda/include -include __clang_cuda_runtime_wrapper.h
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0/backward
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/x86_64-linux-gnu/c++/7.5.0
-// -internal-isystem
-// /usr/lib/gcc/x86_64-linux-gnu/7.5.0/../../../../include/c++/7.5.0/backward
-// -internal-isystem /usr/local/include -internal-isystem
-// lib/clang/12.0.0/include -internal-externc-isystem
-// /usr/include/x86_64-linux-gnu -internal-externc-isystem /include
-// -internal-externc-isystem /usr/include -internal-isystem /usr/local/include
-// -internal-isystem lib/clang/12.0.0/include -internal-externc-isystem
-// /usr/include/x86_64-linux-gnu -internal-externc-isystem /include
-// -internal-externc-isystem /usr/include -fdeprecated-macro
-// -fno-dwarf-directory-asm -fno-autolink -fdebug-compilation-dir
-// /mnt/Data/git/MLIR-GPU/build -ferror-limit 19 -fgnuc-version=4.2.1
-// -fcxx-exceptions -fexceptions -o /tmp/saxpy-a8baec.s -x cuda bin/saxpy.cu
-
 #include "clang/Frontend/TextDiagnosticBuffer.h"
-static bool parseMLIR(const char *filename, std::string fn,
+static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
                       std::vector<std::string> includeDirs,
+                      std::vector<std::string> defines,
                       mlir::ModuleOp &module) {
-  std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
 
@@ -1975,16 +2087,22 @@ static bool parseMLIR(const char *filename, std::string fn,
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
   TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
+
   // if (invocation)
   //    Clang->setInvocation(std::shared_ptr<CompilerInvocation>(invocation));
   bool Success;
-  {
+  //{
     const char *binary = "clang";
     const unique_ptr<Driver> driver(
         new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
     std::vector<const char *> Argv;
     Argv.push_back(binary);
-    Argv.push_back(filename);
+    for(auto a : filenames) {
+      char *chars = (char *)malloc(a.length() + 1);
+      memcpy(chars, a.data(), a.length());
+      chars[a.length()] = 0;
+      Argv.push_back(chars);
+    }
     if (CudaLower)
       Argv.push_back("--cuda-gpu-arch=sm_35");
     for (auto a : includeDirs) {
@@ -1994,6 +2112,16 @@ static bool parseMLIR(const char *filename, std::string fn,
       chars[a.length()] = 0;
       Argv.push_back(chars);
     }
+    for (auto a : defines) {
+      char *chars = (char *)malloc(a.length() + 3);
+      chars[0] = '-';
+      chars[1] = 'D';
+      memcpy(chars+2, a.data(), a.length());
+      chars[2+a.length()] = 0;
+      Argv.push_back(chars);
+    }
+
+    Argv.push_back("-emit-ast");
 
     const unique_ptr<Compilation> compilation(
         driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
@@ -2001,7 +2129,13 @@ static bool parseMLIR(const char *filename, std::string fn,
     if (Jobs.size() < 1)
       return false;
 
-    Command *cmd = cast<Command>(&*Jobs.begin());
+  MLIRAction Act(fn, module);
+
+  for(auto& job : Jobs) {
+      std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
+
+
+    Command *cmd = cast<Command>(&job);
     if (strcmp(cmd->getCreator().getName(), "clang"))
       return false;
 
@@ -2009,7 +2143,7 @@ static bool parseMLIR(const char *filename, std::string fn,
 
     Success = CompilerInvocation::CreateFromArgs(Clang->getInvocation(), *args,
                                                  Diags);
-  }
+  //}
   Clang->getInvocation().getFrontendOpts().DisableFree = false;
 
   // Infer the builtin include path if unspecified.
@@ -2055,14 +2189,11 @@ static bool parseMLIR(const char *filename, std::string fn,
   Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
                                          Clang->getTargetOpts());
 
-  MLIRAction Act(fn, module);
-
   for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
     // Reset the ID tables if we are reusing the SourceManager and parsing
     // regular files.
     if (Clang->hasSourceManager() && !Act.isModelParsingAction())
       Clang->getSourceManager().clearIDTables();
-
     if (Act.BeginSourceFile(*Clang, FIF)) {
 
       llvm::Error err = Act.Execute();
@@ -2075,6 +2206,7 @@ static bool parseMLIR(const char *filename, std::string fn,
       Act.EndSourceFile();
       // llvm::errs() << "ended source file\n";
     }
+  }
   }
   return true;
 }

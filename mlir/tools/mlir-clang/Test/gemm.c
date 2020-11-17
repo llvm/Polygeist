@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s main | FileCheck %s
+// RUN: mlir-clang %s | FileCheck %s
 
 int main(void) {
 

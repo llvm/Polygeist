@@ -12,13 +12,12 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
-static cl::opt<std::string> inputFileName(cl::Positional,
-                                          cl::desc("<Specify input file>"),
-                                          cl::Required, cl::cat(toolOptions));
+static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore, cl::desc("<Specify input file>"),
+                                          cl::cat(toolOptions));
 
-static cl::opt<std::string> cfunction(cl::Positional,
+static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
-                                      cl::Required, cl::cat(toolOptions));
+                                      cl::init("main"), cl::cat(toolOptions));
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -26,6 +25,9 @@ static cl::opt<bool>
                  llvm::cl::init(false), cl::cat(toolOptions));
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
+                                         cl::cat(toolOptions));
+
+static cl::list<std::string> defines("D", cl::desc("defines"),
                                          cl::cat(toolOptions));
 
 #include "Lib/clang-mlir.cc"
@@ -38,11 +40,13 @@ int main(int argc, char **argv) {
   InitLLVM y(argc, argv);
 
   cl::ParseCommandLineOptions(argc, argv);
-
-  std::ifstream inputFile(inputFileName);
+  assert(inputFileName.size());
+  for(auto inp : inputFileName) {
+  std::ifstream inputFile(inp);
   if (!inputFile.good()) {
-    outs() << "Not able to open file: " << inputFileName << "\n";
+    outs() << "Not able to open file: " << inp << "\n";
     return -1;
+  }
   }
 
   // registerDialect<AffineDialect>();
@@ -67,7 +71,7 @@ int main(int argc, char **argv) {
   auto module =
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
-  parseMLIR(inputFileName.c_str(), cfunction, includeDirs, module);
+  parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
   mlir::PassManager pm(&context);
 
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();

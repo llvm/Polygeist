@@ -1,5 +1,5 @@
-// RUN: mlir-clang %s main %stdinclude | FileCheck %s
-// RUN: mlir-clang %s main %stdinclude | sed 's/@main(%arg0: i32, %arg1: memref<?xmemref<?xi8>>)/@main()/g' | sed 's/cmpi "sgt", %arg0, %c42_i32 : i32/cmpi "eq", %c42_i32, %c42_i32 : i32/g' | mlir-opt -convert-scf-to-std -convert-std-to-llvm | mlir-cpu-runner -O3 -e=main -entry-point-result=i32
+// RUN: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE | FileCheck %s
+// RUN: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE | sed 's/@main(%arg0: i32, %arg1: memref<?xmemref<?xi8>>)/@main()/g' | sed 's/cmpi "sgt", %arg0, %c42_i32 : i32/cmpi "eq", %c42_i32, %c42_i32 : i32/g' | mlir-opt -convert-scf-to-std -convert-std-to-llvm | mlir-cpu-runner -O3 -e=main -entry-point-result=i32
 /**
  * This version is stamped on May 10, 2016
  *
@@ -122,6 +122,12 @@ int main(int argc, char** argv)
 }
 
 // CHECK: module {
+// CHECK-NEXT:   llvm.mlir.global internal constant @str8("%0.6f\0A\00")
+// CHECK-NEXT:   global_memref @polybench_t_end : memref<1xf64>
+// CHECK-NEXT:   llvm.mlir.global internal constant @str7("Error return from gettimeofday: %d\00")
+// CHECK-NEXT:   llvm.func @printf(!llvm.ptr<i8>, ...) -> !llvm.i32
+// CHECK-NEXT:   llvm.func @gettimeofday(!llvm.ptr<struct<"struct.timeval", (i64, i64)>>, !llvm.ptr<struct<"struct.timezone", (i32, i32)>>) -> !llvm.i32
+// CHECK-NEXT:   global_memref @polybench_t_start : memref<1xf64>
 // CHECK-NEXT:   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
 // CHECK-NEXT:   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
 // CHECK-NEXT:   llvm.mlir.global internal constant @str4("\0A\00")
@@ -146,7 +152,10 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %7 = memref_cast %2 : memref<2000xf64> to memref<?xf64>
 // CHECK-NEXT:     %8 = memref_cast %7 : memref<?xf64> to memref<2000xf64>
 // CHECK-NEXT:     call @init_array(%c2000_i32, %4, %6, %8) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
+// CHECK-NEXT:     call @polybench_timer_start() : () -> ()
 // CHECK-NEXT:     call @kernel_trisolv(%c2000_i32, %4, %6, %8) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
+// CHECK-NEXT:     call @polybench_timer_stop() : () -> ()
+// CHECK-NEXT:     call @polybench_timer_print() : () -> ()
 // CHECK-NEXT:     %9 = cmpi "sgt", %arg0, %c42_i32 : i32
 // CHECK-NEXT:     %10 = trunci %c0_i32 : i32 to i1
 // CHECK-NEXT:     %11 = xor %10, %true : i1
@@ -194,6 +203,14 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %17 = addi %0, %c1_i32 : i32
 // CHECK-NEXT:     br ^bb1(%17 : i32)
 // CHECK-NEXT:   }
+// CHECK-NEXT:   func @polybench_timer_start() {
+// CHECK-NEXT:     %c0 = constant 0 : index
+// CHECK-NEXT:     call @polybench_prepare_instruments() : () -> ()
+// CHECK-NEXT:     %0 = get_global_memref @polybench_t_start : memref<1xf64>
+// CHECK-NEXT:     %1 = call @rtclock() : () -> f64
+// CHECK-NEXT:     store %1, %0[%c0] : memref<1xf64>
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
 // CHECK-NEXT:   func @kernel_trisolv(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
@@ -228,6 +245,27 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     store %15, %arg2[%2] : memref<2000xf64>
 // CHECK-NEXT:     %16 = addi %0, %c1_i32 : i32
 // CHECK-NEXT:     br ^bb1(%16 : i32)
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func @polybench_timer_stop() {
+// CHECK-NEXT:     %c0 = constant 0 : index
+// CHECK-NEXT:     %0 = get_global_memref @polybench_t_end : memref<1xf64>
+// CHECK-NEXT:     %1 = call @rtclock() : () -> f64
+// CHECK-NEXT:     store %1, %0[%c0] : memref<1xf64>
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func @polybench_timer_print() {
+// CHECK-NEXT:     %c0 = constant 0 : index
+// CHECK-NEXT:     %0 = llvm.mlir.addressof @str8 : !llvm.ptr<array<7 x i8>>
+// CHECK-NEXT:     %1 = llvm.mlir.constant(0 : index) : !llvm.i64
+// CHECK-NEXT:     %2 = llvm.getelementptr %0[%1, %1] : (!llvm.ptr<array<7 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %3 = get_global_memref @polybench_t_end : memref<1xf64>
+// CHECK-NEXT:     %4 = load %3[%c0] : memref<1xf64>
+// CHECK-NEXT:     %5 = get_global_memref @polybench_t_start : memref<1xf64>
+// CHECK-NEXT:     %6 = load %5[%c0] : memref<1xf64>
+// CHECK-NEXT:     %7 = subf %4, %6 : f64
+// CHECK-NEXT:     %8 = llvm.mlir.cast %7 : f64 to !llvm.double
+// CHECK-NEXT:     %9 = llvm.call @printf(%2, %8) : (!llvm.ptr<i8>, !llvm.double) -> !llvm.i32
+// CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @print_array(%arg0: i32, %arg1: memref<2000xf64>) {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
@@ -286,4 +324,34 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @free(memref<?xi8>)
+// CHECK-NEXT:   func @polybench_prepare_instruments() {
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+// CHECK-NEXT:   func @rtclock() -> f64 {
+// CHECK-NEXT:     %c0_i32 = constant 0 : i32
+// CHECK-NEXT:     %cst = constant 9.9999999999999995E-7 : f64
+// CHECK-NEXT:     %0 = llvm.mlir.constant(1 : index) : !llvm.i64
+// CHECK-NEXT:     %1 = llvm.alloca %0 x !llvm.struct<"struct.timeval", (i64, i64)> : (!llvm.i64) -> !llvm.ptr<struct<"struct.timeval", (i64, i64)>>
+// CHECK-NEXT:     %2 = llvm.mlir.null : !llvm.ptr<struct<"struct.timezone", (i32, i32)>>
+// CHECK-NEXT:     %3 = llvm.call @gettimeofday(%1, %2) : (!llvm.ptr<struct<"struct.timeval", (i64, i64)>>, !llvm.ptr<struct<"struct.timezone", (i32, i32)>>) -> !llvm.i32
+// CHECK-NEXT:     %4 = llvm.mlir.cast %3 : !llvm.i32 to i32
+// CHECK-NEXT:     %5 = llvm.load %1 : !llvm.ptr<struct<"struct.timeval", (i64, i64)>>
+// CHECK-NEXT:     %6 = llvm.extractvalue %5[0] : !llvm.struct<"struct.timeval", (i64, i64)>
+// CHECK-NEXT:     %7 = llvm.mlir.cast %6 : !llvm.i64 to i64
+// CHECK-NEXT:     %8 = llvm.extractvalue %5[1] : !llvm.struct<"struct.timeval", (i64, i64)>
+// CHECK-NEXT:     %9 = llvm.mlir.cast %8 : !llvm.i64 to i64
+// CHECK-NEXT:     %10 = cmpi "ne", %4, %c0_i32 : i32
+// CHECK-NEXT:     scf.if %10 {
+// CHECK-NEXT:       %15 = llvm.mlir.addressof @str7 : !llvm.ptr<array<35 x i8>>
+// CHECK-NEXT:       %16 = llvm.mlir.constant(0 : index) : !llvm.i64
+// CHECK-NEXT:       %17 = llvm.getelementptr %15[%16, %16] : (!llvm.ptr<array<35 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:       %18 = llvm.mlir.cast %4 : i32 to !llvm.i32
+// CHECK-NEXT:       %19 = llvm.call @printf(%17, %18) : (!llvm.ptr<i8>, !llvm.i32) -> !llvm.i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     %11 = sitofp %7 : i64 to f64
+// CHECK-NEXT:     %12 = sitofp %9 : i64 to f64
+// CHECK-NEXT:     %13 = mulf %12, %cst : f64
+// CHECK-NEXT:     %14 = addf %11, %13 : f64
+// CHECK-NEXT:     return %14 : f64
+// CHECK-NEXT:   }
 // CHECK-NEXT: }
