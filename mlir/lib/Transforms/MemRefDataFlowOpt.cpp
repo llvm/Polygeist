@@ -141,6 +141,9 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   }
 
   if (loadOps.size() == 0) return changed;
+  /*
+  // this is a valid optimization, however it should occur naturally
+  // from the logic to follow anyways
   if (allStoreOps.size() == 1) {
     auto store = *allStoreOps.begin();
     for(auto loadOp : loadOps) {
@@ -151,6 +154,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
     }
     return changed;
   }
+  */
 
   // List of operations which may store that are not storeops
   SmallPtrSet<Operation*, 4> StoringOperations;
@@ -172,6 +176,9 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   // Last value stored in an individual block and the operation which stored it
   std::map<mlir::Block*, mlir::Value> lastStoreInBlock;
 
+  // Last value stored in an individual block and the operation which stored it
+  std::map<mlir::Block*, mlir::Value> valueAtStartOfBlock;
+
   // Start by setting lastStoreInBlock to the last store directly in that block
   // Note that this may miss a store within a region of an operation in that block
   for(auto & pair : storeOps) {
@@ -184,6 +191,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         last = &a;
         lastVal = nullptr;
         seenSubStore = true;
+        llvm::errs() << "erased store due to: " << a << "\n";
       } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
@@ -193,6 +201,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
             loadOpsToErase.push_back(loadOp);
             loadOps.erase(loadOp);
           } else if (seenSubStore) {
+            llvm::errs() << "no lastval found for: " << loadOp << "\n";
             loadOps.erase(loadOp);
           }
         }
@@ -201,6 +210,22 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
           last = &a;
           lastVal = storeOp.getValueToStore();
         }
+      } else {
+        // since not storing operation the value at the start and end of block is lastVal
+        a.walk([&](LoadOp loadOp) {
+          if (loadOps.count(loadOp)) {
+            if (lastVal) {
+              changed = true;
+              loadOp.replaceAllUsesWith(lastVal);
+              // Record this to erase later.
+              loadOpsToErase.push_back(loadOp);
+              loadOps.erase(loadOp);
+            } else if (seenSubStore) {
+              llvm::errs() << "ano lastval found for: " << loadOp << "\n";
+              loadOps.erase(loadOp);
+            }
+          }
+        });
       }
     }
     lastStoreInBlock[&block] = lastVal;
@@ -222,8 +247,11 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   while(todo.size()) {
     auto block = todo.front();
     todo.pop_front();
+    if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
+      continue;
     if (unreachableBlocks.count(block))
       continue;
+    unreachableBlocks.insert(block);
     for(auto succ : block->getSuccessors()) {
       todo.push_back(succ);
     }
@@ -289,11 +317,18 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   }
   }
 
-  // Last value stored in an individual block and the operation which stored it
-  std::map<mlir::Block*, mlir::BlockArgument> valueAtStartOfBlock;
   for(auto block : reachableBlocks) {
+    if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
+      continue;
     auto arg = block->addArgument(subType);
     valueAtStartOfBlock[block] = arg;
+    for(Operation& op : *block) {
+      if (!StoringOperations.count(&op)) {
+        op.walk([&](Block* blk) {
+          valueAtStartOfBlock[blk] = arg;
+        });
+      }
+    }
     if (lastStoreInBlock.find(block) == lastStoreInBlock.end()) {
       lastStoreInBlock[block] = arg;
     }
@@ -351,7 +386,9 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
     if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end())
       continue;
 
-    auto blockArg = valueAtStartOfBlock[block];
+    auto maybeblockArg = valueAtStartOfBlock[block];
+    auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
+    if (!blockArg) continue;
     assert(blockArg.getOwner() == block);
 
     mlir::Value val = nullptr;
