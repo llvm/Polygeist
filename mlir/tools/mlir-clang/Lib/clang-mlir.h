@@ -22,6 +22,7 @@
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 
 #include "../../../../clang/lib/CodeGen/CodeGenModule.h"
+#include "../../../../clang/lib/CodeGen/CGRecordLayout.h"
 #include "clang/AST/Mangle.h"
 
 using namespace std;
@@ -181,7 +182,7 @@ struct PragmaEndScopHandler : public PragmaHandler {
 };
 
 struct MLIRASTConsumer : public ASTConsumer {
-  std::string fn;
+  std::set<std::string> &emitIfFound;
   Preprocessor &PP;
   ASTContext &astContext;
   mlir::ModuleOp &module;
@@ -196,22 +197,24 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   /// The stateful type translator (contains named structs).
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
+  LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
-  MLIRASTConsumer(std::string fn, Preprocessor &PP, ASTContext &astContext,
+  MLIRASTConsumer(std::set<std::string>& emitIfFound, std::map<std::string, mlir::LLVM::GlobalOp>& llvmStringGlobals, 
+    std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP, ASTContext &astContext,
                   mlir::ModuleOp &module, clang::SourceManager &SM)
-      : fn(fn), PP(PP), astContext(astContext), module(module), SM(SM),
+      : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals), functions(functions), PP(PP), astContext(astContext), module(module), SM(SM),
         MC(*astContext.createMangleContext()), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module.getContext()) {
+        error(false), typeTranslator(*module.getContext()), reverseTypeTranslator(lcontext) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
 
   ~MLIRASTConsumer() {}
 
-  std::map<const FunctionDecl *, mlir::FuncOp> functions;
+  std::map<std::string, mlir::FuncOp> &functions;
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
   std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
@@ -222,10 +225,14 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   /// Return a value representing an access into a global string with the given
   /// name, creating the string if necessary.
-  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
+  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
                                           StringRef value);
+
+  std::map<std::string, clang::VarDecl*> globalVariables;
+  std::map<const VarDecl *, mlir::GlobalMemrefOp> globals;
+  mlir::GlobalMemrefOp GetOrCreateGlobal(const VarDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
   std::set<const FunctionDecl *> done;
@@ -308,14 +315,14 @@ public:
     scopes.emplace_back();
 
     Stmt *stmt = fd->getBody();
-    // stmt->dump();
+    //stmt->dump();
     Visit(stmt);
 
     auto endBlock = builder.getInsertionBlock();
     if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
       builder.create<mlir::ReturnOp>(loc);
     }
-    // function.dump();
+    //function.dump();
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
