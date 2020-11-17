@@ -162,7 +162,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:   llvm.mlir.global internal constant @str0("==BEGIN DUMP_ARRAYS==\0A\00")
 // CHECK-NEXT:   llvm.mlir.global external @stderr() : !llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>
 // CHECK-NEXT:   llvm.func @fprintf(!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, ...) -> !llvm.i32
-// CHECK-NEXT:   func @main(%arg0: i32, %arg1: memref<?xmemref<?xi8>>) -> i32 {
+// CHECK-NEXT:   func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
 // CHECK-NEXT:     %c1000_i32 = constant 1000 : i32
 // CHECK-NEXT:     %c1200_i32 = constant 1200 : i32
 // CHECK-NEXT:     %c42_i32 = constant 42 : i32
@@ -171,20 +171,14 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %0 = alloc() : memref<1000x1200xf64>
 // CHECK-NEXT:     %1 = alloc() : memref<1200x1200xf64>
 // CHECK-NEXT:     %2 = alloc() : memref<1000x1200xf64>
-// CHECK-NEXT:     %3 = memref_cast %0 : memref<1000x1200xf64> to memref<?x1200xf64>
-// CHECK-NEXT:     %4 = memref_cast %3 : memref<?x1200xf64> to memref<1000x1200xf64>
-// CHECK-NEXT:     %5 = memref_cast %1 : memref<1200x1200xf64> to memref<?x1200xf64>
-// CHECK-NEXT:     %6 = memref_cast %5 : memref<?x1200xf64> to memref<1200x1200xf64>
-// CHECK-NEXT:     %7 = memref_cast %2 : memref<1000x1200xf64> to memref<?x1200xf64>
-// CHECK-NEXT:     %8 = memref_cast %7 : memref<?x1200xf64> to memref<1000x1200xf64>
-// CHECK-NEXT:     call @init_array(%c1000_i32, %c1200_i32, %4, %6, %8) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
-// CHECK-NEXT:     call @kernel_gramschmidt(%c1000_i32, %c1200_i32, %4, %6, %8) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
-// CHECK-NEXT:     %9 = cmpi "sgt", %arg0, %c42_i32 : i32
-// CHECK-NEXT:     %10 = trunci %c0_i32 : i32 to i1
-// CHECK-NEXT:     %11 = xor %10, %true : i1
-// CHECK-NEXT:     %12 = and %9, %11 : i1
-// CHECK-NEXT:     scf.if %12 {
-// CHECK-NEXT:       call @print_array(%c1000_i32, %c1200_i32, %4, %6, %8) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
+// CHECK-NEXT:     call @init_array(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
+// CHECK-NEXT:     call @kernel_gramschmidt(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
+// CHECK-NEXT:     %3 = cmpi "sgt", %arg0, %c42_i32 : i32
+// CHECK-NEXT:     %4 = trunci %c0_i32 : i32 to i1
+// CHECK-NEXT:     %5 = xor %4, %true : i1
+// CHECK-NEXT:     %6 = and %3, %5 : i1
+// CHECK-NEXT:     scf.if %6 {
+// CHECK-NEXT:       call @print_array(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
@@ -424,5 +418,5 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %76 = addi %46, %c1_i32 : i32
 // CHECK-NEXT:     br ^bb6(%76 : i32)
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func @free(memref<?xi8>)
+// CHECK-NEXT:   func private @free(memref<?xi8>)
 // CHECK-NEXT: }
