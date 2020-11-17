@@ -1,6 +1,6 @@
-// RUN: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE | FileCheck %s
-// RUN: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -emit-llvm | opt -O3 -S | lli -
-// TODO: mlir-clang %s /mnt/pci4/wmdata/MLIR-GPU/mlir/tools/mlir-clang/Test/polybench/utilities/polybench.c %stdinclude -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE | sed 's/@main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>)/@main()/g' | sed 's/cmpi "sgt", %arg0, %c42_i32 : i32/cmpi "eq", %c42_i32, %c42_i32 : i32/g' | mlir-opt -convert-scf-to-std -convert-std-to-llvm | mlir-cpu-runner -O3 -e=main -entry-point-result=i32
+// RUN: mlir-clang %s %polyexec %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | opt -O3 -S | lli - | FileCheck %s --check-prefix EXEC
+
 /**
  * This version is stamped on May 10, 2016
  *
@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %[[cmpi:.+]] = cmpi "sgt", %arg0, %c42_i32 : i32
 // CHECK-NEXT:     %[[if:.+]] = scf.if %[[cmpi]] -> (i1) {
 // CHECK-NEXT:       %5 = llvm.load %arg1 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:       %6 = llvm.mlir.addressof @str0 : !llvm.ptr<array<1 x i8>>
+// CHECK-NEXT:       %6 = llvm.mlir.addressof @[[emptyStr]] : !llvm.ptr<array<1 x i8>>
 // CHECK-NEXT:       %7 = llvm.mlir.constant(0 : index) : !llvm.i64
 // CHECK-NEXT:       %8 = llvm.getelementptr %6[%7, %7] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
 // CHECK-NEXT:       %9 = llvm.call @strcmp(%5, %8) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
@@ -364,3 +364,5 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     return %14 : f64
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
+
+// EXEC: {{[0-9]\.[0-9]+}}
