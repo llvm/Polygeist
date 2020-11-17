@@ -4,6 +4,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
+#include "mlir/Target/LLVMIR.h"
 
 using namespace llvm;
 
@@ -11,6 +12,9 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
+
+static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
+                               cl::desc("Emit llvm"));
 
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore, cl::desc("<Specify input file>"),
                                           cl::cat(toolOptions));
@@ -33,6 +37,8 @@ static cl::list<std::string> defines("D", cl::desc("defines"),
 #include "Lib/clang-mlir.cc"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 int main(int argc, char **argv) {
 
   using namespace mlir;
@@ -82,9 +88,24 @@ int main(int argc, char **argv) {
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
+  if (EmitLLVM) {
+    pm.addPass(mlir::createLowerToCFGPass());
+    pm.addPass(mlir::createLowerToLLVMPass());
+  }
+
   if (mlir::failed(pm.run(module)))
     return 4;
 
-  module.print(outs());
+  if (EmitLLVM) {
+    llvm::LLVMContext llvmContext;
+    auto llvmModule = mlir::translateModuleToLLVMIR(module, llvmContext);
+    if (!llvmModule) {
+      llvm::errs() << "Failed to emit LLVM IR\n";
+      return -1;
+    }
+    llvm::outs() << *llvmModule << "\n";
+  } else {
+    module.print(outs());
+  }
   return 0;
 }

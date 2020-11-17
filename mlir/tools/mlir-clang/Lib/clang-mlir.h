@@ -289,6 +289,8 @@ public:
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
     // llvm::errs() << *fd << "\n";
     // fd->dump();
+    SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
+
 
     scopes.emplace_back();
     std::vector<std::string> names;
