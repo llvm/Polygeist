@@ -657,12 +657,13 @@ unsigned UnrankedMemRefType::getMemorySpaceAsInt() const {
 LogicalResult
 UnrankedMemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
                            Type elementType, Attribute memorySpace) {
+/*
   if (!BaseMemRefType::isValidElementType(elementType))
     return emitError() << "invalid memref element type";
 
   if (!isSupportedMemorySpace(memorySpace))
     return emitError() << "unsupported memory space Attribute";
-
+*/
   return success();
 }
 
