@@ -217,9 +217,9 @@ Type Parser::parseMemRefType() {
     return nullptr;
 
   // Check that memref is formed from allowed types.
-  if (!elementType.isIntOrIndexOrFloat() &&
-      !elementType.isa<VectorType, ComplexType>())
-    return emitError(typeLoc, "invalid memref element type"), nullptr;
+  //if (!elementType.isIntOrIndexOrFloat() &&
+  //    !elementType.isa<VectorType, ComplexType>())
+  //  return emitError(typeLoc, "invalid memref element type"), nullptr;
 
   // Parse semi-affine-map-composition.
   SmallVector<AffineMap, 2> affineMapComposition;

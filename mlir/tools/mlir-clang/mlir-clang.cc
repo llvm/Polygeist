@@ -79,13 +79,14 @@ int main(int argc, char **argv) {
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
+  module.dump();
   mlir::PassManager pm(&context);
 
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
+  //optPM.addPass(mlir::createCanonicalizerPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
