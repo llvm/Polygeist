@@ -424,9 +424,9 @@ MemRefType MemRefType::getImpl(ArrayRef<int64_t> shape, Type elementType,
                                Optional<Location> location) {
   auto *context = elementType.getContext();
 
-  if (!BaseMemRefType::isValidElementType(elementType))
-    return emitOptionalError(location, "invalid memref element type"),
-           MemRefType();
+  //if (!BaseMemRefType::isValidElementType(elementType))
+  //  return emitOptionalError(location, "invalid memref element type"),
+  //         MemRefType();
 
   for (int64_t s : shape) {
     // Negative sizes are not allowed except for `-1` that means dynamic size.
@@ -492,8 +492,8 @@ UnrankedMemRefType UnrankedMemRefType::getChecked(Type elementType,
 LogicalResult
 UnrankedMemRefType::verifyConstructionInvariants(Location loc, Type elementType,
                                                  unsigned memorySpace) {
-  if (!BaseMemRefType::isValidElementType(elementType))
-    return emitError(loc, "invalid memref element type");
+  //if (!BaseMemRefType::isValidElementType(elementType))
+  //  return emitError(loc, "invalid memref element type");
   return success();
 }
 

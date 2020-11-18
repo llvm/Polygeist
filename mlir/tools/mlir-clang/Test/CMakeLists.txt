@@ -10,8 +10,8 @@ configure_lit_site_cfg(
 add_lit_testsuite(check-mlir-clang "Running the clang-to-mlir regression tests"
   ${CMAKE_CURRENT_BINARY_DIR} 
   DEPENDS ${PET_TO_MLIR_DEPENDS}
-  ARGS -j 1
   )
+  # ARGS -j 1
 set_target_properties(check-mlir-clang PROPERTIES FOLDER "clang-to-mlir tests")
 add_dependencies(check-mlir-clang
   FileCheck mlir-clang
