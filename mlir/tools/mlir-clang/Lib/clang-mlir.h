@@ -25,7 +25,6 @@
 #include "../../../../clang/lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
-using namespace std;
 using namespace clang;
 using namespace mlir;
 
@@ -34,12 +33,99 @@ struct LoopContext {
   mlir::Block *exitB;
 };
 
+struct AffineBound {
+private:
+  enum class Tag { INT, VALUE, VALUE_NULL };
+  Tag type;
+
+  union {
+    mlir::Value boundAsValue;
+    int64_t boundAsInt;
+  };
+
+public:
+  AffineBound() : type(Tag::VALUE_NULL), boundAsValue(nullptr) {}
+  AffineBound(const AffineBound &) = default;
+
+  void setValue(mlir::Value value) {
+    type = Tag::VALUE;
+    boundAsValue = value;
+  }
+  void setInt(int value) {
+    type = Tag::INT;
+    boundAsInt = value;
+  }
+  mlir::Value getBoundAsValue() const {
+    assert(type == Tag::VALUE && "expect boundAsValue to be active");
+    return boundAsValue;
+  }
+  int64_t getBoundAsInt() const {
+    assert(type == Tag::INT && "expect boundAsInt to be active");
+    return boundAsInt;
+  }
+  bool isValue() const { return type == Tag::VALUE; }
+  bool isInt() const { return type == Tag::INT; }
+};
+
 struct AffineLoopDescriptor {
-  int64_t upperBound = std::numeric_limits<int64_t>::max();
-  int64_t lowerBound = std::numeric_limits<int64_t>::min();
-  int64_t step = std::numeric_limits<int64_t>::max();
-  mlir::Type indVarType = nullptr;
-  std::string indVar = "null";
+private:
+  ::AffineBound upperBound;
+  ::AffineBound lowerBound;
+  int64_t step;
+  mlir::Type indVarType;
+  std::string indVar;
+
+public:
+  AffineLoopDescriptor()
+      : upperBound(::AffineBound()), lowerBound(::AffineBound()),
+        step(std::numeric_limits<int64_t>::max()), indVarType(nullptr),
+        indVar("nullptr"){};
+  AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
+
+  void setLowerBound(int value) { lowerBound.setInt(value); }
+  void setLowerBound(mlir::Value value) { lowerBound.setValue(value); }
+
+  void setUpperBound(int value) { upperBound.setInt(value); }
+  void setUpperBound(mlir::Value value) { upperBound.setValue(value); }
+
+  void setStep(int value) { step = value; };
+  void setType(mlir::Type type) { indVarType = type; }
+  void setName(std::string value) { indVar = value; }
+
+  std::string getName() const { return indVar; }
+  mlir::Type getType() const { return indVarType; }
+  int getStep() const { return step; }
+
+  auto getLowerBound() const {
+    struct result {
+      operator mlir::Value() {
+        return affineLoopDescriptor->lowerBound.getBoundAsValue();
+      }
+      operator int64_t() {
+        return affineLoopDescriptor->lowerBound.getBoundAsInt();
+      }
+      const AffineLoopDescriptor *affineLoopDescriptor;
+    };
+    return result{this};
+  }
+
+  auto getUpperBound() const {
+    struct result {
+      operator mlir::Value() {
+        return affineLoopDescriptor->upperBound.getBoundAsValue();
+      }
+      operator int64_t() {
+        return affineLoopDescriptor->upperBound.getBoundAsInt();
+      }
+      const AffineLoopDescriptor *affineLoopDescriptor;
+    };
+    return result{this};
+  }
+
+  bool isUpperBoundValue() const { return upperBound.isValue(); }
+  bool isLowerBoundValue() const { return lowerBound.isValue(); }
+  bool isUpperBoundInt() const { return upperBound.isInt(); }
+  bool isLowerBoundInt() const { return lowerBound.isInt(); }
 };
 
 struct ValueWithOffsets {
@@ -348,16 +434,21 @@ public:
 
   bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantUpperBound(clang::ForStmt *fors, int64_t &upperBound,
-                             std::string indVar);
+  bool getConstantUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantLowerBound(clang::ForStmt *fors, int64_t &lowerBound,
-                             std::string &indvar, mlir::Type &indVarType);
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantStep(clang::ForStmt *fors, int64_t &step);
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
   bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
                           std::vector<mlir::Value> &newIndexes);
+
+  void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
+                       const AffineLoopDescriptor &descr);
+
+  template <typename T>
+  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc, T lb, T ub,
+                           const AffineLoopDescriptor &descr);
 
   bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
 
