@@ -2224,14 +2224,14 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   if (auto ST = dyn_cast<llvm::StructType>(t)) {
     bool notAllSame = false;
     for (size_t i = 1; i < ST->getNumElements(); i++) {
-      if (ST->getTypeAtIndex(i) != ST->getTypeAtIndex((size_t)0ULL)) {
+      if (ST->getTypeAtIndex(i) != ST->getTypeAtIndex(0U)) {
         notAllSame = true;
         break;
       }
     }
     if (!notAllSame) {
-      return mlir::MemRefType::get(
-          ST->getNumElements(), getMLIRType(ST->getTypeAtIndex((size_t)0ULL)));
+      return mlir::MemRefType::get(ST->getNumElements(),
+                                   getMLIRType(ST->getTypeAtIndex(0U)));
     }
   }
   // if (auto pt = dyn_cast<clang::RecordType>(t)) {
