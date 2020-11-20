@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
-  //optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
