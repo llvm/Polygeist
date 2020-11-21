@@ -68,15 +68,7 @@ struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
   // return if changed
-  bool forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx);
-
-  // A list of memref's that are potentially dead / could be eliminated.
-  SmallPtrSet<Value, 4> memrefsToErase;
-  // Load op's whose results were replaced by those forwarded from stores.
-  SmallVector<Operation *, 8> loadOpsToErase;
-
-  DominanceInfo *domInfo = nullptr;
-  PostDominanceInfo *postDomInfo = nullptr;
+  bool forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx, SmallVectorImpl<Operation *>& loadOpsToErase);
 };
 
 } // end anonymous namespace
@@ -108,7 +100,7 @@ bool matchesIndices(mlir::OperandRange ops, const std::vector<ssize_t> &idx) {
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx) {
+bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx, SmallVectorImpl<Operation *>& loadOpsToErase) {
   bool changed = false;
   std::set<mlir::LoadOp> loadOps;
   mlir::Type subType = nullptr;
@@ -191,7 +183,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         last = &a;
         lastVal = nullptr;
         seenSubStore = true;
-        llvm::errs() << "erased store due to: " << a << "\n";
+        //llvm::errs() << "erased store due to: " << a << "\n";
       } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
@@ -201,7 +193,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
             loadOpsToErase.push_back(loadOp);
             loadOps.erase(loadOp);
           } else if (seenSubStore) {
-            llvm::errs() << "no lastval found for: " << loadOp << "\n";
+            //llvm::errs() << "no lastval found for: " << loadOp << "\n";
             loadOps.erase(loadOp);
           }
         }
@@ -265,6 +257,8 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
     if (pair.second != nullptr) {
       if (isa<BranchOp, CondBranchOp>(pair.first->getTerminator())) {
         for(auto succ : pair.first->getSuccessors()) {
+          assert(succ);
+          assert(!succ->empty());
           todo.push_back(succ);
         }
       }
@@ -272,12 +266,16 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
   }
   while(todo.size()) {
     auto block = todo.front();
+    assert(block);
+    assert(!block->empty());
     todo.pop_front();
     if (reachableBlocks.count(block))
       continue;
     reachableBlocks.insert(block);
     for(auto succ : block->getSuccessors()) {
       todo.push_back(succ);
+      assert(succ);
+      assert(!succ->empty());
     }
   }
   }
@@ -417,6 +415,8 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
           if (pval == blockArg) pval = nullptr;
         }
       } else {
+        pred->dump();
+        block->dump();
         assert(0 && "unknown branch");
       }
 
@@ -553,7 +553,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
    return true;
  }
 
-StoreMap getLastStored(mlir::Value AI, DominanceInfo *domInfo) {
+StoreMap getLastStored(mlir::Value AI) {
   StoreMap lastStored;
 
   std::deque<mlir::Value> list = { AI };
@@ -586,9 +586,7 @@ void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
 
-  domInfo = &getAnalysis<DominanceInfo>();
-  postDomInfo = &getAnalysis<PostDominanceInfo>();
-
+    f.dump();
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
   // memrefs etc, we may need to do multiple passes (first
@@ -597,15 +595,18 @@ void MemRefDataFlowOpt::runOnFunction() {
   do{
     changed = false;
 
-  loadOpsToErase.clear();
-  memrefsToErase.clear();
+    // A list of memref's that are potentially dead / could be eliminated.
+    SmallPtrSet<Value, 4> memrefsToErase;
+
+    // Load op's whose results were replaced by those forwarded from stores.
+    SmallVector<Operation *, 8> loadOpsToErase;
 
   // Walk all load's and perform store to load forwarding.
   f.walk([&](mlir::AllocaOp AI) { 
     if (isPromotable(AI)) {
-      auto lastStored = getLastStored(AI, domInfo);
+      auto lastStored = getLastStored(AI);
       for(auto &vec : lastStored) {
-        changed |= forwardStoreToLoad(AI, vec);
+        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
       }
       memrefsToErase.insert(AI);
     }
@@ -613,9 +614,9 @@ void MemRefDataFlowOpt::runOnFunction() {
     // Walk all load's and perform store to load forwarding.
   f.walk([&](mlir::AllocOp AI) { 
     if (isPromotable(AI)) {
-      auto lastStored = getLastStored(AI, domInfo);
+      auto lastStored = getLastStored(AI);
       for(auto &vec : lastStored) {
-        changed |= forwardStoreToLoad(AI, vec);
+        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
       }
       memrefsToErase.insert(AI);
     }
@@ -640,7 +641,7 @@ void MemRefDataFlowOpt::runOnFunction() {
       continue;
 
     std::deque<mlir::Value> list = { memref };
-    std::set<mlir::Operation*> toErase;
+    std::vector<mlir::Operation*> toErase;
     bool error = false;
     while(list.size()) {
       auto val = list.front();
@@ -648,11 +649,11 @@ void MemRefDataFlowOpt::runOnFunction() {
 
       for (auto U : val.getUsers()) {
         if (isa<StoreOp, DeallocOp>(U)) {
-          toErase.insert(U);
+          toErase.push_back(U);
         } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
-          toErase.insert(U);
+          toErase.push_back(U);
         } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
-          toErase.insert(U);
+          toErase.push_back(U);
           list.push_back(CO);
         } else {
           error = true;
@@ -663,8 +664,10 @@ void MemRefDataFlowOpt::runOnFunction() {
     }
 
     if (!error) {
-      for (auto *user : toErase)
+      std::reverse(toErase.begin(), toErase.end());
+      for (auto *user : toErase) {
         user->erase();
+      }
       defOp->erase();
       changed = true;
     } else {
