@@ -837,12 +837,18 @@ static void canonicalizeMapOrSetAndOperands(MapOrSet *mapOrSet,
           getAffineConstantExpr(operandCst.getValue().getSExtValue(), context);
       continue;
     }
+    Value resultValue = (*operands)[i + mapOrSet->getNumDims()];
+    while (auto ic = resultValue.getDefiningOp<IndexCastOp>()) {
+      if (ic.getType().isa<IndexType>())
+        break;
+      resultValue = ic.getOperand();
+    }
     // Remap symbol positions for duplicate operands.
-    auto it = seenSymbols.find((*operands)[i + mapOrSet->getNumDims()]);
+    auto it = seenSymbols.find(resultValue);
     if (it == seenSymbols.end()) {
       symRemapping[i] = getAffineSymbolExpr(nextSym++, context);
-      resultOperands.push_back((*operands)[i + mapOrSet->getNumDims()]);
-      seenSymbols.insert(std::make_pair((*operands)[i + mapOrSet->getNumDims()],
+      resultOperands.push_back(resultValue);
+      seenSymbols.insert(std::make_pair(resultValue,
                                         symRemapping[i]));
     } else {
       symRemapping[i] = it->second;
