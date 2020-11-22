@@ -73,8 +73,10 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
       Operation *defOp = operand.getDefiningOp();
       // We find the defining op and place it in the worklist, if it is not null
       // and has not been visited yet.
-      if (defOp && !ops.contains(defOp))
-        worklist.push_back(defOp);
+      if (defOp) {
+        if (!ops.contains(defOp))
+          worklist.push_back(defOp);
+      }
       // Otherwise, stop the recursion at values that don't have a defining op,
       // i.e., block arguments, which could be loop IVs, external arguments,
       // etc. And insert them into the argument list (args).
