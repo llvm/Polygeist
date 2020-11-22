@@ -484,8 +484,8 @@ static LogicalResult buildIterToScatNameMap(
   assert(scats != nullptr && "scattering in the statement should not be NULL.");
   assert(scats->nb_input_dims == iterNames.size() &&
          "# input dims should equal to # iter names.");
-  assert(scats->nb_output_dims == scatNames.size() &&
-         "# output dims should equal to # scat names.");
+  assert(scats->nb_output_dims <= scatNames.size() &&
+         "# output dims should be less than or equal to # scat names.");
 
   // Build the mapping.
   for (unsigned i = 0; i < scats->nb_output_dims; i++)
