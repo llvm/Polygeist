@@ -186,3 +186,29 @@ func @write_const(%A: memref<?xf32>) {
 // CHECK-NEXT:   affine.store %[[CST]], %[[ARG0]][%[[C0]]] : memref<?xf32>
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
+
+// -----
+
+// AffineApplyOp result used in both loop bounds and load/store addresses
+// should be treated differently.
+
+#map0 = affine_map<(d0)[s0] -> (-d0 + s0 - 1)>
+#map1 = affine_map<(d0) -> (d0)>
+
+func @use_affine_apply(%A: memref<?x?xf32>) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %NI = dim %A, %c0 : memref<?x?xf32>
+  %NJ = dim %A, %c1 : memref<?x?xf32>
+
+  affine.for %i = 0 to %NI {
+    %0 = affine.apply #map0(%i)[%NI]
+    affine.for %j = #map1(%0) to %NJ {
+      %1 = affine.load %A[%0, %j] : memref<?x?xf32>
+      %2 = addf %1, %1 : f32 
+      affine.store %2, %A[%0, %j] : memref<?x?xf32>
+    }
+  }
+
+  return
+} 
