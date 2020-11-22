@@ -59,9 +59,11 @@ static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
       for (mlir::Value v : op->getOperands()) {
         mlir::Operation *defOp = v.getDefiningOp();
         // Don't need to go further if v is defined by the following operations.
-        // TODO: how to handle the case that v is a BlockArgument, i.e., loop
-        // carried values?
-        if (!defOp || isa<mlir::AllocOp, mlir::DimOp>(defOp))
+        // - AllocOp: we cannot load/store a memref value itself;
+        // - DimOp/AffineApplyOp: indices and bounds shouldn't be loaded from
+        // memory, otherwise, it would mess up with the dependence analysis.
+        if (!defOp ||
+            isa<mlir::AllocOp, mlir::DimOp, mlir::AffineApplyOp>(defOp))
           continue;
 
         // The block that defines the value is different from the block of the
