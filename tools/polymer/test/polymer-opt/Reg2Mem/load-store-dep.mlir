@@ -303,3 +303,45 @@ func @use_by_store_call(%A: memref<?xf32>) {
 
   return 
 }
+
+// -----
+
+// Affine apply defines the loop bounds and addresses accessed.
+
+#map0 = affine_map<(d0)[s0] -> (-d0 + s0 - 1)>
+#map1 = affine_map<(d0) -> (d0)>
+
+func @use_affine_apply(%A: memref<?x?xf32>) {
+  %c0 = constant 0 : index
+  %c1 = constant 1 : index
+  %NI = dim %A, %c0 : memref<?x?xf32>
+  %NJ = dim %A, %c1 : memref<?x?xf32>
+
+  affine.for %i = 0 to %NI {
+    %0 = affine.apply #map0(%i)[%NI]
+    affine.for %j = #map1(%0) to %NJ {
+      %1 = affine.load %A[%0, %j] : memref<?x?xf32>
+      %2 = addf %1, %1 : f32 
+      affine.store %2, %A[%0, %j] : memref<?x?xf32>
+    }
+  }
+
+  return
+} 
+
+// CHECK: func @use_affine_apply(%[[ARG0:.*]]: memref<?x?xf32>) {
+// CHECK:   %[[C0:.*]] = constant 0 : index
+// CHECK:   %[[C1:.*]] = constant 1 : index
+// CHECK:   %[[DIM0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?x?xf32>
+// CHECK:   %[[DIM1:.*]] = dim %[[ARG0]], %[[C1]] : memref<?x?xf32>
+// CHECK:   affine.for %[[ARG1:.*]] = 0 to %[[DIM0]] {
+// CHECK:     %[[VAL0:.*]] = affine.apply #[[MAP0:.*]](%[[ARG1]])[%[[DIM0]]]
+// CHECK:     affine.for %[[ARG2:.*]] = #[[MAP2:.*]](%[[VAL0]]) to %[[DIM1]] {
+// CHECK:       %[[VAL1:.*]] = affine.load %[[ARG0]][%[[VAL0]], %[[ARG2]]] : memref<?x?xf32>
+// CHECK:       %[[VAL2:.*]] = addf %[[VAL1]], %[[VAL1]] : f32
+// CHECK:       affine.store %[[VAL2]], %[[ARG0]][%[[VAL0]], %[[ARG2]]] : memref<?x?xf32>
+// CHECK:     }
+// CHECK:   }
+// CHECK:   return
+// CHECK: }
+
