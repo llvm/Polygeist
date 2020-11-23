@@ -251,7 +251,8 @@ bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
                                         AffineLoopDescriptor &descr) {
   auto cond = fors->getCond();
   if (auto binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
-    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT)
+    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT &&
+        binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
       return false;
 
     auto lhs = binaryOp->getLHS();
@@ -262,6 +263,8 @@ bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
     mlir::Value val = (mlir::Value)Visit(rhs);
     val = builder.create<IndexCastOp>(loc, val,
                                       mlir::IndexType::get(val.getContext()));
+    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
+      val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
     descr.setUpperBound(val);
     return true;
   }
