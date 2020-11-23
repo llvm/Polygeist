@@ -28,7 +28,6 @@ using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
 
-
 #define DEBUG_TYPE "clang-mlir"
 
 // from clang codegenmodule
@@ -205,7 +204,8 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
           auto init = varDecl->getInit();
 
           mlir::Value val = (mlir::Value)Visit(init);
-          val = builder.create<IndexCastOp>(loc, val, mlir::IndexType::get(val.getContext()));
+          val = builder.create<IndexCastOp>(
+              loc, val, mlir::IndexType::get(val.getContext()));
           descr.setLowerBound(val);
 
           descr.setName(varDecl->getName().str());
@@ -221,17 +221,16 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
   if (auto binOp = dyn_cast<clang::BinaryOperator>(init))
     if (binOp->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign)
       if (auto declRefStmt = dyn_cast<DeclRefExpr>(binOp->getLHS())) {
-          Visit(binOp);
-          mlir::Value indVar = builder.create<mlir::LoadOp>(
-              loc,
-              (mlir::Value)getValue(declRefStmt->getDecl()->getName().str()),
-              getConstantIndex(0));
-          mlir::Value indVarCasted = builder.create<mlir::IndexCastOp>(
-              loc, indVar, mlir::IndexType::get(builder.getContext()));
-          descr.setName(declRefStmt->getNameInfo().getAsString());
-          descr.setType(getMLIRType(declRefStmt->getDecl()->getType()));
-          descr.setLowerBound(indVarCasted);
-          return true;
+        Visit(binOp);
+        mlir::Value indVar = builder.create<mlir::LoadOp>(
+            loc, (mlir::Value)getValue(declRefStmt->getDecl()->getName().str()),
+            getConstantIndex(0));
+        mlir::Value indVarCasted = builder.create<mlir::IndexCastOp>(
+            loc, indVar, mlir::IndexType::get(builder.getContext()));
+        descr.setName(declRefStmt->getNameInfo().getAsString());
+        descr.setType(getMLIRType(declRefStmt->getDecl()->getType()));
+        descr.setLowerBound(indVarCasted);
+        return true;
       }
   return false;
 }
@@ -261,7 +260,8 @@ bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
 
     auto rhs = binaryOp->getRHS();
     mlir::Value val = (mlir::Value)Visit(rhs);
-    val = builder.create<IndexCastOp>(loc, val, mlir::IndexType::get(val.getContext()));
+    val = builder.create<IndexCastOp>(loc, val,
+                                      mlir::IndexType::get(val.getContext()));
     descr.setUpperBound(val);
     return true;
   }
@@ -316,16 +316,18 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
         auto oldpoint = builder.getInsertionPoint();
         auto oldblock = builder.getInsertionBlock();
 
-        builder.setInsertionPoint(nestedBuilder.getInsertionBlock(), nestedBuilder.getInsertionPoint());
-        
+        builder.setInsertionPoint(nestedBuilder.getInsertionBlock(),
+                                  nestedBuilder.getInsertionPoint());
+
         // TODO: set loop context.
         Visit(fors->getBody());
-        //auto endBlock = builder.getInsertionBlock();
-        //if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
+        // auto endBlock = builder.getInsertionBlock();
+        // if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
         //  builder.create<AffineYieldOp>(loc);
         //}
 
-        nestedBuilder.setInsertionPoint(builder.getInsertionBlock(), builder.getInsertionPoint());
+        nestedBuilder.setInsertionPoint(builder.getInsertionBlock(),
+                                        builder.getInsertionPoint());
 
         builder.setInsertionPoint(oldblock, oldpoint);
       });
