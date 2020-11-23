@@ -1276,7 +1276,7 @@ static LogicalResult verify(ConstantOp &op) {
   }
 
   if (type.isa<ShapedType>()) {
-    //if (!value.isa<ElementsAttr>())
+    // if (!value.isa<ElementsAttr>())
     //  return op.emitOpError("requires 'value' to be a shaped constant");
     return success();
   }
@@ -2304,6 +2304,26 @@ OpFoldResult IndexCastOp::fold(ArrayRef<Attribute> cstOperands) {
   return {};
 }
 
+namespace {
+struct IndexCastToIndexCast : public OpRewritePattern<IndexCastOp> {
+  using OpRewritePattern<IndexCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IndexCastOp cast,
+                                PatternRewriter &rewriter) const override {
+    if (cast.getOperand().getType() == cast.getResult().getType()) {
+      cast.getResult().replaceAllUsesWith(cast.getOperand());
+      return success();
+    }
+    return failure();
+  }
+};
+} // namespace
+
+void IndexCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                              MLIRContext *context) {
+  results.insert<IndexCastToIndexCast>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // LoadOp
 //===----------------------------------------------------------------------===//
@@ -2359,7 +2379,7 @@ bool MemRefCastOp::areCastCompatible(Type a, Type b) {
   auto ubT = b.dyn_cast<UnrankedMemRefType>();
 
   if (aT && bT) {
-    //if (aT.getElementType() != bT.getElementType())
+    // if (aT.getElementType() != bT.getElementType())
     //  return false;
     if (aT.getAffineMaps() != bT.getAffineMaps()) {
       int64_t aOffset, bOffset;
@@ -3531,7 +3551,6 @@ static LogicalResult produceSubViewErrorMsg(SubViewVerificationResult result,
   }
   llvm_unreachable("unexpected subview verification result");
 }
-
 
 /// Verifier for SubViewOp.
 static LogicalResult verify(SubViewOp op) {
