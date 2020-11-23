@@ -204,12 +204,11 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
           auto init = varDecl->getInit();
 
           mlir::Value val = (mlir::Value)Visit(init);
-          val = builder.create<IndexCastOp>(
-              loc, val, mlir::IndexType::get(val.getContext()));
           descr.setLowerBound(val);
 
           descr.setName(varDecl->getName().str());
           descr.setType(val.getType());
+          LLVM_DEBUG(descr.getType().print(llvm::dbgs()));
           return true;
         }
       }
@@ -230,6 +229,7 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
         descr.setName(declRefStmt->getNameInfo().getAsString());
         descr.setType(getMLIRType(declRefStmt->getDecl()->getType()));
         descr.setLowerBound(indVarCasted);
+        LLVM_DEBUG(descr.getType().print(llvm::dbgs()));
         return true;
       }
   return false;
