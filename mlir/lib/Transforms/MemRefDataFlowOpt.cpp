@@ -183,18 +183,18 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         last = &a;
         lastVal = nullptr;
         seenSubStore = true;
-        llvm::errs() << "erased store due to: " << a << "\n";
+        //llvm::errs() << "erased store due to: " << a << "\n";
       } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
             changed = true;
-            llvm::errs() << "replacing " << loadOp << " with " << lastVal << "\n";
+            //llvm::errs() << "replacing " << loadOp << " with " << lastVal << "\n";
             loadOp.replaceAllUsesWith(lastVal);
             // Record this to erase later.
             loadOpsToErase.push_back(loadOp);
             loadOps.erase(loadOp);
           } else if (seenSubStore) {
-            llvm::errs() << "no lastval found for: " << loadOp << "\n";
+            //llvm::errs() << "no lastval found for: " << loadOp << "\n";
             loadOps.erase(loadOp);
           }
         }
@@ -214,7 +214,7 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
               loadOpsToErase.push_back(loadOp);
               loadOps.erase(loadOp);
             } else if (seenSubStore) {
-              llvm::errs() << "ano lastval found for: " << loadOp << "\n";
+              //llvm::errs() << "ano lastval found for: " << loadOp << "\n";
               loadOps.erase(loadOp);
             }
           }
@@ -586,7 +586,6 @@ StoreMap getLastStored(mlir::Value AI) {
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
-  f.dump();
 
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
@@ -606,7 +605,6 @@ void MemRefDataFlowOpt::runOnFunction() {
     f.walk([&](mlir::AllocaOp AI) { 
       if (isPromotable(AI)) {
         auto lastStored = getLastStored(AI);
-        llvm::errs() << " considering: " << AI << "\n";
         for(auto &vec : lastStored) {
           changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
         }

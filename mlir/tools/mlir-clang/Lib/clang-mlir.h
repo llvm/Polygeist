@@ -33,60 +33,24 @@ struct LoopContext {
   mlir::Block *exitB;
 };
 
-struct AffineBound {
-private:
-  enum class Tag { INT, VALUE, VALUE_NULL };
-  Tag type;
-
-  union {
-    mlir::Value boundAsValue;
-    int64_t boundAsInt;
-  };
-
-public:
-  AffineBound() : type(Tag::VALUE_NULL), boundAsValue(nullptr) {}
-  AffineBound(const AffineBound &) = default;
-
-  void setValue(mlir::Value value) {
-    type = Tag::VALUE;
-    boundAsValue = value;
-  }
-  void setInt(int value) {
-    type = Tag::INT;
-    boundAsInt = value;
-  }
-  mlir::Value getBoundAsValue() const {
-    assert(type == Tag::VALUE && "expect boundAsValue to be active");
-    return boundAsValue;
-  }
-  int64_t getBoundAsInt() const {
-    assert(type == Tag::INT && "expect boundAsInt to be active");
-    return boundAsInt;
-  }
-  bool isValue() const { return type == Tag::VALUE; }
-  bool isInt() const { return type == Tag::INT; }
-};
-
 struct AffineLoopDescriptor {
 private:
-  ::AffineBound upperBound;
-  ::AffineBound lowerBound;
+  mlir::Value upperBound;
+  mlir::Value lowerBound;
   int64_t step;
   mlir::Type indVarType;
   std::string indVar;
+  bool forwardMode;
 
 public:
   AffineLoopDescriptor()
-      : upperBound(::AffineBound()), lowerBound(::AffineBound()),
+      : upperBound(nullptr), lowerBound(nullptr),
         step(std::numeric_limits<int64_t>::max()), indVarType(nullptr),
-        indVar("nullptr"){};
+        indVar("nullptr"), forwardMode(true) {};
   AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
 
-  void setLowerBound(int value) { lowerBound.setInt(value); }
-  void setLowerBound(mlir::Value value) { lowerBound.setValue(value); }
-
-  void setUpperBound(int value) { upperBound.setInt(value); }
-  void setUpperBound(mlir::Value value) { upperBound.setValue(value); }
+  void setLowerBound(mlir::Value value) { lowerBound = value; }
+  void setUpperBound(mlir::Value value) { upperBound = value; }
 
   void setStep(int value) { step = value; };
   void setType(mlir::Type type) { indVarType = type; }
@@ -97,35 +61,15 @@ public:
   int getStep() const { return step; }
 
   auto getLowerBound() const {
-    struct result {
-      operator mlir::Value() {
-        return affineLoopDescriptor->lowerBound.getBoundAsValue();
-      }
-      operator int64_t() {
-        return affineLoopDescriptor->lowerBound.getBoundAsInt();
-      }
-      const AffineLoopDescriptor *affineLoopDescriptor;
-    };
-    return result{this};
+    return lowerBound;
   }
 
   auto getUpperBound() const {
-    struct result {
-      operator mlir::Value() {
-        return affineLoopDescriptor->upperBound.getBoundAsValue();
-      }
-      operator int64_t() {
-        return affineLoopDescriptor->upperBound.getBoundAsInt();
-      }
-      const AffineLoopDescriptor *affineLoopDescriptor;
-    };
-    return result{this};
+    return upperBound;
   }
 
-  bool isUpperBoundValue() const { return upperBound.isValue(); }
-  bool isLowerBoundValue() const { return lowerBound.isValue(); }
-  bool isUpperBoundInt() const { return upperBound.isInt(); }
-  bool isLowerBoundInt() const { return lowerBound.isInt(); }
+  void setForwardMode(bool value) { forwardMode = value; };
+  bool getForwardMode() const { return forwardMode; }
 };
 
 struct ValueWithOffsets {
@@ -434,11 +378,11 @@ public:
 
   bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool forwardLoop);
 
-  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool forwardLoop);
 
-  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool &forwardLoop);
 
   bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
                           std::vector<mlir::Value> &newIndexes);
