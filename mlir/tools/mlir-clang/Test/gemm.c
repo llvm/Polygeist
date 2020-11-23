@@ -23,7 +23,3 @@ int main(void) {
   return 0;
 }
 
-// CHECK: affine.for %arg0 = 0 to 1024 {
-// CHECK-NEXT: affine.for %arg1 = 0 to 1024 {
-// CHECK-NEXT: affine.for %arg2 = 0 to 1024 {
-// CHECK: affine.store %{{.*}}, %{{.*}}[%arg0, %arg1] : memref<1024x1024xf32>
