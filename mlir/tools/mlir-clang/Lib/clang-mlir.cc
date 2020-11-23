@@ -263,7 +263,7 @@ bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
     mlir::Value val = (mlir::Value)Visit(rhs);
     val = builder.create<IndexCastOp>(loc, val,
                                       mlir::IndexType::get(val.getContext()));
-    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
+    if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_LE)
       val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
     descr.setUpperBound(val);
     return true;
