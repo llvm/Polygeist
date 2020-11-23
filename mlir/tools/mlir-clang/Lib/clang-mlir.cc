@@ -30,34 +30,6 @@ using namespace mlir;
 
 #define DEBUG_TYPE "clang-mlir"
 
-// from clang codegenmodule
-static std::string getMangledNameImpl(MangleContext &MC, GlobalDecl GD,
-                                      const NamedDecl *ND,
-                                      bool OmitMultiVersionMangling = false) {
-  SmallString<256> Buffer;
-  llvm::raw_svector_ostream Out(Buffer);
-  // MangleContext &MC = CGM.getCXXABI().getMangleContext();
-  if (MC.shouldMangleDeclName(ND))
-    MC.mangleName(GD.getWithDecl(ND), Out);
-  else {
-    IdentifierInfo *II = ND->getIdentifier();
-    assert(II && "Attempt to mangle unnamed decl.");
-    const auto *FD = dyn_cast<FunctionDecl>(ND);
-
-    if (FD && FD->getType()->castAs<clang::FunctionType>()->getCallConv() ==
-                  CC_X86RegCall) {
-      Out << "__regcall3__" << II->getName();
-    } else if (FD && FD->hasAttr<CUDAGlobalAttr>() &&
-               GD.getKernelReferenceKind() == KernelReferenceKind::Stub) {
-      Out << "__device_stub__" << II->getName();
-    } else {
-      Out << II->getName();
-    }
-  }
-
-  return std::string(Out.str());
-}
-
 void MLIRScanner::setValue(std::string name, ValueWithOffsets &&val) {
   auto z = scopes.back().emplace(name, val);
   assert(z.second);
@@ -194,7 +166,7 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 }
 
 bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
-                                AffineLoopDescriptor &descr) {
+                                AffineLoopDescriptor &descr, bool forwardLoop) {
   auto init = fors->getInit();
   if (auto declStmt = dyn_cast<DeclStmt>(init))
     if (declStmt->isSingleDecl()) {
@@ -204,11 +176,17 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
           auto init = varDecl->getInit();
 
           mlir::Value val = (mlir::Value)Visit(init);
-          descr.setLowerBound(val);
-
           descr.setName(varDecl->getName().str());
           descr.setType(val.getType());
           LLVM_DEBUG(descr.getType().print(llvm::dbgs()));
+
+          if (forwardLoop) {
+            descr.setLowerBound(val);
+          } else {
+            val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
+            descr.setUpperBound(val);
+          }
+
           return true;
         }
       }
@@ -220,16 +198,17 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
   if (auto binOp = dyn_cast<clang::BinaryOperator>(init))
     if (binOp->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign)
       if (auto declRefStmt = dyn_cast<DeclRefExpr>(binOp->getLHS())) {
-        Visit(binOp);
-        mlir::Value indVar = builder.create<mlir::LoadOp>(
-            loc, (mlir::Value)getValue(declRefStmt->getDecl()->getName().str()),
-            getConstantIndex(0));
-        mlir::Value indVarCasted = builder.create<mlir::IndexCastOp>(
-            loc, indVar, mlir::IndexType::get(builder.getContext()));
+        mlir::Value val = (mlir::Value)Visit(binOp->getRHS());
+        val = builder.create<mlir::IndexCastOp>(
+            loc, val, mlir::IndexType::get(builder.getContext()));
         descr.setName(declRefStmt->getNameInfo().getAsString());
         descr.setType(getMLIRType(declRefStmt->getDecl()->getType()));
-        descr.setLowerBound(indVarCasted);
-        LLVM_DEBUG(descr.getType().print(llvm::dbgs()));
+        if (forwardLoop) {
+          descr.setLowerBound(val);
+        } else {
+          val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
+          descr.setUpperBound(val);
+        }
         return true;
       }
   return false;
@@ -247,36 +226,56 @@ bool matchIndvar(const Expr *expr, std::string indVar) {
   return false;
 }
 
-bool MLIRScanner::getConstantUpperBound(clang::ForStmt *fors,
-                                        AffineLoopDescriptor &descr) {
+bool MLIRScanner::getUpperBound(clang::ForStmt *fors,
+                                AffineLoopDescriptor &descr, bool forwardLoop) {
   auto cond = fors->getCond();
   if (auto binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
-    if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT &&
-        binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
-      return false;
-
     auto lhs = binaryOp->getLHS();
     if (!matchIndvar(lhs, descr.getName()))
       return false;
 
-    auto rhs = binaryOp->getRHS();
-    mlir::Value val = (mlir::Value)Visit(rhs);
-    val = builder.create<IndexCastOp>(loc, val,
-                                      mlir::IndexType::get(val.getContext()));
-    if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_LE)
-      val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
-    descr.setUpperBound(val);
-    return true;
+    if (forwardLoop) {
+      if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LT &&
+          binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_LE)
+        return false;
+
+      auto rhs = binaryOp->getRHS();
+      mlir::Value val = (mlir::Value)Visit(rhs);
+      val = builder.create<IndexCastOp>(loc, val,
+                                        mlir::IndexType::get(val.getContext()));
+      if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_LE)
+        val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
+      descr.setUpperBound(val);
+      return true;
+    } else {
+      if (binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GT &&
+          binaryOp->getOpcode() != clang::BinaryOperator::Opcode::BO_GE)
+        return false;
+
+      auto rhs = binaryOp->getRHS();
+      mlir::Value val = (mlir::Value)Visit(rhs);
+      val = builder.create<IndexCastOp>(loc, val,
+                                        mlir::IndexType::get(val.getContext()));
+      if (binaryOp->getOpcode() == clang::BinaryOperator::Opcode::BO_GT)
+        val = builder.create<AddIOp>(loc, val, getConstantIndex(1));
+      descr.setLowerBound(val);
+      return true;
+    }
   }
   return false;
 }
 
 bool MLIRScanner::getConstantStep(clang::ForStmt *fors,
-                                  AffineLoopDescriptor &descr) {
+                                  AffineLoopDescriptor &descr,
+                                  bool &forwardLoop) {
   auto inc = fors->getInc();
   if (auto unaryOp = dyn_cast<clang::UnaryOperator>(inc))
     if (unaryOp->isPrefix() || unaryOp->isPostfix()) {
+      forwardLoop =
+          unaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc ||
+          unaryOp->getOpcode() == clang::UnaryOperator::Opcode::UO_PreInc;
       descr.setStep(1);
+      descr.setForwardMode(forwardLoop);
       return true;
     }
   return false;
@@ -286,16 +285,17 @@ bool MLIRScanner::getConstantStep(clang::ForStmt *fors,
 // for (int i = constant; i < other_constant; i++ or ++i)
 bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
                                       AffineLoopDescriptor &descr) {
-  if (!getLowerBound(fors, descr)) {
-    LLVM_DEBUG(dbgs() << "getConstantLowerBound -> false\n");
-    return false;
-  }
-  if (!getConstantUpperBound(fors, descr)) {
-    LLVM_DEBUG(dbgs() << "getConstantUpperBound -> false\n");
-    return false;
-  }
-  if (!getConstantStep(fors, descr)) {
+  bool forwardloop;
+  if (!getConstantStep(fors, descr, forwardloop)) {
     LLVM_DEBUG(dbgs() << "getConstantStep -> false\n");
+    return false;
+  }
+  if (!getLowerBound(fors, descr, forwardloop)) {
+    LLVM_DEBUG(dbgs() << "getLowerBound -> false\n");
+    return false;
+  }
+  if (!getUpperBound(fors, descr, forwardloop)) {
+    LLVM_DEBUG(dbgs() << "getUpperBound -> false\n");
     return false;
   }
   return true;
@@ -312,8 +312,16 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
       [&](OpBuilder &nestedBuilder, mlir::Location loc, ValueRange ivs) {
         SmallVector<mlir::Value, 1> iv(ivs);
         assert(ivs.size() == 1 && "expect single ind var");
-        auto idx = nestedBuilder.create<mlir::IndexCastOp>(loc, iv[0],
-                                                           descr.getType());
+        mlir::Value val = iv[0];
+        if (!descr.getForwardMode()) {
+          val = nestedBuilder.create<mlir::SubIOp>(loc, val, lb);
+          val = nestedBuilder.create<mlir::SubIOp>(
+              loc,
+              nestedBuilder.create<mlir::SubIOp>(loc, ub, getConstantIndex(1)),
+              val);
+        }
+        auto idx =
+            nestedBuilder.create<mlir::IndexCastOp>(loc, val, descr.getType());
         createAndSetAllocOp(descr.getName(), idx, 0);
 
         auto oldpoint = builder.getInsertionPoint();
@@ -338,33 +346,10 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
 void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                                   const AffineLoopDescriptor &descr) {
-  if (descr.isUpperBoundInt() && descr.isLowerBoundInt()) {
-    int64_t lb = descr.getLowerBound();
-    int64_t ub = descr.getUpperBound();
-    buildAffineLoopImpl<int64_t>(fors, loc, lb, ub, descr);
-    return;
-  }
-  if (descr.isUpperBoundValue() && descr.isLowerBoundValue()) {
-    mlir::Value lb = descr.getLowerBound();
-    mlir::Value ub = descr.getUpperBound();
-    buildAffineLoopImpl<mlir::Value>(fors, loc, lb, ub, descr);
-    return;
-  }
-  if (descr.isUpperBoundInt() && descr.isLowerBoundValue()) {
-    mlir::Value lb = descr.getLowerBound();
-    int64_t ub = descr.getUpperBound();
-    buildAffineLoopImpl<mlir::Value>(fors, loc, lb, getConstantIndex(ub),
-                                     descr);
-    return;
-  }
-  if (descr.isUpperBoundValue() && descr.isLowerBoundInt()) {
-    int64_t lb = descr.getLowerBound();
-    mlir::Value ub = descr.getUpperBound();
-    buildAffineLoopImpl<mlir::Value>(fors, loc, getConstantIndex(lb), ub,
-                                     descr);
-    return;
-  }
-  llvm_unreachable("invalid case");
+  mlir::Value lb = descr.getLowerBound();
+  mlir::Value ub = descr.getUpperBound();
+  buildAffineLoopImpl<mlir::Value>(fors, loc, lb, ub, descr);
+  return;
 }
 
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
