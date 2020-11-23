@@ -269,6 +269,8 @@ struct PragmaEndScopHandler : public PragmaHandler {
 
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
+  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
+  std::map<std::string, mlir::FuncOp> &functions;
   Preprocessor &PP;
   ASTContext &astContext;
   mlir::ModuleOp &module;
@@ -304,7 +306,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   ~MLIRASTConsumer() {}
 
-  std::map<std::string, mlir::FuncOp> &functions;
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
   std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
@@ -315,7 +316,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   /// Return a value representing an access into a global string with the given
   /// name, creating the string if necessary.
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
                                           StringRef value);
