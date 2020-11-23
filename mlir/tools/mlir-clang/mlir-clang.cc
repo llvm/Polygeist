@@ -1,12 +1,12 @@
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
-#include "mlir/IR/Verifier.h"
-#include "mlir/Dialect/Affine/Passes.h"
 
 using namespace llvm;
 
@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
   if (mlir::failed(pm.run(module)))
     return 4;
 
-  //module.dump();
+  // module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }
