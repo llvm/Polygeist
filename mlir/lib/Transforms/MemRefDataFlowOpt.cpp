@@ -183,17 +183,18 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> 
         last = &a;
         lastVal = nullptr;
         seenSubStore = true;
-        //llvm::errs() << "erased store due to: " << a << "\n";
+        llvm::errs() << "erased store due to: " << a << "\n";
       } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
             changed = true;
+            llvm::errs() << "replacing " << loadOp << " with " << lastVal << "\n";
             loadOp.replaceAllUsesWith(lastVal);
             // Record this to erase later.
             loadOpsToErase.push_back(loadOp);
             loadOps.erase(loadOp);
           } else if (seenSubStore) {
-            //llvm::errs() << "no lastval found for: " << loadOp << "\n";
+            llvm::errs() << "no lastval found for: " << loadOp << "\n";
             loadOps.erase(loadOp);
           }
         }
@@ -585,8 +586,8 @@ StoreMap getLastStored(mlir::Value AI) {
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
+  f.dump();
 
-    f.dump();
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
   // memrefs etc, we may need to do multiple passes (first
@@ -601,32 +602,34 @@ void MemRefDataFlowOpt::runOnFunction() {
     // Load op's whose results were replaced by those forwarded from stores.
     SmallVector<Operation *, 8> loadOpsToErase;
 
-  // Walk all load's and perform store to load forwarding.
-  f.walk([&](mlir::AllocaOp AI) { 
-    if (isPromotable(AI)) {
-      auto lastStored = getLastStored(AI);
-      for(auto &vec : lastStored) {
-        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-      }
-      memrefsToErase.insert(AI);
-    }
-  });
     // Walk all load's and perform store to load forwarding.
-  f.walk([&](mlir::AllocOp AI) { 
-    if (isPromotable(AI)) {
-      auto lastStored = getLastStored(AI);
-      for(auto &vec : lastStored) {
-        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+    f.walk([&](mlir::AllocaOp AI) { 
+      if (isPromotable(AI)) {
+        auto lastStored = getLastStored(AI);
+        llvm::errs() << " considering: " << AI << "\n";
+        for(auto &vec : lastStored) {
+          changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+        }
+        memrefsToErase.insert(AI);
       }
-      memrefsToErase.insert(AI);
-    }
-  });
+    });
 
-  // Erase all load op's whose results were replaced with store fwd'ed ones.
-  for (auto *loadOp : loadOpsToErase) {
-    changed = true;
-    loadOp->erase();
-  }
+    // Walk all load's and perform store to load forwarding.
+    f.walk([&](mlir::AllocOp AI) { 
+      if (isPromotable(AI)) {
+        auto lastStored = getLastStored(AI);
+        for(auto &vec : lastStored) {
+          changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+        }
+        memrefsToErase.insert(AI);
+      }
+    });
+
+    // Erase all load op's whose results were replaced with store fwd'ed ones.
+    for (auto *loadOp : loadOpsToErase) {
+      changed = true;
+      loadOp->erase();
+    }
 
   // Check if the store fwd'ed memrefs are now left with only stores and can
   // thus be completely deleted. Note: the canonicalize pass should be able
