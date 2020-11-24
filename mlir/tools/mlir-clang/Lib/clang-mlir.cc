@@ -336,7 +336,8 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
         nestedBuilder.setInsertionPoint(builder.getInsertionBlock(),
                                         builder.getInsertionPoint());
-
+        // TODO: set the value of the iteration value to the final bound at the
+        // end of the loop.
         builder.setInsertionPoint(oldblock, oldpoint);
       });
 }
