@@ -301,12 +301,9 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
   return true;
 }
 
-template <typename T>
 void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
-                                      T lb, T ub,
+                                      mlir::Value lb, mlir::Value ub,
                                       const AffineLoopDescriptor &descr) {
-  assert((std::is_same<T, mlir::Value>::value) ||
-         (std::is_same<T, int64_t>::value));
   buildAffineLoopNest(
       builder, loc, lb, ub, descr.getStep(),
       [&](OpBuilder &nestedBuilder, mlir::Location loc, ValueRange ivs) {
@@ -348,7 +345,7 @@ void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                                   const AffineLoopDescriptor &descr) {
   mlir::Value lb = descr.getLowerBound();
   mlir::Value ub = descr.getUpperBound();
-  buildAffineLoopImpl<mlir::Value>(fors, loc, lb, ub, descr);
+  buildAffineLoopImpl(fors, loc, lb, ub, descr);
   return;
 }
 

@@ -2317,10 +2317,52 @@ struct IndexCastToIndexCast : public OpRewritePattern<IndexCastOp> {
     return failure();
   }
 };
+/// Fold alloc operations with no uses. Alloc has side effects on the heap,
+/// but can still be deleted if it has zero uses.
+struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
+  using OpRewritePattern<IndexCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IndexCastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+    if (auto iadd = op.getOperand().getDefiningOp<AddIOp>()) {
+      rewriter.replaceOpWithNewOp<AddIOp>(
+          op,
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+                                       op.getType()),
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+                                       op.getType()));
+      return success();
+    }
+    if (auto iadd = op.getOperand().getDefiningOp<SubIOp>()) {
+      rewriter.replaceOpWithNewOp<SubIOp>(
+          op,
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+                                       op.getType()),
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+                                       op.getType()));
+      return success();
+    }
+    if (auto iadd = op.getOperand().getDefiningOp<MulIOp>()) {
+      rewriter.replaceOpWithNewOp<MulIOp>(
+          op,
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+                                       op.getType()),
+          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+                                       op.getType()));
+      return success();
+    }
+    return failure();
+  }
+};
 } // namespace
 
 void IndexCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
+  results.insert<SimplfyIntegerCastMath>(context);
   results.insert<IndexCastToIndexCast>(context);
 }
 

@@ -101,7 +101,6 @@ int main(int argc, char **argv) {
   if (mlir::failed(pm.run(module)))
     return 4;
 
-  // module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }
