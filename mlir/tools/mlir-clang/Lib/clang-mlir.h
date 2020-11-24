@@ -46,7 +46,7 @@ public:
   AffineLoopDescriptor()
       : upperBound(nullptr), lowerBound(nullptr),
         step(std::numeric_limits<int64_t>::max()), indVarType(nullptr),
-        indVar("nullptr"), forwardMode(true) {};
+        indVar("nullptr"), forwardMode(true){};
   AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
 
   void setLowerBound(mlir::Value value) { lowerBound = value; }
@@ -60,13 +60,9 @@ public:
   mlir::Type getType() const { return indVarType; }
   int getStep() const { return step; }
 
-  auto getLowerBound() const {
-    return lowerBound;
-  }
+  auto getLowerBound() const { return lowerBound; }
 
-  auto getUpperBound() const {
-    return upperBound;
-  }
+  auto getUpperBound() const { return upperBound; }
 
   void setForwardMode(bool value) { forwardMode = value; };
   bool getForwardMode() const { return forwardMode; }
@@ -378,11 +374,14 @@ public:
 
   bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool forwardLoop);
+  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
 
-  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool forwardLoop);
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
 
-  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr, bool &forwardLoop);
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                       bool &forwardLoop);
 
   bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
                           std::vector<mlir::Value> &newIndexes);
@@ -390,7 +389,8 @@ public:
   void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                        const AffineLoopDescriptor &descr);
 
-  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
+  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
+                           mlir::Value lb, mlir::Value ub,
                            const AffineLoopDescriptor &descr);
 
   bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
