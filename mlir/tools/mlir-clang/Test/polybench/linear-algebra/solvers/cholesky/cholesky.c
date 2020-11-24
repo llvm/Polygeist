@@ -144,30 +144,30 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  affine.for %arg2 = 0 to %0 {
 // CHECK-NEXT:    affine.for %arg3 = 0 to #map(%arg2) {
-// CHECK-NEXT:      %4 = load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      %4 = affine.load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
 // CHECK-NEXT:      affine.for %arg4 = 0 to #map(%arg3) {
-// CHECK-NEXT:        %8 = load %arg1[%arg2, %arg4] : memref<2000x2000xf64>
-// CHECK-NEXT:        %9 = load %arg1[%arg3, %arg4] : memref<2000x2000xf64>
+// CHECK-NEXT:        %8 = affine.load %arg1[%arg2, %arg4] : memref<2000x2000xf64>
+// CHECK-NEXT:        %9 = affine.load %arg1[%arg3, %arg4] : memref<2000x2000xf64>
 // CHECK-NEXT:        %10 = mulf %8, %9 : f64
 // CHECK-NEXT:        %11 = subf %4, %10 : f64
-// CHECK-NEXT:        store %11, %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:        affine.store %11, %arg1[%arg2, %arg3] : memref<2000x2000xf64>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %5 = load %arg1[%arg3, %arg3] : memref<2000x2000xf64>
-// CHECK-NEXT:      %6 = load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      %5 = affine.load %arg1[%arg3, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      %6 = affine.load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
 // CHECK-NEXT:      %7 = divf %6, %5 : f64
-// CHECK-NEXT:      store %7, %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      affine.store %7, %arg1[%arg2, %arg3] : memref<2000x2000xf64>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %1 = load %arg1[%arg2, %arg2] : memref<2000x2000xf64>
+// CHECK-NEXT:    %1 = affine.load %arg1[%arg2, %arg2] : memref<2000x2000xf64>
 // CHECK-NEXT:    affine.for %arg3 = 0 to #map(%arg2) {
-// CHECK-NEXT:      %4 = load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
-// CHECK-NEXT:      %5 = load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      %4 = affine.load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
+// CHECK-NEXT:      %5 = affine.load %arg1[%arg2, %arg3] : memref<2000x2000xf64>
 // CHECK-NEXT:      %6 = mulf %4, %5 : f64
 // CHECK-NEXT:      %7 = subf %1, %6 : f64
-// CHECK-NEXT:      store %7, %arg1[%arg2, %arg2] : memref<2000x2000xf64>
+// CHECK-NEXT:      affine.store %7, %arg1[%arg2, %arg2] : memref<2000x2000xf64>
 // CHECK-NEXT:    }
-// CHECK-NEXT:    %2 = load %arg1[%arg2, %arg2] : memref<2000x2000xf64>
+// CHECK-NEXT:    %2 = affine.load %arg1[%arg2, %arg2] : memref<2000x2000xf64>
 // CHECK-NEXT:    %3 = sqrt %2 : f64
-// CHECK-NEXT:    store %3, %arg1[%arg2, %arg2] : memref<2000x2000xf64>
+// CHECK-NEXT:    affine.store %3, %arg1[%arg2, %arg2] : memref<2000x2000xf64>
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 // CHECK-NEXT: }

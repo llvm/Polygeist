@@ -90,6 +90,8 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::replaceAffineStorePass());
+  optPM.addPass(mlir::replaceAffineLoadPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 

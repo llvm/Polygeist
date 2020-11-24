@@ -151,23 +151,23 @@ int main(int argc, char** argv)
 // CHECK:   func @kernel_mvt(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000x2000xf64>) {
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  affine.for %arg6 = 0 to %0 {
-// CHECK-NEXT:    %1 = load %arg1[%arg6] : memref<2000xf64>
+// CHECK-NEXT:    %1 = affine.load %arg1[%arg6] : memref<2000xf64>
 // CHECK-NEXT:    affine.for %arg7 = 0 to %0 {
-// CHECK-NEXT:      %2 = load %arg5[%arg6, %arg7] : memref<2000x2000xf64>
-// CHECK-NEXT:      %3 = load %arg3[%arg7] : memref<2000xf64>
+// CHECK-NEXT:      %2 = affine.load %arg5[%arg6, %arg7] : memref<2000x2000xf64>
+// CHECK-NEXT:      %3 = affine.load %arg3[%arg7] : memref<2000xf64>
 // CHECK-NEXT:      %4 = mulf %2, %3 : f64
 // CHECK-NEXT:      %5 = addf %1, %4 : f64
-// CHECK-NEXT:      store %5, %arg1[%arg6] : memref<2000xf64>
+// CHECK-NEXT:      affine.store %5, %arg1[%arg6] : memref<2000xf64>
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 // CHECK-NEXT:  affine.for %arg6 = 0 to %0 {
-// CHECK-NEXT:    %1 = load %arg2[%arg6] : memref<2000xf64>
+// CHECK-NEXT:    %1 = affine.load %arg2[%arg6] : memref<2000xf64>
 // CHECK-NEXT:    affine.for %arg7 = 0 to %0 {
-// CHECK-NEXT:      %2 = load %arg5[%arg7, %arg6] : memref<2000x2000xf64>
-// CHECK-NEXT:      %3 = load %arg4[%arg7] : memref<2000xf64>
+// CHECK-NEXT:      %2 = affine.load %arg5[%arg7, %arg6] : memref<2000x2000xf64>
+// CHECK-NEXT:      %3 = affine.load %arg4[%arg7] : memref<2000xf64>
 // CHECK-NEXT:      %4 = mulf %2, %3 : f64
 // CHECK-NEXT:      %5 = addf %1, %4 : f64
-// CHECK-NEXT:      store %5, %arg2[%arg6] : memref<2000xf64>
+// CHECK-NEXT:      affine.store %5, %arg2[%arg6] : memref<2000xf64>
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return

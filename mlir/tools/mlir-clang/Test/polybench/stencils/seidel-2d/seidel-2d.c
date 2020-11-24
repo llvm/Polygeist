@@ -130,7 +130,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:        %10 = addf %7, %9 : f64
 // CHECK-NEXT:        %11 = load %arg2[%arg4, %4] : memref<2000x2000xf64>
 // CHECK-NEXT:        %12 = addf %10, %11 : f64
-// CHECK-NEXT:        %13 = load %arg2[%arg4, %arg5] : memref<2000x2000xf64>
+// CHECK-NEXT:        %13 = affine.load %arg2[%arg4, %arg5] : memref<2000x2000xf64>
 // CHECK-NEXT:        %14 = addf %12, %13 : f64
 // CHECK-NEXT:        %15 = load %arg2[%arg4, %8] : memref<2000x2000xf64>
 // CHECK-NEXT:        %16 = addf %14, %15 : f64
@@ -141,7 +141,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:        %21 = load %arg2[%3, %8] : memref<2000x2000xf64>
 // CHECK-NEXT:        %22 = addf %20, %21 : f64
 // CHECK-NEXT:        %23 = divf %22, %cst : f64
-// CHECK-NEXT:        store %23, %arg2[%arg4, %arg5] : memref<2000x2000xf64>
+// CHECK-NEXT:        affine.store %23, %arg2[%arg4, %arg5] : memref<2000x2000xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
