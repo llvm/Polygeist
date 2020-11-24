@@ -137,19 +137,19 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  affine.for %arg6 = 0 to %0 {
 // CHECK-NEXT:    affine.for %arg7 = 0 to %1 {
 // CHECK-NEXT:      affine.for %arg8 = 0 to %2 {
-// CHECK-NEXT:        store %cst, %arg5[%arg8] : memref<160xf64>
-// CHECK-NEXT:        %3 = load %arg5[%arg8] : memref<160xf64>
+// CHECK-NEXT:        affine.store %cst, %arg5[%arg8] : memref<160xf64>
+// CHECK-NEXT:        %3 = affine.load %arg5[%arg8] : memref<160xf64>
 // CHECK-NEXT:        affine.for %arg9 = 0 to %2 {
-// CHECK-NEXT:          %4 = load %arg3[%arg6, %arg7, %arg9] : memref<150x140x160xf64>
-// CHECK-NEXT:          %5 = load %arg4[%arg9, %arg8] : memref<160x160xf64>
+// CHECK-NEXT:          %4 = affine.load %arg3[%arg6, %arg7, %arg9] : memref<150x140x160xf64>
+// CHECK-NEXT:          %5 = affine.load %arg4[%arg9, %arg8] : memref<160x160xf64>
 // CHECK-NEXT:          %6 = mulf %4, %5 : f64
 // CHECK-NEXT:          %7 = addf %3, %6 : f64
-// CHECK-NEXT:          store %7, %arg5[%arg8] : memref<160xf64>
+// CHECK-NEXT:          affine.store %7, %arg5[%arg8] : memref<160xf64>
 // CHECK-NEXT:        }
 // CHECK-NEXT:      }
 // CHECK-NEXT:      affine.for %arg8 = 0 to %2 {
-// CHECK-NEXT:        %3 = load %arg5[%arg8] : memref<160xf64>
-// CHECK-NEXT:        store %3, %arg3[%arg6, %arg7, %arg8] : memref<150x140x160xf64>
+// CHECK-NEXT:        %3 = affine.load %arg5[%arg8] : memref<160xf64>
+// CHECK-NEXT:        affine.store %3, %arg3[%arg6, %arg7, %arg8] : memref<150x140x160xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
