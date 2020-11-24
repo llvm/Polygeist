@@ -390,8 +390,7 @@ public:
   void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                        const AffineLoopDescriptor &descr);
 
-  template <typename T>
-  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc, T lb, T ub,
+  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
                            const AffineLoopDescriptor &descr);
 
   bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
