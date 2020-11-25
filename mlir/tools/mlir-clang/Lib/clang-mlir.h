@@ -25,7 +25,6 @@
 #include "../../../../clang/lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
-using namespace std;
 using namespace clang;
 using namespace mlir;
 
@@ -35,11 +34,38 @@ struct LoopContext {
 };
 
 struct AffineLoopDescriptor {
-  int64_t upperBound = std::numeric_limits<int64_t>::max();
-  int64_t lowerBound = std::numeric_limits<int64_t>::min();
-  int64_t step = std::numeric_limits<int64_t>::max();
-  mlir::Type indVarType = nullptr;
-  std::string indVar = "null";
+private:
+  mlir::Value upperBound;
+  mlir::Value lowerBound;
+  int64_t step;
+  mlir::Type indVarType;
+  std::string indVar;
+  bool forwardMode;
+
+public:
+  AffineLoopDescriptor()
+      : upperBound(nullptr), lowerBound(nullptr),
+        step(std::numeric_limits<int64_t>::max()), indVarType(nullptr),
+        indVar("nullptr"), forwardMode(true){};
+  AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
+
+  void setLowerBound(mlir::Value value) { lowerBound = value; }
+  void setUpperBound(mlir::Value value) { upperBound = value; }
+
+  void setStep(int value) { step = value; };
+  void setType(mlir::Type type) { indVarType = type; }
+  void setName(std::string value) { indVar = value; }
+
+  std::string getName() const { return indVar; }
+  mlir::Type getType() const { return indVarType; }
+  int getStep() const { return step; }
+
+  auto getLowerBound() const { return lowerBound; }
+
+  auto getUpperBound() const { return upperBound; }
+
+  void setForwardMode(bool value) { forwardMode = value; };
+  bool getForwardMode() const { return forwardMode; }
 };
 
 struct ValueWithOffsets {
@@ -183,6 +209,8 @@ struct PragmaEndScopHandler : public PragmaHandler {
 
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
+  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
+  std::map<std::string, mlir::FuncOp> &functions;
   Preprocessor &PP;
   ASTContext &astContext;
   mlir::ModuleOp &module;
@@ -218,7 +246,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   ~MLIRASTConsumer() {}
 
-  std::map<std::string, mlir::FuncOp> &functions;
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
   std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
@@ -229,7 +256,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   /// Return a value representing an access into a global string with the given
   /// name, creating the string if necessary.
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
                                           mlir::OpBuilder &builder,
                                           StringRef value);
@@ -348,16 +374,24 @@ public:
 
   bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantUpperBound(clang::ForStmt *fors, int64_t &upperBound,
-                             std::string indVar);
+  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
 
-  bool getConstantLowerBound(clang::ForStmt *fors, int64_t &lowerBound,
-                             std::string &indvar, mlir::Type &indVarType);
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
 
-  bool getConstantStep(clang::ForStmt *fors, int64_t &step);
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                       bool &forwardLoop);
 
   bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
                           std::vector<mlir::Value> &newIndexes);
+
+  void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
+                       const AffineLoopDescriptor &descr);
+
+  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
+                           mlir::Value lb, mlir::Value ub,
+                           const AffineLoopDescriptor &descr);
 
   bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
 

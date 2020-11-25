@@ -1,6 +1,8 @@
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -59,7 +61,7 @@ int main(int argc, char **argv) {
   // registerDialect<AffineDialect>();
   // registerDialect<StandardOpsDialect>();
   MLIRContext context;
-
+  context.disableMultithreading();
   context.getOrLoadDialect<AffineDialect>();
   context.getOrLoadDialect<StandardOpsDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
@@ -79,14 +81,17 @@ int main(int argc, char **argv) {
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
 
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
-  module.dump();
   mlir::PassManager pm(&context);
 
+  pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::replaceAffineStorePass());
+  optPM.addPass(mlir::replaceAffineLoadPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
@@ -97,6 +102,10 @@ int main(int argc, char **argv) {
 
   if (mlir::failed(pm.run(module)))
     return 4;
+
+  if (mlir::failed(mlir::verify(module))) {
+    return 5;
+  }
 
   if (EmitLLVM) {
     llvm::LLVMContext llvmContext;
