@@ -171,6 +171,10 @@ int main(int argc, char** argv)
 
 // CHECK: #map0 = affine_map<()[s0] -> (s0 + 1)>
 // CHECK: #map1 = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: #map2 = affine_map<(d0) -> (d0 - 1)>
+// CHECK: #map3 = affine_map<(d0) -> (d0 + 1)>
+// CHECK: #map4 = affine_map<(d0) -> (d0)>
+
 // CHECK:   func @kernel_adi(%arg0: i32, %arg1: i32, %arg2: memref<1000x1000xf64>, %arg3: memref<1000x1000xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) {
 // CHECK-NEXT:  %c0 = constant 0 : index
 // CHECK-NEXT:  %cst = constant 1.000000e+00 : f64
@@ -200,110 +204,102 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  %19 = negf %13 : f64
 // CHECK-NEXT:  %20 = mulf %cst_0, %13 : f64
 // CHECK-NEXT:  %21 = addf %cst, %20 : f64
-// CHECK-NEXT:  %22 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:  %23 = subi %22, %c2 : index
-// CHECK-NEXT:  %24 = addi %23, %c1 : index
-// CHECK-NEXT:  %25 = subi %24, %c1 : index
-// CHECK-NEXT:  %26 = negf %13 : f64
-// CHECK-NEXT:  %27 = negf %10 : f64
-// CHECK-NEXT:  %28 = mulf %cst_0, %10 : f64
-// CHECK-NEXT:  %29 = addf %cst, %28 : f64
-// CHECK-NEXT:  %30 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:  %31 = subi %30, %c2 : index
-// CHECK-NEXT:  %32 = addi %31, %c1 : index
-// CHECK-NEXT:  %33 = subi %32, %c1 : index
+// CHECK-NEXT:  %22 = subi %16, %c2 : index
+// CHECK-NEXT:  %23 = addi %22, %c1 : index
+// CHECK-NEXT:  %24 = subi %23, %c1 : index
+// CHECK-NEXT:  %25 = mulf %cst_0, %10 : f64
+// CHECK-NEXT:  %26 = addf %cst, %25 : f64
 // CHECK-NEXT:  affine.for %arg6 = 1 to #map0()[%15] {
 // CHECK-NEXT:    affine.for %arg7 = 1 to #map1()[%16] {
 // CHECK-NEXT:      affine.store %cst, %arg3[%c0, %arg7] : memref<1000x1000xf64>
 // CHECK-NEXT:      affine.store %cst_1, %arg4[%arg7, %c0] : memref<1000x1000xf64>
-// CHECK-NEXT:      %34 = affine.load %arg3[%c0, %arg7] : memref<1000x1000xf64>
-// CHECK-NEXT:      affine.store %34, %arg5[%arg7, %c0] : memref<1000x1000xf64>
-// CHECK-NEXT:      %35 = subi %arg7, %c1 : index
-// CHECK-NEXT:      %36 = addi %arg7, %c1 : index
+// CHECK-NEXT:      %27 = affine.load %arg3[%c0, %arg7] : memref<1000x1000xf64>
+// CHECK-NEXT:      affine.store %27, %arg5[%arg7, %c0] : memref<1000x1000xf64>
 // CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%16] {
-// CHECK-NEXT:        %37 = subi %arg8, %c1 : index
-// CHECK-NEXT:        %38 = load %arg4[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %39 = mulf %10, %38 : f64
-// CHECK-NEXT:        %40 = addf %39, %11 : f64
-// CHECK-NEXT:        %41 = divf %18, %40 : f64
-// CHECK-NEXT:        affine.store %41, %arg4[%arg7, %arg8] : memref<1000x1000xf64>
-// CHECK-NEXT:        %42 = load %arg2[%arg8, %35] : memref<1000x1000xf64>
-// CHECK-NEXT:        %43 = mulf %19, %42 : f64
-// CHECK-NEXT:        %44 = affine.load %arg2[%arg8, %arg7] : memref<1000x1000xf64>
-// CHECK-NEXT:        %45 = mulf %21, %44 : f64
-// CHECK-NEXT:        %46 = addf %43, %45 : f64
-// CHECK-NEXT:        %47 = load %arg2[%arg8, %36] : memref<1000x1000xf64>
-// CHECK-NEXT:        %48 = mulf %13, %47 : f64
-// CHECK-NEXT:        %49 = subf %46, %48 : f64
-// CHECK-NEXT:        %50 = load %arg5[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %51 = mulf %10, %50 : f64
-// CHECK-NEXT:        %52 = subf %49, %51 : f64
-// CHECK-NEXT:        %53 = load %arg4[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %54 = mulf %10, %53 : f64
-// CHECK-NEXT:        %55 = addf %54, %11 : f64
-// CHECK-NEXT:        %56 = divf %52, %55 : f64
-// CHECK-NEXT:        affine.store %56, %arg5[%arg7, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %28 = affine.apply #map2(%arg8)
+// CHECK-NEXT:        %29 = affine.load %arg4[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %30 = mulf %10, %29 : f64
+// CHECK-NEXT:        %31 = addf %30, %11 : f64
+// CHECK-NEXT:        %32 = divf %18, %31 : f64
+// CHECK-NEXT:        affine.store %32, %arg4[%arg7, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %33 = affine.apply #map2(%arg7)
+// CHECK-NEXT:        %34 = affine.load %arg2[%arg8, %33] : memref<1000x1000xf64>
+// CHECK-NEXT:        %35 = mulf %19, %34 : f64
+// CHECK-NEXT:        %36 = affine.load %arg2[%arg8, %arg7] : memref<1000x1000xf64>
+// CHECK-NEXT:        %37 = mulf %21, %36 : f64
+// CHECK-NEXT:        %38 = addf %35, %37 : f64
+// CHECK-NEXT:        %39 = affine.apply #map3(%arg7)
+// CHECK-NEXT:        %40 = affine.load %arg2[%arg8, %39] : memref<1000x1000xf64>
+// CHECK-NEXT:        %41 = mulf %13, %40 : f64
+// CHECK-NEXT:        %42 = subf %38, %41 : f64
+// CHECK-NEXT:        %43 = affine.load %arg5[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %44 = mulf %10, %43 : f64
+// CHECK-NEXT:        %45 = subf %42, %44 : f64
+// CHECK-NEXT:        %46 = affine.load %arg4[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %47 = mulf %10, %46 : f64
+// CHECK-NEXT:        %48 = addf %47, %11 : f64
+// CHECK-NEXT:        %49 = divf %45, %48 : f64
+// CHECK-NEXT:        affine.store %49, %arg5[%arg7, %arg8] : memref<1000x1000xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      store %cst, %arg3[%17, %arg7] : memref<1000x1000xf64>
-// CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%22] {
-// CHECK-NEXT:        %37 = subi %arg8, %c1 : index
-// CHECK-NEXT:        %38 = subi %25, %37 : index
-// CHECK-NEXT:        %39 = load %arg4[%arg7, %38] : memref<1000x1000xf64>
-// CHECK-NEXT:        %40 = addi %38, %c1 : index
-// CHECK-NEXT:        %41 = load %arg3[%40, %arg7] : memref<1000x1000xf64>
-// CHECK-NEXT:        %42 = mulf %39, %41 : f64
-// CHECK-NEXT:        %43 = load %arg5[%arg7, %38] : memref<1000x1000xf64>
-// CHECK-NEXT:        %44 = addf %42, %43 : f64
-// CHECK-NEXT:        store %44, %arg3[%38, %arg7] : memref<1000x1000xf64>
+// CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%16] {
+// CHECK-NEXT:        %28 = subi %arg8, %c1 : index
+// CHECK-NEXT:        %29 = subi %24, %28 : index
+// CHECK-NEXT:        %30 = affine.apply #map2(%arg8)
+// CHECK-NEXT:        %31 = affine.load %arg4[%arg7, %30] : memref<1000x1000xf64>
+// CHECK-NEXT:        %32 = affine.apply #map4(%arg8)
+// CHECK-NEXT:        %33 = affine.load %arg3[%32, %arg7] : memref<1000x1000xf64>
+// CHECK-NEXT:        %34 = mulf %31, %33 : f64
+// CHECK-NEXT:        %35 = affine.load %arg5[%arg7, %30] : memref<1000x1000xf64>
+// CHECK-NEXT:        %36 = addf %34, %35 : f64
+// CHECK-NEXT:        affine.store %36, %arg3[%30, %arg7] : memref<1000x1000xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    affine.for %arg7 = 1 to #map1()[%16] {
 // CHECK-NEXT:      affine.store %cst, %arg2[%arg7, %c0] : memref<1000x1000xf64>
 // CHECK-NEXT:      affine.store %cst_1, %arg4[%arg7, %c0] : memref<1000x1000xf64>
-// CHECK-NEXT:      %34 = affine.load %arg2[%arg7, %c0] : memref<1000x1000xf64>
-// CHECK-NEXT:      affine.store %34, %arg5[%arg7, %c0] : memref<1000x1000xf64>
-// CHECK-NEXT:      %35 = subi %arg7, %c1 : index
-// CHECK-NEXT:      %36 = addi %arg7, %c1 : index
+// CHECK-NEXT:      %27 = affine.load %arg2[%arg7, %c0] : memref<1000x1000xf64>
+// CHECK-NEXT:      affine.store %27, %arg5[%arg7, %c0] : memref<1000x1000xf64>
 // CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%16] {
-// CHECK-NEXT:        %37 = subi %arg8, %c1 : index
-// CHECK-NEXT:        %38 = load %arg4[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %39 = mulf %13, %38 : f64
-// CHECK-NEXT:        %40 = addf %39, %14 : f64
-// CHECK-NEXT:        %41 = divf %26, %40 : f64
-// CHECK-NEXT:        affine.store %41, %arg4[%arg7, %arg8] : memref<1000x1000xf64>
-// CHECK-NEXT:        %42 = load %arg3[%35, %arg8] : memref<1000x1000xf64>
-// CHECK-NEXT:        %43 = mulf %27, %42 : f64
-// CHECK-NEXT:        %44 = affine.load %arg3[%arg7, %arg8] : memref<1000x1000xf64>
-// CHECK-NEXT:        %45 = mulf %29, %44 : f64
-// CHECK-NEXT:        %46 = addf %43, %45 : f64
-// CHECK-NEXT:        %47 = load %arg3[%36, %arg8] : memref<1000x1000xf64>
-// CHECK-NEXT:        %48 = mulf %10, %47 : f64
-// CHECK-NEXT:        %49 = subf %46, %48 : f64
-// CHECK-NEXT:        %50 = load %arg5[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %51 = mulf %13, %50 : f64
-// CHECK-NEXT:        %52 = subf %49, %51 : f64
-// CHECK-NEXT:        %53 = load %arg4[%arg7, %37] : memref<1000x1000xf64>
-// CHECK-NEXT:        %54 = mulf %13, %53 : f64
-// CHECK-NEXT:        %55 = addf %54, %14 : f64
-// CHECK-NEXT:        %56 = divf %52, %55 : f64
-// CHECK-NEXT:        affine.store %56, %arg5[%arg7, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %28 = affine.apply #map2(%arg8)
+// CHECK-NEXT:        %29 = affine.load %arg4[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %30 = mulf %13, %29 : f64
+// CHECK-NEXT:        %31 = addf %30, %14 : f64
+// CHECK-NEXT:        %32 = divf %19, %31 : f64
+// CHECK-NEXT:        affine.store %32, %arg4[%arg7, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %33 = affine.apply #map2(%arg7)
+// CHECK-NEXT:        %34 = affine.load %arg3[%33, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %35 = mulf %18, %34 : f64
+// CHECK-NEXT:        %36 = affine.load %arg3[%arg7, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %37 = mulf %26, %36 : f64
+// CHECK-NEXT:        %38 = addf %35, %37 : f64
+// CHECK-NEXT:        %39 = affine.apply #map3(%arg7)
+// CHECK-NEXT:        %40 = affine.load %arg3[%39, %arg8] : memref<1000x1000xf64>
+// CHECK-NEXT:        %41 = mulf %10, %40 : f64
+// CHECK-NEXT:        %42 = subf %38, %41 : f64
+// CHECK-NEXT:        %43 = affine.load %arg5[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %44 = mulf %13, %43 : f64
+// CHECK-NEXT:        %45 = subf %42, %44 : f64
+// CHECK-NEXT:        %46 = affine.load %arg4[%arg7, %28] : memref<1000x1000xf64>
+// CHECK-NEXT:        %47 = mulf %13, %46 : f64
+// CHECK-NEXT:        %48 = addf %47, %14 : f64
+// CHECK-NEXT:        %49 = divf %45, %48 : f64
+// CHECK-NEXT:        affine.store %49, %arg5[%arg7, %arg8] : memref<1000x1000xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      store %cst, %arg2[%arg7, %17] : memref<1000x1000xf64>
-// CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%30] {
-// CHECK-NEXT:        %37 = subi %arg8, %c1 : index
-// CHECK-NEXT:        %38 = subi %33, %37 : index
-// CHECK-NEXT:        %39 = load %arg4[%arg7, %38] : memref<1000x1000xf64>
-// CHECK-NEXT:        %40 = addi %38, %c1 : index
-// CHECK-NEXT:        %41 = load %arg2[%arg7, %40] : memref<1000x1000xf64>
-// CHECK-NEXT:        %42 = mulf %39, %41 : f64
-// CHECK-NEXT:        %43 = load %arg5[%arg7, %38] : memref<1000x1000xf64>
-// CHECK-NEXT:        %44 = addf %42, %43 : f64
-// CHECK-NEXT:        store %44, %arg2[%arg7, %38] : memref<1000x1000xf64>
+// CHECK-NEXT:      affine.for %arg8 = 1 to #map1()[%16] {
+// CHECK-NEXT:        %28 = subi %arg8, %c1 : index
+// CHECK-NEXT:        %29 = subi %24, %28 : index
+// CHECK-NEXT:        %30 = affine.apply #map2(%arg8)
+// CHECK-NEXT:        %31 = affine.load %arg4[%arg7, %30] : memref<1000x1000xf64>
+// CHECK-NEXT:        %32 = affine.apply #map4(%arg8)
+// CHECK-NEXT:        %33 = affine.load %arg2[%arg7, %32] : memref<1000x1000xf64>
+// CHECK-NEXT:        %34 = mulf %31, %33 : f64
+// CHECK-NEXT:        %35 = affine.load %arg5[%arg7, %30] : memref<1000x1000xf64>
+// CHECK-NEXT:        %36 = addf %34, %35 : f64
+// CHECK-NEXT:        affine.store %36, %arg2[%arg7, %30] : memref<1000x1000xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
 // CHECK-NEXT:  return
 // CHECK-NEXT: }
-
-
-
