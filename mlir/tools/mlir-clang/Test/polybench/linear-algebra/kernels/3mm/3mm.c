@@ -178,43 +178,41 @@ int main(int argc, char** argv)
 // CHECK-NEXT:  affine.for %arg12 = 0 to %0 {
 // CHECK-NEXT:    affine.for %arg13 = 0 to %1 {
 // CHECK-NEXT:      affine.store %cst, %arg5[%arg12, %arg13] : memref<800x900xf64>
-// CHECK-NEXT:      %7 = affine.load %arg5[%arg12, %arg13] : memref<800x900xf64>
+// CHECK-NEXT:      %5 = affine.load %arg5[%arg12, %arg13] : memref<800x900xf64>
 // CHECK-NEXT:      affine.for %arg14 = 0 to %2 {
-// CHECK-NEXT:        %8 = affine.load %arg6[%arg12, %arg14] : memref<800x1000xf64>
-// CHECK-NEXT:        %9 = affine.load %arg7[%arg14, %arg13] : memref<1000x900xf64>
-// CHECK-NEXT:        %10 = mulf %8, %9 : f64
-// CHECK-NEXT:        %11 = addf %7, %10 : f64
-// CHECK-NEXT:        affine.store %11, %arg5[%arg12, %arg13] : memref<800x900xf64>
+// CHECK-NEXT:        %6 = affine.load %arg6[%arg12, %arg14] : memref<800x1000xf64>
+// CHECK-NEXT:        %7 = affine.load %arg7[%arg14, %arg13] : memref<1000x900xf64>
+// CHECK-NEXT:        %8 = mulf %6, %7 : f64
+// CHECK-NEXT:        %9 = addf %5, %8 : f64
+// CHECK-NEXT:        affine.store %9, %arg5[%arg12, %arg13] : memref<800x900xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
-// CHECK-NEXT:  %3 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:  %4 = index_cast %arg3 : i32 to index
-// CHECK-NEXT:  %5 = index_cast %arg4 : i32 to index
-// CHECK-NEXT:  affine.for %arg12 = 0 to %3 {
-// CHECK-NEXT:    affine.for %arg13 = 0 to %4 {
+// CHECK-NEXT:  %3 = index_cast %arg3 : i32 to index
+// CHECK-NEXT:  %4 = index_cast %arg4 : i32 to index
+// CHECK-NEXT:  affine.for %arg12 = 0 to %1 {
+// CHECK-NEXT:    affine.for %arg13 = 0 to %3 {
 // CHECK-NEXT:      affine.store %cst, %arg8[%arg12, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:      %7 = affine.load %arg8[%arg12, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:      affine.for %arg14 = 0 to %5 {
-// CHECK-NEXT:        %8 = affine.load %arg9[%arg12, %arg14] : memref<900x1200xf64>
-// CHECK-NEXT:        %9 = affine.load %arg10[%arg14, %arg13] : memref<1200x1100xf64>
-// CHECK-NEXT:        %10 = mulf %8, %9 : f64
-// CHECK-NEXT:        %11 = addf %7, %10 : f64
-// CHECK-NEXT:        affine.store %11, %arg8[%arg12, %arg13] : memref<900x1100xf64>
+// CHECK-NEXT:      %5 = affine.load %arg8[%arg12, %arg13] : memref<900x1100xf64>
+// CHECK-NEXT:      affine.for %arg14 = 0 to %4 {
+// CHECK-NEXT:        %6 = affine.load %arg9[%arg12, %arg14] : memref<900x1200xf64>
+// CHECK-NEXT:        %7 = affine.load %arg10[%arg14, %arg13] : memref<1200x1100xf64>
+// CHECK-NEXT:        %8 = mulf %6, %7 : f64
+// CHECK-NEXT:        %9 = addf %5, %8 : f64
+// CHECK-NEXT:        affine.store %9, %arg8[%arg12, %arg13] : memref<900x1100xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
-// CHECK-NEXT:  %6 = index_cast %arg3 : i32 to index
 // CHECK-NEXT:  affine.for %arg12 = 0 to %0 {
-// CHECK-NEXT:    affine.for %arg13 = 0 to %6 {
+// CHECK-NEXT:    affine.for %arg13 = 0 to %3 {
 // CHECK-NEXT:      affine.store %cst, %arg11[%arg12, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:      %7 = affine.load %arg11[%arg12, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:      affine.for %arg14 = 0 to %3 {
-// CHECK-NEXT:        %8 = affine.load %arg5[%arg12, %arg14] : memref<800x900xf64>
-// CHECK-NEXT:        %9 = affine.load %arg8[%arg14, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:        %10 = mulf %8, %9 : f64
-// CHECK-NEXT:        %11 = addf %7, %10 : f64
-// CHECK-NEXT:        affine.store %11, %arg11[%arg12, %arg13] : memref<800x1100xf64>
+// CHECK-NEXT:      %5 = affine.load %arg11[%arg12, %arg13] : memref<800x1100xf64>
+// CHECK-NEXT:      affine.for %arg14 = 0 to %1 {
+// CHECK-NEXT:        %6 = affine.load %arg5[%arg12, %arg14] : memref<800x900xf64>
+// CHECK-NEXT:        %7 = affine.load %arg8[%arg14, %arg13] : memref<900x1100xf64>
+// CHECK-NEXT:        %8 = mulf %6, %7 : f64
+// CHECK-NEXT:        %9 = addf %5, %8 : f64
+// CHECK-NEXT:        affine.store %9, %arg11[%arg12, %arg13] : memref<800x1100xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:  }
