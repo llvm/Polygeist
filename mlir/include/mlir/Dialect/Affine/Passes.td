@@ -48,14 +48,9 @@ def AffineLoopInvariantCodeMotion
   let constructor = "mlir::createAffineLoopInvariantCodeMotionPass()";
 }
 
-def AffineStore : FunctionPass<"affine-store"> {
-  let summary = "Replace store with affine.store";
-  let constructor = "mlir::replaceAffineStorePass()";
-}
-
-def AffineLoad : FunctionPass<"affine-load"> {
-  let summary = "Replace load with affine.load";
-  let constructor = "mlir::replaceAffineLoadPass()";
+def AffineStoreAndLoad : FunctionPass<"affine-store-load"> {
+  let summary = "Replace load/store with affine.load/affine.store";
+  let constructor = "mlir::replaceAffineStoreAndLoadPass()";
 }
 
 def AffineLoopTiling : FunctionPass<"affine-loop-tile"> {
