@@ -1,5 +1,4 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
-// XFAIL: *
 /* --- RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 -lm && %s.exec1 &> %s.out1 */
 /**
  * This version is stamped on May 10, 2016
@@ -217,139 +216,86 @@ int main(int argc, char** argv)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @kernel_correlation(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
 // CHECK-NEXT:     %cst = constant 1.000000e-01 : f64
-// CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %cst_0 = constant 1.000000e+00 : f64
-// CHECK-NEXT:     %cst_1 = constant 0.000000e+00 : f64
-// CHECK-NEXT:     br ^bb1(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb1(%0: i32):  // 2 preds: ^bb0, ^bb5
-// CHECK-NEXT:     %1 = cmpi "slt", %0, %arg0 : i32
-// CHECK-NEXT:     cond_br %1, ^bb2, ^bb6(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     %2 = index_cast %0 : i32 to index
-// CHECK-NEXT:     store %cst_1, %arg5[%2] : memref<1200xf64>
-// CHECK-NEXT:     br ^bb3(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb3(%3: i32):  // 2 preds: ^bb2, ^bb4
-// CHECK-NEXT:     %4 = cmpi "slt", %3, %arg1 : i32
-// CHECK-NEXT:     cond_br %4, ^bb4, ^bb5
-// CHECK-NEXT:   ^bb4:  // pred: ^bb3
-// CHECK-NEXT:     %5 = index_cast %3 : i32 to index
-// CHECK-NEXT:     %6 = load %arg3[%5, %2] : memref<1400x1200xf64>
-// CHECK-NEXT:     %7 = load %arg5[%2] : memref<1200xf64>
-// CHECK-NEXT:     %8 = addf %7, %6 : f64
-// CHECK-NEXT:     store %8, %arg5[%2] : memref<1200xf64>
-// CHECK-NEXT:     %9 = addi %3, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb3(%9 : i32)
-// CHECK-NEXT:   ^bb5:  // pred: ^bb3
-// CHECK-NEXT:     %10 = load %arg5[%2] : memref<1200xf64>
-// CHECK-NEXT:     %11 = divf %10, %arg2 : f64
-// CHECK-NEXT:     store %11, %arg5[%2] : memref<1200xf64>
-// CHECK-NEXT:     %12 = addi %0, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%12 : i32)
-// CHECK-NEXT:   ^bb6(%13: i32):  // 2 preds: ^bb1, ^bb10
-// CHECK-NEXT:     %14 = cmpi "slt", %13, %arg0 : i32
-// CHECK-NEXT:     cond_br %14, ^bb7, ^bb11(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb7:  // pred: ^bb6
-// CHECK-NEXT:     %15 = index_cast %13 : i32 to index
-// CHECK-NEXT:     store %cst_1, %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     br ^bb8(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb8(%16: i32):  // 2 preds: ^bb7, ^bb9
-// CHECK-NEXT:     %17 = cmpi "slt", %16, %arg1 : i32
-// CHECK-NEXT:     cond_br %17, ^bb9, ^bb10
-// CHECK-NEXT:   ^bb9:  // pred: ^bb8
-// CHECK-NEXT:     %18 = index_cast %16 : i32 to index
-// CHECK-NEXT:     %19 = load %arg3[%18, %15] : memref<1400x1200xf64>
-// CHECK-NEXT:     %20 = load %arg5[%15] : memref<1200xf64>
-// CHECK-NEXT:     %21 = subf %19, %20 : f64
-// CHECK-NEXT:     %22 = load %arg3[%18, %15] : memref<1400x1200xf64>
-// CHECK-NEXT:     %23 = load %arg5[%15] : memref<1200xf64>
-// CHECK-NEXT:     %24 = subf %22, %23 : f64
-// CHECK-NEXT:     %25 = mulf %21, %24 : f64
-// CHECK-NEXT:     %26 = load %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %27 = addf %26, %25 : f64
-// CHECK-NEXT:     store %27, %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %28 = addi %16, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb8(%28 : i32)
-// CHECK-NEXT:   ^bb10:  // pred: ^bb8
-// CHECK-NEXT:     %29 = load %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %30 = divf %29, %arg2 : f64
-// CHECK-NEXT:     store %30, %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %31 = load %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %32 = sqrt %31 : f64
-// CHECK-NEXT:     store %32, %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %33 = load %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %34 = cmpf "ule", %33, %cst : f64
-// CHECK-NEXT:     %35 = scf.if %34 -> (f64) {
-// CHECK-NEXT:       scf.yield %cst_0 : f64
-// CHECK-NEXT:     } else {
-// CHECK-NEXT:       %73 = load %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:       scf.yield %73 : f64
+// CHECK-NEXT:     %c1 = constant 1 : index
+// CHECK-NEXT:     %cst_0 = constant 0.000000e+00 : f64
+// CHECK-NEXT:     %cst_1 = constant 1.000000e+00 : f64
+// CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:     %1 = index_cast %arg1 : i32 to index
+// CHECK-NEXT:     affine.for %arg7 = 0 to %0 {
+// CHECK-NEXT:       affine.store %cst_0, %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %4 = affine.load %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       affine.for %arg8 = 0 to %1 {
+// CHECK-NEXT:         %7 = affine.load %arg3[%arg8, %arg7] : memref<1400x1200xf64>
+// CHECK-NEXT:         %8 = addf %4, %7 : f64
+// CHECK-NEXT:         affine.store %8, %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %5 = affine.load %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %6 = divf %5, %arg2 : f64
+// CHECK-NEXT:       affine.store %6, %arg5[%arg7] : memref<1200xf64>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     store %35, %arg6[%15] : memref<1200xf64>
-// CHECK-NEXT:     %36 = addi %13, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb6(%36 : i32)
-// CHECK-NEXT:   ^bb11(%37: i32):  // 2 preds: ^bb6, ^bb14
-// CHECK-NEXT:     %38 = cmpi "slt", %37, %arg1 : i32
-// CHECK-NEXT:     cond_br %38, ^bb12(%c0_i32 : i32), ^bb15(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb12(%39: i32):  // 2 preds: ^bb11, ^bb13
-// CHECK-NEXT:     %40 = cmpi "slt", %39, %arg0 : i32
-// CHECK-NEXT:     cond_br %40, ^bb13, ^bb14
-// CHECK-NEXT:   ^bb13:  // pred: ^bb12
-// CHECK-NEXT:     %41 = index_cast %37 : i32 to index
-// CHECK-NEXT:     %42 = index_cast %39 : i32 to index
-// CHECK-NEXT:     %43 = load %arg5[%42] : memref<1200xf64>
-// CHECK-NEXT:     %44 = load %arg3[%41, %42] : memref<1400x1200xf64>
-// CHECK-NEXT:     %45 = subf %44, %43 : f64
-// CHECK-NEXT:     store %45, %arg3[%41, %42] : memref<1400x1200xf64>
-// CHECK-NEXT:     %46 = sqrt %arg2 : f64
-// CHECK-NEXT:     %47 = load %arg6[%42] : memref<1200xf64>
-// CHECK-NEXT:     %48 = mulf %46, %47 : f64
-// CHECK-NEXT:     %49 = load %arg3[%41, %42] : memref<1400x1200xf64>
-// CHECK-NEXT:     %50 = divf %49, %48 : f64
-// CHECK-NEXT:     store %50, %arg3[%41, %42] : memref<1400x1200xf64>
-// CHECK-NEXT:     %51 = addi %39, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb12(%51 : i32)
-// CHECK-NEXT:   ^bb14:  // pred: ^bb12
-// CHECK-NEXT:     %52 = addi %37, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb11(%52 : i32)
-// CHECK-NEXT:   ^bb15(%53: i32):  // 2 preds: ^bb11, ^bb18
-// CHECK-NEXT:     %54 = subi %arg0, %c1_i32 : i32
-// CHECK-NEXT:     %55 = cmpi "slt", %53, %54 : i32
-// CHECK-NEXT:     cond_br %55, ^bb16, ^bb17
-// CHECK-NEXT:   ^bb16:  // pred: ^bb15
-// CHECK-NEXT:     %56 = index_cast %53 : i32 to index
-// CHECK-NEXT:     store %cst_0, %arg4[%56, %56] : memref<1200x1200xf64>
-// CHECK-NEXT:     %57 = addi %53, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb18(%57 : i32)
-// CHECK-NEXT:   ^bb17:  // pred: ^bb15
-// CHECK-NEXT:     %58 = index_cast %54 : i32 to index
-// CHECK-NEXT:     store %cst_0, %arg4[%58, %58] : memref<1200x1200xf64>
+// CHECK-NEXT:     affine.for %arg7 = 0 to %0 {
+// CHECK-NEXT:       affine.store %cst_0, %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %4 = affine.load %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %5 = affine.load %arg5[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %6 = affine.load %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       affine.for %arg8 = 0 to %1 {
+// CHECK-NEXT:         %14 = affine.load %arg3[%arg8, %arg7] : memref<1400x1200xf64>
+// CHECK-NEXT:         %15 = subf %14, %4 : f64
+// CHECK-NEXT:         %16 = affine.load %arg3[%arg8, %arg7] : memref<1400x1200xf64>
+// CHECK-NEXT:         %17 = subf %16, %5 : f64
+// CHECK-NEXT:         %18 = mulf %15, %17 : f64
+// CHECK-NEXT:         %19 = addf %6, %18 : f64
+// CHECK-NEXT:         affine.store %19, %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       }
+// CHECK-NEXT:       %7 = affine.load %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %8 = divf %7, %arg2 : f64
+// CHECK-NEXT:       affine.store %8, %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %9 = affine.load %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %10 = sqrt %9 : f64
+// CHECK-NEXT:       affine.store %10, %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %11 = affine.load %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:       %12 = cmpf "ule", %11, %cst : f64
+// CHECK-NEXT:       %13 = scf.if %12 -> (f64) {
+// CHECK-NEXT:         scf.yield %cst_1 : f64
+// CHECK-NEXT:       } else {
+// CHECK-NEXT:         %14 = affine.load %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:         scf.yield %14 : f64
+// CHECK-NEXT:       }
+// CHECK-NEXT:       affine.store %13, %arg6[%arg7] : memref<1200xf64>
+// CHECK-NEXT:     }
+// CHECK-NEXT:     %2 = sqrt %arg2 : f64
+// CHECK-NEXT:     affine.for %arg7 = 0 to %1 {
+// CHECK-NEXT:       affine.for %arg8 = 0 to %0 {
+// CHECK-NEXT:         %4 = affine.load %arg5[%arg8] : memref<1200xf64>
+// CHECK-NEXT:         %5 = affine.load %arg3[%arg7, %arg8] : memref<1400x1200xf64>
+// CHECK-NEXT:         %6 = subf %5, %4 : f64
+// CHECK-NEXT:         affine.store %6, %arg3[%arg7, %arg8] : memref<1400x1200xf64>
+// CHECK-NEXT:         %7 = affine.load %arg6[%arg8] : memref<1200xf64>
+// CHECK-NEXT:         %8 = mulf %2, %7 : f64
+// CHECK-NEXT:         %9 = affine.load %arg3[%arg7, %arg8] : memref<1400x1200xf64>
+// CHECK-NEXT:         %10 = divf %9, %8 : f64
+// CHECK-NEXT:         affine.store %10, %arg3[%arg7, %arg8] : memref<1400x1200xf64>
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     %3 = subi %0, %c1 : index
+// CHECK-NEXT:     affine.for %arg7 = 0 to #map0()[%0] {
+// CHECK-NEXT:       affine.store %cst_1, %arg4[%arg7, %arg7] : memref<1200x1200xf64>
+// CHECK-NEXT:       affine.for %arg8 = #map1(%arg7) to %0 {
+// CHECK-NEXT:         affine.store %cst_0, %arg4[%arg7, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:         %4 = affine.load %arg4[%arg7, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:         affine.for %arg9 = 0 to %1 {
+// CHECK-NEXT:           %6 = affine.load %arg3[%arg9, %arg7] : memref<1400x1200xf64>
+// CHECK-NEXT:           %7 = affine.load %arg3[%arg9, %arg8] : memref<1400x1200xf64>
+// CHECK-NEXT:           %8 = mulf %6, %7 : f64
+// CHECK-NEXT:           %9 = addf %4, %8 : f64
+// CHECK-NEXT:           affine.store %9, %arg4[%arg7, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:         }
+// CHECK-NEXT:         %5 = affine.load %arg4[%arg7, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:         affine.store %5, %arg4[%arg8, %arg7] : memref<1200x1200xf64>
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     store %cst_1, %arg4[%3, %3] : memref<1200x1200xf64>
 // CHECK-NEXT:     return
-// CHECK-NEXT:   ^bb18(%59: i32):  // 2 preds: ^bb16, ^bb22
-// CHECK-NEXT:     %60 = cmpi "slt", %59, %arg0 : i32
-// CHECK-NEXT:     cond_br %60, ^bb19, ^bb15(%57 : i32)
-// CHECK-NEXT:   ^bb19:  // pred: ^bb18
-// CHECK-NEXT:     %61 = index_cast %59 : i32 to index
-// CHECK-NEXT:     store %cst_1, %arg4[%56, %61] : memref<1200x1200xf64>
-// CHECK-NEXT:     br ^bb20(%c0_i32 : i32)
-// CHECK-NEXT:   ^bb20(%62: i32):  // 2 preds: ^bb19, ^bb21
-// CHECK-NEXT:     %63 = cmpi "slt", %62, %arg1 : i32
-// CHECK-NEXT:     cond_br %63, ^bb21, ^bb22
-// CHECK-NEXT:   ^bb21:  // pred: ^bb20
-// CHECK-NEXT:     %64 = index_cast %62 : i32 to index
-// CHECK-NEXT:     %65 = load %arg3[%64, %56] : memref<1400x1200xf64>
-// CHECK-NEXT:     %66 = load %arg3[%64, %61] : memref<1400x1200xf64>
-// CHECK-NEXT:     %67 = mulf %65, %66 : f64
-// CHECK-NEXT:     %68 = load %arg4[%56, %61] : memref<1200x1200xf64>
-// CHECK-NEXT:     %69 = addf %68, %67 : f64
-// CHECK-NEXT:     store %69, %arg4[%56, %61] : memref<1200x1200xf64>
-// CHECK-NEXT:     %70 = addi %62, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb20(%70 : i32)
-// CHECK-NEXT:   ^bb22:  // pred: ^bb20
-// CHECK-NEXT:     %71 = load %arg4[%56, %61] : memref<1200x1200xf64>
-// CHECK-NEXT:     store %71, %arg4[%61, %56] : memref<1200x1200xf64>
-// CHECK-NEXT:     %72 = addi %59, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb18(%72 : i32)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @print_array(%arg0: i32, %arg1: memref<1200x1200xf64>) {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32

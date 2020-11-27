@@ -53,6 +53,11 @@ def AffineStoreAndLoad : FunctionPass<"affine-store-load"> {
   let constructor = "mlir::replaceAffineStoreAndLoadPass()";
 }
 
+def AffineCFG : FunctionPass<"affine-cfg"> {
+  let summary = "Replace scf.if and similar with affine.if";
+  let constructor = "mlir::replaceAffineCFGPass()";
+}
+
 def AffineLoopTiling : FunctionPass<"affine-loop-tile"> {
   let summary = "Tile affine loop nests";
   let constructor = "mlir::createLoopTilingPass()";
