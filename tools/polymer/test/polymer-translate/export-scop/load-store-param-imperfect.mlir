@@ -11,10 +11,13 @@ func @load_store_param_2d(%A : memref<?xf32>, %B : memref<?x?xf32>) -> () {
   %M = dim %B, %c0 : memref<?x?xf32>
   %N = dim %B, %c1 : memref<?x?xf32>
 
-  affine.for %i = 0 to %M {
+  affine.for %i = 1 to %M {
     %0 = affine.load %A[%i] : memref<?xf32>
-    affine.for %j = 0 to %N {
-      affine.store %0, %B[%i, %j] : memref<?x?xf32>
+    %1 = affine.apply affine_map<(d0) -> (d0 - 1)>(%i)[]
+    affine.for %j = affine_map<(d0)[s0] -> (s0 - d0 + 1)>(%1)[%M] to %N {
+      %2 = affine.apply affine_map<(d0) -> (d0 - 1)>(%i)[]
+      %3 = affine.apply affine_map<(d0)[s0] -> (s0 - d0 - 1)>(%j)[%N]
+      affine.store %0, %B[%2, %3] : memref<?x?xf32>
     }
   }
 

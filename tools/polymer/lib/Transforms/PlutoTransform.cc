@@ -8,6 +8,7 @@
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/OpenScop.h"
 
 #include "pluto/internal/pluto.h"
@@ -58,82 +59,73 @@ static LogicalResult updateValueMapping(OslSymbolTable &srcTable,
   return success();
 }
 
-namespace {
+static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
+  PlutoContext *context = pluto_context_alloc();
+  OslSymbolTable srcTable, dstTable;
 
-struct PlutoTransform : public OpConversionPattern<mlir::FuncOp> {
-  using OpConversionPattern<mlir::FuncOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(mlir::FuncOp funcOp, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    PlutoContext *context = pluto_context_alloc();
-    OslSymbolTable srcTable, dstTable;
-
-    std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(funcOp, srcTable);
-    if (!scop) {
-      funcOp.emitError(
-          "Cannot emit a valid OpenScop representation from the given FuncOp.");
-      return failure();
-    }
-
-    if (scop->getNumStatements() == 0) {
-      // TODO: Is there a good way to replace this pair?
-      rewriter.startRootUpdate(funcOp);
-      rewriter.finalizeRootUpdate(funcOp);
-      return success();
-    }
-
-    // Should use isldep, candl cannot work well for this case.
-    // TODO: should discover why.
-    context->options->isldep = 1;
-
-    PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
-
-    pluto_compute_dep_directions(prog);
-    pluto_compute_dep_satisfaction(prog);
-    pluto_tile(prog);
-
-    pluto_populate_scop(scop->get(), prog, context);
-    osl_scop_print(stdout, scop->get());
-
-    auto moduleOp = dyn_cast<mlir::ModuleOp>(funcOp.getParentOp());
-
-    // TODO: remove the root update pairs.
-    auto newFuncOp = createFuncOpFromOpenScop(std::move(scop), moduleOp,
-                                              dstTable, rewriter.getContext());
-
-    BlockAndValueMapping mapping;
-    // TODO: refactorize this function and the following logic.
-    if (failed(updateValueMapping(srcTable, dstTable, mapping)))
-      return failure();
-
-    SmallVector<StringRef, 8> stmtSymbols;
-    srcTable.getOpSetSymbols(stmtSymbols);
-    for (auto stmtSym : stmtSymbols) {
-      // The operation to be cloned.
-      auto srcOpSet = srcTable.getOpSet(stmtSym);
-      // The clone destination.
-      auto dstOpSet = dstTable.getOpSet(stmtSym);
-      auto dstOp = dstOpSet.get(0);
-
-      rewriter.setInsertionPoint(dstOp);
-
-      for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
-        rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
-
-      // rewriter.setInsertionPoint(dstOp);
-      // rewriter.clone(*srcOp, mapping);
-      rewriter.eraseOp(dstOp);
-      rewriter.eraseOp(dstOpSet.get(1));
-    }
-
-    rewriter.eraseOp(funcOp);
-
-    pluto_context_free(context);
+  std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(f, srcTable);
+  if (!scop)
     return success();
-  }
-};
+  if (scop->getNumStatements() == 0)
+    return success();
 
+  // for (const auto &it : *(scop->getScopStmtMap())) {
+  //   llvm::outs() << it.first() << "\n";
+  // }
+
+  // Should use isldep, candl cannot work well for this case.
+  // TODO: should discover why.
+  context->options->isldep = 1;
+
+  PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
+
+  pluto_compute_dep_directions(prog);
+  pluto_compute_dep_satisfaction(prog);
+  pluto_tile(prog);
+
+  pluto_populate_scop(scop->get(), prog, context);
+  osl_scop_print(stdout, scop->get());
+
+  auto moduleOp = dyn_cast<mlir::ModuleOp>(f.getParentOp());
+
+  // TODO: remove the root update pairs.
+  auto newFuncOp = createFuncOpFromOpenScop(std::move(scop), moduleOp, dstTable,
+                                            rewriter.getContext());
+
+#if 0
+  BlockAndValueMapping mapping;
+  // TODO: refactorize this function and the following logic.
+  if (failed(updateValueMapping(srcTable, dstTable, mapping)))
+    return failure();
+
+  SmallVector<StringRef, 8> stmtSymbols;
+  srcTable.getOpSetSymbols(stmtSymbols);
+  for (auto stmtSym : stmtSymbols) {
+    // The operation to be cloned.
+    auto srcOpSet = srcTable.getOpSet(stmtSym);
+    // The clone destination.
+    auto dstOpSet = dstTable.getOpSet(stmtSym);
+    auto dstOp = dstOpSet.get(0);
+
+    rewriter.setInsertionPoint(dstOp);
+
+    for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
+      rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
+
+    // rewriter.setInsertionPoint(dstOp);
+    // rewriter.clone(*srcOp, mapping);
+    rewriter.eraseOp(dstOp);
+    rewriter.eraseOp(dstOpSet.get(1));
+  }
+
+  rewriter.eraseOp(f);
+#endif
+
+  pluto_context_free(context);
+  return success();
+}
+
+namespace {
 /// TODO: split this into specific categories like tiling.
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
@@ -141,15 +133,17 @@ class PlutoTransformPass
 public:
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
+    mlir::OpBuilder b(m.getContext());
 
-    ConversionTarget target(getContext());
-    target.addLegalDialect<StandardOpsDialect, mlir::AffineDialect>();
+    SmallVector<mlir::FuncOp, 8> funcOps;
+    m.walk([&](mlir::FuncOp f) {
+      if (!f.getAttr("scop.stmt"))
+        funcOps.push_back(f);
+    });
 
-    OwningRewritePatternList patterns;
-    patterns.insert<PlutoTransform>(m.getContext());
-
-    if (failed(applyPartialConversion(m, target, patterns)))
-      signalPassFailure();
+    for (mlir::FuncOp f : funcOps)
+      if (failed(plutoTransform(f, b)))
+        signalPassFailure();
   }
 };
 } // namespace
