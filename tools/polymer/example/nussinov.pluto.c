@@ -22,7 +22,25 @@ struct TwoDMemrefI32 {
   long stride[2];
 };
 
+#ifdef MINI_DATASET
+#define N 60
+#endif
+
+#ifdef SMALL_DATASET
+#define N 180
+#endif
+
+#ifdef MEDIUM_DATASET
+#define N 500
+#endif
+
+#ifdef LARGE_DATASET
+#define N 2500
+#endif
+
+#ifdef EXTRALARGE_DATASET
 #define N 5500
+#endif
 
 extern void _mlir_ciface_pb_nussinov(struct OneDMemrefI8 *,
                                      struct TwoDMemrefI32 *);

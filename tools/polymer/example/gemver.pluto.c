@@ -21,7 +21,25 @@ struct TwoDMemrefF32 {
   long stride[2];
 };
 
-#define N 4096
+#ifdef MINI_DATASET
+#define N 40
+#endif
+
+#ifdef SMALL_DATASET
+#define N 120
+#endif
+
+#ifdef MEDIUM_DATASET
+#define N 400
+#endif
+
+#ifdef LARGE_DATASET
+#define N 2000
+#endif
+
+#ifdef EXTRALARGE_DATASET
+#define N 4000
+#endif
 
 extern void _mlir_ciface_gemver(float alpha, float beta, struct TwoDMemrefF32 *,
                                 struct OneDMemrefF32 *, struct OneDMemrefF32 *,

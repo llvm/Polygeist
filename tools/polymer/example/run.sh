@@ -1,6 +1,8 @@
-#!/usr/bin/bash
+#!/usr/bin/bash -x
 
 NAME="$1"
+DATASET_SIZE="$2"
+
 MAIN_FILE="${NAME}.c"
 MAIN_LLVMIR_FILE="${NAME}.ll"
 MLIR_FILE="${NAME}.mlir"
@@ -29,7 +31,7 @@ ${LLVM_BINDIR}/opt -O3 "${MLIR_LLVMIR_FILE}" -o "${MLIR_BC_FILE}"
 
 # ${LLVM_BINDIR}/llvm-as "${MLIR_LLVMIR_FILE}" -o "${MLIR_BC_FILE}"
 
-${LLVM_BINDIR}/clang -emit-llvm "${MAIN_FILE}" -S -o "${MAIN_LLVMIR_FILE}"
+${LLVM_BINDIR}/clang -D"${DATASET_SIZE}_DATASET" -emit-llvm "${MAIN_FILE}" -S -o "${MAIN_LLVMIR_FILE}"
 
 ${LLVM_BINDIR}/llvm-link "${MAIN_LLVMIR_FILE}" "${MLIR_LLVMIR_FILE}" -o "${RESULT_BC_FILE}"
 
