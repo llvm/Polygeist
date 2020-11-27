@@ -48,409 +48,174 @@ using namespace polymer;
 
 #define DEBUG_TYPE "emit-openscop"
 
-typedef llvm::DenseMap<mlir::Value, unsigned> MemRefToId;
-
-/// Map between a loop IV (mlir::Value) and its iterator name in Scop.
-typedef llvm::DenseMap<mlir::Value, std::string> LoopIVToName;
-
-std::string getMemrefName(unsigned id) {
-  std::string name = formatv("A{0}", id);
-  return name;
-}
-
 namespace {
-/// Extracted data from the domain constraints, will be used as the value of
-/// paramMap when generating scop. lb and ub will be used to get the context
-/// relation.
-struct DomainParameter {
-  unsigned pos; // Parameter column position in the constraints.
-  llvm::Optional<int64_t> lb, ub; // Lower and upper bounds.
 
-  DomainParameter() : pos(0), lb(llvm::None), ub(llvm::None) {}
-  DomainParameter(unsigned pos, llvm::Optional<int64_t> lb,
-                  llvm::Optional<int64_t> ub)
-      : pos(pos), lb(lb), ub(ub) {}
+/// Build OslScop from FuncOp.
+class OslScopBuilder {
+public:
+  OslScopBuilder() {}
+
+  /// Build a scop from a common FuncOp.
+  std::unique_ptr<OslScop> build(mlir::FuncOp f);
+
+private:
+  /// Find all statements that calls a scop.stmt.
+  void buildScopStmtMap(mlir::FuncOp f,
+                        OslScop::ScopStmtMap *scopStmtMap) const;
+
+  /// Build the scop context. The domain of each scop stmt will be updated, by
+  /// merging and aligning its IDs with the context as well.
+  void buildScopContext(OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
+                        FlatAffineConstraints &ctx) const;
 };
+
 } // namespace
 
-/// Add parameters to the maintained parameter-ID map.
-static void
-addParamsToMap(FlatAffineConstraints &domain,
-               llvm::DenseMap<mlir::Value, DomainParameter> &paramMap) {
-  // Get symbol values from the domain constraint.
-  SmallVector<mlir::Value, 8> values;
-  unsigned offset = domain.getNumDimIds();
-  domain.getIdValues(offset, domain.getNumDimAndSymbolIds(), &values);
+/// Build OslScop from a given FuncOp.
+std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
+  /// Context constraints.
+  FlatAffineConstraints ctx;
 
-  // Insert the value into the map if there isn't one.
-  for (int i = 0, e = values.size(); i < e; i++) {
-    mlir::Value value = values[i];
-    auto lb = domain.getConstantLowerBound(i + offset);
-    auto ub = domain.getConstantUpperBound(i + offset);
-    LLVM_DEBUG(llvm::dbgs() << "Bound for parameter i=" << i << " : [" << lb
-                            << ", " << ub << ")\n");
+  // Initialize a new Scop per FuncOp. The osl_scop object within it will be
+  // created. It doesn't contain any fields, and this may incur some problems,
+  // which the validate function won't discover, e.g., no context will cause
+  // segfault when printing scop. Please don't just return this object.
+  auto scop = std::make_unique<OslScop>();
+  // Mapping between scop stmt names and their caller/callee op pairs.
+  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
 
-    paramMap.try_emplace(value, DomainParameter(paramMap.size(), lb, ub));
-  }
-}
+  // Find all caller/callee pairs in which the callee has the attribute of name
+  // SCOP_STMT_ATTR_NAME.
+  buildScopStmtMap(f, scopStmtMap);
+  if (scopStmtMap->empty())
+    return nullptr;
 
-/// Build the mapping from position to parameters.
-static void
-buildPosToParamMap(const llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
-                   SmallVectorImpl<mlir::Value> &posToParam) {
-  unsigned numParam = paramMap.size();
-  posToParam.resize(numParam);
+  // Build context in it.
+  buildScopContext(scop.get(), scopStmtMap, ctx);
 
-#ifdef NDEBUG
-  for (auto const &it : paramMap)
-    assert(it.second.pos < numParam &&
-           "The position of a parameter should be smaller than the total "
-           "number of parameters.");
-#endif
+  // Counter for the statement inserted.
+  unsigned stmtId = 0;
+  for (const auto &it : *scopStmtMap) {
+    const ScopStmt &stmt = it.second;
+    // Collet the domain.
+    FlatAffineConstraints *domain = stmt.getDomain();
+    // Collect the enclosing ops.
+    llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
+    stmt.getEnclosingOps(enclosingOps);
+    // Get the callee.
+    mlir::FuncOp callee = stmt.getCallee();
 
-  // paramMap has mappings from mlir::Values to their corresponding
-  // DomainParameter. Here we need to create a reversed mapping from the
-  // position of each domain parameter to its corresponding mlir::Value. Since
-  // we already resized posToParam, we can just place the mlir::Value of each
-  // parameter at its corresponding position in posToParam.
-  for (auto const &it : paramMap)
-    posToParam[it.second.pos] = it.first;
-}
+    // Create a statement in OslScop and setup relations in it.
+    scop->createStatement();
+    scop->addDomainRelation(stmtId, *domain);
+    scop->addScatteringRelation(stmtId, *domain, enclosingOps);
+    callee.walk([&](mlir::Operation *op) {
+      if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
+        bool isRead = isa<mlir::AffineReadOpInterface>(op);
+        AffineValueMap vMap;
+        mlir::Value memref;
 
-/// Create a context relation from parameters and add it to the scop.
-static void
-addContextToScop(llvm::DenseMap<mlir::Value, DomainParameter> &paramMap,
-                 OslScop *scop) {
-  unsigned numParams = paramMap.size();
-  unsigned numCols = 2 + numParams;
-
-  std::vector<int64_t> ctxEqs, ctxInEqs;
-
-  // We assume the context relation is built on inequalities generated by the
-  // lower and upper bound of each parameter.
-  ctxInEqs.reserve(numParams * 2 * (numCols - 1));
-
-  unsigned i = 0; // The parameter ID.
-  std::vector<int64_t> inEq(numCols - 1, 0);
-  for (auto const &it : paramMap) {
-    DomainParameter param = it.second;
-    assert((param.lb != llvm::None || param.ub != llvm::None) &&
-           "At least one of lb and ub should not be None.");
-
-    // Set the lower bound
-    if (param.lb != llvm::None) {
-      std::fill(inEq.begin(), inEq.end(), 0);
-      inEq[i] = 1;                              // The pos of the parameter.
-      inEq[numCols - 2] = -param.lb.getValue(); // The constant.
-      ctxInEqs.insert(ctxInEqs.end(), inEq.begin(), inEq.end());
-    }
-    // Set the upper bound
-    if (param.ub != llvm::None) {
-      std::fill(inEq.begin(), inEq.end(), 0);
-      inEq[i] = -1;                            // The pos of the parameter.
-      inEq[numCols - 2] = param.ub.getValue(); // The constant.
-      ctxInEqs.insert(ctxInEqs.end(), inEq.begin(), inEq.end());
-    }
-
-    i++;
-  }
-
-  // Assuming no equality.
-  unsigned numRows = ctxInEqs.size() / (numCols - 1);
-  scop->addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0, numParams,
-                    ctxEqs, ctxInEqs);
-}
-
-/// Update the parameter (symbol) section of the domain constraints. We need to
-/// make sure that all domains share the same set of parameters and they are
-/// located at the same positions.
-static void
-updateDomainParams(FlatAffineConstraints &domain,
-                   SmallVectorImpl<mlir::Value> &posToParam,
-                   llvm::DenseMap<mlir::Value, DomainParameter> &paramMap) {
-  unsigned offset = domain.getNumDimIds();
-  unsigned numParams = paramMap.size();
-
-  for (unsigned pos = 0; pos < numParams; pos++) {
-    mlir::Value param = posToParam[pos];
-
-    unsigned posInDomain;
-    if (domain.findId(param, &posInDomain)) {
-      // If there is such param in the domain, we should check whether its
-      // position is right.
-      if (posInDomain != offset + pos) {
-        // posInDomain should be larger than pos. It is because all parameters
-        // located before pos should already be placed correctly.
-        assert(posInDomain > pos &&
-               "posInDomain should be larger than pos if not equal.");
-        domain.swapId(offset + pos, posInDomain);
+        stmt.getAccessMapAndMemRef(op, &vMap, &memref);
+        scop->addAccessRelation(stmtId, isRead, memref, vMap, *domain);
       }
-    } else {
-      domain.addSymbolId(pos, /*id=*/param);
+    });
+
+    stmtId++;
+  }
+
+  // Setup the symbol table within the OslScop, which builds the mapping from
+  // mlir::Value to their names in the OpenScop representation, and maps them
+  // backward.
+  scop->initializeSymbolTable(f, &ctx);
+
+  // Insert body extension.
+  stmtId = 0;
+  for (const auto &it : *scopStmtMap)
+    scop->addBodyExtension(stmtId++, it.second);
+
+  // Additionally, setup the name of the function in the comment.
+  scop->addExtensionGeneric("comment", f.getName());
+
+  assert(scop->validate() && "The scop object created cannot be validated.");
+  return scop;
+}
+
+/// Find all statements that calls a scop.stmt.
+void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
+                                      OslScop::ScopStmtMap *scopStmtMap) const {
+  mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
+
+  f.walk([&](mlir::Operation *op) {
+    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+      llvm::StringRef calleeName = caller.getCallee();
+      mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
+
+      // If the callee is of scop.stmt, we create a new instance in the map
+      if (callee.getAttr(SCOP_STMT_ATTR_NAME))
+        scopStmtMap->insert(
+            std::make_pair(calleeName, ScopStmt(caller, callee)));
+    }
+  });
+}
+
+void OslScopBuilder::buildScopContext(OslScop *scop,
+                                      OslScop::ScopStmtMap *scopStmtMap,
+                                      FlatAffineConstraints &ctx) const {
+  ctx.reset();
+
+  // Union with the domains of all Scop statements. We first merge and align the
+  // IDs of the context and the domain of the scop statement, and then append
+  // the constraints from the domain to the context. Note that we don't want to
+  // mess up with the original domain at this point. Trivial redundant
+  // constraints will be removed.
+  for (const auto &it : *scopStmtMap) {
+    FlatAffineConstraints *domain = it.second.getDomain();
+    FlatAffineConstraints cst(*domain);
+
+    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.append(cst);
+    ctx.removeRedundantConstraints();
+  }
+
+  // Then, create the single context relation in scop.
+  scop->addContextRelation(ctx);
+
+  // Finally, given that ctx has all the parameters in it, we will make sure
+  // that each domain is aligned with them, i.e., every domain has the same
+  // parameter columns (Values & order).
+  for (const auto &it : *scopStmtMap) {
+    FlatAffineConstraints *domain = it.second.getDomain();
+
+    // Keep a copy of all exising dim values.
+    SmallVector<mlir::Value, 8> dimValues;
+    domain->getIdValues(0, domain->getNumDimIds(), &dimValues);
+
+    // Merge with the context.
+    domain->mergeAndAlignIdsWithOther(0, &ctx);
+
+    // But remove those newly added dim values.
+    SmallVector<mlir::Value, 8> allDimValues;
+    domain->getIdValues(0, domain->getNumDimIds(), &allDimValues);
+
+    // Find those values that should be removed.
+    SetVector<mlir::Value> dimValuesToRemove;
+    for (mlir::Value dimValue : allDimValues)
+      dimValuesToRemove.insert(dimValue);
+    for (mlir::Value dimValue : dimValues)
+      dimValuesToRemove.remove(dimValue);
+
+    // Make the update.
+    for (mlir::Value dimValue : dimValuesToRemove) {
+      unsigned pos;
+      if (domain->findId(dimValue, &pos))
+        domain->removeId(pos);
     }
   }
 }
 
-/// Get a clone of the elements in the equalities or inequalities of
-/// FlatAffineConstraints.
-static void getEqualities(FlatAffineConstraints &cst, std::vector<int64_t> &eqs,
-                          bool isEq = true) {
-  unsigned numEqualities =
-      isEq ? cst.getNumEqualities() : cst.getNumInequalities();
-  unsigned numDimIds = cst.getNumDimIds();
-  unsigned numLocalIds = cst.getNumLocalIds();
-  unsigned numSymbolIds = cst.getNumSymbolIds();
-
-  for (unsigned i = 0; i < numEqualities; i++) {
-    auto eq = isEq ? cst.getEquality(i) : cst.getInequality(i);
-    unsigned numCols = eq.size();
-    if (i == 0)
-      eqs.resize(numEqualities * numCols);
-
-    // Dims stay at the same positions.
-    for (unsigned j = 0; j < numDimIds; j++)
-      eqs[i * numCols + j] = eq[j];
-    // Output local ids before symbols.
-    for (unsigned j = 0; j < numLocalIds; j++)
-      eqs[i * numCols + j + numDimIds] = eq[j + numDimIds + numSymbolIds];
-    // Output symbols in the end.
-    for (unsigned j = 0; j < numSymbolIds; j++)
-      eqs[i * numCols + j + numDimIds + numLocalIds] = eq[j + numDimIds];
-    eqs[i * numCols + numCols - 1] = eq[numCols - 1];
-  }
-}
-
-/// Gather information from the domain FlatAffineConstraints and put them into
-/// the scop as a DOMAIN relation. index gives the statement id.
-static void addDomainToScop(unsigned index, FlatAffineConstraints &domain,
-                            OslScop *scop) {
-  // First we clone the equalities and inequalities from the domain constraints.
-  std::vector<int64_t> eqs, inEqs;
-  getEqualities(domain, eqs);
-  getEqualities(domain, inEqs, /*isEq=*/false);
-
-  // Then put them into the scop as a DOMAIN relation.
-  scop->addRelation(index + 1, OSL_TYPE_DOMAIN, domain.getNumConstraints(),
-                    domain.getNumCols() + 1, domain.getNumDimIds(), 0,
-                    domain.getNumLocalIds(), domain.getNumSymbolIds(), eqs,
-                    inEqs);
-}
-
-/// Generate the access relation and add it to the scop.
-static void addAccessToScop(unsigned index, unsigned memrefId, bool isRead,
-                            ArrayRef<SmallVector<int64_t, 8>> flatExprs,
-                            ArrayRef<mlir::Value> indices,
-                            ArrayRef<mlir::Value> symbols,
-                            FlatAffineConstraints &domain, OslScop *scop) {
-  // Number of equalities equals to the number of indices that this access
-  // relation uses, plus 1 that corresponds to the array itself.
-  unsigned numAccessIndices = flatExprs.size();
-  unsigned numAccessEqs = numAccessIndices + 1;
-  unsigned numAccessRawCols = domain.getNumCols() + numAccessEqs;
-  unsigned numAccessCols = numAccessRawCols + 1;
-  unsigned numDimIds = domain.getNumDimIds();
-  unsigned numSymbolIds = domain.getNumSymbolIds();
-  unsigned numLocalIds = domain.getNumLocalIds();
-
-  // Create equalities and inequalities.
-  std::vector<int64_t> eqs, inEqs;
-  eqs.resize(numAccessEqs * numAccessRawCols);
-
-  for (unsigned i = 0; i < numAccessEqs; i++) {
-    unsigned startIdx = i * numAccessRawCols;
-
-    // The first section of a diagonal square matrix that points which axis the
-    // current access relation is working on.
-    for (unsigned j = 0; j < numAccessIndices + 1; j++)
-      eqs[startIdx + j] = -static_cast<int64_t>(i == j);
-    startIdx += numAccessIndices + 1;
-
-    // Set up the relation betwene the memref access position and the loop IVs.
-    if (i == 0) {
-      // The first row sets the array ID to the memref ID.
-      for (unsigned j = 0; j < domain.getNumCols() - 1; j++)
-        eqs[startIdx + j] = 0;
-      eqs[startIdx + domain.getNumCols() - 1] = memrefId;
-    } else {
-      // Put the coefficients in the flat exprs into the access relation.
-      unsigned numFlatExprCols = flatExprs[i - 1].size();
-      unsigned numFlatExprDimIds = indices.size();
-      unsigned numFlatExprSymbolIds = symbols.size();
-      unsigned numFlatExprLocalIds =
-          numFlatExprCols - numFlatExprDimIds - numFlatExprSymbolIds - 1;
-
-      // Note that numFlatExprCols may be smaller than the number of columns in
-      // the domain constraints, mainly because the flatExprs are not aligned
-      // with the position in domain constraints. Therefore, for those cases
-      // that numFlatExprCols equals to the number of columns in the domain
-      // constraint, we take a special approach to handle the mis-placed local
-      // IDs; otherwise, we just place what in the flatExpr into the access
-      // equalities.
-      // TODO: properly handle local vars in the access equalities.
-
-      // Input dims.
-      for (unsigned j = 0; j < numDimIds; j++)
-        eqs[startIdx + j] = 0; // initialize
-      // Set corresponding dim to 1.
-      for (unsigned j = 0; j < numFlatExprDimIds; j++) {
-        if (auto val = flatExprs[i - 1][j]) {
-          unsigned pos;
-          assert(domain.findId(indices[j], &pos) &&
-                 "Access index value not found in the domain constraints.");
-          eqs[startIdx + pos] = val;
-        }
-      }
-      startIdx += numDimIds;
-
-      // Local dims.
-      for (unsigned j = 0; j < numLocalIds; j++)
-        eqs[startIdx + j] =
-            flatExprs[i - 1][j + numFlatExprDimIds + numFlatExprSymbolIds];
-      startIdx += numLocalIds;
-
-      // Parameters.
-      for (unsigned j = 0; j < numSymbolIds; j++)
-        eqs[startIdx + j] = 0; // initialize
-      for (unsigned j = 0; j < numFlatExprSymbolIds; j++) {
-        if (auto val = flatExprs[i - 1][j + numFlatExprDimIds]) {
-          unsigned pos;
-          assert(domain.findId(symbols[j], &pos) &&
-                 "Symbol value not found in the domain constraints.");
-          eqs[startIdx + pos - numDimIds] = val;
-        }
-      }
-      startIdx += numSymbolIds;
-
-      // Constant.
-      eqs[startIdx] = flatExprs[i - 1][numFlatExprCols - 1];
-    }
-  }
-
-  // Then put them into the scop as a ACCESS relation.
-  scop->addRelation(index + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-                    numAccessEqs, numAccessCols, numAccessEqs,
-                    domain.getNumDimIds(), domain.getNumLocalIds(),
-                    domain.getNumSymbolIds(), eqs, inEqs);
-}
-
-static void addParameterNamesToScop(unsigned numParams, OslScop *scop) {
-  if (numParams == 0)
-    return;
-
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  for (unsigned i = 0; i < numParams; i++)
-    ss << formatv("P{0}", i) << " ";
-
-  scop->addGeneric(-1, "strings", body);
-}
-
-/// Add the body extension to each statement. `stmtId` corresponds to the index
-/// of the statement in the scop (starting from 1), and `op` is the memory
-/// access operation. In the content of the body we need to decide the number of
-/// the original iterators and what they are. This can be retrieved from the
-/// access indices of the given op.
-static void addBodyExtToScop(int stmtId, OslScopStmtOpSet *opSet,
-                             LoopIVToName &ivNameMap, OslSymbolTable &symTable,
-                             const MemRefToId &memrefIdMap, OslScop *scop) {
-  // The string content of the body extension.
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  llvm::SmallVector<MemRefAccess, 8> accesses;
-  llvm::SmallVector<std::string, 8> args;
-
-  // The first set of arguments are memref names. There is no specific ordering
-  // of the names.
-  for (auto op : *opSet) {
-    if (isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op)) {
-      MemRefAccess access(op);
-      auto memRefType = access.memref.getType().cast<MemRefType>();
-
-      std::string memName = getMemrefName(memrefIdMap.lookup(access.memref));
-      // Each memref is followed by its number of dimensions.
-      args.push_back(memName);
-      args.push_back(std::to_string(memRefType.getShape().size()));
-
-      accesses.push_back(access);
-    }
-  }
-
-  // Get loop IVs.
-  SetVector<mlir::Value> ivArgs;
-  for (auto access : accesses) {
-    for (auto idx : access.indices) {
-      // If `idx` doesn't exist in the ivNameMap, we insert a new one using
-      // format "i[number]". Sometimes parameters can exist in access.indices,
-      // we should distinguish them with IV by checking the type. If the type of
-      // the iv is BlockArgument, then it is an actual IV; otherwise it is a
-      // constant parameter.
-      if (idx.dyn_cast<BlockArgument>()) {
-        ivNameMap.try_emplace(idx, formatv("i{0}", ivNameMap.size()));
-        ivArgs.insert(idx);
-      }
-    }
-  }
-
-  // Number of iterators.
-  ss << ivArgs.size() << " ";
-  // Add iterator names.
-  for (auto ivArg : ivArgs) {
-    args.push_back(ivNameMap[ivArg]);
-    ss << ivNameMap[ivArg] << " ";
-  }
-
-  // Get statement ID following the pattern "S<ID>", e.g., S0, S1, etc. We
-  // assume the given op has not been added to stmtToOp before as a value.
-  unsigned numStmtOpSets = symTable.getNumOpSets(OslSymbolTable::StmtOpSet);
-  std::string stmtName = formatv("S{0}", numStmtOpSets);
-  symTable.setOpSet(stmtName, *opSet, OslSymbolTable::StmtOpSet);
-
-  // Should start a new line before inserting the statement body.
-  ss << "\n" << stmtName << "(";
-  interleaveComma(args, ss);
-  ss << ")";
-
-  // TODO: specify the statement body.
-  scop->addGeneric(stmtId + 1, "body", body);
-}
-
-/// Add a <scatnames> extension for the whole scop. Given the total number of
-/// scattering IDs, we generate a list of names following the pattern: "c<id>",
-/// e.g., c0, c1, etc., for all odd number IDs, and "i<id/2>" for all even
-/// number IDs. This is to keep aligh with the iterator names generated by
-/// `addBodyExtToScop`.
-static void addScatnamesExtToScop(unsigned numScatNames, OslScop *scop) {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  // The original # scatnames should be 1 (root) + n (IVs) + 1 (leaf), what we
-  // want here is 2 n (IVs) + 1 (leaf). We should perform the following update.
-  if (numScatNames < 2)
-    return;
-  numScatNames = (numScatNames - 2) * 2 + 1;
-
-  for (unsigned i = 0; i < numScatNames; i++) {
-    if (i % 2)
-      ss << formatv("i{0}", i / 2) << " ";
-    else
-      ss << formatv("c{0}", i) << " ";
-  }
-
-  scop->addGeneric(0, "scatnames", body);
-}
-
-/// Add the arrays extension to the whole Scop.
-static void addArraysExtToScop(const MemRefToId &memrefIdMap, OslScop *scop) {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  ss << memrefIdMap.size() << " ";
-  for (auto const &it : memrefIdMap)
-    ss << it.second << " " << formatv("A{0}", it.second) << " ";
-
-  scop->addGeneric(0, "arrays", body);
+std::unique_ptr<OslScop>
+polymer::createOpenScopFromFuncOp(mlir::FuncOp f, OslSymbolTable &symTable) {
+  return OslScopBuilder().build(f);
 }
 
 namespace {
@@ -541,210 +306,6 @@ void ModuleEmitter::emitMLIRModule(
   }
 }
 } // namespace
-
-static LogicalResult getDefOps(Operation *op, OslScopStmtOpSet &defOps) {
-  if (!op)
-    return success();
-
-  // Alloc will be omitted.
-  // TODO: extend this to a full list of omitted operation type.
-  if (isa<AllocOp>(op))
-    return success();
-
-  // Only operations with the NoSideEffect traits are allowed.
-  if (!isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op) &&
-      op->hasTrait<mlir::OpTrait::HasRecursiveSideEffects>()) {
-    op->emitError("A def-op that is not load/store should not have side "
-                  "effect.");
-    return failure();
-  }
-
-  // Keep the op in the given set.
-  defOps.insert(op);
-  // If the op visited is an affine.load or a constant op, this process will
-  // terminate.
-  if (isa<mlir::AffineApplyOp, mlir::ConstantOp>(op))
-    return success();
-  // Recursively visit other defining ops that are not in defOps.
-  for (auto operand : op->getOperands()) {
-    if (operand.isa<BlockArgument>()) // loop IV.
-      continue;
-    auto defOp = operand.getDefiningOp();
-    if (defOps.count(defOp) == 0 && failed(getDefOps(defOp, defOps)))
-      return failure();
-  }
-
-  return success();
-}
-
-namespace {
-
-/// Build OslScop from FuncOp.
-class OslScopBuilder {
-public:
-  OslScopBuilder() {}
-
-  /// Build a scop from a common FuncOp.
-  std::unique_ptr<OslScop> build(mlir::FuncOp f);
-
-private:
-  /// Find all statements that calls a scop.stmt.
-  void buildScopStmtMap(mlir::FuncOp f,
-                        OslScop::ScopStmtMap *scopStmtMap) const;
-
-  /// Build the scop context. The domain of each scop stmt will be updated, by
-  /// merging and aligning its IDs with the context as well.
-  void buildScopContext(OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
-                        FlatAffineConstraints &ctx) const;
-};
-
-} // namespace
-
-/// Build OslScop from a given FuncOp.
-std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
-  /// Context constraints.
-  FlatAffineConstraints ctx;
-
-  // Initialize a new Scop per FuncOp. The osl_scop object within it will be
-  // created. It doesn't contain any fields, and this may incur some problems,
-  // which the validate function won't discover, e.g., no context will cause
-  // segfault when printing scop. Please don't just return this object.
-  auto scop = std::make_unique<OslScop>();
-  // Mapping between scop stmt names and their caller/callee op pairs.
-  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
-
-  // Find all caller/callee pairs in which the callee has the attribute of name
-  // SCOP_STMT_ATTR_NAME.
-  buildScopStmtMap(f, scopStmtMap);
-  if (scopStmtMap->empty())
-    return nullptr;
-
-  // Build context in it.
-  buildScopContext(scop.get(), scopStmtMap, ctx);
-
-  // Counter for the statement inserted.
-  unsigned stmtId = 0;
-  for (const auto &it : *scopStmtMap) {
-    const ScopStmt &stmt = it.second;
-    // Collet the domain.
-    FlatAffineConstraints *domain = stmt.getDomain();
-    // Collect the enclosing ops.
-    llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
-    stmt.getEnclosingOps(enclosingOps);
-    // Get the callee.
-    mlir::FuncOp callee = stmt.getCallee();
-
-    // Create a statement in OslScop and setup relations in it.
-    scop->createStatement();
-    scop->addDomainRelation(stmtId, *domain);
-    scop->addScatteringRelation(stmtId, *domain, enclosingOps);
-    callee.walk([&](mlir::Operation *op) {
-      if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
-        bool isRead = isa<mlir::AffineReadOpInterface>(op);
-        AffineValueMap vMap;
-        mlir::Value memref;
-
-        stmt.getAccessMapAndMemRef(op, &vMap, &memref);
-        scop->addAccessRelation(stmtId, isRead, memref, vMap, *domain);
-      }
-    });
-
-    stmtId++;
-  }
-
-  scop->initializeSymbolTable(&ctx);
-
-  // Insert body extension.
-  stmtId = 0;
-  for (const auto &it : *scopStmtMap) {
-    const ScopStmt &stmt = it.second;
-    scop->addBodyExtension(stmtId++, stmt);
-  }
-
-  // Name of the function
-  scop->addExtensionGeneric("comment", f.getName());
-
-  assert(scop->validate() && "The scop object created cannot be validated.");
-  return scop;
-}
-
-/// Find all statements that calls a scop.stmt.
-void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
-                                      OslScop::ScopStmtMap *scopStmtMap) const {
-  mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
-
-  f.walk([&](mlir::Operation *op) {
-    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
-      llvm::StringRef calleeName = caller.getCallee();
-      mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
-
-      // If the callee is of scop.stmt, we create a new instance in the map
-      if (callee.getAttr(SCOP_STMT_ATTR_NAME))
-        scopStmtMap->insert(
-            std::make_pair(calleeName, ScopStmt(caller, callee)));
-    }
-  });
-}
-
-void OslScopBuilder::buildScopContext(OslScop *scop,
-                                      OslScop::ScopStmtMap *scopStmtMap,
-                                      FlatAffineConstraints &ctx) const {
-  ctx.reset();
-
-  // Union with the domains of all Scop statements. We first merge and align the
-  // IDs of the context and the domain of the scop statement, and then append
-  // the constraints from the domain to the context. Note that we don't want to
-  // mess up with the original domain at this point. Trivial redundant
-  // constraints will be removed.
-  for (const auto &it : *scopStmtMap) {
-    FlatAffineConstraints *domain = it.second.getDomain();
-    FlatAffineConstraints cst(*domain);
-
-    ctx.mergeAndAlignIdsWithOther(0, &cst);
-    ctx.append(cst);
-    ctx.removeRedundantConstraints();
-  }
-
-  // Then, create the single context relation in scop.
-  scop->addContextRelation(ctx);
-
-  // Finally, given that ctx has all the parameters in it, we will make sure
-  // that each domain is aligned with them, i.e., every domain has the same
-  // parameter columns (Values & order).
-  for (const auto &it : *scopStmtMap) {
-    FlatAffineConstraints *domain = it.second.getDomain();
-
-    // Keep a copy of all exising dim values.
-    SmallVector<mlir::Value, 8> dimValues;
-    domain->getIdValues(0, domain->getNumDimIds(), &dimValues);
-
-    // Merge with the context.
-    domain->mergeAndAlignIdsWithOther(0, &ctx);
-
-    // But remove those newly added dim values.
-    SmallVector<mlir::Value, 8> allDimValues;
-    domain->getIdValues(0, domain->getNumDimIds(), &allDimValues);
-
-    // Find those values that should be removed.
-    SetVector<mlir::Value> dimValuesToRemove;
-    for (mlir::Value dimValue : allDimValues)
-      dimValuesToRemove.insert(dimValue);
-    for (mlir::Value dimValue : dimValues)
-      dimValuesToRemove.remove(dimValue);
-
-    // Make the update.
-    for (mlir::Value dimValue : dimValuesToRemove) {
-      unsigned pos;
-      if (domain->findId(dimValue, &pos))
-        domain->removeId(pos);
-    }
-  }
-}
-
-std::unique_ptr<OslScop>
-polymer::createOpenScopFromFuncOp(mlir::FuncOp f, OslSymbolTable &symTable) {
-  return OslScopBuilder().build(f);
-}
 
 /// TODO: should decouple emitter and openscop builder.
 mlir::LogicalResult polymer::translateModuleToOpenScop(

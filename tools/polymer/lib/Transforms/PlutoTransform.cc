@@ -37,28 +37,7 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
-/// Insert value mapping into the given mapping object based on the provided src
-/// and dst symbol tables.
-static LogicalResult updateValueMapping(OslSymbolTable &srcTable,
-                                        OslSymbolTable &dstTable,
-                                        BlockAndValueMapping &mapping) {
-  // TODO: check the symbol compatibility between srcTable and dstTable.
-  SmallVector<StringRef, 8> symbols;
-  srcTable.getValueSymbols(symbols);
-
-  for (auto sym : symbols) {
-    if (auto dstVal = dstTable.getValue(sym))
-      mapping.map(srcTable.getValue(sym), dstVal);
-    else {
-      llvm::errs()
-          << "Symbol " << sym
-          << " in the source table is not found in the destination table.\n";
-      return failure();
-    }
-  }
-  return success();
-}
-
+/// The main function that implements the Pluto based optimization.
 static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -68,10 +47,6 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
     return success();
   if (scop->getNumStatements() == 0)
     return success();
-
-  // for (const auto &it : *(scop->getScopStmtMap())) {
-  //   llvm::outs() << it.first() << "\n";
-  // }
 
   // Should use isldep, candl cannot work well for this case.
   // TODO: should discover why.
@@ -84,42 +59,10 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   pluto_tile(prog);
 
   pluto_populate_scop(scop->get(), prog, context);
-  osl_scop_print(stdout, scop->get());
+  // osl_scop_print(stdout, scop->get());
 
-  auto moduleOp = dyn_cast<mlir::ModuleOp>(f.getParentOp());
-
-  // TODO: remove the root update pairs.
-  auto newFuncOp = createFuncOpFromOpenScop(std::move(scop), moduleOp, dstTable,
-                                            rewriter.getContext());
-
-#if 0
-  BlockAndValueMapping mapping;
-  // TODO: refactorize this function and the following logic.
-  if (failed(updateValueMapping(srcTable, dstTable, mapping)))
-    return failure();
-
-  SmallVector<StringRef, 8> stmtSymbols;
-  srcTable.getOpSetSymbols(stmtSymbols);
-  for (auto stmtSym : stmtSymbols) {
-    // The operation to be cloned.
-    auto srcOpSet = srcTable.getOpSet(stmtSym);
-    // The clone destination.
-    auto dstOpSet = dstTable.getOpSet(stmtSym);
-    auto dstOp = dstOpSet.get(0);
-
-    rewriter.setInsertionPoint(dstOp);
-
-    for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
-      rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
-
-    // rewriter.setInsertionPoint(dstOp);
-    // rewriter.clone(*srcOp, mapping);
-    rewriter.eraseOp(dstOp);
-    rewriter.eraseOp(dstOpSet.get(1));
-  }
-
-  rewriter.eraseOp(f);
-#endif
+  auto m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
+  createFuncOpFromOpenScop(std::move(scop), m, dstTable, rewriter.getContext());
 
   pluto_context_free(context);
   return success();

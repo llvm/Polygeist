@@ -310,18 +310,18 @@ namespace {
 /// Import MLIR code from the clast AST.
 class Importer {
 public:
+  using SymbolTable = llvm::StringMap<mlir::Value>;
+
   Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
-           OslScop *scop, CloogOptions *options)
-      : b(context), context(context), module(module), scop(scop),
-        symTable(symTable), options(options) {
-    b.setInsertionPointToStart(module.getBody());
-  }
+           OslScop *scop, CloogOptions *options);
 
   LogicalResult processStmtList(clast_stmt *s);
 
   mlir::Operation *getFunc() { return func; }
 
 private:
+  void initializeSymbolTable();
+
   LogicalResult processStmt(clast_root *rootStmt);
   LogicalResult processStmt(clast_for *forStmt);
   LogicalResult processStmt(clast_guard *guardStmt);
@@ -341,6 +341,11 @@ private:
   Block::iterator getFuncInsertPt() {
     return std::prev(module.getBody()->end());
   }
+  /// A helper to create a callee.
+  void createCalleeAndCallerArgs(
+      llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
+      mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
+      llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName);
 
   /// The current builder, pointing at where the next Instruction should be
   /// generated.
@@ -351,10 +356,12 @@ private:
   ModuleOp module;
   /// The main function.
   FuncOp func;
-  /// The OpenScop object pointer./f
+  /// The OpenScop object pointer.
   OslScop *scop;
-  /// The symbol table for labels in the OpenScop input.
+  /// The symbol table for labels in the OpenScop input (to be deprecated).
   OslSymbolTable *symTable;
+  /// The symbol table that will be built on the fly.
+  SymbolTable symbolTable;
 
   /// Map from symbol names to block arguments.
   llvm::DenseMap<llvm::StringRef, BlockArgument> symNameToArg;
@@ -366,6 +373,14 @@ private:
   FILE *output;
 };
 } // namespace
+
+Importer::Importer(MLIRContext *context, ModuleOp module,
+                   OslSymbolTable *symTable, OslScop *scop,
+                   CloogOptions *options)
+    : b(context), context(context), module(module), scop(scop),
+      symTable(symTable), options(options) {
+  b.setInsertionPointToStart(module.getBody());
+}
 
 bool Importer::isMemrefArg(llvm::StringRef argName) {
   // TODO: should find a better way to do this, e.g., using the old symbol
@@ -421,6 +436,7 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
   auto funcType = b.getFunctionType(llvm::None, llvm::None);
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
 
+  // The default function name is main.
   llvm::StringRef funcName("main");
 
   // If the comment is provided, we will use it as the function name.
@@ -443,7 +459,86 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
   // For the rest of the body
   b.setInsertionPointToStart(&entryBlock);
 
+  // Initialize several values before start.
+  initializeSymbolTable();
+
   return success();
+}
+
+void Importer::initializeSymbolTable() {
+  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
+  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+
+  OpBuilder::InsertionGuard guard(b);
+
+  auto &entryBlock = *func.getBody().begin();
+  b.setInsertionPointToStart(&entryBlock);
+
+  /// Constants
+  symbolTable["zero"] =
+      b.create<mlir::ConstantOp>(b.getUnknownLoc(), b.getIndexType(),
+                                 b.getIntegerAttr(b.getIndexType(), 0));
+
+  /// Memory
+  for (const auto &it : *oslSymbolTable) {
+    if (scop->isArraySymbol(it.first())) {
+      mlir::Value memref = it.second;
+      /// If the memref is a BlockArgument, we create a new BlockArgument as
+      /// well in the current function.
+      if (mlir::BlockArgument arg = memref.dyn_cast<mlir::BlockArgument>()) {
+        symbolTable[it.first()] = entryBlock.addArgument(memref.getType());
+      } else {
+        // TODO: deal with alloc later.
+        assert(false);
+      }
+    }
+  }
+
+  // Parameters
+  for (const auto &it : *oslSymbolTable) {
+    if (scop->isParameterSymbol(it.first())) {
+      mlir::Value param = it.second;
+      if (mlir::BlockArgument arg = param.dyn_cast<mlir::BlockArgument>()) {
+        symbolTable[it.first()] = entryBlock.addArgument(param.getType());
+      } else {
+        // TODO: deal with alloc later.
+        mlir::Operation *op = param.getDefiningOp();
+        if (mlir::DimOp dimOp = dyn_cast<mlir::DimOp>(op)) {
+          BlockAndValueMapping vMap;
+          assert(dimOp.getNumOperands() == 2);
+
+          mlir::Value memref = dimOp.getOperand(0);
+          mlir::Value index = dimOp.getOperand(1);
+          mlir::Value newMemRef = symbolTable[oslValueTable->lookup(memref)];
+
+          vMap.map(memref, newMemRef);
+
+          OpBuilder::InsertionGuard guard(b);
+          if (newMemRef.isa<mlir::BlockArgument>())
+            b.setInsertionPointToStart(&entryBlock);
+          else
+            b.setInsertionPointAfterValue(newMemRef);
+
+          mlir::Operation *indexDefOp = b.clone(*index.getDefiningOp());
+          vMap.map(index, indexDefOp->getResult(0));
+          mlir::Operation *newDimOp = b.clone(*op, vMap);
+          symbolTable[it.first()] = newDimOp->getResult(0);
+        } else {
+          // TODO;
+          assert(false);
+        }
+      }
+    }
+  }
+
+  // Constants
+  for (const auto &it : *oslSymbolTable) {
+    if (scop->isConstantSymbol(it.first())) {
+      mlir::Value cst = it.second;
+      if (mlir::BlockArgument arg = cst.dyn_cast<mlir::BlockArgument>())
+        symbolTable[it.first()] = entryBlock.addArgument(cst.getType());
+    }
+  }
 }
 
 LogicalResult
@@ -477,7 +572,7 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
 /// Builds the mapping from the iterator names in a statement to their
 /// corresponding names in <scatnames>, based on the matrix provided by the
 /// scattering relation.
-static LogicalResult buildIterToScatNameMap(
+static void buildIterToScatNameMap(
     llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName,
     osl_statement_p stmt, osl_generic_p scatnames) {
   // Get the body from the statement.
@@ -516,8 +611,95 @@ static LogicalResult buildIterToScatNameMap(
     for (unsigned j = 0; j < scats->nb_input_dims; j++)
       if (scats->m[i][j + scats->nb_output_dims + 1].dp)
         iterToScatName[iterNames[j]] = scatNames[i];
+}
 
-  return success();
+void Importer::createCalleeAndCallerArgs(
+    llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
+    mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
+    llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName) {
+  // TODO: avoid duplicated callee creation
+  // Cache the current insertion point before changing it for the new callee
+  // function.
+  auto currBlock = b.getBlock();
+  auto currPt = b.getInsertionPoint();
+
+  // Create the callee.
+  // First, we create the callee function type.
+  unsigned numArgs = args.size();
+  llvm::SmallVector<mlir::Type, 8> calleeArgTypes;
+
+  for (unsigned i = 0; i < numArgs; i++) {
+    if (isMemrefArg(args[i])) {
+      // Memref. A memref name and its number of dimensions.
+      auto memName = args[i];
+      auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
+      MemRefType memType = MemRefType::get(memShape, b.getF32Type());
+      calleeArgTypes.push_back(memType);
+      i++;
+    } else {
+      // Loop IV.
+      calleeArgTypes.push_back(b.getIndexType());
+    }
+  }
+
+  auto calleeType = b.getFunctionType(calleeArgTypes, llvm::None);
+  // TODO: should we set insertion point for the callee before the main
+  // function?
+  b.setInsertionPoint(module.getBody(), getFuncInsertPt());
+  callee = b.create<FuncOp>(UnknownLoc::get(context), calleeName, calleeType);
+  calleeMap[calleeName] = callee;
+
+  // Create the caller.
+  b.setInsertionPoint(currBlock, currPt);
+
+  // Initialise all the caller arguments. The first argument should be the
+  // memory object, which is set to be a BlockArgument.
+  auto &entryBlock = *func.getBlocks().begin();
+
+  for (unsigned i = 0; i < numArgs; i++) {
+    if (isMemrefArg(args[i])) {
+      // TODO: refactorize this.
+      auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
+      MemRefType memType = MemRefType::get(memShape, b.getF32Type());
+
+      // TODO: refactorize these two lines into a single API.
+      Value memref = symTable->getValue(args[i]);
+      if (!memref) {
+        memref = entryBlock.addArgument(memType);
+        symTable->setValue(args[i], memref, OslSymbolTable::Memref);
+      }
+      callerArgs.push_back(memref);
+      i++;
+    } else if (auto val = symTable->getValue(args[i])) {
+      // The rest of the arguments are access indices. They could be the loop
+      // IVs or the parameters. Loop IV
+      callerArgs.push_back(val);
+      // Symbol.
+      // TODO: manage sym name by the symTable.
+    } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
+      callerArgs.push_back(symNameToArg.lookup(args[i]));
+      // TODO: what if an index is a constant?
+    } else if (iterToScatName.find(args[i]) != iterToScatName.end()) {
+      auto newArgName = iterToScatName[args[i]];
+      if (auto iv = symTable->getValue(newArgName)) {
+        callerArgs.push_back(iv);
+        // We should set the symbol table for args[i], otherwise we cannot
+        // build a correct mapping from the original symbol table (only
+        // args[i] exists in it).
+        symTable->setValue(args[i], iv, OslSymbolTable::LoopIV);
+      } else {
+        llvm::errs() << "Cannot find the scatname " << newArgName
+                     << " as a valid loop IV.\n";
+        return;
+      }
+    } else { // TODO: error handling
+      llvm::errs() << "Cannot find " << args[i]
+                   << " as a loop IV name or a symbole name. Please check if "
+                      "the statement body uses the same iterator name as the "
+                      "one in <scatnames>.\n";
+      return;
+    }
+  }
 }
 
 /// Create a custom call operation for each user statement. A user statement
@@ -529,6 +711,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
   OslScop::ValueTable *valueTable = scop->getValueTable();
   OslScop::SymbolTable *symbolTabele = scop->getSymbolTable();
+  llvm::DenseMap<llvm::StringRef, llvm::StringRef> iterToScatName;
 
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
@@ -542,10 +725,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   // Map iterator names in the current statement to the values in <scatnames>.
   osl_generic_p scatnames = scop->getExtension("scatnames");
   assert(scatnames && "There should be a <scatnames> in the scop.");
-
-  llvm::DenseMap<llvm::StringRef, llvm::StringRef> iterToScatName;
-  if (failed(buildIterToScatNameMap(iterToScatName, stmt, scatnames)))
-    return failure();
+  buildIterToScatNameMap(iterToScatName, stmt, scatnames);
 
   // TODO: print annotations
 
@@ -555,113 +735,44 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   if (failed(parseUserStmtBody(body->expression->string[0], calleeName, args)))
     return failure();
 
+  // Create the callee and the caller args.
   FuncOp callee;
   llvm::SmallVector<mlir::Value, 8> callerArgs;
 
-  // for (const auto &it : *scopStmtMap) {
-  //   llvm::outs() << it.first() << "\n";
-  // }
-
+  // If the calleeName can be found in the scopStmtMap, i.e., we have the
+  // definition of the callee already, we will generate the caller based on that
+  // interface.
   if (scopStmtMap->find(calleeName) != scopStmtMap->end()) {
-    // llvm::outs() << calleeName << "\n";
     const auto &it = scopStmtMap->find(calleeName);
     callee = it->getValue().getCallee();
-    mlir::CallOp caller = it->getValue().getCaller();
-  } else {
-    // TODO: avoid duplicated callee creation
-    // Cache the current insertion point before changing it for the new callee
-    // function.
-    auto currBlock = b.getBlock();
-    auto currPt = b.getInsertionPoint();
+    // Note that caller is in the original function.
+    mlir::CallOp origCaller = it->getValue().getCaller();
 
-    // Create the callee.
-    // First, we create the callee function type.
-    unsigned numArgs = args.size();
-    llvm::SmallVector<mlir::Type, 8> calleeArgTypes;
+    for (mlir::Value arg : origCaller.getOperands()) {
+      llvm::StringRef argSymbol = valueTable->lookup(arg);
 
-    for (unsigned i = 0; i < numArgs; i++) {
-      if (isMemrefArg(args[i])) {
-        // Memref. A memref name and its number of dimensions.
-        auto memName = args[i];
-        auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
-        MemRefType memType = MemRefType::get(memShape, b.getF32Type());
-        calleeArgTypes.push_back(memType);
-        i++;
-      } else {
-        // Loop IV.
-        calleeArgTypes.push_back(b.getIndexType());
-      }
-    }
-
-    auto calleeType = b.getFunctionType(calleeArgTypes, llvm::None);
-    // TODO: should we set insertion point for the callee before the main
-    // function?
-    b.setInsertionPoint(module.getBody(), getFuncInsertPt());
-    callee = b.create<FuncOp>(UnknownLoc::get(context), calleeName, calleeType);
-    calleeMap[calleeName] = callee;
-
-    // Create the caller.
-    b.setInsertionPoint(currBlock, currPt);
-
-    // Initialise all the caller arguments. The first argument should be the
-    // memory object, which is set to be a BlockArgument.
-    auto &entryBlock = *func.getBlocks().begin();
-
-    for (unsigned i = 0; i < numArgs; i++) {
-      if (isMemrefArg(args[i])) {
-        // TODO: refactorize this.
-        auto memShape = std::vector<int64_t>(std::stoi(args[i + 1]), -1);
-        MemRefType memType = MemRefType::get(memShape, b.getF32Type());
-
-        // TODO: refactorize these two lines into a single API.
-        Value memref = symTable->getValue(args[i]);
-        if (!memref) {
-          memref = entryBlock.addArgument(memType);
-          symTable->setValue(args[i], memref, OslSymbolTable::Memref);
-        }
-        callerArgs.push_back(memref);
-        i++;
-      } else if (auto val = symTable->getValue(args[i])) {
-        // The rest of the arguments are access indices. They could be the loop
-        // IVs or the parameters. Loop IV
+      if (mlir::Value val = this->symbolTable.lookup(argSymbol))
         callerArgs.push_back(val);
-        // Symbol.
-        // TODO: manage sym name by the symTable.
-      } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
-        callerArgs.push_back(symNameToArg.lookup(args[i]));
-        // TODO: what if an index is a constant?
-      } else if (iterToScatName.find(args[i]) != iterToScatName.end()) {
-        auto newArgName = iterToScatName[args[i]];
-        if (auto iv = symTable->getValue(newArgName)) {
-          callerArgs.push_back(iv);
-          // We should set the symbol table for args[i], otherwise we cannot
-          // build a correct mapping from the original symbol table (only
-          // args[i] exists in it).
-          symTable->setValue(args[i], iv, OslSymbolTable::LoopIV);
-        } else {
-          llvm::errs() << "Cannot find the scatname " << newArgName
-                       << " as a valid loop IV.\n";
-          return failure();
+      else {
+        llvm::StringRef scatName = iterToScatName.lookup(argSymbol);
+        // Dealing with loop IV.
+        if (!scatName.empty()) {
+          argSymbol = scatName;
+          if (mlir::Value val = this->symbolTable.lookup(argSymbol))
+            callerArgs.push_back(val);
+          else // no IV symbol means this statement is called outside the loop.
+            callerArgs.push_back(this->symbolTable.lookup("zero"));
         }
-      } else { // TODO: error handling
-
-        llvm::errs() << "Cannot find " << args[i]
-                     << " as a loop IV name or a symbole name. Please check if "
-                        "the statement body uses the same iterator name as the "
-                        "one in <scatnames>.\n";
-        return failure();
       }
     }
+  } else {
+    createCalleeAndCallerArgs(calleeName, args, callee, callerArgs,
+                              iterToScatName);
   }
-  // Finally create the CallOp.
-  auto callOp =
-      b.create<mlir::CallOp>(UnknownLoc::get(context), callee, callerArgs);
 
-  // Update StmtOpMap.
-  OslScopStmtOpSet opSet;
-  opSet.insert(callOp);
-  opSet.insert(callee);
-  symTable->setOpSet(calleeName, opSet, OslSymbolTable::StmtOpSet);
+  // Finally create the CallOp.
+  mlir::CallOp caller =
+      b.create<mlir::CallOp>(UnknownLoc::get(context), callee, callerArgs);
 
   return success();
 }
@@ -695,10 +806,10 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
                                     builder.symbolNames.size(), conds, eqFlags);
   SmallVector<mlir::Value, 8> operands;
   for (auto dimName : builder.dimNames)
-    if (auto iv = symTable->getValue(dimName))
+    if (auto iv = symbolTable[dimName])
       operands.push_back(iv);
   for (auto symName : builder.symbolNames)
-    operands.push_back(symNameToArg[symName]);
+    operands.push_back(symbolTable[symName]);
 
   mlir::AffineIfOp ifOp =
       b.create<mlir::AffineIfOp>(b.getUnknownLoc(), iset, operands, false);
@@ -723,7 +834,7 @@ Importer::getAffineLoopBound(clast_expr *expr,
 
   // Insert dim operands.
   for (auto dimName : builder.dimNames) {
-    if (auto iv = symTable->getValue(dimName)) {
+    if (auto iv = symbolTable[dimName]) {
       operands.push_back(iv);
     } else {
       llvm::errs() << "Dim " << dimName
@@ -735,11 +846,8 @@ Importer::getAffineLoopBound(clast_expr *expr,
   // Create or get BlockArgument for the symbols. We assume all symbols come
   // from the BlockArgument of the generated function.
   auto &entryBlock = *func.getBlocks().begin();
-  for (auto symName : builder.symbolNames) {
-    // Loop bound parameters should be of type "index".
-    symNameToArg.try_emplace(symName, entryBlock.addArgument(b.getIndexType()));
-    operands.push_back(symNameToArg[symName]);
-  }
+  for (auto symName : builder.symbolNames)
+    operands.push_back(symbolTable[symName]);
 
   // Create the AffineMap for loop bound.
   affMap = AffineMap::get(builder.dimNames.size(), builder.symbolNames.size(),
@@ -749,9 +857,9 @@ Importer::getAffineLoopBound(clast_expr *expr,
 }
 
 /// Generate the AffineForOp from a clast_for statement. First we create
-/// AffineMaps for the lower and upper bounds. Then we decide the step if there
-/// is any. And finally, we create the AffineForOp instance and generate its
-/// body.
+/// AffineMaps for the lower and upper bounds. Then we decide the step if
+/// there is any. And finally, we create the AffineForOp instance and generate
+/// its body.
 LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Get loop bounds.
   AffineMap lbMap, ubMap;
@@ -788,15 +896,22 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   auto &entryBlock = *forOp.getLoopBody().getBlocks().begin();
   // TODO: confirm is there a case that forOp has multiple operands.
   assert(entryBlock.getNumArguments() == 1 &&
-         "affine.for should only have one block argument.");
+         "affine.for should only have one block argument (iv).");
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
                      OslSymbolTable::LoopIV);
+
+  // Symbol table is mutable.
+  // TODO: is there a better way to improve this? Not very safe.
+  mlir::Value symValue = symbolTable[forStmt->iterator];
+  symbolTable[forStmt->iterator] = entryBlock.getArgument(0);
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
   processStmtList(forStmt->body);
   b.setInsertionPointAfter(forOp);
 
+  // Restore the symbol value.
+  symbolTable[forStmt->iterator] = symValue;
   return success();
 }
 
