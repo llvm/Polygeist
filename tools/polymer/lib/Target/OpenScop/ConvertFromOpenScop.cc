@@ -329,7 +329,7 @@ private:
 
   LogicalResult getAffineLoopBound(clast_expr *expr,
                                    llvm::SmallVectorImpl<mlir::Value> &operands,
-                                   AffineMap &affMap);
+                                   AffineMap &affMap, bool isUpper = false);
 
   LogicalResult parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
                                   llvm::SmallVectorImpl<std::string> &args);
@@ -825,12 +825,17 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
 LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
-                             AffineMap &affMap) {
+                             AffineMap &affMap, bool isUpper) {
   AffineExprBuilder builder(context, symTable, scop, options);
   SmallVector<AffineExpr, 4> boundExprs;
   // Build the AffineExpr for the loop bound.
   if (failed(builder.process(expr, boundExprs)))
     return failure();
+
+  // If looking at the upper bound, we should add 1 to all of them.
+  if (isUpper)
+    for (auto &expr : boundExprs)
+      expr = expr + b.getAffineConstantExpr(1);
 
   // Insert dim operands.
   for (auto dimName : builder.dimNames) {
@@ -879,7 +884,8 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "reduction.");
 
   if (failed(getAffineLoopBound(forStmt->LB, lbOperands, lbMap)) ||
-      failed(getAffineLoopBound(forStmt->UB, ubOperands, ubMap)))
+      failed(
+          getAffineLoopBound(forStmt->UB, ubOperands, ubMap, /*isUpper=*/true)))
     return failure();
 
   int64_t stride = 1;
@@ -947,7 +953,7 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
-  // clast_pprint(stdout, rootStmt, 0, options);
+  clast_pprint(stdout, rootStmt, 0, options);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);
