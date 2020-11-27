@@ -666,14 +666,10 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
         LLVM_DEBUG(normalizer.affineMap.print(
             dbgs() << "\nRenumber into current normalizer: "));
-        // TODO: remove me.
-        llvm::errs() << "aconcat before: " << concatenatedSymbols.size()
-                     << "\n";
 
         auxiliaryExprs.push_back(normalizer.affineMap.getResult(0));
 
         auto renumberedMap = renumber(normalizer);
-        llvm::errs() << "aconcat after: " << concatenatedSymbols.size() << "\n";
 
         LLVM_DEBUG(
             renumberedMap.print(dbgs() << "\nRecursive composition yields: "));
@@ -691,18 +687,14 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         bindDims(defOp.getContext(), i);
 
         affineApplyMap = AffineMap::get(1, 0, i);
-        llvm::errs() << "starting BA normalizer\n";
         AffineApplyNormalizer normalizer(affineApplyMap, affineApplyOperands);
 
         LLVM_DEBUG(normalizer.affineMap.print(
             dbgs() << "\nRenumber into current normalizer: "));
-        llvm::errs() << "fconcat before: " << concatenatedSymbols.size()
-                     << "\n";
 
         auxiliaryExprs.push_back(normalizer.affineMap.getResult(0));
 
         auto renumberedMap = renumber(normalizer);
-        llvm::errs() << "fconcat after: " << concatenatedSymbols.size() << "\n";
 
         LLVM_DEBUG(
             renumberedMap.print(dbgs() << "\nRecursive composition yields: "));
@@ -755,7 +747,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
          "Unexpected number of concatenated symbols");
   auto numDims = dimValueToPosition.size();
   auto numSymbols = concatenatedSymbols.size() - map.getNumSymbols();
-  llvm::errs() << "num concat : " << concatenatedSymbols.size() << "\n";
   auto auxiliaryMap =
       AffineMap::get(numDims, numSymbols, auxiliaryExprs, map.getContext());
 
@@ -797,13 +788,27 @@ static void composeAffineMapAndOperands(AffineMap *map,
   assert(*map);
 }
 
+bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
+  for(size_t i=0; i<map->getNumInputs(); ++i) {
+    auto v = (*operands)[i];
+    if (i >= map->getNumDims()) {
+      if (v.isa<BlockArgument>() &&
+                  isa<AffineForOp>(
+                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
+        return true;
+      }
+    }
+    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp>(
+               v.getDefiningOp()))
+      return true;
+  }
+  return false;
+}
+
 void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
                                             SmallVectorImpl<Value> *operands) {
-  while (llvm::any_of(*operands, [](Value v) {
-    return isa_and_nonnull<AffineApplyOp>(v.getDefiningOp()) ||
-           isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineForOp>(
-               v.getDefiningOp());
-  })) {
+
+  while (need(map, operands)) {
     composeAffineMapAndOperands(map, operands);
   }
 }
@@ -1711,6 +1716,7 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
     forOp.setLowerBound(lbOperands, lbMap);
   if (ubMap != prevUbMap)
     forOp.setUpperBound(ubOperands, ubMap);
+  
   return success();
 }
 
