@@ -421,7 +421,8 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   addGeneric(stmtId + 1, "body", body);
 }
 
-void OslScop::initializeSymbolTable(FlatAffineConstraints *cst) {
+void OslScop::initializeSymbolTable(mlir::FuncOp f,
+                                    FlatAffineConstraints *cst) {
   symbolTable.clear();
 
   unsigned numDimIds = cst->getNumDimIds();
@@ -447,6 +448,15 @@ void OslScop::initializeSymbolTable(FlatAffineConstraints *cst) {
     symbolTable.insert(std::make_pair(sym, it.first));
     valueTable.insert(std::make_pair(it.first, sym));
   }
+  // constants
+  unsigned numConstants = 0;
+  for (mlir::Value arg : f.getBody().begin()->getArguments()) {
+    if (valueTable.find(arg) == valueTable.end()) {
+      std::string sym(formatv("C{0}", numConstants++));
+      symbolTable.insert(std::make_pair(sym, arg));
+      valueTable.insert(std::make_pair(arg, sym));
+    }
+  }
 
   // Setup relative fields in the OpenScop representation.
   // Parameter names
@@ -467,6 +477,10 @@ bool OslScop::isDimSymbol(llvm::StringRef name) const {
 
 bool OslScop::isArraySymbol(llvm::StringRef name) const {
   return name.startswith("A");
+}
+
+bool OslScop::isConstantSymbol(llvm::StringRef name) const {
+  return name.startswith("C");
 }
 
 void OslScop::createConstraintRows(FlatAffineConstraints &cst,

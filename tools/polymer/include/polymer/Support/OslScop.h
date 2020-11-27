@@ -25,6 +25,7 @@ class FlatAffineConstraints;
 class LogicalResult;
 class Operation;
 class Value;
+class FuncOp;
 } // namespace mlir
 
 namespace polymer {
@@ -100,11 +101,12 @@ public:
   osl_generic *getExtension(llvm::StringRef interface) const;
 
   /// Initialize the symbol table.
-  void initializeSymbolTable(mlir::FlatAffineConstraints *cst);
+  void initializeSymbolTable(mlir::FuncOp f, mlir::FlatAffineConstraints *cst);
 
   bool isParameterSymbol(llvm::StringRef name) const;
   bool isDimSymbol(llvm::StringRef name) const;
   bool isArraySymbol(llvm::StringRef name) const;
+  bool isConstantSymbol(llvm::StringRef name) const;
 
   /// Get the symbol table object.
   /// TODO: maybe not expose the symbol table to the external world like this.
