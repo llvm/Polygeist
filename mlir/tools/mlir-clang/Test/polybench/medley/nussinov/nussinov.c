@@ -1,5 +1,4 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
-// XFAIL: *
 /**
  * This version is stamped on May 10, 2016
  *

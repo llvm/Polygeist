@@ -79,8 +79,8 @@ int main(int argc, char **argv) {
   }
   auto module =
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
-
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
+  module.dump();
   mlir::PassManager pm(&context);
 
   pm.enableVerifier(false);
@@ -88,6 +88,9 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::replaceAffineCFGPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::replaceAffineStoreAndLoadPass());
@@ -102,7 +105,7 @@ int main(int argc, char **argv) {
 
   if (mlir::failed(pm.run(module)))
     return 4;
-
+  module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }
