@@ -57,7 +57,10 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     // recursion. We will take care of these ops in other passes. The result of
     // these allocation op, i.e., memref, will be treated as input arguments to
     // the new statement function.
-    if (isa<mlir::AllocaOp, mlir::AllocOp>(op)) {
+    // Also, we should leave the dim SSA value in the original scope. Otherwise,
+    // if we consume it in the callee, the AffineValueMap built for the accesses
+    // that use this dim cannot relate it with the global context.
+    if (isa<mlir::AllocaOp, mlir::AllocOp, mlir::DimOp>(op)) {
       for (mlir::Value result : op->getResults())
         args.insert(result);
       continue;
@@ -141,7 +144,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   // Set the scop_stmt attribute for identification at a later stage.
   // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
   // that contains scop stmt FuncOp, e.g., ScopStmtOp.
-  callee.setAttr("scop.stmt", b.getUnitAttr());
+  callee.setAttr(SCOP_STMT_ATTR_NAME, b.getUnitAttr());
 
   return callee;
 }
