@@ -56,6 +56,7 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
 
   pluto_compute_dep_directions(prog);
   pluto_compute_dep_satisfaction(prog);
+  pluto_auto_transform(prog);
   pluto_tile(prog);
 
   pluto_populate_scop(scop->get(), prog, context);
