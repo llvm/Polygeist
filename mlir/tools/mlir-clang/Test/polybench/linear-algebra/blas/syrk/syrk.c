@@ -1,5 +1,4 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
-// XFAIL: *
 /**
  * This version is stamped on May 10, 2016
  *
@@ -131,3 +130,27 @@ int main(int argc, char** argv)
   return 0;
 }
 
+// CHECK: #map = affine_map<(d0) -> (d0 + 1)>
+// CHECK:  func @kernel_syrk(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>) {
+// CHECK-NEXT:    %0 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:    %1 = index_cast %arg1 : i32 to index
+// CHECK-NEXT:    affine.for %arg6 = 0 to %0 {
+// CHECK-NEXT:      affine.for %arg7 = 0 to #map(%arg6) {
+// CHECK-NEXT:        %2 = affine.load %arg4[%arg6, %arg7] : memref<1200x1200xf64>
+// CHECK-NEXT:        %3 = mulf %2, %arg3 : f64
+// CHECK-NEXT:        affine.store %3, %arg4[%arg6, %arg7] : memref<1200x1200xf64>
+// CHECK-NEXT:      }
+// CHECK-NEXT:      affine.for %arg7 = 0 to %1 {
+// CHECK-NEXT:        %2 = affine.load %arg5[%arg6, %arg7] : memref<1200x1000xf64>
+// CHECK-NEXT:        %3 = mulf %arg2, %2 : f64
+// CHECK-NEXT:        affine.for %arg8 = 0 to #map(%arg6) {
+// CHECK-NEXT:          %4 = affine.load %arg5[%arg8, %arg7] : memref<1200x1000xf64>
+// CHECK-NEXT:          %5 = mulf %3, %4 : f64
+// CHECK-NEXT:          %6 = affine.load %arg4[%arg6, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:          %7 = addf %6, %5 : f64
+// CHECK-NEXT:          affine.store %7, %arg4[%arg6, %arg8] : memref<1200x1200xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }

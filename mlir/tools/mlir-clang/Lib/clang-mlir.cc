@@ -304,12 +304,11 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
 void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                                       mlir::Value lb, mlir::Value ub,
                                       const AffineLoopDescriptor &descr) {
-  buildAffineLoopNest(
-      builder, loc, lb, ub, descr.getStep(),
-      [&](OpBuilder &nestedBuilder, mlir::Location loc, ValueRange ivs) {
+  auto affineOp = builder.create<AffineForOp>(loc, lb, builder.getSymbolIdentityMap(), ub,
+      builder.getSymbolIdentityMap(), descr.getStep(),
+      /*iterArgs=*/llvm::None, (AffineForOp::BodyBuilderFn)([&](OpBuilder &nestedBuilder, mlir::Location loc, mlir::Value val, ValueRange ivs) {
         SmallVector<mlir::Value, 1> iv(ivs);
-        assert(ivs.size() == 1 && "expect single ind var");
-        mlir::Value val = iv[0];
+        assert(ivs.size() == 0 && "expect single ind var");
         if (!descr.getForwardMode()) {
           val = nestedBuilder.create<mlir::SubIOp>(loc, val, lb);
           val = nestedBuilder.create<mlir::SubIOp>(
@@ -329,17 +328,14 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
         // TODO: set loop context.
         Visit(fors->getBody());
-        // auto endBlock = builder.getInsertionBlock();
-        // if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
-        //  builder.create<AffineYieldOp>(loc);
-        //}
-
+        builder.create<AffineYieldOp>(loc);
+        
         nestedBuilder.setInsertionPoint(builder.getInsertionBlock(),
                                         builder.getInsertionPoint());
         // TODO: set the value of the iteration value to the final bound at the
         // end of the loop.
         builder.setInsertionPoint(oldblock, oldpoint);
-      });
+      }));
 }
 
 void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
