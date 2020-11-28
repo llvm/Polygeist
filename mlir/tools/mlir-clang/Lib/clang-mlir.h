@@ -215,7 +215,6 @@ struct MLIRASTConsumer : public ASTConsumer {
   ASTContext &astContext;
   mlir::ModuleOp &module;
   clang::SourceManager &SM;
-  MangleContext &MC;
   LLVMContext lcontext;
   llvm::Module llvmMod;
   CodeGenOptions codegenops;
@@ -234,7 +233,7 @@ struct MLIRASTConsumer : public ASTConsumer {
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
         functions(functions), PP(PP), astContext(astContext), module(module),
-        SM(SM), MC(*astContext.createMangleContext()), lcontext(),
+        SM(SM), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
@@ -244,7 +243,7 @@ struct MLIRASTConsumer : public ASTConsumer {
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
 
-  ~MLIRASTConsumer() {}
+  ~MLIRASTConsumer() { }
 
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
