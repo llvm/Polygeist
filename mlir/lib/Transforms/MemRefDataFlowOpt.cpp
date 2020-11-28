@@ -352,7 +352,11 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(
   }
 
   for (auto block : reachableBlocks) {
+    SmallVector<Block*, 4> preds;
     for (auto pred : block->getPredecessors()) {
+      preds.push_back(pred);
+    }
+    for (auto pred : preds) {
       mlir::Value pval = lastStoreInBlock[pred];
       assert(pred->getTerminator());
       if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
@@ -360,7 +364,8 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(
         std::vector<Value> args(op.getOperands().begin(),
                                 op.getOperands().end());
         args.push_back(pval);
-        subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+        auto op2 = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+        //op.replaceAllUsesWith(op2);
         op.erase();
       }
       if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
@@ -376,9 +381,10 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(
         if (op.getFalseDest() == block) {
           falseargs.push_back(pval);
         }
-        subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+        auto op2 = subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
                                         op.getTrueDest(), trueargs,
                                         op.getFalseDest(), falseargs);
+        //op.replaceAllUsesWith(op2);
         op.erase();
       }
     }
@@ -499,7 +505,11 @@ bool MemRefDataFlowOpt::forwardStoreToLoad(
         }
         valueAtStartOfBlock.erase(block);
 
+        SmallVector<Block*, 4> preds;
         for (auto pred : block->getPredecessors()) {
+          preds.push_back(pred);
+        }
+        for (auto pred : preds) {
           if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
             mlir::OpBuilder subbuilder(op.getOperation());
             std::vector<Value> args(op.getOperands().begin(),
@@ -631,26 +641,25 @@ void MemRefDataFlowOpt::runOnFunction() {
     SmallVector<Operation *, 8> loadOpsToErase;
 
     // Walk all load's and perform store to load forwarding.
+    SmallVector<mlir::Value, 4> toPromote;
     f.walk([&](mlir::AllocaOp AI) {
       if (isPromotable(AI)) {
-        auto lastStored = getLastStored(AI);
-        for (auto &vec : lastStored) {
-          changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-        }
-        memrefsToErase.insert(AI);
+        toPromote.push_back(AI);
+      }
+    });
+    f.walk([&](mlir::AllocOp AI) {
+      if (isPromotable(AI)) {
+        toPromote.push_back(AI);
       }
     });
 
-    // Walk all load's and perform store to load forwarding.
-    f.walk([&](mlir::AllocOp AI) {
-      if (isPromotable(AI)) {
-        auto lastStored = getLastStored(AI);
-        for (auto &vec : lastStored) {
-          changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-        }
-        memrefsToErase.insert(AI);
+    for(auto AI : toPromote) {
+      auto lastStored = getLastStored(AI);
+      for (auto &vec : lastStored) {
+        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
       }
-    });
+      memrefsToErase.insert(AI);
+    }
 
     // Erase all load op's whose results were replaced with store fwd'ed ones.
     for (auto *loadOp : loadOpsToErase) {
