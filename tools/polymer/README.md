@@ -11,6 +11,7 @@ Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) an
 * Automatic build tools (for Pluto), including `autoconf`, `automake`, and `libtool`.
 * Pre-built LLVM tools (`clang` and `FileCheck`) and their header files are needed, mainly for building Pluto (NOTE: we could use the bundled LLVM for this purpose in the future, but for now it would be easier to just use those you can retrieve from system package manager). NOTE: `clang-9` is the recommended version to use.
 * `libgmp` that is required by isl.
+* `flex` and `bison` for `clan` that Pluto depends on.
 * TeX for CLooG (NOTE: anyway to workaround this?)
 
 ## Install
@@ -52,7 +53,9 @@ cmake .. \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -G Ninja
 ninja
-ninja check-polymer
+
+# Could also add this LD_LIBRARY_PATH to your environment configuration.
+LD_LIBRARY_PATH=$PWD/pluto/lib:$LD_LIBRARY_PATH ninja check-polymer
 ```
 
 The build step for Pluto is integrated in the CMake workflow, see [here](cmake/PLUTO.cmake), and it is highly possible that your system configuration might not make it work. If that happens, feel free to post the error log under issues. There will be an alternative approach to install Pluto manually by yourself in the future.
