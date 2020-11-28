@@ -80,7 +80,6 @@ int main(int argc, char **argv) {
   auto module =
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
-  module.dump();
   mlir::PassManager pm(&context);
 
   pm.enableVerifier(false);

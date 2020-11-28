@@ -116,8 +116,8 @@ int main(int argc, char** argv)
 // CHECK: #map2 = affine_map<(d0) -> (d0 + 1)>
 
 // CHECK: func @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<2000x2000xf64>) {
-// CHECK-NEXT:  %cst = constant 9.000000e+00 : f64
 // CHECK-NEXT:  %c1 = constant 1 : index
+// CHECK-NEXT:  %cst = constant 9.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  %1 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:  affine.for %arg3 = 0 to %0 {
