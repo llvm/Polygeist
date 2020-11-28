@@ -101,9 +101,7 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
-static LogicalResult verify(ContainerOp op) {
-  return LogicalResult::Success;
-}
+static LogicalResult verify(ContainerOp op) { return LogicalResult::Success; }
 
 static LogicalResult verify(ForOp op) {
   if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
@@ -192,7 +190,8 @@ static void print(OpAsmPrinter &p, ForOp op) {
   p.printOptionalAttrDict(op->getAttrs());
 }
 
-static ParseResult parseContainerOp(OpAsmParser &parser, OperationState &result) {
+static ParseResult parseContainerOp(OpAsmParser &parser,
+                                    OperationState &result) {
   auto &builder = parser.getBuilder();
 
   // Parse the optional initial iteration arguments.
@@ -1405,12 +1404,72 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
   }
 };
 
+struct RemoveBoolean : public OpRewritePattern<IfOp> {
+    using OpRewritePattern<IfOp>::OpRewritePattern;
+
+    if (llvm::all_of(op.results(), [](Value v) {
+          return v.getType().isa<IntegerType>() &&
+                 v.getType().cast<IntegerType>().getWidth() == 1;
+        })) {
+      if (op.thenRegion().getBlocks().size() == 1 &&
+          op.elseRegion().getBlocks().size() == 1 &&
+          op.thenRegion().front().getOperations().size() == 1 &&
+          op.elseRegion().front().getOperations().size() == 1) {
+        auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
+        auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
+        size_t idx = 0;
+
+        auto c1 = (mlir::Value)rewriter.create<mlir::ConstantOp>(
+            op.getLoc(), op.condition().getType(),
+            rewriter.getIntegerAttr(op.condition().getType(), 1));
+        auto notcond = (mlir::Value)rewriter.create<mlir::XOrOp>(
+            op.getLoc(), op.condition(), c1);
+
+        std::vector<Value> replacements;
+        for (auto res : op.results()) {
+          auto rep = rewriter.create<OrOp>(
+              op.getLoc(),
+              rewriter.create<AndOp>(op.getLoc(), op.condition(),
+                                     yop1.results()[idx]),
+              rewriter.create<AndOp>(op.getLoc(), notcond,
+                                     yop2.results()[idx]));
+          replacements.push_back(rep);
+          idx++;
+        }
+        rewriter.replaceOp(op, replacements);
+        // op.erase();
+        return success();
+      }
+    }
+
+    if (op.thenRegion().getBlocks().size() == 1 &&
+        op.elseRegion().getBlocks().size() == 1 &&
+        op.thenRegion().front().getOperations().size() == 1 &&
+        op.elseRegion().front().getOperations().size() == 1) {
+      auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
+      auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
+      size_t idx = 0;
+
+      std::vector<Value> replacements;
+      for (auto res : op.results()) {
+        auto rep =
+            rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+                                      yop1.results()[idx], yop2.results()[idx]);
+        replacements.push_back(rep);
+        idx++;
+      }
+      rewriter.replaceOp(op, replacements);
+      return success();
+    }
+    return failure();
+};
+
 } // namespace
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                        MLIRContext *context) {
   results.add<RemoveUnusedResults, RemoveStaticCondition,
-              ConvertTrivialIfToSelect, ConditionPropagation,
+              ConvertTrivialIfToSelect, RemoveBoolean, ConditionPropagation,
               ReplaceIfYieldWithConditionOrValue, CombineIfs>(context);
 }
 
