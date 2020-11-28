@@ -73,6 +73,7 @@ bool isOpLoopInvariant(Operation &op, Value indVar,
   LLVM_DEBUG(llvm::dbgs() << "iterating on op: " << op;);
 
   if (isa<AffineIfOp>(op)) {
+    definedOps.insert(&op);
     if (!checkInvarianceOfNestedIfOps(&op, indVar, definedOps, opsToHoist)) {
       return false;
     }

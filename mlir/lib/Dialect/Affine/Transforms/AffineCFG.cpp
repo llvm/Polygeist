@@ -97,6 +97,134 @@ struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
   }
 };
 
+/*
+struct CanonicalizeAffineIf : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp affineOp,
+                                PatternRewriter &rewriter) const override {
+    
+    SmallVector<Value, 4> mapOperands(affineOp.mapOperands());
+    auto map = affineOp.map();
+    auto prevMap = map;
+
+    fullyComposeAffineMapAndOperands(&map, &mapOperands);
+    canonicalizeMapAndOperands(&map, &mapOperands);
+    map = removeDuplicateExprs(map);
+
+    if (map == prevMap)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<AffineApplyOp>(affineOp, map, mapOperands);
+    return success();
+  }
+};
+*/
+
+bool isValidIndex(Value val) {
+    if (mlir::isValidSymbol(val)) {
+        return true;
+    }
+    if (auto cast = val.getDefiningOp<IndexCastOp>()) {
+        return isValidIndex(cast.getOperand());
+    }
+    if (auto bop = val.getDefiningOp<AddIOp>()) {
+        return isValidIndex(bop.getOperand(0)) &&
+               isValidIndex(bop.getOperand(1));
+    }
+    if (auto bop = val.getDefiningOp<MulIOp>()) {
+        return isValidIndex(bop.getOperand(0)) &&
+               isValidIndex(bop.getOperand(1));
+    }
+    if (auto bop = val.getDefiningOp<SubIOp>()) {
+        return isValidIndex(bop.getOperand(0)) &&
+               isValidIndex(bop.getOperand(1));
+    }
+    if (val.getDefiningOp<ConstantIndexOp>()) {
+        return true;
+    }
+    if (val.getDefiningOp<ConstantOp>()) {
+        return true;
+    }
+    if (auto ba = val.dyn_cast<BlockArgument>()) {
+        if (isa<AffineForOp>(ba.getOwner()->getParentOp())) {
+            return true;
+        }
+        if (isa<AffineParallelOp>(ba.getOwner()->getParentOp())) {
+            return true;
+        }
+        if (isa<FuncOp>(ba.getOwner()->getParentOp())) {
+            return true;
+        }
+        //llvm::errs() << "illegal isValidIndex: " << val << " pop: " << *ba.getOwner()->getParentOp() << "\n";
+    }
+    //llvm::errs() << "illegal isValidIndex: " << val << "\n";
+    return false;
+}
+
+// return if success
+bool handle(OpBuilder& b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs, SmallVectorImpl<bool> &eqflags, SmallVectorImpl<Value> &applies) {
+    AffineMap lhsmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
+    if (!isValidIndex(cmpi.lhs())) {
+        //llvm::errs() << "illegal lhs: " << cmpi.lhs() << " - " << cmpi << "\n";
+        return false;
+    }
+    if (!isValidIndex(cmpi.rhs())) {
+        //llvm::errs() << "illegal rhs: " << cmpi.rhs() << " - " << cmpi << "\n";
+        return false;
+    }
+    SmallVector<Value,4> lhspack = { cmpi.lhs() };
+    if (!lhspack[0].getType().isa<IndexType>()) {
+        auto op = b.create<mlir::IndexCastOp>(cmpi.getLoc(), lhspack[0], mlir::IndexType::get(cmpi.getContext()));
+        lhspack[0] = op;
+    }
+
+    AffineMap rhsmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
+    SmallVector<Value,4> rhspack = {cmpi.rhs()};
+    if (!rhspack[0].getType().isa<IndexType>()) {
+        auto op = b.create<mlir::IndexCastOp>(cmpi.getLoc(), rhspack[0], mlir::IndexType::get(cmpi.getContext()));
+        rhspack[0] = op;
+    }
+
+    applies.push_back(b.create<mlir::AffineApplyOp>(cmpi.getLoc(), lhsmap, lhspack));
+    applies.push_back(b.create<mlir::AffineApplyOp>(cmpi.getLoc(), rhsmap, rhspack));
+    AffineExpr dims[2] = { b.getAffineDimExpr(2 * exprs.size() + 0), b.getAffineDimExpr(2 * exprs.size() + 1) };
+    switch(cmpi.getPredicate()) {
+        case CmpIPredicate::eq:
+            exprs.push_back(dims[0] - dims[1]);
+            eqflags.push_back(true);
+            break;
+
+        case CmpIPredicate::sge:
+            exprs.push_back(dims[0] - dims[1]);
+            eqflags.push_back(false);
+            break;
+
+        case CmpIPredicate::sle:
+            exprs.push_back(dims[1] - dims[0]);
+            eqflags.push_back(false);
+            break;
+
+        case CmpIPredicate::sgt:
+            exprs.push_back(dims[0] - dims[1] + 1);
+            eqflags.push_back(false);
+            break;
+
+        case CmpIPredicate::slt:
+            exprs.push_back(dims[1] - dims[0] + 1);
+            eqflags.push_back(false);
+            break;
+
+        case CmpIPredicate::ne:
+        case CmpIPredicate::ult:
+        case CmpIPredicate::ule:
+        case CmpIPredicate::ugt:
+        case CmpIPredicate::uge:
+            llvm_unreachable("unhandled icmp");
+    }
+    return true;
+}
+
 void AffineCFGPass::runOnFunction() {
   getFunction().walk([&](scf::IfOp ifOp) {
     if (inAffine(ifOp)) {
@@ -106,71 +234,37 @@ void AffineCFGPass::runOnFunction() {
         for(auto v : ifOp.results()) {
             types.push_back(v.getType());
         }
-        if (auto cmpi = ifOp.condition().getDefiningOp<CmpIOp>()) {
-            AffineMap lhsmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, ifOp.getContext()));
-            SmallVector<Value,4> lhspack = { cmpi.lhs() };
-            if (!lhspack[0].getType().isa<IndexType>()) {
-                auto op = b.create<mlir::IndexCastOp>(ifOp.getLoc(), lhspack[0], mlir::IndexType::get(ifOp.getContext()));
-                lhspack[0] = op;
+
+
+        SmallVector<AffineExpr, 2> exprs;
+        SmallVector<bool, 2> eqflags;
+        SmallVector<Value, 4> applies;
+
+        std::deque<Value> todo = {ifOp.condition()};
+        while(todo.size()) {
+            auto cur = todo.front();
+            todo.pop_front();
+            if (auto cmpi = cur.getDefiningOp<CmpIOp>()) {
+                if (!handle(b, cmpi, exprs, eqflags, applies)) {
+                    return;
+                }
+                continue;
             }
-
-            AffineMap rhsmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, ifOp.getContext()));
-            SmallVector<Value,4> rhspack = {cmpi.rhs()};
-            if (!rhspack[0].getType().isa<IndexType>()) {
-                auto op = b.create<mlir::IndexCastOp>(ifOp.getLoc(), rhspack[0], mlir::IndexType::get(ifOp.getContext()));
-                rhspack[0] = op;
+            if (auto andi = cur.getDefiningOp<AndOp>()) {
+                todo.push_back(andi.getOperand(0));
+                todo.push_back(andi.getOperand(1));
+                continue;
             }
-
-            Value applies[] = {
-                b.create<mlir::AffineApplyOp>(cmpi.getLoc(), lhsmap, lhspack),
-                b.create<mlir::AffineApplyOp>(cmpi.getLoc(), rhsmap, rhspack)
-            };
-            AffineExpr dims[2] = { b.getAffineDimExpr(0), b.getAffineDimExpr(1) };
-            AffineExpr exprs[1];
-            bool eqflags[1];
-            switch(cmpi.getPredicate()) {
-                case CmpIPredicate::eq:
-                    exprs[0] = dims[0] - dims[1];
-                    eqflags[0] = true;
-                    break;
-
-                case CmpIPredicate::sge:
-                    exprs[0] = dims[0] - dims[1];
-                    eqflags[0] = false;
-                    break;
-
-                case CmpIPredicate::sle:
-                    exprs[0] = dims[1] - dims[0];
-                    eqflags[0] = false;
-                    break;
-
-                case CmpIPredicate::sgt:
-                    exprs[0] = dims[0] - dims[1] + 1;
-                    eqflags[0] = false;
-                    break;
-
-                case CmpIPredicate::slt:
-                    exprs[0] = dims[1] - dims[0] + 1;
-                    eqflags[0] = false;
-                    break;
-
-                case CmpIPredicate::ne:
-                case CmpIPredicate::ult:
-                case CmpIPredicate::ule:
-                case CmpIPredicate::ugt:
-                case CmpIPredicate::uge:
-                    llvm_unreachable("unhandled icmp");
-            }
-            auto iset = IntegerSet::get(/*dim*/2, /*symbol*/0,
-                            exprs,
-                            eqflags);
-            affineIfOp = b.create<AffineIfOp>(ifOp.getLoc(), types, iset,
-                                                    applies,
-                                                    /*elseBlock=*/true);
-        } else {
+            llvm::errs() << "illegal cur: " << cur << " - " << ifOp << "\n";
             return;
         }
 
+        auto iset = IntegerSet::get(/*dim*/2 * exprs.size(), /*symbol*/0,
+                        exprs,
+                        eqflags);
+        affineIfOp = b.create<AffineIfOp>(ifOp.getLoc(), types, iset,
+                                                applies,
+                                                /*elseBlock=*/true);
         affineIfOp.thenRegion().takeBody(ifOp.thenRegion());
         affineIfOp.elseRegion().takeBody(ifOp.elseRegion());
 
@@ -194,14 +288,14 @@ void AffineCFGPass::runOnFunction() {
     }
   });
 
-    getFunction().dump();
+    //getFunction().dump();
     {
         OwningRewritePatternList rpl;
         rpl.insert<SimplfyIntegerCastMath>(getFunction().getContext());
         rpl.insert<CanonicalizeAffineApply>(getFunction().getContext());
         applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl));
     }
-    getFunction().dump();
+    //getFunction().dump();
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::replaceAffineCFGPass() {
