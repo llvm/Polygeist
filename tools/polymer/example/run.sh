@@ -27,16 +27,16 @@ ${LLVM_BINDIR}/mlir-opt \
 
 ${LLVM_BINDIR}/mlir-translate "${MLIR_LLVM_FILE}" --mlir-to-llvmir -o "${MLIR_LLVMIR_FILE}"
 
-${LLVM_BINDIR}/opt -O3 "${MLIR_LLVMIR_FILE}" -o "${MLIR_BC_FILE}"
+${LLVM_BINDIR}/opt -O3 -march=native "${MLIR_LLVMIR_FILE}" -o "${MLIR_BC_FILE}"
 
 # ${LLVM_BINDIR}/llvm-as "${MLIR_LLVMIR_FILE}" -o "${MLIR_BC_FILE}"
 
-${LLVM_BINDIR}/clang -D"${DATASET_SIZE}_DATASET" -emit-llvm "${MAIN_FILE}" -S -o "${MAIN_LLVMIR_FILE}"
+${LLVM_BINDIR}/clang -O3 -march=native -D"${DATASET_SIZE}_DATASET" -emit-llvm "${MAIN_FILE}" -S -o "${MAIN_LLVMIR_FILE}"
 
 ${LLVM_BINDIR}/llvm-link "${MAIN_LLVMIR_FILE}" "${MLIR_LLVMIR_FILE}" -o "${RESULT_BC_FILE}"
 
 ${LLVM_BINDIR}/llc -filetype=obj "${RESULT_BC_FILE}"
 
-${LLVM_BINDIR}/clang -O3 "${RESULT_OBJ_FILE}" -o "${EXE}"
+${LLVM_BINDIR}/clang -O3 -march=native "${RESULT_OBJ_FILE}" -o "${EXE}"
 
 "./${EXE}"
