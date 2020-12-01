@@ -816,7 +816,7 @@ struct SingleBlockImplicitTerminator {
         // Non-empty regions must contain a single basic block.
         if (std::next(region.begin()) != region.end())
           return op->emitOpError("expects region #")
-                 << i << " to have 0 or 1 blocks";
+                 << i << " to have 0 or 1 blocks" << *op;
 
         Block &block = region.front();
         if (block.empty())

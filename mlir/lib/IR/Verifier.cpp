@@ -204,7 +204,7 @@ LogicalResult OperationVerifier::verifyOperation(Operation &op) {
       // Non-empty regions must contain a single basic block.
       if (std::next(region.begin()) != region.end())
         return op.emitOpError("expects graph region #")
-               << i << " to have 0 or 1 blocks";
+               << i << " to have 0 or 1 blocks" << op;
     }
     if (failed(verifyRegion(region)))
       return failure();

@@ -2137,6 +2137,15 @@ void AffineIfOp::build(OpBuilder &builder, OperationState &result,
                     withElseRegion);
 }
 
+bool all_equal(ArrayRef<Value> lhs, ArrayRef<Value> rhs) {
+  if (lhs.size() != rhs.size()) return false;
+  for(size_t i=0; i<lhs.size(); i++) {
+    if (lhs[i] != rhs[i]) {
+      return false;
+    }
+  }
+  return true;
+}
 /// Canonicalize an affine if op's conditional (integer set + operands).
 LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
                                SmallVectorImpl<OpFoldResult> &) {
@@ -2144,11 +2153,9 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
   SmallVector<Value, 4> operands(getOperands());
   canonicalizeSetAndOperands(&set, &operands);
 
-  // Any canonicalization change always leads to either a reduction in the
-  // number of operands or a change in the number of symbolic operands
-  // (promotion of dims to symbols).
-  if (operands.size() < getIntegerSet().getNumInputs() ||
-      set.getNumSymbols() > getIntegerSet().getNumSymbols()) {
+
+  SmallVector<Value, 4> operands0(getOperands());
+  if (!(set == getIntegerSet()) || !all_equal(operands, operands0)) {
     setConditional(set, operands);
     return success();
   }
