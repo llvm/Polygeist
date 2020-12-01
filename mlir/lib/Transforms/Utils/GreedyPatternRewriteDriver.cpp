@@ -35,10 +35,11 @@ namespace {
 /// This is a worklist-driven driver for the PatternMatcher, which repeatedly
 /// applies the locally optimal patterns in a roughly "bottom up" way.
 class GreedyPatternRewriteDriver : public PatternRewriter {
+  bool fold;
 public:
   explicit GreedyPatternRewriteDriver(MLIRContext *ctx,
-                                      const FrozenRewritePatternList &patterns)
-      : PatternRewriter(ctx), matcher(patterns), folder(ctx) {
+                                      const FrozenRewritePatternList &patterns, bool fold=true)
+      : PatternRewriter(ctx), matcher(patterns), folder(ctx), fold(fold) {
     worklist.reserve(64);
 
     // Apply a simple cost model based solely on pattern benefit.
@@ -187,12 +188,14 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
       };
 
       // Try to fold this op.
-      bool inPlaceUpdate;
-      if ((succeeded(folder.tryToFold(op, collectOps, preReplaceAction,
-                                      &inPlaceUpdate)))) {
-        changed = true;
-        if (!inPlaceUpdate)
-          continue;
+      if (fold) {
+        bool inPlaceUpdate;
+        if ((succeeded(folder.tryToFold(op, collectOps, preReplaceAction,
+                                        &inPlaceUpdate)))) {
+          changed = true;
+          if (!inPlaceUpdate)
+            continue;
+        }
       }
 
       // Try to match one of the patterns. The rewriter is automatically
@@ -219,27 +222,27 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
 ///
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(Operation *op,
-                                   const FrozenRewritePatternList &patterns) {
-  return applyPatternsAndFoldGreedily(op, patterns, maxPatternMatchIterations);
+                                   const FrozenRewritePatternList &patterns, bool fold) {
+  return applyPatternsAndFoldGreedily(op, patterns, maxPatternMatchIterations, fold);
 }
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(Operation *op,
                                    const FrozenRewritePatternList &patterns,
-                                   unsigned maxIterations) {
+                                   unsigned maxIterations, bool fold) {
   return applyPatternsAndFoldGreedily(op->getRegions(), patterns,
-                                      maxIterations);
+                                      maxIterations, fold);
 }
 /// Rewrite the given regions, which must be isolated from above.
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
-                                   const FrozenRewritePatternList &patterns) {
+                                   const FrozenRewritePatternList &patterns, bool fold) {
   return applyPatternsAndFoldGreedily(regions, patterns,
-                                      maxPatternMatchIterations);
+                                      maxPatternMatchIterations, fold);
 }
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
                                    const FrozenRewritePatternList &patterns,
-                                   unsigned maxIterations) {
+                                   unsigned maxIterations, bool fold) {
   if (regions.empty())
     return success();
 
@@ -254,7 +257,7 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
          "patterns can only be applied to operations IsolatedFromAbove");
 
   // Start the pattern driver.
-  GreedyPatternRewriteDriver driver(regions[0].getContext(), patterns);
+  GreedyPatternRewriteDriver driver(regions[0].getContext(), patterns, fold);
   bool converged = driver.simplify(regions, maxIterations);
   LLVM_DEBUG(if (!converged) {
     llvm::dbgs() << "The pattern rewrite doesn't converge after scanning "

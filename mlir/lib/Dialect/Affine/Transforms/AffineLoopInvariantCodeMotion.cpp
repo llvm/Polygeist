@@ -30,6 +30,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+
+#include "mlir/Dialect/SCF/SCF.h"
+
 #define DEBUG_TYPE "licm"
 
 using namespace mlir;
@@ -77,6 +80,17 @@ bool isOpLoopInvariant(Operation &op, Value indVar,
     if (!checkInvarianceOfNestedIfOps(&op, indVar, definedOps, opsToHoist)) {
       return false;
     }
+  } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
+    definedOps.insert(&op);
+    if (!areAllOpsInTheBlockListInvariant(ifOp.thenRegion(), indVar, definedOps,
+                                          opsToHoist)) {
+      return false;
+    }
+    if (!areAllOpsInTheBlockListInvariant(ifOp.elseRegion(), indVar, definedOps,
+                                          opsToHoist)) {
+      return false;
+    }
+    return true;
   } else if (isa<AffineForOp>(op)) {
     // If the body of a predicated region has a for loop, we don't hoist the
     // 'affine.if'.
