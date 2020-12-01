@@ -88,8 +88,8 @@ public:
   ///
   CloogOptions *options;
 
-  llvm::SmallVector<llvm::StringRef, 4> symbolNames;
-  llvm::SmallVector<llvm::StringRef, 4> dimNames;
+  llvm::StringMap<unsigned> symbolNames;
+  llvm::StringMap<unsigned> dimNames;
 };
 } // namespace
 
@@ -149,11 +149,19 @@ LogicalResult
 AffineExprBuilder::process(clast_name *expr,
                            llvm::SmallVectorImpl<AffineExpr> &affExprs) {
   if (scop->isSymbol(expr->name)) {
-    affExprs.push_back(b.getAffineSymbolExpr(symbolNames.size()));
-    symbolNames.push_back(expr->name);
+    if (symbolNames.find(expr->name) != symbolNames.end())
+      affExprs.push_back(b.getAffineSymbolExpr(symbolNames[expr->name]));
+    else {
+      affExprs.push_back(b.getAffineSymbolExpr(symbolNames.size()));
+      symbolNames[expr->name] = symbolNames.size();
+    }
   } else if (auto iv = symTable->getValue(expr->name)) {
-    affExprs.push_back(b.getAffineDimExpr(dimNames.size()));
-    dimNames.push_back(expr->name);
+    if (dimNames.find(expr->name) != dimNames.end())
+      affExprs.push_back(b.getAffineDimExpr(dimNames[expr->name]));
+    else {
+      affExprs.push_back(b.getAffineDimExpr(dimNames.size()));
+      dimNames[expr->name] = dimNames.size();
+    }
   } else {
     llvm::errs()
         << expr->name
@@ -215,13 +223,13 @@ AffineExprBuilder::process(clast_binary *expr,
     affExpr = lhsAffExprs[0].floorDiv(rhsAffExpr);
     break;
   case clast_bin_cdiv:
+  case clast_bin_div: // TODO: check out this
     affExpr = lhsAffExprs[0].ceilDiv(rhsAffExpr);
     break;
   case clast_bin_mod:
     affExpr = lhsAffExprs[0] % rhsAffExpr;
     break;
   default:
-    // TODO: bin/div are not handled.
     assert(false && "Unrecognized clast_binary type.\n");
     return failure();
   }
@@ -305,276 +313,12 @@ LogicalResult AffineExprBuilder::processMinOrMaxReduction(
 
   return success();
 }
-
-namespace {
-/// Import MLIR code from the clast AST.
-class Importer {
-public:
-  using SymbolTable = llvm::StringMap<mlir::Value>;
-
-  Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
-           OslScop *scop, CloogOptions *options);
-
-  LogicalResult processStmtList(clast_stmt *s);
-
-  mlir::Operation *getFunc() { return func; }
-
-private:
-  void initializeSymbolTable();
-
-  LogicalResult processStmt(clast_root *rootStmt);
-  LogicalResult processStmt(clast_for *forStmt);
-  LogicalResult processStmt(clast_guard *guardStmt);
-  LogicalResult processStmt(clast_user_stmt *userStmt);
-
-  LogicalResult getAffineLoopBound(clast_expr *expr,
-                                   llvm::SmallVectorImpl<mlir::Value> &operands,
-                                   AffineMap &affMap, bool isUpper = false);
-
-  LogicalResult parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
-                                  llvm::SmallVectorImpl<std::string> &args);
-
-  bool isMemrefArg(llvm::StringRef argName);
-  bool isResultArg(llvm::StringRef argName);
-
-  /// Functions are always inserted before the module terminator.
-  Block::iterator getFuncInsertPt() {
-    return std::prev(module.getBody()->end());
-  }
-  /// A helper to create a callee.
-  void createCalleeAndCallerArgs(
-      llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
-      mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
-      llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName);
-
-  /// The current builder, pointing at where the next Instruction should be
-  /// generated.
-  OpBuilder b;
-  /// The current context.
-  MLIRContext *context;
-  /// The current module being created.
-  ModuleOp module;
-  /// The main function.
-  FuncOp func;
-  /// The OpenScop object pointer.
-  OslScop *scop;
-  /// The symbol table for labels in the OpenScop input (to be deprecated).
-  OslSymbolTable *symTable;
-  /// The symbol table that will be built on the fly.
-  SymbolTable symbolTable;
-
-  /// Map from symbol names to block arguments.
-  llvm::DenseMap<llvm::StringRef, BlockArgument> symNameToArg;
-  /// Map from callee names to callee operation.
-  llvm::StringMap<Operation *> calleeMap;
-
-  clast_stmt *root;
-  CloogOptions *options;
-  FILE *output;
-};
-} // namespace
-
-Importer::Importer(MLIRContext *context, ModuleOp module,
-                   OslSymbolTable *symTable, OslScop *scop,
-                   CloogOptions *options)
-    : b(context), context(context), module(module), scop(scop),
-      symTable(symTable), options(options) {
-  b.setInsertionPointToStart(module.getBody());
-}
-
-bool Importer::isMemrefArg(llvm::StringRef argName) {
-  // TODO: should find a better way to do this, e.g., using the old symbol
-  // table.
-  return argName.size() >= 2 && argName[0] == 'A';
-}
-
-bool Importer::isResultArg(llvm::StringRef argName) {
-  return argName.size() >= 2 && argName[0] == 'S';
-}
-
-LogicalResult Importer::processStmtList(clast_stmt *s) {
-  for (; s; s = s->next) {
-    if (CLAST_STMT_IS_A(s, stmt_root)) {
-      if (failed(processStmt(reinterpret_cast<clast_root *>(s))))
-        return failure();
-    } else if (CLAST_STMT_IS_A(s, stmt_ass)) {
-      // TODO: fill this
-    } else if (CLAST_STMT_IS_A(s, stmt_user)) {
-      if (failed(processStmt(reinterpret_cast<clast_user_stmt *>(s))))
-        return failure();
-    } else if (CLAST_STMT_IS_A(s, stmt_for)) {
-      if (failed(processStmt(reinterpret_cast<clast_for *>(s))))
-        return failure();
-    } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
-      if (failed(processStmt(reinterpret_cast<clast_guard *>(s))))
-        return failure();
-    } else {
-      llvm::errs() << "clast_stmt type not supported\n";
-      return failure();
-    }
-    // } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
-    //   // TODO: fill this
-    // } else if (CLAST_STMT_IS_A(s, stmt_block)) {
-    //   // TODO: fill this
-    // } else {
-    //   // TODO: fill this
-    // }
-  }
-
-  // Post update the function type.
-  auto &entryBlock = *func.getBlocks().begin();
-  auto funcType = b.getFunctionType(entryBlock.getArgumentTypes(), llvm::None);
-  func.setType(funcType);
-
-  return success();
-}
-
-/// Translate the root statement as a function. The name of the function is by
-/// default "main".
-LogicalResult Importer::processStmt(clast_root *rootStmt) {
-  // The main function to be created has 0 input and output.
-  auto funcType = b.getFunctionType(llvm::None, llvm::None);
-  b.setInsertionPoint(module.getBody(), getFuncInsertPt());
-
-  // The default function name is main.
-  llvm::StringRef funcName("main");
-
-  // If the comment is provided, we will use it as the function name.
-  // TODO: make sure it is safe.
-  osl_generic_p comment = scop->getExtension("comment");
-  // drop_front because the first char is \0A, no idea why.
-  if (comment) {
-    char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
-    funcName = llvm::StringRef(commentStr);
-    funcName = llvm::StringRef(formatv("{0}_new", funcName));
-  }
-
-  func = b.create<FuncOp>(UnknownLoc::get(context), funcName, funcType);
-
-  // Generate an entry block and implicitly insert a ReturnOp at its end.
-  auto &entryBlock = *func.addEntryBlock();
-  b.setInsertionPoint(&entryBlock, entryBlock.end());
-  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
-
-  // For the rest of the body
-  b.setInsertionPointToStart(&entryBlock);
-
-  // Initialize several values before start.
-  initializeSymbolTable();
-
-  return success();
-}
-
-void Importer::initializeSymbolTable() {
-  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
-  OslScop::ValueTable *oslValueTable = scop->getValueTable();
-
-  OpBuilder::InsertionGuard guard(b);
-
-  auto &entryBlock = *func.getBody().begin();
-  b.setInsertionPointToStart(&entryBlock);
-
-  /// Constants
-  symbolTable["zero"] =
-      b.create<mlir::ConstantOp>(b.getUnknownLoc(), b.getIndexType(),
-                                 b.getIntegerAttr(b.getIndexType(), 0));
-
-  /// Memory
-  for (const auto &it : *oslSymbolTable) {
-    if (scop->isArraySymbol(it.first())) {
-      mlir::Value memref = it.second;
-      /// If the memref is a BlockArgument, we create a new BlockArgument as
-      /// well in the current function.
-      if (mlir::BlockArgument arg = memref.dyn_cast<mlir::BlockArgument>()) {
-        symbolTable[it.first()] = entryBlock.addArgument(memref.getType());
-      } else {
-        // TODO: deal with alloc later.
-        assert(false);
-      }
-    }
-  }
-
-  // Parameters
-  for (const auto &it : *oslSymbolTable) {
-    if (scop->isParameterSymbol(it.first())) {
-      mlir::Value param = it.second;
-      if (mlir::BlockArgument arg = param.dyn_cast<mlir::BlockArgument>()) {
-        symbolTable[it.first()] = entryBlock.addArgument(param.getType());
-      } else {
-        // TODO: deal with alloc later.
-        mlir::Operation *op = param.getDefiningOp();
-        if (mlir::DimOp dimOp = dyn_cast<mlir::DimOp>(op)) {
-          BlockAndValueMapping vMap;
-          assert(dimOp.getNumOperands() == 2);
-
-          mlir::Value memref = dimOp.getOperand(0);
-          mlir::Value index = dimOp.getOperand(1);
-          mlir::Value newMemRef = symbolTable[oslValueTable->lookup(memref)];
-
-          vMap.map(memref, newMemRef);
-
-          OpBuilder::InsertionGuard guard(b);
-          if (newMemRef.isa<mlir::BlockArgument>())
-            b.setInsertionPointToStart(&entryBlock);
-          else
-            b.setInsertionPointAfterValue(newMemRef);
-
-          mlir::Operation *indexDefOp = b.clone(*index.getDefiningOp());
-          vMap.map(index, indexDefOp->getResult(0));
-          mlir::Operation *newDimOp = b.clone(*op, vMap);
-          symbolTable[it.first()] = newDimOp->getResult(0);
-        } else {
-          // TODO;
-          assert(false);
-        }
-      }
-    }
-  }
-
-  // Constants
-  for (const auto &it : *oslSymbolTable) {
-    if (scop->isConstantSymbol(it.first())) {
-      mlir::Value cst = it.second;
-      if (mlir::BlockArgument arg = cst.dyn_cast<mlir::BlockArgument>())
-        symbolTable[it.first()] = entryBlock.addArgument(cst.getType());
-    }
-  }
-}
-
-LogicalResult
-Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
-                            llvm::SmallVectorImpl<std::string> &args) {
-  unsigned bodyLen = body.size();
-  unsigned pos = 0;
-
-  // Read until the left bracket for the function name.
-  for (; pos < bodyLen && body[pos] != '('; pos++)
-    calleeName.push_back(body[pos]);
-  pos++; // Consume the left bracket.
-
-  // Read argument names.
-  while (pos < bodyLen) {
-    std::string arg;
-    for (; pos < bodyLen && body[pos] != ',' && body[pos] != ')'; pos++) {
-      if (body[pos] != ' ') // Ignore whitespaces
-        arg.push_back(body[pos]);
-    }
-
-    if (!arg.empty())
-      args.push_back(arg);
-    // Consume either ',' or ')'.
-    pos++;
-  }
-
-  return success();
-}
-
 /// Builds the mapping from the iterator names in a statement to their
 /// corresponding names in <scatnames>, based on the matrix provided by the
 /// scattering relation.
-static void buildIterToScatNameMap(
-    llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName,
-    osl_statement_p stmt, osl_generic_p scatnames) {
+static void
+buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
+                       osl_statement_p stmt, osl_generic_p scatnames) {
   // Get the body from the statement.
   osl_body_p body = osl_statement_get_body(stmt);
   assert(body != nullptr && "The body of the statement should not be NULL.");
@@ -613,10 +357,446 @@ static void buildIterToScatNameMap(
         iterToScatName[iterNames[j]] = scatNames[i];
 }
 
+namespace {
+/// Build mapping between the iter names in the original code to the scatname in
+/// the OpenScop.
+class IterScatNameMapper {
+public:
+  IterScatNameMapper(OslScop *scop, CloogOptions *options)
+      : scop(scop), options(options) {}
+
+  void visitStmtList(clast_stmt *s);
+
+  llvm::StringMap<llvm::StringRef> getIterScatNameMap() {
+    return iterScatNameMap;
+  };
+
+private:
+  void visit(clast_for *forStmt);
+  void visit(clast_guard *guardStmt);
+  void visit(clast_user_stmt *userStmt);
+
+  OslScop *scop;
+  clast_stmt *root;
+  CloogOptions *options;
+
+  llvm::StringMap<llvm::StringRef> iterScatNameMap;
+};
+
+} // namespace
+
+void IterScatNameMapper::visitStmtList(clast_stmt *s) {
+  for (; s; s = s->next) {
+    if (CLAST_STMT_IS_A(s, stmt_user)) {
+      visit(reinterpret_cast<clast_user_stmt *>(s));
+    } else if (CLAST_STMT_IS_A(s, stmt_for)) {
+      visit(reinterpret_cast<clast_for *>(s));
+    } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
+      visit(reinterpret_cast<clast_guard *>(s));
+    }
+  }
+}
+
+void IterScatNameMapper::visit(clast_for *forStmt) {
+  visitStmtList(forStmt->body);
+}
+void IterScatNameMapper::visit(clast_guard *guardStmt) {
+  visitStmtList(guardStmt->then);
+}
+
+void IterScatNameMapper::visit(clast_user_stmt *userStmt) {
+  osl_statement_p stmt;
+  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
+    return assert(false);
+
+  osl_body_p body = osl_statement_get_body(stmt);
+  assert(body != NULL && "The body of the statement should not be NULL.");
+  assert(body->expression != NULL && "The body expression should not be NULL.");
+  assert(body->iterators != NULL && "The body iterators should not be NULL.");
+
+  // Map iterator names in the current statement to the values in <scatnames>.
+  osl_generic_p scatnames = scop->getExtension("scatnames");
+  assert(scatnames && "There should be a <scatnames> in the scop.");
+  buildIterToScatNameMap(iterScatNameMap, stmt, scatnames);
+}
+
+namespace {
+/// Import MLIR code from the clast AST.
+class Importer {
+public:
+  using SymbolTable = llvm::StringMap<mlir::Value>;
+
+  Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
+           OslScop *scop, CloogOptions *options);
+
+  LogicalResult processStmtList(clast_stmt *s);
+
+  mlir::Operation *getFunc() { return func; }
+
+private:
+  void initializeSymbolTable();
+
+  void initializeSymbol(mlir::Value val);
+
+  void fulfillSymbolDependence(llvm::StringRef symbol);
+
+  LogicalResult processStmt(clast_root *rootStmt);
+  LogicalResult processStmt(clast_for *forStmt);
+  LogicalResult processStmt(clast_guard *guardStmt);
+  LogicalResult processStmt(clast_user_stmt *userStmt);
+  LogicalResult processStmt(clast_assignment *ass);
+
+  LogicalResult getAffineLoopBound(clast_expr *expr,
+                                   llvm::SmallVectorImpl<mlir::Value> &operands,
+                                   AffineMap &affMap, bool isUpper = false);
+  void
+  getAffineExprForLoopIterator(clast_stmt *subst,
+                               llvm::SmallVectorImpl<mlir::Value> &operands,
+                               AffineMap &affMap);
+
+  LogicalResult parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
+                                  llvm::SmallVectorImpl<std::string> &args);
+
+  bool isMemrefArg(llvm::StringRef argName);
+  bool isResultArg(llvm::StringRef argName);
+
+  /// Functions are always inserted before the module terminator.
+  Block::iterator getFuncInsertPt() {
+    return std::prev(module.getBody()->end());
+  }
+  /// A helper to create a callee.
+  void createCalleeAndCallerArgs(
+      llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
+      mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
+      llvm::StringMap<llvm::StringRef> &iterToScatName);
+
+  /// The current builder, pointing at where the next Instruction should be
+  /// generated.
+  OpBuilder b;
+  /// The current context.
+  MLIRContext *context;
+  /// The current module being created.
+  ModuleOp module;
+  /// The main function.
+  FuncOp func;
+  /// The OpenScop object pointer.
+  OslScop *scop;
+  /// The symbol table for labels in the OpenScop input (to be deprecated).
+  OslSymbolTable *symTable;
+  /// The symbol table that will be built on the fly.
+  SymbolTable symbolTable;
+
+  /// Map from symbol names to block arguments.
+  llvm::DenseMap<llvm::StringRef, BlockArgument> symNameToArg;
+  /// Map from callee names to callee operation.
+  llvm::StringMap<Operation *> calleeMap;
+
+  // Map from an not yet initialized symbol to the Values that depend on it.
+  llvm::StringMap<llvm::SetVector<mlir::Value>> symbolToDeps;
+  // Map from a value to all the symbols it depends on.
+  llvm::DenseMap<mlir::Value, llvm::SetVector<llvm::StringRef>>
+      valueToDepSymbols;
+
+  llvm::StringMap<llvm::StringRef> iterScatNameMap;
+
+  clast_stmt *root;
+  CloogOptions *options;
+  FILE *output;
+};
+} // namespace
+
+Importer::Importer(MLIRContext *context, ModuleOp module,
+                   OslSymbolTable *symTable, OslScop *scop,
+                   CloogOptions *options)
+    : b(context), context(context), module(module), scop(scop),
+      symTable(symTable), options(options) {
+  b.setInsertionPointToStart(module.getBody());
+}
+
+bool Importer::isMemrefArg(llvm::StringRef argName) {
+  // TODO: should find a better way to do this, e.g., using the old symbol
+  // table.
+  return argName.size() >= 2 && argName[0] == 'A';
+}
+
+bool Importer::isResultArg(llvm::StringRef argName) {
+  return argName.size() >= 2 && argName[0] == 'S';
+}
+
+LogicalResult Importer::processStmtList(clast_stmt *s) {
+  // These lines can be optimized.
+  if (iterScatNameMap.empty()) {
+    IterScatNameMapper iterScatNameMapper(scop, options);
+    iterScatNameMapper.visitStmtList(s);
+    iterScatNameMap = iterScatNameMapper.getIterScatNameMap();
+  }
+
+  for (; s; s = s->next) {
+    if (CLAST_STMT_IS_A(s, stmt_root)) {
+      if (failed(processStmt(reinterpret_cast<clast_root *>(s))))
+        return failure();
+    } else if (CLAST_STMT_IS_A(s, stmt_ass)) {
+      if (failed(processStmt(reinterpret_cast<clast_assignment *>(s))))
+        return failure();
+    } else if (CLAST_STMT_IS_A(s, stmt_user)) {
+      if (failed(processStmt(reinterpret_cast<clast_user_stmt *>(s))))
+        return failure();
+    } else if (CLAST_STMT_IS_A(s, stmt_for)) {
+      if (failed(processStmt(reinterpret_cast<clast_for *>(s))))
+        return failure();
+    } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
+      if (failed(processStmt(reinterpret_cast<clast_guard *>(s))))
+        return failure();
+    } else {
+      llvm::errs() << "clast_stmt type not supported\n";
+      return failure();
+    }
+    // } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
+    //   // TODO: fill this
+    // } else if (CLAST_STMT_IS_A(s, stmt_block)) {
+    //   // TODO: fill this
+    // } else {
+    //   // TODO: fill this
+    // }
+  }
+
+  // Post update the function type.
+  auto &entryBlock = *func.getBlocks().begin();
+  auto funcType = b.getFunctionType(entryBlock.getArgumentTypes(), llvm::None);
+  func.setType(funcType);
+
+  return success();
+}
+
+/// Translate the root statement as a function. The name of the function is by
+/// default "main".
+LogicalResult Importer::processStmt(clast_root *rootStmt) {
+
+  // The main function to be created has 0 input and output.
+  auto funcType = b.getFunctionType(llvm::None, llvm::None);
+  b.setInsertionPoint(module.getBody(), getFuncInsertPt());
+
+  // The default function name is main.
+  llvm::StringRef funcName("main");
+
+  // If the comment is provided, we will use it as the function name.
+  // TODO: make sure it is safe.
+  osl_generic_p comment = scop->getExtension("comment");
+  // drop_front because the first char is \0A, no idea why.
+  if (comment) {
+    char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
+    funcName = llvm::StringRef(commentStr);
+    funcName = llvm::StringRef(formatv("{0}_new", funcName));
+  }
+
+  func = b.create<FuncOp>(UnknownLoc::get(context), funcName, funcType);
+
+  // Generate an entry block and implicitly insert a ReturnOp at its end.
+  auto &entryBlock = *func.addEntryBlock();
+  b.setInsertionPoint(&entryBlock, entryBlock.end());
+  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
+
+  // For the rest of the body
+  b.setInsertionPointToStart(&entryBlock);
+
+  // Initialize several values before start.
+  initializeSymbolTable();
+
+  return success();
+}
+
+/// Initialize the value in the symbol table.
+void Importer::initializeSymbol(mlir::Value val) {
+  assert(val != nullptr);
+  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
+  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+
+  auto &entryBlock = *func.getBody().begin();
+
+  OpBuilder::InsertionGuard guard(b);
+
+  StringRef symbol = oslValueTable->lookup(val);
+  assert(!symbol.empty() && "val to initialize should have a corresponding "
+                            "symbol in the original code.");
+
+  if (mlir::BlockArgument arg = val.dyn_cast<mlir::BlockArgument>()) {
+    mlir::Block *owner = arg.getOwner();
+    mlir::Operation *parentOp = owner->getParentOp();
+
+    if (isa<mlir::FuncOp>(parentOp)) {
+      // TODO: here we assume the funcOp is the top-level scop. We can assign
+      // the top-level func a symbol actually to correctly justify.
+      b.setInsertionPointToStart(&entryBlock);
+      symbolTable[symbol] = entryBlock.addArgument(val.getType());
+      fulfillSymbolDependence(symbol);
+    }
+
+    return;
+  }
+
+  // This defOp should be cloned to the target function, while its operands
+  // may be symbols that are not yet initialized (e.g., IVs in loops not
+  // constructed). We should place them into the symbolToDeps map.
+  mlir::Operation *defOp = val.getDefiningOp();
+  // if (isa<mlir::AllocaOp>(defOp)) {
+  //   // defOp->dump();
+  //   llvm::errs() << defOp->getLoc() << "\n";
+  // }
+
+  // This indicates whether we have set an insertion point.
+  bool hasInsertionPoint = false;
+
+  // First we examine the AST structure.
+  mlir::Operation *parentOp = defOp->getParentOp();
+  if (mlir::AffineForOp forOp = dyn_cast<mlir::AffineForOp>(parentOp)) {
+    mlir::Value srcIV = forOp.getInductionVar();
+    llvm::StringRef ivName = oslValueTable->lookup(srcIV);
+    mlir::Value dstIV = symbolTable[ivName];
+    if (dstIV == nullptr) {
+      // if (isa<mlir::AllocaOp>(defOp)) {
+      //   llvm::errs() << "Located under iv name: " << ivName << "\n";
+      // }
+      symbolToDeps[ivName].insert(val);
+      valueToDepSymbols[val].insert(ivName);
+    } else {
+      // Now the loop IV is there, we just find its owner for loop and clone
+      // the op.
+      mlir::Block *blockToInsert = dstIV.cast<mlir::BlockArgument>().getOwner();
+      // blockToInsert->dump();
+      hasInsertionPoint = true;
+      b.setInsertionPointToStart(blockToInsert);
+    }
+  } else if (mlir::FuncOp funOp = dyn_cast<mlir::FuncOp>(parentOp)) {
+    // Insert at the beginning of this function.
+    hasInsertionPoint = true;
+    b.setInsertionPointToStart(&entryBlock);
+  } else {
+    assert(false);
+  }
+
+  // if (isa<mlir::AllocaOp>(defOp)) {
+  //   llvm::errs() << "Has insertion point: " << hasInsertionPoint << "\n";
+  // }
+
+  SmallVector<mlir::Value, 8> newOperands;
+  // Next, we check whether all operands are in the symbol table.
+  for (mlir::Value operand : defOp->getOperands()) {
+    llvm::StringRef operandSymbol = oslValueTable->lookup(operand);
+    if (operandSymbol.empty()) {
+      mlir::Operation *operandDefOp = operand.getDefiningOp();
+      if (operandDefOp && isa<mlir::ConstantOp>(operandDefOp)) {
+        newOperands.push_back(b.clone(*operandDefOp)->getResult(0));
+        continue;
+      }
+    }
+
+    assert(!operandSymbol.empty() &&
+           "operand should be in the original symbol table.");
+    mlir::Value newOperand = symbolTable[operandSymbol];
+    // If the symbol is not yet initialized, we update the two dependence
+    // tables. Note that here we implicitly assume that the operand symbol
+    // should exist.
+    if (newOperand == nullptr) {
+      symbolToDeps[operandSymbol].insert(val);
+      valueToDepSymbols[val].insert(operandSymbol);
+      continue;
+    }
+    newOperands.push_back(newOperand);
+  }
+
+  // The operands are not sufficient, should wait.
+  if (newOperands.size() < defOp->getNumOperands())
+    return;
+
+  // Finally do the initialization.
+  if (!hasInsertionPoint)
+    return;
+
+  BlockAndValueMapping vMap;
+  for (unsigned i = 0; i < newOperands.size(); i++)
+    vMap.map(defOp->getOperand(i), newOperands[i]);
+
+  mlir::Operation *newOp = b.clone(*defOp, vMap);
+  assert(newOp->getNumResults() == 1 && "Should only have one result.");
+
+  symbolTable[symbol] = newOp->getResult(0);
+
+  // Update the dependence table.
+  fulfillSymbolDependence(symbol);
+}
+
+/**
+ * symbol now exists in the symbolTable, and we can check whether we can
+ * initialize other symbols that depends on them.
+ */
+void Importer::fulfillSymbolDependence(llvm::StringRef symbol) {
+  // llvm::errs() << "Fulfilling symbol: " << symbol << "\n";
+  assert(symbolTable[symbol] != nullptr &&
+         "Symbol to be fulfilled not in the symbol table.");
+
+  for (mlir::Value val : symbolToDeps[symbol]) {
+    assert(valueToDepSymbols[val].contains(symbol));
+
+    valueToDepSymbols[val].remove(symbol);
+    if (valueToDepSymbols[val].empty()) {
+
+      initializeSymbol(val);
+    }
+  }
+
+  symbolToDeps.erase(symbol);
+}
+
+void Importer::initializeSymbolTable() {
+  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
+  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+
+  OpBuilder::InsertionGuard guard(b);
+
+  auto &entryBlock = *func.getBody().begin();
+  b.setInsertionPointToStart(&entryBlock);
+
+  /// Constants
+  symbolTable["zero"] =
+      b.create<mlir::ConstantOp>(b.getUnknownLoc(), b.getIndexType(),
+                                 b.getIntegerAttr(b.getIndexType(), 0));
+
+  for (const auto &it : *oslSymbolTable)
+    initializeSymbol(it.second);
+}
+
+LogicalResult
+Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
+                            llvm::SmallVectorImpl<std::string> &args) {
+  unsigned bodyLen = body.size();
+  unsigned pos = 0;
+
+  // Read until the left bracket for the function name.
+  for (; pos < bodyLen && body[pos] != '('; pos++)
+    calleeName.push_back(body[pos]);
+  pos++; // Consume the left bracket.
+
+  // Read argument names.
+  while (pos < bodyLen) {
+    std::string arg;
+    for (; pos < bodyLen && body[pos] != ',' && body[pos] != ')'; pos++) {
+      if (body[pos] != ' ') // Ignore whitespaces
+        arg.push_back(body[pos]);
+    }
+
+    if (!arg.empty())
+      args.push_back(arg);
+    // Consume either ',' or ')'.
+    pos++;
+  }
+
+  return success();
+}
+
 void Importer::createCalleeAndCallerArgs(
     llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
     mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
-    llvm::DenseMap<llvm::StringRef, llvm::StringRef> &iterToScatName) {
+    llvm::StringMap<llvm::StringRef> &iterToScatName) {
   // TODO: avoid duplicated callee creation
   // Cache the current insertion point before changing it for the new callee
   // function.
@@ -702,6 +882,44 @@ void Importer::createCalleeAndCallerArgs(
   }
 }
 
+void Importer::getAffineExprForLoopIterator(
+    clast_stmt *subst, llvm::SmallVectorImpl<mlir::Value> &operands,
+    AffineMap &affMap) {
+  assert(CLAST_STMT_IS_A(subst, stmt_ass) &&
+         "Should use clast assignment here.");
+
+  clast_assignment *substAss = reinterpret_cast<clast_assignment *>(subst);
+  // clast_pprint(stderr, &(substAss->stmt), 0, options);
+
+  AffineExprBuilder builder(context, symTable, scop, options);
+  SmallVector<AffineExpr, 1> affExprs;
+  // llvm::errs() << "RHS: ";
+  // clast_pprint_expr(options, stderr, substAss->RHS);
+  // llvm::errs() << "\n";
+  assert(succeeded(builder.process(substAss->RHS, affExprs)));
+
+  // Insert dim operands.
+  for (llvm::StringRef dimName : builder.dimNames.keys()) {
+    mlir::Value iv = symbolTable[dimName];
+    // if (iv == nullptr) {
+    //   affExprs[0].dump();
+    //   llvm::errs() << "Missing: " << dimName << "\n";
+    // }
+    assert(iv != nullptr);
+    operands.push_back(iv);
+  }
+  // Symbol operands
+  for (llvm::StringRef symName : builder.symbolNames.keys()) {
+    mlir::Value operand = symbolTable[symName];
+    assert(operand != nullptr);
+    operands.push_back(operand);
+  }
+
+  // Create the AffineMap for loop bound.
+  affMap = AffineMap::get(builder.dimNames.size(), builder.symbolNames.size(),
+                          affExprs, context);
+}
+
 /// Create a custom call operation for each user statement. A user statement
 /// should be in the format of <stmt-id>`(`<ssa-id>`)`, in which a SSA ID can be
 /// a memref, a loop IV, or a symbol parameter (defined as a block argument). We
@@ -711,7 +929,6 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
   OslScop::ValueTable *valueTable = scop->getValueTable();
   OslScop::SymbolTable *symbolTabele = scop->getSymbolTable();
-  llvm::DenseMap<llvm::StringRef, llvm::StringRef> iterToScatName;
 
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
@@ -725,9 +942,45 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   // Map iterator names in the current statement to the values in <scatnames>.
   osl_generic_p scatnames = scop->getExtension("scatnames");
   assert(scatnames && "There should be a <scatnames> in the scop.");
-  buildIterToScatNameMap(iterToScatName, stmt, scatnames);
 
-  // TODO: print annotations
+  // clast_pprint(stderr, (clast_stmt *)userStmt, 0, options);
+  SmallVector<mlir::Value, 8> inductionVars;
+  unsigned numIters = osl_strings_size(body->iterators);
+
+  char *expr = osl_util_identifier_substitution(body->expression->string[0],
+                                                body->iterators->string);
+  char *tmp = expr;
+  clast_stmt *subst;
+
+  /* Print the body expression, substituting the @...@ markers. */
+  while (*expr) {
+    // llvm::errs() << expr << "\n";
+    if (*expr == '@') {
+      int iterator;
+      expr += sscanf(expr, "@%d", &iterator) + 2; /* 2 for the @s */
+      subst = userStmt->substitutions;
+      for (int i = 0; i < iterator; i++)
+        subst = subst->next;
+
+      SmallVector<mlir::Value, 8> substOperands;
+      AffineMap substMap;
+      getAffineExprForLoopIterator(subst, substOperands, substMap);
+
+      mlir::Operation *op;
+      if (substMap.isSingleConstant())
+        op = b.create<mlir::ConstantOp>(
+            b.getUnknownLoc(), b.getIndexType(),
+            b.getIntegerAttr(b.getIndexType(),
+                             substMap.getSingleConstantResult()));
+      else
+        op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
+                                           substOperands);
+      inductionVars.push_back(op->getResult(0));
+    } else {
+      *expr++;
+    }
+  }
+  free(tmp);
 
   // Parse the statement body.
   llvm::SmallVector<std::string, 8> args;
@@ -739,6 +992,8 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   FuncOp callee;
   llvm::SmallVector<mlir::Value, 8> callerArgs;
 
+  Location loc = b.getUnknownLoc();
+
   // If the calleeName can be found in the scopStmtMap, i.e., we have the
   // definition of the callee already, we will generate the caller based on that
   // interface.
@@ -747,32 +1002,60 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
     callee = it->getValue().getCallee();
     // Note that caller is in the original function.
     mlir::CallOp origCaller = it->getValue().getCaller();
+    // origCaller.dump();
+    loc = origCaller.getLoc();
+    unsigned currInductionVar = 0;
 
     for (mlir::Value arg : origCaller.getOperands()) {
       llvm::StringRef argSymbol = valueTable->lookup(arg);
 
-      if (mlir::Value val = this->symbolTable.lookup(argSymbol))
+      // Special handling for the memory allocation case.
+      mlir::Operation *defOp = arg.getDefiningOp();
+      if (defOp && isa<mlir::AllocaOp>(defOp)) {
+        // If this memory has been allocated, need to check its owner.
+        if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
+          if (val.getParentBlock() == b.getBlock()) {
+            callerArgs.push_back(val);
+            continue;
+          }
+        }
+
+        // Otherwise, create a new alloca op.
+        OpBuilder::InsertionGuard guard(b);
+        b.setInsertionPointToStart(b.getBlock());
+        mlir::Operation *newDefOp = b.clone(*defOp);
+
+        this->symbolTable[argSymbol] = newDefOp->getResult(0);
+        // fulfillSymbolDependence(argSymbol);
+
+        callerArgs.push_back(newDefOp->getResult(0));
+      } else if (scop->isDimSymbol(argSymbol)) {
+        callerArgs.push_back(inductionVars[currInductionVar++]);
+      } else if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
         callerArgs.push_back(val);
-      else {
-        llvm::StringRef scatName = iterToScatName.lookup(argSymbol);
+      } else {
+        llvm::StringRef scatName = iterScatNameMap.lookup(argSymbol);
         // Dealing with loop IV.
         if (!scatName.empty()) {
           argSymbol = scatName;
           if (mlir::Value val = this->symbolTable.lookup(argSymbol))
             callerArgs.push_back(val);
-          else // no IV symbol means this statement is called outside the loop.
+          else // no IV symbol means this statement is called errside the loop.
             callerArgs.push_back(this->symbolTable.lookup("zero"));
+        } else {
+          llvm::errs() << "Missing symbol: " << argSymbol << "\n";
+          assert(false && "Cannot insert the correct number of caller args. "
+                          "Some symbols must be missing in the symbol table.");
         }
       }
     }
   } else {
     createCalleeAndCallerArgs(calleeName, args, callee, callerArgs,
-                              iterToScatName);
+                              iterScatNameMap);
   }
 
   // Finally create the CallOp.
-  mlir::CallOp caller =
-      b.create<mlir::CallOp>(UnknownLoc::get(context), callee, callerArgs);
+  mlir::CallOp caller = b.create<mlir::CallOp>(loc, callee, callerArgs);
 
   return success();
 }
@@ -784,6 +1067,9 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
   SmallVector<bool, 4> eqFlags;
 
   AffineExprBuilder builder(context, symTable, scop, options);
+  // llvm::errs() << "Guard stmt:"
+  //              << "\n";
+  // clast_pprint(stderr, (clast_stmt *)guardStmt, 0, options);
 
   for (unsigned i = 0; i < guardStmt->n; i++) {
     clast_equation eq = guardStmt->eq[i];
@@ -796,20 +1082,33 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
     if (failed(builder.process(eq.RHS, rhsExprs)))
       return failure();
 
-    // This should be 0.
-    AffineExpr eqExpr = lhsExprs[0] - rhsExprs[0];
-    conds.push_back(eqExpr);
-    eqFlags.push_back(true);
+    assert(lhsExprs.size() == 1);
+
+    for (AffineExpr rhsExpr : rhsExprs) {
+      AffineExpr eqExpr;
+      if (eq.sign >= 0)
+        eqExpr = lhsExprs[0] - rhsExpr;
+      else
+        eqExpr = rhsExpr - lhsExprs[0];
+      conds.push_back(eqExpr);
+      eqFlags.push_back(eq.sign == 0);
+    }
   }
 
   IntegerSet iset = IntegerSet::get(builder.dimNames.size(),
                                     builder.symbolNames.size(), conds, eqFlags);
   SmallVector<mlir::Value, 8> operands;
-  for (auto dimName : builder.dimNames)
-    if (auto iv = symbolTable[dimName])
-      operands.push_back(iv);
-  for (auto symName : builder.symbolNames)
-    operands.push_back(symbolTable[symName]);
+  for (auto dimName : builder.dimNames.keys()) {
+    mlir::Value iv = symbolTable[dimName];
+    llvm::errs() << dimName << "\n";
+    assert(iv != nullptr);
+    operands.push_back(iv);
+  }
+  for (auto symName : builder.symbolNames.keys()) {
+    mlir::Value sym = symbolTable[symName];
+    assert(sym != nullptr);
+    operands.push_back(sym);
+  }
 
   mlir::AffineIfOp ifOp =
       b.create<mlir::AffineIfOp>(b.getUnknownLoc(), iset, operands, false);
@@ -838,7 +1137,7 @@ Importer::getAffineLoopBound(clast_expr *expr,
       expr = expr + b.getAffineConstantExpr(1);
 
   // Insert dim operands.
-  for (auto dimName : builder.dimNames) {
+  for (auto dimName : builder.dimNames.keys()) {
     if (auto iv = symbolTable[dimName]) {
       operands.push_back(iv);
     } else {
@@ -851,8 +1150,11 @@ Importer::getAffineLoopBound(clast_expr *expr,
   // Create or get BlockArgument for the symbols. We assume all symbols come
   // from the BlockArgument of the generated function.
   auto &entryBlock = *func.getBlocks().begin();
-  for (auto symName : builder.symbolNames)
-    operands.push_back(symbolTable[symName]);
+  for (auto symName : builder.symbolNames.keys()) {
+    mlir::Value operand = symbolTable[symName];
+    assert(operand != nullptr);
+    operands.push_back(operand);
+  }
 
   // Create the AffineMap for loop bound.
   affMap = AffineMap::get(builder.dimNames.size(), builder.symbolNames.size(),
@@ -869,6 +1171,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Get loop bounds.
   AffineMap lbMap, ubMap;
   llvm::SmallVector<mlir::Value, 8> lbOperands, ubOperands;
+  OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   assert((forStmt->LB && forStmt->UB) && "Unbounded loops are not allowed.");
   // TODO: simplify these sanity checks.
@@ -897,12 +1200,14 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Create the for operation.
   mlir::AffineForOp forOp = b.create<mlir::AffineForOp>(
       UnknownLoc::get(context), lbOperands, lbMap, ubOperands, ubMap, stride);
+  // forOp.dump();
 
   // Update the loop IV mapping.
   auto &entryBlock = *forOp.getLoopBody().getBlocks().begin();
   // TODO: confirm is there a case that forOp has multiple operands.
   assert(entryBlock.getNumArguments() == 1 &&
          "affine.for should only have one block argument (iv).");
+
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
                      OslSymbolTable::LoopIV);
 
@@ -911,19 +1216,70 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   mlir::Value symValue = symbolTable[forStmt->iterator];
   symbolTable[forStmt->iterator] = entryBlock.getArgument(0);
 
+  fulfillSymbolDependence(forStmt->iterator);
+
+  for (const auto &it : iterScatNameMap) {
+    if (it.second.equals(forStmt->iterator)) {
+      // llvm::errs() << it.first() << " -> " << it.second << "\n";
+      symbolTable[it.first()] = symbolTable[it.second];
+      fulfillSymbolDependence(it.first());
+    }
+  }
+
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
+  // llvm::errs() << "Entry is empty: " << entryBlock.empty() << "\n";
+  // entryBlock.dump();
+  entryBlock.walk([&](mlir::AffineYieldOp op) { b.setInsertionPoint(op); });
   processStmtList(forStmt->body);
   b.setInsertionPointAfter(forOp);
 
   // Restore the symbol value.
+  // llvm::errs() << forStmt->iterator << "\n";
+  // if (symValue != nullptr) {
+  //   symValue.dump();
+  //   symValue.cast<mlir::BlockArgument>().getOwner()->dump();
+  // }
   symbolTable[forStmt->iterator] = symValue;
+  return success();
+}
+
+LogicalResult Importer::processStmt(clast_assignment *ass) {
+
+  SmallVector<mlir::Value, 8> substOperands;
+  AffineMap substMap;
+  getAffineExprForLoopIterator((clast_stmt *)ass, substOperands, substMap);
+
+  mlir::Operation *op;
+  if (substMap.isSingleConstant()) {
+    op = b.create<mlir::ConstantOp>(
+        b.getUnknownLoc(), b.getIndexType(),
+        b.getIntegerAttr(b.getIndexType(), substMap.getSingleConstantResult()));
+  } else if (substMap.getNumResults() == 0) {
+    op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
+                                       substOperands);
+  } else {
+    assert(ass->RHS->type == clast_expr_red);
+    clast_reduction *red = reinterpret_cast<clast_reduction *>(ass->RHS);
+
+    assert(red->type != clast_red_sum);
+    if (red->type == clast_red_max)
+      op = b.create<mlir::AffineMaxOp>(b.getUnknownLoc(), substMap,
+                                       substOperands);
+    else
+      op = b.create<mlir::AffineMinOp>(b.getUnknownLoc(), substMap,
+                                       substOperands);
+  }
+
+  symbolTable[ass->LHS] = op->getResult(0);
+
   return success();
 }
 
 static std::unique_ptr<OslScop> readOpenScop(llvm::MemoryBufferRef buf) {
   // Read OpenScop by OSL API.
-  // TODO: is there a better way to get the FILE pointer from MemoryBufferRef?
+  // TODO: is there a better way to get the FILE pointer from
+  // MemoryBufferRef?
   FILE *inputFile = fmemopen(
       reinterpret_cast<void *>(const_cast<char *>(buf.getBufferStart())),
       buf.getBufferSize(), "r");
@@ -953,7 +1309,7 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
-  clast_pprint(stdout, rootStmt, 0, options);
+  // clast_pprint(stderr, rootStmt, 0, options);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);

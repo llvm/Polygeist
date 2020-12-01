@@ -9,6 +9,7 @@ llvm_update_compile_flags(polymer-opt)
 target_link_libraries(polymer-opt
   PRIVATE
   MLIRStandardOps
+  MLIRLLVMIR
   MLIRLoopAnalysis
   MLIRAnalysis
   MLIRDialect

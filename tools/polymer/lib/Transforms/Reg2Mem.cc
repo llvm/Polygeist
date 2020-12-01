@@ -63,7 +63,8 @@ static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
         // - DimOp/AffineApplyOp: indices and bounds shouldn't be loaded from
         // memory, otherwise, it would mess up with the dependence analysis.
         if (!defOp ||
-            isa<mlir::AllocOp, mlir::DimOp, mlir::AffineApplyOp>(defOp))
+            isa<mlir::AllocOp, mlir::AllocaOp, mlir::DimOp, mlir::ConstantOp,
+                mlir::AffineApplyOp, mlir::IndexCastOp>(defOp))
           continue;
 
         // The block that defines the value is different from the block of the

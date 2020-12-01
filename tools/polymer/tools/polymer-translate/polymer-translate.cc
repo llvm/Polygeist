@@ -10,6 +10,8 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Diagnostics.h"
@@ -52,6 +54,8 @@ int main(int argc, char *argv[]) {
 
   registerDialect<mlir::StandardOpsDialect>();
   registerDialect<mlir::AffineDialect>();
+  registerDialect<mlir::scf::SCFDialect>();
+  registerDialect<mlir::LLVM::LLVMDialect>();
 
   // Register translation.
   registerToOpenScopTranslation();
