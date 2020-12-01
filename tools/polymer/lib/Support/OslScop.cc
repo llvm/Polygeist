@@ -416,7 +416,10 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   for (mlir::Value dimValue : dimValues)
     ss << valueTable[dimValue] << " ";
 
-  ss << "\n" << stmt.getCallee().getName() << "()";
+  ss << "\n" << stmt.getCallee().getName() << "(";
+  for (unsigned i = 0; i < dimValues.size(); i++)
+    ss << valueTable[dimValues[i]] << ((i == dimValues.size() - 1) ? "" : ", ");
+  ss << ")";
 
   addGeneric(stmtId + 1, "body", body);
 }

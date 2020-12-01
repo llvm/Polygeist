@@ -51,16 +51,31 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   // Should use isldep, candl cannot work well for this case.
   // TODO: should discover why.
   context->options->isldep = 1;
+  context->options->silent = 1;
+  context->options->identity = 0;
+  context->options->iss = 0;
+  context->options->tile = 1;
+  context->options->intratileopt = 1;
 
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
 
+  if (context->options->iss)
+    pluto_iss_dep(prog);
+  if (!context->options->identity)
+    pluto_auto_transform(prog);
   pluto_compute_dep_directions(prog);
   pluto_compute_dep_satisfaction(prog);
-  pluto_auto_transform(prog);
-  pluto_tile(prog);
+
+  if (context->options->tile) {
+    pluto_tile(prog);
+  } else {
+    if (context->options->intratileopt) {
+      pluto_intra_tile_optimize(prog, 0);
+    }
+  }
 
   pluto_populate_scop(scop->get(), prog, context);
-  // osl_scop_print(stdout, scop->get());
+  osl_scop_print(stderr, scop->get());
 
   auto m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
   createFuncOpFromOpenScop(std::move(scop), m, dstTable, rewriter.getContext());

@@ -11,6 +11,8 @@
 #include "polymer/Transforms/Reg2Mem.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/Pass/Pass.h"
@@ -68,6 +70,8 @@ int main(int argc, char *argv[]) {
   // Register MLIR stuff
   registry.insert<StandardOpsDialect>();
   registry.insert<mlir::AffineDialect>();
+  registry.insert<mlir::scf::SCFDialect>();
+  registry.insert<mlir::LLVM::LLVMDialect>();
 
 // Register the standard passes we want.
 #include "mlir/Transforms/Passes.h.inc"
