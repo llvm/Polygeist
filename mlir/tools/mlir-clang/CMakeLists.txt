@@ -24,6 +24,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRStandardToLLVM
   MLIRTargetLLVMIR
   MLIRAffineTransforms
+  MLIRAffineToStandard
 
   clangBasic
   clangCodeGen
