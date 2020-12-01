@@ -60,7 +60,7 @@ module {
     affine.store %21, %arg0[%arg1, %arg2] : memref<2000x2000xf64>
     return
   }
-  func @"kernel_seidel_2d\A0G\8C\01_new"(%arg0: memref<2000x2000xf64>, %arg1: i32, %arg2: i32) {
+  func @"kernel_seidel_2d\A0\E7Z\02_new"(%arg0: memref<2000x2000xf64>, %arg1: i32, %arg2: i32) {
     %0 = index_cast %arg2 : i32 to index
     %1 = index_cast %arg1 : i32 to index
     affine.for %arg3 = 0 to #map19()[%1, %0] {
