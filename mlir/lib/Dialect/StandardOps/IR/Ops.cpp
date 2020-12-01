@@ -2317,6 +2317,18 @@ struct IndexCastToIndexCast : public OpRewritePattern<IndexCastOp> {
     return failure();
   }
 };
+
+void setLocationAfter(OpBuilder& b, mlir::Value val) {
+  if (val.getDefiningOp()) {
+    auto it = val.getDefiningOp()->getIterator();
+    it++;
+    b.setInsertionPoint(val.getDefiningOp()->getBlock(), it);
+  }
+  if (auto bop = val.dyn_cast<mlir::BlockArgument>()) {
+    b.setInsertionPoint(bop.getOwner(), bop.getOwner()->begin());
+  }
+}
+
 /// Fold alloc operations with no uses. Alloc has side effects on the heap,
 /// but can still be deleted if it has zero uses.
 struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
@@ -2329,29 +2341,41 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<AddIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<AddIOp>(
           op,
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
                                        op.getType()),
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
                                        op.getType()));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<SubIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<SubIOp>(
           op,
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
                                        op.getType()),
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
                                        op.getType()));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<MulIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<MulIOp>(
           op,
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
                                        op.getType()),
-          rewriter.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
                                        op.getType()));
       return success();
     }

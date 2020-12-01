@@ -2224,6 +2224,10 @@ static void print(OpAsmPrinter &p, AffineLoadOp op) {
     p.printAffineMapOfSSAIds(mapAttr, op.getMapOperands());
   p << ']';
   p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{op.getMapAttrName()});
+  if (!op.getMemRef().getType().template isa<MemRefType>()) {
+    llvm::errs() << op.getMemRef() << "\n";
+    llvm::errs() << op.getMemRef().getType() << "\n";
+  }
   p << " : " << op.getMemRefType();
 }
 
