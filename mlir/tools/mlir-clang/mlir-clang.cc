@@ -113,13 +113,14 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createParallelLowerPass());
 
   if (EmitLLVM) {
+    pm.addPass(mlir::createLowerAffinePass());
     pm.addPass(mlir::createLowerToCFGPass());
     pm.addPass(mlir::createLowerToLLVMPass());
   }
 
   if (mlir::failed(pm.run(module)))
     return 4;
-  module.dump();
+  //module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }

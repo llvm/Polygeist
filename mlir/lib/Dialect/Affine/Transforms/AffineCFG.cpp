@@ -333,7 +333,7 @@ void AffineCFGPass::runOnFunction() {
                 todo.push_back(andi.getOperand(1));
                 continue;
             }
-            llvm::errs() << "illegal cur: " << cur << " - " << ifOp << "\n";
+            //llvm::errs() << "illegal cur: " << cur << " - " << ifOp << "\n";
             return;
         }
 
@@ -375,7 +375,7 @@ void AffineCFGPass::runOnFunction() {
         rpl.insert<IndexCastMovement>(getFunction().getContext());
         applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl), /*fold*/false);
     }
-    getFunction().dump();
+    //getFunction().dump();
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::replaceAffineCFGPass() {
