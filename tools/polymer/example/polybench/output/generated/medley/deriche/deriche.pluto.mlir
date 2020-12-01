@@ -571,8 +571,8 @@ module {
     %35 = alloca() : memref<1xf32>
     %36 = alloca() : memref<1xf32>
     call @S3(%19) : (memref<1xf32>) -> ()
-    call @S15(%36) : (memref<1xf32>) -> ()
-    call @S14(%28) : (memref<1xf32>) -> ()
+    call @S15(%33) : (memref<1xf32>) -> ()
+    call @S14(%36) : (memref<1xf32>) -> ()
     call @S13(%35) : (memref<1xf32>) -> ()
     affine.for %arg7 = 0 to %20 {
       affine.for %arg8 = 0 to %21 {
@@ -669,10 +669,10 @@ module {
       }
     }
     call @S12(%2) : (memref<1xf32>) -> ()
-    call @S16(%27, %35, %arg4, %2, %36, %28) : (memref<1xf32>, memref<1xf32>, f32, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
+    call @S16(%34, %35, %arg4, %2, %33, %36) : (memref<1xf32>, memref<1xf32>, f32, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
     call @S18(%35, %2) : (memref<1xf32>, memref<1xf32>) -> ()
     call @S36(%35) : (memref<1xf32>) -> ()
-    call @S17(%36, %28) : (memref<1xf32>, memref<1xf32>) -> ()
+    call @S17(%33, %36) : (memref<1xf32>, memref<1xf32>) -> ()
     affine.for %arg7 = 0 to %20 {
       affine.for %arg8 = 0 to %21 {
         %37 = alloca() : memref<1xf32>

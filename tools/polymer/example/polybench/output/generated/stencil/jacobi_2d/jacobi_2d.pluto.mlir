@@ -145,7 +145,7 @@ module {
     affine.store %13, %arg0[%arg1, %arg2] : memref<1300x1300xf64>
     return
   }
-  func @"kernel_jacobi_2d\90)\95\02_new"(%arg0: memref<1300x1300xf64>, %arg1: memref<1300x1300xf64>, %arg2: i32, %arg3: i32) {
+  func @"kernel_jacobi_2d\909\F6\02_new"(%arg0: memref<1300x1300xf64>, %arg1: memref<1300x1300xf64>, %arg2: i32, %arg3: i32) {
     %0 = index_cast %arg3 : i32 to index
     %1 = index_cast %arg2 : i32 to index
     affine.for %arg4 = -1 to min #map60()[%1, %0] {
