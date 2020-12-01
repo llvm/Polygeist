@@ -197,151 +197,118 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     br ^bb3(%13 : i32)
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @kernel_nussinov(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) {
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %false = constant false
+// CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     %c3_i32 = constant 3 : i32
-// CHECK-NEXT:     %0 = subi %arg0, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%0 : i32)
-// CHECK-NEXT:   ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb5
-// CHECK-NEXT:     %2 = cmpi "sge", %1, %c0_i32 : i32
-// CHECK-NEXT:     cond_br %2, ^bb2(%1 : i32), ^bb3
-// CHECK-NEXT:   ^bb2(%3: i32):  // 2 preds: ^bb1, ^bb6
-// CHECK-NEXT:     %4 = addi %3, %c1_i32 : i32
-// CHECK-NEXT:     %5 = cmpi "slt", %4, %arg0 : i32
-// CHECK-NEXT:     cond_br %5, ^bb4, ^bb5
-// CHECK-NEXT:   ^bb3:  // pred: ^bb1
-// CHECK-NEXT:     return
-// CHECK-NEXT:   ^bb4:  // pred: ^bb2
-// CHECK-NEXT:     %6 = subi %4, %c1_i32 : i32
-// CHECK-NEXT:     %7 = cmpi "sge", %6, %c0_i32 : i32
-// CHECK-NEXT:     scf.if %7 {
-// CHECK-NEXT:       %24 = index_cast %1 : i32 to index
-// CHECK-NEXT:       %25 = index_cast %4 : i32 to index
-// CHECK-NEXT:       %26 = load %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:       %27 = index_cast %6 : i32 to index
-// CHECK-NEXT:       %28 = load %arg2[%24, %27] : memref<2500x2500xi32>
-// CHECK-NEXT:       %29 = cmpi "sge", %26, %28 : i32
-// CHECK-NEXT:       %30 = scf.if %29 -> (i32) {
-// CHECK-NEXT:         %31 = load %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:         scf.yield %31 : i32
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         %31 = load %arg2[%24, %27] : memref<2500x2500xi32>
-// CHECK-NEXT:         scf.yield %31 : i32
-// CHECK-NEXT:       }
-// CHECK-NEXT:       store %30, %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     %8 = cmpi "slt", %4, %arg0 : i32
-// CHECK-NEXT:     scf.if %8 {
-// CHECK-NEXT:       %24 = index_cast %1 : i32 to index
-// CHECK-NEXT:       %25 = index_cast %4 : i32 to index
-// CHECK-NEXT:       %26 = load %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:       %27 = index_cast %4 : i32 to index
-// CHECK-NEXT:       %28 = load %arg2[%27, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:       %29 = cmpi "sge", %26, %28 : i32
-// CHECK-NEXT:       %30 = scf.if %29 -> (i32) {
-// CHECK-NEXT:         %31 = load %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:         scf.yield %31 : i32
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         %31 = load %arg2[%27, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:         scf.yield %31 : i32
-// CHECK-NEXT:       }
-// CHECK-NEXT:       store %30, %arg2[%24, %25] : memref<2500x2500xi32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     %9 = scf.if %7 -> (i1) {
-// CHECK-NEXT:       scf.yield %8 : i1
-// CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %false : i1
-// CHECK-NEXT:     }
-// CHECK-NEXT:     scf.if %9 {
-// CHECK-NEXT:       %24 = cmpi "slt", %1, %6 : i32
-// CHECK-NEXT:       scf.if %24 {
-// CHECK-NEXT:         %25 = index_cast %1 : i32 to index
-// CHECK-NEXT:         %26 = index_cast %4 : i32 to index
-// CHECK-NEXT:         %27 = load %arg2[%25, %26] : memref<2500x2500xi32>
-// CHECK-NEXT:         %28 = index_cast %4 : i32 to index
-// CHECK-NEXT:         %29 = index_cast %6 : i32 to index
-// CHECK-NEXT:         %30 = load %arg2[%28, %29] : memref<2500x2500xi32>
-// CHECK-NEXT:         %31 = load %arg1[%25] : memref<2500xi8>
-// CHECK-NEXT:         %32 = sexti %31 : i8 to i32
-// CHECK-NEXT:         %33 = load %arg1[%26] : memref<2500xi8>
-// CHECK-NEXT:         %34 = sexti %33 : i8 to i32
-// CHECK-NEXT:         %35 = addi %32, %34 : i32
-// CHECK-NEXT:         %36 = cmpi "eq", %35, %c3_i32 : i32
-// CHECK-NEXT:         %37 = scf.if %36 -> (i32) {
-// CHECK-NEXT:           scf.yield %c1_i32 : i32
-// CHECK-NEXT:         } else {
-// CHECK-NEXT:           scf.yield %c0_i32 : i32
-// CHECK-NEXT:         }
-// CHECK-NEXT:         %38 = addi %30, %37 : i32
-// CHECK-NEXT:         %39 = cmpi "sge", %27, %38 : i32
-// CHECK-NEXT:         %40 = scf.if %39 -> (i32) {
-// CHECK-NEXT:           %41 = load %arg2[%25, %26] : memref<2500x2500xi32>
-// CHECK-NEXT:           scf.yield %41 : i32
-// CHECK-NEXT:         } else {
-// CHECK-NEXT:           %41 = load %arg2[%28, %29] : memref<2500x2500xi32>
-// CHECK-NEXT:           %42 = load %arg1[%25] : memref<2500xi8>
-// CHECK-NEXT:           %43 = sexti %42 : i8 to i32
-// CHECK-NEXT:           %44 = load %arg1[%26] : memref<2500xi8>
-// CHECK-NEXT:           %45 = sexti %44 : i8 to i32
-// CHECK-NEXT:           %46 = addi %43, %45 : i32
-// CHECK-NEXT:           %47 = cmpi "eq", %46, %c3_i32 : i32
-// CHECK-NEXT:           %48 = scf.if %47 -> (i32) {
-// CHECK-NEXT:             scf.yield %c1_i32 : i32
+// CHECK-NEXT:     %c1 = constant 1 : index
+// CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:     %1 = subi %0, %c1 : index
+// CHECK-NEXT:     %2 = addi %1, %c1 : index
+// CHECK-NEXT:     %3 = subi %2, %c1 : index
+// CHECK-NEXT:     affine.for %arg3 = 0 to %0 {
+// CHECK-NEXT:       %4 = subi %3, %arg3 : index
+// CHECK-NEXT:       %5 = affine.apply #map0(%arg3)[%0]
+// CHECK-NEXT:       affine.for %arg4 = 1 to %0 {
+// CHECK-NEXT:         %6 = affine.apply #map1(%arg4)
+// CHECK-NEXT:         affine.if #set0(%6) {
+// CHECK-NEXT:           %9 = affine.apply #map2(%arg3)
+// CHECK-NEXT:           %10 = affine.load %arg2[%9, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           %11 = affine.load %arg2[%9, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:           %12 = cmpi "sge", %10, %11 : i32
+// CHECK-NEXT:           %13 = scf.if %12 -> (i32) {
+// CHECK-NEXT:             %14 = affine.load %arg2[%9, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             scf.yield %14 : i32
 // CHECK-NEXT:           } else {
-// CHECK-NEXT:             scf.yield %c0_i32 : i32
+// CHECK-NEXT:             %14 = affine.load %arg2[%9, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:             scf.yield %14 : i32
 // CHECK-NEXT:           }
-// CHECK-NEXT:           %49 = addi %41, %48 : i32
-// CHECK-NEXT:           scf.yield %49 : i32
+// CHECK-NEXT:           affine.store %13, %arg2[%9, %arg4] : memref<2500x2500xi32>
 // CHECK-NEXT:         }
-// CHECK-NEXT:         store %40, %arg2[%25, %26] : memref<2500x2500xi32>
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         %25 = index_cast %1 : i32 to index
-// CHECK-NEXT:         %26 = index_cast %4 : i32 to index
-// CHECK-NEXT:         %27 = load %arg2[%25, %26] : memref<2500x2500xi32>
-// CHECK-NEXT:         %28 = index_cast %4 : i32 to index
-// CHECK-NEXT:         %29 = index_cast %6 : i32 to index
-// CHECK-NEXT:         %30 = load %arg2[%28, %29] : memref<2500x2500xi32>
-// CHECK-NEXT:         %31 = cmpi "sge", %27, %30 : i32
-// CHECK-NEXT:         %32 = scf.if %31 -> (i32) {
-// CHECK-NEXT:           %33 = load %arg2[%25, %26] : memref<2500x2500xi32>
-// CHECK-NEXT:           scf.yield %33 : i32
-// CHECK-NEXT:         } else {
-// CHECK-NEXT:           %33 = load %arg2[%28, %29] : memref<2500x2500xi32>
-// CHECK-NEXT:           scf.yield %33 : i32
+// CHECK-NEXT:         affine.if #set1(%5)[%0] {
+// CHECK-NEXT:           %9 = affine.apply #map2(%arg3)
+// CHECK-NEXT:           %10 = affine.load %arg2[%9, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           %11 = affine.apply #map3(%arg3)
+// CHECK-NEXT:           %12 = affine.load %arg2[%11, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           %13 = cmpi "sge", %10, %12 : i32
+// CHECK-NEXT:           %14 = scf.if %13 -> (i32) {
+// CHECK-NEXT:             %15 = affine.load %arg2[%9, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             scf.yield %15 : i32
+// CHECK-NEXT:           } else {
+// CHECK-NEXT:             %15 = affine.load %arg2[%11, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             scf.yield %15 : i32
+// CHECK-NEXT:           }
+// CHECK-NEXT:           affine.store %14, %arg2[%9, %arg4] : memref<2500x2500xi32>
 // CHECK-NEXT:         }
-// CHECK-NEXT:         store %32, %arg2[%25, %26] : memref<2500x2500xi32>
+// CHECK-NEXT:         affine.if #set2(%6, %5)[%0] {
+// CHECK-NEXT:           %9 = affine.apply #map4(%arg3)[%0]
+// CHECK-NEXT:           affine.if #set3(%9, %6) {
+// CHECK-NEXT:             %10 = affine.apply #map2(%arg3)
+// CHECK-NEXT:             %11 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             %12 = affine.apply #map3(%arg3)
+// CHECK-NEXT:             %13 = affine.load %arg2[%12, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:             %14 = affine.load %arg1[%10] : memref<2500xi8>
+// CHECK-NEXT:             %15 = sexti %14 : i8 to i32
+// CHECK-NEXT:             %16 = affine.load %arg1[%arg4] : memref<2500xi8>
+// CHECK-NEXT:             %17 = sexti %16 : i8 to i32
+// CHECK-NEXT:             %18 = addi %15, %17 : i32
+// CHECK-NEXT:             %19 = cmpi "eq", %18, %c3_i32 : i32
+// CHECK-NEXT:             %20 = select %19, %c1_i32, %c0_i32 : i32
+// CHECK-NEXT:             %21 = addi %13, %20 : i32
+// CHECK-NEXT:             %22 = cmpi "sge", %11, %21 : i32
+// CHECK-NEXT:             %23 = scf.if %22 -> (i32) {
+// CHECK-NEXT:               %24 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:               scf.yield %24 : i32
+// CHECK-NEXT:             } else {
+// CHECK-NEXT:               %24 = affine.load %arg2[%12, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:               %25 = affine.load %arg1[%10] : memref<2500xi8>
+// CHECK-NEXT:               %26 = sexti %25 : i8 to i32
+// CHECK-NEXT:               %27 = affine.load %arg1[%arg4] : memref<2500xi8>
+// CHECK-NEXT:               %28 = sexti %27 : i8 to i32
+// CHECK-NEXT:               %29 = addi %26, %28 : i32
+// CHECK-NEXT:               %30 = cmpi "eq", %29, %c3_i32 : i32
+// CHECK-NEXT:               %31 = select %30, %c1_i32, %c0_i32 : i32
+// CHECK-NEXT:               %32 = addi %24, %31 : i32
+// CHECK-NEXT:               scf.yield %32 : i32
+// CHECK-NEXT:             }
+// CHECK-NEXT:             affine.store %23, %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           } else {
+// CHECK-NEXT:             %10 = affine.apply #map2(%arg3)
+// CHECK-NEXT:             %11 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             %12 = affine.apply #map3(%arg3)
+// CHECK-NEXT:             %13 = affine.load %arg2[%12, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:             %14 = cmpi "sge", %11, %13 : i32
+// CHECK-NEXT:             %15 = scf.if %14 -> (i32) {
+// CHECK-NEXT:               %16 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:               scf.yield %16 : i32
+// CHECK-NEXT:             } else {
+// CHECK-NEXT:               %16 = affine.load %arg2[%12, %6] : memref<2500x2500xi32>
+// CHECK-NEXT:               scf.yield %16 : i32
+// CHECK-NEXT:             }
+// CHECK-NEXT:             affine.store %15, %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           }
+// CHECK-NEXT:         }
+// CHECK-NEXT:         %7 = affine.apply #map2(%arg3)
+// CHECK-NEXT:         %8 = affine.load %arg2[%7, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:         affine.for %arg5 = 1 to #map2(%arg4) {
+// CHECK-NEXT:           %9 = affine.load %arg2[%7, %arg5] : memref<2500x2500xi32>
+// CHECK-NEXT:           %10 = affine.apply #map3(%arg5)
+// CHECK-NEXT:           %11 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:           %12 = addi %9, %11 : i32
+// CHECK-NEXT:           %13 = cmpi "sge", %8, %12 : i32
+// CHECK-NEXT:           %14 = scf.if %13 -> (i32) {
+// CHECK-NEXT:             %15 = affine.load %arg2[%7, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             scf.yield %15 : i32
+// CHECK-NEXT:           } else {
+// CHECK-NEXT:             %15 = affine.load %arg2[%7, %arg5] : memref<2500x2500xi32>
+// CHECK-NEXT:             %16 = affine.load %arg2[%10, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:             %17 = addi %15, %16 : i32
+// CHECK-NEXT:             scf.yield %17 : i32
+// CHECK-NEXT:           }
+// CHECK-NEXT:           affine.store %14, %arg2[%7, %arg4] : memref<2500x2500xi32>
+// CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     br ^bb6(%4 : i32)
-// CHECK-NEXT:   ^bb5:  // pred: ^bb2
-// CHECK-NEXT:     %10 = subi %1, %c1_i32 : i32
-// CHECK-NEXT:     br ^bb1(%10 : i32)
-// CHECK-NEXT:   ^bb6(%11: i32):  // 2 preds: ^bb4, ^bb7
-// CHECK-NEXT:     %12 = cmpi "slt", %11, %4 : i32
-// CHECK-NEXT:     cond_br %12, ^bb7, ^bb2(%4 : i32)
-// CHECK-NEXT:   ^bb7:  // pred: ^bb6
-// CHECK-NEXT:     %13 = index_cast %1 : i32 to index
-// CHECK-NEXT:     %14 = index_cast %4 : i32 to index
-// CHECK-NEXT:     %15 = load %arg2[%13, %14] : memref<2500x2500xi32>
-// CHECK-NEXT:     %16 = index_cast %11 : i32 to index
-// CHECK-NEXT:     %17 = load %arg2[%13, %16] : memref<2500x2500xi32>
-// CHECK-NEXT:     %18 = addi %11, %c1_i32 : i32
-// CHECK-NEXT:     %19 = index_cast %18 : i32 to index
-// CHECK-NEXT:     %20 = load %arg2[%19, %14] : memref<2500x2500xi32>
-// CHECK-NEXT:     %21 = addi %17, %20 : i32
-// CHECK-NEXT:     %22 = cmpi "sge", %15, %21 : i32
-// CHECK-NEXT:     %23 = scf.if %22 -> (i32) {
-// CHECK-NEXT:       %24 = load %arg2[%13, %14] : memref<2500x2500xi32>
-// CHECK-NEXT:       scf.yield %24 : i32
-// CHECK-NEXT:     } else {
-// CHECK-NEXT:       %24 = load %arg2[%13, %16] : memref<2500x2500xi32>
-// CHECK-NEXT:       %25 = load %arg2[%19, %14] : memref<2500x2500xi32>
-// CHECK-NEXT:       %26 = addi %24, %25 : i32
-// CHECK-NEXT:       scf.yield %26 : i32
-// CHECK-NEXT:     }
-// CHECK-NEXT:     store %23, %arg2[%13, %14] : memref<2500x2500xi32>
-// CHECK-NEXT:     br ^bb6(%18 : i32)
+// CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @print_array(%arg0: i32, %arg1: memref<2500x2500xi32>) {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32

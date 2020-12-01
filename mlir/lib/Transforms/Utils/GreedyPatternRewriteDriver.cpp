@@ -35,6 +35,7 @@ namespace {
 /// This is a worklist-driven driver for the PatternMatcher, which repeatedly
 /// applies the locally optimal patterns in a roughly "bottom up" way.
 class GreedyPatternRewriteDriver : public PatternRewriter {
+  bool fold;
 public:
   explicit GreedyPatternRewriteDriver(MLIRContext *ctx,
                                       const FrozenRewritePatternSet &patterns)
@@ -188,12 +189,14 @@ bool GreedyPatternRewriteDriver::simplify(MutableArrayRef<Region> regions,
       };
 
       // Try to fold this op.
-      bool inPlaceUpdate;
-      if ((succeeded(folder.tryToFold(op, collectOps, preReplaceAction,
-                                      &inPlaceUpdate)))) {
-        changed = true;
-        if (!inPlaceUpdate)
-          continue;
+      if (fold) {
+        bool inPlaceUpdate;
+        if ((succeeded(folder.tryToFold(op, collectOps, preReplaceAction,
+                                        &inPlaceUpdate)))) {
+          changed = true;
+          if (!inPlaceUpdate)
+            continue;
+        }
       }
 
       // Try to match one of the patterns. The rewriter is automatically
