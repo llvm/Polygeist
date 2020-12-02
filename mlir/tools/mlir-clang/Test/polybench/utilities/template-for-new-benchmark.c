@@ -97,8 +97,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: module {
-// CHECK-NEXT:   func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
+// CHECK:   func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
