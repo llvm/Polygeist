@@ -53,27 +53,27 @@ module {
     affine.store %0, %arg0[symbol(%arg1), symbol(%arg2), symbol(%arg3)] : memref<150x140x160xf64>
     return
   }
-  func @kernel_doitgen_new(%arg0: memref<160xf64>, %arg1: memref<150x140x160xf64>, %arg2: memref<160x160xf64>, %arg3: i32, %arg4: i32, %arg5: i32) {
-    %0 = index_cast %arg5 : i32 to index
-    %1 = index_cast %arg4 : i32 to index
-    %2 = index_cast %arg3 : i32 to index
+  func @kernel_doitgen_new(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
+    %0 = index_cast %arg2 : i32 to index
+    %1 = index_cast %arg1 : i32 to index
+    %2 = index_cast %arg0 : i32 to index
     affine.for %arg6 = 0 to %2 {
       affine.for %arg7 = 0 to %1 {
         affine.for %arg8 = 0 to #map6()[%0] {
           affine.for %arg9 = #map4(%arg8) to min #map5(%arg8)[%0] {
-            call @S0(%arg0, %arg6) : (memref<160xf64>, index) -> ()
+            call @S0(%arg5, %arg6) : (memref<160xf64>, index) -> ()
           }
         }
         affine.for %arg8 = 0 to %0 {
           %3 = alloca() : memref<1xf64>
-          call @S1(%3, %arg0, %arg6) : (memref<1xf64>, memref<160xf64>, index) -> ()
+          call @S1(%3, %arg5, %arg6) : (memref<1xf64>, memref<160xf64>, index) -> ()
           affine.for %arg9 = 0 to %0 {
-            call @S2(%arg0, %arg6, %arg2, %arg7, %arg1, %arg8, %arg9, %3) : (memref<160xf64>, index, memref<160x160xf64>, index, memref<150x140x160xf64>, index, index, memref<1xf64>) -> ()
+            call @S2(%arg5, %arg6, %arg4, %arg7, %arg3, %arg8, %arg9, %3) : (memref<160xf64>, index, memref<160x160xf64>, index, memref<150x140x160xf64>, index, index, memref<1xf64>) -> ()
           }
         }
         affine.for %arg8 = 0 to #map6()[%0] {
           affine.for %arg9 = #map4(%arg8) to min #map5(%arg8)[%0] {
-            call @S3(%arg1, %arg6, %arg7, %arg9, %arg0) : (memref<150x140x160xf64>, index, index, index, memref<160xf64>) -> ()
+            call @S3(%arg3, %arg6, %arg7, %arg9, %arg5) : (memref<150x140x160xf64>, index, index, index, memref<160xf64>) -> ()
           }
         }
       }

@@ -1,14 +1,16 @@
 #!/usr/bin/bash -x
 
 NAME="$1"
+OPT_NAME="${NAME}.pluto"
 DATASET_SIZE="$2"
 
-MAIN_FILE="${NAME}.c"
-MAIN_LLVMIR_FILE="${NAME}.ll"
-MLIR_FILE="${NAME}.mlir"
-MLIR_LLVM_FILE="${NAME}_llvm.mlir"
-MLIR_LLVMIR_FILE="${NAME}_mlir.ll"
-MLIR_BC_FILE="${NAME}_mlir.bc"
+ORIG_MLIR_FILE="${NAME}.mlir"
+MAIN_FILE="${OPT_NAME}.c"
+MAIN_LLVMIR_FILE="${OPT_NAME}.ll"
+MLIR_FILE="${OPT_NAME}.mlir"
+MLIR_LLVM_FILE="${OPT_NAME}_llvm.mlir"
+MLIR_LLVMIR_FILE="${OPT_NAME}_mlir.ll"
+MLIR_BC_FILE="${OPT_NAME}_mlir.bc"
 
 RESULT_BC_FILE="result.bc"
 RESULT_OBJ_FILE="result.o"
@@ -16,6 +18,14 @@ RESULT_OBJ_FILE="result.o"
 EXE="${NAME}.bin"
 
 LLVM_BINDIR="${PWD}/../../llvm/build/bin"
+POLYMER_BINDIR="${PWD}/../../build/bin"
+
+${POLYMER_BINDIR}/polymer-opt \
+  -reg2mem \
+  -extract-scop-stmt \
+  -pluto-opt \
+  -canonicalize \
+  "${ORIG_MLIR_FILE}"  2>/dev/null | tee "${MLIR_FILE}" > /dev/null
 
 ${LLVM_BINDIR}/mlir-opt \
   --lower-affine \
@@ -40,3 +50,6 @@ ${LLVM_BINDIR}/llc -filetype=obj "${RESULT_BC_FILE}"
 ${LLVM_BINDIR}/clang -O3 -march=native "${RESULT_OBJ_FILE}" -o "${EXE}"
 
 "./${EXE}"
+
+rm -f ${RESULT_BC_FILE}
+rm -f ${RESULT_OBJ_FILE}

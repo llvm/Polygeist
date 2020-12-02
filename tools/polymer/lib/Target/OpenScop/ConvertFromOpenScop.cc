@@ -436,7 +436,7 @@ public:
 
 private:
   void initializeSymbolTable();
-
+  void initializeFuncOpInterface();
   void initializeSymbol(mlir::Value val);
 
   void fulfillSymbolDependence(llvm::StringRef symbol);
@@ -446,6 +446,9 @@ private:
   LogicalResult processStmt(clast_guard *guardStmt);
   LogicalResult processStmt(clast_user_stmt *userStmt);
   LogicalResult processStmt(clast_assignment *ass);
+
+  std::string getSourceFuncName() const;
+  mlir::FuncOp getSourceFuncOp();
 
   LogicalResult getAffineLoopBound(clast_expr *expr,
                                    llvm::SmallVectorImpl<mlir::Value> &operands,
@@ -514,6 +517,28 @@ Importer::Importer(MLIRContext *context, ModuleOp module,
   b.setInsertionPointToStart(module.getBody());
 }
 
+mlir::FuncOp Importer::getSourceFuncOp() {
+  std::string sourceFuncName = getSourceFuncName();
+  mlir::Operation *sourceFuncOp = module.lookupSymbol(sourceFuncName);
+
+  assert(sourceFuncOp != nullptr &&
+         "sourceFuncName cannot be found in the module");
+  assert(isa<mlir::FuncOp>(sourceFuncOp) &&
+         "Found sourceFuncOp should be of type mlir::FuncOp.");
+  return cast<mlir::FuncOp>(sourceFuncOp);
+}
+
+/// If there is anything in the comment, we will use it as a function name.
+/// Otherwise, we return an empty string.
+std::string Importer::getSourceFuncName() const {
+  osl_generic_p comment = scop->getExtension("comment");
+  if (comment) {
+    char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
+    return std::string(commentStr);
+  }
+  return std::string("");
+}
+
 bool Importer::isMemrefArg(llvm::StringRef argName) {
   // TODO: should find a better way to do this, e.g., using the old symbol
   // table.
@@ -552,53 +577,58 @@ LogicalResult Importer::processStmtList(clast_stmt *s) {
       llvm::errs() << "clast_stmt type not supported\n";
       return failure();
     }
-    // } else if (CLAST_STMT_IS_A(s, stmt_guard)) {
-    //   // TODO: fill this
-    // } else if (CLAST_STMT_IS_A(s, stmt_block)) {
-    //   // TODO: fill this
-    // } else {
-    //   // TODO: fill this
-    // }
   }
 
-  // Post update the function type.
-  auto &entryBlock = *func.getBlocks().begin();
-  auto funcType = b.getFunctionType(entryBlock.getArgumentTypes(), llvm::None);
-  func.setType(funcType);
+  // // Post update the function type.
+  // auto &entryBlock = *func.getBlocks().begin();
+  // auto funcType = b.getFunctionType(entryBlock.getArgumentTypes(),
+  // llvm::None); func.setType(funcType);
 
   return success();
+}
+
+void Importer::initializeFuncOpInterface() {
+  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
+  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+
+  /// First collect the source FuncOp in the original MLIR code.
+  mlir::FuncOp sourceFuncOp = getSourceFuncOp();
+
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPoint(module.getBody(), getFuncInsertPt());
+
+  // The default function name is main.
+  llvm::StringRef funcName("main");
+  // If the comment is provided, we will use it as the function name.
+  // TODO: make sure it is safe.
+  std::string sourceFuncName = getSourceFuncName();
+  if (!sourceFuncName.empty())
+    funcName = llvm::StringRef(formatv("{0}_new", sourceFuncName));
+  // Create the function interface.
+  func =
+      b.create<FuncOp>(sourceFuncOp.getLoc(), funcName, sourceFuncOp.getType());
+
+  // Initialize the symbol table for these entryBlock arguments
+  auto &entryBlock = *func.addEntryBlock();
+  for (unsigned i = 0; i < entryBlock.getNumArguments(); i++) {
+    llvm::StringRef argSymbol =
+        oslValueTable->lookup(sourceFuncOp.getArgument(i));
+    symbolTable[argSymbol] = entryBlock.getArgument(i);
+  }
+
+  // Generate an entry block and implicitly insert a ReturnOp at its end.
+  b.setInsertionPoint(&entryBlock, entryBlock.end());
+  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
 }
 
 /// Translate the root statement as a function. The name of the function is by
 /// default "main".
 LogicalResult Importer::processStmt(clast_root *rootStmt) {
-
-  // The main function to be created has 0 input and output.
-  auto funcType = b.getFunctionType(llvm::None, llvm::None);
-  b.setInsertionPoint(module.getBody(), getFuncInsertPt());
-
-  // The default function name is main.
-  llvm::StringRef funcName("main");
-
-  // If the comment is provided, we will use it as the function name.
-  // TODO: make sure it is safe.
-  osl_generic_p comment = scop->getExtension("comment");
-  if (comment) {
-    char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
-    funcName = llvm::StringRef(commentStr);
-    funcName = llvm::StringRef(formatv("{0}_new", funcName));
-  }
-
-  func = b.create<FuncOp>(UnknownLoc::get(context), funcName, funcType);
-
-  // Generate an entry block and implicitly insert a ReturnOp at its end.
-  auto &entryBlock = *func.addEntryBlock();
-  b.setInsertionPoint(&entryBlock, entryBlock.end());
-  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
-
+  // Create the function.
+  initializeFuncOpInterface();
   // For the rest of the body
+  mlir::Block &entryBlock = *func.getBody().begin();
   b.setInsertionPointToStart(&entryBlock);
-
   // Initialize several values before start.
   initializeSymbolTable();
 
@@ -619,20 +649,10 @@ void Importer::initializeSymbol(mlir::Value val) {
   assert(!symbol.empty() && "val to initialize should have a corresponding "
                             "symbol in the original code.");
 
-  if (mlir::BlockArgument arg = val.dyn_cast<mlir::BlockArgument>()) {
-    mlir::Block *owner = arg.getOwner();
-    mlir::Operation *parentOp = owner->getParentOp();
-
-    if (isa<mlir::FuncOp>(parentOp)) {
-      // TODO: here we assume the funcOp is the top-level scop. We can assign
-      // the top-level func a symbol actually to correctly justify.
-      b.setInsertionPointToStart(&entryBlock);
-      symbolTable[symbol] = entryBlock.addArgument(val.getType());
-      fulfillSymbolDependence(symbol);
-    }
-
+  /// Symbols that are the block arguments won't be taken care of at this stage.
+  /// initializeFuncOpInterface() should already have done that.
+  if (mlir::BlockArgument arg = val.dyn_cast<mlir::BlockArgument>())
     return;
-  }
 
   // This defOp should be cloned to the target function, while its operands
   // may be symbols that are not yet initialized (e.g., IVs in loops not

@@ -44,8 +44,8 @@ struct TwoDMemrefI32 {
 
 extern void _mlir_ciface_pb_nussinov(struct OneDMemrefI8 *,
                                      struct TwoDMemrefI32 *);
-extern void _mlir_ciface_pb_nussinov_new(struct TwoDMemrefI32 *,
-                                         struct OneDMemrefI8 *);
+extern void _mlir_ciface_pb_nussinov_new(struct OneDMemrefI8 *,
+                                         struct TwoDMemrefI32 *);
 
 int main(int argc, char *argv[]) {
   clock_t start, end;
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
   printf("Running Pluto optimised MLIR ...\n");
   start = clock();
-  _mlir_ciface_pb_nussinov_new(&table2_mem, &seq2_mem);
+  _mlir_ciface_pb_nussinov_new(&seq2_mem, &table2_mem);
   end = clock();
   opt_time = ((double)(end - start)) / CLOCKS_PER_SEC;
   printf("Total time: %10.6f s\n", opt_time);
