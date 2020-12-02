@@ -53,10 +53,11 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   context->options->isldep = 1;
   context->options->isldepaccesswise = 1;
   context->options->silent = 1;
-  context->options->identity = 1;
+  context->options->identity = 0;
   context->options->iss = 0;
   context->options->tile = 1;
   context->options->intratileopt = 1;
+  context->options->diamondtile = 1;
   context->options->rar = 1;
 
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);

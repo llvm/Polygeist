@@ -3,7 +3,10 @@
 #map2 = affine_map<()[s0] -> (s0)>
 #map3 = affine_map<()[s0, s1] -> (s0, s1)>
 #map4 = affine_map<()[s0] -> (s0, s0)>
-#map5 = affine_map<() -> (1)>
+#map5 = affine_map<(d0) -> (d0 * 32)>
+#map6 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map7 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map8 = affine_map<() -> (1)>
 
 
 module {
@@ -50,11 +53,14 @@ module {
     %c0 = constant 0 : index
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg3 : i32 to index
-    call @S0(%arg1, %c0, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+    affine.for %arg4 = 0 to #map7()[%1] {
+      affine.for %arg5 = #map5(%arg4) to min #map6(%arg4)[%1] {
+        call @S0(%arg1, %arg5, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+      }
+    }
     call @S1(%0, %arg1, %c0) : (memref<1xf64>, memref<2000xf64>, index) -> ()
     call @S3(%arg1, %c0, %arg2) : (memref<2000xf64>, index, memref<2000x2000xf64>) -> ()
     affine.for %arg4 = 1 to %1 {
-      call @S0(%arg1, %arg4, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
       call @S1(%0, %arg1, %arg4) : (memref<1xf64>, memref<2000xf64>, index) -> ()
       affine.for %arg5 = 0 to #map1(%arg4) {
         call @S2(%arg1, %arg4, %arg5, %arg2, %0) : (memref<2000xf64>, index, index, memref<2000x2000xf64>, memref<1xf64>) -> ()

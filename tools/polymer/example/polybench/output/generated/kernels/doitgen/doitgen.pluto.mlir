@@ -59,9 +59,13 @@ module {
     %2 = index_cast %arg3 : i32 to index
     affine.for %arg6 = 0 to %2 {
       affine.for %arg7 = 0 to %1 {
+        affine.for %arg8 = 0 to #map6()[%0] {
+          affine.for %arg9 = #map4(%arg8) to min #map5(%arg8)[%0] {
+            call @S0(%arg0, %arg6) : (memref<160xf64>, index) -> ()
+          }
+        }
         affine.for %arg8 = 0 to %0 {
           %3 = alloca() : memref<1xf64>
-          call @S0(%arg0, %arg6) : (memref<160xf64>, index) -> ()
           call @S1(%3, %arg0, %arg6) : (memref<1xf64>, memref<160xf64>, index) -> ()
           affine.for %arg9 = 0 to %0 {
             call @S2(%arg0, %arg6, %arg2, %arg7, %arg1, %arg8, %arg9, %3) : (memref<160xf64>, index, memref<160x160xf64>, index, memref<150x140x160xf64>, index, index, memref<1xf64>) -> ()

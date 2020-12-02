@@ -77,23 +77,22 @@ module {
     %2 = index_cast %arg1 : i32 to index
     call @S3(%1, %arg0, %c0) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
     call @S5(%arg0, %c0) : (memref<2000x2000xf64>, index) -> ()
+    call @S3(%1, %arg0, %c1) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
     call @S0(%0, %arg0, %c1, %c0) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
     call @S2(%arg0, %c1, %c0) : (memref<2000x2000xf64>, index, index) -> ()
-    call @S3(%1, %arg0, %c1) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
     call @S4(%arg0, %c1, %c0, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
     call @S5(%arg0, %c1) : (memref<2000x2000xf64>, index) -> ()
     affine.for %arg2 = 2 to %2 {
+      call @S3(%1, %arg0, %arg2) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
       call @S0(%0, %arg0, %arg2, %c0) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
       call @S2(%arg0, %arg2, %c0) : (memref<2000x2000xf64>, index, index) -> ()
+      call @S4(%arg0, %arg2, %c0, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
       affine.for %arg3 = 1 to #map1(%arg2) {
         call @S0(%0, %arg0, %arg2, %arg3) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
         affine.for %arg4 = 0 to #map1(%arg3) {
           call @S1(%arg0, %arg2, %arg3, %arg4, %0) : (memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S2(%arg0, %arg2, %arg3) : (memref<2000x2000xf64>, index, index) -> ()
-      }
-      call @S3(%1, %arg0, %arg2) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
-      affine.for %arg3 = 0 to #map1(%arg2) {
         call @S4(%arg0, %arg2, %arg3, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
       }
       call @S5(%arg0, %arg2) : (memref<2000x2000xf64>, index) -> ()
