@@ -200,8 +200,8 @@ c1 c2 c3 c4 c5 c6 c7
 # Mapping array-identifiers/array-names
 1 A1
 2 A2
-4 A4
 3 A3
+4 A4
 </arrays>
 
 <comment>

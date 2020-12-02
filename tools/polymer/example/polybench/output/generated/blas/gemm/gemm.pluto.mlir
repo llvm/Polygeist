@@ -50,12 +50,16 @@ module {
     %0 = index_cast %arg6 : i32 to index
     %1 = index_cast %arg5 : i32 to index
     %2 = index_cast %arg4 : i32 to index
-    affine.for %arg8 = 0 to %2 {
+    affine.for %arg8 = 0 to #map5()[%2] {
       affine.for %arg9 = 0 to #map5()[%0] {
-        affine.for %arg10 = #map3(%arg9) to min #map4(%arg9)[%0] {
-          call @S0(%arg1, %arg8, %arg10, %arg7) : (memref<1000x1100xf64>, index, index, f64) -> ()
+        affine.for %arg10 = #map3(%arg8) to min #map4(%arg8)[%2] {
+          affine.for %arg11 = #map3(%arg9) to min #map4(%arg9)[%0] {
+            call @S0(%arg1, %arg10, %arg11, %arg7) : (memref<1000x1100xf64>, index, index, f64) -> ()
+          }
         }
       }
+    }
+    affine.for %arg8 = 0 to %2 {
       affine.for %arg9 = 0 to %0 {
         %3 = alloca() : memref<1xf64>
         call @S1(%3, %arg0, %arg2, %arg8, %arg9) : (memref<1xf64>, f64, memref<1000x1200xf64>, index, index) -> ()
