@@ -74,48 +74,44 @@ module  {
   func @kernel_bicg_new(%arg0: i32, %arg1: i32, %arg2: memref<2100x1900xf64>, %arg3: memref<1900xf64>, %arg4: memref<2100xf64>, %arg5: memref<1900xf64>, %arg6: memref<2100xf64>) {
     %c2 = constant 2 : index
     %0 = alloca() : memref<1xf64>
-    %1 = index_cast %arg0 : i32 to index
-    %2 = index_cast %arg1 : i32 to index
-    affine.for %arg7 = 0 to #map0()[%2] {
-      affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%2] {
+    %1 = alloca() : memref<1xf64>
+    %2 = alloca() : memref<1xf64>
+    %3 = index_cast %arg0 : i32 to index
+    %4 = index_cast %arg1 : i32 to index
+    affine.for %arg7 = 0 to #map0()[%4] {
+      affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%4] {
         call @S2(%arg4, %arg8) : (memref<2100xf64>, index) -> ()
       }
     }
-    affine.for %arg7 = 0 to %2 {
-      %3 = alloca() : memref<1xf64>
-      call @S4(%3, %arg4, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
-      affine.for %arg8 = 0 to %1 {
-        call @S6(%arg4, %arg7, %arg5, %arg8, %arg2, %3) : (memref<2100xf64>, index, memref<1900xf64>, index, memref<2100x1900xf64>, memref<1xf64>) -> ()
+    affine.for %arg7 = 0 to %4 {
+      call @S4(%0, %arg4, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
+      affine.for %arg8 = 0 to %3 {
+        call @S6(%arg4, %arg7, %arg5, %arg8, %arg2, %0) : (memref<2100xf64>, index, memref<1900xf64>, index, memref<2100x1900xf64>, memref<1xf64>) -> ()
       }
     }
-    call @S0(%0) : (memref<1xf64>) -> ()
-    affine.for %arg7 = 0 to #map0()[%2] {
-      affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%2] {
-        call @S1(%arg3, %arg8, %0) : (memref<1900xf64>, index, memref<1xf64>) -> ()
+    call @S0(%2) : (memref<1xf64>) -> ()
+    affine.for %arg7 = 0 to #map0()[%4] {
+      affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%4] {
+        call @S1(%arg3, %arg8, %2) : (memref<1900xf64>, index, memref<1xf64>) -> ()
       }
     }
-    affine.for %arg7 = 0 to %2 {
-      affine.for %arg8 = 0 to min #map3()[%1] {
-        %3 = alloca() : memref<1xf64>
-        call @S5(%arg3, %arg7, %arg2, %arg8, %3) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
+    affine.for %arg7 = 0 to %4 {
+      affine.for %arg8 = 0 to min #map3()[%3] {
+        call @S5(%arg3, %arg7, %arg2, %arg8, %1) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
       }
-      affine.if #set0()[%1] {
-        %3 = alloca() : memref<1xf64>
-        call @S3(%3, %arg6, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
-        call @S5(%arg3, %arg7, %arg2, %c2, %3) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
+      affine.if #set0()[%3] {
+        call @S3(%1, %arg6, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
+        call @S5(%arg3, %arg7, %arg2, %c2, %1) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
       }
-      affine.if #set1()[%1] {
-        %3 = alloca() : memref<1xf64>
-        call @S3(%3, %arg6, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
+      affine.if #set1()[%3] {
+        call @S3(%1, %arg6, %arg7) : (memref<1xf64>, memref<2100xf64>, index) -> ()
       }
-      affine.for %arg8 = 3 to min #map4()[%1] {
-        %3 = alloca() : memref<1xf64>
-        call @S5(%arg3, %arg7, %arg2, %arg8, %3) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
+      affine.for %arg8 = 3 to min #map4()[%3] {
+        call @S5(%arg3, %arg7, %arg2, %arg8, %1) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
       }
-      affine.for %arg8 = 1 to #map0()[%1] {
-        affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%1] {
-          %3 = alloca() : memref<1xf64>
-          call @S5(%arg3, %arg7, %arg2, %arg9, %3) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
+      affine.for %arg8 = 1 to #map0()[%3] {
+        affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%3] {
+          call @S5(%arg3, %arg7, %arg2, %arg9, %1) : (memref<1900xf64>, index, memref<2100x1900xf64>, index, memref<1xf64>) -> ()
         }
       }
     }

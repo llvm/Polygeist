@@ -47,16 +47,16 @@ module  {
   }
   func @kernel_mvt_new(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000x2000xf64>) {
     %c0 = constant 0 : index
-    %0 = index_cast %arg0 : i32 to index
-    affine.for %arg6 = 0 to %0 {
-      %1 = alloca() : memref<1xf64>
-      %2 = alloca() : memref<1xf64>
-      call @S2(%2, %arg2, %arg6) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      call @S3(%arg2, %arg6, %arg4, %c0, %arg5, %2) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
+    %0 = alloca() : memref<1xf64>
+    %1 = alloca() : memref<1xf64>
+    %2 = index_cast %arg0 : i32 to index
+    affine.for %arg6 = 0 to %2 {
+      call @S2(%0, %arg2, %arg6) : (memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S3(%arg2, %arg6, %arg4, %c0, %arg5, %0) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
       call @S0(%1, %arg1, %arg6) : (memref<1xf64>, memref<2000xf64>, index) -> ()
       call @S1(%arg1, %arg6, %arg3, %c0, %arg5, %1) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
-      affine.for %arg7 = 1 to %0 {
-        call @S3(%arg2, %arg6, %arg4, %arg7, %arg5, %2) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
+      affine.for %arg7 = 1 to %2 {
+        call @S3(%arg2, %arg6, %arg4, %arg7, %arg5, %0) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
         call @S1(%arg1, %arg6, %arg3, %arg7, %arg5, %1) : (memref<2000xf64>, index, memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
       }
     }
