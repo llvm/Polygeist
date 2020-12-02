@@ -1055,9 +1055,11 @@ c1 c2 c3 c4 c5 c6 c7
 # Number of arrays
 12
 # Mapping array-identifiers/array-names
-11 A11
-12 A12
 10 A10
+11 A11
+9 A9
+12 A12
+8 A8
 1 A1
 2 A2
 3 A3
@@ -1065,8 +1067,6 @@ c1 c2 c3 c4 c5 c6 c7
 5 A5
 6 A6
 7 A7
-8 A8
-9 A9
 </arrays>
 
 <comment>

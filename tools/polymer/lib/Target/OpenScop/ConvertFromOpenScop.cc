@@ -651,8 +651,9 @@ void Importer::initializeSymbol(mlir::Value val) {
   // may be symbols that are not yet initialized (e.g., IVs in loops not
   // constructed). We should place them into the symbolToDeps map.
   mlir::Operation *defOp = val.getDefiningOp();
-  if (isa<mlir::AllocaOp>(defOp)) {
-    /// Skip scratchpad for now.
+  if (isa<mlir::AllocaOp>(defOp) && defOp->getNumOperands() == 0) {
+    b.setInsertionPointToStart(&entryBlock);
+    symbolTable[symbol] = b.clone(*defOp)->getResult(0);
     return;
   }
 

@@ -36,13 +36,13 @@ module  {
     return
   }
   func @kernel_floyd_warshall_new(%arg0: i32, %arg1: memref<2800x2800xi32>) {
-    %0 = index_cast %arg0 : i32 to index
-    affine.for %arg2 = 0 to %0 {
-      affine.for %arg3 = 0 to %0 {
-        %1 = alloca() : memref<1xi32>
-        call @S0(%1, %arg1, %arg2, %arg3) : (memref<1xi32>, memref<2800x2800xi32>, index, index) -> ()
-        affine.for %arg4 = 0 to %0 {
-          call @S1(%arg1, %arg2, %arg3, %arg4, %1) : (memref<2800x2800xi32>, index, index, index, memref<1xi32>) -> ()
+    %0 = alloca() : memref<1xi32>
+    %1 = index_cast %arg0 : i32 to index
+    affine.for %arg2 = 0 to %1 {
+      affine.for %arg3 = 0 to %1 {
+        call @S0(%0, %arg1, %arg2, %arg3) : (memref<1xi32>, memref<2800x2800xi32>, index, index) -> ()
+        affine.for %arg4 = 0 to %1 {
+          call @S1(%arg1, %arg2, %arg3, %arg4, %0) : (memref<2800x2800xi32>, index, index, index, memref<1xi32>) -> ()
         }
       }
     }
