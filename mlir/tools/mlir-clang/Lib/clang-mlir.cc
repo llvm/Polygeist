@@ -2111,7 +2111,14 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   auto funcType = builder.getFunctionType(types, rettypes);
   mlir::FuncOp function = mlir::FuncOp(
       mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
-  SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Private);
+  if (FD->getLinkageInternal() == clang::Linkage::InternalLinkage ||
+      !FD->isDefined()) {
+    SymbolTable::setSymbolVisibility(function,
+                                     SymbolTable::Visibility::Private);
+  } else {
+    SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
+  }
+
   functions[name] = function;
   module.push_back(function);
   if (FD->isDefined())
