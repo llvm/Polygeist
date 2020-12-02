@@ -1,5 +1,5 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
-// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | opt -O3 -S | lli - | FileCheck %s --check-prefix EXEC
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm | FileCheck %s --check-prefix EXEC
 // This test will fail until global variables are working
 // XFAIL: *
 /**
