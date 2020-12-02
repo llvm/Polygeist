@@ -1477,11 +1477,13 @@ static LogicalResult verify(LLVMFuncOp op) {
 
   if (op.isExternal()) {
     if (op.linkage() != LLVM::Linkage::External &&
-        op.linkage() != LLVM::Linkage::ExternWeak)
+        op.linkage() != LLVM::Linkage::ExternWeak) {
+      llvm::errs() << op << "\n";
       return op.emitOpError()
              << "external functions must have '"
              << stringifyLinkage(LLVM::Linkage::External) << "' or '"
              << stringifyLinkage(LLVM::Linkage::ExternWeak) << "' linkage";
+      }
     return success();
   }
 

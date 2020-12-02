@@ -11,9 +11,18 @@ add_lit_testsuite(check-mlir-clang "Running the clang-to-mlir regression tests"
   ${CMAKE_CURRENT_BINARY_DIR} 
   DEPENDS ${PET_TO_MLIR_DEPENDS}
   )
-#  ARGS -j 1
+
+add_lit_testsuite(check-mlir-clang-single "Running the clang-to-mlir regression tests"
+  ${CMAKE_CURRENT_BINARY_DIR} 
+  DEPENDS ${PET_TO_MLIR_DEPENDS}
+  ARGS -j 1
+  )
 
 set_target_properties(check-mlir-clang PROPERTIES FOLDER "clang-to-mlir tests")
 add_dependencies(check-mlir-clang
   FileCheck mlir-clang
-  llvm-config count not opt lli)
+  llvm-config count not clang)
+
+add_dependencies(check-mlir-clang-single
+  FileCheck mlir-clang
+  llvm-config count not clang)
