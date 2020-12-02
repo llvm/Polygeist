@@ -1378,8 +1378,11 @@ protected:
 
     // Create an LLVM function, use external linkage by default until MLIR
     // functions have linkage.
+
+    LLVM::Linkage linkage =
+        (funcOp.isPublic() || funcOp.isExternal()) ? LLVM::Linkage::External : LLVM::Linkage::Private;
     auto newFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
-        funcOp.getLoc(), funcOp.getName(), llvmType, LLVM::Linkage::External,
+        funcOp.getLoc(), funcOp.getName(), llvmType, linkage,
         attributes);
     rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                                 newFuncOp.end());
