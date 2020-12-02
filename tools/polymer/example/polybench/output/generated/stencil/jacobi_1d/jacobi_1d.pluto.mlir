@@ -58,41 +58,41 @@ module {
     affine.store %5, %arg0[symbol(%arg1)] : memref<2000xf64>
     return
   }
-  func @kernel_jacobi_1d_new(%arg0: memref<2000xf64>, %arg1: memref<2000xf64>, %arg2: i32, %arg3: i32) {
+  func @kernel_jacobi_1d_new(%arg0: i32, %arg1: i32, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
     %c0 = constant 0 : index
-    %0 = index_cast %arg3 : i32 to index
-    %1 = index_cast %arg2 : i32 to index
+    %0 = index_cast %arg1 : i32 to index
+    %1 = index_cast %arg0 : i32 to index
     affine.for %arg4 = -1 to min #map12()[%1, %0] {
       affine.if #set1(%arg4)[%1] {
         affine.if #set0()[%1] {
           %2 = affine.apply #map1()[%1]
-          call @S1(%arg0, %2, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S1(%arg2, %2, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
       }
       affine.for %arg5 = max #map9(%arg4)[%1] to min #map10(%arg4)[%1, %0] {
         affine.if #set2(%arg4) {
           affine.for %arg6 = #map5(%arg5) to #map6(%arg5) {
-            call @S0(%arg1, %c0, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+            call @S0(%arg3, %c0, %arg2) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
           }
         }
         affine.for %arg6 = #map7(%arg4, %arg5)[%1] to min #map8(%arg4, %arg5)[%1, %0] {
           %2 = affine.apply #map1()[%1]
-          call @S1(%arg0, %2, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S1(%arg2, %2, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
         affine.if #set3(%arg4, %arg5)[%1, %0] {
           %2 = affine.apply #map1()[%1]
-          call @S1(%arg0, %2, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S1(%arg2, %2, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
       }
       affine.if #set2(%arg4) {
         affine.if #set4()[%0] {
-          call @S0(%arg1, %c0, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S0(%arg3, %c0, %arg2) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
       }
       affine.if #set6(%arg4)[%1] {
         affine.if #set5()[%1, %0] {
           %2 = affine.apply #map1()[%1]
-          call @S1(%arg0, %2, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S1(%arg2, %2, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
       }
     }
@@ -100,7 +100,7 @@ module {
       affine.if #set7()[%1] {
         affine.if #set0()[%1] {
           %2 = affine.apply #map1()[%1]
-          call @S1(%arg0, %2, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+          call @S1(%arg2, %2, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
         }
       }
     }

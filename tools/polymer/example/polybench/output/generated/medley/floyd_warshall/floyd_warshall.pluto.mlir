@@ -40,14 +40,14 @@ module {
     affine.store %5, %arg0[symbol(%arg1), symbol(%arg2)] : memref<2800x2800xi32>
     return
   }
-  func @kernel_floyd_warshall_new(%arg0: memref<2800x2800xi32>, %arg1: i32) {
-    %0 = index_cast %arg1 : i32 to index
+  func @kernel_floyd_warshall_new(%arg0: i32, %arg1: memref<2800x2800xi32>) {
+    %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to %0 {
       affine.for %arg3 = 0 to %0 {
         %1 = alloca() : memref<1xi32>
-        call @S0(%1, %arg0, %arg2, %arg3) : (memref<1xi32>, memref<2800x2800xi32>, index, index) -> ()
+        call @S0(%1, %arg1, %arg2, %arg3) : (memref<1xi32>, memref<2800x2800xi32>, index, index) -> ()
         affine.for %arg4 = 0 to %0 {
-          call @S1(%arg0, %arg2, %arg3, %arg4, %1) : (memref<2800x2800xi32>, index, index, index, memref<1xi32>) -> ()
+          call @S1(%arg1, %arg2, %arg3, %arg4, %1) : (memref<2800x2800xi32>, index, index, index, memref<1xi32>) -> ()
         }
       }
     }

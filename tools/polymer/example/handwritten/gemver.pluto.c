@@ -47,8 +47,8 @@ extern void _mlir_ciface_gemver(float alpha, float beta, struct TwoDMemrefF32 *,
                                 struct OneDMemrefF32 *, struct OneDMemrefF32 *,
                                 struct OneDMemrefF32 *, struct OneDMemrefF32 *);
 extern void
-_mlir_ciface_gemver_new(float, struct OneDMemrefF32 *, float,
-                        struct TwoDMemrefF32 *, struct OneDMemrefF32 *,
+_mlir_ciface_gemver_new(float alpha, float beta, struct TwoDMemrefF32 *,
+                        struct OneDMemrefF32 *, struct OneDMemrefF32 *,
                         struct OneDMemrefF32 *, struct OneDMemrefF32 *,
                         struct OneDMemrefF32 *, struct OneDMemrefF32 *,
                         struct OneDMemrefF32 *, struct OneDMemrefF32 *);
@@ -115,8 +115,8 @@ int main(int argc, char *argv[]) {
 
   printf("Running Pluto optimised MLIR ...\n");
   start = clock();
-  _mlir_ciface_gemver_new(beta, &w1_mem, alpha, &A2_mem, &u1_mem, &v1_mem,
-                          &u2_mem, &v2_mem, &u2_mem, &x1_mem, &z_mem);
+  _mlir_ciface_gemver_new(alpha, beta, &A2_mem, &u1_mem, &v1_mem, &u2_mem,
+                          &v2_mem, &w1_mem, &x1_mem, &y_mem, &z_mem);
   end = clock();
   opt_time = ((double)(end - start)) / CLOCKS_PER_SEC;
   printf("Total time: %10.6f s\n", opt_time);

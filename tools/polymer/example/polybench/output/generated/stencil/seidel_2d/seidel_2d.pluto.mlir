@@ -61,9 +61,9 @@ module {
     affine.store %17, %arg0[symbol(%arg1), symbol(%arg2)] : memref<2000x2000xf64>
     return
   }
-  func @kernel_seidel_2d_new(%arg0: memref<2000x2000xf64>, %arg1: i32, %arg2: i32) {
-    %0 = index_cast %arg2 : i32 to index
-    %1 = index_cast %arg1 : i32 to index
+  func @kernel_seidel_2d_new(%arg0: i32, %arg1: i32, %arg2: memref<2000x2000xf64>) {
+    %0 = index_cast %arg1 : i32 to index
+    %1 = index_cast %arg0 : i32 to index
     affine.for %arg3 = 0 to #map24()[%1, %0] {
       affine.for %arg4 = max #map22(%arg3)[%1] to min #map23(%arg3)[%1, %0] {
         affine.for %arg5 = max #map20(%arg3, %arg4)[%0] to min #map21(%arg3, %arg4)[%1, %0] {
@@ -71,7 +71,7 @@ module {
             affine.for %arg7 = max #map16(%arg4, %arg5, %arg6)[%0] to min #map17(%arg4, %arg5, %arg6)[%0] {
               affine.for %arg8 = max #map14(%arg5, %arg6, %arg7) to min #map15(%arg5, %arg6, %arg7)[%0] {
                 %2 = affine.apply #map13(%arg6, %arg7)
-                call @S0(%arg0, %arg6, %2) : (memref<2000x2000xf64>, index, index) -> ()
+                call @S0(%arg2, %arg6, %2) : (memref<2000x2000xf64>, index, index) -> ()
               }
             }
           }
