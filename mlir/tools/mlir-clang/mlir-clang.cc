@@ -89,7 +89,7 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
+  // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::replaceAffineCFGPass());
 
   if (mlir::failed(pm.run(module)))
