@@ -198,7 +198,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %4 = alloc() : memref<1200xf64>
 // CHECK-NEXT:     %5 = memref_cast %0 : memref<1xf64> to memref<?xf64>
 // CHECK-NEXT:     call @init_array(%c1200_i32, %c1400_i32, %5, %1) : (i32, i32, memref<?xf64>, memref<1400x1200xf64>) -> ()
-// CHECK-NEXT:     %6 = affine.load %0[%c0] : memref<1xf64>
+// CHECK-NEXT:     %6 = load %0[%c0] : memref<1xf64>
 // CHECK-NEXT:     call @kernel_correlation(%c1200_i32, %c1400_i32, %6, %1, %2, %3, %4) : (i32, i32, f64, memref<1400x1200xf64>, memref<1200x1200xf64>, memref<1200xf64>, memref<1200xf64>) -> ()
 // CHECK-NEXT:     %7 = cmpi "sgt", %arg0, %c42_i32 : i32
 // CHECK-NEXT:     %8 = scf.if %7 -> (i1) {
@@ -226,7 +226,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %c1200_i32 = constant 1200 : i32
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     %0 = sitofp %c1400_i32 : i32 to f64
-// CHECK-NEXT:     affine.store %0, %arg2[%c0] : memref<?xf64>
+// CHECK-NEXT:     store %0, %arg2[%c0] : memref<?xf64>
 // CHECK-NEXT:     br ^bb1(%c0_i32 : i32)
 // CHECK-NEXT:   ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb5
 // CHECK-NEXT:     %2 = cmpi "slt", %1, %c1400_i32 : i32

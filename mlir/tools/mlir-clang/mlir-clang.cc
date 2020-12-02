@@ -81,6 +81,7 @@ int main(int argc, char **argv) {
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
   mlir::PassManager pm(&context);
+  // module.dump();
 
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
@@ -89,26 +90,23 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
+  optPM.addPass(mlir::replaceAffineCFGPass());
 
-  
   if (mlir::failed(pm.run(module)))
     return 4;
-  //module.dump();
+  // module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }
-  
-  #define optPM optPM2
-  #define pm pm2
+
+#define optPM optPM2
+#define pm pm2
   mlir::PassManager pm(&context);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
 
-  optPM.addPass(mlir::replaceAffineCFGPass());
   optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::replaceAffineStoreAndLoadPass());
   optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
@@ -120,7 +118,7 @@ int main(int argc, char **argv) {
 
   if (mlir::failed(pm.run(module)))
     return 4;
-  //module.dump();
+  // module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }

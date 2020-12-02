@@ -118,37 +118,30 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: #map0 = affine_map<()[s0] -> (s0 - 1)>
-// CHECK: #map1 = affine_map<(d0) -> (d0 - 1)>
-// CHECK: #map2 = affine_map<(d0) -> (d0 + 1)>
+// CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
 // CHECK: func @kernel_jacobi_1d(%arg0: i32, %arg1: i32, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
-// CHECK-NEXT:  %cst = constant 3.333300e-01 : f64
-// CHECK-NEXT:  %c1 = constant 1 : index
-// CHECK-NEXT:  %[[csta1:.+]] = index_cast %arg1 : i32 to index 
-// CHECK-NEXT:  %[[csta0:.+]] = index_cast %arg0 : i32 to index
-// CHECK-NEXT:  affine.for %arg4 = 0 to %[[csta0]] {
-// CHECK-NEXT:    affine.for %arg5 = 1 to #map0()[%[[csta1]]] {
-// CHECK-NEXT:      %2 = affine.apply #map1(%arg5)
-// CHECK-NEXT:      %3 = affine.load %arg2[%2] : memref<2000xf64>
-// CHECK-NEXT:      %4 = affine.load %arg2[%arg5] : memref<2000xf64>
-// CHECK-NEXT:      %5 = addf %3, %4 : f64
-// CHECK-NEXT:      %6 = affine.apply #map2(%arg5)
-// CHECK-NEXT:      %7 = affine.load %arg2[%6] : memref<2000xf64>
-// CHECK-NEXT:      %8 = addf %5, %7 : f64
-// CHECK-NEXT:      %9 = mulf %cst, %8 : f64
-// CHECK-NEXT:      affine.store %9, %arg3[%arg5] : memref<2000xf64>
+// CHECK-NEXT:      %cst = constant 3.333300e-01 : f64
+// CHECK-NEXT:      %0 = index_cast %arg1 : i32 to index
+// CHECK-NEXT:      %1 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:      affine.for %arg4 = 0 to %1 {
+// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:          %2 = affine.load %arg2[%arg5 - 1] : memref<2000xf64>
+// CHECK-NEXT:          %3 = affine.load %arg2[%arg5] : memref<2000xf64>
+// CHECK-NEXT:          %4 = addf %2, %3 : f64
+// CHECK-NEXT:          %5 = affine.load %arg2[%arg5 + 1] : memref<2000xf64>
+// CHECK-NEXT:          %6 = addf %4, %5 : f64
+// CHECK-NEXT:          %7 = mulf %cst, %6 : f64
+// CHECK-NEXT:          affine.store %7, %arg3[%arg5] : memref<2000xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:          %2 = affine.load %arg3[%arg5 - 1] : memref<2000xf64>
+// CHECK-NEXT:          %3 = affine.load %arg3[%arg5] : memref<2000xf64>
+// CHECK-NEXT:          %4 = addf %2, %3 : f64
+// CHECK-NEXT:          %5 = affine.load %arg3[%arg5 + 1] : memref<2000xf64>
+// CHECK-NEXT:          %6 = addf %4, %5 : f64
+// CHECK-NEXT:          %7 = mulf %cst, %6 : f64
+// CHECK-NEXT:          affine.store %7, %arg2[%arg5] : memref<2000xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return
 // CHECK-NEXT:    }
-// CHECK-NEXT:    affine.for %arg5 = 1 to #map0()[%[[csta1]]] {
-// CHECK-NEXT:      %2 = affine.apply #map1(%arg5)
-// CHECK-NEXT:      %3 = affine.load %arg3[%2] : memref<2000xf64>
-// CHECK-NEXT:      %4 = affine.load %arg3[%arg5] : memref<2000xf64>
-// CHECK-NEXT:      %5 = addf %3, %4 : f64
-// CHECK-NEXT:      %6 = affine.apply #map2(%arg5)
-// CHECK-NEXT:      %7 = affine.load %arg3[%6] : memref<2000xf64>
-// CHECK-NEXT:      %8 = addf %5, %7 : f64
-// CHECK-NEXT:      %9 = mulf %cst, %8 : f64
-// CHECK-NEXT:      affine.store %9, %arg2[%arg5] : memref<2000xf64>
-// CHECK-NEXT:    } 
-// CHECK-NEXT:  }
-// CHECK-NEXT:  return
-// CHECK-NEXT:}

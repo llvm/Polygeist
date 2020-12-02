@@ -132,66 +132,60 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: #map0 = affine_map<(d0) -> (d0)>
-// CHECK: #map1 = affine_map<(d0) -> (d0 - 1)>
+// CHECK: #map = affine_map<(d0) -> (d0)>
 // CHECK:  func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
-// CHECK-NEXT:    %c0 = constant 0 : index
-// CHECK-NEXT:    %cst = constant 1.000000e+00 : f64
-// CHECK-NEXT:    %c1_i32 = constant 1 : i32
-// CHECK-NEXT:    %cst_0 = constant 0.000000e+00 : f64
-// CHECK-NEXT:    %c1 = constant 1 : index
-// CHECK-NEXT:    %0 = alloca() : memref<2000xf64>
-// CHECK-NEXT:    %1 = alloca() : memref<1xf64>
-// CHECK-NEXT:    %2 = alloca() : memref<1xf64>
-// CHECK-NEXT:    %3 = alloca() : memref<1xf64>
-// CHECK-NEXT:    %4 = affine.load %arg1[%c0] : memref<2000xf64>
-// CHECK-NEXT:    %5 = negf %4 : f64
-// CHECK-NEXT:    affine.store %5, %arg2[%c0] : memref<2000xf64>
-// CHECK-NEXT:    affine.store %cst, %2[%c0] : memref<1xf64>
-// CHECK-NEXT:    %6 = affine.load %arg1[%c0] : memref<2000xf64>
-// CHECK-NEXT:    %7 = negf %6 : f64
-// CHECK-NEXT:    affine.store %7, %1[%c0] : memref<1xf64>
-// CHECK-NEXT:    %8 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:    %9 = sitofp %c1_i32 : i32 to f64
-// CHECK-NEXT:    %10 = affine.load %1[%c0] : memref<1xf64>
-// CHECK-NEXT:    %11 = affine.load %1[%c0] : memref<1xf64>
-// CHECK-NEXT:    %12 = mulf %10, %11 : f64
-// CHECK-NEXT:    %13 = subf %9, %12 : f64
-// CHECK-NEXT:    %14 = affine.load %2[%c0] : memref<1xf64>
-// CHECK-NEXT:    %15 = mulf %13, %14 : f64
-// CHECK-NEXT:    affine.store %15, %2[%c0] : memref<1xf64>
-// CHECK-NEXT:    affine.store %cst_0, %3[%c0] : memref<1xf64>
-// CHECK-NEXT:    %16 = affine.load %3[%c0] : memref<1xf64>
-// CHECK-NEXT:    %17 = affine.load %3[%c0] : memref<1xf64>
-// CHECK-NEXT:    affine.for %arg3 = 1 to %8 {
-// CHECK-NEXT:      affine.for %arg4 = 0 to #map0(%arg3) {
-// CHECK-NEXT:        %22 = subi %arg3, %arg4 : index
-// CHECK-NEXT:        %23 = affine.apply #map1(%arg4)
-// CHECK-NEXT:        %24 = affine.load %arg1[%23] : memref<2000xf64>
-// CHECK-NEXT:        %25 = affine.load %arg2[%arg4] : memref<2000xf64>
-// CHECK-NEXT:        %26 = mulf %24, %25 : f64
-// CHECK-NEXT:        %27 = addf %16, %26 : f64
-// CHECK-NEXT:        affine.store %27, %3[%c0] : memref<1xf64>
+// CHECK-NEXT:      %c0 = constant 0 : index
+// CHECK-NEXT:      %cst = constant 1.000000e+00 : f64
+// CHECK-NEXT:      %c1_i32 = constant 1 : i32
+// CHECK-NEXT:      %cst_0 = constant 0.000000e+00 : f64
+// CHECK-NEXT:      %0 = alloca() : memref<2000xf64>
+// CHECK-NEXT:      %1 = alloca() : memref<1xf64>
+// CHECK-NEXT:      %2 = alloca() : memref<1xf64>
+// CHECK-NEXT:      %3 = alloca() : memref<1xf64>
+// CHECK-NEXT:      %4 = load %arg1[%c0] : memref<2000xf64>
+// CHECK-NEXT:      %5 = negf %4 : f64
+// CHECK-NEXT:      store %5, %arg2[%c0] : memref<2000xf64>
+// CHECK-NEXT:      store %cst, %2[%c0] : memref<1xf64>
+// CHECK-NEXT:      %6 = load %arg1[%c0] : memref<2000xf64>
+// CHECK-NEXT:      %7 = negf %6 : f64
+// CHECK-NEXT:      store %7, %1[%c0] : memref<1xf64>
+// CHECK-NEXT:      %8 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:      %9 = sitofp %c1_i32 : i32 to f64
+// CHECK-NEXT:      %10 = load %1[%c0] : memref<1xf64>
+// CHECK-NEXT:      %11 = load %1[%c0] : memref<1xf64>
+// CHECK-NEXT:      %12 = mulf %10, %11 : f64
+// CHECK-NEXT:      %13 = subf %9, %12 : f64
+// CHECK-NEXT:      %14 = load %2[%c0] : memref<1xf64>
+// CHECK-NEXT:      %15 = mulf %13, %14 : f64
+// CHECK-NEXT:      store %15, %2[%c0] : memref<1xf64>
+// CHECK-NEXT:      store %cst_0, %3[%c0] : memref<1xf64>
+// CHECK-NEXT:      %16 = load %3[%c0] : memref<1xf64>
+// CHECK-NEXT:      %17 = load %3[%c0] : memref<1xf64>
+// CHECK-NEXT:      affine.for %arg3 = 1 to %8 {
+// CHECK-NEXT:        affine.for %arg4 = 0 to #map(%arg3) {
+// CHECK-NEXT:          %22 = affine.load %arg1[%arg3 - %arg4 - 1] : memref<2000xf64>
+// CHECK-NEXT:          %23 = affine.load %arg2[%arg4] : memref<2000xf64>
+// CHECK-NEXT:          %24 = mulf %22, %23 : f64
+// CHECK-NEXT:          %25 = addf %16, %24 : f64
+// CHECK-NEXT:          affine.store %25, %3[0] : memref<1xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:        %18 = affine.load %arg1[%arg3] : memref<2000xf64>
+// CHECK-NEXT:        %19 = addf %18, %17 : f64
+// CHECK-NEXT:        %20 = negf %19 : f64
+// CHECK-NEXT:        %21 = divf %20, %15 : f64
+// CHECK-NEXT:        affine.store %21, %1[0] : memref<1xf64>
+// CHECK-NEXT:        affine.for %arg4 = 0 to #map(%arg3) {
+// CHECK-NEXT:          %22 = affine.load %arg2[%arg4] : memref<2000xf64>
+// CHECK-NEXT:          %23 = affine.load %arg2[%arg3 - %arg4 - 1] : memref<2000xf64>
+// CHECK-NEXT:          %24 = mulf %21, %23 : f64
+// CHECK-NEXT:          %25 = addf %22, %24 : f64
+// CHECK-NEXT:          affine.store %25, %0[%arg4] : memref<2000xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:        affine.for %arg4 = 0 to #map(%arg3) {
+// CHECK-NEXT:          %22 = affine.load %0[%arg4] : memref<2000xf64>
+// CHECK-NEXT:          affine.store %22, %arg2[%arg4] : memref<2000xf64>
+// CHECK-NEXT:        }
+// CHECK-NEXT:        affine.store %21, %arg2[%arg3] : memref<2000xf64>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      %18 = affine.load %arg1[%arg3] : memref<2000xf64>
-// CHECK-NEXT:      %19 = addf %18, %17 : f64
-// CHECK-NEXT:      %20 = negf %19 : f64
-// CHECK-NEXT:      %21 = divf %20, %15 : f64
-// CHECK-NEXT:      affine.store %21, %1[%c0] : memref<1xf64>
-// CHECK-NEXT:      affine.for %arg4 = 0 to #map0(%arg3) {
-// CHECK-NEXT:        %22 = affine.load %arg2[%arg4] : memref<2000xf64>
-// CHECK-NEXT:        %23 = subi %arg3, %arg4 : index
-// CHECK-NEXT:        %24 = affine.apply #map1(%arg4)
-// CHECK-NEXT:        %25 = affine.load %arg2[%24] : memref<2000xf64>
-// CHECK-NEXT:        %26 = mulf %21, %25 : f64
-// CHECK-NEXT:        %27 = addf %22, %26 : f64
-// CHECK-NEXT:        affine.store %27, %0[%arg4] : memref<2000xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      affine.for %arg4 = 0 to #map0(%arg3) {
-// CHECK-NEXT:        %22 = affine.load %0[%arg4] : memref<2000xf64>
-// CHECK-NEXT:        affine.store %22, %arg2[%arg4] : memref<2000xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:      affine.store %21, %arg2[%arg3] : memref<2000xf64>
+// CHECK-NEXT:      return
 // CHECK-NEXT:    }
-// CHECK-NEXT:    return
-// CHECK-NEXT:  }
