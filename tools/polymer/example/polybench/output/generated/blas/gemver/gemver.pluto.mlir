@@ -1,19 +1,10 @@
 #map0 = affine_map<() -> (0)>
 #map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<(d0) -> (d0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-#map4 = affine_map<()[s0] -> (5, s0)>
-#map5 = affine_map<() -> (7)>
-#map6 = affine_map<()[s0] -> (32, s0)>
-#map7 = affine_map<(d0) -> (d0 * 32)>
-#map8 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map9 = affine_map<() -> (1)>
-#map10 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map2 = affine_map<()[s0, s1] -> (s0, s1)>
+#map3 = affine_map<(d0) -> (d0 * 32)>
+#map4 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map5 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
 
-#set0 = affine_set<()[s0] : (s0 - 6 >= 0)>
-#set1 = affine_set<()[s0] : (-s0 + 5 >= 0)>
-#set2 = affine_set<()[s0] : (s0 - 7 >= 0)>
-#set3 = affine_set<()[s0] : (-s0 + 6 >= 0)>
 
 module {
   func @kernel_gemver(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
@@ -47,146 +38,95 @@ module {
     return
   }
   func @S0(%arg0: memref<1xf64>, %arg1: memref<2000xf64>, %arg2: index) attributes {scop.stmt} {
-    %0 = affine.load %arg1[%arg2] : memref<2000xf64>
+    %0 = affine.load %arg1[symbol(%arg2)] : memref<2000xf64>
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }
   func @S1(%arg0: memref<1xf64>, %arg1: memref<2000xf64>, %arg2: index) attributes {scop.stmt} {
-    %0 = affine.load %arg1[%arg2] : memref<2000xf64>
+    %0 = affine.load %arg1[symbol(%arg2)] : memref<2000xf64>
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }
   func @S2(%arg0: memref<2000x2000xf64>, %arg1: index, %arg2: index, %arg3: memref<2000xf64>, %arg4: memref<1xf64>, %arg5: memref<2000xf64>, %arg6: memref<1xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[%arg1, %arg2] : memref<2000x2000xf64>
+    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<2000x2000xf64>
     %1 = affine.load %arg6[0] : memref<1xf64>
-    %2 = affine.load %arg5[%arg2] : memref<2000xf64>
+    %2 = affine.load %arg5[symbol(%arg2)] : memref<2000xf64>
     %3 = mulf %1, %2 : f64
     %4 = addf %0, %3 : f64
     %5 = affine.load %arg4[0] : memref<1xf64>
-    %6 = affine.load %arg3[%arg2] : memref<2000xf64>
+    %6 = affine.load %arg3[symbol(%arg2)] : memref<2000xf64>
     %7 = mulf %5, %6 : f64
     %8 = addf %4, %7 : f64
-    affine.store %8, %arg0[%arg1, %arg2] : memref<2000x2000xf64>
+    affine.store %8, %arg0[symbol(%arg1), symbol(%arg2)] : memref<2000x2000xf64>
     return
   }
   func @S3(%arg0: memref<1xf64>, %arg1: memref<2000xf64>, %arg2: index) attributes {scop.stmt} {
-    %0 = affine.load %arg1[%arg2] : memref<2000xf64>
+    %0 = affine.load %arg1[symbol(%arg2)] : memref<2000xf64>
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }
   func @S4(%arg0: memref<2000xf64>, %arg1: index, %arg2: memref<2000xf64>, %arg3: index, %arg4: f64, %arg5: memref<2000x2000xf64>, %arg6: memref<1xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg6[0] : memref<1xf64>
-    %1 = affine.load %arg5[%arg3, %arg1] : memref<2000x2000xf64>
+    %1 = affine.load %arg5[symbol(%arg3), symbol(%arg1)] : memref<2000x2000xf64>
     %2 = mulf %arg4, %1 : f64
-    %3 = affine.load %arg2[%arg3] : memref<2000xf64>
+    %3 = affine.load %arg2[symbol(%arg3)] : memref<2000xf64>
     %4 = mulf %2, %3 : f64
     %5 = addf %0, %4 : f64
-    affine.store %5, %arg0[%arg1] : memref<2000xf64>
+    affine.store %5, %arg0[symbol(%arg1)] : memref<2000xf64>
     return
   }
   func @S5(%arg0: memref<2000xf64>, %arg1: index, %arg2: memref<2000xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[%arg1] : memref<2000xf64>
-    %1 = affine.load %arg2[%arg1] : memref<2000xf64>
+    %0 = affine.load %arg0[symbol(%arg1)] : memref<2000xf64>
+    %1 = affine.load %arg2[symbol(%arg1)] : memref<2000xf64>
     %2 = addf %0, %1 : f64
-    affine.store %2, %arg0[%arg1] : memref<2000xf64>
+    affine.store %2, %arg0[symbol(%arg1)] : memref<2000xf64>
     return
   }
   func @S6(%arg0: memref<1xf64>, %arg1: memref<2000xf64>, %arg2: index) attributes {scop.stmt} {
-    %0 = affine.load %arg1[%arg2] : memref<2000xf64>
+    %0 = affine.load %arg1[symbol(%arg2)] : memref<2000xf64>
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }
   func @S7(%arg0: memref<2000xf64>, %arg1: index, %arg2: memref<2000xf64>, %arg3: index, %arg4: f64, %arg5: memref<2000x2000xf64>, %arg6: memref<1xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg6[0] : memref<1xf64>
-    %1 = affine.load %arg5[%arg1, %arg3] : memref<2000x2000xf64>
+    %1 = affine.load %arg5[symbol(%arg1), symbol(%arg3)] : memref<2000x2000xf64>
     %2 = mulf %arg4, %1 : f64
-    %3 = affine.load %arg2[%arg3] : memref<2000xf64>
+    %3 = affine.load %arg2[symbol(%arg3)] : memref<2000xf64>
     %4 = mulf %2, %3 : f64
     %5 = addf %0, %4 : f64
-    affine.store %5, %arg0[%arg1] : memref<2000xf64>
+    affine.store %5, %arg0[symbol(%arg1)] : memref<2000xf64>
     return
   }
-  func @kernel_gemver_new(%arg0: memref<2000xf64>, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: f64, %arg5: f64, %arg6: i32, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000x2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
-    %0 = index_cast %arg6 : i32 to index
+  func @kernel_gemver_new(%arg0: memref<2000xf64>, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000x2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
+    %0 = index_cast %arg3 : i32 to index
     affine.for %arg12 = 0 to %0 {
       %1 = alloca() : memref<1xf64>
       %2 = alloca() : memref<1xf64>
-      %3 = alloca() : memref<1xf64>
-      %4 = alloca() : memref<1xf64>
-      affine.for %arg13 = 0 to min #map4()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = alloca() : memref<1xf64>
-        %7 = affine.apply #map2(%arg12)
-        %8 = affine.apply #map2(%arg13)
-        call @S2(%arg9, %7, %8, %arg11, %6, %arg10, %5) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
-      }
-      affine.if #set0()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = alloca() : memref<1xf64>
-        %7 = affine.apply #map2(%arg12)
-        call @S1(%6, %arg8, %7) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-        %c5 = constant 5 : index
-        call @S2(%arg9, %7, %c5, %arg11, %6, %arg10, %5) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
-      }
-      affine.if #set1()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = affine.apply #map2(%arg12)
-        call @S1(%5, %arg8, %6) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      }
-      affine.if #set2()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = alloca() : memref<1xf64>
-        %7 = affine.apply #map2(%arg12)
-        call @S0(%6, %arg7, %7) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-        %c6 = constant 6 : index
-        call @S2(%arg9, %7, %c6, %arg11, %5, %arg10, %6) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
-      }
-      affine.if #set3()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = affine.apply #map2(%arg12)
-        call @S0(%5, %arg7, %6) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      }
-      affine.for %arg13 = 7 to min #map6()[%0] {
-        %5 = alloca() : memref<1xf64>
-        %6 = alloca() : memref<1xf64>
-        %7 = affine.apply #map2(%arg12)
-        %8 = affine.apply #map2(%arg13)
-        call @S2(%arg9, %7, %8, %arg11, %6, %arg10, %5) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
-      }
-      affine.for %arg13 = 1 to #map10()[%0] {
-        affine.for %arg14 = #map7(%arg13) to min #map8(%arg13)[%0] {
-          %5 = alloca() : memref<1xf64>
-          %6 = alloca() : memref<1xf64>
-          %7 = affine.apply #map2(%arg12)
-          %8 = affine.apply #map2(%arg14)
-          call @S2(%arg9, %7, %8, %arg11, %6, %arg10, %5) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
+      call @S0(%2, %arg6, %arg12) : (memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S1(%1, %arg7, %arg12) : (memref<1xf64>, memref<2000xf64>, index) -> ()
+      affine.for %arg13 = 0 to #map5()[%0] {
+        affine.for %arg14 = #map3(%arg13) to min #map4(%arg13)[%0] {
+          call @S2(%arg8, %arg12, %arg14, %arg10, %1, %arg9, %2) : (memref<2000x2000xf64>, index, index, memref<2000xf64>, memref<1xf64>, memref<2000xf64>, memref<1xf64>) -> ()
         }
       }
     }
     affine.for %arg12 = 0 to %0 {
       %1 = alloca() : memref<1xf64>
-      %2 = affine.apply #map2(%arg12)
-      call @S3(%1, %arg3, %2) : (memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S3(%1, %arg11, %arg12) : (memref<1xf64>, memref<2000xf64>, index) -> ()
       affine.for %arg13 = 0 to %0 {
-        %3 = alloca() : memref<1xf64>
-        %4 = affine.apply #map2(%arg13)
-        call @S4(%arg3, %2, %arg0, %4, %arg5, %arg9, %3) : (memref<2000xf64>, index, memref<2000xf64>, index, f64, memref<2000x2000xf64>, memref<1xf64>) -> ()
+        call @S4(%arg11, %arg12, %arg2, %arg13, %arg5, %arg8, %1) : (memref<2000xf64>, index, memref<2000xf64>, index, f64, memref<2000x2000xf64>, memref<1xf64>) -> ()
       }
     }
-    affine.for %arg12 = 0 to #map10()[%0] {
-      affine.for %arg13 = #map7(%arg12) to min #map8(%arg12)[%0] {
-        %1 = affine.apply #map2(%arg13)
-        call @S5(%arg3, %1, %arg1) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+    affine.for %arg12 = 0 to #map5()[%0] {
+      affine.for %arg13 = #map3(%arg12) to min #map4(%arg12)[%0] {
+        call @S5(%arg11, %arg13, %arg0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
       }
     }
     affine.for %arg12 = 0 to %0 {
       %1 = alloca() : memref<1xf64>
-      %2 = affine.apply #map2(%arg12)
-      call @S6(%1, %arg2, %2) : (memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S6(%1, %arg1, %arg12) : (memref<1xf64>, memref<2000xf64>, index) -> ()
       affine.for %arg13 = 0 to %0 {
-        %3 = alloca() : memref<1xf64>
-        %4 = affine.apply #map2(%arg13)
-        call @S7(%arg2, %2, %arg3, %4, %arg4, %arg9, %3) : (memref<2000xf64>, index, memref<2000xf64>, index, f64, memref<2000x2000xf64>, memref<1xf64>) -> ()
+        call @S7(%arg1, %arg12, %arg11, %arg13, %arg4, %arg8, %1) : (memref<2000xf64>, index, memref<2000xf64>, index, f64, memref<2000x2000xf64>, memref<1xf64>) -> ()
       }
     }
     return

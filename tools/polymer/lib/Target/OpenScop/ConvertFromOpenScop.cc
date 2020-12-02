@@ -24,6 +24,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
@@ -638,10 +639,10 @@ void Importer::initializeSymbol(mlir::Value val) {
   // may be symbols that are not yet initialized (e.g., IVs in loops not
   // constructed). We should place them into the symbolToDeps map.
   mlir::Operation *defOp = val.getDefiningOp();
-  // if (isa<mlir::AllocaOp>(defOp)) {
-  //   // defOp->dump();
-  //   llvm::errs() << defOp->getLoc() << "\n";
-  // }
+  if (isa<mlir::AllocaOp>(defOp)) {
+    /// Skip scratchpad for now.
+    return;
+  }
 
   // This indicates whether we have set an insertion point.
   bool hasInsertionPoint = false;
@@ -999,9 +1000,9 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   // interface.
   if (scopStmtMap->find(calleeName) != scopStmtMap->end()) {
     const auto &it = scopStmtMap->find(calleeName);
-    callee = it->getValue().getCallee();
+    callee = it->second.getCallee();
     // Note that caller is in the original function.
-    mlir::CallOp origCaller = it->getValue().getCaller();
+    mlir::CallOp origCaller = it->second.getCaller();
     // origCaller.dump();
     loc = origCaller.getLoc();
     unsigned currInductionVar = 0;
@@ -1014,7 +1015,8 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
       if (defOp && isa<mlir::AllocaOp>(defOp)) {
         // If this memory has been allocated, need to check its owner.
         if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
-          if (val.getParentBlock() == b.getBlock()) {
+          DominanceInfo dom(func);
+          if (dom.dominates(val.getParentBlock(), b.getBlock())) {
             callerArgs.push_back(val);
             continue;
           }
@@ -1309,7 +1311,7 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
-  // clast_pprint(stderr, rootStmt, 0, options);
+  clast_pprint(stderr, rootStmt, 0, options);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);
