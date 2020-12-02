@@ -56,6 +56,7 @@ AffineExpr mlir::getAffineBinaryOpExpr(AffineExprKind kind, AffineExpr lhs,
   llvm_unreachable("unknown binary operation on affine expressions");
 }
 
+#include "llvm/Support/raw_ostream.h"
 /// This method substitutes any uses of dimensions and symbols (e.g.
 /// dim#0 with dimReplacements[0]) and returns the modified expression tree.
 AffineExpr
@@ -68,12 +69,14 @@ AffineExpr::replaceDimsAndSymbols(ArrayRef<AffineExpr> dimReplacements,
     unsigned dimId = cast<AffineDimExpr>().getPosition();
     if (dimId >= dimReplacements.size())
       return *this;
+    assert(dimReplacements[dimId]);
     return dimReplacements[dimId];
   }
   case AffineExprKind::SymbolId: {
     unsigned symId = cast<AffineSymbolExpr>().getPosition();
     if (symId >= symReplacements.size())
       return *this;
+    assert(symReplacements[symId]);
     return symReplacements[symId];
   }
   case AffineExprKind::Add:
@@ -83,11 +86,16 @@ AffineExpr::replaceDimsAndSymbols(ArrayRef<AffineExpr> dimReplacements,
   case AffineExprKind::Mod:
     auto binOp = cast<AffineBinaryOpExpr>();
     auto lhs = binOp.getLHS(), rhs = binOp.getRHS();
+    assert(lhs); assert(rhs);
     auto newLHS = lhs.replaceDimsAndSymbols(dimReplacements, symReplacements);
     auto newRHS = rhs.replaceDimsAndSymbols(dimReplacements, symReplacements);
     if (newLHS == lhs && newRHS == rhs)
       return *this;
-    return getAffineBinaryOpExpr(getKind(), newLHS, newRHS);
+    assert(newLHS); assert(newRHS);
+    //llvm::errs() << "newLHS: " << newLHS << " newRHS: " << newRHS << "\n";
+    auto abop = getAffineBinaryOpExpr(getKind(), newLHS, newRHS);
+    assert(abop);
+    return abop;
   }
   llvm_unreachable("Unknown AffineExpr");
 }

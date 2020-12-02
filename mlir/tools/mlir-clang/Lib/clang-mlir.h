@@ -233,8 +233,7 @@ struct MLIRASTConsumer : public ASTConsumer {
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
         functions(functions), PP(PP), astContext(astContext), module(module),
-        SM(SM), lcontext(),
-        llvmMod("tmp", lcontext), codegenops(),
+        SM(SM), lcontext(), llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
@@ -243,7 +242,7 @@ struct MLIRASTConsumer : public ASTConsumer {
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
 
-  ~MLIRASTConsumer() { }
+  ~MLIRASTConsumer() {}
 
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
