@@ -2318,8 +2318,8 @@ size_t MLIRScanner::getTypeSize(clang::QualType t) {
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
                       std::vector<std::string> includeDirs,
-                      std::vector<std::string> defines,
-                      mlir::ModuleOp &module) {
+                      std::vector<std::string> defines, mlir::ModuleOp &module,
+                      llvm::Triple &triple, llvm::DataLayout &DL) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
 
@@ -2434,6 +2434,17 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
     Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
                                            Clang->getTargetOpts());
 
+    module.setAttr(
+        LLVM::LLVMDialect::getDataLayoutAttrName(),
+        StringAttr::get(
+            Clang->getTarget().getDataLayout().getStringRepresentation(),
+            module.getContext()));
+    module.setAttr(LLVM::LLVMDialect::getTargetTripleAttrName(),
+                   StringAttr::get(Clang->getTarget().getTriple().getTriple(),
+                                   module.getContext()));
+    // module.llvmModule->setDataLayout(DL);
+    // llvmModule->setTargetTriple(triple.getTriple());
+
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
       // Reset the ID tables if we are reusing the SourceManager and parsing
       // regular files.
@@ -2452,6 +2463,8 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
         // llvm::errs() << "ended source file\n";
       }
     }
+    DL = Clang->getTarget().getDataLayout();
+    triple = Clang->getTarget().getTriple();
   }
   return true;
 }

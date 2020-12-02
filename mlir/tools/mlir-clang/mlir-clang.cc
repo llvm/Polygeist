@@ -79,7 +79,11 @@ int main(int argc, char **argv) {
   }
   auto module =
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
-  parseMLIR(inputFileName, cfunction, includeDirs, defines, module);
+
+  llvm::Triple triple;
+  llvm::DataLayout DL("");
+  parseMLIR(inputFileName, cfunction, includeDirs, defines, module, triple, DL);
+
   mlir::PassManager pm(&context);
   // module.dump();
 
@@ -130,6 +134,8 @@ int main(int argc, char **argv) {
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
     }
+    llvmModule->setDataLayout(DL);
+    llvmModule->setTargetTriple(triple.getTriple());
     llvm::outs() << *llvmModule << "\n";
   } else {
     module.print(outs());
