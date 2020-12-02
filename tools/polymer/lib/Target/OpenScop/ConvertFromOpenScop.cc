@@ -52,7 +52,7 @@ class AffineExprBuilder {
 public:
   AffineExprBuilder(MLIRContext *context, OslSymbolTable *symTable,
                     OslScop *scop, CloogOptions *options)
-      : b(context), context(context), symTable(symTable), scop(scop),
+      : b(context), context(context), scop(scop), symTable(symTable),
         options(options) {
     reset();
   }
@@ -282,7 +282,7 @@ LogicalResult AffineExprBuilder::processSumReduction(
          "A single affine expr should be appended after processing an expr in "
          "reduction.");
 
-  for (unsigned i = 1; i < expr->n; ++i) {
+  for (int i = 1; i < expr->n; ++i) {
     assert(expr->elts[i]->type == clast_expr_term &&
            "Each element in the reduction list should be a term.");
 
@@ -307,7 +307,7 @@ LogicalResult AffineExprBuilder::processMinOrMaxReduction(
   if (failed(process(expr->elts[0], affExprs)))
     return failure();
 
-  for (unsigned i = 1; i < expr->n; i++) {
+  for (int i = 1; i < expr->n; i++) {
     if (failed(process(expr->elts[i], affExprs)))
       return failure();
   }
@@ -346,14 +346,14 @@ buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
   // Get the scattering relation.
   osl_relation_p scats = stmt->scattering;
   assert(scats != nullptr && "scattering in the statement should not be NULL.");
-  assert(scats->nb_input_dims == iterNames.size() &&
+  assert(scats->nb_input_dims == static_cast<int>(iterNames.size()) &&
          "# input dims should equal to # iter names.");
-  assert(scats->nb_output_dims <= scatNames.size() &&
+  assert(scats->nb_output_dims <= static_cast<int>(scatNames.size()) &&
          "# output dims should be less than or equal to # scat names.");
 
   // Build the mapping.
-  for (unsigned i = 0; i < scats->nb_output_dims; i++)
-    for (unsigned j = 0; j < scats->nb_input_dims; j++)
+  for (int i = 0; i < scats->nb_output_dims; i++)
+    for (int j = 0; j < scats->nb_input_dims; j++)
       if (scats->m[i][j + scats->nb_output_dims + 1].dp)
         iterToScatName[iterNames[j]] = scatNames[i];
 }
@@ -363,8 +363,7 @@ namespace {
 /// the OpenScop.
 class IterScatNameMapper {
 public:
-  IterScatNameMapper(OslScop *scop, CloogOptions *options)
-      : scop(scop), options(options) {}
+  IterScatNameMapper(OslScop *scop) : scop(scop) {}
 
   void visitStmtList(clast_stmt *s);
 
@@ -378,8 +377,6 @@ private:
   void visit(clast_user_stmt *userStmt);
 
   OslScop *scop;
-  clast_stmt *root;
-  CloogOptions *options;
 
   llvm::StringMap<llvm::StringRef> iterScatNameMap;
 };
@@ -503,9 +500,7 @@ private:
 
   llvm::StringMap<llvm::StringRef> iterScatNameMap;
 
-  clast_stmt *root;
   CloogOptions *options;
-  FILE *output;
 };
 } // namespace
 
@@ -552,7 +547,7 @@ bool Importer::isResultArg(llvm::StringRef argName) {
 LogicalResult Importer::processStmtList(clast_stmt *s) {
   // These lines can be optimized.
   if (iterScatNameMap.empty()) {
-    IterScatNameMapper iterScatNameMapper(scop, options);
+    IterScatNameMapper iterScatNameMapper(scop);
     iterScatNameMapper.visitStmtList(s);
     iterScatNameMap = iterScatNameMapper.getIterScatNameMap();
   }
@@ -588,7 +583,6 @@ LogicalResult Importer::processStmtList(clast_stmt *s) {
 }
 
 void Importer::initializeFuncOpInterface() {
-  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
   OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   /// First collect the source FuncOp in the original MLIR code.
@@ -638,7 +632,6 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
 /// Initialize the value in the symbol table.
 void Importer::initializeSymbol(mlir::Value val) {
   assert(val != nullptr);
-  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
   OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   auto &entryBlock = *func.getBody().begin();
@@ -769,7 +762,6 @@ void Importer::fulfillSymbolDependence(llvm::StringRef symbol) {
 
 void Importer::initializeSymbolTable() {
   OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
-  OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   OpBuilder::InsertionGuard guard(b);
 
@@ -948,7 +940,6 @@ void Importer::getAffineExprForLoopIterator(
 LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
   OslScop::ValueTable *valueTable = scop->getValueTable();
-  OslScop::SymbolTable *symbolTabele = scop->getSymbolTable();
 
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
@@ -965,7 +956,6 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
   // clast_pprint(stderr, (clast_stmt *)userStmt, 0, options);
   SmallVector<mlir::Value, 8> inductionVars;
-  unsigned numIters = osl_strings_size(body->iterators);
 
   char *expr = osl_util_identifier_substitution(body->expression->string[0],
                                                 body->iterators->string);
@@ -997,7 +987,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
                                            substOperands);
       inductionVars.push_back(op->getResult(0));
     } else {
-      *expr++;
+      expr++;
     }
   }
   free(tmp);
@@ -1076,7 +1066,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   }
 
   // Finally create the CallOp.
-  mlir::CallOp caller = b.create<mlir::CallOp>(loc, callee, callerArgs);
+  b.create<mlir::CallOp>(loc, callee, callerArgs);
 
   return success();
 }
@@ -1092,7 +1082,7 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
   //              << "\n";
   // clast_pprint(stderr, (clast_stmt *)guardStmt, 0, options);
 
-  for (unsigned i = 0; i < guardStmt->n; i++) {
+  for (int i = 0; i < guardStmt->n; i++) {
     clast_equation eq = guardStmt->eq[i];
 
     SmallVector<AffineExpr, 4> lhsExprs, rhsExprs;
@@ -1170,7 +1160,6 @@ Importer::getAffineLoopBound(clast_expr *expr,
 
   // Create or get BlockArgument for the symbols. We assume all symbols come
   // from the BlockArgument of the generated function.
-  auto &entryBlock = *func.getBlocks().begin();
   for (auto symName : builder.symbolNames.keys()) {
     mlir::Value operand = symbolTable[symName];
     assert(operand != nullptr);
@@ -1192,7 +1181,6 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Get loop bounds.
   AffineMap lbMap, ubMap;
   llvm::SmallVector<mlir::Value, 8> lbOperands, ubOperands;
-  OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   assert((forStmt->LB && forStmt->UB) && "Unbounded loops are not allowed.");
   // TODO: simplify these sanity checks.

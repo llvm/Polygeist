@@ -24,7 +24,7 @@ struct osl_generic;
 namespace mlir {
 class AffineValueMap;
 class FlatAffineConstraints;
-class LogicalResult;
+struct LogicalResult;
 class Operation;
 class Value;
 class FuncOp;

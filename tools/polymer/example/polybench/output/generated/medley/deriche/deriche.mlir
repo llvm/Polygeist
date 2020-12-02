@@ -1,10 +1,5 @@
-#map0 = affine_map<(d0) -> (d0)>
-#map1 = affine_map<(d0, d1) -> (d0, d1)>
-#map2 = affine_map<() -> (0)>
-#map3 = affine_map<()[s0] -> (s0)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_deriche(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
     %c0 = constant 0 : index
     %cst = constant 1.000000e+00 : f32
@@ -99,7 +94,7 @@ module {
     affine.store %60, %9[%c0] : memref<1xf32>
     affine.for %arg7 = 0 to %36 {
       affine.for %arg8 = 0 to %37 {
-        %84 = affine.apply #map0(%arg8)
+        %84 = affine.apply #map(%arg8)
         affine.store %58, %arg6[%arg7, %84] : memref<4096x2160xf32>
         %85 = affine.load %arg3[%arg7, %84] : memref<4096x2160xf32>
         affine.store %85, %4[%c0] : memref<1xf32>
@@ -165,7 +160,7 @@ module {
     affine.store %83, %9[%c0] : memref<1xf32>
     affine.for %arg7 = 0 to %37 {
       affine.for %arg8 = 0 to %36 {
-        %84 = affine.apply #map0(%arg8)
+        %84 = affine.apply #map(%arg8)
         affine.store %81, %arg6[%84, %arg7] : memref<4096x2160xf32>
         %85 = affine.load %arg4[%84, %arg7] : memref<4096x2160xf32>
         affine.store %85, %6[%c0] : memref<1xf32>
@@ -185,3 +180,4 @@ module {
     return
   }
 }
+

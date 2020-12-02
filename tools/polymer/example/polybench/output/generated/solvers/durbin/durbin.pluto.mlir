@@ -1,11 +1,5 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<() -> (1)>
-#map3 = affine_map<()[s0] -> (s0)>
-#map4 = affine_map<()[s0] -> (s0 - 1)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
     %0 = alloca() : memref<2000xf64>
     %1 = alloca() : memref<1xf64>
@@ -24,16 +18,16 @@ module {
     %7 = alloca() : memref<1xf64>
     call @S7(%7, %3) : (memref<1xf64>, memref<1xf64>) -> ()
     affine.for %arg3 = 1 to %4 {
-      affine.for %arg4 = 0 to #map1(%arg3) {
+      affine.for %arg4 = 0 to #map(%arg3) {
         call @S8(%3, %arg2, %arg4, %arg1, %6) : (memref<1xf64>, memref<2000xf64>, index, memref<2000xf64>, memref<1xf64>) -> ()
       }
       %8 = alloca() : memref<1xf64>
       call @S9(%8, %5, %7, %arg1, %arg3) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
       call @S10(%1, %5, %7, %arg1, %arg3) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
-      affine.for %arg4 = 0 to #map1(%arg3) {
+      affine.for %arg4 = 0 to #map(%arg3) {
         call @S11(%arg4, %0, %arg2, %8) : (index, memref<2000xf64>, memref<2000xf64>, memref<1xf64>) -> ()
       }
-      affine.for %arg4 = 0 to #map1(%arg3) {
+      affine.for %arg4 = 0 to #map(%arg3) {
         call @S12(%arg2, %arg4, %0) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
       }
       call @S13(%arg2, %arg3, %5, %7, %arg1) : (memref<2000xf64>, index, memref<1xf64>, memref<1xf64>, memref<2000xf64>) -> ()
@@ -175,7 +169,7 @@ module {
       %11 = alloca() : memref<1xf64>
       %12 = alloca() : memref<2000xf64>
       call @S11(%arg3, %12, %arg2, %11) : (index, memref<2000xf64>, memref<2000xf64>, memref<1xf64>) -> ()
-      affine.for %arg4 = 1 to #map1(%arg3) {
+      affine.for %arg4 = 1 to #map(%arg3) {
         %13 = alloca() : memref<1xf64>
         %14 = alloca() : memref<1xf64>
         call @S11(%arg3, %12, %arg2, %11) : (index, memref<2000xf64>, memref<2000xf64>, memref<1xf64>) -> ()
@@ -194,3 +188,4 @@ module {
     return
   }
 }
+

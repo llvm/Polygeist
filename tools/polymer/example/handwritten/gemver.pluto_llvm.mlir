@@ -1,6 +1,4 @@
-
-
-module attributes {llvm.data_layout = ""} {
+module attributes {llvm.data_layout = ""}  {
   llvm.func @gemver(%arg0: !llvm.float, %arg1: !llvm.float, %arg2: !llvm.ptr<float>, %arg3: !llvm.ptr<float>, %arg4: !llvm.i64, %arg5: !llvm.i64, %arg6: !llvm.i64, %arg7: !llvm.i64, %arg8: !llvm.i64, %arg9: !llvm.ptr<float>, %arg10: !llvm.ptr<float>, %arg11: !llvm.i64, %arg12: !llvm.i64, %arg13: !llvm.i64, %arg14: !llvm.ptr<float>, %arg15: !llvm.ptr<float>, %arg16: !llvm.i64, %arg17: !llvm.i64, %arg18: !llvm.i64, %arg19: !llvm.ptr<float>, %arg20: !llvm.ptr<float>, %arg21: !llvm.i64, %arg22: !llvm.i64, %arg23: !llvm.i64, %arg24: !llvm.ptr<float>, %arg25: !llvm.ptr<float>, %arg26: !llvm.i64, %arg27: !llvm.i64, %arg28: !llvm.i64, %arg29: !llvm.ptr<float>, %arg30: !llvm.ptr<float>, %arg31: !llvm.i64, %arg32: !llvm.i64, %arg33: !llvm.i64, %arg34: !llvm.ptr<float>, %arg35: !llvm.ptr<float>, %arg36: !llvm.i64, %arg37: !llvm.i64, %arg38: !llvm.i64, %arg39: !llvm.ptr<float>, %arg40: !llvm.ptr<float>, %arg41: !llvm.i64, %arg42: !llvm.i64, %arg43: !llvm.i64, %arg44: !llvm.ptr<float>, %arg45: !llvm.ptr<float>, %arg46: !llvm.i64, %arg47: !llvm.i64, %arg48: !llvm.i64) {
     %0 = llvm.mlir.undef : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
     %1 = llvm.insertvalue %arg2, %0[0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
@@ -276,57 +274,33 @@ module attributes {llvm.data_layout = ""} {
     %30 = llvm.insertvalue %arg27, %29[3, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
     %31 = llvm.insertvalue %arg28, %30[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
     %32 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %33 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %34 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %35 = llvm.mul %arg7, %34 : !llvm.i64
-    %36 = llvm.add %33, %35 : !llvm.i64
-    %37 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %38 = llvm.mul %arg8, %37 : !llvm.i64
-    %39 = llvm.add %36, %38 : !llvm.i64
-    %40 = llvm.getelementptr %32[%39] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %41 = llvm.load %40 : !llvm.ptr<float>
-    %42 = llvm.extractvalue %31[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %43 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %44 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %45 = llvm.mul %arg7, %44 : !llvm.i64
-    %46 = llvm.add %43, %45 : !llvm.i64
-    %47 = llvm.getelementptr %42[%46] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %33 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %34 = llvm.mul %arg7, %33 : !llvm.i64
+    %35 = llvm.add %34, %arg8 : !llvm.i64
+    %36 = llvm.getelementptr %32[%35] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %37 = llvm.load %36 : !llvm.ptr<float>
+    %38 = llvm.extractvalue %31[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %39 = llvm.getelementptr %38[%arg7] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %40 = llvm.load %39 : !llvm.ptr<float>
+    %41 = llvm.extractvalue %25[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %42 = llvm.getelementptr %41[%arg8] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %43 = llvm.load %42 : !llvm.ptr<float>
+    %44 = llvm.fmul %40, %43 : !llvm.float
+    %45 = llvm.fadd %37, %44 : !llvm.float
+    %46 = llvm.extractvalue %19[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %47 = llvm.getelementptr %46[%arg7] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
     %48 = llvm.load %47 : !llvm.ptr<float>
-    %49 = llvm.extractvalue %25[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %50 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %51 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %52 = llvm.mul %arg8, %51 : !llvm.i64
-    %53 = llvm.add %50, %52 : !llvm.i64
-    %54 = llvm.getelementptr %49[%53] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %55 = llvm.load %54 : !llvm.ptr<float>
-    %56 = llvm.fmul %48, %55 : !llvm.float
-    %57 = llvm.fadd %41, %56 : !llvm.float
-    %58 = llvm.extractvalue %19[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %59 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %60 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %61 = llvm.mul %arg7, %60 : !llvm.i64
-    %62 = llvm.add %59, %61 : !llvm.i64
-    %63 = llvm.getelementptr %58[%62] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %64 = llvm.load %63 : !llvm.ptr<float>
-    %65 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %66 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %67 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %68 = llvm.mul %arg8, %67 : !llvm.i64
-    %69 = llvm.add %66, %68 : !llvm.i64
-    %70 = llvm.getelementptr %65[%69] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %71 = llvm.load %70 : !llvm.ptr<float>
-    %72 = llvm.fmul %64, %71 : !llvm.float
-    %73 = llvm.fadd %57, %72 : !llvm.float
-    %74 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %75 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %76 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %77 = llvm.mul %arg7, %76 : !llvm.i64
-    %78 = llvm.add %75, %77 : !llvm.i64
-    %79 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %80 = llvm.mul %arg8, %79 : !llvm.i64
-    %81 = llvm.add %78, %80 : !llvm.i64
-    %82 = llvm.getelementptr %74[%81] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    llvm.store %73, %82 : !llvm.ptr<float>
+    %49 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %50 = llvm.getelementptr %49[%arg8] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %51 = llvm.load %50 : !llvm.ptr<float>
+    %52 = llvm.fmul %48, %51 : !llvm.float
+    %53 = llvm.fadd %45, %52 : !llvm.float
+    %54 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %55 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %56 = llvm.mul %arg7, %55 : !llvm.i64
+    %57 = llvm.add %56, %arg8 : !llvm.i64
+    %58 = llvm.getelementptr %54[%57] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    llvm.store %53, %58 : !llvm.ptr<float>
     llvm.return
   }
   llvm.func @_mlir_ciface_S0(%arg0: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg4: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg5: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg6: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>) attributes {scop.stmt} {
@@ -387,39 +361,23 @@ module attributes {llvm.data_layout = ""} {
     %18 = llvm.insertvalue %arg17, %17[3, 1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
     %19 = llvm.insertvalue %arg19, %18[4, 1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
     %20 = llvm.extractvalue %19[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %21 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %22 = llvm.extractvalue %19[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %23 = llvm.mul %arg11, %22 : !llvm.i64
-    %24 = llvm.add %21, %23 : !llvm.i64
-    %25 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %26 = llvm.mul %arg5, %25 : !llvm.i64
-    %27 = llvm.add %24, %26 : !llvm.i64
-    %28 = llvm.getelementptr %20[%27] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %21 = llvm.extractvalue %19[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %22 = llvm.mul %arg11, %21 : !llvm.i64
+    %23 = llvm.add %22, %arg5 : !llvm.i64
+    %24 = llvm.getelementptr %20[%23] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %25 = llvm.load %24 : !llvm.ptr<float>
+    %26 = llvm.fmul %arg12, %25 : !llvm.float
+    %27 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %28 = llvm.getelementptr %27[%arg11] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
     %29 = llvm.load %28 : !llvm.ptr<float>
-    %30 = llvm.fmul %arg12, %29 : !llvm.float
-    %31 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %32 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %33 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %34 = llvm.mul %arg11, %33 : !llvm.i64
-    %35 = llvm.add %32, %34 : !llvm.i64
-    %36 = llvm.getelementptr %31[%35] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %37 = llvm.load %36 : !llvm.ptr<float>
-    %38 = llvm.fmul %30, %37 : !llvm.float
-    %39 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %40 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %41 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %42 = llvm.mul %arg5, %41 : !llvm.i64
-    %43 = llvm.add %40, %42 : !llvm.i64
-    %44 = llvm.getelementptr %39[%43] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %45 = llvm.load %44 : !llvm.ptr<float>
-    %46 = llvm.fadd %38, %45 : !llvm.float
-    %47 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %48 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %49 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %50 = llvm.mul %arg5, %49 : !llvm.i64
-    %51 = llvm.add %48, %50 : !llvm.i64
-    %52 = llvm.getelementptr %47[%51] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    llvm.store %46, %52 : !llvm.ptr<float>
+    %30 = llvm.fmul %26, %29 : !llvm.float
+    %31 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %32 = llvm.getelementptr %31[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %33 = llvm.load %32 : !llvm.ptr<float>
+    %34 = llvm.fadd %30, %33 : !llvm.float
+    %35 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %36 = llvm.getelementptr %35[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    llvm.store %34, %36 : !llvm.ptr<float>
     llvm.return
   }
   llvm.func @_mlir_ciface_S1(%arg0: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg3: !llvm.i64, %arg4: !llvm.float, %arg5: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>>) attributes {scop.stmt} {
@@ -460,27 +418,15 @@ module attributes {llvm.data_layout = ""} {
     %10 = llvm.insertvalue %arg9, %9[3, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
     %11 = llvm.insertvalue %arg10, %10[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
     %12 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %13 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %14 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %15 = llvm.mul %arg5, %14 : !llvm.i64
-    %16 = llvm.add %13, %15 : !llvm.i64
-    %17 = llvm.getelementptr %12[%16] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %18 = llvm.load %17 : !llvm.ptr<float>
-    %19 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %20 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %21 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %22 = llvm.mul %arg5, %21 : !llvm.i64
-    %23 = llvm.add %20, %22 : !llvm.i64
-    %24 = llvm.getelementptr %19[%23] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %25 = llvm.load %24 : !llvm.ptr<float>
-    %26 = llvm.fadd %18, %25 : !llvm.float
-    %27 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %28 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %29 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %30 = llvm.mul %arg5, %29 : !llvm.i64
-    %31 = llvm.add %28, %30 : !llvm.i64
-    %32 = llvm.getelementptr %27[%31] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    llvm.store %26, %32 : !llvm.ptr<float>
+    %13 = llvm.getelementptr %12[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %14 = llvm.load %13 : !llvm.ptr<float>
+    %15 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %16 = llvm.getelementptr %15[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %17 = llvm.load %16 : !llvm.ptr<float>
+    %18 = llvm.fadd %14, %17 : !llvm.float
+    %19 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %20 = llvm.getelementptr %19[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    llvm.store %18, %20 : !llvm.ptr<float>
     llvm.return
   }
   llvm.func @_mlir_ciface_S2(%arg0: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>) attributes {scop.stmt} {
@@ -521,39 +467,23 @@ module attributes {llvm.data_layout = ""} {
     %18 = llvm.insertvalue %arg17, %17[3, 1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
     %19 = llvm.insertvalue %arg19, %18[4, 1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
     %20 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %21 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %22 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %23 = llvm.mul %arg5, %22 : !llvm.i64
-    %24 = llvm.add %21, %23 : !llvm.i64
-    %25 = llvm.getelementptr %20[%24] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %26 = llvm.load %25 : !llvm.ptr<float>
-    %27 = llvm.extractvalue %19[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %28 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %29 = llvm.extractvalue %19[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
-    %30 = llvm.mul %arg5, %29 : !llvm.i64
-    %31 = llvm.add %28, %30 : !llvm.i64
-    %32 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %33 = llvm.mul %arg11, %32 : !llvm.i64
-    %34 = llvm.add %31, %33 : !llvm.i64
-    %35 = llvm.getelementptr %27[%34] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %36 = llvm.load %35 : !llvm.ptr<float>
-    %37 = llvm.fmul %arg12, %36 : !llvm.float
-    %38 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %39 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %40 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %41 = llvm.mul %arg11, %40 : !llvm.i64
-    %42 = llvm.add %39, %41 : !llvm.i64
-    %43 = llvm.getelementptr %38[%42] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    %44 = llvm.load %43 : !llvm.ptr<float>
-    %45 = llvm.fmul %37, %44 : !llvm.float
-    %46 = llvm.fadd %26, %45 : !llvm.float
-    %47 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
-    %48 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %49 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %50 = llvm.mul %arg5, %49 : !llvm.i64
-    %51 = llvm.add %48, %50 : !llvm.i64
-    %52 = llvm.getelementptr %47[%51] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
-    llvm.store %46, %52 : !llvm.ptr<float>
+    %21 = llvm.getelementptr %20[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %22 = llvm.load %21 : !llvm.ptr<float>
+    %23 = llvm.extractvalue %19[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %24 = llvm.extractvalue %19[4, 0] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>
+    %25 = llvm.mul %arg5, %24 : !llvm.i64
+    %26 = llvm.add %25, %arg11 : !llvm.i64
+    %27 = llvm.getelementptr %23[%26] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %28 = llvm.load %27 : !llvm.ptr<float>
+    %29 = llvm.fmul %arg12, %28 : !llvm.float
+    %30 = llvm.extractvalue %11[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %31 = llvm.getelementptr %30[%arg11] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    %32 = llvm.load %31 : !llvm.ptr<float>
+    %33 = llvm.fmul %29, %32 : !llvm.float
+    %34 = llvm.fadd %22, %33 : !llvm.float
+    %35 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>
+    %36 = llvm.getelementptr %35[%arg5] : (!llvm.ptr<float>, !llvm.i64) -> !llvm.ptr<float>
+    llvm.store %34, %36 : !llvm.ptr<float>
     llvm.return
   }
   llvm.func @_mlir_ciface_S3(%arg0: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<1 x i64>, array<1 x i64>)>>, %arg3: !llvm.i64, %arg4: !llvm.float, %arg5: !llvm.ptr<struct<(ptr<float>, ptr<float>, i64, array<2 x i64>, array<2 x i64>)>>) attributes {scop.stmt} {
@@ -948,3 +878,4 @@ module attributes {llvm.data_layout = ""} {
     llvm.return
   }
 }
+

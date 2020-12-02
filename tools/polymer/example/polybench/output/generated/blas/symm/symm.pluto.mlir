@@ -1,22 +1,14 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<()[s0] -> (s0, s0)>
-#map4 = affine_map<()[s0, s1] -> (s0, s1)>
-#map5 = affine_map<() -> (1)>
-#map6 = affine_map<()[s0] -> (32, s0)>
-#map7 = affine_map<(d0) -> (d0 * 32)>
-#map8 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map9 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-#map10 = affine_map<() -> (2)>
-#map11 = affine_map<(d0) -> (32, d0)>
-#map12 = affine_map<(d0, d1) -> (d0, d1 * 32 + 32)>
-#map13 = affine_map<(d0) -> ((d0 - 1) floordiv 32 + 1)>
-
+#map0 = affine_map<(d0) -> (d0)>
+#map1 = affine_map<()[s0] -> (32, s0)>
+#map2 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map3 = affine_map<(d0) -> (d0 * 32)>
+#map4 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map5 = affine_map<(d0) -> (32, d0)>
+#map6 = affine_map<(d0) -> ((d0 - 1) floordiv 32 + 1)>
+#map7 = affine_map<(d0, d1) -> (d0, d1 * 32 + 32)>
 #set0 = affine_set<(d0) : (d0 - 2 >= 0)>
 #set1 = affine_set<(d0) : (d0 - 1 == 0)>
-
-module {
+module  {
   func @kernel_symm(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1000x1200xf64>, %arg5: memref<1000x1000xf64>, %arg6: memref<1000x1200xf64>) {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg0 : i32 to index
@@ -32,7 +24,7 @@ module {
       affine.for %arg8 = 0 to %2 {
         %6 = alloca() : memref<1xf64>
         call @S4(%6, %arg2, %arg6, %arg7, %arg8) : (memref<1xf64>, f64, memref<1000x1200xf64>, index, index) -> ()
-        affine.for %arg9 = 0 to #map1(%arg7) {
+        affine.for %arg9 = 0 to #map0(%arg7) {
           call @S5(%arg4, %arg9, %arg8, %arg5, %arg7, %6) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, memref<1xf64>) -> ()
           call @S6(%0, %arg5, %arg7, %arg9, %arg6, %arg8, %3) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index, memref<1xf64>) -> ()
         }
@@ -114,11 +106,11 @@ module {
       %5 = alloca() : memref<1xf64>
       call @S7(%arg4, %arg7, %c0, %1, %5, %arg2, %arg6, %arg3) : (memref<1000x1200xf64>, index, index, memref<1xf64>, memref<1xf64>, f64, memref<1000x1200xf64>, f64) -> ()
       call @S3(%5, %arg5, %arg7) : (memref<1xf64>, memref<1000x1000xf64>, index) -> ()
-      affine.for %arg8 = 1 to min #map6()[%3] {
+      affine.for %arg8 = 1 to min #map1()[%3] {
         call @S7(%arg4, %arg7, %arg8, %1, %5, %arg2, %arg6, %arg3) : (memref<1000x1200xf64>, index, index, memref<1xf64>, memref<1xf64>, f64, memref<1000x1200xf64>, f64) -> ()
       }
-      affine.for %arg8 = 1 to #map9()[%3] {
-        affine.for %arg9 = #map7(%arg8) to min #map8(%arg8)[%3] {
+      affine.for %arg8 = 1 to #map2()[%3] {
+        affine.for %arg9 = #map3(%arg8) to min #map4(%arg8)[%3] {
           call @S7(%arg4, %arg7, %arg9, %1, %5, %arg2, %arg6, %arg3) : (memref<1000x1200xf64>, index, index, memref<1xf64>, memref<1xf64>, f64, memref<1000x1200xf64>, f64) -> ()
         }
       }
@@ -138,11 +130,11 @@ module {
         affine.if #set1(%arg7) {
           call @S4(%5, %arg2, %arg6, %c1, %arg8) : (memref<1xf64>, f64, memref<1000x1200xf64>, index, index) -> ()
         }
-        affine.for %arg9 = 2 to min #map11(%arg7) {
+        affine.for %arg9 = 2 to min #map5(%arg7) {
           call @S5(%arg4, %arg7, %arg8, %arg5, %arg9, %5) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, memref<1xf64>) -> ()
         }
-        affine.for %arg9 = 1 to #map13(%arg7) {
-          affine.for %arg10 = #map7(%arg9) to min #map12(%arg7, %arg9) {
+        affine.for %arg9 = 1 to #map6(%arg7) {
+          affine.for %arg10 = #map3(%arg9) to min #map7(%arg7, %arg9) {
             call @S5(%arg4, %arg7, %arg8, %arg5, %arg10, %5) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, memref<1xf64>) -> ()
           }
         }
@@ -151,7 +143,7 @@ module {
     call @S1(%0, %2) : (memref<1xf64>, memref<1xf64>) -> ()
     affine.for %arg7 = 1 to %4 {
       affine.for %arg8 = 0 to %3 {
-        affine.for %arg9 = 0 to #map1(%arg7) {
+        affine.for %arg9 = 0 to #map0(%arg7) {
           call @S6(%2, %arg5, %arg7, %arg8, %arg6, %arg9, %0) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index, memref<1xf64>) -> ()
         }
       }
@@ -159,3 +151,4 @@ module {
     return
   }
 }
+

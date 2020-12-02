@@ -1,11 +1,5 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<(d0) -> (d0, d0)>
-#map4 = affine_map<(d0, d1) -> (d0, d1)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_symm(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1000x1200xf64>, %arg5: memref<1000x1000xf64>, %arg6: memref<1000x1200xf64>) {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg0 : i32 to index
@@ -21,7 +15,7 @@ module {
       affine.for %arg8 = 0 to %2 {
         %6 = alloca() : memref<1xf64>
         call @S4(%6, %arg2, %arg6, %arg7, %arg8) : (memref<1xf64>, f64, memref<1000x1200xf64>, index, index) -> ()
-        affine.for %arg9 = 0 to #map1(%arg7) {
+        affine.for %arg9 = 0 to #map(%arg7) {
           call @S5(%arg4, %arg9, %arg8, %arg5, %arg7, %6) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, memref<1xf64>) -> ()
           call @S6(%0, %arg5, %arg7, %arg9, %arg6, %arg8, %3) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index, memref<1xf64>) -> ()
         }
@@ -94,3 +88,4 @@ module {
     return
   }
 }
+

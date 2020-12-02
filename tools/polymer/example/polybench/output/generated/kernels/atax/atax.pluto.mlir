@@ -1,12 +1,7 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<()[s0, s1] -> (s0, s1)>
-#map3 = affine_map<(d0) -> (d0 * 32)>
-#map4 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map5 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-
-
-module {
+#map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map1 = affine_map<(d0) -> (d0 * 32)>
+#map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+module  {
   func @kernel_atax(%arg0: i32, %arg1: i32, %arg2: memref<1900x2100xf64>, %arg3: memref<2100xf64>, %arg4: memref<2100xf64>, %arg5: memref<1900xf64>) {
     %0 = index_cast %arg1 : i32 to index
     %1 = alloca() : memref<1xf64>
@@ -78,8 +73,8 @@ module {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg1 : i32 to index
     %2 = index_cast %arg0 : i32 to index
-    affine.for %arg6 = 0 to #map5()[%2] {
-      affine.for %arg7 = #map3(%arg6) to min #map4(%arg6)[%2] {
+    affine.for %arg6 = 0 to #map0()[%2] {
+      affine.for %arg7 = #map1(%arg6) to min #map2(%arg6)[%2] {
         call @S2(%arg5, %arg7) : (memref<1900xf64>, index) -> ()
       }
     }
@@ -91,16 +86,16 @@ module {
       }
     }
     call @S0(%0) : (memref<1xf64>) -> ()
-    affine.for %arg6 = 0 to #map5()[%2] {
-      affine.for %arg7 = #map3(%arg6) to min #map4(%arg6)[%2] {
+    affine.for %arg6 = 0 to #map0()[%2] {
+      affine.for %arg7 = #map1(%arg6) to min #map2(%arg6)[%2] {
         call @S1(%arg4, %arg7, %0) : (memref<2100xf64>, index, memref<1xf64>) -> ()
       }
     }
     affine.for %arg6 = 0 to %2 {
       %3 = alloca() : memref<1xf64>
       call @S5(%3, %arg5, %arg6) : (memref<1xf64>, memref<1900xf64>, index) -> ()
-      affine.for %arg7 = 0 to #map5()[%1] {
-        affine.for %arg8 = #map3(%arg7) to min #map4(%arg7)[%1] {
+      affine.for %arg7 = 0 to #map0()[%1] {
+        affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%1] {
           call @S6(%arg4, %arg6, %3, %arg2, %arg8) : (memref<2100xf64>, index, memref<1xf64>, memref<1900x2100xf64>, index) -> ()
         }
       }
@@ -108,3 +103,4 @@ module {
     return
   }
 }
+

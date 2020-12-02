@@ -1,10 +1,4 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<(d0) -> (d0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-
-
-module {
+module  {
   func @kernel_gemver(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg12 = 0 to %0 {
@@ -96,3 +90,4 @@ module {
     return
   }
 }
+

@@ -19,7 +19,7 @@ class OwningModuleRef;
 class MLIRContext;
 class ModuleOp;
 class FuncOp;
-class LogicalResult;
+struct LogicalResult;
 class Operation;
 class Value;
 } // namespace mlir

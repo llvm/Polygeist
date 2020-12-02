@@ -8,13 +8,13 @@ add_mlir_library(PolymerTransforms
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
 
   LINK_LIBS PUBLIC
-  MLIRAffineOps
+  MLIRAffine
   MLIRAnalysis
   MLIRPass
   MLIRTransforms
   MLIRTransformUtils
   MLIRIR
-  MLIRStandardOps
+  MLIRStandard
   MLIRSupport
   MLIRAffineToStandard
 

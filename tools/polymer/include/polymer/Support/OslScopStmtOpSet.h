@@ -12,7 +12,7 @@ using namespace llvm;
 
 namespace mlir {
 class Operation;
-class LogicalResult;
+struct LogicalResult;
 class FlatAffineConstraints;
 } // namespace mlir
 

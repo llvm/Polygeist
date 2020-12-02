@@ -1,9 +1,4 @@
-#map0 = affine_map<(d0, d1) -> (d0, d1)>
-#map1 = affine_map<() -> (0)>
-#map2 = affine_map<()[s0] -> (s0)>
-
-
-module {
+module  {
   func @kernel_floyd_warshall(%arg0: i32, %arg1: memref<2800x2800xi32>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to %0 {
@@ -30,3 +25,4 @@ module {
     return
   }
 }
+

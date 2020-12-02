@@ -1,11 +1,6 @@
 #map0 = affine_map<(d0) -> (d0)>
 #map1 = affine_map<(d0) -> (d0 - 1)>
-#map2 = affine_map<() -> (0)>
-#map3 = affine_map<() -> (1)>
-#map4 = affine_map<()[s0] -> (s0)>
-
-
-module {
+module  {
   func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
     %c0 = constant 0 : index
     %cst = constant 1.000000e+00 : f64
@@ -68,3 +63,4 @@ module {
     return
   }
 }
+

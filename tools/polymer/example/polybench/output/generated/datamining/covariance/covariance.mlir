@@ -1,10 +1,5 @@
-#map0 = affine_map<(d0) -> (d0)>
-#map1 = affine_map<(d0, d1) -> (d0, d1)>
-#map2 = affine_map<() -> (0)>
-#map3 = affine_map<()[s0] -> (s0)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_covariance(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>) {
     %cst = constant 0.000000e+00 : f64
     %cst_0 = constant 1.000000e+00 : f64
@@ -32,7 +27,7 @@ module {
     }
     %2 = subf %arg2, %cst_0 : f64
     affine.for %arg6 = 0 to %0 {
-      affine.for %arg7 = #map0(%arg6) to %0 {
+      affine.for %arg7 = #map(%arg6) to %0 {
         affine.store %cst, %arg4[%arg6, %arg7] : memref<1200x1200xf64>
         %3 = affine.load %arg4[%arg6, %arg7] : memref<1200x1200xf64>
         affine.for %arg8 = 0 to %1 {
@@ -52,3 +47,4 @@ module {
     return
   }
 }
+

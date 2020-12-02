@@ -1,23 +1,17 @@
-#map0 = affine_map<(d0) -> (d0 - 1)>
-#map1 = affine_map<(d0, d1) -> (d0, d1)>
+#map0 = affine_map<()[s0] -> (s0 - 1)>
+#map1 = affine_map<(d0) -> (d0 - 1)>
 #map2 = affine_map<(d0) -> (d0 + 1)>
-#map3 = affine_map<() -> (1)>
-#map4 = affine_map<()[s0] -> (s0 - 1)>
-#map5 = affine_map<() -> (0)>
-#map6 = affine_map<()[s0] -> (s0)>
-
-
-module {
+module  {
   func @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<2000x2000xf64>) {
     %cst = constant 9.000000e+00 : f64
     %c1 = constant 1 : index
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
     affine.for %arg3 = 0 to %0 {
-      affine.for %arg4 = 1 to #map4()[%1] {
-        affine.for %arg5 = 1 to #map4()[%1] {
-          %2 = affine.apply #map0(%arg4)
-          %3 = affine.apply #map0(%arg5)
+      affine.for %arg4 = 1 to #map0()[%1] {
+        affine.for %arg5 = 1 to #map0()[%1] {
+          %2 = affine.apply #map1(%arg4)
+          %3 = affine.apply #map1(%arg5)
           %4 = affine.load %arg2[%2, %3] : memref<2000x2000xf64>
           %5 = affine.load %arg2[%2, %arg5] : memref<2000x2000xf64>
           %6 = addf %4, %5 : f64
@@ -45,3 +39,4 @@ module {
     return
   }
 }
+
