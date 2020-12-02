@@ -1,4 +1,12 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
+// RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
+// RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | opt -O3 -S | lli - &> %s.out2
+// RUN: rm -f %s.exec1
+// RUN: diff %s.out1 %s.out2
+// RUN: rm -f %s.out1 %s.out2
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | opt -O3 -S | lli - > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
+// RUN: rm -f %s.exec2
 
 /**
  * This version is stamped on May 10, 2016
@@ -158,9 +166,9 @@ int main(int argc, char** argv)
 // CHECK-NEXT:        affine.store %4, %arg5[%arg8, %arg9] : memref<1000x1100xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      affine.for %arg9 = 0 to %2 {
-// CHECK-NEXT:        %3 = affine.load %arg6[%arg8, %arg9] : memref<1000x1200xf64>
-// CHECK-NEXT:        %4 = mulf %arg3, %3 : f64
 // CHECK-NEXT:        affine.for %arg10 = 0 to %1 {
+// CHECK-NEXT:          %3 = affine.load %arg6[%arg8, %arg9] : memref<1000x1200xf64>
+// CHECK-NEXT:          %4 = mulf %arg3, %3 : f64
 // CHECK-NEXT:          %5 = affine.load %arg7[%arg9, %arg10] : memref<1200x1100xf64>
 // CHECK-NEXT:          %6 = mulf %4, %5 : f64
 // CHECK-NEXT:          %7 = affine.load %arg5[%arg8, %arg10] : memref<1000x1100xf64>
@@ -171,3 +179,5 @@ int main(int argc, char** argv)
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:   }
+
+// EXEC: {{[0-9]\.[0-9]+}}
