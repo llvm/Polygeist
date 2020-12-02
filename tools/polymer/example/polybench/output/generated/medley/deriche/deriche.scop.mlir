@@ -1,10 +1,5 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<(d0) -> (d0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_deriche(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
     %c1 = constant 1 : index
     %0 = alloca() : memref<1xf32>
@@ -302,19 +297,19 @@ module {
   }
   func @S19(%arg0: memref<4096x2160xf32>, %arg1: index, %arg2: index, %arg3: memref<1xf32>) attributes {scop.stmt} {
     %0 = affine.load %arg3[0] : memref<1xf32>
-    %1 = affine.apply #map2(%arg2)
+    %1 = affine.apply #map(%arg2)
     affine.store %0, %arg0[%arg1, %1] : memref<4096x2160xf32>
     return
   }
   func @S20(%arg0: memref<1xf32>, %arg1: memref<4096x2160xf32>, %arg2: index, %arg3: index) attributes {scop.stmt} {
-    %0 = affine.apply #map2(%arg3)
+    %0 = affine.apply #map(%arg3)
     %1 = affine.load %arg1[%arg2, %0] : memref<4096x2160xf32>
     %c0 = constant 0 : index
     affine.store %1, %arg0[%c0] : memref<1xf32>
     return
   }
   func @S21(%arg0: memref<1xf32>, %arg1: memref<4096x2160xf32>, %arg2: index, %arg3: index) attributes {scop.stmt} {
-    %0 = affine.apply #map2(%arg3)
+    %0 = affine.apply #map(%arg3)
     %1 = affine.load %arg1[%arg2, %0] : memref<4096x2160xf32>
     %c0 = constant 0 : index
     affine.store %1, %arg0[%c0] : memref<1xf32>
@@ -504,19 +499,19 @@ module {
   }
   func @S40(%arg0: memref<4096x2160xf32>, %arg1: index, %arg2: index, %arg3: memref<1xf32>) attributes {scop.stmt} {
     %0 = affine.load %arg3[0] : memref<1xf32>
-    %1 = affine.apply #map2(%arg2)
+    %1 = affine.apply #map(%arg2)
     affine.store %0, %arg0[%1, %arg1] : memref<4096x2160xf32>
     return
   }
   func @S41(%arg0: memref<1xf32>, %arg1: memref<4096x2160xf32>, %arg2: index, %arg3: index) attributes {scop.stmt} {
-    %0 = affine.apply #map2(%arg3)
+    %0 = affine.apply #map(%arg3)
     %1 = affine.load %arg1[%0, %arg2] : memref<4096x2160xf32>
     %c0 = constant 0 : index
     affine.store %1, %arg0[%c0] : memref<1xf32>
     return
   }
   func @S42(%arg0: memref<1xf32>, %arg1: memref<4096x2160xf32>, %arg2: index, %arg3: index) attributes {scop.stmt} {
-    %0 = affine.apply #map2(%arg3)
+    %0 = affine.apply #map(%arg3)
     %1 = affine.load %arg1[%0, %arg2] : memref<4096x2160xf32>
     %c0 = constant 0 : index
     affine.store %1, %arg0[%c0] : memref<1xf32>
@@ -532,3 +527,4 @@ module {
     return
   }
 }
+

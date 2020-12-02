@@ -1,9 +1,4 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<(d0, d1) -> (d0, d1)>
-
-
-module {
+module  {
   func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<800x900xf64>, %arg7: memref<800x1100xf64>, %arg8: memref<1100x900xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<800x1200xf64>) {
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
@@ -72,3 +67,4 @@ module {
     return
   }
 }
+

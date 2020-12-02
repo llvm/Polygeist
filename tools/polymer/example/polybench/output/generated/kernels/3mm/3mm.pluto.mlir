@@ -1,12 +1,7 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<()[s0, s1] -> (s0, s1)>
-#map3 = affine_map<(d0) -> (d0 * 32)>
-#map4 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map5 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-
-
-module {
+#map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map1 = affine_map<(d0) -> (d0 * 32)>
+#map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+module  {
   func @kernel_3mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: memref<800x900xf64>, %arg6: memref<800x1000xf64>, %arg7: memref<1000x900xf64>, %arg8: memref<900x1100xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<1200x1100xf64>, %arg11: memref<800x1100xf64>) {
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
@@ -106,10 +101,10 @@ module {
     %0 = index_cast %arg4 : i32 to index
     %1 = index_cast %arg0 : i32 to index
     %2 = index_cast %arg3 : i32 to index
-    affine.for %arg12 = 0 to #map5()[%2] {
-      affine.for %arg13 = 0 to #map5()[%1] {
-        affine.for %arg14 = #map3(%arg12) to min #map4(%arg12)[%2] {
-          affine.for %arg15 = #map3(%arg13) to min #map4(%arg13)[%1] {
+    affine.for %arg12 = 0 to #map0()[%2] {
+      affine.for %arg13 = 0 to #map0()[%1] {
+        affine.for %arg14 = #map1(%arg12) to min #map2(%arg12)[%2] {
+          affine.for %arg15 = #map1(%arg13) to min #map2(%arg13)[%1] {
             call @S6(%arg11, %arg14, %arg15) : (memref<800x1100xf64>, index, index) -> ()
             call @S3(%arg8, %arg14, %arg15) : (memref<900x1100xf64>, index, index) -> ()
           }
@@ -125,10 +120,10 @@ module {
         }
       }
     }
-    affine.for %arg12 = 0 to #map5()[%2] {
-      affine.for %arg13 = 0 to #map5()[%1] {
-        affine.for %arg14 = #map3(%arg12) to min #map4(%arg12)[%2] {
-          affine.for %arg15 = #map3(%arg13) to min #map4(%arg13)[%1] {
+    affine.for %arg12 = 0 to #map0()[%2] {
+      affine.for %arg13 = 0 to #map0()[%1] {
+        affine.for %arg14 = #map1(%arg12) to min #map2(%arg12)[%2] {
+          affine.for %arg15 = #map1(%arg13) to min #map2(%arg13)[%1] {
             call @S0(%arg5, %arg14, %arg15) : (memref<800x900xf64>, index, index) -> ()
           }
         }
@@ -153,3 +148,4 @@ module {
     return
   }
 }
+

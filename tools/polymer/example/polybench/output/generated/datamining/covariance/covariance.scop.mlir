@@ -1,10 +1,5 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<(d0) -> (d0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_covariance(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>) {
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
@@ -25,7 +20,7 @@ module {
     %2 = alloca() : memref<1xf64>
     call @S5(%2, %arg2) : (memref<1xf64>, f64) -> ()
     affine.for %arg6 = 0 to %0 {
-      affine.for %arg7 = #map2(%arg6) to %0 {
+      affine.for %arg7 = #map(%arg6) to %0 {
         call @S6(%arg4, %arg6, %arg7) : (memref<1200x1200xf64>, index, index) -> ()
         %3 = alloca() : memref<1xf64>
         call @S7(%3, %arg4, %arg6, %arg7) : (memref<1xf64>, memref<1200x1200xf64>, index, index) -> ()
@@ -106,3 +101,4 @@ module {
     return
   }
 }
+

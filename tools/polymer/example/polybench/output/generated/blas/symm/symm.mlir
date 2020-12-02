@@ -1,11 +1,5 @@
-#map0 = affine_map<(d0) -> (d0)>
-#map1 = affine_map<(d0) -> (d0, d0)>
-#map2 = affine_map<(d0, d1) -> (d0, d1)>
-#map3 = affine_map<() -> (0)>
-#map4 = affine_map<()[s0] -> (s0)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_symm(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1000x1200xf64>, %arg5: memref<1000x1000xf64>, %arg6: memref<1000x1200xf64>) {
     %c0 = constant 0 : index
     %c0_i32 = constant 0 : i32
@@ -22,7 +16,7 @@ module {
       affine.for %arg8 = 0 to %2 {
         %8 = affine.load %arg6[%arg7, %arg8] : memref<1000x1200xf64>
         %9 = mulf %arg2, %8 : f64
-        affine.for %arg9 = 0 to #map0(%arg7) {
+        affine.for %arg9 = 0 to #map(%arg7) {
           %17 = affine.load %arg5[%arg7, %arg9] : memref<1000x1000xf64>
           %18 = mulf %9, %17 : f64
           %19 = affine.load %arg4[%arg9, %arg8] : memref<1000x1200xf64>
@@ -47,3 +41,4 @@ module {
     return
   }
 }
+

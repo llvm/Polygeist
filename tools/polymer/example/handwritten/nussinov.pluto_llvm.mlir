@@ -1,6 +1,4 @@
-
-
-module attributes {llvm.data_layout = ""} {
+module attributes {llvm.data_layout = ""}  {
   llvm.func @max_score(%arg0: !llvm.i32, %arg1: !llvm.i32) -> !llvm.i32 {
     %0 = llvm.icmp "sge" %arg0, %arg1 : !llvm.i32
     %1 = llvm.select %0, %arg0, %arg1 : !llvm.i1, !llvm.i32
@@ -39,8 +37,8 @@ module attributes {llvm.data_layout = ""} {
     %12 = llvm.insertvalue %arg9, %11[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
     %13 = llvm.insertvalue %arg11, %12[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
     %14 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %15 = llvm.mlir.constant(-1 : index) : !llvm.i64
-    %16 = llvm.mlir.constant(-2 : index) : !llvm.i64
+    %15 = llvm.mlir.constant(-2 : index) : !llvm.i64
+    %16 = llvm.mlir.constant(-1 : index) : !llvm.i64
     %17 = llvm.mlir.constant(1 : index) : !llvm.i64
     %18 = llvm.extractvalue %5[3, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
     llvm.br ^bb1(%14 : !llvm.i64)
@@ -48,108 +46,110 @@ module attributes {llvm.data_layout = ""} {
     %20 = llvm.icmp "slt" %19, %18 : !llvm.i64
     llvm.cond_br %20, ^bb2, ^bb18
   ^bb2:  // pred: ^bb1
-    %21 = llvm.mul %19, %15 : !llvm.i64
+    %21 = llvm.mul %19, %16 : !llvm.i64
     %22 = llvm.add %21, %18 : !llvm.i64
-    %23 = llvm.add %22, %15 : !llvm.i64
-    %24 = llvm.add %23, %17 : !llvm.i64
-    llvm.br ^bb3(%24 : !llvm.i64)
-  ^bb3(%25: !llvm.i64):  // 2 preds: ^bb2, ^bb16
-    %26 = llvm.icmp "slt" %25, %18 : !llvm.i64
-    llvm.cond_br %26, ^bb4, ^bb17
+    %23 = llvm.add %22, %16 : !llvm.i64
+    %24 = llvm.mul %19, %16 : !llvm.i64
+    %25 = llvm.add %24, %18 : !llvm.i64
+    llvm.br ^bb3(%25 : !llvm.i64)
+  ^bb3(%26: !llvm.i64):  // 2 preds: ^bb2, ^bb16
+    %27 = llvm.icmp "slt" %26, %18 : !llvm.i64
+    llvm.cond_br %27, ^bb4, ^bb17
   ^bb4:  // pred: ^bb3
-    %27 = llvm.add %25, %15 : !llvm.i64
-    %28 = llvm.icmp "sge" %27, %14 : !llvm.i64
-    llvm.cond_br %28, ^bb5, ^bb6
+    %28 = llvm.add %26, %16 : !llvm.i64
+    %29 = llvm.icmp "sge" %28, %14 : !llvm.i64
+    llvm.cond_br %29, ^bb5, ^bb6
   ^bb5:  // pred: ^bb4
-    %29 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %30 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %31 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %32 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %33 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %34 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %35 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    llvm.call @S0(%29, %30, %31, %32, %33, %34, %35, %25, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
+    %30 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %31 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %32 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %33 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %34 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %35 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %36 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    llvm.call @S0(%30, %31, %32, %33, %34, %35, %36, %26, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
     llvm.br ^bb6
   ^bb6:  // 2 preds: ^bb4, ^bb5
-    %36 = llvm.mul %23, %15 : !llvm.i64
-    %37 = llvm.add %36, %18 : !llvm.i64
-    %38 = llvm.add %37, %16 : !llvm.i64
-    %39 = llvm.icmp "sge" %38, %14 : !llvm.i64
-    llvm.cond_br %39, ^bb7, ^bb8
+    %37 = llvm.mul %23, %16 : !llvm.i64
+    %38 = llvm.add %37, %18 : !llvm.i64
+    %39 = llvm.add %38, %15 : !llvm.i64
+    %40 = llvm.icmp "sge" %39, %14 : !llvm.i64
+    llvm.cond_br %40, ^bb7, ^bb8
   ^bb7:  // pred: ^bb6
-    %40 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %41 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %42 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %43 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %44 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %45 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %46 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    llvm.call @S1(%40, %41, %42, %43, %44, %45, %46, %25, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
+    %41 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %42 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %43 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %44 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %45 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %46 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %47 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    llvm.call @S1(%41, %42, %43, %44, %45, %46, %47, %26, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
     llvm.br ^bb8
   ^bb8:  // 2 preds: ^bb6, ^bb7
-    %47 = llvm.add %25, %15 : !llvm.i64
-    %48 = llvm.icmp "sge" %47, %14 : !llvm.i64
-    llvm.cond_br %48, ^bb9, ^bb13
+    %48 = llvm.add %26, %16 : !llvm.i64
+    %49 = llvm.icmp "sge" %48, %14 : !llvm.i64
+    llvm.cond_br %49, ^bb9, ^bb13
   ^bb9:  // pred: ^bb8
-    %49 = llvm.mul %23, %15 : !llvm.i64
-    %50 = llvm.add %49, %18 : !llvm.i64
-    %51 = llvm.add %50, %16 : !llvm.i64
-    %52 = llvm.icmp "sge" %51, %14 : !llvm.i64
-    llvm.cond_br %52, ^bb10, ^bb13
+    %50 = llvm.mul %23, %16 : !llvm.i64
+    %51 = llvm.add %50, %18 : !llvm.i64
+    %52 = llvm.add %51, %15 : !llvm.i64
+    %53 = llvm.icmp "sge" %52, %14 : !llvm.i64
+    llvm.cond_br %53, ^bb10, ^bb13
   ^bb10:  // pred: ^bb9
-    %53 = llvm.mul %23, %15 : !llvm.i64
-    %54 = llvm.add %25, %53 : !llvm.i64
-    %55 = llvm.add %54, %16 : !llvm.i64
-    %56 = llvm.icmp "sge" %55, %14 : !llvm.i64
-    llvm.cond_br %56, ^bb11, ^bb12
+    %54 = llvm.mul %23, %16 : !llvm.i64
+    %55 = llvm.add %26, %54 : !llvm.i64
+    %56 = llvm.add %55, %15 : !llvm.i64
+    %57 = llvm.icmp "sge" %56, %14 : !llvm.i64
+    llvm.cond_br %57, ^bb11, ^bb12
   ^bb11:  // pred: ^bb10
-    %57 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %58 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %59 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %60 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %61 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %62 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %63 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %64 = llvm.extractvalue %5[0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %65 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %66 = llvm.extractvalue %5[2] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %67 = llvm.extractvalue %5[3, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %68 = llvm.extractvalue %5[4, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    llvm.call @S2(%57, %58, %59, %60, %61, %62, %63, %25, %19, %18, %64, %65, %66, %67, %68) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.ptr<i8>, !llvm.ptr<i8>, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
+    %58 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %59 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %60 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %61 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %62 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %63 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %64 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %65 = llvm.extractvalue %5[0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    %66 = llvm.extractvalue %5[1] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    %67 = llvm.extractvalue %5[2] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    %68 = llvm.extractvalue %5[3, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    %69 = llvm.extractvalue %5[4, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    llvm.call @S2(%58, %59, %60, %61, %62, %63, %64, %26, %19, %18, %65, %66, %67, %68, %69) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.ptr<i8>, !llvm.ptr<i8>, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
     llvm.br ^bb13
   ^bb12:  // pred: ^bb10
-    %69 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %70 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %71 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %72 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %73 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %74 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %75 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    llvm.call @S3(%69, %70, %71, %72, %73, %74, %75, %25, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
+    %70 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %71 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %72 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %73 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %74 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %75 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %76 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    llvm.call @S3(%70, %71, %72, %73, %74, %75, %76, %26, %19, %18) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
     llvm.br ^bb13
   ^bb13:  // 4 preds: ^bb8, ^bb9, ^bb11, ^bb12
-    %76 = llvm.add %23, %17 : !llvm.i64
-    llvm.br ^bb14(%76 : !llvm.i64)
-  ^bb14(%77: !llvm.i64):  // 2 preds: ^bb13, ^bb15
-    %78 = llvm.icmp "slt" %77, %25 : !llvm.i64
-    llvm.cond_br %78, ^bb15, ^bb16
+    %77 = llvm.mul %19, %16 : !llvm.i64
+    %78 = llvm.add %77, %18 : !llvm.i64
+    llvm.br ^bb14(%78 : !llvm.i64)
+  ^bb14(%79: !llvm.i64):  // 2 preds: ^bb13, ^bb15
+    %80 = llvm.icmp "slt" %79, %26 : !llvm.i64
+    llvm.cond_br %80, ^bb15, ^bb16
   ^bb15:  // pred: ^bb14
-    %79 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %80 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %81 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %82 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %83 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %84 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %85 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    llvm.call @S4(%79, %80, %81, %82, %83, %84, %85, %25, %19, %18, %77) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
-    %86 = llvm.add %77, %17 : !llvm.i64
-    llvm.br ^bb14(%86 : !llvm.i64)
+    %81 = llvm.extractvalue %13[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %82 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %83 = llvm.extractvalue %13[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %84 = llvm.extractvalue %13[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %85 = llvm.extractvalue %13[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %86 = llvm.extractvalue %13[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %87 = llvm.extractvalue %13[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    llvm.call @S4(%81, %82, %83, %84, %85, %86, %87, %26, %19, %18, %79) : (!llvm.ptr<i32>, !llvm.ptr<i32>, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64, !llvm.i64) -> ()
+    %88 = llvm.add %79, %17 : !llvm.i64
+    llvm.br ^bb14(%88 : !llvm.i64)
   ^bb16:  // pred: ^bb14
-    %87 = llvm.add %25, %17 : !llvm.i64
-    llvm.br ^bb3(%87 : !llvm.i64)
+    %89 = llvm.add %26, %17 : !llvm.i64
+    llvm.br ^bb3(%89 : !llvm.i64)
   ^bb17:  // pred: ^bb3
-    %88 = llvm.add %19, %17 : !llvm.i64
-    llvm.br ^bb1(%88 : !llvm.i64)
+    %90 = llvm.add %19, %17 : !llvm.i64
+    llvm.br ^bb1(%90 : !llvm.i64)
   ^bb18:  // pred: ^bb1
     llvm.return
   }
@@ -185,43 +185,31 @@ module attributes {llvm.data_layout = ""} {
     %10 = llvm.add %9, %arg9 : !llvm.i64
     %11 = llvm.add %10, %8 : !llvm.i64
     %12 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %13 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %14 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %15 = llvm.mul %11, %14 : !llvm.i64
-    %16 = llvm.add %13, %15 : !llvm.i64
-    %17 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %18 = llvm.mul %arg7, %17 : !llvm.i64
-    %19 = llvm.add %16, %18 : !llvm.i64
-    %20 = llvm.getelementptr %12[%19] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %21 = llvm.load %20 : !llvm.ptr<i32>
-    %22 = llvm.mul %arg8, %8 : !llvm.i64
-    %23 = llvm.add %22, %arg9 : !llvm.i64
-    %24 = llvm.add %23, %8 : !llvm.i64
-    %25 = llvm.add %arg7, %8 : !llvm.i64
-    %26 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %27 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %28 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %29 = llvm.mul %24, %28 : !llvm.i64
-    %30 = llvm.add %27, %29 : !llvm.i64
-    %31 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %32 = llvm.mul %25, %31 : !llvm.i64
-    %33 = llvm.add %30, %32 : !llvm.i64
-    %34 = llvm.getelementptr %26[%33] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %35 = llvm.load %34 : !llvm.ptr<i32>
-    %36 = llvm.call @max_score(%21, %35) : (!llvm.i32, !llvm.i32) -> !llvm.i32
-    %37 = llvm.mul %arg8, %8 : !llvm.i64
-    %38 = llvm.add %37, %arg9 : !llvm.i64
-    %39 = llvm.add %38, %8 : !llvm.i64
-    %40 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %41 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %42 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %43 = llvm.mul %39, %42 : !llvm.i64
-    %44 = llvm.add %41, %43 : !llvm.i64
-    %45 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %46 = llvm.mul %arg7, %45 : !llvm.i64
-    %47 = llvm.add %44, %46 : !llvm.i64
-    %48 = llvm.getelementptr %40[%47] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    llvm.store %36, %48 : !llvm.ptr<i32>
+    %13 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %14 = llvm.mul %11, %13 : !llvm.i64
+    %15 = llvm.add %14, %arg7 : !llvm.i64
+    %16 = llvm.getelementptr %12[%15] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %17 = llvm.load %16 : !llvm.ptr<i32>
+    %18 = llvm.mul %arg8, %8 : !llvm.i64
+    %19 = llvm.add %18, %arg9 : !llvm.i64
+    %20 = llvm.add %19, %8 : !llvm.i64
+    %21 = llvm.add %arg7, %8 : !llvm.i64
+    %22 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %23 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %24 = llvm.mul %20, %23 : !llvm.i64
+    %25 = llvm.add %24, %21 : !llvm.i64
+    %26 = llvm.getelementptr %22[%25] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %27 = llvm.load %26 : !llvm.ptr<i32>
+    %28 = llvm.call @max_score(%17, %27) : (!llvm.i32, !llvm.i32) -> !llvm.i32
+    %29 = llvm.mul %arg8, %8 : !llvm.i64
+    %30 = llvm.add %29, %arg9 : !llvm.i64
+    %31 = llvm.add %30, %8 : !llvm.i64
+    %32 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %33 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %34 = llvm.mul %31, %33 : !llvm.i64
+    %35 = llvm.add %34, %arg7 : !llvm.i64
+    %36 = llvm.getelementptr %32[%35] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    llvm.store %28, %36 : !llvm.ptr<i32>
     llvm.return
   }
   llvm.func @_mlir_ciface_S0(%arg0: !llvm.ptr<struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.i64) attributes {scop.stmt} {
@@ -250,41 +238,29 @@ module attributes {llvm.data_layout = ""} {
     %10 = llvm.add %9, %arg9 : !llvm.i64
     %11 = llvm.add %10, %8 : !llvm.i64
     %12 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %13 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %14 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %15 = llvm.mul %11, %14 : !llvm.i64
-    %16 = llvm.add %13, %15 : !llvm.i64
-    %17 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %18 = llvm.mul %arg7, %17 : !llvm.i64
-    %19 = llvm.add %16, %18 : !llvm.i64
-    %20 = llvm.getelementptr %12[%19] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %21 = llvm.load %20 : !llvm.ptr<i32>
-    %22 = llvm.mul %arg8, %8 : !llvm.i64
-    %23 = llvm.add %22, %arg9 : !llvm.i64
-    %24 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %25 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %26 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %27 = llvm.mul %23, %26 : !llvm.i64
-    %28 = llvm.add %25, %27 : !llvm.i64
-    %29 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %30 = llvm.mul %arg7, %29 : !llvm.i64
-    %31 = llvm.add %28, %30 : !llvm.i64
-    %32 = llvm.getelementptr %24[%31] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %33 = llvm.load %32 : !llvm.ptr<i32>
-    %34 = llvm.call @max_score(%21, %33) : (!llvm.i32, !llvm.i32) -> !llvm.i32
-    %35 = llvm.mul %arg8, %8 : !llvm.i64
-    %36 = llvm.add %35, %arg9 : !llvm.i64
-    %37 = llvm.add %36, %8 : !llvm.i64
-    %38 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %39 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %40 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %41 = llvm.mul %37, %40 : !llvm.i64
-    %42 = llvm.add %39, %41 : !llvm.i64
-    %43 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %44 = llvm.mul %arg7, %43 : !llvm.i64
-    %45 = llvm.add %42, %44 : !llvm.i64
-    %46 = llvm.getelementptr %38[%45] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    llvm.store %34, %46 : !llvm.ptr<i32>
+    %13 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %14 = llvm.mul %11, %13 : !llvm.i64
+    %15 = llvm.add %14, %arg7 : !llvm.i64
+    %16 = llvm.getelementptr %12[%15] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %17 = llvm.load %16 : !llvm.ptr<i32>
+    %18 = llvm.mul %arg8, %8 : !llvm.i64
+    %19 = llvm.add %18, %arg9 : !llvm.i64
+    %20 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %21 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %22 = llvm.mul %19, %21 : !llvm.i64
+    %23 = llvm.add %22, %arg7 : !llvm.i64
+    %24 = llvm.getelementptr %20[%23] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %25 = llvm.load %24 : !llvm.ptr<i32>
+    %26 = llvm.call @max_score(%17, %25) : (!llvm.i32, !llvm.i32) -> !llvm.i32
+    %27 = llvm.mul %arg8, %8 : !llvm.i64
+    %28 = llvm.add %27, %arg9 : !llvm.i64
+    %29 = llvm.add %28, %8 : !llvm.i64
+    %30 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %31 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %32 = llvm.mul %29, %31 : !llvm.i64
+    %33 = llvm.add %32, %arg7 : !llvm.i64
+    %34 = llvm.getelementptr %30[%33] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    llvm.store %26, %34 : !llvm.ptr<i32>
     llvm.return
   }
   llvm.func @_mlir_ciface_S1(%arg0: !llvm.ptr<struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.i64) attributes {scop.stmt} {
@@ -316,64 +292,44 @@ module attributes {llvm.data_layout = ""} {
     %13 = llvm.insertvalue %arg14, %12[4, 0] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
     %14 = llvm.mlir.constant(-1 : index) : !llvm.i64
     %15 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %16 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %17 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %18 = llvm.mul %arg7, %17 : !llvm.i64
-    %19 = llvm.add %16, %18 : !llvm.i64
-    %20 = llvm.getelementptr %15[%19] : (!llvm.ptr<i8>, !llvm.i64) -> !llvm.ptr<i8>
-    %21 = llvm.load %20 : !llvm.ptr<i8>
-    %22 = llvm.mul %arg8, %14 : !llvm.i64
-    %23 = llvm.add %22, %arg9 : !llvm.i64
-    %24 = llvm.add %23, %14 : !llvm.i64
-    %25 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
-    %26 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %27 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %28 = llvm.mul %24, %27 : !llvm.i64
-    %29 = llvm.add %26, %28 : !llvm.i64
-    %30 = llvm.getelementptr %25[%29] : (!llvm.ptr<i8>, !llvm.i64) -> !llvm.ptr<i8>
-    %31 = llvm.load %30 : !llvm.ptr<i8>
-    %32 = llvm.call @match(%31, %21) : (!llvm.i8, !llvm.i8) -> !llvm.i32
-    %33 = llvm.mul %arg8, %14 : !llvm.i64
-    %34 = llvm.add %33, %arg9 : !llvm.i64
-    %35 = llvm.add %arg7, %14 : !llvm.i64
-    %36 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %37 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %38 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %39 = llvm.mul %34, %38 : !llvm.i64
-    %40 = llvm.add %37, %39 : !llvm.i64
-    %41 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %42 = llvm.mul %35, %41 : !llvm.i64
-    %43 = llvm.add %40, %42 : !llvm.i64
-    %44 = llvm.getelementptr %36[%43] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %45 = llvm.load %44 : !llvm.ptr<i32>
-    %46 = llvm.add %45, %32 : !llvm.i32
-    %47 = llvm.mul %arg8, %14 : !llvm.i64
-    %48 = llvm.add %47, %arg9 : !llvm.i64
-    %49 = llvm.add %48, %14 : !llvm.i64
-    %50 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %51 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %52 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %53 = llvm.mul %49, %52 : !llvm.i64
-    %54 = llvm.add %51, %53 : !llvm.i64
-    %55 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %56 = llvm.mul %arg7, %55 : !llvm.i64
-    %57 = llvm.add %54, %56 : !llvm.i64
-    %58 = llvm.getelementptr %50[%57] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %59 = llvm.load %58 : !llvm.ptr<i32>
-    %60 = llvm.call @max_score(%59, %46) : (!llvm.i32, !llvm.i32) -> !llvm.i32
-    %61 = llvm.mul %arg8, %14 : !llvm.i64
-    %62 = llvm.add %61, %arg9 : !llvm.i64
-    %63 = llvm.add %62, %14 : !llvm.i64
-    %64 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %65 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %66 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %67 = llvm.mul %63, %66 : !llvm.i64
-    %68 = llvm.add %65, %67 : !llvm.i64
-    %69 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %70 = llvm.mul %arg7, %69 : !llvm.i64
-    %71 = llvm.add %68, %70 : !llvm.i64
-    %72 = llvm.getelementptr %64[%71] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    llvm.store %60, %72 : !llvm.ptr<i32>
+    %16 = llvm.getelementptr %15[%arg7] : (!llvm.ptr<i8>, !llvm.i64) -> !llvm.ptr<i8>
+    %17 = llvm.load %16 : !llvm.ptr<i8>
+    %18 = llvm.mul %arg8, %14 : !llvm.i64
+    %19 = llvm.add %18, %arg9 : !llvm.i64
+    %20 = llvm.add %19, %14 : !llvm.i64
+    %21 = llvm.extractvalue %13[1] : !llvm.struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>
+    %22 = llvm.getelementptr %21[%20] : (!llvm.ptr<i8>, !llvm.i64) -> !llvm.ptr<i8>
+    %23 = llvm.load %22 : !llvm.ptr<i8>
+    %24 = llvm.call @match(%23, %17) : (!llvm.i8, !llvm.i8) -> !llvm.i32
+    %25 = llvm.mul %arg8, %14 : !llvm.i64
+    %26 = llvm.add %25, %arg9 : !llvm.i64
+    %27 = llvm.add %arg7, %14 : !llvm.i64
+    %28 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %29 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %30 = llvm.mul %26, %29 : !llvm.i64
+    %31 = llvm.add %30, %27 : !llvm.i64
+    %32 = llvm.getelementptr %28[%31] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %33 = llvm.load %32 : !llvm.ptr<i32>
+    %34 = llvm.add %33, %24 : !llvm.i32
+    %35 = llvm.mul %arg8, %14 : !llvm.i64
+    %36 = llvm.add %35, %arg9 : !llvm.i64
+    %37 = llvm.add %36, %14 : !llvm.i64
+    %38 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %39 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %40 = llvm.mul %37, %39 : !llvm.i64
+    %41 = llvm.add %40, %arg7 : !llvm.i64
+    %42 = llvm.getelementptr %38[%41] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %43 = llvm.load %42 : !llvm.ptr<i32>
+    %44 = llvm.call @max_score(%43, %34) : (!llvm.i32, !llvm.i32) -> !llvm.i32
+    %45 = llvm.mul %arg8, %14 : !llvm.i64
+    %46 = llvm.add %45, %arg9 : !llvm.i64
+    %47 = llvm.add %46, %14 : !llvm.i64
+    %48 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %49 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %50 = llvm.mul %47, %49 : !llvm.i64
+    %51 = llvm.add %50, %arg7 : !llvm.i64
+    %52 = llvm.getelementptr %48[%51] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    llvm.store %44, %52 : !llvm.ptr<i32>
     llvm.return
   }
   llvm.func @_mlir_ciface_S2(%arg0: !llvm.ptr<struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.i64, %arg4: !llvm.ptr<struct<(ptr<i8>, ptr<i8>, i64, array<1 x i64>, array<1 x i64>)>>) attributes {scop.stmt} {
@@ -408,42 +364,30 @@ module attributes {llvm.data_layout = ""} {
     %10 = llvm.add %9, %arg9 : !llvm.i64
     %11 = llvm.add %10, %8 : !llvm.i64
     %12 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %13 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %14 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %15 = llvm.mul %11, %14 : !llvm.i64
-    %16 = llvm.add %13, %15 : !llvm.i64
-    %17 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %18 = llvm.mul %arg7, %17 : !llvm.i64
-    %19 = llvm.add %16, %18 : !llvm.i64
-    %20 = llvm.getelementptr %12[%19] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %21 = llvm.load %20 : !llvm.ptr<i32>
-    %22 = llvm.mul %arg8, %8 : !llvm.i64
-    %23 = llvm.add %22, %arg9 : !llvm.i64
-    %24 = llvm.add %arg7, %8 : !llvm.i64
-    %25 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %26 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %27 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %28 = llvm.mul %23, %27 : !llvm.i64
-    %29 = llvm.add %26, %28 : !llvm.i64
-    %30 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %31 = llvm.mul %24, %30 : !llvm.i64
-    %32 = llvm.add %29, %31 : !llvm.i64
-    %33 = llvm.getelementptr %25[%32] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %34 = llvm.load %33 : !llvm.ptr<i32>
-    %35 = llvm.call @max_score(%21, %34) : (!llvm.i32, !llvm.i32) -> !llvm.i32
-    %36 = llvm.mul %arg8, %8 : !llvm.i64
-    %37 = llvm.add %36, %arg9 : !llvm.i64
-    %38 = llvm.add %37, %8 : !llvm.i64
-    %39 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %40 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %41 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %42 = llvm.mul %38, %41 : !llvm.i64
-    %43 = llvm.add %40, %42 : !llvm.i64
-    %44 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %45 = llvm.mul %arg7, %44 : !llvm.i64
-    %46 = llvm.add %43, %45 : !llvm.i64
-    %47 = llvm.getelementptr %39[%46] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    llvm.store %35, %47 : !llvm.ptr<i32>
+    %13 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %14 = llvm.mul %11, %13 : !llvm.i64
+    %15 = llvm.add %14, %arg7 : !llvm.i64
+    %16 = llvm.getelementptr %12[%15] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %17 = llvm.load %16 : !llvm.ptr<i32>
+    %18 = llvm.mul %arg8, %8 : !llvm.i64
+    %19 = llvm.add %18, %arg9 : !llvm.i64
+    %20 = llvm.add %arg7, %8 : !llvm.i64
+    %21 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %22 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %23 = llvm.mul %19, %22 : !llvm.i64
+    %24 = llvm.add %23, %20 : !llvm.i64
+    %25 = llvm.getelementptr %21[%24] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %26 = llvm.load %25 : !llvm.ptr<i32>
+    %27 = llvm.call @max_score(%17, %26) : (!llvm.i32, !llvm.i32) -> !llvm.i32
+    %28 = llvm.mul %arg8, %8 : !llvm.i64
+    %29 = llvm.add %28, %arg9 : !llvm.i64
+    %30 = llvm.add %29, %8 : !llvm.i64
+    %31 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %32 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %33 = llvm.mul %30, %32 : !llvm.i64
+    %34 = llvm.add %33, %arg7 : !llvm.i64
+    %35 = llvm.getelementptr %31[%34] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    llvm.store %27, %35 : !llvm.ptr<i32>
     llvm.return
   }
   llvm.func @_mlir_ciface_S3(%arg0: !llvm.ptr<struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.i64) attributes {scop.stmt} {
@@ -471,56 +415,40 @@ module attributes {llvm.data_layout = ""} {
     %9 = llvm.mlir.constant(-1 : index) : !llvm.i64
     %10 = llvm.add %arg10, %8 : !llvm.i64
     %11 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %12 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %13 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %14 = llvm.mul %10, %13 : !llvm.i64
-    %15 = llvm.add %12, %14 : !llvm.i64
-    %16 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %17 = llvm.mul %arg7, %16 : !llvm.i64
-    %18 = llvm.add %15, %17 : !llvm.i64
-    %19 = llvm.getelementptr %11[%18] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %20 = llvm.load %19 : !llvm.ptr<i32>
-    %21 = llvm.mul %arg8, %9 : !llvm.i64
-    %22 = llvm.add %21, %arg9 : !llvm.i64
-    %23 = llvm.add %22, %9 : !llvm.i64
-    %24 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %25 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %26 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %27 = llvm.mul %23, %26 : !llvm.i64
-    %28 = llvm.add %25, %27 : !llvm.i64
-    %29 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %30 = llvm.mul %arg10, %29 : !llvm.i64
-    %31 = llvm.add %28, %30 : !llvm.i64
-    %32 = llvm.getelementptr %24[%31] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %33 = llvm.load %32 : !llvm.ptr<i32>
-    %34 = llvm.add %33, %20 : !llvm.i32
-    %35 = llvm.mul %arg8, %9 : !llvm.i64
-    %36 = llvm.add %35, %arg9 : !llvm.i64
-    %37 = llvm.add %36, %9 : !llvm.i64
-    %38 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %39 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %40 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %41 = llvm.mul %37, %40 : !llvm.i64
-    %42 = llvm.add %39, %41 : !llvm.i64
-    %43 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %44 = llvm.mul %arg7, %43 : !llvm.i64
-    %45 = llvm.add %42, %44 : !llvm.i64
-    %46 = llvm.getelementptr %38[%45] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    %47 = llvm.load %46 : !llvm.ptr<i32>
-    %48 = llvm.call @max_score(%47, %34) : (!llvm.i32, !llvm.i32) -> !llvm.i32
-    %49 = llvm.mul %arg8, %9 : !llvm.i64
-    %50 = llvm.add %49, %arg9 : !llvm.i64
-    %51 = llvm.add %50, %9 : !llvm.i64
-    %52 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %53 = llvm.mlir.constant(0 : index) : !llvm.i64
-    %54 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-    %55 = llvm.mul %51, %54 : !llvm.i64
-    %56 = llvm.add %53, %55 : !llvm.i64
-    %57 = llvm.mlir.constant(1 : index) : !llvm.i64
-    %58 = llvm.mul %arg7, %57 : !llvm.i64
-    %59 = llvm.add %56, %58 : !llvm.i64
-    %60 = llvm.getelementptr %52[%59] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
-    llvm.store %48, %60 : !llvm.ptr<i32>
+    %12 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %13 = llvm.mul %10, %12 : !llvm.i64
+    %14 = llvm.add %13, %arg7 : !llvm.i64
+    %15 = llvm.getelementptr %11[%14] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %16 = llvm.load %15 : !llvm.ptr<i32>
+    %17 = llvm.mul %arg8, %9 : !llvm.i64
+    %18 = llvm.add %17, %arg9 : !llvm.i64
+    %19 = llvm.add %18, %9 : !llvm.i64
+    %20 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %21 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %22 = llvm.mul %19, %21 : !llvm.i64
+    %23 = llvm.add %22, %arg10 : !llvm.i64
+    %24 = llvm.getelementptr %20[%23] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %25 = llvm.load %24 : !llvm.ptr<i32>
+    %26 = llvm.add %25, %16 : !llvm.i32
+    %27 = llvm.mul %arg8, %9 : !llvm.i64
+    %28 = llvm.add %27, %arg9 : !llvm.i64
+    %29 = llvm.add %28, %9 : !llvm.i64
+    %30 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %31 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %32 = llvm.mul %29, %31 : !llvm.i64
+    %33 = llvm.add %32, %arg7 : !llvm.i64
+    %34 = llvm.getelementptr %30[%33] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    %35 = llvm.load %34 : !llvm.ptr<i32>
+    %36 = llvm.call @max_score(%35, %26) : (!llvm.i32, !llvm.i32) -> !llvm.i32
+    %37 = llvm.mul %arg8, %9 : !llvm.i64
+    %38 = llvm.add %37, %arg9 : !llvm.i64
+    %39 = llvm.add %38, %9 : !llvm.i64
+    %40 = llvm.extractvalue %7[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %41 = llvm.extractvalue %7[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
+    %42 = llvm.mul %39, %41 : !llvm.i64
+    %43 = llvm.add %42, %arg7 : !llvm.i64
+    %44 = llvm.getelementptr %40[%43] : (!llvm.ptr<i32>, !llvm.i64) -> !llvm.ptr<i32>
+    llvm.store %36, %44 : !llvm.ptr<i32>
     llvm.return
   }
   llvm.func @_mlir_ciface_S4(%arg0: !llvm.ptr<struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>>, %arg1: !llvm.i64, %arg2: !llvm.i64, %arg3: !llvm.i64, %arg4: !llvm.i64) attributes {scop.stmt} {
@@ -1029,3 +957,4 @@ module attributes {llvm.data_layout = ""} {
     llvm.return
   }
 }
+

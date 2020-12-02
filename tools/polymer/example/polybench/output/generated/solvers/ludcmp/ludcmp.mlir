@@ -1,12 +1,5 @@
-#map0 = affine_map<(d0) -> (d0)>
-#map1 = affine_map<(d0, d1) -> (d0, d1)>
-#map2 = affine_map<() -> (0)>
-#map3 = affine_map<(d0) -> (d0, d0)>
-#map4 = affine_map<()[s0] -> (s0)>
-#map5 = affine_map<() -> (1)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_ludcmp(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
     %c0 = constant 0 : index
     %c1 = constant 1 : index
@@ -17,10 +10,10 @@ module {
     %4 = affine.load %0[%c0] : memref<1xf64>
     %5 = affine.load %0[%c0] : memref<1xf64>
     affine.for %arg5 = 0 to %1 {
-      affine.for %arg6 = 0 to #map0(%arg5) {
+      affine.for %arg6 = 0 to #map(%arg5) {
         %13 = affine.load %arg1[%arg5, %arg6] : memref<2000x2000xf64>
         affine.store %13, %0[%c0] : memref<1xf64>
-        affine.for %arg7 = 0 to #map0(%arg6) {
+        affine.for %arg7 = 0 to #map(%arg6) {
           %16 = affine.load %arg1[%arg5, %arg7] : memref<2000x2000xf64>
           %17 = affine.load %arg1[%arg7, %arg6] : memref<2000x2000xf64>
           %18 = mulf %16, %17 : f64
@@ -31,10 +24,10 @@ module {
         %15 = divf %3, %14 : f64
         affine.store %15, %arg1[%arg5, %arg6] : memref<2000x2000xf64>
       }
-      affine.for %arg6 = #map0(%arg5) to %1 {
+      affine.for %arg6 = #map(%arg5) to %1 {
         %13 = affine.load %arg1[%arg5, %arg6] : memref<2000x2000xf64>
         affine.store %13, %0[%c0] : memref<1xf64>
-        affine.for %arg7 = 0 to #map0(%arg5) {
+        affine.for %arg7 = 0 to #map(%arg5) {
           %14 = affine.load %arg1[%arg5, %arg7] : memref<2000x2000xf64>
           %15 = affine.load %arg1[%arg7, %arg6] : memref<2000x2000xf64>
           %16 = mulf %14, %15 : f64
@@ -49,7 +42,7 @@ module {
     affine.for %arg5 = 0 to %1 {
       %13 = affine.load %arg2[%arg5] : memref<2000xf64>
       affine.store %13, %0[%c0] : memref<1xf64>
-      affine.for %arg6 = 0 to #map0(%arg5) {
+      affine.for %arg6 = 0 to #map(%arg5) {
         %14 = affine.load %arg1[%arg5, %arg6] : memref<2000x2000xf64>
         %15 = affine.load %arg4[%arg6] : memref<2000xf64>
         %16 = mulf %14, %15 : f64
@@ -64,7 +57,7 @@ module {
     %11 = affine.load %0[%c0] : memref<1xf64>
     %12 = affine.load %0[%c0] : memref<1xf64>
     affine.for %arg5 = 0 to %1 {
-      %13 = affine.apply #map0(%arg5)
+      %13 = affine.apply #map(%arg5)
       %14 = affine.load %arg4[%13] : memref<2000xf64>
       affine.store %14, %0[%c0] : memref<1xf64>
       affine.for %arg6 = 1 to %1 {
@@ -81,3 +74,4 @@ module {
     return
   }
 }
+

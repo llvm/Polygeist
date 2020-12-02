@@ -1,27 +1,19 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<()[s0, s1] -> (s0, s1)>
-#map4 = affine_map<()[s0] -> (s0, s0)>
-#map5 = affine_map<() -> (1)>
-#map6 = affine_map<() -> (2)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_cholesky(%arg0: i32, %arg1: memref<2000x2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to %0 {
-      affine.for %arg3 = 0 to #map1(%arg2) {
+      affine.for %arg3 = 0 to #map(%arg2) {
         %2 = alloca() : memref<1xf64>
         call @S0(%2, %arg1, %arg2, %arg3) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg4 = 0 to #map1(%arg3) {
+        affine.for %arg4 = 0 to #map(%arg3) {
           call @S1(%arg1, %arg2, %arg3, %arg4, %2) : (memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S2(%arg1, %arg2, %arg3) : (memref<2000x2000xf64>, index, index) -> ()
       }
       %1 = alloca() : memref<1xf64>
       call @S3(%1, %arg1, %arg2) : (memref<1xf64>, memref<2000x2000xf64>, index) -> ()
-      affine.for %arg3 = 0 to #map1(%arg2) {
+      affine.for %arg3 = 0 to #map(%arg2) {
         call @S4(%arg1, %arg2, %arg3, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
       }
       call @S5(%arg1, %arg2) : (memref<2000x2000xf64>, index) -> ()
@@ -87,9 +79,9 @@ module {
       call @S0(%0, %arg1, %arg2, %c0) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
       call @S2(%arg1, %arg2, %c0) : (memref<2000x2000xf64>, index, index) -> ()
       call @S4(%arg1, %arg2, %c0, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
-      affine.for %arg3 = 1 to #map1(%arg2) {
+      affine.for %arg3 = 1 to #map(%arg2) {
         call @S0(%0, %arg1, %arg2, %arg3) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg4 = 0 to #map1(%arg3) {
+        affine.for %arg4 = 0 to #map(%arg3) {
           call @S1(%arg1, %arg2, %arg3, %arg4, %0) : (memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S2(%arg1, %arg2, %arg3) : (memref<2000x2000xf64>, index, index) -> ()
@@ -100,3 +92,4 @@ module {
     return
   }
 }
+

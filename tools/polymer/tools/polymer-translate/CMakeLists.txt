@@ -8,7 +8,7 @@ add_llvm_tool(polymer-translate
 llvm_update_compile_flags(polymer-translate)
 target_link_libraries(polymer-translate
   PRIVATE
-  MLIRStandardOps
+  MLIRStandard
   MLIRLLVMIR
   MLIRLoopAnalysis
   MLIRAnalysis

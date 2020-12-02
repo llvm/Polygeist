@@ -1,26 +1,20 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-#map4 = affine_map<(d0) -> (d0, d0)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_lu(%arg0: i32, %arg1: memref<2000x2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to %0 {
-      affine.for %arg3 = 0 to #map1(%arg2) {
+      affine.for %arg3 = 0 to #map(%arg2) {
         %1 = alloca() : memref<1xf64>
         call @S0(%1, %arg1, %arg2, %arg3) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg4 = 0 to #map1(%arg3) {
+        affine.for %arg4 = 0 to #map(%arg3) {
           call @S1(%arg1, %arg2, %arg3, %arg4, %1) : (memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S2(%arg1, %arg2, %arg3) : (memref<2000x2000xf64>, index, index) -> ()
       }
-      affine.for %arg3 = #map1(%arg2) to %0 {
+      affine.for %arg3 = #map(%arg2) to %0 {
         %1 = alloca() : memref<1xf64>
         call @S3(%1, %arg1, %arg2, %arg3) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg4 = 0 to #map1(%arg2) {
+        affine.for %arg4 = 0 to #map(%arg2) {
           call @S4(%arg1, %arg2, %arg3, %arg4, %1) : (memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
       }
@@ -63,3 +57,4 @@ module {
     return
   }
 }
+

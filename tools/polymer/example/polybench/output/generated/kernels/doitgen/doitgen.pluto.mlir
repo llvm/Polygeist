@@ -1,13 +1,7 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<()[s0] -> (s0)>
-#map2 = affine_map<()[s0, s1, s2] -> (s0, s1, s2)>
-#map3 = affine_map<()[s0, s1] -> (s0, s1)>
-#map4 = affine_map<(d0) -> (d0 * 32)>
-#map5 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map6 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-
-
-module {
+#map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map1 = affine_map<(d0) -> (d0 * 32)>
+#map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+module  {
   func @kernel_doitgen(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
@@ -59,8 +53,8 @@ module {
     %2 = index_cast %arg0 : i32 to index
     affine.for %arg6 = 0 to %2 {
       affine.for %arg7 = 0 to %1 {
-        affine.for %arg8 = 0 to #map6()[%0] {
-          affine.for %arg9 = #map4(%arg8) to min #map5(%arg8)[%0] {
+        affine.for %arg8 = 0 to #map0()[%0] {
+          affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%0] {
             call @S0(%arg5, %arg6) : (memref<160xf64>, index) -> ()
           }
         }
@@ -71,8 +65,8 @@ module {
             call @S2(%arg5, %arg6, %arg4, %arg7, %arg3, %arg8, %arg9, %3) : (memref<160xf64>, index, memref<160x160xf64>, index, memref<150x140x160xf64>, index, index, memref<1xf64>) -> ()
           }
         }
-        affine.for %arg8 = 0 to #map6()[%0] {
-          affine.for %arg9 = #map4(%arg8) to min #map5(%arg8)[%0] {
+        affine.for %arg8 = 0 to #map0()[%0] {
+          affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%0] {
             call @S3(%arg3, %arg6, %arg7, %arg9, %arg5) : (memref<150x140x160xf64>, index, index, index, memref<160xf64>) -> ()
           }
         }
@@ -81,3 +75,4 @@ module {
     return
   }
 }
+

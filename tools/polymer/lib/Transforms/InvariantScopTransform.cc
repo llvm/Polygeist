@@ -45,78 +45,74 @@ static void updateValueMapping(OslSymbolTable &srcTable,
     mapping.map(srcTable.getValue(sym), dstTable.getValue(sym));
 }
 
-namespace {
+static LogicalResult invariantScopTransform(mlir::FuncOp funcOp,
+                                            OpBuilder &rewriter) {
+  OslSymbolTable srcTable, dstTable;
 
-struct InvariantScop : public OpConversionPattern<mlir::FuncOp> {
-  using OpConversionPattern<mlir::FuncOp>::OpConversionPattern;
-
-  LogicalResult
-  matchAndRewrite(mlir::FuncOp funcOp, ArrayRef<Value> operands,
-                  ConversionPatternRewriter &rewriter) const override {
-    OslSymbolTable srcTable, dstTable;
-
-    auto scop = createOpenScopFromFuncOp(funcOp, srcTable);
-    if (!scop) {
-      funcOp.emitError(
-          "Cannot emit a valid OpenScop representation from the given FuncOp.");
-      return failure();
-    }
-
-    // TODO: remove this line.
-    // scop->print();
-
-    auto moduleOp = dyn_cast<mlir::ModuleOp>(funcOp.getParentOp());
-
-    // TODO: remove the root update pairs.
-    auto newFuncOp = createFuncOpFromOpenScop(std::move(scop), moduleOp,
-                                              dstTable, rewriter.getContext());
-
-    BlockAndValueMapping mapping;
-    updateValueMapping(srcTable, dstTable, mapping);
-
-    SmallVector<StringRef, 8> stmtSymbols;
-    srcTable.getOpSetSymbols(stmtSymbols);
-    for (auto stmtSym : stmtSymbols) {
-      // The operation to be cloned.
-      auto srcOpSet = srcTable.getOpSet(stmtSym);
-      // The clone destination.
-      auto dstOpSet = dstTable.getOpSet(stmtSym);
-      auto dstOp = dstOpSet.get(0);
-
-      rewriter.setInsertionPoint(dstOp);
-
-      for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
-        rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
-
-      // rewriter.setInsertionPoint(dstOp);
-      // rewriter.clone(*srcOp, mapping);
-      rewriter.eraseOp(dstOp);
-      rewriter.eraseOp(dstOpSet.get(1));
-    }
-
-    // TODO: remove the callee function/update its function body.
-
-    rewriter.eraseOp(funcOp);
-
-    return success();
+  auto scop = createOpenScopFromFuncOp(funcOp, srcTable);
+  if (!scop) {
+    funcOp.emitError(
+        "Cannot emit a valid OpenScop representation from the given FuncOp.");
+    return failure();
   }
-};
 
+  // TODO: remove this line.
+  // scop->print();
+
+  auto moduleOp = dyn_cast<mlir::ModuleOp>(funcOp.getParentOp());
+
+  // TODO: remove the root update pairs.
+  createFuncOpFromOpenScop(std::move(scop), moduleOp, dstTable,
+                           rewriter.getContext());
+
+  BlockAndValueMapping mapping;
+  updateValueMapping(srcTable, dstTable, mapping);
+
+  SmallVector<StringRef, 8> stmtSymbols;
+  srcTable.getOpSetSymbols(stmtSymbols);
+  for (auto stmtSym : stmtSymbols) {
+    // The operation to be cloned.
+    auto srcOpSet = srcTable.getOpSet(stmtSym);
+    // The clone destination.
+    auto dstOpSet = dstTable.getOpSet(stmtSym);
+    auto dstOp = dstOpSet.get(0);
+
+    rewriter.setInsertionPoint(dstOp);
+
+    for (unsigned i = 0, e = srcOpSet.size(); i < e; i++)
+      rewriter.clone(*(srcOpSet.get(e - i - 1)), mapping);
+
+    // rewriter.setInsertionPoint(dstOp);
+    // rewriter.clone(*srcOp, mapping);
+    dstOp->erase();
+    dstOpSet.get(1)->erase();
+  }
+
+  // TODO: remove the callee function/update its function body.
+
+  funcOp.erase();
+
+  return success();
+}
+
+namespace {
 class InvariantScopTransformPass
     : public mlir::PassWrapper<InvariantScopTransformPass,
                                OperationPass<mlir::ModuleOp>> {
 public:
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
+    mlir::OpBuilder b(m.getContext());
 
-    ConversionTarget target(getContext());
-    target.addLegalDialect<StandardOpsDialect, mlir::AffineDialect>();
+    SmallVector<mlir::FuncOp, 8> funcOps;
+    m.walk([&](mlir::FuncOp f) {
+      if (!f.getAttr("scop.stmt"))
+        funcOps.push_back(f);
+    });
 
-    OwningRewritePatternList patterns;
-    patterns.insert<InvariantScop>(m.getContext());
-
-    if (failed(applyPartialConversion(m, target, patterns)))
-      signalPassFailure();
+    for (mlir::FuncOp f : funcOps)
+      if (failed(invariantScopTransform(f, b)))
+        signalPassFailure();
   }
 };
 

@@ -1,19 +1,11 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<() -> (1)>
-#map4 = affine_map<()[s0, s1] -> (s0, s1)>
-#map5 = affine_map<()[s0] -> (s0, s0)>
-#map6 = affine_map<(d0) -> (d0 * 32)>
-#map7 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map8 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-#map9 = affine_map<(d0) -> (d0 + 1)>
-#map10 = affine_map<() -> (2)>
-
+#map0 = affine_map<(d0) -> (d0)>
+#map1 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map2 = affine_map<(d0) -> (d0 * 32)>
+#map3 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map4 = affine_map<(d0) -> (d0 + 1)>
 #set0 = affine_set<(d0) : (d0 == 0)>
 #set1 = affine_set<(d0) : (d0 - 1 >= 0)>
-
-module {
+module  {
   func @kernel_ludcmp(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg0 : i32 to index
@@ -26,16 +18,16 @@ module {
     %5 = alloca() : memref<1xf64>
     call @S3(%5, %0) : (memref<1xf64>, memref<1xf64>) -> ()
     affine.for %arg5 = 0 to %1 {
-      affine.for %arg6 = 0 to #map1(%arg5) {
+      affine.for %arg6 = 0 to #map0(%arg5) {
         call @S4(%0, %arg1, %arg5, %arg6) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg7 = 0 to #map1(%arg6) {
+        affine.for %arg7 = 0 to #map0(%arg6) {
           call @S5(%0, %arg1, %arg7, %arg6, %arg5, %2) : (memref<1xf64>, memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S6(%arg1, %arg5, %arg6, %3) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
       }
-      affine.for %arg6 = #map1(%arg5) to %1 {
+      affine.for %arg6 = #map0(%arg5) to %1 {
         call @S7(%0, %arg1, %arg5, %arg6) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
-        affine.for %arg7 = 0 to #map1(%arg5) {
+        affine.for %arg7 = 0 to #map0(%arg5) {
           call @S8(%0, %arg1, %arg7, %arg6, %arg5, %4) : (memref<1xf64>, memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
         call @S9(%arg1, %arg5, %arg6, %5) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
@@ -47,7 +39,7 @@ module {
     call @S11(%7, %0) : (memref<1xf64>, memref<1xf64>) -> ()
     affine.for %arg5 = 0 to %1 {
       call @S12(%0, %arg2, %arg5) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      affine.for %arg6 = 0 to #map1(%arg5) {
+      affine.for %arg6 = 0 to #map0(%arg5) {
         call @S13(%0, %arg4, %arg6, %arg1, %arg5, %6) : (memref<1xf64>, memref<2000xf64>, index, memref<2000x2000xf64>, index, memref<1xf64>) -> ()
       }
       call @S14(%arg4, %arg5, %7) : (memref<2000xf64>, index, memref<1xf64>) -> ()
@@ -199,8 +191,8 @@ module {
     %8 = alloca() : memref<1xf64>
     %9 = index_cast %arg0 : i32 to index
     call @S11(%8, %7) : (memref<1xf64>, memref<1xf64>) -> ()
-    affine.for %arg5 = 0 to #map8()[%9] {
-      affine.for %arg6 = #map6(%arg5) to min #map7(%arg5)[%9] {
+    affine.for %arg5 = 0 to #map1()[%9] {
+      affine.for %arg6 = #map2(%arg5) to min #map3(%arg5)[%9] {
         call @S14(%arg4, %arg6, %8) : (memref<2000xf64>, index, memref<1xf64>) -> ()
       }
     }
@@ -210,7 +202,7 @@ module {
     call @S12(%7, %arg2, %c0) : (memref<1xf64>, memref<2000xf64>, index) -> ()
     affine.for %arg5 = 1 to %9 {
       call @S12(%7, %arg2, %arg5) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      affine.for %arg6 = 0 to #map1(%arg5) {
+      affine.for %arg6 = 0 to #map0(%arg5) {
         call @S13(%7, %arg4, %arg5, %arg1, %arg6, %6) : (memref<1xf64>, memref<2000xf64>, index, memref<2000x2000xf64>, index, memref<1xf64>) -> ()
       }
     }
@@ -224,14 +216,14 @@ module {
       affine.if #set1(%arg5) {
         call @S17(%7, %arg4, %arg5) : (memref<1xf64>, memref<2000xf64>, index) -> ()
       }
-      affine.for %arg6 = 1 to #map1(%arg5) {
+      affine.for %arg6 = 1 to #map0(%arg5) {
         call @S18(%7, %arg3, %arg5, %arg1, %arg6, %2) : (memref<1xf64>, memref<2000xf64>, index, memref<2000x2000xf64>, index, memref<1xf64>) -> ()
       }
       affine.if #set1(%arg5) {
         call @S18(%7, %arg3, %arg5, %arg1, %arg5, %2) : (memref<1xf64>, memref<2000xf64>, index, memref<2000x2000xf64>, index, memref<1xf64>) -> ()
         call @S19(%arg3, %arg5, %arg1, %3) : (memref<2000xf64>, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
       }
-      affine.for %arg6 = #map9(%arg5) to %9 {
+      affine.for %arg6 = #map4(%arg5) to %9 {
         call @S18(%7, %arg3, %arg5, %arg1, %arg6, %2) : (memref<1xf64>, memref<2000xf64>, index, memref<2000x2000xf64>, index, memref<1xf64>) -> ()
       }
     }
@@ -251,17 +243,17 @@ module {
     affine.for %arg5 = 2 to %9 {
       call @S4(%7, %arg1, %arg5, %c0) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
       call @S6(%arg1, %arg5, %c0, %5) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
-      affine.for %arg6 = 1 to #map1(%arg5) {
+      affine.for %arg6 = 1 to #map0(%arg5) {
         call @S4(%7, %arg1, %arg5, %arg6) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
         call @S6(%arg1, %arg5, %arg6, %5) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
-        affine.for %arg7 = 0 to #map1(%arg6) {
+        affine.for %arg7 = 0 to #map0(%arg6) {
           call @S5(%7, %arg1, %arg5, %arg6, %arg7, %4) : (memref<1xf64>, memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
       }
-      affine.for %arg6 = #map1(%arg5) to %9 {
+      affine.for %arg6 = #map0(%arg5) to %9 {
         call @S7(%7, %arg1, %arg5, %arg6) : (memref<1xf64>, memref<2000x2000xf64>, index, index) -> ()
         call @S9(%arg1, %arg5, %arg6, %1) : (memref<2000x2000xf64>, index, index, memref<1xf64>) -> ()
-        affine.for %arg7 = 0 to #map1(%arg5) {
+        affine.for %arg7 = 0 to #map0(%arg5) {
           call @S8(%7, %arg1, %arg5, %arg6, %arg7, %0) : (memref<1xf64>, memref<2000x2000xf64>, index, index, index, memref<1xf64>) -> ()
         }
       }
@@ -269,3 +261,4 @@ module {
     return
   }
 }
+

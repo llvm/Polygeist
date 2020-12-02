@@ -46,16 +46,10 @@ static llvm::cl::opt<bool> verifyDiagnostics(
 
 int main(int argc, char *argv[]) {
   llvm::InitLLVM y(argc, argv);
-  enableGlobalDialectRegistry(true);
 
   // Register MLIR stuff.
   registerAsmPrinterCLOptions();
   registerMLIRContextCLOptions();
-
-  registerDialect<mlir::StandardOpsDialect>();
-  registerDialect<mlir::AffineDialect>();
-  registerDialect<mlir::scf::SCFDialect>();
-  registerDialect<mlir::LLVM::LLVMDialect>();
 
   // Register translation.
   registerToOpenScopTranslation();
@@ -86,6 +80,8 @@ int main(int argc, char *argv[]) {
   auto processBuffer = [&](std::unique_ptr<llvm::MemoryBuffer> ownedBuffer,
                            raw_ostream &os) {
     MLIRContext context;
+    context.loadDialect<mlir::StandardOpsDialect, mlir::AffineDialect,
+                        mlir::scf::SCFDialect, mlir::LLVM::LLVMDialect>();
 
     // Nothing here is threaded.  Disable synchronization overhead.
     context.disableMultithreading();

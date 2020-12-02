@@ -1,18 +1,12 @@
-#map0 = affine_map<() -> (0)>
-#map1 = affine_map<(d0) -> (d0)>
-#map2 = affine_map<()[s0] -> (s0)>
-#map3 = affine_map<(d0, d1) -> (d0, d1)>
-#map4 = affine_map<(d0) -> (d0, d0)>
-
-
-module {
+#map = affine_map<(d0) -> (d0)>
+module  {
   func @kernel_trisolv(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg4 = 0 to %0 {
       call @S0(%arg2, %arg4, %arg3) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
       %1 = alloca() : memref<1xf64>
       call @S1(%1, %arg2, %arg4) : (memref<1xf64>, memref<2000xf64>, index) -> ()
-      affine.for %arg5 = 0 to #map1(%arg4) {
+      affine.for %arg5 = 0 to #map(%arg4) {
         call @S2(%arg2, %arg4, %arg5, %arg1, %1) : (memref<2000xf64>, index, index, memref<2000x2000xf64>, memref<1xf64>) -> ()
       }
       call @S3(%arg2, %arg4, %arg1) : (memref<2000xf64>, index, memref<2000x2000xf64>) -> ()
@@ -46,3 +40,4 @@ module {
     return
   }
 }
+
