@@ -275,7 +275,7 @@ void OslScop::addGeneric(int target, llvm::StringRef tag,
 
   // Add content
   char *buf;
-  OSL_malloc(buf, char *, content.size() * sizeof(char));
+  OSL_malloc(buf, char *, (content.size() * sizeof(char) + 10));
   OSL_strdup(buf, content.data());
   generic->data = interface->sread(&buf);
 

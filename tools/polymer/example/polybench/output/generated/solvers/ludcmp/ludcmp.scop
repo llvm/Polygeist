@@ -966,10 +966,10 @@ c1 c2 c3 c4 c5 c6 c7
 # Number of arrays
 13
 # Mapping array-identifiers/array-names
-11 A11
 10 A10
-13 A13
 12 A12
+11 A11
+13 A13
 9 A9
 1 A1
 2 A2

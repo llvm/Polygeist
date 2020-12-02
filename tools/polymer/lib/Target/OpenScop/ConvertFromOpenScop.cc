@@ -583,7 +583,6 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
   // If the comment is provided, we will use it as the function name.
   // TODO: make sure it is safe.
   osl_generic_p comment = scop->getExtension("comment");
-  // drop_front because the first char is \0A, no idea why.
   if (comment) {
     char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
     funcName = llvm::StringRef(commentStr);

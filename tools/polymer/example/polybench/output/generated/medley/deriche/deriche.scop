@@ -1845,16 +1845,16 @@ c1 c2 c3 c4 c5
 # Number of arrays
 24
 # Mapping array-identifiers/array-names
-12 A12
+10 A10
 14 A14
-15 A15
+12 A12
 16 A16
 11 A11
-17 A17
-19 A19
-10 A10
 18 A18
 13 A13
+17 A17
+15 A15
+19 A19
 1 A1
 2 A2
 3 A3

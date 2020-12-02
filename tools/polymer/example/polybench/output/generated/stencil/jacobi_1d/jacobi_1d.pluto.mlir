@@ -44,7 +44,7 @@ module {
     affine.store %5, %arg0[symbol(%arg1)] : memref<2000xf64>
     return
   }
-  func @"kernel_jacobi_1d@v\1C\02_new"(%arg0: memref<2000xf64>, %arg1: memref<2000xf64>, %arg2: i32, %arg3: i32) {
+  func @kernel_jacobi_1d_new(%arg0: memref<2000xf64>, %arg1: memref<2000xf64>, %arg2: i32, %arg3: i32) {
     %0 = index_cast %arg3 : i32 to index
     %1 = index_cast %arg2 : i32 to index
     affine.for %arg4 = 0 to %1 {
