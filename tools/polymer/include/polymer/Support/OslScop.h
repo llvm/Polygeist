@@ -13,6 +13,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <map>
+#include <string>
 #include <vector>
 
 struct osl_scop;
@@ -39,7 +41,7 @@ public:
   using SymbolTable = llvm::StringMap<mlir::Value>;
   using ValueTable = llvm::DenseMap<mlir::Value, std::string>;
   using MemRefToId = llvm::DenseMap<mlir::Value, unsigned>;
-  using ScopStmtMap = llvm::StringMap<ScopStmt>;
+  using ScopStmtMap = std::map<std::string, ScopStmt>;
 
   OslScop();
   OslScop(osl_scop *scop);

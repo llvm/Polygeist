@@ -28,7 +28,7 @@ for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
 
   "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" >/dev/null
   # The optimization command
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -pluto-opt -cse "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.pluto.mlir" >/dev/null
+  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -pluto-opt -canonicalize "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.pluto.mlir" >/dev/null
 
   # Report
   EXIT_STATUS="${PIPESTATUS[0]}"

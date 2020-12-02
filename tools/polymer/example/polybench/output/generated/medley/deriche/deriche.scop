@@ -24,114 +24,64 @@ P0 P1
 
 # =============================================== Statement 1
 # Number of relations describing the statement:
-6
+3
 
 # ----------------------------------------------  1.1 Domain
 DOMAIN
-4 6 2 0 0 2
-# e/i| i2   i3 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i2 >= 0
-   1   -1    0    1    0   -1    ## -i2+P0-1 >= 0
-   1    0    1    0    0    0    ## i3 >= 0
-   1    0   -1    0    1   -1    ## -i3+P1-1 >= 0
+0 4 0 0 0 2
 
 # ----------------------------------------------  1.2 Scattering
 SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i2   i3 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    0    ## c1 == 0
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i2
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i3
-   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0    0    ## c1 == 0
 
 # ----------------------------------------------  1.3 Access
-READ
-2 8 2 2 0 2
-# e/i| Arr  [1]| i2   i3 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -1    ## Arr == A1
-
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i2
-   0    0    0    1    0   -1    0    0    0    ## [2] == i3
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
-
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i2
-   0    0    0    1    0   -1    0    0    0    ## [2] == i3
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
-
 WRITE
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i2
-   0    0    0    1    0   -1    0    0    0    ## [2] == i3
-   0    1    0    0    0    0    0    0   -4    ## Arr == A4
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -1    ## Arr == A1
 
 # ----------------------------------------------  1.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-2
-# List of original iterators
-i2 i3
+0
 # Statement body expression
-S43(i2, i3)
+S0()
 </body>
 
 # =============================================== Statement 2
 # Number of relations describing the statement:
-4
+3
 
 # ----------------------------------------------  2.1 Domain
 DOMAIN
-4 6 2 0 0 2
-# e/i| i0   i1 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i0 >= 0
-   1   -1    0    1    0   -1    ## -i0+P0-1 >= 0
-   1    0    1    0    0    0    ## i1 >= 0
-   1    0   -1    0    1   -1    ## -i1+P1-1 >= 0
+0 4 0 0 0 2
 
 # ----------------------------------------------  2.2 Scattering
 SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i0   i1 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    1    ## c1 == 1
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i0
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i1
-   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0    1    ## c1 == 1
 
 # ----------------------------------------------  2.3 Access
-READ
-2 8 2 2 0 2
-# e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -5    ## Arr == A5
-
 WRITE
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i1
-   0    0    0    1   -1    0    0    0    0    ## [2] == i0
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -2    ## Arr == A2
 
 # ----------------------------------------------  2.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-2
-# List of original iterators
-i0 i1
+0
 # Statement body expression
-S40(i0, i1)
+S1()
 </body>
 
 # =============================================== Statement 3
@@ -151,25 +101,25 @@ DOMAIN
 SCATTERING
 5 11 5 2 0 2
 # e/i| c1   c2   c3   c4   c5 | i0   i1 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    1    ## c1 == 1
+   0   -1    0    0    0    0    0    0    0    0    2    ## c1 == 2
    0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i0
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
    0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i1
-   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
+   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
 # ----------------------------------------------  3.3 Access
 READ
 3 9 3 2 0 2
 # e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i1
-   0    0    0    1   -1    0    0    0    0    ## [2] == i0
-   0    1    0    0    0    0    0    0   -4    ## Arr == A4
+   0    0    1    0   -1    0    0    0    0    ## [1] == i0
+   0    0    0    1    0   -1    0    0    0    ## [2] == i1
+   0    1    0    0    0    0    0    0   -3    ## Arr == A3
 
 WRITE
 2 8 2 2 0 2
 # e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -6    ## Arr == A6
+   0    1    0    0    0    0    0   -4    ## Arr == A4
 
 # ----------------------------------------------  3.4 Statement Extensions
 # Number of Statement Extensions
@@ -180,7 +130,7 @@ WRITE
 # List of original iterators
 i0 i1
 # Statement body expression
-S41(i0, i1)
+S10(i0, i1)
 </body>
 
 # =============================================== Statement 4
@@ -190,35 +140,35 @@ S41(i0, i1)
 # ----------------------------------------------  4.1 Domain
 DOMAIN
 4 6 2 0 0 2
-# e/i| i8   i9 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i8 >= 0
-   1   -1    0    1    0   -1    ## -i8+P0-1 >= 0
-   1    0    1    0    0    0    ## i9 >= 0
-   1    0   -1    0    1   -1    ## -i9+P1-1 >= 0
+# e/i| i0   i1 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i0 >= 0
+   1   -1    0    1    0   -1    ## -i0+P0-1 >= 0
+   1    0    1    0    0    0    ## i1 >= 0
+   1    0   -1    0    1   -1    ## -i1+P1-1 >= 0
 
 # ----------------------------------------------  4.2 Scattering
 SCATTERING
 5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i8   i9 | P0   P1 |  1  
+# e/i| c1   c2   c3   c4   c5 | i0   i1 | P0   P1 |  1  
    0   -1    0    0    0    0    0    0    0    0    2    ## c1 == 2
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i8
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i0
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i9
-   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i1
+   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
 
 # ----------------------------------------------  4.3 Access
 READ
 3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i8
-   0    0    0    1    0   -1    0    0    0    ## [2] == i9
-   0    1    0    0    0    0    0    0   -7    ## Arr == A7
+# e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i0
+   0    0    0    1    0   -1    0    0    0    ## [2] == i1
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
 
 WRITE
 2 8 2 2 0 2
-# e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
+# e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -8    ## Arr == A8
+   0    1    0    0    0    0    0   -6    ## Arr == A6
 
 # ----------------------------------------------  4.4 Statement Extensions
 # Number of Statement Extensions
@@ -227,58 +177,40 @@ WRITE
 # Number of original iterators
 2
 # List of original iterators
-i8 i9
+i0 i1
 # Statement body expression
-S10(i8, i9)
+S11(i0, i1)
 </body>
 
 # =============================================== Statement 5
 # Number of relations describing the statement:
-4
+3
 
 # ----------------------------------------------  5.1 Domain
 DOMAIN
-4 6 2 0 0 2
-# e/i| i8   i9 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i8 >= 0
-   1   -1    0    1    0   -1    ## -i8+P0-1 >= 0
-   1    0    1    0    0    0    ## i9 >= 0
-   1    0   -1    0    1   -1    ## -i9+P1-1 >= 0
+0 4 0 0 0 2
 
 # ----------------------------------------------  5.2 Scattering
 SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i8   i9 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    2    ## c1 == 2
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i8
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i9
-   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0    3    ## c1 == 3
 
 # ----------------------------------------------  5.3 Access
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i8
-   0    0    0    1    0   -1    0    0    0    ## [2] == i9
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
-
 WRITE
-2 8 2 2 0 2
-# e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -9    ## Arr == A9
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -7    ## Arr == A7
 
 # ----------------------------------------------  5.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-2
-# List of original iterators
-i8 i9
+0
 # Statement body expression
-S11(i8, i9)
+S12()
 </body>
 
 # =============================================== Statement 6
@@ -293,14 +225,14 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    3    ## c1 == 3
+   0   -1    0    0    4    ## c1 == 4
 
 # ----------------------------------------------  6.3 Access
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -10    ## Arr == A10
+   0    1    0    0    0   -8    ## Arr == A8
 
 # ----------------------------------------------  6.4 Statement Extensions
 # Number of Statement Extensions
@@ -309,7 +241,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S12()
+S13()
 </body>
 
 # =============================================== Statement 7
@@ -324,14 +256,14 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    4    ## c1 == 4
+   0   -1    0    0    5    ## c1 == 5
 
 # ----------------------------------------------  7.3 Access
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
+   0    1    0    0    0   -9    ## Arr == A9
 
 # ----------------------------------------------  7.4 Statement Extensions
 # Number of Statement Extensions
@@ -340,7 +272,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S13()
+S14()
 </body>
 
 # =============================================== Statement 8
@@ -355,47 +287,16 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    5    ## c1 == 5
+   0   -1    0    0    6    ## c1 == 6
 
 # ----------------------------------------------  8.3 Access
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -12    ## Arr == A12
+   0    1    0    0    0  -10    ## Arr == A10
 
 # ----------------------------------------------  8.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-0
-# Statement body expression
-S14()
-</body>
-
-# =============================================== Statement 9
-# Number of relations describing the statement:
-3
-
-# ----------------------------------------------  9.1 Domain
-DOMAIN
-0 4 0 0 0 2
-
-# ----------------------------------------------  9.2 Scattering
-SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    6    ## c1 == 6
-
-# ----------------------------------------------  9.3 Access
-WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -13    ## Arr == A13
-
-# ----------------------------------------------  9.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
@@ -405,32 +306,26 @@ WRITE
 S15()
 </body>
 
-# =============================================== Statement 10
+# =============================================== Statement 9
 # Number of relations describing the statement:
 7
 
-# ---------------------------------------------- 10.1 Domain
+# ----------------------------------------------  9.1 Domain
 DOMAIN
 0 4 0 0 0 2
 
-# ---------------------------------------------- 10.2 Scattering
+# ----------------------------------------------  9.2 Scattering
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
    0   -1    0    0    7    ## c1 == 7
 
-# ---------------------------------------------- 10.3 Access
+# ----------------------------------------------  9.3 Access
 READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -12    ## Arr == A12
-
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -13    ## Arr == A13
+   0    1    0    0    0   -9    ## Arr == A9
 
 READ
 2 6 2 0 0 2
@@ -442,13 +337,56 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
+   0    1    0    0    0   -7    ## Arr == A7
+
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -8    ## Arr == A8
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -14    ## Arr == A14
+   0    1    0    0    0  -11    ## Arr == A11
+
+# ----------------------------------------------  9.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+0
+# Statement body expression
+S16()
+</body>
+
+# =============================================== Statement 10
+# Number of relations describing the statement:
+4
+
+# ---------------------------------------------- 10.1 Domain
+DOMAIN
+0 4 0 0 0 2
+
+# ---------------------------------------------- 10.2 Scattering
+SCATTERING
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0    8    ## c1 == 8
+
+# ---------------------------------------------- 10.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -9    ## Arr == A9
+
+WRITE
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -10    ## Arr == A10
 
 # ---------------------------------------------- 10.4 Statement Extensions
 # Number of Statement Extensions
@@ -457,7 +395,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S16()
+S17()
 </body>
 
 # =============================================== Statement 11
@@ -472,59 +410,22 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    8    ## c1 == 8
+   0   -1    0    0    9    ## c1 == 9
 
 # ---------------------------------------------- 11.3 Access
 READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -12    ## Arr == A12
+   0    1    0    0    0   -7    ## Arr == A7
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -13    ## Arr == A13
+   0    1    0    0    0   -8    ## Arr == A8
 
 # ---------------------------------------------- 11.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-0
-# Statement body expression
-S17()
-</body>
-
-# =============================================== Statement 12
-# Number of relations describing the statement:
-4
-
-# ---------------------------------------------- 12.1 Domain
-DOMAIN
-0 4 0 0 0 2
-
-# ---------------------------------------------- 12.2 Scattering
-SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0    9    ## c1 == 9
-
-# ---------------------------------------------- 12.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -10    ## Arr == A10
-
-WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
-
-# ---------------------------------------------- 12.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
@@ -534,53 +435,84 @@ WRITE
 S18()
 </body>
 
-# =============================================== Statement 13
+# =============================================== Statement 12
 # Number of relations describing the statement:
 4
 
-# ---------------------------------------------- 13.1 Domain
+# ---------------------------------------------- 12.1 Domain
 DOMAIN
 4 6 2 0 0 2
-# e/i| i10  i11| P0   P1 |  1  
-   1    1    0    0    0    0    ## i10 >= 0
-   1   -1    0    1    0   -1    ## -i10+P0-1 >= 0
-   1    0    1    0    0    0    ## i11 >= 0
-   1    0   -1    0    1   -1    ## -i11+P1-1 >= 0
+# e/i| i4   i5 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i4 >= 0
+   1   -1    0    1    0   -1    ## -i4+P0-1 >= 0
+   1    0    1    0    0    0    ## i5 >= 0
+   1    0   -1    0    1   -1    ## -i5+P1-1 >= 0
 
-# ---------------------------------------------- 13.2 Scattering
+# ---------------------------------------------- 12.2 Scattering
 SCATTERING
 5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
+# e/i| c1   c2   c3   c4   c5 | i4   i5 | P0   P1 |  1  
    0   -1    0    0    0    0    0    0    0    0   10    ## c1 == 10
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i4
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i5
    0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
-# ---------------------------------------------- 13.3 Access
+# ---------------------------------------------- 12.3 Access
 READ
 2 8 2 2 0 2
-# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
+# e/i| Arr  [1]| i4   i5 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -14    ## Arr == A14
+   0    1    0    0    0    0    0  -11    ## Arr == A11
 
 WRITE
 3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i10
-   0    0    0    1    0   -1    0    0    0    ## [2] == i11
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
+# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i4
+   0    0    0    1    0   -1    0    0    0    ## [2] == i5
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
 
-# ---------------------------------------------- 13.4 Statement Extensions
+# ---------------------------------------------- 12.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
 2
 # List of original iterators
-i10 i11
+i4 i5
 # Statement body expression
-S19(i10, i11)
+S19(i4, i5)
+</body>
+
+# =============================================== Statement 13
+# Number of relations describing the statement:
+3
+
+# ---------------------------------------------- 13.1 Domain
+DOMAIN
+0 4 0 0 0 2
+
+# ---------------------------------------------- 13.2 Scattering
+SCATTERING
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0   11    ## c1 == 11
+
+# ---------------------------------------------- 13.3 Access
+WRITE
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -6    ## Arr == A6
+
+# ---------------------------------------------- 13.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+0
+# Statement body expression
+S2()
 </body>
 
 # =============================================== Statement 14
@@ -590,33 +522,33 @@ S19(i10, i11)
 # ---------------------------------------------- 14.1 Domain
 DOMAIN
 4 6 2 0 0 2
-# e/i| i6   i7 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i6 >= 0
-   1   -1    0    1    0   -1    ## -i6+P0-1 >= 0
-   1    0    1    0    0    0    ## i7 >= 0
-   1    0   -1    0    1   -1    ## -i7+P1-1 >= 0
+# e/i| i4   i5 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i4 >= 0
+   1   -1    0    1    0   -1    ## -i4+P0-1 >= 0
+   1    0    1    0    0    0    ## i5 >= 0
+   1    0   -1    0    1   -1    ## -i5+P1-1 >= 0
 
 # ---------------------------------------------- 14.2 Scattering
 SCATTERING
 5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i6   i7 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   11    ## c1 == 11
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i6
+# e/i| c1   c2   c3   c4   c5 | i4   i5 | P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   10    ## c1 == 10
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i4
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i7
-   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i5
+   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
 
 # ---------------------------------------------- 14.3 Access
 READ
 3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i7
-   0    0    0    1   -1    0    0    0    0    ## [2] == i6
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
+# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i4
+   0    0    0    1    0   -1    0    0    0    ## [2] == i5
+   0    1    0    0    0    0    0    0   -3    ## Arr == A3
 
 WRITE
 2 8 2 2 0 2
-# e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
+# e/i| Arr  [1]| i4   i5 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
    0    1    0    0    0    0    0   -9    ## Arr == A9
 
@@ -627,45 +559,63 @@ WRITE
 # Number of original iterators
 2
 # List of original iterators
-i6 i7
+i4 i5
 # Statement body expression
-S32(i6, i7)
+S20(i4, i5)
 </body>
 
 # =============================================== Statement 15
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 15.1 Domain
 DOMAIN
-0 4 0 0 0 2
+4 6 2 0 0 2
+# e/i| i4   i5 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i4 >= 0
+   1   -1    0    1    0   -1    ## -i4+P0-1 >= 0
+   1    0    1    0    0    0    ## i5 >= 0
+   1    0   -1    0    1   -1    ## -i5+P1-1 >= 0
 
 # ---------------------------------------------- 15.2 Scattering
 SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   12    ## c1 == 12
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i4   i5 | P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   10    ## c1 == 10
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i4
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i5
+   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
 
 # ---------------------------------------------- 15.3 Access
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i4
+   0    0    0    1    0   -1    0    0    0    ## [2] == i5
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
+
 WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -6    ## Arr == A6
+2 8 2 2 0 2
+# e/i| Arr  [1]| i4   i5 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0   -7    ## Arr == A7
 
 # ---------------------------------------------- 15.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-0
+2
+# List of original iterators
+i4 i5
 # Statement body expression
-S33()
+S21(i4, i5)
 </body>
 
 # =============================================== Statement 16
 # Number of relations describing the statement:
-8
+6
 
 # ---------------------------------------------- 16.1 Domain
 DOMAIN
@@ -680,50 +630,39 @@ DOMAIN
 SCATTERING
 5 11 5 2 0 2
 # e/i| c1   c2   c3   c4   c5 | i6   i7 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   11    ## c1 == 11
+   0   -1    0    0    0    0    0    0    0    0   12    ## c1 == 12
    0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i6
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
    0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i7
-   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
+   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
 # ---------------------------------------------- 16.3 Access
 READ
 2 8 2 2 0 2
 # e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -15    ## Arr == A15
+   0    1    0    0    0    0    0   -2    ## Arr == A2
 
 READ
 3 9 3 2 0 2
 # e/i| Arr  [1]  [2]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i7
-   0    0    0    1   -1    0    0    0    0    ## [2] == i6
-   0    1    0    0    0    0    0    0   -4    ## Arr == A4
+   0    0    1    0   -1    0    0    0    0    ## [1] == i6
+   0    0    0    1    0   -1    0    0    0    ## [2] == i7
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
 
 READ
-2 8 2 2 0 2
-# e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -16    ## Arr == A16
-
-READ
-2 8 2 2 0 2
-# e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -17    ## Arr == A17
-
-READ
-2 8 2 2 0 2
-# e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -18    ## Arr == A18
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i6   i7 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i6
+   0    0    0    1    0   -1    0    0    0    ## [2] == i7
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
 
 WRITE
 3 9 3 2 0 2
 # e/i| Arr  [1]  [2]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i7
-   0    0    0    1   -1    0    0    0    0    ## [2] == i6
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
+   0    0    1    0   -1    0    0    0    0    ## [1] == i6
+   0    0    0    1    0   -1    0    0    0    ## [2] == i7
+   0    1    0    0    0    0    0    0  -13    ## Arr == A13
 
 # ---------------------------------------------- 16.4 Statement Extensions
 # Number of Statement Extensions
@@ -734,56 +673,38 @@ WRITE
 # List of original iterators
 i6 i7
 # Statement body expression
-S30(i6, i7)
+S22(i6, i7)
 </body>
 
 # =============================================== Statement 17
 # Number of relations describing the statement:
-4
+3
 
 # ---------------------------------------------- 17.1 Domain
 DOMAIN
-4 6 2 0 0 2
-# e/i| i6   i7 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i6 >= 0
-   1   -1    0    1    0   -1    ## -i6+P0-1 >= 0
-   1    0    1    0    0    0    ## i7 >= 0
-   1    0   -1    0    1   -1    ## -i7+P1-1 >= 0
+0 4 0 0 0 2
 
 # ---------------------------------------------- 17.2 Scattering
 SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i6   i7 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   11    ## c1 == 11
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i6
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i7
-   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0   13    ## c1 == 13
 
 # ---------------------------------------------- 17.3 Access
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i7
-   0    0    0    1   -1    0    0    0    0    ## [2] == i6
-   0    1    0    0    0    0    0    0   -4    ## Arr == A4
-
 WRITE
-2 8 2 2 0 2
-# e/i| Arr  [1]| i6   i7 | P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -19    ## Arr == A19
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -14    ## Arr == A14
 
 # ---------------------------------------------- 17.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-2
-# List of original iterators
-i6 i7
+0
 # Statement body expression
-S31(i6, i7)
+S23()
 </body>
 
 # =============================================== Statement 18
@@ -798,14 +719,14 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   13    ## c1 == 13
+   0   -1    0    0   14    ## c1 == 14
 
 # ---------------------------------------------- 18.3 Access
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
+   0    1    0    0    0   -6    ## Arr == A6
 
 # ---------------------------------------------- 18.4 Statement Extensions
 # Number of Statement Extensions
@@ -814,7 +735,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S36()
+S24()
 </body>
 
 # =============================================== Statement 19
@@ -829,7 +750,7 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   14    ## c1 == 14
+   0   -1    0    0   15    ## c1 == 15
 
 # ---------------------------------------------- 19.3 Access
 WRITE
@@ -845,12 +766,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S0()
+S25()
 </body>
 
 # =============================================== Statement 20
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 20.1 Domain
 DOMAIN
@@ -860,14 +781,20 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   15    ## c1 == 15
+   0   -1    0    0   16    ## c1 == 16
 
 # ---------------------------------------------- 20.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -14    ## Arr == A14
+
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -1    ## Arr == A1
+   0    1    0    0    0  -16    ## Arr == A16
 
 # ---------------------------------------------- 20.4 Statement Extensions
 # Number of Statement Extensions
@@ -876,12 +803,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S1()
+S26()
 </body>
 
 # =============================================== Statement 21
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 21.1 Domain
 DOMAIN
@@ -891,14 +818,20 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   16    ## c1 == 16
+   0   -1    0    0   17    ## c1 == 17
 
 # ---------------------------------------------- 21.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -6    ## Arr == A6
+
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
+   0    1    0    0    0  -17    ## Arr == A17
 
 # ---------------------------------------------- 21.4 Statement Extensions
 # Number of Statement Extensions
@@ -907,12 +840,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S2()
+S27()
 </body>
 
 # =============================================== Statement 22
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 22.1 Domain
 DOMAIN
@@ -922,14 +855,20 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   17    ## c1 == 17
+   0   -1    0    0   18    ## c1 == 18
 
 # ---------------------------------------------- 22.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -15    ## Arr == A15
+
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
+   0    1    0    0    0  -18    ## Arr == A18
 
 # ---------------------------------------------- 22.4 Statement Extensions
 # Number of Statement Extensions
@@ -938,12 +877,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S3()
+S28()
 </body>
 
 # =============================================== Statement 23
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 23.1 Domain
 DOMAIN
@@ -953,14 +892,20 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   18    ## c1 == 18
+   0   -1    0    0   19    ## c1 == 19
 
 # ---------------------------------------------- 23.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -6    ## Arr == A6
+
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -8    ## Arr == A8
+   0    1    0    0    0  -15    ## Arr == A15
 
 # ---------------------------------------------- 23.4 Statement Extensions
 # Number of Statement Extensions
@@ -969,12 +914,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S4()
+S29()
 </body>
 
 # =============================================== Statement 24
 # Number of relations describing the statement:
-4
+3
 
 # ---------------------------------------------- 24.1 Domain
 DOMAIN
@@ -984,20 +929,14 @@ DOMAIN
 SCATTERING
 1 5 1 0 0 2
 # e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   19    ## c1 == 19
+   0   -1    0    0   20    ## c1 == 20
 
 # ---------------------------------------------- 24.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -8    ## Arr == A8
-
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -21    ## Arr == A21
+   0    1    0    0    0  -15    ## Arr == A15
 
 # ---------------------------------------------- 24.4 Statement Extensions
 # Number of Statement Extensions
@@ -1006,125 +945,14 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S5()
+S3()
 </body>
 
 # =============================================== Statement 25
 # Number of relations describing the statement:
-4
-
-# ---------------------------------------------- 25.1 Domain
-DOMAIN
-0 4 0 0 0 2
-
-# ---------------------------------------------- 25.2 Scattering
-SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   20    ## c1 == 20
-
-# ---------------------------------------------- 25.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
-
-WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -22    ## Arr == A22
-
-# ---------------------------------------------- 25.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-0
-# Statement body expression
-S6()
-</body>
-
-# =============================================== Statement 26
-# Number of relations describing the statement:
-4
-
-# ---------------------------------------------- 26.1 Domain
-DOMAIN
-0 4 0 0 0 2
-
-# ---------------------------------------------- 26.2 Scattering
-SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   21    ## c1 == 21
-
-# ---------------------------------------------- 26.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
-
-WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -23    ## Arr == A23
-
-# ---------------------------------------------- 26.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-0
-# Statement body expression
-S7()
-</body>
-
-# =============================================== Statement 27
-# Number of relations describing the statement:
-4
-
-# ---------------------------------------------- 27.1 Domain
-DOMAIN
-0 4 0 0 0 2
-
-# ---------------------------------------------- 27.2 Scattering
-SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   22    ## c1 == 22
-
-# ---------------------------------------------- 27.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
-
-WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
-
-# ---------------------------------------------- 27.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-0
-# Statement body expression
-S8()
-</body>
-
-# =============================================== Statement 28
-# Number of relations describing the statement:
 8
 
-# ---------------------------------------------- 28.1 Domain
+# ---------------------------------------------- 25.1 Domain
 DOMAIN
 4 6 2 0 0 2
 # e/i| i8   i9 | P0   P1 |  1  
@@ -1133,56 +961,56 @@ DOMAIN
    1    0    1    0    0    0    ## i9 >= 0
    1    0   -1    0    1   -1    ## -i9+P1-1 >= 0
 
-# ---------------------------------------------- 28.2 Scattering
+# ---------------------------------------------- 25.2 Scattering
 SCATTERING
 5 11 5 2 0 2
 # e/i| c1   c2   c3   c4   c5 | i8   i9 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    2    ## c1 == 2
+   0   -1    0    0    0    0    0    0    0    0   21    ## c1 == 21
    0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i8
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
    0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i9
-   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
+   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
-# ---------------------------------------------- 28.3 Access
+# ---------------------------------------------- 25.3 Access
 READ
 2 8 2 2 0 2
 # e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -15    ## Arr == A15
+   0    1    0    0    0    0    0   -1    ## Arr == A1
 
 READ
 3 9 3 2 0 2
 # e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i8
-   0    0    0    1    0   -1    0    0    0    ## [2] == i9
-   0    1    0    0    0    0    0    0   -7    ## Arr == A7
+   0    0    1    0    0   -1    0    0    0    ## [1] == i9
+   0    0    0    1   -1    0    0    0    0    ## [2] == i8
+   0    1    0    0    0    0    0    0  -13    ## Arr == A13
 
 READ
 2 8 2 2 0 2
 # e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -21    ## Arr == A21
+   0    1    0    0    0    0    0  -16    ## Arr == A16
 
 READ
 2 8 2 2 0 2
 # e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -22    ## Arr == A22
+   0    1    0    0    0    0    0  -17    ## Arr == A17
 
 READ
 2 8 2 2 0 2
 # e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -23    ## Arr == A23
+   0    1    0    0    0    0    0  -18    ## Arr == A18
 
 WRITE
 3 9 3 2 0 2
 # e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i8
-   0    0    0    1    0   -1    0    0    0    ## [2] == i9
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
+   0    0    1    0    0   -1    0    0    0    ## [1] == i9
+   0    0    0    1   -1    0    0    0    0    ## [2] == i8
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
 
-# ---------------------------------------------- 28.4 Statement Extensions
+# ---------------------------------------------- 25.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
@@ -1191,12 +1019,141 @@ WRITE
 # List of original iterators
 i8 i9
 # Statement body expression
-S9(i8, i9)
+S30(i8, i9)
+</body>
+
+# =============================================== Statement 26
+# Number of relations describing the statement:
+4
+
+# ---------------------------------------------- 26.1 Domain
+DOMAIN
+4 6 2 0 0 2
+# e/i| i8   i9 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i8 >= 0
+   1   -1    0    1    0   -1    ## -i8+P0-1 >= 0
+   1    0    1    0    0    0    ## i9 >= 0
+   1    0   -1    0    1   -1    ## -i9+P1-1 >= 0
+
+# ---------------------------------------------- 26.2 Scattering
+SCATTERING
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i8   i9 | P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   21    ## c1 == 21
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i8
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i9
+   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
+
+# ---------------------------------------------- 26.3 Access
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
+   0    0    1    0    0   -1    0    0    0    ## [1] == i9
+   0    0    0    1   -1    0    0    0    0    ## [2] == i8
+   0    1    0    0    0    0    0    0  -13    ## Arr == A13
+
+WRITE
+2 8 2 2 0 2
+# e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0  -14    ## Arr == A14
+
+# ---------------------------------------------- 26.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+2
+# List of original iterators
+i8 i9
+# Statement body expression
+S31(i8, i9)
+</body>
+
+# =============================================== Statement 27
+# Number of relations describing the statement:
+4
+
+# ---------------------------------------------- 27.1 Domain
+DOMAIN
+4 6 2 0 0 2
+# e/i| i8   i9 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i8 >= 0
+   1   -1    0    1    0   -1    ## -i8+P0-1 >= 0
+   1    0    1    0    0    0    ## i9 >= 0
+   1    0   -1    0    1   -1    ## -i9+P1-1 >= 0
+
+# ---------------------------------------------- 27.2 Scattering
+SCATTERING
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i8   i9 | P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   21    ## c1 == 21
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i8
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i9
+   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
+
+# ---------------------------------------------- 27.3 Access
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i8   i9 | P0   P1 |  1  
+   0    0    1    0    0   -1    0    0    0    ## [1] == i9
+   0    0    0    1   -1    0    0    0    0    ## [2] == i8
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
+
+WRITE
+2 8 2 2 0 2
+# e/i| Arr  [1]| i8   i9 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0   -6    ## Arr == A6
+
+# ---------------------------------------------- 27.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+2
+# List of original iterators
+i8 i9
+# Statement body expression
+S32(i8, i9)
+</body>
+
+# =============================================== Statement 28
+# Number of relations describing the statement:
+3
+
+# ---------------------------------------------- 28.1 Domain
+DOMAIN
+0 4 0 0 0 2
+
+# ---------------------------------------------- 28.2 Scattering
+SCATTERING
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0   22    ## c1 == 22
+
+# ---------------------------------------------- 28.3 Access
+WRITE
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -19    ## Arr == A19
+
+# ---------------------------------------------- 28.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+0
+# Statement body expression
+S33()
 </body>
 
 # =============================================== Statement 29
 # Number of relations describing the statement:
-4
+3
 
 # ---------------------------------------------- 29.1 Domain
 DOMAIN
@@ -1209,17 +1166,11 @@ SCATTERING
    0   -1    0    0   23    ## c1 == 23
 
 # ---------------------------------------------- 29.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -6    ## Arr == A6
-
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -24    ## Arr == A24
+   0    1    0    0    0  -20    ## Arr == A20
 
 # ---------------------------------------------- 29.4 Statement Extensions
 # Number of Statement Extensions
@@ -1228,12 +1179,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S38()
+S34()
 </body>
 
 # =============================================== Statement 30
 # Number of relations describing the statement:
-4
+3
 
 # ---------------------------------------------- 30.1 Domain
 DOMAIN
@@ -1246,17 +1197,11 @@ SCATTERING
    0   -1    0    0   24    ## c1 == 24
 
 # ---------------------------------------------- 30.3 Access
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -10    ## Arr == A10
-
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
+   0    1    0    0    0   -7    ## Arr == A7
 
 # ---------------------------------------------- 30.4 Statement Extensions
 # Number of Statement Extensions
@@ -1265,7 +1210,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S39()
+S35()
 </body>
 
 # =============================================== Statement 31
@@ -1287,7 +1232,7 @@ WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -24    ## Arr == A24
+   0    1    0    0    0   -8    ## Arr == A8
 
 # ---------------------------------------------- 31.4 Statement Extensions
 # Number of Statement Extensions
@@ -1296,12 +1241,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S34()
+S36()
 </body>
 
 # =============================================== Statement 32
 # Number of relations describing the statement:
-3
+7
 
 # ---------------------------------------------- 32.1 Domain
 DOMAIN
@@ -1314,11 +1259,35 @@ SCATTERING
    0   -1    0    0   26    ## c1 == 26
 
 # ---------------------------------------------- 32.3 Access
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -19    ## Arr == A19
+
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0  -20    ## Arr == A20
+
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -7    ## Arr == A7
+
+READ
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -8    ## Arr == A8
+
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -10    ## Arr == A10
+   0    1    0    0    0  -21    ## Arr == A21
 
 # ---------------------------------------------- 32.4 Statement Extensions
 # Number of Statement Extensions
@@ -1327,12 +1296,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S35()
+S37()
 </body>
 
 # =============================================== Statement 33
 # Number of relations describing the statement:
-7
+4
 
 # ---------------------------------------------- 33.1 Domain
 DOMAIN
@@ -1349,31 +1318,13 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -6    ## Arr == A6
-
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -24    ## Arr == A24
-
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -10    ## Arr == A10
-
-READ
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -11    ## Arr == A11
+   0    1    0    0    0  -19    ## Arr == A19
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -5    ## Arr == A5
+   0    1    0    0    0  -20    ## Arr == A20
 
 # ---------------------------------------------- 33.4 Statement Extensions
 # Number of Statement Extensions
@@ -1382,7 +1333,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S37()
+S38()
 </body>
 
 # =============================================== Statement 34
@@ -1391,54 +1342,73 @@ S37()
 
 # ---------------------------------------------- 34.1 Domain
 DOMAIN
-4 6 2 0 0 2
-# e/i| i10  i11| P0   P1 |  1  
-   1    1    0    0    0    0    ## i10 >= 0
-   1   -1    0    1    0   -1    ## -i10+P0-1 >= 0
-   1    0    1    0    0    0    ## i11 >= 0
-   1    0   -1    0    1   -1    ## -i11+P1-1 >= 0
+0 4 0 0 0 2
 
 # ---------------------------------------------- 34.2 Scattering
 SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   10    ## c1 == 10
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
-   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0   28    ## c1 == 28
 
 # ---------------------------------------------- 34.3 Access
 READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i10
-   0    0    0    1    0   -1    0    0    0    ## [2] == i11
-   0    1    0    0    0    0    0    0   -7    ## Arr == A7
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -7    ## Arr == A7
 
 WRITE
-2 8 2 2 0 2
-# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -12    ## Arr == A12
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -8    ## Arr == A8
 
 # ---------------------------------------------- 34.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-2
-# List of original iterators
-i10 i11
+0
 # Statement body expression
-S20(i10, i11)
+S39()
 </body>
 
 # =============================================== Statement 35
 # Number of relations describing the statement:
-4
+3
 
 # ---------------------------------------------- 35.1 Domain
+DOMAIN
+0 4 0 0 0 2
+
+# ---------------------------------------------- 35.2 Scattering
+SCATTERING
+1 5 1 0 0 2
+# e/i| c1 | P0   P1 |  1  
+   0   -1    0    0   29    ## c1 == 29
+
+# ---------------------------------------------- 35.3 Access
+WRITE
+2 6 2 0 0 2
+# e/i| Arr  [1]| P0   P1 |  1  
+   0    0    1    0    0    0    ## [1] == 0
+   0    1    0    0    0   -4    ## Arr == A4
+
+# ---------------------------------------------- 35.4 Statement Extensions
+# Number of Statement Extensions
+1
+<body>
+# Number of original iterators
+0
+# Statement body expression
+S4()
+</body>
+
+# =============================================== Statement 36
+# Number of relations describing the statement:
+4
+
+# ---------------------------------------------- 36.1 Domain
 DOMAIN
 4 6 2 0 0 2
 # e/i| i10  i11| P0   P1 |  1  
@@ -1447,92 +1417,29 @@ DOMAIN
    1    0    1    0    0    0    ## i11 >= 0
    1    0   -1    0    1   -1    ## -i11+P1-1 >= 0
 
-# ---------------------------------------------- 35.2 Scattering
-SCATTERING
-5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   10    ## c1 == 10
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
-   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
-   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
-
-# ---------------------------------------------- 35.3 Access
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i10
-   0    0    0    1    0   -1    0    0    0    ## [2] == i11
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
-
-WRITE
-2 8 2 2 0 2
-# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
-   0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -10    ## Arr == A10
-
-# ---------------------------------------------- 35.4 Statement Extensions
-# Number of Statement Extensions
-1
-<body>
-# Number of original iterators
-2
-# List of original iterators
-i10 i11
-# Statement body expression
-S21(i10, i11)
-</body>
-
-# =============================================== Statement 36
-# Number of relations describing the statement:
-6
-
-# ---------------------------------------------- 36.1 Domain
-DOMAIN
-4 6 2 0 0 2
-# e/i| i4   i5 | P0   P1 |  1  
-   1    1    0    0    0    0    ## i4 >= 0
-   1   -1    0    1    0   -1    ## -i4+P0-1 >= 0
-   1    0    1    0    0    0    ## i5 >= 0
-   1    0   -1    0    1   -1    ## -i5+P1-1 >= 0
-
 # ---------------------------------------------- 36.2 Scattering
 SCATTERING
 5 11 5 2 0 2
-# e/i| c1   c2   c3   c4   c5 | i4   i5 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0   28    ## c1 == 28
-   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i4
+# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   30    ## c1 == 30
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
-   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i5
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
    0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
 # ---------------------------------------------- 36.3 Access
 READ
 2 8 2 2 0 2
-# e/i| Arr  [1]| i4   i5 | P0   P1 |  1  
+# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0   -1    ## Arr == A1
-
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i4
-   0    0    0    1    0   -1    0    0    0    ## [2] == i5
-   0    1    0    0    0    0    0    0   -2    ## Arr == A2
-
-READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i4
-   0    0    0    1    0   -1    0    0    0    ## [2] == i5
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
+   0    1    0    0    0    0    0  -21    ## Arr == A21
 
 WRITE
 3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i4   i5 | P0   P1 |  1  
-   0    0    1    0   -1    0    0    0    0    ## [1] == i4
-   0    0    0    1    0   -1    0    0    0    ## [2] == i5
-   0    1    0    0    0    0    0    0   -4    ## Arr == A4
+# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
+   0    0    1    0    0   -1    0    0    0    ## [1] == i11
+   0    0    0    1   -1    0    0    0    0    ## [2] == i10
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
 
 # ---------------------------------------------- 36.4 Statement Extensions
 # Number of Statement Extensions
@@ -1541,102 +1448,170 @@ WRITE
 # Number of original iterators
 2
 # List of original iterators
-i4 i5
+i10 i11
 # Statement body expression
-S22(i4, i5)
+S40(i10, i11)
 </body>
 
 # =============================================== Statement 37
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 37.1 Domain
 DOMAIN
-0 4 0 0 0 2
+4 6 2 0 0 2
+# e/i| i10  i11| P0   P1 |  1  
+   1    1    0    0    0    0    ## i10 >= 0
+   1   -1    0    1    0   -1    ## -i10+P0-1 >= 0
+   1    0    1    0    0    0    ## i11 >= 0
+   1    0   -1    0    1   -1    ## -i11+P1-1 >= 0
 
 # ---------------------------------------------- 37.2 Scattering
 SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   29    ## c1 == 29
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   30    ## c1 == 30
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
+   0    0    0    0    0   -1    0    0    0    0    1    ## c5 == 1
 
 # ---------------------------------------------- 37.3 Access
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
+   0    0    1    0    0   -1    0    0    0    ## [1] == i11
+   0    0    0    1   -1    0    0    0    0    ## [2] == i10
+   0    1    0    0    0    0    0    0  -13    ## Arr == A13
+
 WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -19    ## Arr == A19
+2 8 2 2 0 2
+# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0  -19    ## Arr == A19
 
 # ---------------------------------------------- 37.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-0
+2
+# List of original iterators
+i10 i11
 # Statement body expression
-S23()
+S41(i10, i11)
 </body>
 
 # =============================================== Statement 38
 # Number of relations describing the statement:
-3
+4
 
 # ---------------------------------------------- 38.1 Domain
 DOMAIN
-0 4 0 0 0 2
+4 6 2 0 0 2
+# e/i| i10  i11| P0   P1 |  1  
+   1    1    0    0    0    0    ## i10 >= 0
+   1   -1    0    1    0   -1    ## -i10+P0-1 >= 0
+   1    0    1    0    0    0    ## i11 >= 0
+   1    0   -1    0    1   -1    ## -i11+P1-1 >= 0
 
 # ---------------------------------------------- 38.2 Scattering
 SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   30    ## c1 == 30
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i10  i11| P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   30    ## c1 == 30
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i10
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i11
+   0    0    0    0    0   -1    0    0    0    0    2    ## c5 == 2
 
 # ---------------------------------------------- 38.3 Access
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i10  i11| P0   P1 |  1  
+   0    0    1    0    0   -1    0    0    0    ## [1] == i11
+   0    0    0    1   -1    0    0    0    0    ## [2] == i10
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
+
 WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
+2 8 2 2 0 2
+# e/i| Arr  [1]| i10  i11| P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0   -7    ## Arr == A7
 
 # ---------------------------------------------- 38.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-0
+2
+# List of original iterators
+i10 i11
 # Statement body expression
-S24()
+S42(i10, i11)
 </body>
 
 # =============================================== Statement 39
 # Number of relations describing the statement:
-3
+6
 
 # ---------------------------------------------- 39.1 Domain
 DOMAIN
-0 4 0 0 0 2
+4 6 2 0 0 2
+# e/i| i2   i3 | P0   P1 |  1  
+   1    1    0    0    0    0    ## i2 >= 0
+   1   -1    0    1    0   -1    ## -i2+P0-1 >= 0
+   1    0    1    0    0    0    ## i3 >= 0
+   1    0   -1    0    1   -1    ## -i3+P1-1 >= 0
 
 # ---------------------------------------------- 39.2 Scattering
 SCATTERING
-1 5 1 0 0 2
-# e/i| c1 | P0   P1 |  1  
-   0   -1    0    0   31    ## c1 == 31
+5 11 5 2 0 2
+# e/i| c1   c2   c3   c4   c5 | i2   i3 | P0   P1 |  1  
+   0   -1    0    0    0    0    0    0    0    0   31    ## c1 == 31
+   0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i2
+   0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
+   0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i3
+   0    0    0    0    0   -1    0    0    0    0    0    ## c5 == 0
 
 # ---------------------------------------------- 39.3 Access
+READ
+2 8 2 2 0 2
+# e/i| Arr  [1]| i2   i3 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0   -2    ## Arr == A2
+
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i2
+   0    0    0    1    0   -1    0    0    0    ## [2] == i3
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
+
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i2
+   0    0    0    1    0   -1    0    0    0    ## [2] == i3
+   0    1    0    0    0    0    0    0  -12    ## Arr == A12
+
 WRITE
-2 6 2 0 0 2
-# e/i| Arr  [1]| P0   P1 |  1  
-   0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i2   i3 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i2
+   0    0    0    1    0   -1    0    0    0    ## [2] == i3
+   0    1    0    0    0    0    0    0  -13    ## Arr == A13
 
 # ---------------------------------------------- 39.4 Statement Extensions
 # Number of Statement Extensions
 1
 <body>
 # Number of original iterators
-0
+2
+# List of original iterators
+i2 i3
 # Statement body expression
-S25()
+S43(i2, i3)
 </body>
 
 # =============================================== Statement 40
@@ -1658,13 +1633,13 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -19    ## Arr == A19
+   0    1    0    0    0   -4    ## Arr == A4
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -16    ## Arr == A16
+   0    1    0    0    0  -22    ## Arr == A22
 
 # ---------------------------------------------- 40.4 Statement Extensions
 # Number of Statement Extensions
@@ -1673,7 +1648,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S26()
+S5()
 </body>
 
 # =============================================== Statement 41
@@ -1695,13 +1670,13 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
+   0    1    0    0    0   -6    ## Arr == A6
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -17    ## Arr == A17
+   0    1    0    0    0  -23    ## Arr == A23
 
 # ---------------------------------------------- 41.4 Statement Extensions
 # Number of Statement Extensions
@@ -1710,7 +1685,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S27()
+S6()
 </body>
 
 # =============================================== Statement 42
@@ -1732,13 +1707,13 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
+   0    1    0    0    0  -15    ## Arr == A15
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -18    ## Arr == A18
+   0    1    0    0    0  -24    ## Arr == A24
 
 # ---------------------------------------------- 42.4 Statement Extensions
 # Number of Statement Extensions
@@ -1747,7 +1722,7 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S28()
+S7()
 </body>
 
 # =============================================== Statement 43
@@ -1769,13 +1744,13 @@ READ
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0   -9    ## Arr == A9
+   0    1    0    0    0   -6    ## Arr == A6
 
 WRITE
 2 6 2 0 0 2
 # e/i| Arr  [1]| P0   P1 |  1  
    0    0    1    0    0    0    ## [1] == 0
-   0    1    0    0    0  -20    ## Arr == A20
+   0    1    0    0    0  -15    ## Arr == A15
 
 # ---------------------------------------------- 43.4 Statement Extensions
 # Number of Statement Extensions
@@ -1784,12 +1759,12 @@ WRITE
 # Number of original iterators
 0
 # Statement body expression
-S29()
+S8()
 </body>
 
 # =============================================== Statement 44
 # Number of relations describing the statement:
-4
+8
 
 # ---------------------------------------------- 44.1 Domain
 DOMAIN
@@ -1804,7 +1779,7 @@ DOMAIN
 SCATTERING
 5 11 5 2 0 2
 # e/i| c1   c2   c3   c4   c5 | i0   i1 | P0   P1 |  1  
-   0   -1    0    0    0    0    0    0    0    0    1    ## c1 == 1
+   0   -1    0    0    0    0    0    0    0    0    2    ## c1 == 2
    0    0   -1    0    0    0    1    0    0    0    0    ## c2 == i0
    0    0    0   -1    0    0    0    0    0    0    0    ## c3 == 0
    0    0    0    0   -1    0    0    1    0    0    0    ## c4 == i1
@@ -1812,17 +1787,42 @@ SCATTERING
 
 # ---------------------------------------------- 44.3 Access
 READ
-3 9 3 2 0 2
-# e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
-   0    0    1    0    0   -1    0    0    0    ## [1] == i1
-   0    0    0    1   -1    0    0    0    0    ## [2] == i0
-   0    1    0    0    0    0    0    0   -3    ## Arr == A3
-
-WRITE
 2 8 2 2 0 2
 # e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
    0    0    1    0    0    0    0    0    ## [1] == 0
-   0    1    0    0    0    0    0  -10    ## Arr == A10
+   0    1    0    0    0    0    0   -1    ## Arr == A1
+
+READ
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i0
+   0    0    0    1    0   -1    0    0    0    ## [2] == i1
+   0    1    0    0    0    0    0    0   -3    ## Arr == A3
+
+READ
+2 8 2 2 0 2
+# e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0  -22    ## Arr == A22
+
+READ
+2 8 2 2 0 2
+# e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0  -23    ## Arr == A23
+
+READ
+2 8 2 2 0 2
+# e/i| Arr  [1]| i0   i1 | P0   P1 |  1  
+   0    0    1    0    0    0    0    0    ## [1] == 0
+   0    1    0    0    0    0    0  -24    ## Arr == A24
+
+WRITE
+3 9 3 2 0 2
+# e/i| Arr  [1]  [2]| i0   i1 | P0   P1 |  1  
+   0    0    1    0   -1    0    0    0    0    ## [1] == i0
+   0    0    0    1    0   -1    0    0    0    ## [2] == i1
+   0    1    0    0    0    0    0    0   -5    ## Arr == A5
 
 # ---------------------------------------------- 44.4 Statement Extensions
 # Number of Statement Extensions
@@ -1833,7 +1833,7 @@ WRITE
 # List of original iterators
 i0 i1
 # Statement body expression
-S42(i0, i1)
+S9(i0, i1)
 </body>
 
 # =============================================== Extensions
@@ -1845,16 +1845,16 @@ c1 c2 c3 c4 c5
 # Number of arrays
 24
 # Mapping array-identifiers/array-names
-13 A13
+12 A12
 14 A14
 15 A15
 16 A16
+11 A11
 17 A17
-18 A18
 19 A19
 10 A10
-11 A11
-12 A12
+18 A18
+13 A13
 1 A1
 2 A2
 3 A3
