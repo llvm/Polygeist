@@ -825,14 +825,25 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
   }
 };
 
+
 struct RemoveBoolean : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
+    bool changed = false;
+
     if ( llvm::all_of(op.results(), [](Value v) { return v.getType().isa<IntegerType>() && v.getType().cast<IntegerType>().getWidth() == 1;})) {
-      if (op.thenRegion().getBlocks().size() == 1 && op.elseRegion().getBlocks().size() == 1 &&
-          op.thenRegion().front().getOperations().size() == 1 && op.elseRegion().front().getOperations().size() == 1) {
+      if (op.thenRegion().getBlocks().size() == 1 && op.elseRegion().getBlocks().size() == 1) {
+        while(isa<CmpIOp>(op.thenRegion().front().front())) {
+          op.thenRegion().front().front().moveBefore(op);
+          changed = true;
+        }
+        while(isa<CmpIOp>(op.elseRegion().front().front())) {
+          op.elseRegion().front().front().moveBefore(op);
+          changed = true;
+        }
+        if (op.thenRegion().front().getOperations().size() == 1 && op.elseRegion().front().getOperations().size() == 1) {
           auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
           auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
           size_t idx = 0;
@@ -853,7 +864,9 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
           rewriter.replaceOp(op, replacements);
           //op.erase();
           return success();
+        }
       }
+
     }
 
     if (op.thenRegion().getBlocks().size() == 1 && op.elseRegion().getBlocks().size() == 1 &&
@@ -871,7 +884,7 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
         rewriter.replaceOp(op, replacements);
         return success();
     }
-    return failure();
+    return changed ? success() : failure();
   }
 };
 } // namespace

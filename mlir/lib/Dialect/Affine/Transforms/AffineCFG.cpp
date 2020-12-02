@@ -289,7 +289,7 @@ bool handle(OpBuilder& b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs, Small
             break;
 
         case CmpIPredicate::slt:
-            exprs.push_back(dims[1] - dims[0] + 1);
+            exprs.push_back(dims[1] - dims[0] - 1);
             eqflags.push_back(false);
             break;
 
@@ -303,7 +303,26 @@ bool handle(OpBuilder& b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs, Small
     return true;
 }
 
+static void replaceStore(StoreOp store,
+                         const SmallVector<Value, 2> &newIndexes) {
+  OpBuilder builder(store);
+  Location loc = store.getLoc();
+  builder.create<AffineStoreOp>(loc, store.getValueToStore(), store.getMemRef(),
+                                newIndexes);
+  store.erase();
+}
+
+static void replaceLoad(LoadOp load, const SmallVector<Value, 2> &newIndexes) {
+  OpBuilder builder(load);
+  Location loc = load.getLoc();
+  AffineLoadOp affineLoad =
+      builder.create<AffineLoadOp>(loc, load.getMemRef(), newIndexes);
+  load.getResult().replaceAllUsesWith(affineLoad.getResult());
+  load.erase();
+}
+
 void AffineCFGPass::runOnFunction() {
+  //getFunction().dump();
   getFunction().walk([&](scf::IfOp ifOp) {
     if (inAffine(ifOp)) {
         OpBuilder b(ifOp);
@@ -364,6 +383,52 @@ void AffineCFGPass::runOnFunction() {
         ifOp.erase();
 
     }
+  });
+
+  getFunction().walk([](StoreOp store) {
+    if (!inAffine(store)) return;
+    if (!llvm::all_of(store.getIndices(), [](Value index) {
+    return isValidIndex(index);
+    })) return;
+
+    LLVM_DEBUG(llvm::dbgs() << "  affine store checks -> ok\n");
+    SmallVector<Value, 2> newIndices;
+    newIndices.reserve(store.getIndices().size());
+    
+    OpBuilder b(store);
+    for (auto idx : store.getIndices()) {
+      AffineMap idxmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
+      if (!idx.getType().isa<IndexType>()) {
+          idx = b.create<mlir::IndexCastOp>(idx.getLoc(), idx, mlir::IndexType::get(idx.getContext()));
+      }
+      Value idxpack[1] = { idx };
+      newIndices.push_back(b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
+    }
+
+    replaceStore(store, newIndices);
+  });
+
+  getFunction().walk([](LoadOp store) {
+    if (!inAffine(store)) return;
+    if (!llvm::all_of(store.getIndices(), [](Value index) {
+    return isValidIndex(index);
+    })) return;
+
+    LLVM_DEBUG(llvm::dbgs() << "  affine load checks -> ok\n");
+    SmallVector<Value, 2> newIndices;
+    newIndices.reserve(store.getIndices().size());
+    
+    OpBuilder b(store);
+    for (auto idx : store.getIndices()) {
+      AffineMap idxmap = AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
+      if (!idx.getType().isa<IndexType>()) {
+          idx = b.create<mlir::IndexCastOp>(idx.getLoc(), idx, mlir::IndexType::get(idx.getContext()));
+      }
+      Value idxpack[1] = { idx };
+      newIndices.push_back(b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
+    }
+
+    replaceLoad(store, newIndices);
   });
 
     //getFunction().dump();

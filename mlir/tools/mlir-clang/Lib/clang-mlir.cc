@@ -304,9 +304,13 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
 void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                                       mlir::Value lb, mlir::Value ub,
                                       const AffineLoopDescriptor &descr) {
-  auto affineOp = builder.create<AffineForOp>(loc, lb, builder.getSymbolIdentityMap(), ub,
+  auto affineOp = builder.create<AffineForOp>(
+      loc, lb, builder.getSymbolIdentityMap(), ub,
       builder.getSymbolIdentityMap(), descr.getStep(),
-      /*iterArgs=*/llvm::None, (AffineForOp::BodyBuilderFn)([&](OpBuilder &nestedBuilder, mlir::Location loc, mlir::Value val, ValueRange ivs) {
+      /*iterArgs=*/llvm::None,
+      (AffineForOp::BodyBuilderFn)([&](OpBuilder &nestedBuilder,
+                                       mlir::Location loc, mlir::Value val,
+                                       ValueRange ivs) {
         SmallVector<mlir::Value, 1> iv(ivs);
         assert(ivs.size() == 0 && "expect single ind var");
         if (!descr.getForwardMode()) {
@@ -329,7 +333,7 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
         // TODO: set loop context.
         Visit(fors->getBody());
         builder.create<AffineYieldOp>(loc);
-        
+
         nestedBuilder.setInsertionPoint(builder.getInsertionBlock(),
                                         builder.getInsertionPoint());
         // TODO: set the value of the iteration value to the final bound at the
