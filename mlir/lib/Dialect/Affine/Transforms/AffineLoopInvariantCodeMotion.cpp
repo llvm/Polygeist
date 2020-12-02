@@ -75,13 +75,24 @@ bool isOpLoopInvariant(Operation &op, Value indVar,
                        SmallPtrSetImpl<Operation *> &opsToHoist) {
   LLVM_DEBUG(llvm::dbgs() << "iterating on op: " << op;);
 
-  if (isa<AffineIfOp>(op)) {
+  if (auto ifOp = dyn_cast<AffineIfOp>(op)) {
     definedOps.insert(&op);
+    for (unsigned int i = 0; i < op.getNumOperands(); ++i) {
+      auto arg = op.getOperand(i);
+      if (!arg.getDefiningOp()) return false;
+      if (definedOps.count(arg.getDefiningOp()) && opsToHoist.count(arg.getDefiningOp()) == 0) {
+        return false;
+      }
+    }
     if (!checkInvarianceOfNestedIfOps(&op, indVar, definedOps, opsToHoist)) {
       return false;
     }
   } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
     definedOps.insert(&op);
+    if (!ifOp.condition().getDefiningOp()) return false;
+    if (definedOps.count(ifOp.condition().getDefiningOp()) && opsToHoist.count(ifOp.condition().getDefiningOp()) == 0) {
+      return false;
+    }
     if (!areAllOpsInTheBlockListInvariant(ifOp.thenRegion(), indVar, definedOps,
                                           opsToHoist)) {
       return false;

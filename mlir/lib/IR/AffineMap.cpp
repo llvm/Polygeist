@@ -302,6 +302,12 @@ AffineMap AffineMap::replaceDimsAndSymbols(ArrayRef<AffineExpr> dimReplacements,
                                            unsigned numResultSyms) const {
   SmallVector<AffineExpr, 8> results;
   results.reserve(getNumResults());
+  for(auto a : dimReplacements) {
+  //  assert(a);
+  }
+  for(auto a : symReplacements) {
+  //  assert(a);
+  }
   for (auto expr : getResults())
     results.push_back(
         expr.replaceDimsAndSymbols(dimReplacements, symReplacements));

@@ -261,6 +261,7 @@ LogicalResult OperationVerifier::verifyDominance(Region &region) {
           if (domInfo->properlyDominates(operand, &op))
             continue;
           llvm::errs() << "operand: " << operand << " op: " << op << "\n";
+          block.dump();
           auto diag = op.emitError("operand #")
                       << operandNo << " does not dominate this use";
           if (auto *useOp = operand.getDefiningOp())
