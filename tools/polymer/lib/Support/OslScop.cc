@@ -20,6 +20,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
@@ -520,6 +521,18 @@ void OslScop::createAccessRelationConstraints(
     mlir::FlatAffineConstraints &domain) {
   cst.reset();
   cst.mergeAndAlignIdsWithOther(0, &domain);
+
+  SmallVector<mlir::Value, 8> idValues;
+  domain.getAllIdValues(&idValues);
+  SetVector<mlir::Value> idValueSet;
+  for (auto val : idValues)
+    idValueSet.insert(val);
+
+  for (auto operand : vMap.getOperands())
+    if (!idValueSet.contains(operand)) {
+      llvm::errs() << "Operand missing: " << operand << "\n";
+    }
+
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
   cst.composeMap(&vMap);

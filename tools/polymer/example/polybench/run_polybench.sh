@@ -19,12 +19,12 @@ for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
   mkdir -p "${OUTPUT_DIR}/${DIRNAME}/${NAME}"
   "${BINDIR}/polymer-opt" "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.mlir" >/dev/null
   "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" >/dev/null
-  if [ -s "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" ]; then
-    "${BINDIR}/polymer-translate" -export-scop "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop" >/dev/null
+  # if [ -s "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" ]; then
+  #   "${BINDIR}/polymer-translate" -export-scop "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop" >/dev/null
     # ../pluto/tool/pluto --readscop "${OUTPUT_DIR}/${DIRNAME}/${NAME}.scop" 2>&1 >/dev/null 
     # mv "${NAME}.scop.pluto.cloog" "${OUTPUT_DIR}/${DIRNAME}" 
     # mv "${NAME}.scop.pluto.c" "${OUTPUT_DIR}/${DIRNAME}" 
-  fi
+  # fi
 
   "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" >/dev/null
   # The optimization command

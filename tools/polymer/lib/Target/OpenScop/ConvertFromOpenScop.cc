@@ -710,11 +710,12 @@ void Importer::initializeSymbol(mlir::Value val) {
     // If the symbol is not yet initialized, we update the two dependence
     // tables. Note that here we implicitly assume that the operand symbol
     // should exist.
-    if (newOperand == nullptr) {
-      symbolToDeps[operandSymbol].insert(val);
-      valueToDepSymbols[val].insert(operandSymbol);
-      continue;
-    }
+    assert(newOperand != nullptr);
+    // if (newOperand == nullptr) {
+    //   symbolToDeps[operandSymbol].insert(val);
+    //   valueToDepSymbols[val].insert(operandSymbol);
+    //   continue;
+    // }
     newOperands.push_back(newOperand);
   }
 
@@ -731,12 +732,20 @@ void Importer::initializeSymbol(mlir::Value val) {
     vMap.map(defOp->getOperand(i), newOperands[i]);
 
   mlir::Operation *newOp = b.clone(*defOp, vMap);
+  assert(newOp != nullptr);
   assert(newOp->getNumResults() == 1 && "Should only have one result.");
 
+  // if (isa<mlir::IndexCastOp>(newOp)) {
+  //   assert(isValidSymbol(newOp->getResult(0)));
+  //   newOp = b.create<mlir::AffineApplyOp>(
+  //       defOp->getLoc(),
+  //       // AffineMap::getMinorIdentityMap(1, 1, b.getContext()),
+  //       AffineMap::get(1, 1, b.getAffineSymbolExpr(0)), newOp->getResult(0));
+  // }
   symbolTable[symbol] = newOp->getResult(0);
 
   // Update the dependence table.
-  fulfillSymbolDependence(symbol);
+  // fulfillSymbolDependence(symbol);
 }
 
 /**
@@ -1112,8 +1121,12 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
   SmallVector<mlir::Value, 8> operands;
   for (auto dimName : builder.dimNames.keys()) {
     mlir::Value iv = symbolTable[dimName];
-    llvm::errs() << dimName << "\n";
     assert(iv != nullptr);
+
+    // if (!isValidDim(iv)) {
+    //   llvm::errs() << dimName << " is not corresponded to a valid dim
+    //   Value.\n"; iv.dump();
+    // }
     operands.push_back(iv);
   }
   for (auto symName : builder.symbolNames.keys()) {
@@ -1121,6 +1134,15 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
     assert(sym != nullptr);
     operands.push_back(sym);
   }
+
+  // for (auto operand : operands)
+  //   llvm::errs() << operand << "\n";
+  canonicalizeSetAndOperands(&iset, &operands);
+
+  // for (auto operand : operands) {
+  //   llvm::errs() << "is valid dim: " << isValidDim(operand) << "\n";
+  //   operand.dump();
+  // }
 
   mlir::AffineIfOp ifOp =
       b.create<mlir::AffineIfOp>(b.getUnknownLoc(), iset, operands, false);
@@ -1197,8 +1219,8 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "reduction.");
 
   if (failed(getAffineLoopBound(forStmt->LB, lbOperands, lbMap)) ||
-      failed(
-          getAffineLoopBound(forStmt->UB, ubOperands, ubMap, /*isUpper=*/true)))
+      failed(getAffineLoopBound(forStmt->UB, ubOperands, ubMap,
+                                /*isUpper=*/true)))
     return failure();
 
   int64_t stride = 1;
@@ -1226,13 +1248,16 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   mlir::Value symValue = symbolTable[forStmt->iterator];
   symbolTable[forStmt->iterator] = entryBlock.getArgument(0);
 
-  fulfillSymbolDependence(forStmt->iterator);
+  // fulfillSymbolDependence(forStmt->iterator);
 
+  llvm::StringMap<mlir::Value> oldSymValues;
   for (const auto &it : iterScatNameMap) {
     if (it.second.equals(forStmt->iterator)) {
       // llvm::errs() << it.first() << " -> " << it.second << "\n";
+      oldSymValues[it.first()] = symbolTable[it.first()];
       symbolTable[it.first()] = symbolTable[it.second];
-      fulfillSymbolDependence(it.first());
+
+      // fulfillSymbolDependence(it.first());
     }
   }
 
@@ -1251,6 +1276,16 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   //   symValue.cast<mlir::BlockArgument>().getOwner()->dump();
   // }
   symbolTable[forStmt->iterator] = symValue;
+
+  for (const auto &it : iterScatNameMap) {
+    if (it.second.equals(forStmt->iterator)) {
+      // llvm::errs() << it.first() << " -> " << it.second << "\n";
+      symbolTable[it.first()] = oldSymValues[it.first()];
+
+      // fulfillSymbolDependence(it.first());
+    }
+  }
+
   return success();
 }
 
@@ -1265,7 +1300,7 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
     op = b.create<mlir::ConstantOp>(
         b.getUnknownLoc(), b.getIndexType(),
         b.getIntegerAttr(b.getIndexType(), substMap.getSingleConstantResult()));
-  } else if (substMap.getNumResults() == 0) {
+  } else if (substMap.getNumResults() == 1) {
     op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
                                        substOperands);
   } else {
@@ -1279,10 +1314,24 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
     else
       op = b.create<mlir::AffineMinOp>(b.getUnknownLoc(), substMap,
                                        substOperands);
+
+    // if (!isValidDim(op->getResult(0))) {
+    //   llvm::errs() << "Op result is not valid dim.\n";
+    //   op->dump();
+    //   for (auto operand : substOperands) {
+    //     operand.dump();
+    //     llvm::errs() << "is valid dim: " << isValidDim(operand) << "\n";
+    //     llvm::errs() << "is valid symbol: " << isValidSymbol(operand) <<
+    //     "\n";
+    //   }
+    // }
   }
 
+  assert(op->getNumResults() == 1);
+  // mlir::Operation *applyOp = b.create<mlir::AffineApplyOp>(
+  //     b.getUnknownLoc(), b.getSingleDimShiftAffineMap(0), op->getResult(0));
+  // symbolTable[ass->LHS] = applyOp->getResult(0);
   symbolTable[ass->LHS] = op->getResult(0);
-
   return success();
 }
 

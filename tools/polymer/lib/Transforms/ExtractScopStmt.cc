@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -19,6 +20,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
@@ -60,7 +62,8 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     // Also, we should leave the dim SSA value in the original scope. Otherwise,
     // if we consume it in the callee, the AffineValueMap built for the accesses
     // that use this dim cannot relate it with the global context.
-    if (isa<mlir::AllocaOp, mlir::AllocOp, mlir::DimOp>(op)) {
+    if (isa<mlir::AllocaOp, mlir::AllocOp, mlir::DimOp, mlir::AffineApplyOp,
+            mlir::IndexCastOp>(op)) {
       for (mlir::Value result : op->getResults())
         args.insert(result);
       continue;
@@ -126,21 +129,61 @@ static mlir::FuncOp createCallee(StringRef calleeName,
       b.create<mlir::FuncOp>(writeOp->getLoc(), calleeName, calleeType);
   mlir::Block *entryBlock = callee.addEntryBlock();
   b.setInsertionPointToStart(entryBlock);
+  // Terminator
+  b.create<mlir::ReturnOp>(callee.getLoc());
+  b.setInsertionPointToStart(entryBlock);
 
   // Create the mapping from the args to the newly created BlockArguments, to
   // replace the uses of the values in the original function to the newly
   // declared entryBlock's input.
   BlockAndValueMapping mapping;
   mapping.map(args, entryBlock->getArguments());
+  // for (auto arg : args) {
+  //   arg.dump();
+  //   llvm::errs() << "->\n";
+  //   mapping.lookupOrDefault(arg).dump();
+  // }
 
   // Clone the operations into the new callee function. In case they are not in
   // the correct order, we sort them topologically beforehand.
   SetVector<Operation *> sortedOps = topologicalSort(ops);
-  for (unsigned i = 0; i < numOps; i++)
-    b.clone(*sortedOps[i], mapping);
+  SmallVector<Operation *, 8> clonedOps;
 
-  // Terminator
-  b.create<mlir::ReturnOp>(callee.getLoc());
+  for (unsigned i = 0; i < numOps; i++) {
+    // Build the value mapping while cloning operations.
+    sortedOps[i]->walk([&](mlir::Operation *op) {
+      for (mlir::Value operand : op->getOperands()) {
+        mlir::Operation *defOp = operand.getDefiningOp();
+        if (!defOp)
+          continue;
+        if (mlir::ConstantOp constOp = dyn_cast<mlir::ConstantOp>(defOp)) {
+          mapping.map(defOp->getResult(0), b.clone(*defOp)->getResult(0));
+        }
+      }
+    });
+
+    clonedOps.push_back(b.clone(*sortedOps[i], mapping));
+  }
+
+  // DominanceInfo dom(callee);
+  // for (mlir::Operation *clonedOp : clonedOps) {
+  //   clonedOp->walk([&](mlir::Operation *op) {
+  //     for (mlir::Value operand : op->getOperands()) {
+  //       OpBuilder::InsertionGuard guard(b);
+  //       b.setInsertionPoint(op);
+  //       if (!dom.dominates(operand.getParentBlock(), entryBlock)) {
+  //         mlir::Operation *defOp = operand.getDefiningOp();
+  //         assert(defOp != nullptr);
+  //         if (isa<mlir::ConstantOp>(defOp)) {
+  //           mlir::Operation *newOp = b.clone(*defOp, mapping);
+  //           operand.replaceAllUsesWith(newOp->getResult(0));
+  //         }
+  //         // defOp->erase();
+  //       }
+  //     }
+  //   });
+  // }
+
   // Set the scop_stmt attribute for identification at a later stage.
   // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
   // that contains scop stmt FuncOp, e.g., ScopStmtOp.
