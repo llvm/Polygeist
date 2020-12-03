@@ -85,14 +85,6 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // enclosingOps list.
   getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
 
-  for (mlir::Operation *op : enclosingOps) {
-    if (auto forOp = dyn_cast<mlir::AffineForOp>(op)) {
-      if (!forOp.hasConstantLowerBound()) {
-        mlir::AffineMap amap = forOp.getLowerBoundMap();
-      }
-    }
-  }
-
   // The domain constraints can then be collected from the enclosing ops.
   getIndexSet(enclosingOps, &domain);
 
@@ -149,8 +141,11 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
 
   // Replace its operands by what the caller uses.
   SmallVector<mlir::Value, 8> operands;
-  for (mlir::Value operand : aMap.getOperands())
-    operands.push_back(argMap.lookupOrDefault(operand));
+  for (mlir::Value operand : aMap.getOperands()) {
+    mlir::Value origArg = argMap.lookupOrDefault(operand);
+    assert(origArg != operand);
+    operands.push_back(origArg);
+  }
 
   // Set the access AffineValueMap.
   vMap->reset(aMap.getAffineMap(), operands);
