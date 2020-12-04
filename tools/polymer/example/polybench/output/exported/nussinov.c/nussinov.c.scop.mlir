@@ -240,7 +240,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %14 = addf %11, %13 : f64
     return %14 : f64
   }
-  func @S0(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
+  func private @S0(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2 - 1] : memref<2500x2500xi32>
     %2 = cmpi "sge", %0, %1 : i32
@@ -254,7 +254,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %3, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     return
   }
-  func @S1(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
+  func private @S1(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3), %arg2] : memref<2500x2500xi32>
     %2 = cmpi "sge", %0, %1 : i32
@@ -268,7 +268,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %3, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     return
   }
-  func @S2(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<2500xi8>) attributes {scop.stmt} {
+  func private @S2(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<2500xi8>) attributes {scop.stmt} {
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3), %arg2 - 1] : memref<2500x2500xi32>
     %2 = affine.load %arg4[-%arg1 + symbol(%arg3) - 1] : memref<2500xi8>
@@ -307,7 +307,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %11, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     return
   }
-  func @S3(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
+  func private @S3(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index) attributes {scop.stmt} {
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3), %arg2 - 1] : memref<2500x2500xi32>
     %2 = cmpi "sge", %0, %1 : i32
@@ -321,7 +321,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %3, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     return
   }
-  func @S4(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index, %arg4: index) attributes {scop.stmt} {
+  func private @S4(%arg0: memref<2500x2500xi32>, %arg1: index, %arg2: index, %arg3: index, %arg4: index) attributes {scop.stmt} {
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg4] : memref<2500x2500xi32>
     %2 = affine.load %arg0[%arg4 + 1, %arg2] : memref<2500x2500xi32>

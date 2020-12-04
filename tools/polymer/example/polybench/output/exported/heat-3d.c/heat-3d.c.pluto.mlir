@@ -351,7 +351,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %14 = addf %11, %13 : f64
     return %14 : f64
   }
-  func @S0(%arg0: memref<120x120x120xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<120x120x120xf64>) attributes {scop.stmt} {
+  func private @S0(%arg0: memref<120x120x120xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<120x120x120xf64>) attributes {scop.stmt} {
     %cst = constant 2.000000e+00 : f64
     %cst_0 = constant 1.250000e-01 : f64
     %0 = affine.load %arg4[%arg1 + 1, %arg2, %arg3] : memref<120x120x120xf64>
@@ -382,7 +382,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %24, %arg0[%arg1, %arg2, %arg3] : memref<120x120x120xf64>
     return
   }
-  func @S1(%arg0: memref<120x120x120xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<120x120x120xf64>) attributes {scop.stmt} {
+  func private @S1(%arg0: memref<120x120x120xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<120x120x120xf64>) attributes {scop.stmt} {
     %cst = constant 2.000000e+00 : f64
     %cst_0 = constant 1.250000e-01 : f64
     %0 = affine.load %arg4[%arg1 + 1, %arg2, %arg3] : memref<120x120x120xf64>

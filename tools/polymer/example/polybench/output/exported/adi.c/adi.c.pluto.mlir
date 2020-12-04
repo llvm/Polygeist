@@ -249,7 +249,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %14 = addf %11, %13 : f64
     return %14 : f64
   }
-  func @S0(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
+  func private @S0(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     %cst_0 = constant 2.000000e+00 : f64
     %0 = sitofp %arg2 : i32 to f64
@@ -264,7 +264,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %8, %arg0[0] : memref<1xf64>
     return
   }
-  func @S1(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
+  func private @S1(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
     %cst = constant 2.000000e+00 : f64
     %cst_0 = constant 1.000000e+00 : f64
     %0 = sitofp %arg2 : i32 to f64
@@ -278,7 +278,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %7, %arg0[0] : memref<1xf64>
     return
   }
-  func @S2(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
+  func private @S2(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     %cst_0 = constant 2.000000e+00 : f64
     %0 = sitofp %arg2 : i32 to f64
@@ -293,7 +293,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %8, %arg0[0] : memref<1xf64>
     return
   }
-  func @S3(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
+  func private @S3(%arg0: memref<1xf64>, %arg1: i32, %arg2: i32) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     %0 = sitofp %arg2 : i32 to f64
     %1 = divf %cst, %0 : f64
@@ -306,22 +306,22 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %7, %arg0[0] : memref<1xf64>
     return
   }
-  func @S4(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
+  func private @S4(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     affine.store %cst, %arg0[0, %arg1] : memref<1000x1000xf64>
     return
   }
-  func @S5(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
+  func private @S5(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
     %cst = constant 0.000000e+00 : f64
     affine.store %cst, %arg0[%arg1, 0] : memref<1000x1000xf64>
     return
   }
-  func @S6(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: memref<1000x1000xf64>) attributes {scop.stmt} {
+  func private @S6(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: memref<1000x1000xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg2[0, %arg1] : memref<1000x1000xf64>
     affine.store %0, %arg0[%arg1, 0] : memref<1000x1000xf64>
     return
   }
-  func @S7(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1xf64>) attributes {scop.stmt} {
+  func private @S7(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg4[0] : memref<1xf64>
     %1 = negf %0 : f64
     %2 = affine.load %arg0[%arg1, %arg2 - 1] : memref<1000x1000xf64>
@@ -332,7 +332,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %6, %arg0[%arg1, %arg2] : memref<1000x1000xf64>
     return
   }
-  func @S8(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1xf64>, %arg6: memref<1000x1000xf64>, %arg7: memref<1xf64>) attributes {scop.stmt} {
+  func private @S8(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1xf64>, %arg6: memref<1000x1000xf64>, %arg7: memref<1xf64>) attributes {scop.stmt} {
     %cst = constant 2.000000e+00 : f64
     %cst_0 = constant 1.000000e+00 : f64
     %0 = affine.load %arg6[%arg2, %arg1 - 1] : memref<1000x1000xf64>
@@ -359,12 +359,12 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %20, %arg0[%arg1, %arg2] : memref<1000x1000xf64>
     return
   }
-  func @S9(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
+  func private @S9(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     affine.store %cst, %arg0[symbol(%arg2) - 1, %arg1] : memref<1000x1000xf64>
     return
   }
-  func @S10(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) attributes {scop.stmt} {
+  func private @S10(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg5[%arg2, -%arg1 + symbol(%arg3) - 1] : memref<1000x1000xf64>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3), %arg2] : memref<1000x1000xf64>
     %2 = mulf %0, %1 : f64
@@ -373,22 +373,22 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<1000x1000xf64>
     return
   }
-  func @S11(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
+  func private @S11(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     affine.store %cst, %arg0[%arg1, 0] : memref<1000x1000xf64>
     return
   }
-  func @S12(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
+  func private @S12(%arg0: memref<1000x1000xf64>, %arg1: index) attributes {scop.stmt} {
     %cst = constant 0.000000e+00 : f64
     affine.store %cst, %arg0[%arg1, 0] : memref<1000x1000xf64>
     return
   }
-  func @S13(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: memref<1000x1000xf64>) attributes {scop.stmt} {
+  func private @S13(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: memref<1000x1000xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg2[%arg1, 0] : memref<1000x1000xf64>
     affine.store %0, %arg0[%arg1, 0] : memref<1000x1000xf64>
     return
   }
-  func @S14(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1xf64>) attributes {scop.stmt} {
+  func private @S14(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg4[0] : memref<1xf64>
     %1 = negf %0 : f64
     %2 = affine.load %arg0[%arg1, %arg2 - 1] : memref<1000x1000xf64>
@@ -399,7 +399,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %6, %arg0[%arg1, %arg2] : memref<1000x1000xf64>
     return
   }
-  func @S15(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1xf64>, %arg6: memref<1000x1000xf64>, %arg7: memref<1xf64>) attributes {scop.stmt} {
+  func private @S15(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: memref<1xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1xf64>, %arg6: memref<1000x1000xf64>, %arg7: memref<1xf64>) attributes {scop.stmt} {
     %cst = constant 2.000000e+00 : f64
     %cst_0 = constant 1.000000e+00 : f64
     %0 = affine.load %arg6[%arg1 - 1, %arg2] : memref<1000x1000xf64>
@@ -426,12 +426,12 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %20, %arg0[%arg1, %arg2] : memref<1000x1000xf64>
     return
   }
-  func @S16(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
+  func private @S16(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
     %cst = constant 1.000000e+00 : f64
     affine.store %cst, %arg0[%arg1, symbol(%arg2) - 1] : memref<1000x1000xf64>
     return
   }
-  func @S17(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) attributes {scop.stmt} {
+  func private @S17(%arg0: memref<1000x1000xf64>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg5[%arg1, -%arg2 + symbol(%arg3) - 1] : memref<1000x1000xf64>
     %1 = affine.load %arg0[%arg1, -%arg2 + symbol(%arg3)] : memref<1000x1000xf64>
     %2 = mulf %0, %1 : f64
@@ -447,8 +447,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloca() : memref<1xf64>
     %4 = index_cast %arg1 : i32 to index
     %5 = index_cast %arg0 : i32 to index
-    call @S0(%3, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
-    call @S1(%2, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S0(%2, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S1(%1, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
     affine.for %arg6 = 1 to #map0()[%5] {
       affine.for %arg7 = 0 to #map2()[%4] {
         affine.for %arg8 = max #map3(%arg7) to min #map4(%arg7)[%4] {
@@ -475,14 +475,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S7(%arg4, %arg6, %arg9, %2, %3) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
+              call @S7(%arg4, %arg6, %arg9, %1, %2) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
             }
           }
         }
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S8(%arg5, %arg6, %arg9, %2, %arg4, %3, %arg2, %1) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
+              call @S8(%arg5, %arg6, %arg9, %1, %arg4, %2, %arg2, %0) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
             }
           }
         }
@@ -499,14 +499,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S14(%arg4, %arg6, %arg9, %0, %1) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
+              call @S14(%arg4, %arg6, %arg9, %3, %0) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
             }
           }
         }
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S15(%arg5, %arg6, %arg9, %0, %arg4, %1, %arg3, %3) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
+              call @S15(%arg5, %arg6, %arg9, %3, %arg4, %0, %arg3, %2) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
             }
           }
         }
@@ -519,8 +519,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         }
       }
     }
-    call @S2(%1, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
-    call @S3(%0, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S2(%0, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S3(%3, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
     return
   }
 }
