@@ -47,7 +47,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %6 = alloc() : memref<800x1100xf64>
     call @init_array(%c800_i32, %c900_i32, %c1000_i32, %c1100_i32, %c1200_i32, %1, %2, %4, %5) : (i32, i32, i32, i32, i32, memref<800x1000xf64>, memref<1000x900xf64>, memref<900x1200xf64>, memref<1200x1100xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_3mm(%c800_i32, %c900_i32, %c1000_i32, %c1100_i32, %c1200_i32, %0, %1, %2, %3, %4, %5, %6) : (i32, i32, i32, i32, i32, memref<800x900xf64>, memref<800x1000xf64>, memref<1000x900xf64>, memref<900x1100xf64>, memref<900x1200xf64>, memref<1200x1100xf64>, memref<800x1100xf64>) -> ()
+    call @kernel_3mm_new(%c800_i32, %c900_i32, %c1000_i32, %c1100_i32, %c1200_i32, %0, %1, %2, %3, %4, %5, %6) : (i32, i32, i32, i32, i32, memref<800x900xf64>, memref<800x1000xf64>, memref<1000x900xf64>, memref<900x1100xf64>, memref<900x1200xf64>, memref<1200x1100xf64>, memref<800x1100xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %7 = cmpi "sgt", %arg0, %c42_i32 : i32

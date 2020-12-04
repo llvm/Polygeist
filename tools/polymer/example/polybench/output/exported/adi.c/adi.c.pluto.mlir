@@ -34,7 +34,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloc() : memref<1000x1000xf64>
     call @init_array(%c1000_i32, %0) : (i32, memref<1000x1000xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_adi(%c500_i32, %c1000_i32, %0, %1, %2, %3) : (i32, i32, memref<1000x1000xf64>, memref<1000x1000xf64>, memref<1000x1000xf64>, memref<1000x1000xf64>) -> ()
+    call @kernel_adi_new(%c500_i32, %c1000_i32, %0, %1, %2, %3) : (i32, i32, memref<1000x1000xf64>, memref<1000x1000xf64>, memref<1000x1000xf64>, memref<1000x1000xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %4 = cmpi "sgt", %arg0, %c42_i32 : i32
@@ -447,8 +447,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloca() : memref<1xf64>
     %4 = index_cast %arg1 : i32 to index
     %5 = index_cast %arg0 : i32 to index
-    call @S0(%2, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
-    call @S1(%1, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S0(%3, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S1(%2, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
     affine.for %arg6 = 1 to #map0()[%5] {
       affine.for %arg7 = 0 to #map2()[%4] {
         affine.for %arg8 = max #map3(%arg7) to min #map4(%arg7)[%4] {
@@ -475,14 +475,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S7(%arg4, %arg6, %arg9, %1, %2) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
+              call @S7(%arg4, %arg6, %arg9, %2, %3) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
             }
           }
         }
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S8(%arg5, %arg6, %arg9, %1, %arg4, %2, %arg2, %0) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
+              call @S8(%arg5, %arg6, %arg9, %2, %arg4, %3, %arg2, %1) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
             }
           }
         }
@@ -499,14 +499,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S14(%arg4, %arg6, %arg9, %3, %0) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
+              call @S14(%arg4, %arg6, %arg9, %0, %1) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1xf64>) -> ()
             }
           }
         }
         affine.for %arg8 = 0 to #map2()[%4] {
           affine.for %arg9 = max #map3(%arg7) to min #map4(%arg7)[%4] {
             affine.for %arg10 = max #map3(%arg8) to min #map4(%arg8)[%4] {
-              call @S15(%arg5, %arg6, %arg9, %3, %arg4, %0, %arg3, %2) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
+              call @S15(%arg5, %arg6, %arg9, %0, %arg4, %1, %arg3, %3) : (memref<1000x1000xf64>, index, index, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>, memref<1000x1000xf64>, memref<1xf64>) -> ()
             }
           }
         }
@@ -519,8 +519,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         }
       }
     }
-    call @S2(%0, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
-    call @S3(%3, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S2(%1, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
+    call @S3(%0, %arg1, %arg0) : (memref<1xf64>, i32, i32) -> ()
     return
   }
 }

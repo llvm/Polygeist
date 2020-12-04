@@ -30,7 +30,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloc() : memref<2000xf64>
     call @init_array(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_ludcmp(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
+    call @kernel_ludcmp_new(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %4 = cmpi "sgt", %arg0, %c42_i32 : i32

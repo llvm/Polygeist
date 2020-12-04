@@ -37,7 +37,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloc() : memref<1900xf64>
     call @init_array(%c1900_i32, %c2100_i32, %0, %1) : (i32, i32, memref<1900x2100xf64>, memref<2100xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_atax(%c1900_i32, %c2100_i32, %0, %1, %2, %3) : (i32, i32, memref<1900x2100xf64>, memref<2100xf64>, memref<2100xf64>, memref<1900xf64>) -> ()
+    call @kernel_atax_new(%c1900_i32, %c2100_i32, %0, %1, %2, %3) : (i32, i32, memref<1900x2100xf64>, memref<2100xf64>, memref<2100xf64>, memref<1900xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %4 = cmpi "sgt", %arg0, %c42_i32 : i32

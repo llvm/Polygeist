@@ -75,12 +75,18 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %28 = load %0[%c0] : memref<1xf64>
     %29 = load %1[%c0] : memref<1xf64>
     %30 = alloca() : memref<1xf64>
-    affine.for %arg2 = 0 to 1000 {
+    affine.for %arg2 = 0 to 1200 {
+      call @S0(%30) : (memref<1xf64>) -> ()
+      call @S3(%2, %c0, %arg2, %28, %30, %3, %4, %29) : (memref<1000x1200xf64>, index, index, f64, memref<1xf64>, memref<1000x1000xf64>, memref<1000x1200xf64>, f64) -> ()
+    }
+    affine.for %arg2 = 1 to 1000 {
       affine.for %arg3 = 0 to 1200 {
+        call @S1(%2, %arg2, %arg3, %3, %c0, %28, %4) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, f64, memref<1000x1200xf64>) -> ()
         call @S0(%30) : (memref<1xf64>) -> ()
-        affine.for %arg4 = 0 to #map(%arg2) {
-          call @S1(%2, %arg4, %arg3, %3, %arg2, %28, %4) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, f64, memref<1000x1200xf64>) -> ()
-          call @S2(%30, %3, %arg2, %arg4, %4, %arg3) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index) -> ()
+        call @S2(%30, %3, %arg2, %arg3, %4, %c0) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index) -> ()
+        affine.for %arg4 = 1 to #map(%arg2) {
+          call @S1(%2, %arg2, %arg3, %3, %arg4, %28, %4) : (memref<1000x1200xf64>, index, index, memref<1000x1000xf64>, index, f64, memref<1000x1200xf64>) -> ()
+          call @S2(%30, %3, %arg2, %arg3, %4, %arg4) : (memref<1xf64>, memref<1000x1000xf64>, index, index, memref<1000x1200xf64>, index) -> ()
         }
         call @S3(%2, %arg2, %arg3, %28, %30, %3, %4, %29) : (memref<1000x1200xf64>, index, index, f64, memref<1xf64>, memref<1000x1000xf64>, memref<1000x1200xf64>, f64) -> ()
       }

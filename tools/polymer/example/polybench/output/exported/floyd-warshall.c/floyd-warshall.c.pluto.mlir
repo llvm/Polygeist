@@ -32,7 +32,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = alloc() : memref<2800x2800xi32>
     call @init_array(%c2800_i32, %0) : (i32, memref<2800x2800xi32>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_floyd_warshall(%c2800_i32, %0) : (i32, memref<2800x2800xi32>) -> ()
+    call @kernel_floyd_warshall_new(%c2800_i32, %0) : (i32, memref<2800x2800xi32>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %1 = cmpi "sgt", %arg0, %c42_i32 : i32

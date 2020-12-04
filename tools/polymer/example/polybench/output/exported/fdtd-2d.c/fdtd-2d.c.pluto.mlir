@@ -170,7 +170,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = alloc() : memref<500xf64>
     call @init_array(%c500_i32, %c1000_i32, %c1200_i32, %0, %1, %2, %3) : (i32, i32, i32, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<500xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_fdtd_2d(%c500_i32, %c1000_i32, %c1200_i32, %0, %1, %2, %3) : (i32, i32, i32, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<500xf64>) -> ()
+    call @kernel_fdtd_2d_new(%c500_i32, %c1000_i32, %c1200_i32, %0, %1, %2, %3) : (i32, i32, i32, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<1000x1200xf64>, memref<500xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %4 = cmpi "sgt", %arg0, %c42_i32 : i32
