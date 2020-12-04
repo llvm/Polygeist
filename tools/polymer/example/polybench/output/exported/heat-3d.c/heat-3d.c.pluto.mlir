@@ -134,7 +134,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = alloc() : memref<120x120x120xf64>
     call @init_array(%c120_i32, %0, %1) : (i32, memref<120x120x120xf64>, memref<120x120x120xf64>) -> ()
     call @polybench_timer_start() : () -> ()
-    call @kernel_heat_3d(%c500_i32, %c120_i32, %0, %1) : (i32, i32, memref<120x120x120xf64>, memref<120x120x120xf64>) -> ()
+    call @kernel_heat_3d_new(%c500_i32, %c120_i32, %0, %1) : (i32, i32, memref<120x120x120xf64>, memref<120x120x120xf64>) -> ()
     call @polybench_timer_stop() : () -> ()
     call @polybench_timer_print() : () -> ()
     %2 = cmpi "sgt", %arg0, %c42_i32 : i32

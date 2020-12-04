@@ -29,7 +29,6 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %c0_i32 = constant 0 : i32
     %c1_i32 = constant 1 : i32
     %c2001_i32 = constant 2001 : i32
-    %cst = constant 1.000000e+00 : f64
     %c0 = constant 0 : index
     %0 = alloc() : memref<2000xf64>
     %1 = alloc() : memref<2000xf64>
@@ -52,49 +51,45 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %11 = alloca() : memref<1xf64>
     %12 = alloca() : memref<1xf64>
     %13 = alloca() : memref<1xf64>
-    %14 = load %0[%c0] : memref<2000xf64>
-    %15 = negf %14 : f64
-    store %15, %1[%c0] : memref<2000xf64>
-    store %cst, %12[%c0] : memref<1xf64>
-    %16 = load %0[%c0] : memref<2000xf64>
-    %17 = negf %16 : f64
-    store %17, %11[%c0] : memref<1xf64>
+    %14 = alloca() : memref<1xf64>
     affine.for %arg2 = 1 to 2000 {
-      call @S0(%12, %11) : (memref<1xf64>, memref<1xf64>) -> ()
-      call @S1(%13) : (memref<1xf64>) -> ()
-      affine.for %arg3 = 0 to #map0(%arg2) {
-        call @S2(%13, %1, %arg3, %0, %arg2) : (memref<1xf64>, memref<2000xf64>, index, memref<2000xf64>, index) -> ()
+      call @S1(%12) : (memref<1xf64>) -> ()
+      call @S2(%12, %1, %arg2, %0, %c0) : (memref<1xf64>, memref<2000xf64>, index, memref<2000xf64>, index) -> ()
+      call @S0(%13, %14) : (memref<1xf64>, memref<1xf64>) -> ()
+      affine.for %arg3 = 1 to #map0(%arg2) {
+        call @S2(%12, %1, %arg2, %0, %arg3) : (memref<1xf64>, memref<2000xf64>, index, memref<2000xf64>, index) -> ()
       }
-      %22 = alloca() : memref<1xf64>
-      call @S3(%22, %12, %11, %13, %0, %arg2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
-      call @S4(%11, %12, %13, %0, %arg2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
-      affine.for %arg3 = 0 to #map0(%arg2) {
-        call @S5(%arg3, %10, %1, %arg2, %22) : (index, memref<2000xf64>, memref<2000xf64>, index, memref<1xf64>) -> ()
+      call @S3(%11, %13, %14, %12, %0, %arg2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S5(%arg2, %10, %1, %c0, %11) : (index, memref<2000xf64>, memref<2000xf64>, index, memref<1xf64>) -> ()
+      call @S4(%14, %13, %12, %0, %arg2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>, index) -> ()
+      call @S7(%1, %arg2, %13, %14, %12, %0) : (memref<2000xf64>, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>) -> ()
+      affine.for %arg3 = #map1(%arg2) to #map2(%arg2) {
+        %19 = affine.apply #map3(%arg2, %arg3)
+        call @S5(%arg2, %10, %1, %19, %11) : (index, memref<2000xf64>, memref<2000xf64>, index, memref<1xf64>) -> ()
       }
-      affine.for %arg3 = 0 to #map0(%arg2) {
-        call @S6(%1, %arg3, %10) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
+      affine.for %arg3 = #map2(%arg2) to #map4(%arg2) {
+        call @S6(%1, %arg2, %10) : (memref<2000xf64>, index, memref<2000xf64>) -> ()
       }
-      call @S7(%1, %arg2, %12, %11, %13, %0) : (memref<2000xf64>, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<2000xf64>) -> ()
     }
-    %18 = get_global_memref @polybench_t_end : memref<1xf64>
-    %19 = call @rtclock() : () -> f64
-    store %19, %18[%c0] : memref<1xf64>
+    %15 = get_global_memref @polybench_t_end : memref<1xf64>
+    %16 = call @rtclock() : () -> f64
+    store %16, %15[%c0] : memref<1xf64>
     call @polybench_timer_print() : () -> ()
-    %20 = cmpi "sgt", %arg0, %c42_i32 : i32
-    %21 = scf.if %20 -> (i1) {
-      %22 = llvm.load %arg1 : !llvm.ptr<ptr<i8>>
-      %23 = llvm.mlir.addressof @str0 : !llvm.ptr<array<1 x i8>>
-      %24 = llvm.mlir.constant(0 : index) : !llvm.i64
-      %25 = llvm.getelementptr %23[%24, %24] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
-      %26 = llvm.call @strcmp(%22, %25) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
-      %27 = llvm.mlir.cast %26 : !llvm.i32 to i32
-      %28 = trunci %27 : i32 to i1
-      %29 = xor %28, %true : i1
-      scf.yield %29 : i1
+    %17 = cmpi "sgt", %arg0, %c42_i32 : i32
+    %18 = scf.if %17 -> (i1) {
+      %19 = llvm.load %arg1 : !llvm.ptr<ptr<i8>>
+      %20 = llvm.mlir.addressof @str0 : !llvm.ptr<array<1 x i8>>
+      %21 = llvm.mlir.constant(0 : index) : !llvm.i64
+      %22 = llvm.getelementptr %20[%21, %21] : (!llvm.ptr<array<1 x i8>>, !llvm.i64, !llvm.i64) -> !llvm.ptr<i8>
+      %23 = llvm.call @strcmp(%19, %22) : (!llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
+      %24 = llvm.mlir.cast %23 : !llvm.i32 to i32
+      %25 = trunci %24 : i32 to i1
+      %26 = xor %25, %true : i1
+      scf.yield %26 : i1
     } else {
       scf.yield %false : i1
     }
-    scf.if %21 {
+    scf.if %18 {
       call @print_array(%c2000_i32, %1) : (i32, memref<2000xf64>) -> ()
     }
     return %c0_i32 : i32

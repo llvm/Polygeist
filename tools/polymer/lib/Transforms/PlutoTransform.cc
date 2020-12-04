@@ -38,16 +38,15 @@ using namespace llvm;
 using namespace polymer;
 
 /// The main function that implements the Pluto based optimization.
-static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
-                                    bool useParallel) {
+static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
 
   std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(f, srcTable);
   if (!scop)
-    return success();
+    return nullptr;
   if (scop->getNumStatements() == 0)
-    return success();
+    return nullptr;
 
   // Should use isldep, candl cannot work well for this case.
   // TODO: should discover why.
@@ -86,36 +85,17 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
     }
   }
 
-  if (context->options->parallel && !context->options->tile &&
-      !context->options->identity) {
-    /* Obtain wavefront/pipelined parallelization by skewing if
-     * necessary */
-    unsigned nbands;
-    Band **bands;
-    pluto_compute_dep_satisfaction(prog);
-    bands = pluto_get_outermost_permutable_bands(prog, &nbands);
-    bool retval = pluto_create_tile_schedule(prog, bands, nbands);
-    pluto_bands_free(bands, nbands);
-
-    /* If the user hasn't supplied --tile and there is only pipelined
-     * parallelism, we will warn the user */
-    if (retval) {
-      llvm::errs() << "[pluto] WARNING: pipelined parallelism exists and "
-                      "--tile is not used.\n";
-      // printf("\tUse --tile for better parallelization \n");
-      //   fprintf(stdout, "[pluto] After skewing:\n");
-      //   pluto_transformations_pretty_print(prog);
-    }
-  }
-
   pluto_populate_scop(scop->get(), prog, context);
   osl_scop_print(stderr, scop->get());
 
-  auto m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
-  createFuncOpFromOpenScop(std::move(scop), m, dstTable, rewriter.getContext());
+  mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
+  mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
+      std::move(scop), m, dstTable, rewriter.getContext()));
+
+  // Replace calls to f by g in every function within the whole module.
 
   pluto_context_free(context);
-  return success();
+  return g;
 }
 
 namespace {
@@ -128,14 +108,30 @@ public:
     mlir::OpBuilder b(m.getContext());
 
     SmallVector<mlir::FuncOp, 8> funcOps;
+    llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
+
     m.walk([&](mlir::FuncOp f) {
       if (!f.getAttr("scop.stmt"))
         funcOps.push_back(f);
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (failed(plutoTransform(f, b, false)))
-        signalPassFailure();
+      if (mlir::FuncOp g = plutoTransform(f, b))
+        funcMap[f] = g;
+
+    // Replacing the original scop top-level function with the pluto transformed
+    // result, such that the whole end-to-end optimization is complete.
+    m.walk([&](mlir::FuncOp f) {
+      for (const auto &it : funcMap) {
+        mlir::FuncOp from = it.first;
+        mlir::FuncOp to = it.second;
+        if (f != from)
+          f.walk([&](mlir::CallOp op) {
+            if (op.getCallee() == from.getName())
+              op.setAttr("callee", b.getSymbolRefAttr(to.getName()));
+          });
+      }
+    });
   }
 };
 
