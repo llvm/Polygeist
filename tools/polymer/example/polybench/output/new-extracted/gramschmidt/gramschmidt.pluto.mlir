@@ -27,7 +27,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = alloc() : memref<1200x1200xf64>
     %2 = alloc() : memref<1000x1200xf64>
     call @init_array(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
-    call @"\00\EB\B4\01\00\00\00\00ramschmidt_new"(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
+    call @kernel_gramschmidt_new(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
     call @print_array(%c1000_i32, %c1200_i32, %0, %1, %2) : (i32, i32, memref<1000x1200xf64>, memref<1200x1200xf64>, memref<1000x1200xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -270,7 +270,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1, %arg2] : memref<1000x1200xf64>
     return
   }
-  func @"\00\EB\B4\01\00\00\00\00ramschmidt_new"(%arg0: i32, %arg1: i32, %arg2: memref<1000x1200xf64>, %arg3: memref<1200x1200xf64>, %arg4: memref<1000x1200xf64>) {
+  func @kernel_gramschmidt_new(%arg0: i32, %arg1: i32, %arg2: memref<1000x1200xf64>, %arg3: memref<1200x1200xf64>, %arg4: memref<1000x1200xf64>) {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg0 : i32 to index
     %2 = index_cast %arg1 : i32 to index

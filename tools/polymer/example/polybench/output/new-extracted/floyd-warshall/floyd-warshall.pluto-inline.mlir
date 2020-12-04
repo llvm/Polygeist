@@ -167,7 +167,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[%arg1, %arg2] : memref<2800x2800xi32>
     return
   }
-  func @"p\DC*\03\00\00\00\00\10\B0\FC\02\00\00\00\00shall_new"(%arg0: i32, %arg1: memref<2800x2800xi32>) {
+  func @kernel_floyd_warshall_new(%arg0: i32, %arg1: memref<2800x2800xi32>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg2 = 0 to %0 {
       affine.for %arg3 = 0 to #map6()[%0] {

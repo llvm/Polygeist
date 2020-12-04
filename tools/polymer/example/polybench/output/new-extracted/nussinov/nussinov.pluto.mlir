@@ -39,7 +39,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %0 = alloc() : memref<2500xi8>
     %1 = alloc() : memref<2500x2500xi32>
     call @init_array(%c2500_i32, %0, %1) : (i32, memref<2500xi8>, memref<2500x2500xi32>) -> ()
-    call @"\A0\03\CA\02\00\00\00\00ussinov_new"(%c2500_i32, %0, %1) : (i32, memref<2500xi8>, memref<2500x2500xi32>) -> ()
+    call @kernel_nussinov_new(%c2500_i32, %0, %1) : (i32, memref<2500xi8>, memref<2500x2500xi32>) -> ()
     call @print_array(%c2500_i32, %1) : (i32, memref<2500x2500xi32>) -> ()
     return %c0_i32 : i32
   }
@@ -261,7 +261,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<2500x2500xi32>
     return
   }
-  func @"\A0\03\CA\02\00\00\00\00ussinov_new"(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) {
+  func @kernel_nussinov_new(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) {
     %c1 = constant 1 : index
     %0 = index_cast %arg0 : i32 to index
     affine.if #set4()[%0] {

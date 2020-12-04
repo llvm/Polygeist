@@ -203,7 +203,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %10, %arg0[%arg1, %arg2] : memref<1200x1200xf64>
     return
   }
-  func @"\B0\15\12\03\00\00\00\00\10p\00\03\00\00\00\00"(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>, %arg6: memref<1200x1000xf64>) {
+  func @kernel_syr2k_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>, %arg6: memref<1200x1000xf64>) {
     %0 = index_cast %arg1 : i32 to index
     %1 = index_cast %arg0 : i32 to index
     affine.for %arg7 = 0 to #map8()[%1] {

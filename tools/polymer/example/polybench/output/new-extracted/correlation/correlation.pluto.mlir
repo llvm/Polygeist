@@ -41,7 +41,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %5 = memref_cast %0 : memref<1xf64> to memref<?xf64>
     call @init_array(%c1200_i32, %c1400_i32, %5, %1) : (i32, i32, memref<?xf64>, memref<1400x1200xf64>) -> ()
     %6 = load %0[%c0] : memref<1xf64>
-    call @"\F0\02F\02\00\00\00\00orrelation_new"(%c1200_i32, %c1400_i32, %6, %1, %2, %3, %4) : (i32, i32, f64, memref<1400x1200xf64>, memref<1200x1200xf64>, memref<1200xf64>, memref<1200xf64>) -> ()
+    call @kernel_correlation_new(%c1200_i32, %c1400_i32, %6, %1, %2, %3, %4) : (i32, i32, f64, memref<1400x1200xf64>, memref<1200x1200xf64>, memref<1200xf64>, memref<1200xf64>) -> ()
     call @print_array(%c1200_i32, %2) : (i32, memref<1200x1200xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -287,7 +287,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %0, %arg0[%arg1, %arg2] : memref<1200x1200xf64>
     return
   }
-  func @"\F0\02F\02\00\00\00\00orrelation_new"(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
+  func @kernel_correlation_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
     %0 = index_cast %arg1 : i32 to index
     %1 = index_cast %arg0 : i32 to index
     affine.for %arg7 = 0 to #map2()[%1] {
