@@ -28,7 +28,7 @@ Build and test LLVM/MLIR:
 mkdir llvm/build
 cd llvm/build
 cmake ../llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir" \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang" \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG \
