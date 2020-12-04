@@ -134,8 +134,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     scop->addBodyExtension(stmtId++, it.second);
 
   // Additionally, setup the name of the function in the comment.
-  scop->addExtensionGeneric("comment",
-                            formatv("{0}", f.getName()).str().c_str());
+  scop->addExtensionGeneric("comment", f.getName());
 
   assert(scop->validate() && "The scop object created cannot be validated.");
   return scop;
