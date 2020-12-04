@@ -592,12 +592,13 @@ void Importer::initializeFuncOpInterface() {
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
 
   // The default function name is main.
-  llvm::StringRef funcName("main");
+  std::string funcName("main");
   // If the comment is provided, we will use it as the function name.
   // TODO: make sure it is safe.
   std::string sourceFuncName = getSourceFuncName();
-  if (!sourceFuncName.empty())
-    funcName = llvm::StringRef(formatv("{0}_new", sourceFuncName));
+  if (!sourceFuncName.empty()) {
+    funcName = std::string(formatv("{0}_new", sourceFuncName));
+  }
   // Create the function interface.
   func =
       b.create<FuncOp>(sourceFuncOp.getLoc(), funcName, sourceFuncOp.getType());

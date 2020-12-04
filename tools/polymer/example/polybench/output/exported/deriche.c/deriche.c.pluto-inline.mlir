@@ -101,7 +101,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %41 = mulf %40, %11 : f32
     %42 = exp %41 : f32
     %43 = mulf %39, %42 : f32
-    affine.store %43, %26[0] : memref<1xf32>
+    affine.store %43, %25[0] : memref<1xf32>
     %44 = mulf %cst_2, %11 : f32
     %45 = exp %44 : f32
     %46 = negf %11 : f32
@@ -844,7 +844,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %31 = mulf %30, %arg2 : f32
     %32 = exp %31 : f32
     %33 = mulf %29, %32 : f32
-    affine.store %33, %14[0] : memref<1xf32>
+    affine.store %33, %13[0] : memref<1xf32>
     %34 = mulf %cst_0, %arg2 : f32
     %35 = exp %34 : f32
     %36 = negf %arg2 : f32
