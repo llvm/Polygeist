@@ -245,150 +245,15 @@ void MemRefDataFlowOpt::loadCSE(AffineReadOpInterface loadOp) {
   if (fwdingCandidates.empty())
     return;
 
-<<<<<<< HEAD
   // Store ops that have a dependence into the load.
   SmallVector<Operation *, 8> depSrcStores;
-=======
-  for (auto block : reachableBlocks) {
-    SmallVector<Block*, 4> preds;
-    for (auto pred : block->getPredecessors()) {
-      preds.push_back(pred);
-    }
-    for (auto pred : preds) {
-      mlir::Value pval = lastStoreInBlock[pred];
-      assert(pred->getTerminator());
-      if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-        mlir::OpBuilder subbuilder(op.getOperation());
-        std::vector<Value> args(op.getOperands().begin(),
-                                op.getOperands().end());
-        args.push_back(pval);
-        auto op2 = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-        //op.replaceAllUsesWith(op2);
-        op.erase();
-      }
-      if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-
-        mlir::OpBuilder subbuilder(op.getOperation());
-        std::vector<Value> trueargs(op.getTrueOperands().begin(),
-                                    op.getTrueOperands().end());
-        std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                     op.getFalseOperands().end());
-        if (op.getTrueDest() == block) {
-          trueargs.push_back(pval);
-        }
-        if (op.getFalseDest() == block) {
-          falseargs.push_back(pval);
-        }
-        auto op2 = subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                        op.getTrueDest(), trueargs,
-                                        op.getFalseDest(), falseargs);
-        //op.replaceAllUsesWith(op2);
-        op.erase();
-      }
-    }
-  }
->>>>>>> 979a49cf79d6... working towards rewriter
 
   for (auto *storeOp : storeOps) {
     if (!storeMayReachLoad(storeOp, loadOp, minSurroundingLoops))
       continue;
 
-<<<<<<< HEAD
     // Stores that *may* be reaching the load.
     depSrcStores.push_back(storeOp);
-=======
-      bool used = false;
-      for (auto U : blockArg.getUsers()) {
-
-        if (auto op = dyn_cast<BranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-        } else if (auto op = dyn_cast<CondBranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getTrueOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getTrueDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-          i = 0;
-          for (auto V : op.getFalseOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getFalseDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-        } else
-          used = true;
-      }
-      if (!used)
-        legal = true;
-
-      if (legal) {
-        for (auto U : blockArg.getUsers()) {
-          if (auto block = U->getBlock()) {
-            todo.push_back(block);
-            for (auto succ : block->getSuccessors())
-              todo.push_back(succ);
-          }
-        }
-        if (val != nullptr) {
-          blockArg.replaceAllUsesWith(val);
-        } else {
-        }
-        valueAtStartOfBlock.erase(block);
-
-        SmallVector<Block*, 4> preds;
-        for (auto pred : block->getPredecessors()) {
-          preds.push_back(pred);
-        }
-        for (auto pred : preds) {
-          if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> args(op.getOperands().begin(),
-                                    op.getOperands().end());
-            args.erase(args.begin() + blockArg.getArgNumber());
-            assert(args.size() == op.getOperands().size() - 1);
-            subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-            op.erase();
-          }
-          if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> trueargs(op.getTrueOperands().begin(),
-                                        op.getTrueOperands().end());
-            std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                         op.getFalseOperands().end());
-            if (op.getTrueDest() == block) {
-              trueargs.erase(trueargs.begin() + blockArg.getArgNumber());
-            }
-            if (op.getFalseDest() == block) {
-              falseargs.erase(falseargs.begin() + blockArg.getArgNumber());
-            }
-            assert(trueargs.size() < op.getTrueOperands().size() ||
-                   falseargs.size() < op.getFalseOperands().size());
-            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                            op.getTrueDest(), trueargs,
-                                            op.getFalseDest(), falseargs);
-            op.erase();
-          }
-        }
-        block->eraseArgument(blockArg.getArgNumber());
-      }
-    }
->>>>>>> 979a49cf79d6... working towards rewriter
   }
 
   // 3. Of all the load op's that meet the above criteria, return the first load
@@ -426,7 +291,6 @@ void MemRefDataFlowOpt::runOnFunction() {
     return;
   }
 
-<<<<<<< HEAD
   domInfo = &getAnalysis<DominanceInfo>();
   postDomInfo = &getAnalysis<PostDominanceInfo>();
 
@@ -444,48 +308,6 @@ void MemRefDataFlowOpt::runOnFunction() {
   // ones.
   for (auto *loadOp : loadOpsToErase)
     loadOp->erase();
-=======
-  // Variable indicating that a memref has had a load removed
-  // and or been deleted. Because there can be memrefs of
-  // memrefs etc, we may need to do multiple passes (first
-  // to eliminate the outermost one, then inner ones)
-  bool changed;
-  do {
-    changed = false;
-
-    // A list of memref's that are potentially dead / could be eliminated.
-    SmallPtrSet<Value, 4> memrefsToErase;
-
-    // Load op's whose results were replaced by those forwarded from stores.
-    SmallVector<Operation *, 8> loadOpsToErase;
-
-    // Walk all load's and perform store to load forwarding.
-    SmallVector<mlir::Value, 4> toPromote;
-    f.walk([&](mlir::AllocaOp AI) {
-      if (isPromotable(AI)) {
-        toPromote.push_back(AI);
-      }
-    });
-    f.walk([&](mlir::AllocOp AI) {
-      if (isPromotable(AI)) {
-        toPromote.push_back(AI);
-      }
-    });
-
-    for(auto AI : toPromote) {
-      auto lastStored = getLastStored(AI);
-      for (auto &vec : lastStored) {
-        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-      }
-      memrefsToErase.insert(AI);
-    }
-
-    // Erase all load op's whose results were replaced with store fwd'ed ones.
-    for (auto *loadOp : loadOpsToErase) {
-      changed = true;
-      loadOp->erase();
-    }
->>>>>>> 979a49cf79d6... working towards rewriter
 
   // Check if the store fwd'ed memrefs are now left with only stores and can
   // thus be completely deleted. Note: the canonicalize pass should be able
