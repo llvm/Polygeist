@@ -62,10 +62,6 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   context->options->tile = 1;
   context->options->parallel = 1;
 
-  if (useParallel) {
-    context->options->tile = 0;
-  }
-
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
   if (!context->options->silent) {
     fprintf(stderr, "[pluto] Number of statements: %d\n", prog->nstmts);
@@ -123,9 +119,8 @@ static LogicalResult plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
 }
 
 namespace {
-/// TODO: split this into specific categories like tiling.
-class PlutoTileTransformPass
-    : public mlir::PassWrapper<PlutoTileTransformPass,
+class PlutoTransformPass
+    : public mlir::PassWrapper<PlutoTransformPass,
                                OperationPass<mlir::ModuleOp>> {
 public:
   void runOnOperation() override {
@@ -144,31 +139,9 @@ public:
   }
 };
 
-/// TODO: split this into specific categories like tiling.
-class PlutoParallelTransformPass
-    : public mlir::PassWrapper<PlutoParallelTransformPass,
-                               OperationPass<mlir::ModuleOp>> {
-public:
-  void runOnOperation() override {
-    mlir::ModuleOp m = getOperation();
-    mlir::OpBuilder b(m.getContext());
-
-    SmallVector<mlir::FuncOp, 8> funcOps;
-    m.walk([&](mlir::FuncOp f) {
-      if (!f.getAttr("scop.stmt"))
-        funcOps.push_back(f);
-    });
-
-    for (mlir::FuncOp f : funcOps)
-      if (failed(plutoTransform(f, b, true)))
-        signalPassFailure();
-  }
-};
 } // namespace
 
 void polymer::registerPlutoTransformPass() {
-  PassRegistration<PlutoTileTransformPass>(
-      "pluto-opt", "Optimization implemented by PLUTO.");
-  PassRegistration<PlutoParallelTransformPass>(
-      "pluto-par", "Parallel optimization implemented by PLUTO.");
+  PassRegistration<PlutoTransformPass>("pluto-opt",
+                                       "Optimization implemented by PLUTO.");
 }
