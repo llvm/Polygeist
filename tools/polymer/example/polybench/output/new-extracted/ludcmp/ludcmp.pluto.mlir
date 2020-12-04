@@ -18,7 +18,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %2 = alloc() : memref<2000xf64>
     %3 = alloc() : memref<2000xf64>
     call @init_array(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
-    call @"\00\00\00\00\00\00\00\00\10\F0\19\02\00\00\00\00w"(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
+    call @kernel_ludcmp_new(%c2000_i32, %0, %1, %2, %3) : (i32, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
     call @print_array(%c2000_i32, %2) : (i32, memref<2000xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -316,7 +316,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %2, %arg0[-%arg1 + symbol(%arg2) - 1] : memref<2000xf64>
     return
   }
-  func @"\00\00\00\00\00\00\00\00\10\F0\19\02\00\00\00\00w"(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
+  func @kernel_ludcmp_new(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
     %c1 = constant 1 : index
     %c0 = constant 0 : index
     %0 = alloca() : memref<1xf64>

@@ -382,7 +382,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %0, %arg0[%arg1, %arg2] : memref<1200x1200xf64>
     return
   }
-  func @"@\16\EA\02\00\00\00\00orrelation_new"(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
+  func @kernel_correlation_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
     %0 = index_cast %arg1 : i32 to index
     %1 = index_cast %arg0 : i32 to index
     affine.for %arg7 = 0 to #map12()[%1] {

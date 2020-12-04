@@ -20,7 +20,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %1 = alloc() : memref<160xf64>
     %2 = alloc() : memref<160x160xf64>
     call @init_array(%c150_i32, %c140_i32, %c160_i32, %0, %2) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>) -> ()
-    call @"\E0\F6(\03\00\00\00\00\10\90\0E\03\00\00\00\00ew"(%c150_i32, %c140_i32, %c160_i32, %0, %2, %1) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>, memref<160xf64>) -> ()
+    call @kernel_doitgen_new(%c150_i32, %c140_i32, %c160_i32, %0, %2, %1) : (i32, i32, i32, memref<150x140x160xf64>, memref<160x160xf64>, memref<160xf64>) -> ()
     call @print_array(%c150_i32, %c140_i32, %c160_i32, %0) : (i32, i32, i32, memref<150x140x160xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -193,7 +193,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %0, %arg0[%arg1, %arg2, %arg3] : memref<150x140x160xf64>
     return
   }
-  func @"\E0\F6(\03\00\00\00\00\10\90\0E\03\00\00\00\00ew"(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
+  func @kernel_doitgen_new(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
     %0 = index_cast %arg2 : i32 to index
     %1 = index_cast %arg1 : i32 to index
     %2 = index_cast %arg0 : i32 to index

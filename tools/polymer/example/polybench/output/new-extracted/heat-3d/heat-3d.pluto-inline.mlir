@@ -648,7 +648,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %24, %arg0[%arg1, %arg2, %arg3] : memref<120x120x120xf64>
     return
   }
-  func @"\00\00\00\00\00\00\00\00\10\80\7F\02\00\00\00\00ew"(%arg0: i32, %arg1: i32, %arg2: memref<120x120x120xf64>, %arg3: memref<120x120x120xf64>) {
+  func @kernel_heat_3d_new(%arg0: i32, %arg1: i32, %arg2: memref<120x120x120xf64>, %arg3: memref<120x120x120xf64>) {
     %c1 = constant 1 : index
     %c500 = constant 500 : index
     %0 = index_cast %arg1 : i32 to index

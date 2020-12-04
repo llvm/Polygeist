@@ -24,7 +24,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %5 = memref_cast %0 : memref<1xf32> to memref<?xf32>
     call @init_array(%c4096_i32, %c2160_i32, %5, %1, %2) : (i32, i32, memref<?xf32>, memref<4096x2160xf32>, memref<4096x2160xf32>) -> ()
     %6 = load %0[%c0] : memref<1xf32>
-    call @"@\AFf\02\00\00\00\00\100F\02\00\00\00\00ew"(%c4096_i32, %c2160_i32, %6, %1, %2, %3, %4) : (i32, i32, f32, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<4096x2160xf32>) -> ()
+    call @kernel_deriche_new(%c4096_i32, %c2160_i32, %6, %1, %2, %3, %4) : (i32, i32, f32, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<4096x2160xf32>) -> ()
     call @print_array(%c4096_i32, %c2160_i32, %2) : (i32, i32, memref<4096x2160xf32>) -> ()
     return %c0_i32 : i32
   }
@@ -552,7 +552,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1, %arg2] : memref<4096x2160xf32>
     return
   }
-  func @"@\AFf\02\00\00\00\00\100F\02\00\00\00\00ew"(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
+  func @kernel_deriche_new(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
     %0 = alloca() : memref<1xf32>
     %1 = alloca() : memref<1xf32>
     %2 = alloca() : memref<1xf32>
@@ -573,78 +573,78 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %17 = index_cast %arg1 : i32 to index
     %18 = index_cast %arg0 : i32 to index
     affine.for %arg7 = 0 to %18 {
-      call @S17(%15) : (memref<1xf32>) -> ()
-      call @S16(%16) : (memref<1xf32>) -> ()
+      call @S17(%13) : (memref<1xf32>) -> ()
+      call @S16(%2) : (memref<1xf32>) -> ()
       call @S15(%10) : (memref<1xf32>) -> ()
-      call @S14(%11) : (memref<1xf32>) -> ()
+      call @S14(%16) : (memref<1xf32>) -> ()
       affine.for %arg8 = 0 to %17 {
-        call @S18(%arg6, %arg7, %arg8, %17, %10, %3, %11, %5, %15, %14, %16, %13) : (memref<4096x2160xf32>, index, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
-        call @S21(%10, %11) : (memref<1xf32>, memref<1xf32>) -> ()
-        call @S22(%11, %arg6, %arg7, %arg8, %17) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
-        call @S19(%15, %16) : (memref<1xf32>, memref<1xf32>) -> ()
-        call @S20(%16, %arg3, %arg7, %arg8, %17) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
+        call @S18(%arg6, %arg7, %arg8, %17, %10, %4, %16, %6, %13, %14, %2, %15) : (memref<4096x2160xf32>, index, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
+        call @S21(%10, %16) : (memref<1xf32>, memref<1xf32>) -> ()
+        call @S22(%16, %arg6, %arg7, %arg8, %17) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
+        call @S19(%13, %2) : (memref<1xf32>, memref<1xf32>) -> ()
+        call @S20(%2, %arg3, %arg7, %arg8, %17) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
       }
     }
     call @S3(%14, %arg2) : (memref<1xf32>, f32) -> ()
-    call @S2(%13, %arg2) : (memref<1xf32>, f32) -> ()
-    call @S1(%7, %arg2) : (memref<1xf32>, f32) -> ()
-    call @S0(%8, %arg2) : (memref<1xf32>, f32) -> ()
+    call @S2(%15, %arg2) : (memref<1xf32>, f32) -> ()
+    call @S1(%8, %arg2) : (memref<1xf32>, f32) -> ()
+    call @S0(%9, %arg2) : (memref<1xf32>, f32) -> ()
     affine.for %arg7 = 0 to %18 {
       affine.for %arg8 = 0 to %17 {
-        call @S10(%arg5, %arg7, %arg8, %2, %3, %4, %5, %6, %7, %arg3, %8) : (memref<4096x2160xf32>, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
-        call @S12(%2, %4) : (memref<1xf32>, memref<1xf32>) -> ()
-        call @S13(%4, %arg5, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
-        call @S11(%6, %arg3, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
+        call @S10(%arg5, %arg7, %arg8, %3, %4, %5, %6, %7, %8, %arg3, %9) : (memref<4096x2160xf32>, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
+        call @S12(%3, %5) : (memref<1xf32>, memref<1xf32>) -> ()
+        call @S13(%5, %arg5, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
+        call @S11(%7, %arg3, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
       }
-      call @S9(%6) : (memref<1xf32>) -> ()
-      call @S8(%2) : (memref<1xf32>) -> ()
-      call @S7(%4) : (memref<1xf32>) -> ()
+      call @S9(%7) : (memref<1xf32>) -> ()
+      call @S8(%3) : (memref<1xf32>) -> ()
+      call @S7(%5) : (memref<1xf32>) -> ()
     }
     affine.for %arg7 = 0 to #map0()[%18] {
       affine.for %arg8 = 0 to #map0()[%17] {
         affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%18] {
           affine.for %arg10 = #map1(%arg8) to min #map2(%arg8)[%17] {
-            call @S23(%arg4, %arg9, %arg10, %arg6, %arg5, %9) : (memref<4096x2160xf32>, index, index, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
+            call @S23(%arg4, %arg9, %arg10, %arg6, %arg5, %12) : (memref<4096x2160xf32>, index, index, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
           }
         }
       }
     }
     affine.for %arg7 = 0 to %18 {
       call @S34(%10) : (memref<1xf32>) -> ()
-      call @S33(%11) : (memref<1xf32>) -> ()
+      call @S33(%16) : (memref<1xf32>) -> ()
       call @S32(%0) : (memref<1xf32>) -> ()
       call @S31(%1) : (memref<1xf32>) -> ()
       affine.for %arg8 = 0 to %17 {
-        call @S35(%arg6, %arg7, %arg8, %18, %10, %3, %11, %5, %0, %14, %1, %13) : (memref<4096x2160xf32>, index, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
-        call @S38(%10, %11) : (memref<1xf32>, memref<1xf32>) -> ()
-        call @S39(%11, %arg6, %arg7, %arg8, %18) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
+        call @S35(%arg6, %arg7, %arg8, %18, %10, %4, %16, %6, %0, %14, %1, %15) : (memref<4096x2160xf32>, index, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>) -> ()
+        call @S38(%10, %16) : (memref<1xf32>, memref<1xf32>) -> ()
+        call @S39(%16, %arg6, %arg7, %arg8, %18) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
         call @S36(%0, %1) : (memref<1xf32>, memref<1xf32>) -> ()
         call @S37(%1, %arg4, %arg7, %arg8, %18) : (memref<1xf32>, memref<4096x2160xf32>, index, index, index) -> ()
       }
     }
     affine.for %arg7 = 0 to %18 {
-      call @S26(%2) : (memref<1xf32>) -> ()
-      call @S25(%4) : (memref<1xf32>) -> ()
-      call @S24(%12) : (memref<1xf32>) -> ()
+      call @S26(%3) : (memref<1xf32>) -> ()
+      call @S25(%5) : (memref<1xf32>) -> ()
+      call @S24(%11) : (memref<1xf32>) -> ()
       affine.for %arg8 = 0 to %17 {
-        call @S27(%arg5, %arg7, %arg8, %2, %3, %4, %5, %12, %7, %arg4, %8) : (memref<4096x2160xf32>, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
-        call @S29(%2, %4) : (memref<1xf32>, memref<1xf32>) -> ()
-        call @S30(%4, %arg5, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
-        call @S28(%12, %arg4, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
+        call @S27(%arg5, %arg7, %arg8, %3, %4, %5, %6, %11, %8, %arg4, %9) : (memref<4096x2160xf32>, index, index, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<1xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
+        call @S29(%3, %5) : (memref<1xf32>, memref<1xf32>) -> ()
+        call @S30(%5, %arg5, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
+        call @S28(%11, %arg4, %arg7, %arg8) : (memref<1xf32>, memref<4096x2160xf32>, index, index) -> ()
       }
     }
-    call @S5(%3, %arg2) : (memref<1xf32>, f32) -> ()
-    call @S4(%5, %arg2) : (memref<1xf32>, f32) -> ()
+    call @S5(%4, %arg2) : (memref<1xf32>, f32) -> ()
+    call @S4(%6, %arg2) : (memref<1xf32>, f32) -> ()
     affine.for %arg7 = 0 to #map0()[%18] {
       affine.for %arg8 = 0 to #map0()[%17] {
         affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%18] {
           affine.for %arg10 = #map1(%arg8) to min #map2(%arg8)[%17] {
-            call @S40(%arg4, %arg9, %arg10, %arg6, %arg5, %9) : (memref<4096x2160xf32>, index, index, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
+            call @S40(%arg4, %arg9, %arg10, %arg6, %arg5, %12) : (memref<4096x2160xf32>, index, index, memref<4096x2160xf32>, memref<4096x2160xf32>, memref<1xf32>) -> ()
           }
         }
       }
     }
-    call @S6(%9) : (memref<1xf32>) -> ()
+    call @S6(%12) : (memref<1xf32>) -> ()
     return
   }
 }

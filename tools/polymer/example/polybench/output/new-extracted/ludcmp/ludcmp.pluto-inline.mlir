@@ -337,7 +337,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %2, %arg0[-%arg1 + symbol(%arg2) - 1] : memref<2000xf64>
     return
   }
-  func @"\00\00\00\00\00\00\00\00\10\00\A8\02\00\00\00\00w"(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
+  func @kernel_ludcmp_new(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
     %c1 = constant 1 : index
     %c0 = constant 0 : index
     %0 = alloca() : memref<1xf64>

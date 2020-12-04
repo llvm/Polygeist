@@ -36,7 +36,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     call @init_array(%c2000_i32, %11, %12, %2, %3, %4, %5, %6, %7, %8, %9, %10) : (i32, memref<?xf64>, memref<?xf64>, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
     %13 = load %0[%c0] : memref<1xf64>
     %14 = load %1[%c0] : memref<1xf64>
-    call @"\F0\C1$\03\00\00\00\00\10\E0\08\03\00\00\00\00w"(%c2000_i32, %13, %14, %2, %3, %4, %5, %6, %7, %8, %9, %10) : (i32, f64, f64, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
+    call @kernel_gemver_new(%c2000_i32, %13, %14, %2, %3, %4, %5, %6, %7, %8, %9, %10) : (i32, f64, f64, memref<2000x2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>, memref<2000xf64>) -> ()
     call @print_array(%c2000_i32, %7) : (i32, memref<2000xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -213,7 +213,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[%arg1] : memref<2000xf64>
     return
   }
-  func @"\F0\C1$\03\00\00\00\00\10\E0\08\03\00\00\00\00w"(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
+  func @kernel_gemver_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg12 = 0 to #map0()[%0] {
       affine.for %arg13 = max #map1(%arg12)[%0] to min #map2(%arg12)[%0] {

@@ -27,7 +27,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     call @init_array(%c1300_i32, %7, %8, %2, %3, %5) : (i32, memref<?xf64>, memref<?xf64>, memref<1300x1300xf64>, memref<1300x1300xf64>, memref<1300xf64>) -> ()
     %9 = load %0[%c0] : memref<1xf64>
     %10 = load %1[%c0] : memref<1xf64>
-    call @"\A0s\BD\02\00\00\00\00\10\10\AB\02\00\00\00\00ew"(%c1300_i32, %9, %10, %2, %3, %4, %5, %6) : (i32, f64, f64, memref<1300x1300xf64>, memref<1300x1300xf64>, memref<1300xf64>, memref<1300xf64>, memref<1300xf64>) -> ()
+    call @kernel_gesummv_new(%c1300_i32, %9, %10, %2, %3, %4, %5, %6) : (i32, f64, f64, memref<1300x1300xf64>, memref<1300x1300xf64>, memref<1300xf64>, memref<1300xf64>, memref<1300xf64>) -> ()
     call @print_array(%c1300_i32, %6) : (i32, memref<1300xf64>) -> ()
     return %c0_i32 : i32
   }
@@ -183,7 +183,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1] : memref<1300xf64>
     return
   }
-  func @"\A0s\BD\02\00\00\00\00\10\10\AB\02\00\00\00\00ew"(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) {
+  func @kernel_gesummv_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg8 = 0 to #map0()[%0] {
       affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%0] {
