@@ -825,7 +825,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             }
           }
           mlir::Value val = (mlir::Value)Visit(a);
-          val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
+          if (!isa<mlir::LLVM::NullOp>(val.getDefiningOp()))
+            val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
           args.push_back(val);
           i++;
         }
@@ -1603,23 +1604,14 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   switch (E->getCastKind()) {
-  /*
+
   case clang::CastKind::CK_NullToPointer: {
+    auto llvmType =
+        Glob.typeTranslator.translateType(getLLVMType(E->getType()));
 
-    auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
-                                    ut.getAffineMaps(), ut.getMemorySpace());
-    auto offs = scalar.offsets;
-    for (auto &off : offs) {
-      if (auto op = off.getDefiningOp<ConstantIndexOp>()) {
-        assert(op.getValue() == 0);
-      } else {
-        assert(0 && "cast of nonconstant op is not handled");
-      }
-    }
-
-    return ValueWithOffsets(Visit(E->getSubExpr()), {getConstantIndex(0)});
+    return ValueWithOffsets(builder.create<mlir::LLVM::NullOp>(loc, llvmType));
   }
-  */
+
   case clang::CastKind::CK_BitCast: {
 
     if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
