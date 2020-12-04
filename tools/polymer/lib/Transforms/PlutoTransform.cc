@@ -116,8 +116,10 @@ public:
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g = plutoTransform(f, b))
+      if (mlir::FuncOp g = plutoTransform(f, b)) {
         funcMap[f] = g;
+        g.setPrivate();
+      }
 
     // Replacing the original scop top-level function with the pluto transformed
     // result, such that the whole end-to-end optimization is complete.
