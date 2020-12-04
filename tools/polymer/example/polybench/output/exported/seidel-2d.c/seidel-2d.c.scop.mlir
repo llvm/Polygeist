@@ -217,7 +217,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %14 = addf %11, %13 : f64
     return %14 : f64
   }
-  func @S0(%arg0: memref<2000x2000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
+  func private @S0(%arg0: memref<2000x2000xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
     %0 = affine.load %arg0[%arg1 - 1, %arg2 - 1] : memref<2000x2000xf64>
     %1 = affine.load %arg0[%arg1 - 1, %arg2] : memref<2000x2000xf64>
     %2 = addf %0, %1 : f64

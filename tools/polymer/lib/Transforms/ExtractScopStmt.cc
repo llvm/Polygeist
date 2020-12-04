@@ -149,6 +149,8 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   SetVector<Operation *> sortedOps = topologicalSort(ops);
   SmallVector<Operation *, 8> clonedOps;
 
+  // Ensures that the cloned operations have their uses updated to the
+  // corresponding values in the current scope.
   for (unsigned i = 0; i < numOps; i++) {
     // Build the value mapping while cloning operations.
     sortedOps[i]->walk([&](mlir::Operation *op) {
@@ -165,29 +167,13 @@ static mlir::FuncOp createCallee(StringRef calleeName,
     clonedOps.push_back(b.clone(*sortedOps[i], mapping));
   }
 
-  // DominanceInfo dom(callee);
-  // for (mlir::Operation *clonedOp : clonedOps) {
-  //   clonedOp->walk([&](mlir::Operation *op) {
-  //     for (mlir::Value operand : op->getOperands()) {
-  //       OpBuilder::InsertionGuard guard(b);
-  //       b.setInsertionPoint(op);
-  //       if (!dom.dominates(operand.getParentBlock(), entryBlock)) {
-  //         mlir::Operation *defOp = operand.getDefiningOp();
-  //         assert(defOp != nullptr);
-  //         if (isa<mlir::ConstantOp>(defOp)) {
-  //           mlir::Operation *newOp = b.clone(*defOp, mapping);
-  //           operand.replaceAllUsesWith(newOp->getResult(0));
-  //         }
-  //         // defOp->erase();
-  //       }
-  //     }
-  //   });
-  // }
-
   // Set the scop_stmt attribute for identification at a later stage.
   // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
   // that contains scop stmt FuncOp, e.g., ScopStmtOp.
   callee.setAttr(SCOP_STMT_ATTR_NAME, b.getUnitAttr());
+
+  // Set the callee to be private for inlining.
+  callee.setPrivate();
 
   return callee;
 }
