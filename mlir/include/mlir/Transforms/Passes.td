@@ -411,6 +411,11 @@ def MemRefDataFlowOpt : FunctionPass<"memref-dataflow-opt"> {
   let constructor = "mlir::createMemRefDataFlowOptPass()";
 }
 
+def Mem2Reg : FunctionPass<"mem2reg"> {
+  let summary = "Perform store/load forwarding for memrefs";
+  let constructor = "mlir::createMem2RegPass()";
+}
+
 def ParallelLower : FunctionPass<"parallel-lower-opt"> {
   let constructor = "mlir::createParallelLowerPass()";
 }

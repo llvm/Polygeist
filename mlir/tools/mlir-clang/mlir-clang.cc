@@ -90,11 +90,13 @@ int main(int argc, char **argv) {
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createMemRefDataFlowOptPass());
+  optPM.addPass(mlir::createMem2RegPass());
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
   // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::replaceAffineCFGPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createMemRefDataFlowOptPass());
 
   if (mlir::failed(pm.run(module)))
     return 4;

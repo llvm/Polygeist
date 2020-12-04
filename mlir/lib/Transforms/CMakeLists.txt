@@ -15,6 +15,7 @@ add_mlir_library(MLIRTransforms
   LoopFusion.cpp
   LoopInvariantCodeMotion.cpp
   LoopRestructure.cpp
+  Mem2Reg.cpp
   MemRefDataFlowOpt.cpp
   NormalizeMemRefs.cpp
   OpStats.cpp
