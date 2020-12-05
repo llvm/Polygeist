@@ -5,61 +5,58 @@
 #map4 = affine_map<(d0) -> (31, d0 * 32)>
 #map5 = affine_map<(d0)[s0] -> (s0 + 29, d0 * 32 + 32)>
 #map6 = affine_map<()[s0] -> (s0 - 2)>
-#map7 = affine_map<(d0, d1)[s0] -> (0, (d0 - 1) ceildiv 2, (d1 * 32 - s0 - 27) ceildiv 32)>
-#map8 = affine_map<(d0, d1)[s0] -> ((s0 + 38) floordiv 32 + 1, (d0 * 16 + s0 + 28) floordiv 32 + 1, (d1 * 32 + s0 + 27) floordiv 32 + 1)>
-#map9 = affine_map<(d0, d1) -> (d0 * 32, d1 * -32 + d0 * 32 + 29)>
-#map10 = affine_map<(d0, d1) -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + 61)>
-#map11 = affine_map<(d0) -> (d0 - 30)>
+#map7 = affine_map<(d0) -> (d0 - 30)>
+#map8 = affine_map<(d0, d1)[s0] -> (0, (d0 - 1) ceildiv 2, (d1 * 32 - s0 - 27) ceildiv 32)>
+#map9 = affine_map<(d0, d1)[s0] -> ((s0 + 38) floordiv 32 + 1, (d0 * 16 + s0 + 28) floordiv 32 + 1, (d1 * 32 + s0 + 27) floordiv 32 + 1)>
+#map10 = affine_map<(d0, d1) -> (d0 * 32, d1 * -32 + d0 * 32 + 29)>
+#map11 = affine_map<(d0, d1) -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + 61)>
 #map12 = affine_map<(d0) -> (d0 * 32)>
 #map13 = affine_map<(d0, d1, d2)[s0] -> (0, (d0 - 1) ceildiv 2, (d1 * 32 - s0 - 27) ceildiv 32, (d2 * 32 - s0 - 27) ceildiv 32)>
 #map14 = affine_map<(d0, d1, d2)[s0] -> ((s0 + 38) floordiv 32 + 1, (d0 * 16 + s0 + 28) floordiv 32 + 1, (d1 * 32 + s0 + 27) floordiv 32 + 1, (d2 * 32 + s0 + 27) floordiv 32 + 1)>
 #map15 = affine_map<(d0, d1)[s0] -> (d0 * 32, d1 * 32 - s0 + 3)>
 #map16 = affine_map<(d0, d1) -> (d0 * 32 + 1, d1 * 32 + 32)>
-#map17 = affine_map<(d0)[s0] -> ((d0 * 32 - s0 + 1) ceildiv 2)>
-#map18 = affine_map<(d0, d1)[s0] -> (d0 * -32 + d1 + s0 - 2)>
-#map19 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 * 32 - s0 + 3, d2 * -32 + d0 * 32 + d1 * 64 - s0 * 2 - 27)>
-#map20 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + d2 * 64 - s0 * 2 + 5)>
-#map21 = affine_map<(d0) -> (d0 * 32 + 32)>
-#map22 = affine_map<(d0) -> (34, d0 * 32)>
-#map23 = affine_map<(d0)[s0] -> (s0 + 32, d0 * 32 + 32)>
-#map24 = affine_map<(d0) -> (d0 - 33)>
-#map25 = affine_map<(d0, d1, d2, d3)[s0] -> (1, (d0 * 32 - s0 + 2) ceildiv 2, (d1 * 32 - s0 + 2) ceildiv 2, (d2 * 32 - s0 + 2) ceildiv 2, d3 * 8, d3 * 16 - d0 * 16 + 1)>
-#map26 = affine_map<(d0, d1, d2, d3)[s0] -> (21, d0 * 16 - d1 * 16 + s0 floordiv 2 + 15, d0 * 8 + 16, d1 * 16 + 15, d2 * 16 + 15, d3 * 16 + 15)>
-#map27 = affine_map<(d0, d1) -> (d0 * 32, d1 * 2 + 1)>
-#map28 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 2 + s0 - 1)>
-#map29 = affine_map<(d0, d1) -> (d0 * -2 + d1)>
-#map30 = affine_map<(d0, d1, d2) -> (d0 * 32, d1 * 2 + 2, d2 * -32 + d0 * 32 + d1 * 4 - 31)>
-#map31 = affine_map<(d0, d1, d2) -> (d0 * -32 + d1 * 32 + d2 * 4 - 29)>
-#map32 = affine_map<(d0, d1, d2) -> (d0 * 32, d1 * 2 + 2, d2 * -32 + d0 * 32 + d1 * 4 - 29)>
-#map33 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + d2 * 4 + 1, d2 * 2 + s0 - 1)>
-#map34 = affine_map<(d0, d1) -> (d0 * 32, d1 * 2 + 2)>
-#map35 = affine_map<(d0, d1) -> (d0 * -2 + d1 - 1)>
-#map36 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 2 + s0)>
-#map37 = affine_map<(d0, d1, d2) -> (d0 * -32 + d1 * 32 + d2 * 4 + 1)>
-#map38 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * 2 + s0, d2 * -32 + d0 * 32 + d1 * 4 + 3)>
-#map39 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 * 32 - d2 * 32 + s0 + 30)>
-#map40 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * 32 - d2 * 32 + s0 * 2 + 28)>
-#map41 = affine_map<(d0, d1)[s0] -> ((d0 * 32 - d1 * 32 + s0 + 29) ceildiv 2)>
-#map42 = affine_map<(d0, d1, d2)[s0] -> (d0 * -32 + d1 * 32 + d2 - s0 - 29)>
-#map43 = affine_map<(d0, d1) -> (31, d0 * 32, d1 * -32 + d0 * 32 + 29)>
-#map44 = affine_map<(d0, d1)[s0] -> (s0 + 29, d0 * 32 + 32, d1 * -32 + d0 * 32 + 61)>
-#map45 = affine_map<(d0, d1) -> (d0 * 32, d1 * 16 + 32)>
-#map46 = affine_map<(d0) -> (d0 * 8 + 15)>
-#map47 = affine_map<(d0, d1) -> (d0 * -16 + d1 * 32)>
-#map48 = affine_map<(d0, d1) -> (d0 * -16 + d1 - 31)>
-#map49 = affine_map<(d0, d1) -> (42, d0 * 32, d1 * -32 + d0 * 32 + 51)>
-#map50 = affine_map<(d0, d1) -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + 83)>
-#map51 = affine_map<(d0) -> (42, d0 * 32)>
-#map52 = affine_map<(d0) -> (d0 - 41)>
-#map53 = affine_map<(d0) -> ((d0 + 1) ceildiv 2)>
-#map54 = affine_map<(d0)[s0] -> ((d0 * 16 + s0 + 29) floordiv 32 + 1)>
-#map55 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 16 + s0 + 30)>
-#map56 = affine_map<()[s0] -> ((s0 + 39) floordiv 32 + 1)>
-#map57 = affine_map<(d0)[s0] -> (s0 + 40, d0 * 32 + 32)>
-#map58 = affine_map<()[s0] -> ((s0 - 5) floordiv 32 + 1)>
-#map59 = affine_map<(d0) -> (3, d0 * 32)>
-#map60 = affine_map<(d0)[s0] -> (s0 + 1, d0 * 32 + 32)>
-#map61 = affine_map<(d0) -> (d0 - 2)>
+#map17 = affine_map<(d0, d1)[s0] -> (d0 * -32 + d1 + s0 - 2)>
+#map18 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 * 32 - s0 + 3, d2 * -32 + d0 * 32 + d1 * 64 - s0 * 2 - 27)>
+#map19 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + d2 * 64 - s0 * 2 + 5)>
+#map20 = affine_map<(d0) -> (d0 * 32 + 32)>
+#map21 = affine_map<(d0) -> (34, d0 * 32)>
+#map22 = affine_map<(d0)[s0] -> (s0 + 32, d0 * 32 + 32)>
+#map23 = affine_map<(d0) -> (d0 - 33)>
+#map24 = affine_map<(d0, d1, d2, d3)[s0] -> (1, (d0 * 32 - s0 + 2) ceildiv 2, (d1 * 32 - s0 + 2) ceildiv 2, (d2 * 32 - s0 + 2) ceildiv 2, d3 * 8, d3 * 16 - d0 * 16 + 1)>
+#map25 = affine_map<(d0, d1, d2, d3)[s0] -> (21, d0 * 16 - d1 * 16 + s0 floordiv 2 + 15, d0 * 8 + 16, d1 * 16 + 15, d2 * 16 + 15, d3 * 16 + 15)>
+#map26 = affine_map<(d0, d1) -> (d0 * 32, d1 * 2 + 1)>
+#map27 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 2 + s0 - 1)>
+#map28 = affine_map<(d0, d1) -> (d0 * -2 + d1)>
+#map29 = affine_map<(d0, d1, d2) -> (d0 * 32, d1 * 2 + 2, d2 * -32 + d0 * 32 + d1 * 4 - 31)>
+#map30 = affine_map<(d0, d1, d2) -> (d0 * -32 + d1 * 32 + d2 * 4 - 29)>
+#map31 = affine_map<(d0, d1, d2) -> (d0 * 32, d1 * 2 + 2, d2 * -32 + d0 * 32 + d1 * 4 - 29)>
+#map32 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + d2 * 4 + 1, d2 * 2 + s0 - 1)>
+#map33 = affine_map<(d0, d1) -> (d0 * 32, d1 * 2 + 2)>
+#map34 = affine_map<(d0, d1) -> (d0 * -2 + d1 - 1)>
+#map35 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 2 + s0)>
+#map36 = affine_map<(d0, d1, d2) -> (d0 * -32 + d1 * 32 + d2 * 4 + 1)>
+#map37 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * 2 + s0, d2 * -32 + d0 * 32 + d1 * 4 + 3)>
+#map38 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 * 32 - d2 * 32 + s0 + 30)>
+#map39 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * 32 - d2 * 32 + s0 * 2 + 28)>
+#map40 = affine_map<(d0, d1, d2)[s0] -> (d0 * -32 + d1 * 32 + d2 - s0 - 29)>
+#map41 = affine_map<(d0, d1) -> (31, d0 * 32, d1 * -32 + d0 * 32 + 29)>
+#map42 = affine_map<(d0, d1)[s0] -> (s0 + 29, d0 * 32 + 32, d1 * -32 + d0 * 32 + 61)>
+#map43 = affine_map<(d0, d1) -> (d0 * 32, d1 * 16 + 32)>
+#map44 = affine_map<(d0, d1) -> (d0 * -16 + d1 * 32)>
+#map45 = affine_map<(d0, d1) -> (d0 * -16 + d1 - 31)>
+#map46 = affine_map<(d0, d1) -> (42, d0 * 32, d1 * -32 + d0 * 32 + 51)>
+#map47 = affine_map<(d0, d1) -> (d0 * 32 + 32, d1 * -32 + d0 * 32 + 83)>
+#map48 = affine_map<(d0) -> (42, d0 * 32)>
+#map49 = affine_map<(d0) -> (d0 - 41)>
+#map50 = affine_map<(d0) -> ((d0 + 1) ceildiv 2)>
+#map51 = affine_map<(d0)[s0] -> ((d0 * 16 + s0 + 29) floordiv 32 + 1)>
+#map52 = affine_map<(d0, d1)[s0] -> (d0 * 32 + 32, d1 * 16 + s0 + 30)>
+#map53 = affine_map<()[s0] -> ((s0 + 39) floordiv 32 + 1)>
+#map54 = affine_map<(d0)[s0] -> (s0 + 40, d0 * 32 + 32)>
+#map55 = affine_map<()[s0] -> ((s0 - 5) floordiv 32 + 1)>
+#map56 = affine_map<(d0) -> (3, d0 * 32)>
+#map57 = affine_map<(d0)[s0] -> (s0 + 1, d0 * 32 + 32)>
+#map58 = affine_map<(d0) -> (d0 - 2)>
 #set0 = affine_set<(d0, d1)[s0] : (d0 - 1 == 0, d1 * 32 - (s0 + 28) == 0)>
 #set1 = affine_set<()[s0] : ((s0 + 28) mod 32 == 0)>
 #set2 = affine_set<(d0, d1, d2)[s0] : (-d0 + 1 >= 0, -d1 + (s0 - 4) floordiv 32 >= 0, d2 * 32 - (s0 + 28) == 0)>
@@ -307,11 +304,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %24, %arg0[%arg1, %arg2, %arg3] : memref<10x10x10xf64>
     return
   }
-  func @kernel_heat_3d_new(%arg0: i32, %arg1: i32, %arg2: memref<10x10x10xf64>, %arg3: memref<10x10x10xf64>) {
-    %c16 = constant 16 : index
-    %c15 = constant 15 : index
+  func private @kernel_heat_3d_new(%arg0: i32, %arg1: i32, %arg2: memref<10x10x10xf64>, %arg3: memref<10x10x10xf64>) {
     %c1 = constant 1 : index
-    %c20 = constant 20 : index
     %0 = index_cast %arg1 : i32 to index
     affine.for %arg4 = -1 to 3 {
       affine.for %arg5 = #map1(%arg4) to min #map2(%arg4)[%0] {
@@ -320,18 +314,19 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             affine.for %arg7 = max #map4(%arg6) to min #map5(%arg6)[%0] {
               affine.if #set1()[%0] {
                 %1 = affine.apply #map6()[%0]
-                call @S0(%arg3, %c15, %1, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                %2 = affine.apply #map7(%arg7)
+                call @S0(%arg3, %1, %c1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
         }
-        affine.for %arg6 = max #map7(%arg4, %arg5)[%0] to min #map8(%arg4, %arg5)[%0] {
+        affine.for %arg6 = max #map8(%arg4, %arg5)[%0] to min #map9(%arg4, %arg5)[%0] {
           affine.if #set2(%arg4, %arg5, %arg6)[%0] {
-            affine.for %arg7 = max #map9(%arg4, %arg5) to min #map10(%arg4, %arg5) {
+            affine.for %arg7 = max #map10(%arg4, %arg5) to min #map11(%arg4, %arg5) {
               affine.if #set1()[%0] {
-                %1 = affine.apply #map11(%arg7)
+                %1 = affine.apply #map7(%arg7)
                 %2 = affine.apply #map6()[%0]
-                call @S0(%arg3, %c15, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                call @S0(%arg3, %1, %2, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
@@ -339,8 +334,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             affine.for %arg7 = #map12(%arg6) to min #map5(%arg6)[%0] {
               affine.if #set1()[%0] {
                 %1 = affine.apply #map6()[%0]
-                %2 = affine.apply #map11(%arg7)
-                call @S0(%arg3, %c15, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                %2 = affine.apply #map7(%arg7)
+                call @S0(%arg3, %1, %2, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
@@ -349,9 +344,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
               affine.if #set4()[%0] {
                 affine.for %arg8 = max #map15(%arg5, %arg6)[%0] to min #map16(%arg5, %arg6) {
                   affine.for %arg9 = max #map15(%arg5, %arg7)[%0] to min #map16(%arg5, %arg7) {
-                    %1 = affine.apply #map17(%arg5)[%0]
-                    %2 = affine.apply #map6()[%0]
-                    %3 = affine.apply #map18(%arg5, %arg8)[%0]
+                    %1 = affine.apply #map6()[%0]
+                    %2 = affine.apply #map17(%arg5, %arg8)[%0]
+                    %3 = affine.apply #map17(%arg5, %arg9)[%0]
                     call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
@@ -359,11 +354,11 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             }
             affine.if #set5(%arg4, %arg5, %arg6)[%0] {
               affine.if #set4()[%0] {
-                affine.for %arg8 = max #map19(%arg4, %arg5, %arg6)[%0] to min #map20(%arg4, %arg5, %arg6)[%0] {
+                affine.for %arg8 = max #map18(%arg4, %arg5, %arg6)[%0] to min #map19(%arg4, %arg5, %arg6)[%0] {
                   affine.for %arg9 = max #map15(%arg6, %arg7)[%0] to min #map16(%arg6, %arg7) {
-                    %1 = affine.apply #map17(%arg6)[%0]
-                    %2 = affine.apply #map18(%arg6, %arg8)[%0]
-                    %3 = affine.apply #map6()[%0]
+                    %1 = affine.apply #map17(%arg6, %arg8)[%0]
+                    %2 = affine.apply #map6()[%0]
+                    %3 = affine.apply #map17(%arg6, %arg9)[%0]
                     call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
@@ -371,167 +366,182 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             }
             affine.if #set6(%arg4, %arg5, %arg6, %arg7)[%0] {
               affine.if #set4()[%0] {
-                affine.for %arg8 = max #map19(%arg4, %arg5, %arg7)[%0] to min #map20(%arg4, %arg5, %arg7)[%0] {
-                  affine.for %arg9 = max #map15(%arg6, %arg7)[%0] to #map21(%arg6) {
-                    %1 = affine.apply #map17(%arg7)[%0]
-                    %2 = affine.apply #map18(%arg7, %arg8)[%0]
-                    %3 = affine.apply #map18(%arg7, %arg9)[%0]
+                affine.for %arg8 = max #map18(%arg4, %arg5, %arg7)[%0] to min #map19(%arg4, %arg5, %arg7)[%0] {
+                  affine.for %arg9 = max #map15(%arg6, %arg7)[%0] to #map20(%arg6) {
+                    %1 = affine.apply #map17(%arg7, %arg8)[%0]
+                    %2 = affine.apply #map17(%arg7, %arg9)[%0]
+                    %3 = affine.apply #map6()[%0]
                     call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
             }
             affine.if #set7(%arg4, %arg5, %arg6, %arg7)[%0] {
-              affine.for %arg8 = max #map22(%arg6) to min #map23(%arg6)[%0] {
-                affine.for %arg9 = max #map22(%arg7) to min #map23(%arg7)[%0] {
-                  %1 = affine.apply #map24(%arg8)
-                  call @S1(%arg2, %c16, %c1, %1, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg8 = max #map21(%arg6) to min #map22(%arg6)[%0] {
+                affine.for %arg9 = max #map21(%arg7) to min #map22(%arg7)[%0] {
+                  %1 = affine.apply #map23(%arg8)
+                  %2 = affine.apply #map23(%arg9)
+                  call @S1(%arg2, %c1, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
-            affine.for %arg8 = max #map25(%arg4, %arg5, %arg6, %arg7)[%0] to min #map26(%arg4, %arg5, %arg6, %arg7)[%0] {
+            affine.for %arg8 = max #map24(%arg4, %arg5, %arg6, %arg7)[%0] to min #map25(%arg4, %arg5, %arg6, %arg7)[%0] {
               affine.if #set8(%arg4, %arg5, %arg8) {
-                affine.for %arg9 = max #map27(%arg6, %arg8) to min #map28(%arg6, %arg8)[%0] {
-                  affine.for %arg10 = max #map27(%arg7, %arg8) to min #map28(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map29(%arg8, %arg9)
-                    call @S0(%arg3, %arg8, %c1, %1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                affine.for %arg9 = max #map26(%arg6, %arg8) to min #map27(%arg6, %arg8)[%0] {
+                  affine.for %arg10 = max #map26(%arg7, %arg8) to min #map27(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map28(%arg8, %arg9)
+                    %2 = affine.apply #map28(%arg8, %arg10)
+                    call @S0(%arg3, %c1, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
-              affine.for %arg9 = max #map30(%arg4, %arg5, %arg8) to #map31(%arg4, %arg5, %arg8) {
-                affine.for %arg10 = max #map27(%arg6, %arg8) to min #map28(%arg6, %arg8)[%0] {
-                  affine.for %arg11 = max #map27(%arg7, %arg8) to min #map28(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map29(%arg8, %arg9)
-                    %2 = affine.apply #map29(%arg8, %arg10)
-                    call @S0(%arg3, %arg8, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg9 = max #map29(%arg4, %arg5, %arg8) to #map30(%arg4, %arg5, %arg8) {
+                affine.for %arg10 = max #map26(%arg6, %arg8) to min #map27(%arg6, %arg8)[%0] {
+                  affine.for %arg11 = max #map26(%arg7, %arg8) to min #map27(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map28(%arg8, %arg9)
+                    %2 = affine.apply #map28(%arg8, %arg10)
+                    %3 = affine.apply #map28(%arg8, %arg11)
+                    call @S0(%arg3, %1, %2, %3, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
-              affine.for %arg9 = max #map32(%arg4, %arg5, %arg8) to min #map33(%arg4, %arg5, %arg8)[%0] {
+              affine.for %arg9 = max #map31(%arg4, %arg5, %arg8) to min #map32(%arg4, %arg5, %arg8)[%0] {
                 affine.if #set9(%arg6, %arg8) {
-                  affine.for %arg10 = max #map27(%arg7, %arg8) to min #map28(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map29(%arg8, %arg9)
-                    call @S0(%arg3, %arg8, %1, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  affine.for %arg10 = max #map26(%arg7, %arg8) to min #map27(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map28(%arg8, %arg9)
+                    %2 = affine.apply #map28(%arg8, %arg10)
+                    call @S0(%arg3, %1, %c1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
-                affine.for %arg10 = max #map34(%arg6, %arg8) to min #map28(%arg6, %arg8)[%0] {
+                affine.for %arg10 = max #map33(%arg6, %arg8) to min #map27(%arg6, %arg8)[%0] {
                   affine.if #set9(%arg7, %arg8) {
-                    %1 = affine.apply #map29(%arg8, %arg9)
-                    %2 = affine.apply #map29(%arg8, %arg10)
-                    call @S0(%arg3, %arg8, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                    %1 = affine.apply #map28(%arg8, %arg9)
+                    %2 = affine.apply #map28(%arg8, %arg10)
+                    call @S0(%arg3, %1, %2, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
-                  affine.for %arg11 = max #map34(%arg7, %arg8) to min #map28(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map35(%arg8, %arg9)
-                    %2 = affine.apply #map35(%arg8, %arg10)
-                    call @S1(%arg2, %arg8, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
-                    %3 = affine.apply #map29(%arg8, %arg9)
-                    %4 = affine.apply #map29(%arg8, %arg10)
-                    call @S0(%arg3, %arg8, %3, %4, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  affine.for %arg11 = max #map33(%arg7, %arg8) to min #map27(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map34(%arg8, %arg9)
+                    %2 = affine.apply #map34(%arg8, %arg10)
+                    %3 = affine.apply #map34(%arg8, %arg11)
+                    call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                    %4 = affine.apply #map28(%arg8, %arg9)
+                    %5 = affine.apply #map28(%arg8, %arg10)
+                    %6 = affine.apply #map28(%arg8, %arg11)
+                    call @S0(%arg3, %4, %5, %6, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                   affine.if #set10(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map35(%arg8, %arg9)
-                    %2 = affine.apply #map35(%arg8, %arg10)
-                    call @S1(%arg2, %arg8, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                    %1 = affine.apply #map34(%arg8, %arg9)
+                    %2 = affine.apply #map34(%arg8, %arg10)
+                    %3 = affine.apply #map6()[%0]
+                    call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
                 affine.if #set10(%arg6, %arg8)[%0] {
-                  affine.for %arg10 = max #map34(%arg7, %arg8) to min #map36(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map35(%arg8, %arg9)
+                  affine.for %arg10 = max #map33(%arg7, %arg8) to min #map35(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map34(%arg8, %arg9)
                     %2 = affine.apply #map6()[%0]
-                    call @S1(%arg2, %arg8, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                    %3 = affine.apply #map34(%arg8, %arg10)
+                    call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
-              affine.for %arg9 = #map37(%arg4, %arg5, %arg8) to min #map38(%arg4, %arg5, %arg8)[%0] {
-                affine.for %arg10 = max #map34(%arg6, %arg8) to min #map36(%arg6, %arg8)[%0] {
-                  affine.for %arg11 = max #map34(%arg7, %arg8) to min #map36(%arg7, %arg8)[%0] {
-                    %1 = affine.apply #map35(%arg8, %arg9)
-                    %2 = affine.apply #map35(%arg8, %arg10)
-                    call @S1(%arg2, %arg8, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg9 = #map36(%arg4, %arg5, %arg8) to min #map37(%arg4, %arg5, %arg8)[%0] {
+                affine.for %arg10 = max #map33(%arg6, %arg8) to min #map35(%arg6, %arg8)[%0] {
+                  affine.for %arg11 = max #map33(%arg7, %arg8) to min #map35(%arg7, %arg8)[%0] {
+                    %1 = affine.apply #map34(%arg8, %arg9)
+                    %2 = affine.apply #map34(%arg8, %arg10)
+                    %3 = affine.apply #map34(%arg8, %arg11)
+                    call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
               affine.if #set11(%arg4, %arg5, %arg8)[%0] {
-                affine.for %arg9 = max #map34(%arg6, %arg8) to min #map36(%arg6, %arg8)[%0] {
-                  affine.for %arg10 = max #map34(%arg7, %arg8) to min #map36(%arg7, %arg8)[%0] {
+                affine.for %arg9 = max #map33(%arg6, %arg8) to min #map35(%arg6, %arg8)[%0] {
+                  affine.for %arg10 = max #map33(%arg7, %arg8) to min #map35(%arg7, %arg8)[%0] {
                     %1 = affine.apply #map6()[%0]
-                    %2 = affine.apply #map35(%arg8, %arg9)
-                    call @S1(%arg2, %arg8, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                    %2 = affine.apply #map34(%arg8, %arg9)
+                    %3 = affine.apply #map34(%arg8, %arg10)
+                    call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
             }
             affine.if #set12(%arg4, %arg5, %arg6, %arg7)[%0] {
               affine.if #set4()[%0] {
-                affine.for %arg8 = max #map39(%arg4, %arg5, %arg6)[%0] to min #map40(%arg4, %arg5, %arg6)[%0] {
-                  affine.for %arg9 = max #map39(%arg4, %arg5, %arg7)[%0] to min #map40(%arg4, %arg5, %arg7)[%0] {
-                    %1 = affine.apply #map41(%arg4, %arg5)[%0]
-                    %2 = affine.apply #map6()[%0]
-                    %3 = affine.apply #map42(%arg4, %arg5, %arg8)[%0]
+                affine.for %arg8 = max #map38(%arg4, %arg5, %arg6)[%0] to min #map39(%arg4, %arg5, %arg6)[%0] {
+                  affine.for %arg9 = max #map38(%arg4, %arg5, %arg7)[%0] to min #map39(%arg4, %arg5, %arg7)[%0] {
+                    %1 = affine.apply #map6()[%0]
+                    %2 = affine.apply #map40(%arg4, %arg5, %arg8)[%0]
+                    %3 = affine.apply #map40(%arg4, %arg5, %arg9)[%0]
                     call @S0(%arg3, %1, %2, %3, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                   }
                 }
               }
             }
             affine.if #set13(%arg4, %arg5, %arg6, %arg7)[%0] {
-              affine.for %arg8 = max #map43(%arg4, %arg5) to min #map44(%arg4, %arg5)[%0] {
+              affine.for %arg8 = max #map41(%arg4, %arg5) to min #map42(%arg4, %arg5)[%0] {
                 affine.for %arg9 = #map12(%arg7) to min #map5(%arg7)[%0] {
-                  %1 = affine.apply #map11(%arg8)
-                  call @S0(%arg3, %c15, %1, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %1 = affine.apply #map7(%arg8)
+                  %2 = affine.apply #map7(%arg9)
+                  call @S0(%arg3, %1, %c1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
             affine.if #set14(%arg4, %arg5, %arg7)[%0] {
-              affine.for %arg8 = max #map43(%arg4, %arg5) to min #map44(%arg4, %arg5)[%0] {
+              affine.for %arg8 = max #map41(%arg4, %arg5) to min #map42(%arg4, %arg5)[%0] {
                 affine.for %arg9 = max #map4(%arg6) to min #map5(%arg6)[%0] {
-                  %1 = affine.apply #map11(%arg8)
-                  %2 = affine.apply #map11(%arg9)
-                  call @S0(%arg3, %c15, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %1 = affine.apply #map7(%arg8)
+                  %2 = affine.apply #map7(%arg9)
+                  call @S0(%arg3, %1, %2, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
             affine.if #set15(%arg4, %arg5, %arg6, %arg7) {
               affine.for %arg8 = #map12(%arg6) to min #map5(%arg6)[%0] {
                 affine.for %arg9 = #map12(%arg7) to min #map5(%arg7)[%0] {
-                  %1 = affine.apply #map11(%arg8)
-                  call @S0(%arg3, %c15, %c1, %1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %1 = affine.apply #map7(%arg8)
+                  %2 = affine.apply #map7(%arg9)
+                  call @S0(%arg3, %c1, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
           }
           affine.if #set16(%arg4, %arg5, %arg6) {
             affine.if #set1()[%0] {
-              affine.for %arg7 = #map12(%arg6) to #map21(%arg6) {
-                %1 = affine.apply #map11(%arg7)
-                call @S0(%arg3, %c15, %c1, %1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg7 = #map12(%arg6) to #map20(%arg6) {
+                %1 = affine.apply #map7(%arg7)
+                %2 = affine.apply #map6()[%0]
+                call @S0(%arg3, %c1, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
           affine.if #set17(%arg4, %arg6) {
             affine.if #set1()[%0] {
-              affine.for %arg7 = max #map43(%arg4, %arg5) to min #map10(%arg4, %arg5) {
-                %1 = affine.apply #map11(%arg7)
-                call @S0(%arg3, %c15, %1, %c1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg7 = max #map41(%arg4, %arg5) to min #map11(%arg4, %arg5) {
+                %1 = affine.apply #map7(%arg7)
+                %2 = affine.apply #map6()[%0]
+                call @S0(%arg3, %1, %c1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
           affine.if #set18(%arg4, %arg5, %arg6) {
             affine.if #set19(%arg4)[%0] {
-              affine.for %arg7 = max #map45(%arg4, %arg6) to #map21(%arg6) {
-                %1 = affine.apply #map46(%arg4)
-                %2 = affine.apply #map47(%arg4, %arg5)
-                %3 = affine.apply #map48(%arg4, %arg7)
+              affine.for %arg7 = max #map43(%arg4, %arg6) to #map20(%arg6) {
+                %1 = affine.apply #map44(%arg4, %arg5)
+                %2 = affine.apply #map45(%arg4, %arg7)
+                %3 = affine.apply #map6()[%0]
                 call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
           affine.if #set20(%arg4, %arg6) {
             affine.if #set21()[%0] {
-              affine.for %arg7 = max #map49(%arg4, %arg5) to min #map50(%arg4, %arg5) {
-                affine.for %arg8 = max #map51(%arg6) to #map21(%arg6) {
-                  %1 = affine.apply #map52(%arg7)
-                  %2 = affine.apply #map52(%arg8)
-                  call @S1(%arg2, %c20, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+              affine.for %arg7 = max #map46(%arg4, %arg5) to min #map47(%arg4, %arg5) {
+                affine.for %arg8 = max #map48(%arg6) to #map20(%arg6) {
+                  %1 = affine.apply #map49(%arg7)
+                  %2 = affine.apply #map49(%arg8)
+                  %3 = affine.apply #map6()[%0]
+                  call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
@@ -542,18 +552,19 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
             affine.for %arg6 = 0 to #map3()[%0] {
               affine.for %arg7 = max #map4(%arg6) to min #map5(%arg6)[%0] {
                 %1 = affine.apply #map6()[%0]
-                call @S0(%arg3, %c15, %c1, %1, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                %2 = affine.apply #map7(%arg7)
+                call @S0(%arg3, %c1, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
           }
         }
         affine.if #set23(%arg4, %arg5) {
           affine.if #set19(%arg4)[%0] {
-            affine.for %arg6 = #map53(%arg4) to #map54(%arg4)[%0] {
-              affine.for %arg7 = max #map45(%arg4, %arg6) to min #map55(%arg4, %arg6)[%0] {
-                %1 = affine.apply #map46(%arg4)
-                %2 = affine.apply #map47(%arg4, %arg5)
-                %3 = affine.apply #map6()[%0]
+            affine.for %arg6 = #map50(%arg4) to #map51(%arg4)[%0] {
+              affine.for %arg7 = max #map43(%arg4, %arg6) to min #map52(%arg4, %arg6)[%0] {
+                %1 = affine.apply #map44(%arg4, %arg5)
+                %2 = affine.apply #map6()[%0]
+                %3 = affine.apply #map45(%arg4, %arg7)
                 call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
               }
             }
@@ -561,12 +572,13 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         }
         affine.if #set24(%arg4) {
           affine.if #set21()[%0] {
-            affine.for %arg6 = 1 to #map56()[%0] {
-              affine.for %arg7 = max #map49(%arg4, %arg5) to min #map50(%arg4, %arg5) {
-                affine.for %arg8 = max #map51(%arg6) to min #map57(%arg6)[%0] {
-                  %1 = affine.apply #map52(%arg7)
+            affine.for %arg6 = 1 to #map53()[%0] {
+              affine.for %arg7 = max #map46(%arg4, %arg5) to min #map47(%arg4, %arg5) {
+                affine.for %arg8 = max #map48(%arg6) to min #map54(%arg6)[%0] {
+                  %1 = affine.apply #map49(%arg7)
                   %2 = affine.apply #map6()[%0]
-                  call @S1(%arg2, %c20, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %3 = affine.apply #map49(%arg8)
+                  call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
@@ -575,13 +587,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
       }
       affine.if #set25(%arg4) {
         affine.if #set26()[%0] {
-          affine.for %arg5 = 0 to #map58()[%0] {
-            affine.for %arg6 = 0 to #map58()[%0] {
-              affine.for %arg7 = max #map59(%arg5) to min #map60(%arg5)[%0] {
-                affine.for %arg8 = max #map59(%arg6) to min #map60(%arg6)[%0] {
+          affine.for %arg5 = 0 to #map55()[%0] {
+            affine.for %arg6 = 0 to #map55()[%0] {
+              affine.for %arg7 = max #map56(%arg5) to min #map57(%arg5)[%0] {
+                affine.for %arg8 = max #map56(%arg6) to min #map57(%arg6)[%0] {
                   %1 = affine.apply #map6()[%0]
-                  %2 = affine.apply #map61(%arg7)
-                  call @S0(%arg3, %c1, %1, %2, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %2 = affine.apply #map58(%arg7)
+                  %3 = affine.apply #map58(%arg8)
+                  call @S0(%arg3, %1, %2, %3, %arg2) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }
@@ -590,13 +603,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
       }
       affine.if #set27(%arg4) {
         affine.if #set21()[%0] {
-          affine.for %arg5 = 1 to #map56()[%0] {
-            affine.for %arg6 = 1 to #map56()[%0] {
-              affine.for %arg7 = max #map51(%arg5) to min #map57(%arg5)[%0] {
-                affine.for %arg8 = max #map51(%arg6) to min #map57(%arg6)[%0] {
+          affine.for %arg5 = 1 to #map53()[%0] {
+            affine.for %arg6 = 1 to #map53()[%0] {
+              affine.for %arg7 = max #map48(%arg5) to min #map54(%arg5)[%0] {
+                affine.for %arg8 = max #map48(%arg6) to min #map54(%arg6)[%0] {
                   %1 = affine.apply #map6()[%0]
-                  %2 = affine.apply #map52(%arg7)
-                  call @S1(%arg2, %c20, %1, %2, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
+                  %2 = affine.apply #map49(%arg7)
+                  %3 = affine.apply #map49(%arg8)
+                  call @S1(%arg2, %1, %2, %3, %arg3) : (memref<10x10x10xf64>, index, index, index, memref<10x10x10xf64>) -> ()
                 }
               }
             }

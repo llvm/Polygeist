@@ -183,7 +183,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1] : memref<30xf64>
     return
   }
-  func @kernel_gesummv_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<30x30xf64>, %arg4: memref<30x30xf64>, %arg5: memref<30xf64>, %arg6: memref<30xf64>, %arg7: memref<30xf64>) {
+  func private @kernel_gesummv_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<30x30xf64>, %arg4: memref<30x30xf64>, %arg5: memref<30xf64>, %arg6: memref<30xf64>, %arg7: memref<30xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg8 = 0 to #map0()[%0] {
       affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%0] {

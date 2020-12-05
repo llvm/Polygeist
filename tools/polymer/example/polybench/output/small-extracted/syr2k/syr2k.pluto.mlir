@@ -201,25 +201,25 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %10, %arg0[%arg1, %arg2] : memref<30x30xf64>
     return
   }
-  func @kernel_syr2k_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<30x30xf64>, %arg5: memref<30x20xf64>, %arg6: memref<30x20xf64>) {
-    %0 = index_cast %arg1 : i32 to index
-    %1 = index_cast %arg0 : i32 to index
-    affine.for %arg7 = 0 to #map1()[%1] {
+  func private @kernel_syr2k_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<30x30xf64>, %arg5: memref<30x20xf64>, %arg6: memref<30x20xf64>) {
+    %0 = index_cast %arg0 : i32 to index
+    %1 = index_cast %arg1 : i32 to index
+    affine.for %arg7 = 0 to #map1()[%0] {
       affine.for %arg8 = 0 to #map0(%arg7) {
-        affine.for %arg9 = #map2(%arg7) to min #map3(%arg7)[%1] {
+        affine.for %arg9 = #map2(%arg7) to min #map3(%arg7)[%0] {
           affine.for %arg10 = #map2(%arg8) to min #map4(%arg8, %arg9) {
             call @S0(%arg4, %arg9, %arg10, %arg3) : (memref<30x30xf64>, index, index, f64) -> ()
           }
         }
       }
     }
-    affine.for %arg7 = 0 to #map5()[%1, %0] {
-      affine.for %arg8 = max #map6(%arg7)[%0] to min #map7(%arg7)[%1] {
+    affine.for %arg7 = 0 to #map5()[%0, %1] {
+      affine.for %arg8 = max #map6(%arg7)[%1] to min #map7(%arg7)[%0] {
         affine.for %arg9 = 0 to #map0(%arg8) {
-          affine.for %arg10 = #map8(%arg7, %arg8) to min #map9(%arg7, %arg8)[%0] {
-            affine.for %arg11 = #map2(%arg8) to min #map3(%arg8)[%1] {
+          affine.for %arg10 = #map8(%arg7, %arg8) to min #map9(%arg7, %arg8)[%1] {
+            affine.for %arg11 = #map2(%arg8) to min #map3(%arg8)[%0] {
               affine.for %arg12 = #map2(%arg9) to min #map4(%arg9, %arg11) {
-                call @S1(%arg4, %arg11, %arg10, %arg5, %arg12, %arg2, %arg6) : (memref<30x30xf64>, index, index, memref<30x20xf64>, index, f64, memref<30x20xf64>) -> ()
+                call @S1(%arg4, %arg11, %arg12, %arg5, %arg10, %arg2, %arg6) : (memref<30x30xf64>, index, index, memref<30x20xf64>, index, f64, memref<30x20xf64>) -> ()
               }
             }
           }

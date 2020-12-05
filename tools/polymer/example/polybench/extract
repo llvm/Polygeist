@@ -1,0 +1,16 @@
+#!/bin/sh
+
+MLIR_FILE="$1"
+BUILD_DIR="${PWD}/../../build"
+POLYMER_BINDIR="${BUILD_DIR}/bin"
+PLUTO_LIBDIR="${BUILD_DIR}/pluto/lib"
+
+cd ${BUILD_DIR} && ninja && cd -
+
+
+${POLYMER_BINDIR}/polymer-opt "${MLIR_FILE}" \
+    -reg2mem \
+    -extract-scop-stmt \
+    -canonicalize \
+    -verify-each=1 \
+    2>&1 | tee out-extract.log &>/dev/null

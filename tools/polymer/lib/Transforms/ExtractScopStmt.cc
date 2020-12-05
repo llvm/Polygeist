@@ -30,15 +30,94 @@ using namespace llvm;
 using namespace polymer;
 
 using CalleeName = SmallString<16>;
+using OpToCalleeMap = llvm::DenseMap<Operation *, Operation *>;
+using CalleeToCallersMap =
+    llvm::DenseMap<Operation *, llvm::SetVector<Operation *>>;
 
 /// Discover the operations that have memory write effects.
 /// TODO: support CallOp.
 static void discoverMemWriteOps(mlir::FuncOp f,
                                 SmallVectorImpl<Operation *> &ops) {
+  bool hasAffineScope = false;
   f.getOperation()->walk([&](Operation *op) {
-    if (isa<mlir::AffineWriteOpInterface>(op))
+    if (isa<mlir::AffineForOp>(op))
+      hasAffineScope = true;
+    if (isa<mlir::AffineWriteOpInterface, mlir::StoreOp>(op))
       ops.push_back(op);
   });
+
+  if (!hasAffineScope)
+    ops.clear();
+}
+
+/// Returns the newly created scratchpad.
+static mlir::Value
+insertScratchpadForInterprocUses(mlir::Operation *defOp,
+                                 mlir::Operation *defInCalleeOp,
+                                 CalleeToCallersMap &calleeToCallers,
+                                 mlir::FuncOp topLevelFun, OpBuilder &b) {
+  assert(defOp->getNumResults() == 1);
+  assert(topLevelFun.getBlocks().size() != 0);
+
+  Block &entryBlock = *topLevelFun.getBlocks().begin();
+  mlir::OpResult val = defOp->getResult(0);
+
+  // Set the allocation point after where the val is defined.
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointToStart(&entryBlock);
+
+  // The memref shape is 1 and the type is derived from val.
+  mlir::Type memrefType = MemRefType::get({1}, val.getType());
+  mlir::Operation *allocaOp =
+      b.create<mlir::AllocaOp>(defOp->getLoc(), memrefType.cast<MemRefType>());
+  mlir::Value memref = allocaOp->getResult(0);
+
+  // Give the callee an additional argument
+  mlir::Operation *calleeOp = defInCalleeOp;
+  while (calleeOp != nullptr) {
+    if (isa<mlir::FuncOp>(calleeOp))
+      break;
+    calleeOp = calleeOp->getParentOp();
+  }
+
+  mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
+  mlir::Block &calleeEntryBlock = *callee.getBlocks().begin();
+  mlir::BlockArgument scratchpad = calleeEntryBlock.addArgument(memrefType);
+  callee.setType(b.getFunctionType(
+      TypeRange(calleeEntryBlock.getArgumentTypes()), llvm::None));
+
+  // Store within the callee for the used value.
+  b.setInsertionPointAfter(defInCalleeOp);
+  b.create<mlir::AffineStoreOp>(allocaOp->getLoc(), defInCalleeOp->getResult(0),
+                                scratchpad, b.getConstantAffineMap(0),
+                                std::vector<mlir::Value>());
+
+  // llvm::errs() << "Updated callee interface:\n";
+  // callee.dump();
+
+  // Setup the operand for the caller as well.
+  // llvm::errs() << "Updated callers:\n";
+  SetVector<mlir::Operation *> callerOpsToRemove;
+  for (mlir::Operation *callerOp : calleeToCallers[calleeOp]) {
+    mlir::CallOp caller = cast<mlir::CallOp>(callerOp);
+    SmallVector<mlir::Value, 8> newOperands;
+    for (mlir::Value operand : caller.getOperands())
+      newOperands.push_back(operand);
+    newOperands.push_back(memref);
+
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(callerOp);
+    mlir::CallOp newCaller =
+        b.create<mlir::CallOp>(callerOp->getLoc(), caller.getCallee(),
+                               caller.getResultTypes(), newOperands);
+    calleeToCallers[calleeOp].insert(newCaller);
+    callerOpsToRemove.insert(callerOp);
+    callerOp->erase();
+  }
+
+  calleeToCallers[calleeOp].set_subtract(callerOpsToRemove);
+
+  return memref;
 }
 
 /// Get all the ops belongs to a statement starting from the given
@@ -46,13 +125,36 @@ static void discoverMemWriteOps(mlir::FuncOp f,
 /// depth-first, starting from op. Note that the initial op will be placed in
 /// the resulting ops as well.
 static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
-                           SetVector<mlir::Value> &args) {
+                           SetVector<mlir::Value> &args,
+                           OpToCalleeMap &opToCallee,
+                           CalleeToCallersMap &calleeToCallers,
+                           mlir::FuncOp topLevelFun, OpBuilder &b) {
   SmallVector<Operation *, 8> worklist;
   worklist.push_back(writeOp);
   ops.insert(writeOp);
 
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
+
+    // If op is already in another callee.
+    if (!isa<mlir::ConstantOp>(op) && opToCallee[op]) {
+      OpBuilder::InsertionGuard guard(b);
+      mlir::Value scratchpad = insertScratchpadForInterprocUses(
+          op, opToCallee[op], calleeToCallers, topLevelFun, b);
+      args.insert(scratchpad);
+
+      b.setInsertionPointAfter(op);
+      mlir::Operation *loadOp = b.create<mlir::AffineLoadOp>(
+          op->getLoc(), scratchpad, b.getConstantAffineMap(0),
+          std::vector<mlir::Value>());
+
+      ops.insert(loadOp);
+      op->replaceAllUsesWith(loadOp);
+
+      scratchpad.dump();
+      loadOp->dump();
+      continue;
+    }
 
     // Types of operation that terminates the recusion:
     // Memory allocation ops will be omitted, reaching them means the end of
@@ -109,10 +211,10 @@ static mlir::FuncOp createCallee(StringRef calleeName,
                                  const SetVector<Operation *> &ops,
                                  const SetVector<mlir::Value> &args,
                                  mlir::ModuleOp m, Operation *writeOp,
-                                 OpBuilder &b) {
+                                 OpToCalleeMap &opToCallee, OpBuilder &b) {
   assert(ops.contains(writeOp) && "writeOp should be a member in ops.");
 
-  unsigned numArgs = args.size();
+  // unsigned numArgs = args.size();
   unsigned numOps = ops.size();
 
   // Get a list of types of all function arguments, and use it to create the
@@ -167,6 +269,10 @@ static mlir::FuncOp createCallee(StringRef calleeName,
     clonedOps.push_back(b.clone(*sortedOps[i], mapping));
   }
 
+  for (unsigned i = 0; i < sortedOps.size(); i++) {
+    opToCallee[sortedOps[i]] = clonedOps[i];
+  }
+
   // Set the scop_stmt attribute for identification at a later stage.
   // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
   // that contains scop stmt FuncOp, e.g., ScopStmtOp.
@@ -183,8 +289,10 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 static mlir::CallOp createCaller(mlir::FuncOp callee,
                                  const SetVector<mlir::Value> &args,
                                  Operation *writeOp, OpBuilder &b) {
+  // llvm::errs() << "Create caller for: " << callee.getName() << "\n";
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPointAfter(writeOp);
+  // writeOp->dump();
 
   return b.create<mlir::CallOp>(writeOp->getLoc(), callee,
                                 ValueRange(args.getArrayRef()));
@@ -215,6 +323,9 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   discoverMemWriteOps(f, writeOps);
 
   SetVector<Operation *> opsToRemove;
+  // Map from an op in the original funcOp to which callee it would belong to.
+  OpToCalleeMap opToCallee;
+  CalleeToCallersMap calleeToCallers;
 
   unsigned numWriteOps = writeOps.size();
 
@@ -228,16 +339,20 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
     // Get all the ops inside a statement that corresponds to the current write
     // operation.
     Operation *writeOp = writeOps[i];
-    getScopStmtOps(writeOp, ops, args);
+    getScopStmtOps(writeOp, ops, args, opToCallee, calleeToCallers, f, b);
 
     // Get the name of the callee. Should be in the form of "S<id>".
     CalleeName calleeName;
     getCalleeName(i + numCallees, calleeName);
 
     // Create the callee.
-    mlir::FuncOp callee = createCallee(calleeName, ops, args, m, writeOp, b);
+    mlir::FuncOp callee =
+        createCallee(calleeName, ops, args, m, writeOp, opToCallee, b);
     // Create the caller.
     mlir::CallOp caller = createCaller(callee, args, writeOp, b);
+    calleeToCallers[callee].insert(caller);
+    // llvm::errs() << "Caller inserted:\n";
+    // caller.dump();
 
     // All the ops that have been placed in the callee should be removed.
     opsToRemove.set_union(ops);

@@ -88,6 +88,47 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // The domain constraints can then be collected from the enclosing ops.
   getIndexSet(enclosingOps, &domain);
 
+  // Symbol values, which could be a BlockArgument, or the result of DimOp or
+  // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
+  // BlockArgument or IndexCastOp, and if it is an IndexCastOp, the cast source
+  // should be a top-level BlockArgument.
+  SmallVector<mlir::Value, 8> symValues;
+  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+                     &symValues);
+  for (unsigned i = 0; i < symValues.size(); i++) {
+    mlir::Value val = symValues[i];
+
+    if (val.isa<mlir::BlockArgument>()) {
+      mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
+      assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
+             "Any block argument that acts as a parameter should be from the "
+             "top-level.");
+    } else {
+      mlir::Operation *defOp = val.getDefiningOp();
+      assert(defOp != nullptr);
+      assert(isa<mlir::IndexCastOp>(defOp) &&
+             "Only allow defOp of a parameter to be an IndexCast.");
+
+      mlir::IndexCastOp indexCastOp = dyn_cast<mlir::IndexCastOp>(defOp);
+      assert(indexCastOp.getOperand().isa<mlir::BlockArgument>());
+      assert(isa<mlir::FuncOp>(indexCastOp.getOperand()
+                                   .cast<mlir::BlockArgument>()
+                                   .getOwner()
+                                   ->getParentOp()) &&
+             "ifAny block argument that acts as a parameter should be from the "
+             "top-level.");
+
+      // replace the sym value.
+      domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
+    }
+  }
+
+  // SmallVector<mlir::Value, 8> symValues;
+  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+                     &symValues);
+  // for (unsigned i = 0; i < symValues.size(); i++)
+  //   symValues[i].dump();
+
   // TODO: good or bad?
   SmallVector<mlir::Value, 8> dimValues;
   domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
@@ -109,7 +150,7 @@ void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {
 }
 
 ScopStmt::ScopStmt(Operation *caller, Operation *callee)
-    : impl{std::move(ScopStmtImpl::get(caller, callee))} {}
+    : impl{ScopStmtImpl::get(caller, callee)} {}
 
 ScopStmt::~ScopStmt() = default;
 ScopStmt::ScopStmt(ScopStmt &&) = default;
@@ -117,14 +158,33 @@ ScopStmt &ScopStmt::operator=(ScopStmt &&) = default;
 
 FlatAffineConstraints *ScopStmt::getDomain() const { return &(impl->domain); }
 
-void ScopStmt::getEnclosingOps(
-    llvm::SmallVectorImpl<mlir::Operation *> &ops) const {
+void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
+                               bool forOnly) const {
   for (mlir::Operation *op : impl->enclosingOps)
-    ops.push_back(op);
+    if (!forOnly || isa<mlir::AffineForOp>(op))
+      ops.push_back(op);
 }
 
 mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
 mlir::CallOp ScopStmt::getCaller() const { return impl->caller; }
+
+static mlir::Value findBlockArg(mlir::Value v) {
+  mlir::Value r = v;
+  while (r != nullptr) {
+    if (r.isa<BlockArgument>())
+      break;
+
+    mlir::Operation *defOp = r.getDefiningOp();
+    if (!defOp || defOp->getNumOperands() != 1)
+      return nullptr;
+    if (!isa<mlir::IndexCastOp>(defOp))
+      return nullptr;
+
+    r = defOp->getOperand(0);
+  }
+
+  return r;
+}
 
 void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
                                      mlir::AffineValueMap *vMap,
@@ -142,7 +202,7 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
   // Replace its operands by what the caller uses.
   SmallVector<mlir::Value, 8> operands;
   for (mlir::Value operand : aMap.getOperands()) {
-    mlir::Value origArg = argMap.lookupOrDefault(operand);
+    mlir::Value origArg = findBlockArg(argMap.lookupOrDefault(operand));
     assert(origArg != operand);
     operands.push_back(origArg);
   }

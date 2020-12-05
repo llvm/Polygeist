@@ -213,7 +213,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[%arg1] : memref<40xf64>
     return
   }
-  func @kernel_gemver_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<40x40xf64>, %arg4: memref<40xf64>, %arg5: memref<40xf64>, %arg6: memref<40xf64>, %arg7: memref<40xf64>, %arg8: memref<40xf64>, %arg9: memref<40xf64>, %arg10: memref<40xf64>, %arg11: memref<40xf64>) {
+  func private @kernel_gemver_new(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<40x40xf64>, %arg4: memref<40xf64>, %arg5: memref<40xf64>, %arg6: memref<40xf64>, %arg7: memref<40xf64>, %arg8: memref<40xf64>, %arg9: memref<40xf64>, %arg10: memref<40xf64>, %arg11: memref<40xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg12 = 0 to #map0()[%0] {
       affine.for %arg13 = max #map1(%arg12)[%0] to min #map2(%arg12)[%0] {

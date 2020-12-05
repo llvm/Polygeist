@@ -261,7 +261,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %5, %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<60x60xi32>
     return
   }
-  func @kernel_nussinov_new(%arg0: i32, %arg1: memref<60xi8>, %arg2: memref<60x60xi32>) {
+  func private @kernel_nussinov_new(%arg0: i32, %arg1: memref<60xi8>, %arg2: memref<60x60xi32>) {
     %c1 = constant 1 : index
     %0 = index_cast %arg0 : i32 to index
     affine.if #set4()[%0] {

@@ -43,6 +43,7 @@ using namespace mlir;
 
 typedef llvm::StringMap<mlir::Operation *> StmtOpMap;
 typedef llvm::StringMap<mlir::Value> NameValueMap;
+typedef llvm::StringMap<std::string> IterScatNameMap;
 
 namespace {
 
@@ -317,9 +318,9 @@ LogicalResult AffineExprBuilder::processMinOrMaxReduction(
 /// Builds the mapping from the iterator names in a statement to their
 /// corresponding names in <scatnames>, based on the matrix provided by the
 /// scattering relation.
-static void
-buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
-                       osl_statement_p stmt, osl_generic_p scatnames) {
+static void buildIterToScatNameMap(IterScatNameMap &iterToScatName,
+                                   osl_statement_p stmt,
+                                   osl_generic_p scatnames) {
   // Get the body from the statement.
   osl_body_p body = osl_statement_get_body(stmt);
   assert(body != nullptr && "The body of the statement should not be NULL.");
@@ -330,7 +331,7 @@ buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
 
   // Get iterator names.
   unsigned numIterNames = osl_strings_size(body->iterators);
-  llvm::SmallVector<llvm::StringRef, 8> iterNames(numIterNames);
+  llvm::SmallVector<std::string, 8> iterNames(numIterNames);
   for (unsigned i = 0; i < numIterNames; i++)
     iterNames[i] = body->iterators->string[i];
 
@@ -339,7 +340,7 @@ buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
       reinterpret_cast<osl_scatnames_p>(scatnames->data)->names;
   unsigned numScatNames = osl_strings_size(scatNamesData);
 
-  llvm::SmallVector<llvm::StringRef, 8> scatNames(numScatNames);
+  llvm::SmallVector<std::string, 8> scatNames(numScatNames);
   for (unsigned i = 0; i < numScatNames; i++)
     scatNames[i] = scatNamesData->string[i];
 
@@ -359,6 +360,7 @@ buildIterToScatNameMap(llvm::StringMap<llvm::StringRef> &iterToScatName,
 }
 
 namespace {
+
 /// Build mapping between the iter names in the original code to the scatname in
 /// the OpenScop.
 class IterScatNameMapper {
@@ -367,9 +369,7 @@ public:
 
   void visitStmtList(clast_stmt *s);
 
-  llvm::StringMap<llvm::StringRef> getIterScatNameMap() {
-    return iterScatNameMap;
-  };
+  IterScatNameMap getIterScatNameMap() { return iterScatNameMap; };
 
 private:
   void visit(clast_for *forStmt);
@@ -378,7 +378,7 @@ private:
 
   OslScop *scop;
 
-  llvm::StringMap<llvm::StringRef> iterScatNameMap;
+  IterScatNameMap iterScatNameMap;
 };
 
 } // namespace
@@ -403,6 +403,23 @@ void IterScatNameMapper::visit(clast_guard *guardStmt) {
 }
 
 void IterScatNameMapper::visit(clast_user_stmt *userStmt) {
+  osl_statement_p stmt;
+  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
+    return assert(false);
+
+  osl_body_p body = osl_statement_get_body(stmt);
+  assert(body != NULL && "The body of the statement should not be NULL.");
+  assert(body->expression != NULL && "The body expression should not be NULL.");
+  assert(body->iterators != NULL && "The body iterators should not be NULL.");
+
+  // Map iterator names in the current statement to the values in <scatnames>.
+  osl_generic_p scatnames = scop->getExtension("scatnames");
+  assert(scatnames && "There should be a <scatnames> in the scop.");
+  buildIterToScatNameMap(iterScatNameMap, stmt, scatnames);
+}
+
+static void buildIterScatNameMap(clast_user_stmt *userStmt, OslScop *scop,
+                                 IterScatNameMap &iterScatNameMap) {
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
     return assert(false);
@@ -454,6 +471,8 @@ private:
   getAffineExprForLoopIterator(clast_stmt *subst,
                                llvm::SmallVectorImpl<mlir::Value> &operands,
                                AffineMap &affMap);
+  void getInductionVars(clast_user_stmt *userStmt, osl_body_p body,
+                        SmallVectorImpl<mlir::Value> &inductionVars);
 
   LogicalResult parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
                                   llvm::SmallVectorImpl<std::string> &args);
@@ -466,10 +485,10 @@ private:
     return std::prev(module.getBody()->end());
   }
   /// A helper to create a callee.
-  void createCalleeAndCallerArgs(
-      llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
-      mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
-      llvm::StringMap<llvm::StringRef> &iterToScatName);
+  void createCalleeAndCallerArgs(llvm::StringRef calleeName,
+                                 llvm::ArrayRef<std::string> args,
+                                 mlir::FuncOp &callee,
+                                 SmallVectorImpl<mlir::Value> &callerArgs);
 
   /// The current builder, pointing at where the next Instruction should be
   /// generated.
@@ -498,7 +517,7 @@ private:
   llvm::DenseMap<mlir::Value, llvm::SetVector<llvm::StringRef>>
       valueToDepSymbols;
 
-  llvm::StringMap<llvm::StringRef> iterScatNameMap;
+  IterScatNameMap iterScatNameMap;
 
   CloogOptions *options;
 };
@@ -545,13 +564,6 @@ bool Importer::isResultArg(llvm::StringRef argName) {
 }
 
 LogicalResult Importer::processStmtList(clast_stmt *s) {
-  // These lines can be optimized.
-  if (iterScatNameMap.empty()) {
-    IterScatNameMapper iterScatNameMapper(scop);
-    iterScatNameMapper.visitStmtList(s);
-    iterScatNameMap = iterScatNameMapper.getIterScatNameMap();
-  }
-
   for (; s; s = s->next) {
     if (CLAST_STMT_IS_A(s, stmt_root)) {
       if (failed(processStmt(reinterpret_cast<clast_root *>(s))))
@@ -588,7 +600,7 @@ void Importer::initializeFuncOpInterface() {
   /// First collect the source FuncOp in the original MLIR code.
   mlir::FuncOp sourceFuncOp = getSourceFuncOp();
 
-  OpBuilder::InsertionGuard guard(b);
+  // OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
 
   // The default function name is main.
@@ -605,15 +617,28 @@ void Importer::initializeFuncOpInterface() {
 
   // Initialize the symbol table for these entryBlock arguments
   auto &entryBlock = *func.addEntryBlock();
+  b.setInsertionPointToStart(&entryBlock);
+  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
+
+  b.setInsertionPointToStart(&entryBlock);
   for (unsigned i = 0; i < entryBlock.getNumArguments(); i++) {
     llvm::StringRef argSymbol =
         oslValueTable->lookup(sourceFuncOp.getArgument(i));
-    symbolTable[argSymbol] = entryBlock.getArgument(i);
+
+    mlir::Value arg = entryBlock.getArgument(i);
+    // If the source type is not index, cast it to index then.
+    if (scop->isParameterSymbol(argSymbol) &&
+        arg.getType() != b.getIndexType()) {
+      mlir::Operation *op = b.create<mlir::IndexCastOp>(sourceFuncOp.getLoc(),
+                                                        arg, b.getIndexType());
+      symbolTable[argSymbol] = op->getResult(0);
+    } else {
+      symbolTable[argSymbol] = arg;
+    }
   }
 
   // Generate an entry block and implicitly insert a ReturnOp at its end.
-  b.setInsertionPoint(&entryBlock, entryBlock.end());
-  b.create<mlir::ReturnOp>(UnknownLoc::get(context));
+  // b.setInsertionPoint(&entryBlock, entryBlock.end());
 }
 
 /// Translate the root statement as a function. The name of the function is by
@@ -622,8 +647,8 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
   // Create the function.
   initializeFuncOpInterface();
   // For the rest of the body
-  mlir::Block &entryBlock = *func.getBody().begin();
-  b.setInsertionPointToStart(&entryBlock);
+  // mlir::Block &entryBlock = *func.getBody().begin();
+  // b.setInsertionPointToStart(&entryBlock);
   // Initialize several values before start.
   initializeSymbolTable();
 
@@ -818,8 +843,7 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
 
 void Importer::createCalleeAndCallerArgs(
     llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
-    mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs,
-    llvm::StringMap<llvm::StringRef> &iterToScatName) {
+    mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs) {
   // TODO: avoid duplicated callee creation
   // Cache the current insertion point before changing it for the new callee
   // function.
@@ -882,8 +906,8 @@ void Importer::createCalleeAndCallerArgs(
     } else if (symNameToArg.find(args[i]) != symNameToArg.end()) {
       callerArgs.push_back(symNameToArg.lookup(args[i]));
       // TODO: what if an index is a constant?
-    } else if (iterToScatName.find(args[i]) != iterToScatName.end()) {
-      auto newArgName = iterToScatName[args[i]];
+    } else if (iterScatNameMap.find(args[i]) != iterScatNameMap.end()) {
+      auto newArgName = iterScatNameMap[args[i]];
       if (auto iv = symTable->getValue(newArgName)) {
         callerArgs.push_back(iv);
         // We should set the symbol table for args[i], otherwise we cannot
@@ -943,39 +967,17 @@ void Importer::getAffineExprForLoopIterator(
                           affExprs, context);
 }
 
-/// Create a custom call operation for each user statement. A user statement
-/// should be in the format of <stmt-id>`(`<ssa-id>`)`, in which a SSA ID can be
-/// a memref, a loop IV, or a symbol parameter (defined as a block argument). We
-/// will also generate the declaration of the function to be called, which has
-/// an empty body, in order to make the compiler happy.
-LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
-  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
-  OslScop::ValueTable *valueTable = scop->getValueTable();
-
-  osl_statement_p stmt;
-  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
-    return failure();
-
-  osl_body_p body = osl_statement_get_body(stmt);
-  assert(body != NULL && "The body of the statement should not be NULL.");
-  assert(body->expression != NULL && "The body expression should not be NULL.");
-  assert(body->iterators != NULL && "The body iterators should not be NULL.");
-
-  // Map iterator names in the current statement to the values in <scatnames>.
-  osl_generic_p scatnames = scop->getExtension("scatnames");
-  assert(scatnames && "There should be a <scatnames> in the scop.");
-
-  // clast_pprint(stderr, (clast_stmt *)userStmt, 0, options);
-  SmallVector<mlir::Value, 8> inductionVars;
-
+void Importer::getInductionVars(clast_user_stmt *userStmt, osl_body_p body,
+                                SmallVectorImpl<mlir::Value> &inductionVars) {
   char *expr = osl_util_identifier_substitution(body->expression->string[0],
                                                 body->iterators->string);
+  // llvm::errs() << expr << "\n";
   char *tmp = expr;
   clast_stmt *subst;
 
   /* Print the body expression, substituting the @...@ markers. */
+  // clast_pprint(stderr, userStmt->substitutions, 0, options);
   while (*expr) {
-    // llvm::errs() << expr << "\n";
     if (*expr == '@') {
       int iterator;
       expr += sscanf(expr, "@%d", &iterator) + 2; /* 2 for the @s */
@@ -996,12 +998,57 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
       else
         op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
                                            substOperands);
+
       inductionVars.push_back(op->getResult(0));
     } else {
       expr++;
     }
   }
   free(tmp);
+}
+
+static mlir::Value findBlockArg(mlir::Value v) {
+  mlir::Value r = v;
+  while (r != nullptr) {
+    if (r.isa<BlockArgument>())
+      break;
+
+    mlir::Operation *defOp = r.getDefiningOp();
+    if (!defOp || defOp->getNumOperands() != 1)
+      return nullptr;
+    if (!isa<mlir::IndexCastOp>(defOp))
+      return nullptr;
+
+    r = defOp->getOperand(0);
+  }
+
+  return r;
+}
+
+/// Create a custom call operation for each user statement. A user statement
+/// should be in the format of <stmt-id>`(`<ssa-id>`)`, in which a SSA ID can be
+/// a memref, a loop IV, or a symbol parameter (defined as a block argument). We
+/// will also generate the declaration of the function to be called, which has
+/// an empty body, in order to make the compiler happy.
+LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
+  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
+  OslScop::ValueTable *valueTable = scop->getValueTable();
+
+  osl_statement_p stmt;
+  assert(succeeded(scop->getStatement(userStmt->statement->number - 1, &stmt)));
+
+  osl_body_p body = osl_statement_get_body(stmt);
+  assert(body != NULL && "The body of the statement should not be NULL.");
+  assert(body->expression != NULL && "The body expression should not be NULL.");
+  assert(body->iterators != NULL && "The body iterators should not be NULL.");
+
+  // Map iterator names in the current statement to the values in <scatnames>.
+  osl_generic_p scatnames = scop->getExtension("scatnames");
+  assert(scatnames && "There should be a <scatnames> in the scop.");
+
+  // clast_pprint(stderr, (clast_stmt *)userStmt, 0, options);
+  SmallVector<mlir::Value, 8> inductionVars;
+  getInductionVars(userStmt, body, inductionVars);
 
   // Parse the statement body.
   llvm::SmallVector<std::string, 8> args;
@@ -1029,6 +1076,25 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
     for (mlir::Value arg : origCaller.getOperands()) {
       llvm::StringRef argSymbol = valueTable->lookup(arg);
+      if (argSymbol.empty()) {
+        mlir::Value blockArg = findBlockArg(arg);
+        argSymbol = llvm::StringRef(valueTable->lookup(blockArg));
+        assert(!argSymbol.empty());
+      }
+
+      // Type casting
+      if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
+        if (arg.getType() != val.getType()) {
+          OpBuilder::InsertionGuard guard(b);
+          b.setInsertionPointAfterValue(val);
+          mlir::Operation *castOp = b.create<mlir::IndexCastOp>(
+              b.getUnknownLoc(), val, arg.getType());
+          callerArgs.push_back(castOp->getResult(0));
+        } else {
+          callerArgs.push_back(val);
+        }
+        continue;
+      }
 
       // Special handling for the memory allocation case.
       mlir::Operation *defOp = arg.getDefiningOp();
@@ -1065,15 +1131,14 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
           else // no IV symbol means this statement is called errside the loop.
             callerArgs.push_back(this->symbolTable.lookup("zero"));
         } else {
-          llvm::errs() << "Missing symbol: " << argSymbol << "\n";
+          llvm::errs() << "Missing symbol: " << arg << "\n";
           assert(false && "Cannot insert the correct number of caller args. "
                           "Some symbols must be missing in the symbol table.");
         }
       }
     }
   } else {
-    createCalleeAndCallerArgs(calleeName, args, callee, callerArgs,
-                              iterScatNameMap);
+    createCalleeAndCallerArgs(calleeName, args, callee, callerArgs);
   }
 
   // Finally create the CallOp.
@@ -1251,16 +1316,16 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
 
   // fulfillSymbolDependence(forStmt->iterator);
 
-  llvm::StringMap<mlir::Value> oldSymValues;
-  for (const auto &it : iterScatNameMap) {
-    if (it.second.equals(forStmt->iterator)) {
-      // llvm::errs() << it.first() << " -> " << it.second << "\n";
-      oldSymValues[it.first()] = symbolTable[it.first()];
-      symbolTable[it.first()] = symbolTable[it.second];
+  // llvm::StringMap<mlir::Value> oldSymValues;
+  // for (const auto &it : iterScatNameMap) {
+  //   if (it.second.equals(forStmt->iterator)) {
+  //     // llvm::errs() << it.first() << " -> " << it.second << "\n";
+  //     oldSymValues[it.first()] = symbolTable[it.first()];
+  //     symbolTable[it.first()] = symbolTable[it.second];
 
-      // fulfillSymbolDependence(it.first());
-    }
-  }
+  //     // fulfillSymbolDependence(it.first());
+  //   }
+  // }
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
@@ -1278,14 +1343,14 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // }
   symbolTable[forStmt->iterator] = symValue;
 
-  for (const auto &it : iterScatNameMap) {
-    if (it.second.equals(forStmt->iterator)) {
-      // llvm::errs() << it.first() << " -> " << it.second << "\n";
-      symbolTable[it.first()] = oldSymValues[it.first()];
+  // for (const auto &it : iterScatNameMap) {
+  //   if (it.second.equals(forStmt->iterator)) {
+  //     // llvm::errs() << it.first() << " -> " << it.second << "\n";
+  //     symbolTable[it.first()] = oldSymValues[it.first()];
 
-      // fulfillSymbolDependence(it.first());
-    }
-  }
+  //     // fulfillSymbolDependence(it.first());
+  //   }
+  // }
 
   return success();
 }

@@ -3,41 +3,80 @@
 SOURCE_DIR="$1"
 OUTPUT_DIR="$2"
 
+LLVM_BINDIR="${PWD}/../../llvm/build/bin"
 BINDIR="${PWD}/../../build/bin"
 
 TOTAL_CASES=0
 SUCCESSFUL_CASES=0
 
-printf "%50s %5s\n" "Benchmark" "Exit code"
+execute()
+{
+    local MLIR_FILE="$1"
+    local OUT_FILE="$2"
+
+    # Run the compiled MLIR code by lli.
+    "${LLVM_BINDIR}/mlir-opt" "${MLIR_FILE}" -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm |\
+    "${LLVM_BINDIR}/mlir-translate" -mlir-to-llvmir |\
+    "${LLVM_BINDIR}/opt" -O3 -march=native |\
+    "${LLVM_BINDIR}/lli" 2>&1 | tee "${OUT_FILE}" &>/dev/null
+}
+
+compare_result()
+{
+  local SRC_FILE="$1"
+  local DST_FILE="$2"
+  local OUT_DIR=$(dirname "${DST_FILE}")
+
+  local SRC_BASE=$(basename "${SRC_FILE}")
+  local DST_BASE=$(basename "${DST_FILE}")
+
+  execute "${SRC_FILE}" "${OUT_DIR}/${SRC_BASE}.out"
+  execute "${DST_FILE}" "${OUT_DIR}/${DST_BASE}.out"
+
+  diff "${OUT_DIR}/${SRC_BASE}.out" "${OUT_DIR}/${DST_BASE}.out" 2>&1 >/dev/null
+
+  local DIFF_RETVAL=$?
+  return "${DIFF_RETVAL}"
+}
+
+
+printf "%40s %15s %15s %15s\n" "Benchmark" "Exit code" "Scop Diff" "Pluto Diff"
+printf "%40s %15s %15s %15s\n" "--------------------------------" "-------------" "-------------" "-------------"
 
 for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
   DIRNAME=$(dirname "${f}")
   BASENAME=$(basename "${f}")
   NAME="${BASENAME%.*}"
 
-  # Where the output result will be generated to.
-  mkdir -p "${OUTPUT_DIR}/${DIRNAME}/${NAME}"
-  "${BINDIR}/polymer-opt" "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.mlir" >/dev/null
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" >/dev/null
-  # if [ -s "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" ]; then
-  #   "${BINDIR}/polymer-translate" -export-scop "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop" >/dev/null
-    # ../pluto/tool/pluto --readscop "${OUTPUT_DIR}/${DIRNAME}/${NAME}.scop" 2>&1 >/dev/null 
-    # mv "${NAME}.scop.pluto.cloog" "${OUTPUT_DIR}/${DIRNAME}" 
-    # mv "${NAME}.scop.pluto.c" "${OUTPUT_DIR}/${DIRNAME}" 
-  # fi
+  OUT_DIR="${OUTPUT_DIR}/${DIRNAME}/${NAME}"
+  SRC_FILE="${OUT_DIR}/${NAME}.mlir"
+  SCOP_FILE="${OUT_DIR}/${NAME}.scop.mlir"
+  PLUTO_FILE="${OUT_DIR}/${NAME}.pluto.mlir"
 
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt "$f" 2>/dev/null | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.scop.mlir" >/dev/null
+  # Where the output result will be generated to.
+  mkdir -p "${OUT_DIR}"
+
+  "${BINDIR}/polymer-opt" "$f" 2>/dev/null | tee "${SRC_FILE}" >/dev/null
+  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -canonicalize "$f" 2>/dev/null | tee "${SCOP_FILE}" >/dev/null
   # The optimization command
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -pluto-opt -canonicalize "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.pluto.mlir" >/dev/null
-  # "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -pluto-par -canonicalize "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.pluto-par.mlir" >/dev/null
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -pluto-opt -inline -canonicalize  "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${OUTPUT_DIR}/${DIRNAME}/${NAME}/${NAME}.pluto-inline.mlir" >/dev/null
+  "${BINDIR}/polymer-opt" \
+    -reg2mem \
+    -extract-scop-stmt \
+    -pluto-opt \
+    -canonicalize \
+    "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${PLUTO_FILE}" >/dev/null
+  EXIT_STATUS="${PIPESTATUS[0]}"
 
   # Report
-  EXIT_STATUS="${PIPESTATUS[0]}"
-  printf "%50s %5d\n" "${f}" "${EXIT_STATUS}"
+  compare_result "${SRC_FILE}" "${SCOP_FILE}"
+  SCOP_RETVAL=$?
+  compare_result "${SRC_FILE}" "${PLUTO_FILE}"
+  PLUTO_RETVAL=$?
+
+  printf "%40s %15d %15d %15d\n" "${f}" "${EXIT_STATUS}" "${SCOP_RETVAL}" "${PLUTO_RETVAL}"
 
   ((TOTAL_CASES=TOTAL_CASES+1))
-  if [ ${EXIT_STATUS} -eq 0 ]; then
+  if [[ ${EXIT_STATUS} -eq 0 && ${SCOP_RETVAL} -eq 0 && ${PLUTO_RETVAL} -eq 0 ]]; then
     ((SUCCESSFUL_CASES=SUCCESSFUL_CASES+1))
   fi
 

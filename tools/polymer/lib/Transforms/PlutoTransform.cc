@@ -48,6 +48,7 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   if (scop->getNumStatements() == 0)
     return nullptr;
 
+#if 1
   // Should use isldep, candl cannot work well for this case.
   // TODO: should discover why.
   context->options->isldep = 1;
@@ -86,6 +87,8 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   }
 
   pluto_populate_scop(scop->get(), prog, context);
+
+#endif
   osl_scop_print(stderr, scop->get());
 
   mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());

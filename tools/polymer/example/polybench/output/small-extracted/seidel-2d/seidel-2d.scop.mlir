@@ -129,6 +129,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   }
   func private @free(memref<?xi8>)
   func private @S0(%arg0: memref<40x40xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
+    %cst = constant 9.000000e+00 : f64
     %0 = affine.load %arg0[%arg1 - 1, %arg2 - 1] : memref<40x40xf64>
     %1 = affine.load %arg0[%arg1 - 1, %arg2] : memref<40x40xf64>
     %2 = addf %0, %1 : f64
@@ -146,9 +147,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %14 = addf %12, %13 : f64
     %15 = affine.load %arg0[%arg1 + 1, %arg2 + 1] : memref<40x40xf64>
     %16 = addf %14, %15 : f64
-    %cst = constant 9.000000e+00 : f64
-    %cst_0 = constant 9.000000e+00 : f64
-    %17 = divf %16, %cst_0 : f64
+    %17 = divf %16, %cst : f64
     affine.store %17, %arg0[%arg1, %arg2] : memref<40x40xf64>
     return
   }

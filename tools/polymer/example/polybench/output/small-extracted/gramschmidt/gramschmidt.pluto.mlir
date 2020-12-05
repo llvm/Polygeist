@@ -270,7 +270,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[%arg1, %arg2] : memref<20x30xf64>
     return
   }
-  func @kernel_gramschmidt_new(%arg0: i32, %arg1: i32, %arg2: memref<20x30xf64>, %arg3: memref<30x30xf64>, %arg4: memref<20x30xf64>) {
+  func private @kernel_gramschmidt_new(%arg0: i32, %arg1: i32, %arg2: memref<20x30xf64>, %arg3: memref<30x30xf64>, %arg4: memref<20x30xf64>) {
     %0 = alloca() : memref<1xf64>
     %1 = index_cast %arg0 : i32 to index
     %2 = index_cast %arg1 : i32 to index
@@ -286,12 +286,12 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.for %arg5 = 0 to #map8()[%2] {
       call @S0(%0) : (memref<1xf64>) -> ()
       affine.for %arg6 = 0 to %1 {
-        call @S1(%0, %arg2, %arg5, %arg6) : (memref<1xf64>, memref<20x30xf64>, index, index) -> ()
+        call @S1(%0, %arg2, %arg6, %arg5) : (memref<1xf64>, memref<20x30xf64>, index, index) -> ()
       }
       call @S2(%arg3, %arg5, %0) : (memref<30x30xf64>, index, memref<1xf64>) -> ()
       affine.for %arg6 = 0 to #map3()[%1] {
         affine.for %arg7 = #map4(%arg6) to min #map7(%arg6)[%1] {
-          call @S3(%arg4, %arg5, %arg7, %arg3, %arg2) : (memref<20x30xf64>, index, index, memref<30x30xf64>, memref<20x30xf64>) -> ()
+          call @S3(%arg4, %arg7, %arg5, %arg3, %arg2) : (memref<20x30xf64>, index, index, memref<30x30xf64>, memref<20x30xf64>) -> ()
         }
       }
       affine.for %arg6 = #map9(%arg5) to #map3()[%2] {
@@ -305,7 +305,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg7 = 0 to #map3()[%1] {
           affine.for %arg8 = max #map6(%arg5, %arg6) to min #map7(%arg6)[%2] {
             affine.for %arg9 = #map4(%arg7) to min #map7(%arg7)[%1] {
-              call @S6(%arg2, %arg5, %arg8, %arg3, %arg9, %arg4) : (memref<20x30xf64>, index, index, memref<30x30xf64>, index, memref<20x30xf64>) -> ()
+              call @S6(%arg2, %arg9, %arg8, %arg3, %arg5, %arg4) : (memref<20x30xf64>, index, index, memref<30x30xf64>, index, memref<20x30xf64>) -> ()
             }
           }
         }
@@ -314,14 +314,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     call @S0(%0) : (memref<1xf64>) -> ()
     affine.for %arg5 = 0 to %1 {
       %4 = affine.apply #map8()[%2]
-      call @S1(%0, %arg2, %4, %arg5) : (memref<1xf64>, memref<20x30xf64>, index, index) -> ()
+      call @S1(%0, %arg2, %arg5, %4) : (memref<1xf64>, memref<20x30xf64>, index, index) -> ()
     }
     %3 = affine.apply #map8()[%2]
     call @S2(%arg3, %3, %0) : (memref<30x30xf64>, index, memref<1xf64>) -> ()
     affine.for %arg5 = 0 to #map3()[%1] {
       affine.for %arg6 = #map4(%arg5) to min #map7(%arg5)[%1] {
         %4 = affine.apply #map8()[%2]
-        call @S3(%arg4, %4, %arg6, %arg3, %arg2) : (memref<20x30xf64>, index, index, memref<30x30xf64>, memref<20x30xf64>) -> ()
+        call @S3(%arg4, %arg6, %4, %arg3, %arg2) : (memref<20x30xf64>, index, index, memref<30x30xf64>, memref<20x30xf64>) -> ()
       }
     }
     return
