@@ -113,13 +113,19 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(mlir::createSymbolDCEPass());
+
   if (CudaLower)
     optPM.addPass(mlir::createParallelLowerPass());
 
   if (EmitLLVM) {
     pm.addPass(mlir::createLowerAffinePass());
     pm.addPass(mlir::createLowerToCFGPass());
-    pm.addPass(mlir::createLowerToLLVMPass());
+    LowerToLLVMOptions options;
+    // invalid for gemm.c init array
+    //options.useBarePtrCallConv = true;
+    options.dataLayout = DL;
+    pm.addPass(mlir::createLowerToLLVMPass(options));
   }
 
   if (mlir::failed(pm.run(module)))

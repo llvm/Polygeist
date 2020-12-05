@@ -558,6 +558,7 @@ void polybench_free_data(void* ptr)
 
 void* polybench_alloc_data(unsigned long long int n, int elt_size)
 {
+  return malloc(n*elt_size);
 #ifdef POLYBENCH_ENABLE_INTARRAY_PAD
   check_alloc_table_state ();
 #endif
