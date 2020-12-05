@@ -267,32 +267,30 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     return
   }
   func private @S1(%arg0: memref<20x30xf64>, %arg1: index, %arg2: index, %arg3: memref<20x30xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %cst = constant 5.000000e-01 : f64
+    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %1 = affine.load %arg3[%arg1, %arg2] : memref<20x30xf64>
     %2 = affine.load %arg3[%arg1 - 1, %arg2] : memref<20x30xf64>
     %3 = subf %1, %2 : f64
-    %cst_0 = constant 5.000000e-01 : f64
-    %4 = mulf %cst_0, %3 : f64
+    %4 = mulf %cst, %3 : f64
     %5 = subf %0, %4 : f64
     affine.store %5, %arg0[%arg1, %arg2] : memref<20x30xf64>
     return
   }
   func private @S2(%arg0: memref<20x30xf64>, %arg1: index, %arg2: index, %arg3: memref<20x30xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %cst = constant 5.000000e-01 : f64
+    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %1 = affine.load %arg3[%arg1, %arg2] : memref<20x30xf64>
     %2 = affine.load %arg3[%arg1, %arg2 - 1] : memref<20x30xf64>
     %3 = subf %1, %2 : f64
-    %cst_0 = constant 5.000000e-01 : f64
-    %4 = mulf %cst_0, %3 : f64
+    %4 = mulf %cst, %3 : f64
     %5 = subf %0, %4 : f64
     affine.store %5, %arg0[%arg1, %arg2] : memref<20x30xf64>
     return
   }
   func private @S3(%arg0: memref<20x30xf64>, %arg1: index, %arg2: index, %arg3: memref<20x30xf64>, %arg4: memref<20x30xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %cst = constant 0.69999999999999996 : f64
+    %0 = affine.load %arg0[%arg1, %arg2] : memref<20x30xf64>
     %1 = affine.load %arg4[%arg1, %arg2 + 1] : memref<20x30xf64>
     %2 = affine.load %arg4[%arg1, %arg2] : memref<20x30xf64>
     %3 = subf %1, %2 : f64
@@ -300,8 +298,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %5 = addf %3, %4 : f64
     %6 = affine.load %arg3[%arg1, %arg2] : memref<20x30xf64>
     %7 = subf %5, %6 : f64
-    %cst_0 = constant 0.69999999999999996 : f64
-    %8 = mulf %cst_0, %7 : f64
+    %8 = mulf %cst, %7 : f64
     %9 = subf %0, %8 : f64
     affine.store %9, %arg0[%arg1, %arg2] : memref<20x30xf64>
     return

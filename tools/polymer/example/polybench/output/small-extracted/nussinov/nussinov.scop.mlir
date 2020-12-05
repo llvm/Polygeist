@@ -180,6 +180,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     return
   }
   func private @S2(%arg0: memref<60x60xi32>, %arg1: index, %arg2: index, %arg3: index, %arg4: memref<60xi8>) attributes {scop.stmt} {
+    %c3_i32 = constant 3 : i32
+    %c1_i32 = constant 1 : i32
+    %c0_i32 = constant 0 : i32
     %0 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<60x60xi32>
     %1 = affine.load %arg0[-%arg1 + symbol(%arg3), %arg2 - 1] : memref<60x60xi32>
     %2 = affine.load %arg4[-%arg1 + symbol(%arg3) - 1] : memref<60xi8>
@@ -187,19 +190,10 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %4 = affine.load %arg4[%arg2] : memref<60xi8>
     %5 = sexti %4 : i8 to i32
     %6 = addi %3, %5 : i32
-    %c3_i32 = constant 3 : i32
-    %c3_i32_0 = constant 3 : i32
-    %7 = cmpi "eq", %6, %c3_i32_0 : i32
-    %c1_i32 = constant 1 : i32
-    %c0_i32 = constant 0 : i32
-    %c1_i32_1 = constant 1 : i32
-    %c0_i32_2 = constant 0 : i32
-    %8 = select %7, %c1_i32_1, %c0_i32_2 : i32
+    %7 = cmpi "eq", %6, %c3_i32 : i32
+    %8 = select %7, %c1_i32, %c0_i32 : i32
     %9 = addi %1, %8 : i32
     %10 = cmpi "sge", %0, %9 : i32
-    %c3_i32_3 = constant 3 : i32
-    %c1_i32_4 = constant 1 : i32
-    %c0_i32_5 = constant 0 : i32
     %11 = scf.if %10 -> (i32) {
       %12 = affine.load %arg0[-%arg1 + symbol(%arg3) - 1, %arg2] : memref<60x60xi32>
       scf.yield %12 : i32
@@ -210,8 +204,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
       %15 = affine.load %arg4[%arg2] : memref<60xi8>
       %16 = sexti %15 : i8 to i32
       %17 = addi %14, %16 : i32
-      %18 = cmpi "eq", %17, %c3_i32_3 : i32
-      %19 = select %18, %c1_i32_4, %c0_i32_5 : i32
+      %18 = cmpi "eq", %17, %c3_i32 : i32
+      %19 = select %18, %c1_i32, %c0_i32 : i32
       %20 = addi %12, %19 : i32
       scf.yield %20 : i32
     }

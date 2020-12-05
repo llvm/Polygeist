@@ -173,15 +173,15 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %1, %arg0[%arg1, %arg2] : memref<20x30xf64>
     return
   }
-  func @kernel_trmm_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<20x20xf64>, %arg4: memref<20x30xf64>) {
-    %0 = index_cast %arg1 : i32 to index
-    %1 = index_cast %arg0 : i32 to index
-    affine.for %arg5 = 0 to #map1()[%0] {
-      affine.for %arg6 = 0 to #map2()[%1] {
-        affine.for %arg7 = #map3(%arg6) to #map1()[%1] {
-          affine.for %arg8 = #map4(%arg5) to min #map5(%arg5)[%0] {
-            affine.for %arg9 = #map4(%arg6) to min #map6(%arg6, %arg7)[%1] {
-              affine.for %arg10 = max #map7(%arg7, %arg9) to min #map5(%arg7)[%1] {
+  func private @kernel_trmm_new(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<20x20xf64>, %arg4: memref<20x30xf64>) {
+    %0 = index_cast %arg0 : i32 to index
+    %1 = index_cast %arg1 : i32 to index
+    affine.for %arg5 = 0 to #map1()[%1] {
+      affine.for %arg6 = 0 to #map2()[%0] {
+        affine.for %arg7 = #map3(%arg6) to #map1()[%0] {
+          affine.for %arg8 = #map4(%arg5) to min #map5(%arg5)[%1] {
+            affine.for %arg9 = #map4(%arg6) to min #map6(%arg6, %arg7)[%0] {
+              affine.for %arg10 = max #map7(%arg7, %arg9) to min #map5(%arg7)[%0] {
                 call @S0(%arg4, %arg9, %arg8, %arg10, %arg3) : (memref<20x30xf64>, index, index, index, memref<20x20xf64>) -> ()
               }
             }
@@ -189,10 +189,10 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         }
       }
     }
-    affine.for %arg5 = 0 to #map1()[%1] {
-      affine.for %arg6 = 0 to #map1()[%0] {
-        affine.for %arg7 = #map4(%arg5) to min #map5(%arg5)[%1] {
-          affine.for %arg8 = #map4(%arg6) to min #map5(%arg6)[%0] {
+    affine.for %arg5 = 0 to #map1()[%0] {
+      affine.for %arg6 = 0 to #map1()[%1] {
+        affine.for %arg7 = #map4(%arg5) to min #map5(%arg5)[%0] {
+          affine.for %arg8 = #map4(%arg6) to min #map5(%arg6)[%1] {
             call @S1(%arg4, %arg7, %arg8, %arg2) : (memref<20x30xf64>, index, index, f64) -> ()
           }
         }

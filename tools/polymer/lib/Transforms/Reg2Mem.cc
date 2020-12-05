@@ -108,13 +108,14 @@ static void filterUsesInSameBlock(DefToUsesMap &defToUses) {
 /// Creates a single-entry scratchpad memory that stores values from the
 /// defining point and can be loaded when needed at the uses.
 static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
-                                               mlir::OpBuilder &b) {
+                                               mlir::OpBuilder &b,
+                                               mlir::Block *entryBlock) {
   // Sanity checks on the defining op.
   mlir::Operation *defOp = val.getOwner();
 
   // Set the allocation point after where the val is defined.
   OpBuilder::InsertionGuard guard(b);
-  b.setInsertionPointAfter(defOp);
+  b.setInsertionPointToStart(entryBlock);
 
   // The memref shape is 1 and the type is derived from val.
   return b.create<mlir::AllocaOp>(defOp->getLoc(),
@@ -129,7 +130,7 @@ static mlir::AffineStoreOp createScratchpadStoreOp(mlir::Value valToStore,
   // placed right after the allocaOp, and its location is hinted by allocaOp.
   // Here we assume that allocaOp is dominated by the defining op of valToStore.
   OpBuilder::InsertionGuard guard(b);
-  b.setInsertionPointAfter(allocaOp);
+  b.setInsertionPointAfterValue(valToStore);
 
   return b.create<mlir::AffineStoreOp>(
       allocaOp.getLoc(), valToStore, allocaOp.getResult(),
@@ -158,9 +159,14 @@ static mlir::AffineLoadOp createScratchpadLoadOp(mlir::AllocaOp allocaOp,
 }
 
 static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
+  if (f.getBlocks().size() == 0)
+    return;
+
   DefToUsesMap defToUses;
-  // Get the mapping from a value to its uses that are in a different block as
-  // where the value itself is defined.
+  Block &entryBlock = *f.getBody().begin();
+  // entryBlock.dump();
+  // Get the mapping from a value to its uses that are in a
+  // different block as where the value itself is defined.
   mapDefToUses(f, defToUses);
   // Make sure every def will have a single use in each block.
   filterUsesInSameBlock(defToUses);
@@ -171,8 +177,8 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
     mlir::Value val = defUsesPair.first;
 
     // Create the alloca op for the scratchpad.
-    mlir::AllocaOp allocaOp =
-        createScratchpadAllocaOp(val.dyn_cast<mlir::OpResult>(), b);
+    mlir::AllocaOp allocaOp = createScratchpadAllocaOp(
+        val.dyn_cast<mlir::OpResult>(), b, &entryBlock);
 
     // Create the store op that stores val into the scratchpad for future uses.
     mlir::AffineStoreOp storeOp = createScratchpadStoreOp(val, allocaOp, b);

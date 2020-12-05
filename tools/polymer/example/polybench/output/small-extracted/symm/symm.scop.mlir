@@ -181,8 +181,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   func private @free(memref<?xi8>)
   func private @S0(%arg0: memref<1xf64>) attributes {scop.stmt} {
     %c0_i32 = constant 0 : i32
-    %c0_i32_0 = constant 0 : i32
-    %0 = sitofp %c0_i32_0 : i32 to f64
+    %0 = sitofp %c0_i32 : i32 to f64
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }

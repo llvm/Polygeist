@@ -60,7 +60,7 @@ public:
 
 private:
   /// Find all statements that calls a scop.stmt.
-  void buildScopStmtMap(mlir::FuncOp f,
+  void buildScopStmtMap(mlir::FuncOp f, OslScop::ScopStmtNames *scopStmtNames,
                         OslScop::ScopStmtMap *scopStmtMap) const;
 
   /// Build the scop context. The domain of each scop stmt will be updated, by
@@ -73,6 +73,7 @@ private:
 
 /// Build OslScop from a given FuncOp.
 std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
+
   /// Context constraints.
   FlatAffineConstraints ctx;
 
@@ -83,10 +84,11 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   auto scop = std::make_unique<OslScop>();
   // Mapping between scop stmt names and their caller/callee op pairs.
   OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
+  auto *scopStmtNames = scop->getScopStmtNames();
 
   // Find all caller/callee pairs in which the callee has the attribute of name
   // SCOP_STMT_ATTR_NAME.
-  buildScopStmtMap(f, scopStmtMap);
+  buildScopStmtMap(f, scopStmtNames, scopStmtMap);
   if (scopStmtMap->empty())
     return nullptr;
 
@@ -95,9 +97,10 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
   // Counter for the statement inserted.
   unsigned stmtId = 0;
-  for (const auto &it : *scopStmtMap) {
-    const ScopStmt &stmt = it.second;
-    // Collet the domain.
+  for (const auto &scopStmtName : *scopStmtNames) {
+    llvm::errs() << scopStmtName << "\n";
+    const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
+    // Collet the domain
     FlatAffineConstraints *domain = stmt.getDomain();
     // Collect the enclosing ops.
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
@@ -122,6 +125,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
     stmtId++;
   }
+  // osl_scop_print(stderr, scop->get());
 
   // Setup the symbol table within the OslScop, which builds the mapping from
   // mlir::Value to their names in the OpenScop representation, and maps them
@@ -129,19 +133,23 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   scop->initializeSymbolTable(f, &ctx);
 
   // Insert body extension.
-  stmtId = 0;
-  for (const auto &it : *scopStmtMap)
-    scop->addBodyExtension(stmtId++, it.second);
+  for (unsigned stmtId = 0; stmtId < scopStmtNames->size(); stmtId++) {
+    const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
+    scop->addBodyExtension(stmtId, stmt);
+  }
 
   // Additionally, setup the name of the function in the comment.
-  scop->addExtensionGeneric("comment", f.getName());
+  std::string funcName(f.getName());
+  scop->addExtensionGeneric("comment", funcName);
 
+  // osl_scop_print(stderr, scop->get());
   assert(scop->validate() && "The scop object created cannot be validated.");
   return scop;
 }
 
 /// Find all statements that calls a scop.stmt.
 void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
+                                      OslScop::ScopStmtNames *scopStmtNames,
                                       OslScop::ScopStmtMap *scopStmtMap) const {
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
 
@@ -151,9 +159,11 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
       mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
 
       // If the callee is of scop.stmt, we create a new instance in the map
-      if (callee.getAttr(SCOP_STMT_ATTR_NAME))
+      if (callee.getAttr(SCOP_STMT_ATTR_NAME)) {
+        scopStmtNames->push_back(std::string(calleeName));
         scopStmtMap->insert(
             std::make_pair(calleeName, ScopStmt(caller, callee)));
+      }
     }
   });
 }
@@ -183,33 +193,35 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // Finally, given that ctx has all the parameters in it, we will make sure
   // that each domain is aligned with them, i.e., every domain has the same
   // parameter columns (Values & order).
+  SmallVector<mlir::Value, 8> symValues;
+  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+
   for (const auto &it : *scopStmtMap) {
     FlatAffineConstraints *domain = it.second.getDomain();
 
-    // Keep a copy of all exising dim values.
-    SmallVector<mlir::Value, 8> dimValues;
-    domain->getIdValues(0, domain->getNumDimIds(), &dimValues);
+    // SmallVector<mlir::Value, 8> domSymbols;
+    // domain->getIdValues(domain->getNumDimIds(),
+    // domain->getNumDimAndSymbolIds(),
+    //                     &domSymbols);
+    // for (auto sym : domSymbols)
+    //   sym.dump();
 
-    // Merge with the context.
-    domain->mergeAndAlignIdsWithOther(0, &ctx);
-
-    // But remove those newly added dim values.
-    SmallVector<mlir::Value, 8> allDimValues;
-    domain->getIdValues(0, domain->getNumDimIds(), &allDimValues);
-
-    // Find those values that should be removed.
-    SetVector<mlir::Value> dimValuesToRemove;
-    for (mlir::Value dimValue : allDimValues)
-      dimValuesToRemove.insert(dimValue);
-    for (mlir::Value dimValue : dimValues)
-      dimValuesToRemove.remove(dimValue);
-
-    // Make the update.
-    for (mlir::Value dimValue : dimValuesToRemove) {
+    for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+      mlir::Value sym = symValues[i];
       unsigned pos;
-      if (domain->findId(dimValue, &pos))
-        domain->removeId(pos);
+      if (domain->findId(sym, &pos)) {
+        if (pos != i + domain->getNumDimIds())
+          domain->swapId(i + domain->getNumDimIds(), pos);
+      } else {
+        domain->addSymbolId(i, sym);
+      }
     }
+
+    // domain->getIdValues(domain->getNumDimIds(),
+    // domain->getNumDimAndSymbolIds(),
+    //                     &domSymbols);
+    // for (auto sym : domSymbols)
+    //   sym.dump();
   }
 }
 

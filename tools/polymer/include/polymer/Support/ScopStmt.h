@@ -39,7 +39,8 @@ public:
   /// Get the pointer to the domain.
   mlir::FlatAffineConstraints *getDomain() const;
   /// Get a copy of the enclosing operations.
-  void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops) const;
+  void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
+                       bool forOnly = false) const;
   /// Get the callee of this scop stmt.
   mlir::FuncOp getCallee() const;
   /// Get the caller of this scop stmt.

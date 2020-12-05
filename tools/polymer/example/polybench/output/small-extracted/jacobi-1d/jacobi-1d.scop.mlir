@@ -123,8 +123,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %2 = addf %0, %1 : f64
     %3 = affine.load %arg2[%arg1 + 1] : memref<30xf64>
     %4 = addf %2, %3 : f64
-    %cst_0 = constant 3.333300e-01 : f64
-    %5 = mulf %cst_0, %4 : f64
+    %5 = mulf %cst, %4 : f64
     affine.store %5, %arg0[%arg1] : memref<30xf64>
     return
   }
@@ -135,8 +134,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %2 = addf %0, %1 : f64
     %3 = affine.load %arg2[%arg1 + 1] : memref<30xf64>
     %4 = addf %2, %3 : f64
-    %cst_0 = constant 3.333300e-01 : f64
-    %5 = mulf %cst_0, %4 : f64
+    %5 = mulf %cst, %4 : f64
     affine.store %5, %arg0[%arg1] : memref<30xf64>
     return
   }

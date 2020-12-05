@@ -9,12 +9,14 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 
 #include <cassert>
 #include <cstdint>
 #include <map>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 struct osl_scop;
@@ -42,6 +44,7 @@ public:
   using ValueTable = llvm::DenseMap<mlir::Value, std::string>;
   using MemRefToId = llvm::DenseMap<mlir::Value, unsigned>;
   using ScopStmtMap = std::map<std::string, ScopStmt>;
+  using ScopStmtNames = std::vector<std::string>;
 
   OslScop();
   OslScop(osl_scop *scop);
@@ -121,6 +124,9 @@ public:
   /// Get the ScopStmtMap.
   ScopStmtMap *getScopStmtMap();
 
+  /// Get the list of stmt names followed by their insertion order
+  ScopStmtNames *getScopStmtNames();
+
 private:
   /// Create a 1-d array that carries all the constraints in a relation,
   /// arranged in the row-major order.
@@ -148,6 +154,8 @@ private:
   ValueTable valueTable;
   ///
   ScopStmtMap scopStmtMap;
+
+  ScopStmtNames scopStmtNames;
 };
 
 } // namespace polymer

@@ -163,7 +163,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %2, %arg0[%arg1] : memref<40xf64>
     return
   }
-  func @kernel_trisolv_new(%arg0: i32, %arg1: memref<40x40xf64>, %arg2: memref<40xf64>, %arg3: memref<40xf64>) {
+  func private @kernel_trisolv_new(%arg0: i32, %arg1: memref<40x40xf64>, %arg2: memref<40xf64>, %arg3: memref<40xf64>) {
     %0 = index_cast %arg0 : i32 to index
     affine.for %arg4 = 0 to #map1()[%0] {
       affine.for %arg5 = #map2(%arg4) to min #map3(%arg4)[%0] {

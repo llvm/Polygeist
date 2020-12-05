@@ -64,6 +64,7 @@ static osl_statement_p getOslStatement(osl_scop_p scop, unsigned index) {
       return stmt;
     stmt = stmt->next;
   }
+  return nullptr;
 }
 
 OslScop::OslScop() {
@@ -80,7 +81,7 @@ OslScop::OslScop() {
 }
 
 OslScop::OslScop(osl_scop *scop)
-    : scop(scop), scatTreeRoot{std::move(std::make_unique<ScatTreeNode>())} {}
+    : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
 
 OslScop::~OslScop() { osl_scop_free(scop); }
 
@@ -370,9 +371,15 @@ void OslScop::addParameterNames() {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
+  SmallVector<std::string, 8> names;
+
   for (const auto &it : symbolTable)
     if (isParameterSymbol(it.first()))
-      ss << it.first() << " ";
+      names.push_back(std::string(it.first()));
+
+  std::sort(names.begin(), names.end());
+  for (const auto &s : names)
+    ss << s << " ";
 
   addParametersGeneric("strings", body);
 }
@@ -408,18 +415,35 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   std::string body;
   llvm::raw_string_ostream ss(body);
 
-  FlatAffineConstraints *domain = stmt.getDomain();
+  SmallVector<mlir::Operation *, 8> forOps;
+  stmt.getEnclosingOps(forOps, /*forOnly=*/true);
 
-  SmallVector<mlir::Value, 8> dimValues;
-  domain->getIdValues(0, domain->getNumDimIds(), &dimValues);
+  unsigned numIVs = forOps.size();
+  ss << numIVs << " ";
 
-  ss << domain->getNumDimIds() << " ";
-  for (mlir::Value dimValue : dimValues)
-    ss << valueTable[dimValue] << " ";
+  llvm::DenseMap<mlir::Value, unsigned> ivToId;
+  for (unsigned i = 0; i < numIVs; i++) {
+    mlir::AffineForOp forOp = cast<mlir::AffineForOp>(forOps[i]);
+    // forOp.dump();
+    ivToId[forOp.getInductionVar()] = i;
+  }
 
-  ss << "\n" << stmt.getCallee().getName() << "(";
-  for (unsigned i = 0; i < dimValues.size(); i++)
-    ss << valueTable[dimValues[i]] << ((i == dimValues.size() - 1) ? "" : ", ");
+  for (unsigned i = 0; i < numIVs; i++)
+    ss << "i" << i << " ";
+
+  mlir::CallOp caller = stmt.getCaller();
+  mlir::FuncOp callee = stmt.getCallee();
+  ss << "\n" << callee.getName() << "(";
+  unsigned ivCount = 0;
+  for (unsigned i = 0; i < caller.getNumOperands(); i++) {
+    mlir::Value operand = caller.getOperand(i);
+    if (ivToId.find(operand) != ivToId.end()) {
+      ss << "i" << ivToId[operand];
+      if (ivCount != numIVs - 1)
+        ss << ", ";
+      ivCount++;
+    }
+  }
   ss << ")";
 
   addGeneric(stmtId + 1, "body", body);
@@ -545,3 +569,5 @@ OslScop::ValueTable *OslScop::getValueTable() { return &valueTable; }
 OslScop::MemRefToId *OslScop::getMemRefIdMap() { return &memRefIdMap; }
 
 OslScop::ScopStmtMap *OslScop::getScopStmtMap() { return &scopStmtMap; }
+
+OslScop::ScopStmtNames *OslScop::getScopStmtNames() { return &scopStmtNames; }

@@ -1,0 +1,36 @@
+                               Benchmark       Exit code       Scop Diff      Pluto Diff
+        --------------------------------   -------------   -------------   -------------
+     small-extracted/floyd-warshall.mlir               0               0               0
+            small-extracted/gesummv.mlir               0               0               0
+            small-extracted/doitgen.mlir               0               0               0
+        small-extracted/correlation.mlir               0               0               0
+                small-extracted/2mm.mlir               0               0               0
+            small-extracted/fdtd-2d.mlir               0               0               1
+            small-extracted/deriche.mlir               0               0               0
+               small-extracted/trmm.mlir               0               0               0
+        small-extracted/gramschmidt.mlir               0               0               1
+               small-extracted/atax.mlir               0               0               0
+            small-extracted/heat-3d.mlir               0               0               1
+             small-extracted/durbin.mlir               0               0               0
+                 small-extracted/lu.mlir               0               0               0
+               small-extracted/symm.mlir               0               0               0
+          small-extracted/seidel-2d.mlir               0               0               1
+          small-extracted/jacobi-2d.mlir               0               0               1
+         small-extracted/covariance.mlir               0               0               0
+              small-extracted/syr2k.mlir               0               0               1
+               small-extracted/syrk.mlir               0               0               1
+                small-extracted/3mm.mlir               0               0               0
+          small-extracted/jacobi-1d.mlir               0               0               1
+               small-extracted/gemm.mlir               0               0               0
+           small-extracted/nussinov.mlir               0               0               1
+             small-extracted/gemver.mlir               0               0               0
+            small-extracted/trisolv.mlir               0               0               0
+                small-extracted/mvt.mlir               0               0               0
+                small-extracted/adi.mlir               0               0               0
+             small-extracted/ludcmp.mlir               0               0               0
+           small-extracted/cholesky.mlir               0               0               0
+               small-extracted/bicg.mlir               0               0               0
+
+                                           Report:
+                                      Total cases:    30
+                                 Successful cases:    21
