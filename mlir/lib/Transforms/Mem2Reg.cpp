@@ -631,6 +631,7 @@ void Mem2Reg::runOnFunction() {
   // memrefs etc, we may need to do multiple passes (first
   // to eliminate the outermost one, then inner ones)
   bool changed;
+  FuncOp freeRemoved = nullptr;
   do {
     changed = false;
 
@@ -715,4 +716,10 @@ void Mem2Reg::runOnFunction() {
       }
     }
   } while (changed);
+
+  if (freeRemoved) {
+    if (freeRemoved.use_empty()) {
+      freeRemoved.erase();
+    }
+  }
 }
