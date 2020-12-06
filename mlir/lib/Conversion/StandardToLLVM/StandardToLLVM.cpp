@@ -4136,8 +4136,13 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
       signalPassFailure();
       return;
     }
+    std::string dlstr = this->dataLayout;
+    if (auto dataLayoutAttr =
+            getOperation().getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
+      dlstr = dataLayoutAttr.cast<StringAttr>().getValue().str();
+    }
     if (failed(LLVM::LLVMDialect::verifyDataLayoutString(
-            this->dataLayout, [this](const Twine &message) {
+            dlstr, [this](const Twine &message) {
               getOperation().emitError() << message.str();
             }))) {
       signalPassFailure();
@@ -4148,7 +4153,7 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
 
     LowerToLLVMOptions options = {useBarePtrCallConv, emitCWrappers,
                                   indexBitwidth, useAlignedAlloc,
-                                  llvm::DataLayout(this->dataLayout)};
+                                  llvm::DataLayout(dlstr)};
     LLVMTypeConverter typeConverter(&getContext(), options);
 
     OwningRewritePatternList patterns;
@@ -4158,7 +4163,7 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
     m.setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
-              StringAttr::get(this->dataLayout, m.getContext()));
+              StringAttr::get(dlstr, m.getContext()));
   }
 };
 } // end namespace

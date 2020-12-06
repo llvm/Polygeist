@@ -1034,8 +1034,9 @@ std::unique_ptr<llvm::Module> ModuleTranslation::prepareLLVMModule(
   m->getContext()->getOrLoadDialect<LLVM::LLVMDialect>();
   auto llvmModule = std::make_unique<llvm::Module>(name, llvmContext);
   if (auto dataLayoutAttr =
-          m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName()))
+          m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
     llvmModule->setDataLayout(dataLayoutAttr.cast<StringAttr>().getValue());
+  }
   if (auto targetTripleAttr =
           m->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
     llvmModule->setTargetTriple(targetTripleAttr.cast<StringAttr>().getValue());

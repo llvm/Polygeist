@@ -805,10 +805,25 @@ static void composeAffineMapAndOperands(AffineMap *map,
   AffineApplyNormalizer normalizer(*map, *operands);
   auto normalizedMap = normalizer.getAffineMap();
   auto normalizedOperands = normalizer.getOperands();
-  //canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
   *map = normalizedMap;
   *operands = normalizedOperands;
   assert(*map);
+}
+
+/// Implements `map` and `operands` composition and simplification to support
+/// `makeComposedAffineApply`. This can be called to achieve the same effects
+/// on `map` and `operands` without creating an AffineApplyOp that needs to be
+/// immediately deleted.
+static void composeIntegerSetAndOperands(IntegerSet *set,
+                                        SmallVectorImpl<Value> *operands) {
+  auto amap = AffineMap::get(set->getNumDims(), set->getNumSymbols(), set->getConstraints(), set->getContext());
+  AffineApplyNormalizer normalizer(amap, *operands);
+  auto normalizedMap = normalizer.getAffineMap();
+  auto normalizedOperands = normalizer.getOperands();
+  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  *set = IntegerSet::get(normalizedMap.getNumDims(), normalizedMap.getNumSymbols(), normalizedMap.getResults(), set->getEqFlags());
+  *operands = normalizedOperands;
 }
 
 bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
@@ -821,7 +836,7 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
         return true;
       }
     }
-    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp>(
+    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
                v.getDefiningOp()))
       return true;
   }
@@ -837,6 +852,40 @@ void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
     //  llvm::errs() << " -- operands: " << op << "\n";
     //}
     composeAffineMapAndOperands(map, operands);
+    //llvm::errs() << "post: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+  }
+}
+
+bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
+  for(size_t i=0; i<map->getNumInputs(); ++i) {
+    auto v = (*operands)[i];
+    if (i >= map->getNumDims()) {
+      if (v.isa<BlockArgument>() &&
+                  isa<AffineForOp>(
+                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
+        return true;
+      }
+    }
+    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
+               v.getDefiningOp()))
+      return true;
+  }
+  return false;
+}
+
+
+void fullyComposeIntegerSetAndOperands(IntegerSet *set,
+                                            SmallVectorImpl<Value> *operands) {
+
+  while (need(set, operands)) {
+    //llvm::errs() << "pre: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+    composeIntegerSetAndOperands(set, operands);
     //llvm::errs() << "post: " << *map << "\n";
     //for(auto op : *operands) {
     //  llvm::errs() << " -- operands: " << op << "\n";
@@ -2188,6 +2237,7 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
                                SmallVectorImpl<OpFoldResult> &) {
   auto set = getIntegerSet();
   SmallVector<Value, 4> operands(getOperands());
+  fullyComposeIntegerSetAndOperands(&set, &operands);
   canonicalizeSetAndOperands(&set, &operands);
 
 
