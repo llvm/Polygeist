@@ -38,7 +38,7 @@ static bool isTopLevelValue(Value value, Region *region) {
 }
 
 /// Checks if `value` known to be a legal affine dimension or symbol in `src`
-/// region remains legal if the operation that uses it is inlined into `dest`
+/// region remmains legal if the operation that uses it is inlined into `dest`
 /// with the given value mapping. `legalityCheck` is either `isValidDim` or
 /// `isValidSymbol`, depending on the value being required to remain a valid
 /// dimension or symbol.
@@ -56,16 +56,19 @@ remainsLegalAfterInline(Value value, Region *src, Region *dest,
   // If it's a top-level value because it's a block operand, i.e. a
   // function argument, check whether the value replacing it after
   // inlining is a valid dimension in the new region.
-  if (value.isa<BlockArgument>())
-    return legalityCheck(mapping.lookup(value), dest);
+  if (value.isa<BlockArgument>() && !legalityCheck(mapping.lookup(value), dest))
+    return false;
 
   // If it's a top-level value beacuse it's defined in the region,
   // it can only be inlined if the defining op is a constant or a
   // `dim`, which can appear anywhere and be valid, since the defining
   // op won't be top-level anymore after inlining.
-  Attribute operandCst;
-  return matchPattern(value.getDefiningOp(), m_Constant(&operandCst)) ||
-         value.getDefiningOp<memref::DimOp>();
+
+  if (value.isa<OpResult>() && !value.getDefiningOp<ConstantOp>() &&
+      !value.getDefiningOp<DimOp>())
+    return false;
+
+  return true;
 }
 
 /// Checks if all values known to be legal affine dimensions or symbols in `src`
@@ -191,7 +194,8 @@ struct AffineInlinerInterface : public DialectInlinerInterface {
     // other 'isLegalToInline' hook above.
     Operation *parentOp = region->getParentOp();
     return parentOp->hasTrait<OpTrait::AffineScope>() ||
-           isa<AffineForOp, AffineParallelOp, AffineIfOp>(parentOp);
+           isa<AffineForOp>(parentOp) || isa<AffineParallelOp>(parentOp) ||
+           isa<AffineIfOp>(parentOp);
   }
 
   /// Affine regions should be analyzed recursively.
