@@ -11,9 +11,11 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
@@ -204,6 +206,83 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
   }
 }
 
+static void separateAffineIfBlocks(mlir::FuncOp f, OpBuilder &b) {
+  Operation *op;
+  f.walk([&](Operation *subOp) {
+    if (isa<mlir::AffineIfOp>(subOp)) {
+      if (cast<mlir::AffineIfOp>(subOp).hasElse()) {
+        op = subOp;
+      }
+    }
+  });
+
+  while (op) {
+    mlir::AffineIfOp ifOp = cast<mlir::AffineIfOp>(op);
+    // ifOp.dump();
+    assert(ifOp.hasElse());
+
+    // IntegerSet iset2 = ifOp.getIntegerSet();
+    // SmallVector<mlir::Value, 8> operands2(ifOp.getOperands());
+    // iset2.dump();
+    // for (mlir::Value operand : operands2)
+    //   operand.dump();
+
+    // canonicalizeSetAndOperands(&iset2, &operands2);
+    // iset2.dump();
+    // for (mlir::Value operand : operands2)
+    //   operand.dump();
+
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(op);
+
+    mlir::AffineIfOp newIfThenOp = cast<mlir::AffineIfOp>(b.clone(*op));
+    newIfThenOp.getElseBlock()->erase();
+
+    b.setInsertionPointAfter(newIfThenOp);
+    mlir::AffineIfOp newIfElseOp = cast<mlir::AffineIfOp>(b.clone(*op));
+
+    // Build new integer set.
+    IntegerSet iSet = ifOp.getIntegerSet();
+
+    SmallVector<AffineExpr, 8> newExprs;
+    SmallVector<bool, 8> newEqFlags;
+
+    auto eqFlags = iSet.getEqFlags();
+    for (unsigned i = 0; i < iSet.getNumConstraints(); i++) {
+      AffineExpr expr = iSet.getConstraint(i);
+      if (eqFlags[i]) {
+        newExprs.push_back(expr - b.getAffineConstantExpr(1));
+        newEqFlags.push_back(false);
+        newExprs.push_back(-expr - b.getAffineConstantExpr(1));
+        newEqFlags.push_back(false);
+      } else {
+        newExprs.push_back(-expr - b.getAffineConstantExpr(1));
+        newEqFlags.push_back(eqFlags[i]);
+      }
+    }
+    IntegerSet oSet = IntegerSet::get(iSet.getNumDims(), iSet.getNumSymbols(),
+                                      newExprs, newEqFlags);
+    newIfElseOp.setConditional(oSet, ifOp.getOperands());
+
+    Block *oldThenBlock = newIfElseOp.getThenBlock();
+    newIfElseOp.getElseBlock()->moveBefore(oldThenBlock);
+    oldThenBlock->erase();
+
+    ifOp.erase();
+
+    // newIfThenOp.dump();
+    // newIfElseOp.dump();
+
+    op = nullptr;
+    f.walk([&](Operation *subOp) {
+      if (subOp && isa<mlir::AffineIfOp>(subOp) &&
+          cast<mlir::AffineIfOp>(subOp).hasElse()) {
+        op = subOp;
+      }
+    });
+  }
+}
+
 namespace {
 
 class RegToMemPass
@@ -214,6 +293,7 @@ public:
     mlir::FuncOp f = getOperation();
     auto builder = OpBuilder(f.getContext());
 
+    separateAffineIfBlocks(f, builder);
     demoteRegisterToMemory(f, builder);
   }
 };

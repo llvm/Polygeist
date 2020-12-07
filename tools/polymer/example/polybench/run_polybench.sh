@@ -40,8 +40,14 @@ compare_result()
 }
 
 
+cd ${PWD}/../../build && ninja && cd -
+
 printf "%40s %15s %15s %15s\n" "Benchmark" "Exit code" "Scop Diff" "Pluto Diff"
 printf "%40s %15s %15s %15s\n" "--------------------------------" "-------------" "-------------" "-------------"
+
+for f in $(find "${SOURCE_DIR}" -name "*.mlir.ll"); do
+  mv $f ${f%.ll}
+done
 
 for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
   DIRNAME=$(dirname "${f}")

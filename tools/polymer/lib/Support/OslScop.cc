@@ -167,6 +167,7 @@ void OslScop::addContextRelation(FlatAffineConstraints cst) {
   cst.getIdValues(0, cst.getNumDimIds(), &dimValues);
   for (mlir::Value dimValue : dimValues)
     cst.projectOut(dimValue);
+  cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolIds());
 
   SmallVector<int64_t, 8> eqs, inEqs;
   createConstraintRows(cst, eqs);

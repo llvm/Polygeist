@@ -186,6 +186,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     ctx.append(cst);
     ctx.removeRedundantConstraints();
   }
+  ctx.dump();
 
   // Then, create the single context relation in scop.
   scop->addContextRelation(ctx);
