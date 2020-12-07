@@ -1,0 +1,24 @@
+2mm.clang:10.698852:10.675803:10.656404:10.670749:10.668763
+2mm.polymer:10.658054:10.683555:10.678682:10.675772:10.685394
+3mm.clang:12.733805:12.634935:12.626400:12.630897:12.632104
+3mm.polymer:10.544983:10.651761:10.545582:10.547010:10.543783
+[Clan] Error: syntax error at line 91, column 39.
+Error extracting polyhedra from source file: 'adi.c'
+clang-12: error: no such file or directory: 'adi.pluto.c'
+numactl: execution of `./adi.clang.exe': No such file or directory
+numactl: execution of `./adi.clang.exe': No such file or directory
+numactl: execution of `./adi.clang.exe': No such file or directory
+numactl: execution of `./adi.clang.exe': No such file or directory
+numactl: execution of `./adi.clang.exe': No such file or directory
+adi.clang:::::
+adi.polymer:118.408201:118.113988:118.175021:118.179694:118.201094
+atax.clang:0.015800:0.011105:0.010482:0.010715:0.009472
+atax.polymer:0.012060:0.011083:0.011367:0.011293:0.010970
+bicg.clang:0.013640:0.010411:0.010065:0.009908:0.010029
+bicg.polymer:0.005591:0.005519:0.005508:0.005504:0.005536
+cholesky.clang:10.556417:10.571228:10.468895:10.474173:10.450816
+cholesky.polymer:10.244407:10.245919:10.241613:10.238551:10.240190
+correlation.clang:5.359620:5.275660:5.283557:5.281936:5.284645
+correlation.polymer:8.644554:8.646466:8.643614:8.644888:8.646340
+covariance.clang:5.213247:5.163649:5.164833:5.159522:5.161695
+covariance.polymer:9.245706:9.240472:9.247473:9.242358:9.246165

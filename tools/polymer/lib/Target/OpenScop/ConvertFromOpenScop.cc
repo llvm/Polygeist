@@ -1423,6 +1423,7 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
   options->openscop = 1;
+  options->quiet = 0;
 
   CloogInput *input = cloog_input_from_osl_scop(options->state, scop->get());
   cloog_options_copy_from_osl_scop(scop->get(), options);

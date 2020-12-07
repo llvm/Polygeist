@@ -15,6 +15,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/StandardTypes.h"
@@ -86,13 +87,18 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
 
   // The domain constraints can then be collected from the enclosing ops.
+  caller.dump();
+  // for (auto op : enclosingOps)
+  //   op->dump();
   getIndexSet(enclosingOps, &domain);
+  // domain.dump();
 
   // Symbol values, which could be a BlockArgument, or the result of DimOp or
   // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
   // BlockArgument or IndexCastOp, and if it is an IndexCastOp, the cast source
   // should be a top-level BlockArgument.
   SmallVector<mlir::Value, 8> symValues;
+  llvm::DenseMap<mlir::Value, mlir::Value> symMap;
   domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
                      &symValues);
   for (unsigned i = 0; i < symValues.size(); i++) {
@@ -100,6 +106,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
 
     if (val.isa<mlir::BlockArgument>()) {
       mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
+      symMap[val] = val;
       assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
              "Any block argument that acts as a parameter should be from the "
              "top-level.");
@@ -120,6 +127,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
 
       // replace the sym value.
       domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
+      symMap[val] = indexCastOp.getOperand();
     }
   }
 
@@ -132,11 +140,70 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // TODO: good or bad?
   SmallVector<mlir::Value, 8> dimValues;
   domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
+
+  for (auto dimValue : dimValues) {
+    if (dimValue.getDefiningOp()) {
+      Operation *defOp = dimValue.getDefiningOp();
+      assert(isa<mlir::AffineApplyOp>(defOp));
+
+      unsigned pos;
+      if (!domain.findId(dimValue, &pos))
+        continue;
+
+      mlir::AffineApplyOp applyOp = cast<mlir::AffineApplyOp>(defOp);
+      applyOp.dump();
+
+      mlir::AffineValueMap vmap = applyOp.getAffineValueMap();
+
+      for (unsigned i = 0; i < vmap.getNumOperands(); i++) {
+        unsigned pos;
+        Value v = vmap.getOperand(i);
+        if (symMap.find(v) != symMap.end())
+          v = symMap.lookup(v);
+        if (!domain.findId(v, &pos)) {
+          if (i < vmap.getNumDims())
+            domain.addDimId(domain.getNumDimIds(), v);
+          else if (i - vmap.getNumDims() < vmap.getNumSymbols())
+            domain.addSymbolId(domain.getNumSymbolIds(), v);
+        }
+      }
+      // domain.dump();
+
+      std::vector<SmallVector<int64_t, 8>> eqs;
+      SmallVector<int64_t, 8> newEq(domain.getNumCols(), 0);
+      getFlattenedAffineExprs(vmap.getAffineMap(), &eqs);
+      assert(vmap.getNumResults() == 1);
+
+      assert(domain.findId(dimValue, &pos));
+      newEq[pos] = eqs[0][0];
+
+      for (unsigned i = 1; i < eqs[0].size(); i++) {
+        unsigned pos;
+        assert(i - 1 < vmap.getNumOperands());
+        Value v = vmap.getOperand(i - 1);
+        if (symMap.find(v) != symMap.end())
+          v = symMap.lookup(v);
+        // v.dump();
+        assert(domain.findId(v, &pos));
+        // assert(pos < eqs[0].size());
+
+        newEq[pos] = eqs[0][i];
+      }
+
+      domain.addEquality(newEq);
+    }
+  }
+
+  domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
   for (auto dimValue : dimValues) {
     if (dimValue.getDefiningOp()) {
       domain.projectOut(dimValue);
     }
   }
+  domain.removeTrivialRedundancy();
+  domain.removeRedundantConstraints();
+  llvm::errs() << "After pruning all affine.apply\n";
+  domain.dump();
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {

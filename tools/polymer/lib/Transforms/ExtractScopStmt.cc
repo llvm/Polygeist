@@ -377,8 +377,9 @@ class ExtractScopStmtPass
     m.walk([&](mlir::FuncOp f) { funcs.push_back(f); });
 
     unsigned numCallees = 0;
-    for (mlir::FuncOp f : funcs)
+    for (mlir::FuncOp f : funcs) {
       numCallees += extractScopStmt(f, numCallees, b);
+    }
   }
 };
 

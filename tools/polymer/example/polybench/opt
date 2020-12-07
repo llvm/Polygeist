@@ -11,6 +11,7 @@ cd ${BUILD_DIR} && ninja && cd -
 ${POLYMER_BINDIR}/polymer-opt "${MLIR_FILE}" \
     -reg2mem \
     -extract-scop-stmt \
+    -canonicalize \
     -pluto-opt \
     -canonicalize \
     -verify-each=1 \
