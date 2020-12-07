@@ -123,7 +123,7 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
   for (int i = 0; i < numRows; i++) {
     osl_vector_p vec;
 
-    if (i >= numEqs) {
+    if (i >= static_cast<int>(numEqs)) {
       auto inEq = llvm::ArrayRef<int64_t>(&inEqs[(i - numEqs) * numColsInEqs],
                                           numColsInEqs);
       getOslVector(false, inEq, &vec);
@@ -435,16 +435,20 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   mlir::CallOp caller = stmt.getCaller();
   mlir::FuncOp callee = stmt.getCallee();
   ss << "\n" << callee.getName() << "(";
-  unsigned ivCount = 0;
+
+  SmallVector<std::string, 8> ivs;
   for (unsigned i = 0; i < caller.getNumOperands(); i++) {
     mlir::Value operand = caller.getOperand(i);
-    if (ivToId.find(operand) != ivToId.end()) {
-      ss << "i" << ivToId[operand];
-      if (ivCount != numIVs - 1)
-        ss << ", ";
-      ivCount++;
-    }
+    if (ivToId.find(operand) != ivToId.end())
+      ivs.push_back(std::string(formatv("i{0}", ivToId[operand])));
   }
+
+  for (unsigned i = 0; i < ivs.size(); i++) {
+    ss << ivs[i];
+    if (i != ivs.size() - 1)
+      ss << ", ";
+  }
+
   ss << ")";
 
   addGeneric(stmtId + 1, "body", body);
