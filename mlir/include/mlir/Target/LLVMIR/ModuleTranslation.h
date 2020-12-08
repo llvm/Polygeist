@@ -151,6 +151,11 @@ protected:
   llvm::StringMap<llvm::Function *> functionMapping;
   DenseMap<Value, llvm::Value *> valueMapping;
   DenseMap<Block *, llvm::BasicBlock *> blockMapping;
+
+  /// A mapping between MLIR LLVM dialect branch operations and LLVM IR branch
+  /// operations they are converted to. This allows for conneting PHI nodes to
+  /// the source values after all operations are converted.
+  DenseMap<Operation *, llvm::BranchInst *> branchMapping;
 };
 
 } // namespace LLVM
