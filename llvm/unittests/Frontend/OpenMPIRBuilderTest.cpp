@@ -1155,6 +1155,11 @@ TEST_F(OpenMPIRBuilderTest, StaticWorkShareLoop) {
   // increment and in the statement that adds the lower bound to it.
   Value *IV = CLI->getIndVar();
   EXPECT_EQ(std::distance(IV->use_begin(), IV->use_end()), 3);
+
+  // The exit block should contain the "fini" call and the barrier call.
+  BasicBlock *ExitBlock = CLI->getExitBlock();
+  EXPECT_EQ(
+      count_if(*ExitBlock, [](Instruction *I) { return isa<CallInst>(I); }), 2);
 }
 
 TEST_F(OpenMPIRBuilderTest, MasterDirective) {
