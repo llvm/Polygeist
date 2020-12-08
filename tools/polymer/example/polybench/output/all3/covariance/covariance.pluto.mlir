@@ -268,9 +268,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     }
     affine.for %arg6 = 0 to #map1()[%2] {
       affine.for %arg7 = 0 to #map1()[%1] {
-        affine.for %arg8 = #map2(%arg6) to min #map3(%arg6)[%2] {
-          affine.for %arg9 = #map2(%arg7) to min #map3(%arg7)[%1] {
-            call @S3(%arg3, %arg8, %arg9, %arg5) : (memref<3000x2600xf64>, index, index, memref<2600xf64>) -> ()
+        affine.for %arg8 = #map2(%arg7) to min #map3(%arg7)[%1] {
+          affine.for %arg9 = #map2(%arg6) to min #map3(%arg6)[%2] {
+            call @S3(%arg3, %arg9, %arg8, %arg5) : (memref<3000x2600xf64>, index, index, memref<2600xf64>) -> ()
           }
         }
       }

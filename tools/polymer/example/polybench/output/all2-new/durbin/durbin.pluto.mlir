@@ -1,7 +1,9 @@
 #map0 = affine_map<(d0) -> (d0)>
-#map1 = affine_map<(d0) -> ((d0 - 1) floordiv 32 + 1)>
-#map2 = affine_map<(d0) -> (d0 * 32)>
-#map3 = affine_map<(d0, d1) -> (d0, d1 * 32 + 32)>
+#map1 = affine_map<(d0) -> (d0 + 1)>
+#map2 = affine_map<(d0) -> (d0 * 2)>
+#map3 = affine_map<(d0, d1) -> (-d0 + d1)>
+#map4 = affine_map<(d0) -> (d0 * 3)>
+#map5 = affine_map<(d0, d1) -> (d0 * -2 + d1)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
@@ -210,6 +212,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     return
   }
   func private @kernel_durbin_new(%arg0: i32, %arg1: memref<40xf64>, %arg2: memref<40xf64>) {
+    %c0 = constant 0 : index
     %0 = alloca() : memref<1xf64>
     %1 = alloca() : memref<1xf64>
     %2 = alloca() : memref<1xf64>
@@ -219,28 +222,28 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %6 = alloca() : memref<1xf64>
     %7 = alloca() : memref<40xf64>
     %8 = index_cast %arg0 : i32 to index
-    call @S0(%arg2, %arg1) : (memref<40xf64>, memref<40xf64>) -> ()
-    call @S1(%5) : (memref<1xf64>) -> ()
     call @S2(%6, %arg1) : (memref<1xf64>, memref<40xf64>) -> ()
+    call @S1(%5) : (memref<1xf64>) -> ()
+    call @S0(%arg2, %arg1) : (memref<40xf64>, memref<40xf64>) -> ()
     affine.for %arg3 = 1 to %8 {
-      call @S3(%5, %6, %4) : (memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
       call @S4(%3) : (memref<1xf64>) -> ()
-      affine.for %arg4 = 0 to #map0(%arg3) {
+      call @S5(%3, %arg2, %c0, %arg1, %arg3) : (memref<1xf64>, memref<40xf64>, index, memref<40xf64>, index) -> ()
+      call @S3(%5, %6, %4) : (memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
+      affine.for %arg4 = 1 to #map0(%arg3) {
         call @S5(%3, %arg2, %arg4, %arg1, %arg3) : (memref<1xf64>, memref<40xf64>, index, memref<40xf64>, index) -> ()
       }
       call @S6(%0, %4, %3, %arg1, %arg3, %2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
+      call @S8(%c0, %7, %arg2, %arg3, %0) : (index, memref<40xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
       call @S7(%6, %2, %1) : (memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
-      affine.for %arg4 = 0 to #map1(%arg3) {
-        affine.for %arg5 = #map2(%arg4) to min #map3(%arg3, %arg4) {
-          call @S8(%arg5, %7, %arg2, %arg3, %0) : (index, memref<40xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
-        }
-      }
-      affine.for %arg4 = 0 to #map1(%arg3) {
-        affine.for %arg5 = #map2(%arg4) to min #map3(%arg3, %arg4) {
-          call @S9(%arg2, %arg5, %7) : (memref<40xf64>, index, memref<40xf64>) -> ()
-        }
-      }
       call @S10(%arg2, %arg3, %1) : (memref<40xf64>, index, memref<1xf64>) -> ()
+      affine.for %arg4 = #map1(%arg3) to #map2(%arg3) {
+        %9 = affine.apply #map3(%arg3, %arg4)
+        call @S8(%9, %7, %arg2, %arg3, %0) : (index, memref<40xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
+      }
+      affine.for %arg4 = #map2(%arg3) to #map4(%arg3) {
+        %9 = affine.apply #map5(%arg3, %arg4)
+        call @S9(%arg2, %9, %7) : (memref<40xf64>, index, memref<40xf64>) -> ()
+      }
     }
     return
   }
