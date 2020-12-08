@@ -206,14 +206,6 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
           affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%0] {
             call @S0(%arg1, %arg8, %arg3, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
-          }
-        }
-      }
-    }
-    affine.for %arg6 = 0 to #map0()[%0] {
-      affine.for %arg7 = 0 to #map0()[%0] {
-        affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
-          affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%0] {
             call @S1(%arg2, %arg8, %arg4, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
           }
         }

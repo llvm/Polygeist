@@ -332,14 +332,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
       }
       affine.for %arg6 = #map9(%arg5) to #map3()[%4] {
         affine.for %arg7 = 0 to #map3()[%3] {
-          affine.for %arg8 = max #map6(%arg5, %arg6) to min #map7(%arg6)[%4] {
+          affine.for %arg8 = max #map6(%arg6, %arg5) to min #map7(%arg6)[%4] {
             affine.for %arg9 = #map4(%arg7) to min #map7(%arg7)[%3] {
               call @S6(%arg3, %arg5, %arg8, %arg2, %arg9, %arg4) : (memref<2600x2600xf64>, index, index, memref<2000x2600xf64>, index, memref<2000x2600xf64>) -> ()
             }
           }
         }
         affine.for %arg7 = 0 to #map3()[%3] {
-          affine.for %arg8 = max #map6(%arg5, %arg6) to min #map7(%arg6)[%4] {
+          affine.for %arg8 = max #map6(%arg6, %arg5) to min #map7(%arg6)[%4] {
             affine.for %arg9 = #map4(%arg7) to min #map7(%arg7)[%3] {
               call @S7(%arg2, %arg9, %arg8, %arg3, %arg5, %arg4) : (memref<2000x2600xf64>, index, index, memref<2600x2600xf64>, index, memref<2000x2600xf64>) -> ()
             }

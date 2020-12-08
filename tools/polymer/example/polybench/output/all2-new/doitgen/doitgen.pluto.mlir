@@ -1,7 +1,6 @@
 #map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
 #map1 = affine_map<(d0) -> (d0 * 32)>
 #map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
-#map3 = affine_map<()[s0] -> (32, s0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
@@ -202,11 +201,10 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         affine.for %arg8 = 0 to #map0()[%2] {
           affine.for %arg9 = #map1(%arg8) to min #map2(%arg8)[%2] {
             call @S0(%arg5, %arg9) : (memref<12xf64>, index) -> ()
-            affine.for %arg10 = 0 to min #map3()[%2] {
-              call @S1(%arg5, %arg9, %arg4, %arg10, %arg3, %arg6, %arg7) : (memref<12xf64>, index, memref<12x12xf64>, index, memref<10x8x12xf64>, index, index) -> ()
-            }
           }
-          affine.for %arg9 = 1 to #map0()[%2] {
+        }
+        affine.for %arg8 = 0 to #map0()[%2] {
+          affine.for %arg9 = 0 to #map0()[%2] {
             affine.for %arg10 = #map1(%arg8) to min #map2(%arg8)[%2] {
               affine.for %arg11 = #map1(%arg9) to min #map2(%arg9)[%2] {
                 call @S1(%arg5, %arg10, %arg4, %arg11, %arg3, %arg6, %arg7) : (memref<12xf64>, index, memref<12x12xf64>, index, memref<10x8x12xf64>, index, index) -> ()
