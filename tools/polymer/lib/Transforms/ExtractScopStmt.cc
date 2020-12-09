@@ -27,6 +27,8 @@
 
 #include "llvm/ADT/SetVector.h"
 
+#define DEBUG_TYPE "extract-scop-stmt"
+
 using namespace mlir;
 using namespace llvm;
 using namespace polymer;
@@ -57,6 +59,7 @@ static mlir::Value
 insertScratchpadForInterprocUses(mlir::Operation *defOp,
                                  mlir::Operation *defInCalleeOp,
                                  CalleeToCallersMap &calleeToCallers,
+
                                  mlir::FuncOp topLevelFun, OpBuilder &b) {
   assert(defOp->getNumResults() == 1);
   assert(topLevelFun.getBlocks().size() != 0);
@@ -153,8 +156,8 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
       ops.insert(loadOp);
       op->replaceAllUsesWith(loadOp);
 
-      scratchpad.dump();
-      loadOp->dump();
+      // scratchpad.dump();
+      // loadOp->dump();
       continue;
     }
 
@@ -366,6 +369,56 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   return numWriteOps;
 }
 
+/// Given a value, if any of its uses is a StoreOp, we try to replace other uses
+/// by a load from that store.
+static void replaceUsesByStored(mlir::FuncOp f, OpBuilder &b) {
+  SmallVector<mlir::AffineStoreOp, 8> storeOps;
+
+  f.walk([&](Operation *op) {
+    for (OpResult val : op->getResults()) {
+      SmallVector<Operation *, 8> userOps;
+      SmallVector<mlir::AffineStoreOp, 8> currStoreOps;
+
+      // Find all the users and AffineStoreOp in them.
+      for (Operation *userOp : val.getUsers()) {
+        userOps.push_back(userOp);
+        if (mlir::AffineStoreOp storeOp =
+                dyn_cast<mlir::AffineStoreOp>(userOp)) {
+          currStoreOps.push_back(storeOp);
+        }
+      }
+
+      if (userOps.size() == 1 || currStoreOps.size() != 1)
+        return;
+      storeOps.push_back(currStoreOps[0]);
+    }
+  });
+
+  for (mlir::AffineStoreOp storeOp : storeOps) {
+    Value val = storeOp.getValueToStore();
+    SmallVector<Operation *, 8> userOps(val.getUsers());
+    // We insert a new load immediately after the store.
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(storeOp);
+
+    MemRefAccess access(storeOp);
+    mlir::AffineLoadOp loadOp =
+        b.create<mlir::AffineLoadOp>(storeOp.getLoc(), storeOp.getMemRef(),
+                                     storeOp.getAffineMap(), access.indices);
+
+    // And replace any use of value val that is dominated by this load.
+    DominanceInfo dominance(val.getParentBlock()->getParentOp());
+    for (Operation *userOp : userOps) {
+      if (dominance.dominates(loadOp.getOperation(), userOp)) {
+        LLVM_DEBUG({ userOp->dump(); });
+        val.replaceUsesWithIf(loadOp.getResult(), [&](OpOperand &operand) {
+          return (operand.getOwner() == userOp);
+        });
+      }
+    }
+  }
+}
+
 namespace {
 
 class ExtractScopStmtPass
@@ -380,6 +433,8 @@ class ExtractScopStmtPass
 
     unsigned numCallees = 0;
     for (mlir::FuncOp f : funcs) {
+      replaceUsesByStored(f, b);
+
       numCallees += extractScopStmt(f, numCallees, b);
     }
   }

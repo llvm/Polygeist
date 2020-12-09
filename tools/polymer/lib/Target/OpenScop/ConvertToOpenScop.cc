@@ -98,7 +98,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   // Counter for the statement inserted.
   unsigned stmtId = 0;
   for (const auto &scopStmtName : *scopStmtNames) {
-    llvm::errs() << scopStmtName << "\n";
+    // llvm::errs() << scopStmtName << "\n";
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
     // Collet the domain
     FlatAffineConstraints *domain = stmt.getDomain();
@@ -186,7 +186,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     ctx.append(cst);
     ctx.removeRedundantConstraints();
   }
-  ctx.dump();
+  // ctx.dump();
 
   // Then, create the single context relation in scop.
   scop->addContextRelation(ctx);

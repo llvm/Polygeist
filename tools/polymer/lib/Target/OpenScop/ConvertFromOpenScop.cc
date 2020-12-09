@@ -1188,8 +1188,8 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
     assert(succeeded(builder.process(eq.RHS, rhsExprs)));
 
     for (AffineExpr rhsExpr : rhsExprs) {
-      llvm::errs() << "rhs:\n";
-      rhsExpr.dump();
+      // llvm::errs() << "rhs:\n";
+      // rhsExpr.dump();
       AffineExpr eqExpr;
       for (AffineExpr lhsExpr : lhsExprs) {
         if (eq.sign >= 0)
@@ -1218,7 +1218,7 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
 
   IntegerSet iset = IntegerSet::get(builder.dimNames.size(),
                                     builder.symbolNames.size(), conds, eqFlags);
-  iset.dump();
+  // iset.dump();
 
   // for (auto operand : operands)
   //   llvm::errs() << operand << "\n";
@@ -1422,7 +1422,7 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
   // symbolTable[ass->LHS] = applyOp->getResult(0);
   // llvm::errs() << ass->LHS << "\n";
 
-  op->dump();
+  // op->dump();
   symbolTable[ass->LHS] = op->getResult(0);
   lhsToAss[ass->LHS] = (clast_stmt *)ass;
   return success();
