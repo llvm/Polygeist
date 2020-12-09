@@ -15,6 +15,6 @@ ${POLYMER_BINDIR}/polymer-opt "${MLIR_FILE}" \
     -pluto-opt \
     -canonicalize \
     -verify-each=1 \
-    -debug \
-    2>&1 | tee out.log &>/dev/null
+    -debug-only="extract-scop-stmt" \
+    2>&1 | tee out.log >/dev/null
     

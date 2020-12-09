@@ -87,7 +87,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
 
   // The domain constraints can then be collected from the enclosing ops.
-  caller.dump();
+  // caller.dump();
   // for (auto op : enclosingOps)
   //   op->dump();
   getIndexSet(enclosingOps, &domain);
@@ -151,7 +151,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
         continue;
 
       mlir::AffineApplyOp applyOp = cast<mlir::AffineApplyOp>(defOp);
-      applyOp.dump();
+      // applyOp.dump();
 
       mlir::AffineValueMap vmap = applyOp.getAffineValueMap();
 
@@ -202,8 +202,8 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   }
   domain.removeTrivialRedundancy();
   domain.removeRedundantConstraints();
-  llvm::errs() << "After pruning all affine.apply\n";
-  domain.dump();
+  // llvm::errs() << "After pruning all affine.apply\n";
+  // domain.dump();
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {

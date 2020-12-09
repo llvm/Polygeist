@@ -13,3 +13,9 @@ atax.clang:0.015152:0.011115
 atax.polymer:0.012264:0.011521
 bicg.clang:0.014216:0.010604
 bicg.polymer:0.005663:0.005527
+cholesky.clang:10.526285:10.488007
+cholesky.polymer:10.082545:10.080990
+correlation.clang:5.354734:5.281024
+correlation.polymer:8.647398:8.646831
+covariance.clang:5.224047:5.169318
+covariance.polymer:8.654679:8.659693

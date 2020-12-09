@@ -125,102 +125,134 @@ void kernel_correlation(int m, int n,
    - 56 emoji characters
    - 285 hentaigana
    - 3 additional Zanabazar Square characters */
-  int t1, t2, t3, t4, t5;
+  int t1, t2, t3, t4, t5, t6, t7, t8;
  register int lbv, ubv;
 /* Start of CLooG code */
 corr[_PB_M-1][_PB_M-1] = SCALAR_VAL(1.0);;
-for (t2=0;t2<=_PB_M-2;t2++) {
-  lbv=t2+1;
-  ubv=_PB_M-1;
+for (t2=0;t2<=floord(_PB_M-2,32);t2++) {
+  for (t3=t2;t3<=floord(_PB_M-1,32);t3++) {
+    for (t4=32*t2;t4<=min(min(_PB_M-2,32*t2+31),32*t3+30);t4++) {
+      lbv=max(32*t3,t4+1);
+      ubv=min(_PB_M-1,32*t3+31);
 #pragma ivdep
 #pragma vector always
-  for (t3=lbv;t3<=ubv;t3++) {
-    corr[t2][t3] = SCALAR_VAL(0.0);;
-  }
-}
-lbv=0;
-ubv=_PB_M-2;
-#pragma ivdep
-#pragma vector always
-for (t2=lbv;t2<=ubv;t2++) {
-  corr[t2][t2] = SCALAR_VAL(1.0);;
-  stddev[t2] = SCALAR_VAL(0.0);;
-  mean[t2] = SCALAR_VAL(0.0);;
-}
-if (_PB_M >= 1) {
-  stddev[(_PB_M-1)] = SCALAR_VAL(0.0);;
-  mean[(_PB_M-1)] = SCALAR_VAL(0.0);;
-}
-if (_PB_M >= 1) {
-  for (t2=0;t2<=_PB_N-1;t2++) {
-    lbv=0;
-    ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-    for (t3=lbv;t3<=ubv;t3++) {
-      mean[t3] += data[t2][t3];;
-    }
-  }
-}
-lbv=0;
-ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-for (t2=lbv;t2<=ubv;t2++) {
-  mean[t2] /= float_n;;
-}
-if (_PB_M >= 1) {
-  for (t2=0;t2<=_PB_N-1;t2++) {
-    lbv=0;
-    ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-    for (t3=lbv;t3<=ubv;t3++) {
-      stddev[t3] += (data[t2][t3] - mean[t3]) * (data[t2][t3] - mean[t3]);;
-      data[t2][t3] -= mean[t3];;
-    }
-  }
-}
-lbv=0;
-ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-for (t2=lbv;t2<=ubv;t2++) {
-  stddev[t2] /= float_n;;
-  stddev[t2] = SQRT_FUN(stddev[t2]);;
-  stddev[t2] = stddev[t2] <= eps ? SCALAR_VAL(1.0) : stddev[t2];;
-}
-if (_PB_M >= 1) {
-  for (t2=0;t2<=_PB_N-1;t2++) {
-    lbv=0;
-    ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-    for (t3=lbv;t3<=ubv;t3++) {
-      data[t2][t3] /= SQRT_FUN(float_n) * stddev[t3];;
-    }
-  }
-}
-if (_PB_N >= 1) {
-  for (t2=0;t2<=_PB_M-2;t2++) {
-    for (t3=0;t3<=_PB_N-1;t3++) {
-      lbv=t2+1;
-      ubv=_PB_M-1;
-#pragma ivdep
-#pragma vector always
-      for (t4=lbv;t4<=ubv;t4++) {
-        corr[t2][t4] += (data[t3][t2] * data[t3][t4]);;
+      for (t5=lbv;t5<=ubv;t5++) {
+        corr[t4][t5] = SCALAR_VAL(0.0);;
       }
     }
   }
 }
-for (t2=0;t2<=_PB_M-2;t2++) {
-  lbv=t2+1;
-  ubv=_PB_M-1;
+for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
+  lbv=32*t2;
+  ubv=min(_PB_M-2,32*t2+31);
 #pragma ivdep
 #pragma vector always
   for (t3=lbv;t3<=ubv;t3++) {
-    corr[t3][t2] = corr[t2][t3];;
+    corr[t3][t3] = SCALAR_VAL(1.0);;
+    stddev[t3] = SCALAR_VAL(0.0);;
+    mean[t3] = SCALAR_VAL(0.0);;
+  }
+  if (t2 >= ceild(_PB_M-32,32)) {
+    stddev[(_PB_M-1)] = SCALAR_VAL(0.0);;
+    mean[(_PB_M-1)] = SCALAR_VAL(0.0);;
+  }
+}
+if (_PB_N >= 1) {
+  for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
+    for (t3=0;t3<=floord(_PB_N-1,32);t3++) {
+      for (t4=32*t3;t4<=min(_PB_N-1,32*t3+31);t4++) {
+        lbv=32*t2;
+        ubv=min(_PB_M-1,32*t2+31);
+#pragma ivdep
+#pragma vector always
+        for (t5=lbv;t5<=ubv;t5++) {
+          mean[t5] += data[t4][t5];;
+        }
+      }
+    }
+  }
+}
+for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
+  lbv=32*t2;
+  ubv=min(_PB_M-1,32*t2+31);
+#pragma ivdep
+#pragma vector always
+  for (t3=lbv;t3<=ubv;t3++) {
+    mean[t3] /= float_n;;
+  }
+}
+if (_PB_N >= 1) {
+  for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
+    for (t3=0;t3<=floord(_PB_N-1,32);t3++) {
+      for (t4=32*t3;t4<=min(_PB_N-1,32*t3+31);t4++) {
+        lbv=32*t2;
+        ubv=min(_PB_M-1,32*t2+31);
+#pragma ivdep
+#pragma vector always
+        for (t5=lbv;t5<=ubv;t5++) {
+          stddev[t5] += (data[t4][t5] - mean[t5]) * (data[t4][t5] - mean[t5]);;
+          data[t4][t5] -= mean[t5];;
+        }
+      }
+    }
+  }
+}
+for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
+  lbv=32*t2;
+  ubv=min(_PB_M-1,32*t2+31);
+#pragma ivdep
+#pragma vector always
+  for (t3=lbv;t3<=ubv;t3++) {
+    stddev[t3] /= float_n;;
+    stddev[t3] = SQRT_FUN(stddev[t3]);;
+    stddev[t3] = stddev[t3] <= eps ? SCALAR_VAL(1.0) : stddev[t3];;
+  }
+}
+if (_PB_M >= 1) {
+  for (t2=0;t2<=floord(_PB_N-1,32);t2++) {
+    for (t3=0;t3<=floord(_PB_M-1,32);t3++) {
+      for (t4=32*t2;t4<=min(_PB_N-1,32*t2+31);t4++) {
+        lbv=32*t3;
+        ubv=min(_PB_M-1,32*t3+31);
+#pragma ivdep
+#pragma vector always
+        for (t5=lbv;t5<=ubv;t5++) {
+          data[t4][t5] /= SQRT_FUN(float_n) * stddev[t5];;
+        }
+      }
+    }
+  }
+}
+if (_PB_N >= 1) {
+  for (t2=0;t2<=floord(_PB_M-2,32);t2++) {
+    for (t3=t2;t3<=floord(_PB_M-1,32);t3++) {
+      for (t4=0;t4<=floord(_PB_N-1,32);t4++) {
+        for (t5=32*t2;t5<=min(min(_PB_M-2,32*t2+31),32*t3+30);t5++) {
+          for (t6=32*t4;t6<=min(_PB_N-1,32*t4+31);t6++) {
+            lbv=max(32*t3,t5+1);
+            ubv=min(_PB_M-1,32*t3+31);
+#pragma ivdep
+#pragma vector always
+            for (t7=lbv;t7<=ubv;t7++) {
+              corr[t5][t7] += (data[t6][t5] * data[t6][t7]);;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+for (t2=0;t2<=floord(_PB_M-2,32);t2++) {
+  for (t3=t2;t3<=floord(_PB_M-1,32);t3++) {
+    for (t4=32*t2;t4<=min(min(_PB_M-2,32*t2+31),32*t3+30);t4++) {
+      lbv=max(32*t3,t4+1);
+      ubv=min(_PB_M-1,32*t3+31);
+#pragma ivdep
+#pragma vector always
+      for (t5=lbv;t5<=ubv;t5++) {
+        corr[t5][t4] = corr[t4][t5];;
+      }
+    }
   }
 }
 /* End of CLooG code */
