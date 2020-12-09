@@ -7,6 +7,7 @@
 
 #include "cloog/cloog.h"
 #include "osl/osl.h"
+#include "pluto/internal/pluto.h"
 #include "pluto/osl_pluto.h"
 #include "pluto/pluto.h"
 
@@ -411,23 +412,6 @@ void IterScatNameMapper::visit(clast_guard *guardStmt) {
 }
 
 void IterScatNameMapper::visit(clast_user_stmt *userStmt) {
-  osl_statement_p stmt;
-  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
-    return assert(false);
-
-  osl_body_p body = osl_statement_get_body(stmt);
-  assert(body != NULL && "The body of the statement should not be NULL.");
-  assert(body->expression != NULL && "The body expression should not be NULL.");
-  assert(body->iterators != NULL && "The body iterators should not be NULL.");
-
-  // Map iterator names in the current statement to the values in <scatnames>.
-  osl_generic_p scatnames = scop->getExtension("scatnames");
-  assert(scatnames && "There should be a <scatnames> in the scop.");
-  buildIterToScatNameMap(iterScatNameMap, stmt, scatnames);
-}
-
-static void buildIterScatNameMap(clast_user_stmt *userStmt, OslScop *scop,
-                                 IterScatNameMap &iterScatNameMap) {
   osl_statement_p stmt;
   if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
     return assert(false);
@@ -1218,9 +1202,6 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
     }
   }
 
-  unsigned numDims = builder.dimNames.size();
-  unsigned numSymbols = builder.symbolNames.size();
-
   SmallVector<mlir::Value, 8> operands(builder.dimNames.size() +
                                        builder.symbolNames.size());
 
@@ -1461,10 +1442,96 @@ static std::unique_ptr<OslScop> readOpenScop(llvm::MemoryBufferRef buf) {
   return scop;
 }
 
+static void updateCloogOptionsByPlutoProg(CloogOptions *options,
+                                          const PlutoProg *prog) {
+  Stmt **stmts = prog->stmts;
+  int nstmts = prog->nstmts;
+
+  options->fs = (int *)malloc(nstmts * sizeof(int));
+  options->ls = (int *)malloc(nstmts * sizeof(int));
+  options->fs_ls_size = nstmts;
+
+  for (int i = 0; i < nstmts; i++) {
+    options->fs[i] = -1;
+    options->ls[i] = -1;
+  }
+
+  if (prog->context->options->cloogf >= 1 &&
+      prog->context->options->cloogl >= 1) {
+    options->f = prog->context->options->cloogf;
+    options->l = prog->context->options->cloogl;
+  } else {
+    if (prog->context->options->tile) {
+      for (int i = 0; i < nstmts; i++) {
+        options->fs[i] = get_first_point_loop(stmts[i], prog) + 1;
+        options->ls[i] = prog->num_hyperplanes;
+      }
+    } else {
+      options->f = 1;
+      options->l = prog->num_hyperplanes;
+    }
+  }
+}
+
+static void unrollJamClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
+                                      CloogOptions *cloogOptions,
+                                      unsigned ufactor) {
+  unsigned numPloops;
+  Ploop **ploops = pluto_get_parallel_loops(prog, &numPloops);
+
+  for (unsigned i = 0; i < numPloops; i++) {
+    if (!pluto_loop_is_innermost(ploops[i], prog))
+      continue;
+
+    std::string iter(formatv("t{0}", ploops[i]->depth + 1));
+
+    // Collect all statements within the current parallel loop.
+    SmallVector<int, 8> stmtIds(ploops[i]->nstmts);
+    for (unsigned j = 0; j < ploops[i]->nstmts; j++)
+      stmtIds[j] = ploops[i]->stmts[j]->id + 1;
+
+    ClastFilter filter = {/*iter=*/iter.c_str(),
+                          /*stmts_filter=*/stmtIds.data(),
+                          /*nstmts_filter=*/static_cast<int>(ploops[i]->nstmts),
+                          /*filter_type=*/subset};
+
+    clast_for **loops;
+    unsigned numLoops, numStmts;
+    int *stmts;
+    clast_filter(root, filter, &loops, (int *)&numLoops, &stmts,
+                 (int *)&numStmts);
+
+    // There should be at least one loops.
+    if (numLoops == 0) {
+      free(loops);
+      free(stmts);
+      continue;
+    }
+
+    for (unsigned j = 0; j < numLoops; j++)
+      loops[j]->parallel += CLAST_PARALLEL_VEC;
+
+    free(loops);
+    free(stmts);
+  }
+
+  pluto_loops_free(ploops, numPloops);
+
+  // Call clast transformation.
+  clast_unroll_jam(root);
+}
+
+static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
+                                      CloogOptions *cloogOptions,
+                                      PlutoOptions *plutoOptions) {
+  if (plutoOptions->unrolljam)
+    unrollJamClastByPlutoProg(root, prog, cloogOptions, plutoOptions->ufactor);
+}
+
 mlir::Operation *
 polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
                                   ModuleOp module, OslSymbolTable &symTable,
-                                  MLIRContext *context) {
+                                  MLIRContext *context, PlutoProg *prog) {
   // TODO: turn these C struct into C++ classes.
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
@@ -1474,6 +1541,8 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
 
   CloogInput *input = cloog_input_from_osl_scop(options->state, scop->get());
   cloog_options_copy_from_osl_scop(scop->get(), options);
+  if (prog != nullptr)
+    updateCloogOptionsByPlutoProg(options, prog);
 
   // Create cloog_program
   CloogProgram *program =
@@ -1483,6 +1552,9 @@ polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
   clast_pprint(stderr, rootStmt, 0, options);
+
+  if (prog != nullptr)
+    transformClastByPlutoProg(rootStmt, prog, options, prog->context->options);
 
   // Process the input.
   Importer deserializer(context, module, &symTable, scop.get(), options);

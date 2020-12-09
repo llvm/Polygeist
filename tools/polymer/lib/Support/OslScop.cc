@@ -437,17 +437,32 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   ss << "\n" << callee.getName() << "(";
 
   SmallVector<std::string, 8> ivs;
+  SetVector<unsigned> visited;
   for (unsigned i = 0; i < caller.getNumOperands(); i++) {
     mlir::Value operand = caller.getOperand(i);
-    if (ivToId.find(operand) != ivToId.end())
+    if (ivToId.find(operand) != ivToId.end()) {
       ivs.push_back(std::string(formatv("i{0}", ivToId[operand])));
+      visited.insert(ivToId[operand]);
+    }
   }
+
+  for (unsigned i = 0; i < numIVs; i++)
+    if (!visited.contains(i)) {
+      visited.insert(i);
+      ivs.push_back(std::string(formatv("i{0}", i)));
+    }
 
   for (unsigned i = 0; i < ivs.size(); i++) {
     ss << ivs[i];
     if (i != ivs.size() - 1)
       ss << ", ";
   }
+
+  // for (unsigned i = 0; i < numIVs; i++) {
+  //   ss << "i" << i;
+  //   if (i != numIVs - 1)
+  //     ss << ", ";
+  // }
 
   ss << ")";
 

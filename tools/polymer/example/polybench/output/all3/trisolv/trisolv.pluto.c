@@ -121,40 +121,23 @@ void kernel_trisolv(int n,
    - 56 emoji characters
    - 285 hentaigana
    - 3 additional Zanabazar Square characters */
-  int t1, t2, t3, t4, t5;
+  int t1, t2, t3;
  register int lbv, ubv;
 /* Start of CLooG code */
 if (_PB_N >= 1) {
-  for (t2=0;t2<=floord(_PB_N-1,32);t2++) {
-    lbv=32*t2;
-    ubv=min(_PB_N-1,32*t2+31);
+  lbv=0;
+  ubv=_PB_N-1;
 #pragma ivdep
 #pragma vector always
-    for (t3=lbv;t3<=ubv;t3++) {
-      x[t3] = b[t3];;
-    }
+  for (t2=lbv;t2<=ubv;t2++) {
+    x[t2] = b[t2];;
   }
-  for (t2=0;t2<=floord(_PB_N-1,32);t2++) {
-    for (t3=0;t3<=t2;t3++) {
-      if (t2 >= t3+1) {
-        for (t4=32*t2;t4<=min(_PB_N-1,32*t2+31);t4++) {
-          for (t5=32*t3;t5<=32*t3+31;t5++) {
-            x[t4] -= L[t4][t5] * x[t5];;
-          }
-        }
-      }
-      if (t2 == t3) {
-        x[32*t2] = x[32*t2] / L[32*t2][32*t2];;
-      }
-      if (t2 == t3) {
-        for (t4=32*t2+1;t4<=min(_PB_N-1,32*t2+31);t4++) {
-          for (t5=32*t2;t5<=t4-1;t5++) {
-            x[t4] -= L[t4][t5] * x[t5];;
-          }
-          x[t4] = x[t4] / L[t4][t4];;
-        }
-      }
+  x[0] = x[0] / L[0][0];;
+  for (t2=1;t2<=_PB_N-1;t2++) {
+    for (t3=0;t3<=t2-1;t3++) {
+      x[t2] -= L[t2][t3] * x[t3];;
     }
+    x[t2] = x[t2] / L[t2][t2];;
   }
 }
 /* End of CLooG code */

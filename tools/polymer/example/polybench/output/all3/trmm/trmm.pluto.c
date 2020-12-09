@@ -133,40 +133,28 @@ void kernel_trmm(int m, int n,
    - 56 emoji characters
    - 285 hentaigana
    - 3 additional Zanabazar Square characters */
-  int t1, t2, t3, t4, t5, t6, t7;
+  int t1, t2, t3, t4;
  register int lbv, ubv;
 /* Start of CLooG code */
 if ((_PB_M >= 1) && (_PB_N >= 1)) {
-  if (_PB_M >= 2) {
-    for (t2=0;t2<=floord(_PB_N-1,32);t2++) {
-      for (t3=0;t3<=floord(_PB_M-2,32);t3++) {
-        for (t4=t3;t4<=floord(_PB_M-1,32);t4++) {
-          for (t5=32*t3;t5<=min(min(_PB_M-2,32*t3+31),32*t4+30);t5++) {
-            for (t6=max(32*t4,t5+1);t6<=min(_PB_M-1,32*t4+31);t6++) {
-              lbv=32*t2;
-              ubv=min(_PB_N-1,32*t2+31);
+  for (t2=0;t2<=_PB_M-2;t2++) {
+    for (t3=t2+1;t3<=_PB_M-1;t3++) {
+      lbv=0;
+      ubv=_PB_N-1;
 #pragma ivdep
 #pragma vector always
-              for (t7=lbv;t7<=ubv;t7++) {
-                B[t5][t7] += A[t6][t5] * B[t6][t7];;
-              }
-            }
-          }
-        }
+      for (t4=lbv;t4<=ubv;t4++) {
+        B[t2][t4] += A[t3][t2] * B[t3][t4];;
       }
     }
   }
-  for (t2=0;t2<=floord(_PB_M-1,32);t2++) {
-    for (t3=0;t3<=floord(_PB_N-1,32);t3++) {
-      for (t4=32*t2;t4<=min(_PB_M-1,32*t2+31);t4++) {
-        lbv=32*t3;
-        ubv=min(_PB_N-1,32*t3+31);
+  for (t2=0;t2<=_PB_M-1;t2++) {
+    lbv=0;
+    ubv=_PB_N-1;
 #pragma ivdep
 #pragma vector always
-        for (t5=lbv;t5<=ubv;t5++) {
-          B[t4][t5] = alpha * B[t4][t5];;
-        }
-      }
+    for (t3=lbv;t3<=ubv;t3++) {
+      B[t2][t3] = alpha * B[t2][t3];;
     }
   }
 }

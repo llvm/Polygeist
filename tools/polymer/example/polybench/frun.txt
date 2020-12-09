@@ -1,0 +1,9 @@
+ninja: no work to do.
+/home/ubuntu/polymer/example/polybench
+                               Benchmark       Exit code       Scop Diff      Pluto Diff
+        --------------------------------   -------------   -------------   -------------
+                  fixed/correlation.mlir               0               1               1
+
+                                           Report:
+                                      Total cases:     1
+                                 Successful cases:     0
