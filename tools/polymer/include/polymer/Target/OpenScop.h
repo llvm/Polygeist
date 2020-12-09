@@ -10,6 +10,8 @@
 
 #include <memory>
 
+#include "pluto/internal/pluto.h"
+
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
@@ -37,7 +39,8 @@ std::unique_ptr<OslScop> createOpenScopFromFuncOp(mlir::FuncOp funcOp,
 mlir::Operation *createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
                                           mlir::ModuleOp module,
                                           OslSymbolTable &symTable,
-                                          mlir::MLIRContext *context);
+                                          mlir::MLIRContext *context,
+                                          PlutoProg *prog = nullptr);
 
 mlir::OwningModuleRef translateOpenScopToModule(std::unique_ptr<OslScop> scop,
                                                 mlir::MLIRContext *context);

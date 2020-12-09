@@ -134,166 +134,116 @@ void kernel_2mm(int ni, int nj, int nk, int nl,
    - 56 emoji characters
    - 285 hentaigana
    - 3 additional Zanabazar Square characters */
-  int t1, t2, t3, t4, t5, t6, t7, t8, t9;
+  int t1, t2, t3, t4, t5;
  register int lbv, ubv;
 /* Start of CLooG code */
 if (_PB_NI >= 1) {
-  for (t2=0;t2<=floord(_PB_NI-1,32);t2++) {
-    if ((_PB_NJ >= 0) && (_PB_NL >= 0)) {
-      for (t3=0;t3<=floord(_PB_NJ+_PB_NL-1,32);t3++) {
-        if ((_PB_NJ >= _PB_NL+1) && (t3 <= floord(_PB_NL-1,32)) && (t3 >= ceild(_PB_NL-31,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=_PB_NL-1;
+  if ((_PB_NJ >= _PB_NL+1) && (_PB_NL >= 1)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      lbv=0;
+      ubv=_PB_NL-1;
 #pragma ivdep
 #pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-            lbv=_PB_NL;
-            ubv=min(_PB_NJ-1,32*t3+31);
+      for (t3=lbv;t3<=ubv;t3++) {
+        D[t2][t3] *= beta;;
+        tmp[t2][t3] = SCALAR_VAL(0.0);;
+      }
+      lbv=_PB_NL;
+      ubv=_PB_NJ-1;
 #pragma ivdep
 #pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-          }
-        }
-        if ((_PB_NJ >= _PB_NL+1) && (t3 <= floord(_PB_NL-32,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=32*t3+31;
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-          }
-        }
-        if ((_PB_NJ <= _PB_NL-1) && (t3 <= floord(_PB_NJ-1,32)) && (t3 >= ceild(_PB_NJ-31,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=_PB_NJ-1;
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-            lbv=_PB_NJ;
-            ubv=min(_PB_NL-1,32*t3+31);
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-            }
-          }
-        }
-        if ((_PB_NJ <= _PB_NL-1) && (t3 <= floord(_PB_NJ-32,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=32*t3+31;
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-          }
-        }
-        if ((_PB_NJ == _PB_NL) && (t3 <= floord(_PB_NJ-1,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=min(_PB_NJ-1,32*t3+31);
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-          }
-        }
-        if ((t3 <= floord(_PB_NJ-1,32)) && (t3 >= ceild(_PB_NL,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=min(_PB_NJ-1,32*t3+31);
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              tmp[t4][t5] = SCALAR_VAL(0.0);;
-            }
-          }
-        }
-        if ((t3 <= floord(_PB_NL-1,32)) && (t3 >= ceild(_PB_NJ,32))) {
-          for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-            lbv=32*t3;
-            ubv=min(_PB_NL-1,32*t3+31);
-#pragma ivdep
-#pragma vector always
-            for (t5=lbv;t5<=ubv;t5++) {
-              D[t4][t5] *= beta;;
-            }
-          }
-        }
+      for (t3=lbv;t3<=ubv;t3++) {
+        tmp[t2][t3] = SCALAR_VAL(0.0);;
       }
     }
-    if (_PB_NL <= -1) {
-      for (t3=0;t3<=floord(_PB_NJ-1,32);t3++) {
-        for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-          lbv=32*t3;
-          ubv=min(_PB_NJ-1,32*t3+31);
+  }
+  if ((_PB_NJ >= 1) && (_PB_NJ <= _PB_NL-1)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      lbv=0;
+      ubv=_PB_NJ-1;
 #pragma ivdep
 #pragma vector always
-          for (t5=lbv;t5<=ubv;t5++) {
-            tmp[t4][t5] = SCALAR_VAL(0.0);;
-          }
-        }
+      for (t3=lbv;t3<=ubv;t3++) {
+        D[t2][t3] *= beta;;
+        tmp[t2][t3] = SCALAR_VAL(0.0);;
+      }
+      lbv=_PB_NJ;
+      ubv=_PB_NL-1;
+#pragma ivdep
+#pragma vector always
+      for (t3=lbv;t3<=ubv;t3++) {
+        D[t2][t3] *= beta;;
       }
     }
-    if (_PB_NJ <= -1) {
-      for (t3=0;t3<=floord(_PB_NL-1,32);t3++) {
-        for (t4=32*t2;t4<=min(_PB_NI-1,32*t2+31);t4++) {
-          lbv=32*t3;
-          ubv=min(_PB_NL-1,32*t3+31);
+  }
+  if ((_PB_NJ >= 1) && (_PB_NJ == _PB_NL)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      lbv=0;
+      ubv=_PB_NJ-1;
 #pragma ivdep
 #pragma vector always
-          for (t5=lbv;t5<=ubv;t5++) {
-            D[t4][t5] *= beta;;
-          }
+      for (t3=lbv;t3<=ubv;t3++) {
+        D[t2][t3] *= beta;;
+        tmp[t2][t3] = SCALAR_VAL(0.0);;
+      }
+    }
+  }
+  if ((_PB_NJ >= 1) && (_PB_NL <= 0)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      lbv=0;
+      ubv=_PB_NJ-1;
+#pragma ivdep
+#pragma vector always
+      for (t3=lbv;t3<=ubv;t3++) {
+        tmp[t2][t3] = SCALAR_VAL(0.0);;
+      }
+    }
+  }
+  if ((_PB_NJ <= 0) && (_PB_NL >= 1)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      lbv=0;
+      ubv=_PB_NL-1;
+#pragma ivdep
+#pragma vector always
+      for (t3=lbv;t3<=ubv;t3++) {
+        D[t2][t3] *= beta;;
+      }
+    }
+  }
+  if ((_PB_NJ >= 1) && (_PB_NK >= 1) && (_PB_NL >= 1)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      for (t3=0;t3<=_PB_NJ-1;t3++) {
+        for (t5=0;t5<=_PB_NK-1;t5++) {
+          tmp[t2][t3] += alpha * A[t2][t5] * B[t5][t3];;
+        }
+        lbv=0;
+        ubv=_PB_NL-1;
+#pragma ivdep
+#pragma vector always
+        for (t5=lbv;t5<=ubv;t5++) {
+          D[t2][t5] += tmp[t2][t3] * C[t3][t5];;
         }
       }
     }
   }
-  if (_PB_NJ >= 1) {
-    for (t2=0;t2<=floord(_PB_NI-1,32);t2++) {
-      for (t3=0;t3<=floord(_PB_NJ-1,32);t3++) {
-        if (_PB_NK >= 1) {
-          for (t5=0;t5<=floord(_PB_NK-1,32);t5++) {
-            for (t6=32*t2;t6<=min(_PB_NI-1,32*t2+31);t6++) {
-              for (t7=32*t3;t7<=min(_PB_NJ-1,32*t3+31);t7++) {
-                for (t9=32*t5;t9<=min(_PB_NK-1,32*t5+31);t9++) {
-                  tmp[t6][t7] += alpha * A[t6][t9] * B[t9][t7];;
-                }
-              }
-            }
-          }
+  if ((_PB_NJ >= 1) && (_PB_NK >= 1) && (_PB_NL <= 0)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      for (t3=0;t3<=_PB_NJ-1;t3++) {
+        for (t5=0;t5<=_PB_NK-1;t5++) {
+          tmp[t2][t3] += alpha * A[t2][t5] * B[t5][t3];;
         }
-        if (_PB_NL >= 1) {
-          for (t5=0;t5<=floord(_PB_NL-1,32);t5++) {
-            for (t6=32*t2;t6<=min(_PB_NI-1,32*t2+31);t6++) {
-              for (t7=32*t3;t7<=min(_PB_NJ-1,32*t3+31);t7++) {
-                lbv=32*t5;
-                ubv=min(_PB_NL-1,32*t5+31);
+      }
+    }
+  }
+  if ((_PB_NJ >= 1) && (_PB_NK <= 0) && (_PB_NL >= 1)) {
+    for (t2=0;t2<=_PB_NI-1;t2++) {
+      for (t3=0;t3<=_PB_NJ-1;t3++) {
+        lbv=0;
+        ubv=_PB_NL-1;
 #pragma ivdep
 #pragma vector always
-                for (t9=lbv;t9<=ubv;t9++) {
-                  D[t6][t9] += tmp[t6][t7] * C[t7][t9];;
-                }
-              }
-            }
-          }
+        for (t5=lbv;t5<=ubv;t5++) {
+          D[t2][t5] += tmp[t2][t3] * C[t3][t5];;
         }
       }
     }

@@ -18,6 +18,7 @@ add_mlir_library(PolymerSupport
   libplutoisl
   libplutoosl
   libplutopip
+  libplutopolylib
   libplutocloog
   libplutocandl
   libpluto

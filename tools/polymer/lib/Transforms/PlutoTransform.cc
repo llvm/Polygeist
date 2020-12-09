@@ -52,71 +52,26 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
 
   // Should use isldep, candl cannot work well for this case.
   context->options->silent = 1;
+  context->options->moredebug = 0;
   context->options->isldep = 1;
   context->options->readscop = 1;
 
+  context->options->identity = 0;
+// context->options->iss = 0;
+#if 0
   context->options->parallel = 0;
   context->options->unrolljam = 0;
   context->options->prevector = 0;
+#endif
 
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
-  if (!context->options->silent) {
-    fprintf(stderr, "[pluto] Number of statements: %d\n", prog->nstmts);
-    // fprintf(stdout, "[pluto] Total number of loops: %d\n", dim_sum);
-    fprintf(stderr, "[pluto] Number of deps: %d\n", prog->ndeps);
-    fprintf(stderr, "[pluto] Maximum domain dimensionality: %d\n", prog->nvar);
-    fprintf(stderr, "[pluto] Number of parameters: %d\n", prog->npar);
-  }
-
-  if (context->options->iss)
-    pluto_iss_dep(prog);
-  if (!context->options->identity)
-    pluto_auto_transform(prog);
-
-  pluto_compute_dep_directions(prog);
-  pluto_compute_dep_satisfaction(prog);
-
-  if (context->options->tile) {
-    pluto_tile(prog);
-  } else {
-    if (context->options->intratileopt) {
-      pluto_intra_tile_optimize(prog, 0);
-    }
-  }
-
-  if (context->options->parallel && !context->options->tile &&
-      !context->options->identity) {
-    /* Obtain wavefront/pipelined parallelization by skewing if
-     * necessary */
-    unsigned nbands;
-    Band **bands;
-    pluto_compute_dep_satisfaction(prog);
-    bands = pluto_get_outermost_permutable_bands(prog, &nbands);
-    bool retval = pluto_create_tile_schedule(prog, bands, nbands);
-    pluto_bands_free(bands, nbands);
-
-    /* If the user hasn't supplied --tile and there is only pipelined
-     * parallelism, we will warn the user */
-    if (retval) {
-      printf("[pluto] WARNING: pipelined parallelism exists and --tile is not "
-             "used.\n");
-      printf("\tUse --tile for better parallelization \n");
-      fprintf(stdout, "[pluto] After skewing:\n");
-      // pluto_transformations_pretty_print(prog);
-    }
-  }
-
-  FILE *cloogfp = fopen("test.cloog", "w+");
-  pluto_gen_cloog_file(cloogfp, prog);
-
+  pluto_schedule_prog(prog);
   pluto_populate_scop(scop->get(), prog, context);
   osl_scop_print(stderr, scop->get());
 
   mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
   mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
-      std::move(scop), m, dstTable, rewriter.getContext()));
-
-  // Replace calls to f by g in every function within the whole module.
+      std::move(scop), m, dstTable, rewriter.getContext(), prog));
 
   pluto_context_free(context);
   return g;

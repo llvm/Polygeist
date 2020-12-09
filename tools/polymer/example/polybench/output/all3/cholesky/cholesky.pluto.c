@@ -137,64 +137,27 @@ void kernel_cholesky(int n,
    - 56 emoji characters
    - 285 hentaigana
    - 3 additional Zanabazar Square characters */
-  int t1, t2, t3, t4, t5, t6;
+  int t1, t2, t3;
  register int lbv, ubv;
 /* Start of CLooG code */
 if (_PB_N >= 1) {
-  for (t1=0;t1<=floord(_PB_N-1,32);t1++) {
-    for (t2=0;t2<=t1;t2++) {
-      for (t3=0;t3<=t1;t3++) {
-        if ((t1 >= t2+1) && (t2 == t3)) {
-          for (t4=32*t1;t4<=min(_PB_N-1,32*t1+31);t4++) {
-            A[t4][32*t2] /= A[32*t2][32*t2];;
-            for (t5=32*t2+1;t5<=32*t2+31;t5++) {
-              for (t6=32*t2;t6<=t5-1;t6++) {
-                A[t4][t5] -= A[t4][t6] * A[t5][t6];;
-              }
-              A[t4][t5] /= A[t5][t5];;
-            }
-          }
-        }
-        if (t2 >= t3+1) {
-          for (t4=max(32*t1,32*t2+1);t4<=min(_PB_N-1,32*t1+31);t4++) {
-            for (t5=32*t2;t5<=min(32*t2+31,t4-1);t5++) {
-              for (t6=32*t3;t6<=32*t3+31;t6++) {
-                A[t4][t5] -= A[t4][t6] * A[t5][t6];;
-              }
-            }
-          }
-        }
-        if ((t1 == t3) && (t1 >= t2+1)) {
-          for (t4=32*t1;t4<=min(_PB_N-1,32*t1+31);t4++) {
-            for (t5=32*t2;t5<=32*t2+31;t5++) {
-              A[t4][t4] -= A[t4][t5] * A[t4][t5];;
-            }
-          }
-        }
-        if ((t1 == t2) && (t1 == t3)) {
-          A[32*t1][32*t1] = SQRT_FUN(A[32*t1][32*t1]);;
-        }
-        if ((t1 == t2) && (t1 == t3) && (t1 <= floord(_PB_N-2,32))) {
-          A[(32*t1+1)][32*t1] /= A[32*t1][32*t1];;
-          A[(32*t1+1)][(32*t1+1)] -= A[(32*t1+1)][32*t1] * A[(32*t1+1)][32*t1];;
-          A[(32*t1+1)][(32*t1+1)] = SQRT_FUN(A[(32*t1+1)][(32*t1+1)]);;
-        }
-        if ((t1 == t2) && (t1 == t3)) {
-          for (t4=32*t1+2;t4<=min(_PB_N-1,32*t1+31);t4++) {
-            A[t4][32*t1] /= A[32*t1][32*t1];;
-            A[t4][t4] -= A[t4][32*t1] * A[t4][32*t1];;
-            for (t5=32*t1+1;t5<=t4-1;t5++) {
-              for (t6=32*t1;t6<=t5-1;t6++) {
-                A[t4][t5] -= A[t4][t6] * A[t5][t6];;
-              }
-              A[t4][t5] /= A[t5][t5];;
-              A[t4][t4] -= A[t4][t5] * A[t4][t5];;
-            }
-            A[t4][t4] = SQRT_FUN(A[t4][t4]);;
-          }
-        }
+  A[0][0] = SQRT_FUN(A[0][0]);;
+  if (_PB_N >= 2) {
+    A[1][0] /= A[0][0];;
+    A[1][1] -= A[1][0] * A[1][0];;
+    A[1][1] = SQRT_FUN(A[1][1]);;
+  }
+  for (t1=2;t1<=_PB_N-1;t1++) {
+    A[t1][0] /= A[0][0];;
+    A[t1][t1] -= A[t1][0] * A[t1][0];;
+    for (t2=1;t2<=t1-1;t2++) {
+      for (t3=0;t3<=t2-1;t3++) {
+        A[t1][t2] -= A[t1][t3] * A[t2][t3];;
       }
+      A[t1][t2] /= A[t2][t2];;
+      A[t1][t1] -= A[t1][t2] * A[t1][t2];;
     }
+    A[t1][t1] = SQRT_FUN(A[t1][t1]);;
   }
 }
 /* End of CLooG code */

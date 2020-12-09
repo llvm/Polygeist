@@ -2,7 +2,7 @@
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
-  llvm.mlir.global internal constant @str4("%0.2lf \00")
+  llvm.mlir.global internal constant @str4("%0.6lf \00")
   llvm.mlir.global internal constant @str3("\0A\00")
   llvm.mlir.global internal constant @str2("A\00")
   llvm.mlir.global internal constant @str1("begin dump: %s\00")
