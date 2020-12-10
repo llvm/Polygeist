@@ -170,8 +170,8 @@ void OslScop::addContextRelation(FlatAffineConstraints cst) {
   cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolIds());
 
   SmallVector<int64_t, 8> eqs, inEqs;
-  createConstraintRows(cst, eqs);
-  createConstraintRows(cst, inEqs, /*isEq=*/false);
+  // createConstraintRows(cst, eqs);
+  // createConstraintRows(cst, inEqs, /*isEq=*/false);
 
   unsigned numCols = 2 + cst.getNumSymbolIds();
   unsigned numEntries = inEqs.size() + eqs.size();
@@ -256,7 +256,9 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
 
   SmallVector<int64_t, 8> eqs, inEqs;
   createConstraintRows(cst, eqs);
-  createConstraintRows(cst, inEqs, /*isEq=*/false);
+  // createConstraintRows(cst, inEqs, /*isEq=*/false);
+  for (unsigned i = 0; i < eqs.size(); i++)
+    eqs[i] = -eqs[i];
 
   // Then put them into the scop as an ACCESS relation.
   unsigned numOutputDims = cst.getNumConstraints();

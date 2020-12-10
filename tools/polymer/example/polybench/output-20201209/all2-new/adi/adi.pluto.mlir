@@ -67,8 +67,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %11 = alloca() : memref<1xf64>
     %12 = index_cast %arg1 : i32 to index
     call @S0(%10, %arg1, %arg0, %7, %6, %5) : (memref<1xf64>, i32, i32, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
-    call @S1(%9, %7) : (memref<1xf64>, memref<1xf64>) -> ()
-    call @S2(%11, %6, %5, %4) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
+    call @S1(%11, %7) : (memref<1xf64>, memref<1xf64>) -> ()
+    call @S2(%9, %6, %5, %4) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
     call @S3(%8, %4) : (memref<1xf64>, memref<1xf64>) -> ()
     %13 = index_cast %arg0 : i32 to index
     affine.for %arg6 = 1 to #map0()[%13] {
@@ -77,8 +77,8 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         call @S5(%arg4, %arg7) : (memref<20x20xf64>, index) -> ()
         call @S6(%arg5, %arg7) : (memref<20x20xf64>, index) -> ()
         affine.for %arg8 = 1 to #map1()[%12] {
-          call @S7(%arg4, %arg7, %arg8, %9, %10, %3, %2) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
-          call @S8(%arg5, %arg7, %arg8, %3, %arg4, %2, %arg2, %11) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<20x20xf64>, memref<1xf64>, memref<20x20xf64>, memref<1xf64>) -> ()
+          call @S7(%arg4, %arg7, %arg8, %11, %10, %3, %2) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
+          call @S8(%arg5, %arg7, %arg8, %3, %arg4, %2, %arg2, %9) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<20x20xf64>, memref<1xf64>, memref<20x20xf64>, memref<1xf64>) -> ()
         }
         call @S9(%arg3, %arg7, %12) : (memref<20x20xf64>, index, index) -> ()
         affine.for %arg8 = 1 to #map1()[%12] {
@@ -90,7 +90,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         call @S12(%arg4, %arg7) : (memref<20x20xf64>, index) -> ()
         call @S13(%arg5, %arg7) : (memref<20x20xf64>, index) -> ()
         affine.for %arg8 = 1 to #map1()[%12] {
-          call @S14(%arg4, %arg7, %arg8, %8, %11, %1, %0) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
+          call @S14(%arg4, %arg7, %arg8, %8, %9, %1, %0) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
           call @S15(%arg5, %arg7, %arg8, %1, %arg4, %0, %arg3, %10) : (memref<20x20xf64>, index, index, memref<1xf64>, memref<20x20xf64>, memref<1xf64>, memref<20x20xf64>, memref<1xf64>) -> ()
         }
         call @S16(%arg2, %arg7, %12) : (memref<20x20xf64>, index, index) -> ()
