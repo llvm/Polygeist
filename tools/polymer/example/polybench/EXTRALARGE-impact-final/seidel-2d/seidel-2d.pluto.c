@@ -73,11 +73,11 @@ void print_array(int n,
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
 static
-void kernel_seidel_2d(int tsteps,
-		      int n,
+void kernel_seidel_2d(unsigned int tsteps,
+		      unsigned int n,
 		      DATA_TYPE POLYBENCH_2D(A,N,N,n,n))
 {
-  int t, i, j;
+  unsigned int t, i, j;
 
   int t1, t2, t3, t4, t5, t6;
  int lb, ub, lbp, ubp, lb2, ub2;
