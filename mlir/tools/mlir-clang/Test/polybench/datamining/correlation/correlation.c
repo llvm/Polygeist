@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude | FileCheck %s
+// TODO: mlir-clang %s %stdinclude | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 -lm && %s.exec1 &> %s.out1
 // RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm

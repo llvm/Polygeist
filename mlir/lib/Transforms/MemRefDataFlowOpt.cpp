@@ -63,14 +63,9 @@ namespace {
 struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
-  void forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase);
-  void forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase);
-
-  // A list of memref's that are potentially dead / could be eliminated.
-  SmallPtrSet<Value, 4> memrefsToErase;
-
-  DominanceInfo *domInfo = nullptr;
-  PostDominanceInfo *postDomInfo = nullptr;
+  void forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo);
+  void removeUnusedStore(AffineWriteOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo);
+  void forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, DominanceInfo* domInfo);
 };
 
 } // end anonymous namespace
@@ -81,130 +76,19 @@ std::unique_ptr<OperationPass<FuncOp>> mlir::createMemRefDataFlowOptPass() {
   return std::make_unique<MemRefDataFlowOpt>();
 }
 
-// This is a straightforward implementation not optimized for speed. Optimize
-// if needed.
-void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*> &loadOpsToErase) {
-  // First pass over the use list to get the minimum number of surrounding
-  // loops common between the load op and the store op, with min taken across
-  // all store ops.
-  SmallVector<Operation *, 8> storeOps;
-  unsigned minSurroundingLoops = getNestingDepth(loadOp);
-  for (auto *user : loadOp.getMemRef().getUsers()) {
-    auto storeOp = dyn_cast<AffineWriteOpInterface>(user);
-    if (!storeOp)
-      continue;
-    unsigned nsLoops = getNumCommonSurroundingLoops(*loadOp, *storeOp);
-    minSurroundingLoops = std::min(nsLoops, minSurroundingLoops);
-    storeOps.push_back(storeOp);
-  }
-
-  // The list of store op candidates for forwarding that satisfy conditions
-  // (1) and (2) above - they will be filtered later when checking (3).
-  SmallVector<Operation *, 8> fwdingCandidates;
-
-  // Store ops that have a dependence into the load (even if they aren't
-  // forwarding candidates). Each forwarding candidate will be checked for a
-  // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
-  SmallVector<Operation *, 8> depSrcStores;
-
-  for (auto *storeOp : storeOps) {
-    MemRefAccess srcAccess(storeOp);
-    MemRefAccess destAccess(loadOp);
-    // Find stores that may be reaching the load.
-    FlatAffineConstraints dependenceConstraints;
-    unsigned nsLoops = getNumCommonSurroundingLoops(*loadOp, *storeOp);
-    unsigned d;
-    // Dependences at loop depth <= minSurroundingLoops do NOT matter.
-    for (d = nsLoops + 1; d > minSurroundingLoops; d--) {
-      DependenceResult result = checkMemrefAccessDependence(
-          srcAccess, destAccess, d, &dependenceConstraints,
-          /*dependenceComponents=*/nullptr);
-      if (hasDependence(result))
-        break;
-    }
-    if (d == minSurroundingLoops) {
-      continue;
-    }
-
-    // Stores that *may* be reaching the load.
-    depSrcStores.push_back(storeOp);
-
-    // 1. Check if the store and the load have mathematically equivalent
-    // affine access functions; this implies that they statically refer to the
-    // same single memref element. As an example this filters out cases like:
-    //     store %A[%i0 + 1]
-    //     load %A[%i0]
-    //     store %A[%M]
-    //     load %A[%N]
-    // Use the AffineValueMap difference based memref access equality checking.
-    if (srcAccess != destAccess) {
-      continue;
-    }
-
-    // 2. The store has to dominate the load op to be candidate.
-    if (!domInfo->dominates(storeOp, loadOp)) {
-      continue;
-    }
-
-    // We now have a candidate for forwarding.
-    fwdingCandidates.push_back(storeOp);
-  }
-
-  // 3. Of all the store op's that meet the above criteria, the store that
-  // postdominates all 'depSrcStores' (if one exists) is the unique store
-  // providing the value to the load, i.e., provably the last writer to that
-  // memref loc.
-  // Note: this can be implemented in a cleaner way with postdominator tree
-  // traversals. Consider this for the future if needed.
-  Operation *lastWriteStoreOp = nullptr;
-  for (auto *storeOp : fwdingCandidates) {
-    if (llvm::all_of(depSrcStores, [&](Operation *depStore) {
-          return postDomInfo->postDominates(storeOp, depStore);
-        })) {
-      lastWriteStoreOp = storeOp;
-      break;
-    }
-  }
-  if (!lastWriteStoreOp) {
-    return;
-  }
-
-  // Perform the actual store to load forwarding.
-  Value storeVal =
-    cast<AffineWriteOpInterface>(lastWriteStoreOp).getValueToStore();
-  loadOp.getValue().replaceAllUsesWith(storeVal);
-  // Record the memref for a later sweep to optimize away.
-  memrefsToErase.insert(loadOp.getMemRef());
-  // Record this to erase later.
-  loadOpsToErase.push_back(loadOp);
-}
-
-// This is a straightforward implementation not optimized for speed. Optimize
-// if needed.
-void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase) {
-  SmallVector<AffineReadOpInterface, 4> LoadOptions;
-  for (auto *user : loadOp.getMemRef().getUsers()) {
-    auto loadOp2 = dyn_cast<AffineReadOpInterface>(user);
-    if (!loadOp2 || loadOp2 == loadOp)
-      continue;
-
-    MemRefAccess srcAccess(loadOp2);
-    MemRefAccess destAccess(loadOp);
-
-    if (srcAccess != destAccess) {
-      continue;
-    }
-
-    // 2. The store has to dominate the load op to be candidate.
-    if (!domInfo->dominates(loadOp2, loadOp)) {
-      //llvm::errs() << " - not fone from dominating load\n";
-      continue;
-    }
-
+bool hasNoInterveningStore(Operation* start, AffineReadOpInterface loadOp) {
     bool legal = true;
-
     std::function<void(Operation*)> check = [&](Operation* op) {
       if (!legal) return;
+	    
+      if (auto store = dyn_cast<AffineStoreOp>(op)) {
+              if (loadOp.getMemRef().getDefiningOp<AllocaOp>() || loadOp.getMemRef().getDefiningOp<AllocOp>()) {
+                if (store.getMemRef().getDefiningOp<AllocaOp>() || store.getMemRef().getDefiningOp<AllocOp>()) {
+		  if (loadOp.getMemRef() == store.getMemRef()) legal = false;
+		  return;
+		}
+	      }
+            }
 
       if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
         // Collect all memory effects on `v`.
@@ -286,8 +170,268 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
         }
       }
     };
-    recur(loadOp2.getOperation(), loadOp.getOperation());
+    recur(start, loadOp.getOperation());
+    return legal;
+}
 
+bool hasNoInterveningLoad(AffineWriteOpInterface start, AffineWriteOpInterface loadOp) {
+    bool legal = true;
+    std::function<void(Operation*)> check = [&](Operation* op) {
+      if (!legal) return;
+	    
+      if (auto store = dyn_cast<AffineLoadOp>(op)) {
+              if (loadOp.getMemRef().getDefiningOp<AllocaOp>() || loadOp.getMemRef().getDefiningOp<AllocOp>()) {
+                if (store.getMemRef().getDefiningOp<AllocaOp>() || store.getMemRef().getDefiningOp<AllocOp>()) {
+		  if (loadOp.getMemRef() == store.getMemRef()) legal = false;
+		  return;
+		}
+	      }
+            }
+
+      if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
+        // Collect all memory effects on `v`.
+        SmallVector<MemoryEffects::EffectInstance, 1> effects;
+        memEffect.getEffectsOnValue(start.getMemRef(), effects);
+//	llvm::errs() << " -----  potential use " << *op << " -- ";
+       //for(auto e : effects) llvm::errs() << e.getEffect() << " ";
+       //llvm::errs() << "\n";
+        if (llvm::any_of(
+                effects, [](const MemoryEffects::EffectInstance &instance) {
+                  return isa<MemoryEffects::Read>(instance.getEffect());
+                })) {
+            legal = false;
+            return;
+          }
+      }
+
+      if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+        // Recurse into the regions for this op and check whether the contained ops
+        // can be hoisted.
+        for (auto &region : op->getRegions()) {
+          for (auto &block : region) {
+            for (auto &innerOp : block) {
+              check(&innerOp);
+              if (!legal) return;
+            }
+          }
+        }
+      }
+    };
+
+    auto until = [&](Operation* parent, Operation* to) {
+      // todo perhaps recur
+      check(parent);
+    };
+
+    std::function<void(Operation*, Operation*)> recur = [&](Operation* from, Operation* to) {
+      if (from->getParentRegion() != to->getParentRegion()) {
+        recur(from, to->getParentOp());
+        until(to->getParentOp(), to);
+        return;
+      }
+      std::deque<Block*> todo;
+      {
+        bool seen = false;
+        for(auto& op : *from->getBlock()) {
+          if (&op == from) {
+            seen = true;
+            continue;
+          }
+          if (!seen) {
+            continue;
+          }
+          if (&op == to) {
+            break;
+          }
+          check(&op);
+          if (&op == from->getBlock()->getTerminator()) {
+            for (auto succ : from->getBlock()->getSuccessors()) {
+              todo.push_back(succ);
+            }
+          }
+        }
+      }
+      SmallPtrSet<Block*, 4> done;
+      while(todo.size()) {
+        auto blk = todo.front();
+        todo.pop_front();
+        if (done.count(blk)) continue;
+        done.insert(blk);
+        for(auto& op : *blk) {
+          if (&op == to) {
+            break;
+          }
+          check(&op);
+          if (&op == blk->getTerminator()) {
+            for (auto succ : blk->getSuccessors()) {
+              todo.push_back(succ);
+            }
+          }
+        }
+      }
+    };
+    recur(start.getOperation(), loadOp.getOperation());
+    return legal;
+}
+void MemRefDataFlowOpt::removeUnusedStore(AffineWriteOpInterface writeOp, SmallVectorImpl<Operation*> &loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo) {
+  // First pass over the use list to get the minimum number of surrounding
+  // loops common between the load op and the store op, with min taken across
+  // all store ops.
+  SmallVector<Operation *, 8> storeOps;
+  for (auto *user : writeOp.getMemRef().getUsers()) {
+    auto storeOp = dyn_cast<AffineWriteOpInterface>(user);
+    if (!storeOp)
+      continue;
+    storeOps.push_back(storeOp);
+  }
+
+  // The list of store op candidates for forwarding that satisfy conditions
+  // (1) and (2) above - they will be filtered later when checking (3).
+  SmallVector<Operation *, 8> fwdingCandidates;
+
+  // Store ops that have a dependence into the load (even if they aren't
+  // forwarding candidates). Each forwarding candidate will be checked for a
+  // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
+  //llvm::errs() << " considering potential erasable store: " << writeOp << "\n";
+  for (auto *storeOp : storeOps) {
+    if (storeOp == writeOp) continue;
+    MemRefAccess srcAccess(storeOp);
+    MemRefAccess destAccess(writeOp);
+
+    if (storeOp->getParentRegion() != writeOp.getParentRegion())
+	continue;
+    // Stores that *may* be reaching the load.
+
+    // 1. Check if the store and the load have mathematically equivalent
+    // affine access functions; this implies that they statically refer to the
+    // same single memref element. As an example this filters out cases like:
+    //     store %A[%i0 + 1]
+    //     load %A[%i0]
+    //     store %A[%M]
+    //     load %A[%N]
+    // Use the AffineValueMap difference based memref access equality checking.
+    if (srcAccess != destAccess) {
+      continue;
+    }
+    //llvm::errs() << " + -- " << *storeOp << "\n";  
+    if (!postDominanceInfo->postDominates(storeOp, writeOp)) {
+      continue;
+    }
+    
+    bool legal = hasNoInterveningLoad(writeOp, storeOp);
+    //llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
+    if (!legal) continue;
+
+    loadOpsToErase.push_back(writeOp);
+    break;
+  }
+}
+
+// This is a straightforward implementation not optimized for speed. Optimize
+// if needed.
+void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*> &loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo) {
+  // First pass over the use list to get the minimum number of surrounding
+  // loops common between the load op and the store op, with min taken across
+  // all store ops.
+  SmallVector<Operation *, 8> storeOps;
+  unsigned minSurroundingLoops = getNestingDepth(loadOp);
+  for (auto *user : loadOp.getMemRef().getUsers()) {
+    auto storeOp = dyn_cast<AffineWriteOpInterface>(user);
+    if (!storeOp)
+      continue;
+    unsigned nsLoops = getNumCommonSurroundingLoops(*loadOp, *storeOp);
+    minSurroundingLoops = std::min(nsLoops, minSurroundingLoops);
+    storeOps.push_back(storeOp);
+  }
+
+  // The list of store op candidates for forwarding that satisfy conditions
+  // (1) and (2) above - they will be filtered later when checking (3).
+  SmallVector<Operation *, 8> fwdingCandidates;
+
+  // Store ops that have a dependence into the load (even if they aren't
+  // forwarding candidates). Each forwarding candidate will be checked for a
+  // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
+  SmallVector<Operation *, 8> depSrcStores;
+  //llvm::errs() << " considering load: " << loadOp << "\n";
+  for (auto *storeOp : storeOps) {
+    MemRefAccess srcAccess(storeOp);
+    MemRefAccess destAccess(loadOp);
+
+    // Stores that *may* be reaching the load.
+    depSrcStores.push_back(storeOp);
+
+    // 1. Check if the store and the load have mathematically equivalent
+    // affine access functions; this implies that they statically refer to the
+    // same single memref element. As an example this filters out cases like:
+    //     store %A[%i0 + 1]
+    //     load %A[%i0]
+    //     store %A[%M]
+    //     load %A[%N]
+    // Use the AffineValueMap difference based memref access equality checking.
+    if (srcAccess != destAccess) {
+      continue;
+    }
+    
+    if (!domInfo->dominates(storeOp, loadOp)) {
+      continue;
+    }
+    
+    bool legal = hasNoInterveningStore(storeOp, loadOp);
+    //llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
+    if (!legal) continue;
+
+    // We now have a candidate for forwarding.
+    fwdingCandidates.push_back(storeOp);
+  }
+
+  // 3. Of all the store op's that meet the above criteria, the store that
+  // postdominates all 'depSrcStores' (if one exists) is the unique store
+  // providing the value to the load, i.e., provably the last writer to that
+  // memref loc.
+  // Note: this can be implemented in a cleaner way with postdominator tree
+  // traversals. Consider this for the future if needed.
+  Operation *lastWriteStoreOp = nullptr;
+  for (auto *storeOp : fwdingCandidates) {
+    assert(!lastWriteStoreOp);
+    lastWriteStoreOp = storeOp;
+  }
+  if (!lastWriteStoreOp) {
+    return;
+  }
+
+  // Perform the actual store to load forwarding.
+  Value storeVal =
+    cast<AffineWriteOpInterface>(lastWriteStoreOp).getValueToStore();
+  loadOp.getValue().replaceAllUsesWith(storeVal);
+  // Record the memref for a later sweep to optimize away.
+  memrefsToErase.insert(loadOp.getMemRef());
+  // Record this to erase later.
+  loadOpsToErase.push_back(loadOp);
+}
+
+// This is a straightforward implementation not optimized for speed. Optimize
+// if needed.
+void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, DominanceInfo* domInfo) {
+  SmallVector<AffineReadOpInterface, 4> LoadOptions;
+  for (auto *user : loadOp.getMemRef().getUsers()) {
+    auto loadOp2 = dyn_cast<AffineReadOpInterface>(user);
+    if (!loadOp2 || loadOp2 == loadOp)
+      continue;
+
+    MemRefAccess srcAccess(loadOp2);
+    MemRefAccess destAccess(loadOp);
+
+    if (srcAccess != destAccess) {
+      continue;
+    }
+
+    // 2. The store has to dominate the load op to be candidate.
+    if (!domInfo->dominates(loadOp2, loadOp)) {
+      //llvm::errs() << " - not fone from dominating load\n";
+      continue;
+    }
+
+    bool legal = hasNoInterveningStore(loadOp2.getOperation(), loadOp);
     if (!legal) continue;
 
     LoadOptions.push_back(loadOp2);
@@ -315,30 +459,40 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
-  if (!llvm::hasSingleElement(f)) {
-    markAllAnalysesPreserved();
-    return;
-  }
+  //f.dump();
+  //if (!llvm::hasSingleElement(f)) {
+  //  markAllAnalysesPreserved();
+  //  return;
+  //}
 
   // Load op's whose results were replaced by those forwarded from stores.
   SmallVector<Operation *, 8> loadOpsToErase;
 
-  domInfo = &getAnalysis<DominanceInfo>();
-  postDomInfo = &getAnalysis<PostDominanceInfo>();
+  // A list of memref's that are potentially dead / could be eliminated.
+  SmallPtrSet<Value, 4> memrefsToErase;
 
-  memrefsToErase.clear();
+  auto domInfo = &getAnalysis<DominanceInfo>();
+  auto postDominanceInfo = &getAnalysis<PostDominanceInfo>();
+
 
   //f.dump();
 
   // Walk all load's and perform store to load forwarding.
-  f.walk([&](AffineReadOpInterface loadOp) { forwardStoreToLoad(loadOp, loadOpsToErase); });
+  f.walk([&](AffineReadOpInterface loadOp) { forwardStoreToLoad(loadOp, loadOpsToErase, memrefsToErase, domInfo, postDominanceInfo); });
 
   // Erase all load op's whose results were replaced with store fwd'ed ones.
   for (auto *loadOp : loadOpsToErase)
     loadOp->erase();
   loadOpsToErase.clear();
 
-  f.walk([&](AffineReadOpInterface loadOp) { forwardLoadToLoad(loadOp, loadOpsToErase); });
+  //f.dump();
+  f.walk([&](AffineReadOpInterface loadOp) { forwardLoadToLoad(loadOp, loadOpsToErase, domInfo); });
+  for (auto *loadOp : loadOpsToErase)
+    loadOp->erase();
+  loadOpsToErase.clear();
+  
+  //f.dump();
+  f.walk([&](AffineWriteOpInterface loadOp) { removeUnusedStore(loadOp, loadOpsToErase, memrefsToErase, domInfo, postDominanceInfo); });
 
   //f.dump();
   // Erase all load op's whose results were replaced with store fwd'ed ones.
