@@ -1,0 +1,21 @@
+#!/bin/bash
+
+
+check_schedule()
+{
+    local file_name="${1}"
+    local dir_name=$(dirname "${file_name}")
+    local base_name=$(basename "${file_name}")
+
+    local pluto_file="${dir_name}/${base_name}"
+    local polymer_file="${dir_name}/${base_name%.cloog}.mlir"
+
+    local num_pluto_stmts=$(cat ${pluto_file} | grep "T(S[0-9]*)" | wc -l)
+    local num_polymer_stmts=$(cat ${polymer_file} | grep "func private @S[0-9]*" | wc -l)
+
+    printf "%20s %10d %10d\n" ${base_name%.pluto.cloog} ${num_pluto_stmts} ${num_polymer_stmts}
+}
+
+for f in $(find "${PWD}" -name "*.cloog"); do
+    check_schedule $f
+done
