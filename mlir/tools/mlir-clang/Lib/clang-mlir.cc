@@ -48,6 +48,11 @@ ValueWithOffsets MLIRScanner::getValue(std::string name) {
     auto gv2 = builder.create<GetGlobalMemrefOp>(loc, gv.type(), gv.getName());
     return ValueWithOffsets(gv2, {getConstantIndex(0)});
   }
+  if (Glob.globalFunctions.find(name) != Glob.globalFunctions.end()) {
+    auto gv = Glob.GetOrCreateMLIRFunction(Glob.globalFunctions[name]);
+    // TODO, how to represent?
+    // return ValueWithOffsets(gv, std::vector<mlir::Value>());
+  }
   llvm::errs() << "couldn't find " << name << "\n";
   assert(0 && "couldnt find value");
 }
@@ -133,6 +138,15 @@ ValueWithOffsets MLIRScanner::VisitParenExpr(clang::ParenExpr *expr) {
   return Visit(expr->getSubExpr());
 }
 
+ValueWithOffsets
+MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
+  for (auto child : decl->children()) {
+    child->dump();
+  }
+  decl->dump();
+  assert(0 && "bad");
+}
+
 ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
   unsigned memtype = 0;
@@ -146,12 +160,14 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   mlir::Type subType = getMLIRType(decl->getType());
   mlir::Value inite = nullptr;
   if (auto init = decl->getInit()) {
-    auto visit = Visit(init);
-    inite = (mlir::Value)visit;
-    if (!inite) {
-      init->dump();
+    if (!isa<InitListExpr>(init)) {
+      auto visit = Visit(init);
+      inite = (mlir::Value)visit;
+      if (!inite) {
+        init->dump();
+      }
+      subType = inite.getType();
     }
-    subType = inite.getType();
   }
   bool isArray = isa<clang::ArrayType>(decl->getType());
   if (isa<llvm::StructType>(getLLVMType(decl->getType()))) {
@@ -161,6 +177,24 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   mlir::Value zeroIndex = getConstantIndex(0);
   if (inite) {
     builder.create<mlir::StoreOp>(loc, inite, op, zeroIndex);
+  } else if (auto init = decl->getInit()) {
+    if (auto il = dyn_cast<InitListExpr>(init)) {
+      if (il->hasArrayFiller()) {
+        auto visit = Visit(il->getInit(0));
+        inite = (mlir::Value)visit;
+        if (!inite) {
+          il->getArrayFiller()->dump();
+          assert(inite);
+        }
+        assert(subType.cast<MemRefType>().getShape().size() == 1);
+        for (size_t i = 0; i < subType.cast<MemRefType>().getShape()[0]; i++) {
+          builder.create<mlir::StoreOp>(loc, inite, op, getConstantIndex(i));
+        }
+      } else {
+        init->dump();
+        assert(0 && "init list expr unhandled");
+      }
+    }
   }
   return ValueWithOffsets(op, {zeroIndex});
 }
@@ -647,6 +681,26 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getName() == "sin") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back((mlir::Value)Visit(a));
+        }
+        return (mlir::Value)builder.create<mlir::SinOp>(loc, args[0]);
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getName() == "cos") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back((mlir::Value)Visit(a));
+        }
+        return (mlir::Value)builder.create<mlir::CosOp>(loc, args[0]);
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getName() == "atomicAdd") {
         std::vector<ValueWithOffsets> args;
         for (auto a : expr->arguments()) {
@@ -825,8 +879,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             }
           }
           mlir::Value val = (mlir::Value)Visit(a);
-	  if (!isa<mlir::LLVM::NullOp>(val.getDefiningOp()))
-          	val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
+          if (!isa<mlir::LLVM::NullOp>(val.getDefiningOp()))
+            val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType, val);
           args.push_back(val);
           i++;
         }
@@ -1604,13 +1658,13 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   switch (E->getCastKind()) {
-  
+
   case clang::CastKind::CK_NullToPointer: {
-	auto llvmType =
-              Glob.typeTranslator.translateType(getLLVMType(E->getType()));
+    auto llvmType =
+        Glob.typeTranslator.translateType(getLLVMType(E->getType()));
     return ValueWithOffsets(builder.create<mlir::LLVM::NullOp>(loc, llvmType));
   }
-  
+
   case clang::CastKind::CK_BitCast: {
 
     if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
@@ -2137,11 +2191,12 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     return true;
 
   for (it = dg.begin(); it != dg.end(); ++it) {
-    VarDecl *fd = dyn_cast<clang::VarDecl>(*it);
-    if (!fd)
-      continue;
-    // std::string name = CGM.getMangledName(fd).str();
-    globalVariables[fd->getName().str()] = fd;
+    if (VarDecl *fd = dyn_cast<clang::VarDecl>(*it)) {
+      globalVariables[fd->getName().str()] = fd;
+    }
+    if (FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it)) {
+      globalFunctions[fd->getName().str()] = fd;
+    }
   }
 
   for (it = dg.begin(); it != dg.end(); ++it) {

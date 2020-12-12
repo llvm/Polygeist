@@ -257,6 +257,7 @@ struct MLIRASTConsumer : public ASTConsumer {
                                           StringRef value);
 
   std::map<std::string, clang::VarDecl *> globalVariables;
+  std::map<std::string, clang::FunctionDecl *> globalFunctions;
   std::map<const VarDecl *, mlir::GlobalMemrefOp> globals;
   mlir::GlobalMemrefOp GetOrCreateGlobal(const VarDecl *VD);
 
@@ -346,12 +347,20 @@ public:
 
     auto endBlock = builder.getInsertionBlock();
     if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
-      builder.create<mlir::ReturnOp>(loc);
+      if (function.getType().getResults().size()) {
+        auto ty = function.getType().getResults()[0].cast<mlir::IntegerType>();
+        auto val = (mlir::Value)builder.create<mlir::ConstantOp>(
+            loc, ty, builder.getIntegerAttr(ty, 0));
+        builder.create<mlir::ReturnOp>(loc, val);
+      } else
+        builder.create<mlir::ReturnOp>(loc);
     }
     // function.dump();
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
+  ValueWithOffsets
+  VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
   ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
