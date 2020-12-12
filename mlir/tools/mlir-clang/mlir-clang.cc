@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createLowerToCFGPass());
     LowerToLLVMOptions options;
     // invalid for gemm.c init array
-    //options.useBarePtrCallConv = true;
+    // options.useBarePtrCallConv = true;
     options.dataLayout = DL;
     pm.addPass(mlir::createLowerToLLVMPass(options));
   }
