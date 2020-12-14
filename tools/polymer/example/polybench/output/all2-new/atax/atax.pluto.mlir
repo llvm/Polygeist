@@ -1,6 +1,7 @@
 #map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
 #map1 = affine_map<(d0) -> (d0 * 32)>
 #map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#set = affine_set<()[s0] : (s0 - 1 >= 0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
@@ -176,11 +177,13 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         call @S1(%arg5, %arg7) : (memref<38xf64>, index) -> ()
       }
     }
-    affine.for %arg6 = 0 to #map0()[%0] {
-      affine.for %arg7 = 0 to #map0()[%1] {
-        affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
-          affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%1] {
-            call @S2(%arg5, %arg8, %arg3, %arg9, %arg2) : (memref<38xf64>, index, memref<42xf64>, index, memref<38x42xf64>) -> ()
+    affine.if #set()[%1] {
+      affine.for %arg6 = 0 to #map0()[%0] {
+        affine.for %arg7 = 0 to #map0()[%1] {
+          affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
+            affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%1] {
+              call @S2(%arg5, %arg8, %arg3, %arg9, %arg2) : (memref<38xf64>, index, memref<42xf64>, index, memref<38x42xf64>) -> ()
+            }
           }
         }
       }
@@ -190,11 +193,13 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
         call @S0(%arg4, %arg7) : (memref<42xf64>, index) -> ()
       }
     }
-    affine.for %arg6 = 0 to #map0()[%1] {
-      affine.for %arg7 = 0 to #map0()[%0] {
-        affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%1] {
-          affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%0] {
-            call @S3(%arg4, %arg8, %arg5, %arg9, %arg2) : (memref<42xf64>, index, memref<38xf64>, index, memref<38x42xf64>) -> ()
+    affine.if #set()[%0] {
+      affine.for %arg6 = 0 to #map0()[%1] {
+        affine.for %arg7 = 0 to #map0()[%0] {
+          affine.for %arg8 = #map1(%arg7) to min #map2(%arg7)[%0] {
+            affine.for %arg9 = #map1(%arg6) to min #map2(%arg6)[%1] {
+              call @S3(%arg4, %arg9, %arg5, %arg8, %arg2) : (memref<42xf64>, index, memref<38xf64>, index, memref<38x42xf64>) -> ()
+            }
           }
         }
       }

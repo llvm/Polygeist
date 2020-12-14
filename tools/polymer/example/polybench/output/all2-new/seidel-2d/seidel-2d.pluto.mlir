@@ -1,17 +1,18 @@
 #map0 = affine_map<()[s0] -> (s0 - 1)>
-#map1 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
-#map2 = affine_map<(d0) -> (d0)>
-#map3 = affine_map<(d0)[s0, s1] -> ((s0 + s1 - 3) floordiv 32 + 1, (d0 * 32 + s1 + 29) floordiv 32 + 1)>
-#map4 = affine_map<(d0, d1)[s0] -> ((d0 * 64 - s0 - 28) ceildiv 32, d1 + d0)>
-#map5 = affine_map<(d0, d1)[s0, s1] -> ((s0 + s1 - 3) floordiv 16 + 1, (d0 * 32 + s1 + 29) floordiv 16 + 1, (d1 * 64 + s1 + 59) floordiv 32 + 1, (d0 * 32 + d1 * 32 + s1 + 60) floordiv 32 + 1, (d1 * 32 + s0 + s1 + 28) floordiv 32 + 1)>
-#map6 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 * 32 - s0 + 2, d2 * 16 - s0 + 2, d1 * -32 + d2 * 32 - s0 - 29)>
-#map7 = affine_map<(d0, d1, d2)[s0] -> (s0, d0 * 32 + 32, d1 * 32 + 31, d2 * 16 + 15, d1 * -32 + d2 * 32 + 31)>
+#map1 = affine_map<()[s0, s1] -> ((s0 * 2 + s1 - 4) floordiv 32 + 1)>
+#map2 = affine_map<(d0)[s0] -> (d0 ceildiv 2, (d0 * 32 - s0 + 1) ceildiv 32)>
+#map3 = affine_map<(d0)[s0, s1] -> ((s0 + s1 - 3) floordiv 32 + 1, (d0 * 32 + s1 + 29) floordiv 64 + 1, d0 + 1)>
+#map4 = affine_map<(d0, d1)[s0] -> ((d0 * 64 - s0 - 28) ceildiv 32, d1)>
+#map5 = affine_map<(d0, d1)[s0, s1] -> ((s0 + s1 - 3) floordiv 16 + 1, (d0 * 32 - d1 * 32 + s1 + 29) floordiv 16 + 1, (d0 * 32 + s1 + 60) floordiv 32 + 1, (d1 * 64 + s1 + 59) floordiv 32 + 1, (d1 * 32 + s0 + s1 + 28) floordiv 32 + 1)>
+#map6 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 - d1 * 32, d1 * 32 - s0 + 2, d2 * 16 - s0 + 2, d1 * -32 + d2 * 32 - s0 - 29)>
+#map7 = affine_map<(d0, d1, d2)[s0] -> (s0, d0 * 32 + 31, d1 * 16 + 15, d2 * 32 - d0 * 32 + 32, d0 * -32 + d1 * 32 + 31)>
 #map8 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32, d1 + 1, d2 * 32 - d1 - s0 + 2)>
 #map9 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 * 32 - d2 + 31, d2 + s0 - 1)>
 #map10 = affine_map<(d0, d1, d2) -> (d0 * 32, d1 + d2 + 1)>
 #map11 = affine_map<(d0, d1, d2)[s0] -> (d0 * 32 + 32, d1 + d2 + s0 - 1)>
 #map12 = affine_map<(d0, d1) -> (-d0 + d1)>
 #map13 = affine_map<(d0, d1, d2) -> (-d0 - d1 + d2)>
+#set = affine_set<()[s0, s1] : (s0 - 1 >= 0, s1 - 3 >= 0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str6("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str5("\0Aend   dump: %s\0A\00")
@@ -166,15 +167,17 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   func private @kernel_seidel_2d_new(%arg0: i32, %arg1: i32, %arg2: memref<40x40xf64>) {
     %0 = index_cast %arg0 : i32 to index
     %1 = index_cast %arg1 : i32 to index
-    affine.for %arg3 = 0 to #map1()[%0] {
-      affine.for %arg4 = #map2(%arg3) to min #map3(%arg3)[%0, %1] {
-        affine.for %arg5 = max #map4(%arg4, %arg3)[%1] to min #map5(%arg3, %arg4)[%0, %1] {
-          affine.for %arg6 = max #map6(%arg3, %arg4, %arg5)[%1] to min #map7(%arg3, %arg4, %arg5)[%0] {
-            affine.for %arg7 = max #map8(%arg4, %arg6, %arg5)[%1] to min #map9(%arg4, %arg5, %arg6)[%1] {
-              affine.for %arg8 = max #map10(%arg5, %arg6, %arg7) to min #map11(%arg5, %arg6, %arg7)[%1] {
-                %2 = affine.apply #map12(%arg6, %arg7)
-                %3 = affine.apply #map13(%arg6, %arg7, %arg8)
-                call @S0(%arg2, %2, %3) : (memref<40x40xf64>, index, index) -> ()
+    affine.if #set()[%0, %1] {
+      affine.for %arg3 = 0 to #map1()[%0, %1] {
+        affine.for %arg4 = max #map2(%arg3)[%0] to min #map3(%arg3)[%0, %1] {
+          affine.for %arg5 = max #map4(%arg4, %arg3)[%1] to min #map5(%arg3, %arg4)[%0, %1] {
+            affine.for %arg6 = max #map6(%arg3, %arg4, %arg5)[%1] to min #map7(%arg4, %arg5, %arg3)[%0] {
+              affine.for %arg7 = max #map8(%arg4, %arg6, %arg5)[%1] to min #map9(%arg4, %arg5, %arg6)[%1] {
+                affine.for %arg8 = max #map10(%arg5, %arg6, %arg7) to min #map11(%arg5, %arg6, %arg7)[%1] {
+                  %2 = affine.apply #map12(%arg6, %arg7)
+                  %3 = affine.apply #map13(%arg6, %arg7, %arg8)
+                  call @S0(%arg2, %2, %3) : (memref<40x40xf64>, index, index) -> ()
+                }
               }
             }
           }

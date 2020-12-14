@@ -1,6 +1,7 @@
 #map0 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
 #map1 = affine_map<(d0) -> (d0 * 32)>
 #map2 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#set = affine_set<()[s0] : (s0 - 1 >= 0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str6("x2\00")
@@ -201,12 +202,14 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   }
   func private @kernel_mvt_new(%arg0: i32, %arg1: memref<40xf64>, %arg2: memref<40xf64>, %arg3: memref<40xf64>, %arg4: memref<40xf64>, %arg5: memref<40x40xf64>) {
     %0 = index_cast %arg0 : i32 to index
-    affine.for %arg6 = 0 to #map0()[%0] {
-      affine.for %arg7 = 0 to #map0()[%0] {
-        affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
-          affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%0] {
-            call @S0(%arg1, %arg8, %arg3, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
-            call @S1(%arg2, %arg8, %arg4, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
+    affine.if #set()[%0] {
+      affine.for %arg6 = 0 to #map0()[%0] {
+        affine.for %arg7 = 0 to #map0()[%0] {
+          affine.for %arg8 = #map1(%arg6) to min #map2(%arg6)[%0] {
+            affine.for %arg9 = #map1(%arg7) to min #map2(%arg7)[%0] {
+              call @S0(%arg1, %arg8, %arg3, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
+              call @S1(%arg2, %arg8, %arg4, %arg9, %arg5) : (memref<40xf64>, index, memref<40xf64>, index, memref<40x40xf64>) -> ()
+            }
           }
         }
       }
