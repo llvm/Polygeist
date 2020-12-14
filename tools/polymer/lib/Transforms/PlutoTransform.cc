@@ -51,8 +51,8 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   osl_scop_print(stderr, scop->get());
 
   // Should use isldep, candl cannot work well for this case.
-  context->options->silent = 0;
-  context->options->moredebug = 1;
+  context->options->silent = 1;
+  context->options->moredebug = 0;
   context->options->isldep = 1;
   context->options->readscop = 1;
 

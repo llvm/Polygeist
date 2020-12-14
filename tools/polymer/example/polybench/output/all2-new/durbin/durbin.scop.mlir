@@ -39,32 +39,29 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   }
   func private @kernel_durbin(%arg0: i32, %arg1: memref<40xf64>, %arg2: memref<40xf64>) {
     %0 = alloca() : memref<1xf64>
-    %1 = alloca() : memref<1xf64>
+    %1 = alloca() : memref<40xf64>
     %2 = alloca() : memref<1xf64>
     %3 = alloca() : memref<1xf64>
-    %4 = alloca() : memref<40xf64>
-    %5 = alloca() : memref<1xf64>
-    %6 = alloca() : memref<1xf64>
-    %7 = alloca() : memref<1xf64>
+    %4 = alloca() : memref<1xf64>
     call @S0(%arg2, %arg1) : (memref<40xf64>, memref<40xf64>) -> ()
-    call @S1(%6) : (memref<1xf64>) -> ()
-    call @S2(%5, %arg1) : (memref<1xf64>, memref<40xf64>) -> ()
-    %8 = index_cast %arg0 : i32 to index
-    affine.for %arg3 = 1 to %8 {
-      call @S3(%6, %5, %2) : (memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
-      call @S4(%7) : (memref<1xf64>) -> ()
+    call @S1(%3) : (memref<1xf64>) -> ()
+    call @S2(%2, %arg1) : (memref<1xf64>, memref<40xf64>) -> ()
+    %5 = index_cast %arg0 : i32 to index
+    affine.for %arg3 = 1 to %5 {
+      call @S3(%3, %2) : (memref<1xf64>, memref<1xf64>) -> ()
+      call @S4(%4) : (memref<1xf64>) -> ()
       affine.for %arg4 = 0 to #map(%arg3) {
-        call @S5(%7, %arg2, %arg4, %arg1, %arg3) : (memref<1xf64>, memref<40xf64>, index, memref<40xf64>, index) -> ()
+        call @S5(%4, %arg2, %arg4, %arg1, %arg3) : (memref<1xf64>, memref<40xf64>, index, memref<40xf64>, index) -> ()
       }
-      call @S6(%3, %2, %7, %arg1, %arg3, %1) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
-      call @S7(%5, %1, %0) : (memref<1xf64>, memref<1xf64>, memref<1xf64>) -> ()
+      call @S6(%0, %3, %4, %arg1, %arg3) : (memref<1xf64>, memref<1xf64>, memref<1xf64>, memref<40xf64>, index) -> ()
+      call @S7(%2, %0) : (memref<1xf64>, memref<1xf64>) -> ()
       affine.for %arg4 = 0 to #map(%arg3) {
-        call @S8(%arg4, %4, %arg2, %arg3, %3) : (index, memref<40xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
+        call @S8(%arg4, %1, %arg2, %arg3, %0) : (index, memref<40xf64>, memref<40xf64>, index, memref<1xf64>) -> ()
       }
       affine.for %arg4 = 0 to #map(%arg3) {
-        call @S9(%arg2, %arg4, %4) : (memref<40xf64>, index, memref<40xf64>) -> ()
+        call @S9(%arg2, %arg4, %1) : (memref<40xf64>, index, memref<40xf64>) -> ()
       }
-      call @S10(%arg2, %arg3, %0) : (memref<40xf64>, index, memref<1xf64>) -> ()
+      call @S10(%arg2, %arg3, %2) : (memref<40xf64>, index, memref<1xf64>) -> ()
     }
     return
   }
@@ -144,7 +141,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     store %1, %arg0[%c0] : memref<1xf64>
     return
   }
-  func private @S3(%arg0: memref<1xf64>, %arg1: memref<1xf64>, %arg2: memref<1xf64>) attributes {scop.stmt} {
+  func private @S3(%arg0: memref<1xf64>, %arg1: memref<1xf64>) attributes {scop.stmt} {
     %c1_i32 = constant 1 : i32
     %0 = sitofp %c1_i32 : i32 to f64
     %1 = affine.load %arg1[0] : memref<1xf64>
@@ -152,7 +149,6 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     %3 = subf %0, %2 : f64
     %4 = affine.load %arg0[0] : memref<1xf64>
     %5 = mulf %3, %4 : f64
-    affine.store %5, %arg2[0] : memref<1xf64>
     affine.store %5, %arg0[0] : memref<1xf64>
     return
   }
@@ -170,20 +166,18 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     affine.store %4, %arg0[0] : memref<1xf64>
     return
   }
-  func private @S6(%arg0: memref<1xf64>, %arg1: memref<1xf64>, %arg2: memref<1xf64>, %arg3: memref<40xf64>, %arg4: index, %arg5: memref<1xf64>) attributes {scop.stmt} {
+  func private @S6(%arg0: memref<1xf64>, %arg1: memref<1xf64>, %arg2: memref<1xf64>, %arg3: memref<40xf64>, %arg4: index) attributes {scop.stmt} {
     %0 = affine.load %arg3[%arg4] : memref<40xf64>
     %1 = affine.load %arg2[0] : memref<1xf64>
     %2 = addf %0, %1 : f64
     %3 = negf %2 : f64
     %4 = affine.load %arg1[0] : memref<1xf64>
     %5 = divf %3, %4 : f64
-    affine.store %5, %arg5[0] : memref<1xf64>
     affine.store %5, %arg0[0] : memref<1xf64>
     return
   }
-  func private @S7(%arg0: memref<1xf64>, %arg1: memref<1xf64>, %arg2: memref<1xf64>) attributes {scop.stmt} {
+  func private @S7(%arg0: memref<1xf64>, %arg1: memref<1xf64>) attributes {scop.stmt} {
     %0 = affine.load %arg1[0] : memref<1xf64>
-    affine.store %0, %arg2[0] : memref<1xf64>
     affine.store %0, %arg0[0] : memref<1xf64>
     return
   }
