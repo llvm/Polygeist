@@ -31,7 +31,7 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
+// #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
