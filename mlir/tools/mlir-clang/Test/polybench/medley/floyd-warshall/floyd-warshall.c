@@ -120,29 +120,22 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:func @kernel_floyd_warshall(%arg0: i32, %arg1: memref<2800x2800xi32>) {
-//CHECK-NEXT:    %0 = index_cast %arg0 : i32 to index
-//CHECK-NEXT:    affine.for %arg2 = 0 to %0 {
-//CHECK-NEXT:      affine.for %arg3 = 0 to %0 {
-//CHECK-NEXT:        %1 = affine.load %arg1[%arg3, %arg2] : memref<2800x2800xi32>
-//CHECK-NEXT:        affine.for %arg4 = 0 to %0 {
-//CHECK-NEXT:          %2 = affine.load %arg1[%arg3, %arg4] : memref<2800x2800xi32>
-//CHECK-NEXT:         %3 = affine.load %arg1[%arg2, %arg4] : memref<2800x2800xi32>
-//CHECK-NEXT:          %4 = addi %1, %3 : i32
-//CHECK-NEXT:          %5 = cmpi "slt", %2, %4 : i32
-//CHECK-NEXT:          %6 = scf.if %5 -> (i32) {
-//CHECK-NEXT:            %7 = affine.load %arg1[%arg3, %arg4] : memref<2800x2800xi32>
-//CHECK-NEXT:            scf.yield %7 : i32
-//CHECK-NEXT:          } else {
-//CHECK-NEXT:            %7 = affine.load %arg1[%arg3, %arg2] : memref<2800x2800xi32>
-//CHECK-NEXT:            %8 = affine.load %arg1[%arg2, %arg4] : memref<2800x2800xi32>
-//CHECK-NEXT:            %9 = addi %7, %8 : i32
-//CHECK-NEXT:            scf.yield %9 : i32
-//CHECK-NEXT:          }
-//CHECK-NEXT:          affine.store %6, %arg1[%arg3, %arg4] : memref<2800x2800xi32>
-//CHECK-NEXT:       }
-//CHECK-NEXT:      }
-//CHECK-NEXT:    }
-//CHECK-NEXT:    return
+// CHECK:   func private @kernel_floyd_warshall(%arg0: i32, %arg1: memref<2800x2800xi32>) {
+// CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:     affine.for %arg2 = 0 to %0 {
+// CHECK-NEXT:       affine.for %arg3 = 0 to %0 {
+// CHECK-NEXT:         affine.for %arg4 = 0 to %0 {
+// CHECK-NEXT:           %1 = affine.load %arg1[%arg3, %arg4] : memref<2800x2800xi32>
+// CHECK-NEXT:           %2 = affine.load %arg1[%arg3, %arg2] : memref<2800x2800xi32>
+// CHECK-NEXT:           %3 = affine.load %arg1[%arg2, %arg4] : memref<2800x2800xi32>
+// CHECK-NEXT:           %4 = addi %2, %3 : i32
+// CHECK-NEXT:           %5 = cmpi "slt", %1, %4 : i32
+// CHECK-NEXT:           %6 = select %5, %1, %4 : i32
+// CHECK-NEXT:           affine.store %6, %arg1[%arg3, %arg4] : memref<2800x2800xi32>
+// CHECK-NEXT:         }
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
 
 // EXEC: {{[0-9]\.[0-9]+}}
