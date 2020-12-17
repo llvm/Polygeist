@@ -1,5 +1,7 @@
 // RUN: polymer-translate %s -import-scop | FileCheck %s
 
+// A simple test case that uses parameter as the upper bound.
+
 <OpenScop>
 
 # =============================================== Global
@@ -79,16 +81,13 @@ c0 i0 c2
 
 </OpenScop>
 
-// CHECK: #map0 = affine_map<() -> (0)>
-// CHECK: #map1 = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: [[$UB:#map]] = affine_map<()[s0] -> (s0 - 1)>
 //
+// CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: memref<?xf32>) {
+// CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to [[$UB]]()[%[[ARG0]]] {
+// CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG1]], %[[ARG2]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return
+// CHECK-NEXT: }
 //
-// CHECK: module {
-// CHECK:   func @main(%arg0: index, %arg1: memref<?xf32>) {
-// CHECK:     affine.for %arg2 = 0 to #map1()[%arg0] {
-// CHECK:       call @S0(%arg1, %arg1, %arg2) : (memref<?xf32>, memref<?xf32>, index) -> ()
-// CHECK:     }
-// CHECK:     return
-// CHECK:   }
-// CHECK:   func @S0(memref<?xf32>, memref<?xf32>, index)
-// CHECK: }
+// CHECK: func private @S0(memref<?xf32>, memref<?xf32>, index)

@@ -58,8 +58,8 @@ jobs:
             -DLLVM_ENABLE_OCAMLDOC=OFF \
             -DLLVM_ENABLE_BINDINGS=OFF \
             -DLLVM_INSTALL_UTILS=ON \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang-9 \
+            -DCMAKE_CXX_COMPILER=clang++-9 \
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_ASSERTIONS=ON
           cmake --build . --target install -- -j$(nproc)
@@ -74,14 +74,19 @@ jobs:
     needs: build-llvm
     runs-on: ubuntu-20.04
     steps:
-      - name: Configure Environment
-        run: echo "${GITHUB_WORKSPACE}/llvm/install/bin" >> $GITHUB_PATH
-
+      # - name: Configure Environment
+      #   run: echo "${GITHUB_WORKSPACE}/llvm/install/bin" >> $GITHUB_PATH
       - name: Get dependences
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libgmp-dev libclang-dev
-      
+          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
+
+      - name: Update the LLVM/Clang version to 9
+        run: |
+          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-9 100
+          sudo update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-9 100
+          
+     
       # Clone the Polymer repo and its submodules. Do shallow clone to save clone
       # time.
       - name: Get Polymer
@@ -125,8 +130,8 @@ jobs:
             -DLLVM_ENABLE_OCAMLDOC=OFF \
             -DLLVM_ENABLE_BINDINGS=OFF \
             -DLLVM_INSTALL_UTILS=ON \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang-9 \
+            -DCMAKE_CXX_COMPILER=clang++-9 \
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_ASSERTIONS=ON
           cmake --build . --target install -- -j$(nproc)
@@ -150,7 +155,9 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DMLIR_DIR=${PWD}/../llvm/install/lib/cmake/mlir/ \
             -DLLVM_DIR=${PWD}/../llvm/install/lib/cmake/llvm/ \
-            -DCMAKE_C_COMPILER=/bin/clang \
-            -DCMAKE_CXX_COMPILER=/bin/clang++ \
+            -DCMAKE_C_COMPILER=clang-9 \
+            -DCMAKE_CXX_COMPILER=clang++-9 \
             -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
+

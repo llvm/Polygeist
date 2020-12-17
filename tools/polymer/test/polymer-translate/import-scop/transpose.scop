@@ -1,5 +1,7 @@
 // RUN: polymer-translate %s -import-scop | FileCheck %s
 
+// A simple transpose application.
+
 <OpenScop>
 
 # =============================================== Global
@@ -87,18 +89,16 @@ c0 i0 c2 i1 c4
 </OpenScop>
 
 
-// CHECK: #map0 = affine_map<() -> (0)>
-// CHECK: #map1 = affine_map<()[s0] -> (s0 - 1)>
+// TODO: this upper bound is actually wrong, need to fix them later.
+// CHECK: #[[UB:.*]] = affine_map<()[s0] -> (s0 - 1)>
 //
+// CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: index, %[[ARG2:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to #[[UB]]()[%[[ARG0]]] {
+// CHECK-NEXT:     affine.for %[[ARG4:.*]] = 0 to #[[UB]]()[%[[ARG1]]] {
+// CHECK-NEXT:       call @S0(%[[ARG2]], %[[ARG2]], %[[ARG3]], %[[ARG4]]) : (memref<?x?xf32>, memref<?x?xf32>, index, index) -> ()
+// CHECK-NEXT:     }
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return
+// CHECK-NEXT: }
 //
-// CHECK: module {
-// CHECK:   func @main(%arg0: index, %arg1: index, %arg2: memref<?x?xf32>) {
-// CHECK:     affine.for %arg3 = 0 to #map1()[%arg0] {
-// CHECK:       affine.for %arg4 = 0 to #map1()[%arg1] {
-// CHECK:         call @S0(%arg2, %arg2, %arg3, %arg4) : (memref<?x?xf32>, memref<?x?xf32>, index, index) -> ()
-// CHECK:       }
-// CHECK:     }
-// CHECK:     return
-// CHECK:   }
-// CHECK:   func @S0(memref<?x?xf32>, memref<?x?xf32>, index, index)
-// CHECK: }
+// CHECK:      func private @S0(memref<?x?xf32>, memref<?x?xf32>, index, index)

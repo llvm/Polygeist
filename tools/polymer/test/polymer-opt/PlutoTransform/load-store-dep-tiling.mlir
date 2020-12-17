@@ -19,29 +19,24 @@ func @load_store_dep_tiling() {
 }
 
 // CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0) -> (d0 - 1)>
-// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK-DAG: #[[MAP2:.*]] = affine_map<(d0) -> (1, d0 * 32)>
 // CHECK-DAG: #[[MAP3:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
-// CHECK-DAG: #[[MAP4:.*]] = affine_map<() -> (0)>
-// CHECK-DAG: #[[MAP5:.*]] = affine_map<() -> (1)>
 //
 //
-// CHECK: module {
-// CHECK:   func @main(%[[ARG0:.*]]: memref<?x?xf32>) {
-// CHECK:     affine.for %[[ARG1:.*]] = 0 to 1 {
-// CHECK:       affine.for %[[ARG2:.*]] = 0 to 1 {
-// CHECK:         affine.for %[[ARG3:.*]] = max #[[MAP2]](%[[ARG1]]) to #[[MAP3]](%[[ARG1]]) {
-// CHECK:           affine.for %[[ARG4:.*]] = max #[[MAP2]](%[[ARG2]]) to #[[MAP3]](%[[ARG2]]) {
-// CHECK:             %[[VAL0:.*]] = affine.apply #[[MAP0]](%[[ARG3]])
-// CHECK:             %[[VAL1:.*]] = affine.load %[[ARG0]][%[[VAL0]], %[[ARG4]]] : memref<?x?xf32>
-// CHECK:             %[[VAL2:.*]] = affine.apply #[[MAP0]](%[[ARG4]])
-// CHECK:             %[[VAL3:.*]] = affine.load %[[ARG0]][%[[ARG3]], %[[VAL2]]] : memref<?x?xf32>
-// CHECK:             %[[VAL4:.*]] = addf %[[VAL3]], %[[VAL1]] : f32
-// CHECK:             affine.store %[[VAL4]], %[[ARG0]][%[[ARG3]], %[[ARG4]]] : memref<?x?xf32>
-// CHECK:           }
-// CHECK:         }
-// CHECK:       }
-// CHECK:     }
-// CHECK:     return
-// CHECK:   }
-// CHECK: }
+// CHECK:      func @main(%[[ARG0:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 1 {
+// CHECK-NEXT:     affine.for %[[ARG2:.*]] = 0 to 1 {
+// CHECK-NEXT:       affine.for %[[ARG3:.*]] = max #[[MAP2]](%[[ARG1]]) to #[[MAP3]](%[[ARG1]]) {
+// CHECK-NEXT:         affine.for %[[ARG4:.*]] = max #[[MAP2]](%[[ARG2]]) to #[[MAP3]](%[[ARG2]]) {
+// CHECK-NEXT:           %[[VAL0:.*]] = affine.apply #[[MAP0]](%[[ARG3]])
+// CHECK-NEXT:           %[[VAL1:.*]] = affine.load %[[ARG0]][%[[VAL0]], %[[ARG4]]] : memref<?x?xf32>
+// CHECK-NEXT:           %[[VAL2:.*]] = affine.apply #[[MAP0]](%[[ARG4]])
+// CHECK-NEXT:           %[[VAL3:.*]] = affine.load %[[ARG0]][%[[ARG3]], %[[VAL2]]] : memref<?x?xf32>
+// CHECK-NEXT:           %[[VAL4:.*]] = addf %[[VAL3]], %[[VAL1]] : f32
+// CHECK-NEXT:           affine.store %[[VAL4]], %[[ARG0]][%[[ARG3]], %[[ARG4]]] : memref<?x?xf32>
+// CHECK-NEXT:         }
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return
+// CHECK-NEXT: }

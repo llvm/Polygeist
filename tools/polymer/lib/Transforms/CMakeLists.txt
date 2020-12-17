@@ -1,5 +1,4 @@
 add_mlir_library(PolymerTransforms
-  InvariantScopTransform.cc
   PlutoTransform.cc
   Reg2Mem.cc
   ExtractScopStmt.cc

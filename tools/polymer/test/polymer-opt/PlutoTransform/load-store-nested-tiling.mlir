@@ -1,5 +1,7 @@
 // RUN: polymer-opt %s -pluto-opt | FileCheck %s
 
+// Test tiling nested loops.
+
 func @load_store_nested_tiling() -> () {
   %A = alloc() : memref<64x64x64xf32>
 
@@ -14,29 +16,24 @@ func @load_store_nested_tiling() -> () {
   return
 }
 
-// CHECK: #map0 = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
-// CHECK: #map1 = affine_map<(d0) -> (d0 * 32)>
-// CHECK: #map2 = affine_map<(d0) -> (d0 * 32 + 31)>
-// CHECK: #map3 = affine_map<() -> (0)>
-// CHECK: #map4 = affine_map<() -> (1)>
+// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32)>
+// CHECK-DAG: #[[MAP2:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
 //
 //
-// CHECK: module {
-// CHECK:   func @main(%arg0: memref<?x?x?xf32>) {
-// CHECK:     affine.for %arg1 = 0 to 1 {
-// CHECK:       affine.for %arg2 = 0 to 1 {
-// CHECK:         affine.for %arg3 = 0 to 1 {
-// CHECK:           affine.for %arg4 = #map1(%arg1) to #map2(%arg1) {
-// CHECK:             affine.for %arg5 = #map1(%arg2) to #map2(%arg2) {
-// CHECK:               affine.for %arg6 = #map1(%arg3) to #map2(%arg3) {
-// CHECK:                 %0 = affine.load %arg0[%arg4, %arg5, %arg6] : memref<?x?x?xf32>
-// CHECK:                 affine.store %0, %arg0[%arg4, %arg5, %arg6] : memref<?x?x?xf32>
-// CHECK:               }
-// CHECK:             }
-// CHECK:           }
-// CHECK:         }
-// CHECK:       }
-// CHECK:     }
-// CHECK:     return
-// CHECK:   }
-// CHECK: }
+// CHECK:      func @main(%[[ARG0:.*]]: memref<?x?x?xf32>) {
+// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 1 {
+// CHECK-NEXT:     affine.for %[[ARG2:.*]] = 0 to 1 {
+// CHECK-NEXT:       affine.for %[[ARG3:.*]] = 0 to 1 {
+// CHECK-NEXT:         affine.for %[[ARG4:.*]] = #[[MAP1]](%[[ARG1]]) to #[[MAP2]](%[[ARG1]]) {
+// CHECK-NEXT:           affine.for %[[ARG5:.*]] = #[[MAP1]](%[[ARG2]]) to #[[MAP2]](%[[ARG2]]) {
+// CHECK-NEXT:             affine.for %[[ARG6:.*]] = #[[MAP1]](%[[ARG3]]) to #[[MAP2]](%[[ARG3]]) {
+// CHECK-NEXT:               %[[VAL0:.*]] = affine.load %[[ARG0]][%[[ARG4]], %[[ARG5]], %[[ARG6]]] : memref<?x?x?xf32>
+// CHECK-NEXT:               affine.store %[[VAL0]], %[[ARG0]][%[[ARG4]], %[[ARG5]], %[[ARG6]]] : memref<?x?x?xf32>
+// CHECK-NEXT:             }
+// CHECK-NEXT:           }
+// CHECK-NEXT:         }
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:   }
+// CHECK-NEXT:   return
+// CHECK-NEXT: }
