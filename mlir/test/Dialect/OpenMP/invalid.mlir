@@ -87,3 +87,15 @@ func @proc_bind_once() {
 
   return
 }
+
+// -----
+
+func @parallel_no_lower_bound(%ub : index, %step : index, %data_var : memref<i32>) {
+  // expected-error@+1 {{op must have non-empty lower bound}}
+  "omp.wsloop" (%ub, %step, %data_var) ({
+    omp.yield
+  }) {operand_segment_sizes = dense<[0,1,1,1,0,0,0,0,0]> : vector<9xi32>} : (index, index, memref<i32>) -> ()
+  return
+}
+
+// -----
