@@ -390,5 +390,11 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &state,
   state.addAttributes(attributes);
 }
 
+static LogicalResult verify(WsLoopOp loop) {
+  if (loop.lowerBound().empty())
+    return loop.emitOpError("must have non-empty lower bound ");
+  return success();
+}
+
 #define GET_OP_CLASSES
 #include "mlir/Dialect/OpenMP/OpenMPOps.cpp.inc"

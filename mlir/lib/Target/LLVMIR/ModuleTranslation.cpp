@@ -527,9 +527,6 @@ LogicalResult ModuleTranslation::convertOmpMaster(Operation &opInst,
 LogicalResult ModuleTranslation::convertOmpWsLoop(Operation &opInst,
                                                   llvm::IRBuilder<> &builder) {
   auto loop = cast<omp::WsLoopOp>(opInst);
-  // TODO: this should be in the op verifier instead.
-  if (loop.lowerBound().empty())
-    return failure();
 
   if (loop.getNumLoops() != 1)
     return opInst.emitOpError("collapsed loops not yet supported");

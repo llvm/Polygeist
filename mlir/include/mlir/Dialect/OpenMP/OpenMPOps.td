@@ -190,6 +190,8 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments]> {
     /// Returns the number of loops in the workshape loop nest.
     unsigned getNumLoops() { return lowerBound().size(); }
   }];
+
+  let verifier = [{ return ::verify(*this); }];
 }
 
 def YieldOp : OpenMP_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
