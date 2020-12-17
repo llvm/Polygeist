@@ -4,7 +4,6 @@ add_mlir_dialect_library(MLIRAffineTransforms
   AffineLoopNormalize.cpp
   AffineParallelize.cpp
   AffineCFG.cpp
-  AffineStoreAndLoad.cpp
   LoopTiling.cpp
   LoopUnroll.cpp
   LoopUnrollAndJam.cpp
