@@ -81,10 +81,8 @@ c0 i0 c2
 
 </OpenScop>
 
-// CHECK: [[$UB:#map]] = affine_map<()[s0] -> (s0 - 1)>
-//
 // CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: memref<?xf32>) {
-// CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to [[$UB]]()[%[[ARG0]]] {
+// CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to %[[ARG0]] {
 // CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG1]], %[[ARG2]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return

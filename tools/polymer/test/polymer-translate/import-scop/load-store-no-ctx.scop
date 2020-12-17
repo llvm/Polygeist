@@ -78,7 +78,7 @@ c0 i0 c2
 </OpenScop>
 
 // CHECK:      func @main(%[[ARG0:.*]]: memref<?xf32>) {
-// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 31 {
+// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 32 {
 // CHECK-NEXT:     call @S0(%[[ARG0]], %[[ARG0]], %[[ARG1]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return

@@ -89,12 +89,9 @@ c0 i0 c2 i1 c4
 </OpenScop>
 
 
-// TODO: this upper bound is actually wrong, need to fix them later.
-// CHECK: #[[UB:.*]] = affine_map<()[s0] -> (s0 - 1)>
-//
 // CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: index, %[[ARG2:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to #[[UB]]()[%[[ARG0]]] {
-// CHECK-NEXT:     affine.for %[[ARG4:.*]] = 0 to #[[UB]]()[%[[ARG1]]] {
+// CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to %[[ARG0]] {
+// CHECK-NEXT:     affine.for %[[ARG4:.*]] = 0 to %[[ARG1]] {
 // CHECK-NEXT:       call @S0(%[[ARG2]], %[[ARG2]], %[[ARG3]], %[[ARG4]]) : (memref<?x?xf32>, memref<?x?xf32>, index, index) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
