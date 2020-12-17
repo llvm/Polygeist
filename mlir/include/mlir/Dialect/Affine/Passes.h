@@ -31,10 +31,6 @@ std::unique_ptr<OperationPass<FuncOp>> createSimplifyAffineStructuresPass();
 std::unique_ptr<OperationPass<FuncOp>>
 createAffineLoopInvariantCodeMotionPass();
 
-/// Creates a pass replacing load/store with affine.load/affine.store
-std::unique_ptr<OperationPass<FuncOp>> replaceAffineStoreAndLoadPass();
-
-
 /// Creates a pass replacing scf.if with affine.if and similar
 std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
 
