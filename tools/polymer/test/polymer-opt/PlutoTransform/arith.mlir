@@ -21,12 +21,12 @@ func @arith() {
 }
 
 // CHECK: #[[MAP0:.*]] = affine_map<(d0) -> (d0 * 32)>
-// CHECK: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
+// CHECK: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32 + 32)>
 //
 //
 // CHECK: module {
 // CHECK:   func @main(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>, %[[ARG2:.*]]: memref<?xf32>, %[[ARG3:.*]]: memref<?xf32>) {
-// CHECK:     affine.for %[[ARG4:.*]] = 0 to 1 {
+// CHECK:     affine.for %[[ARG4:.*]] = 0 to 2 {
 // CHECK:       affine.for %[[ARG5:.*]] = #[[MAP0]](%[[ARG4]]) to #[[MAP1]](%[[ARG4]]) {
 // CHECK:         %[[VAL0:.*]] = affine.load %[[ARG2]][%[[ARG5]]] : memref<?xf32>
 // CHECK:         %[[VAL1:.*]] = affine.load %[[ARG1]][%[[ARG5]]] : memref<?xf32>

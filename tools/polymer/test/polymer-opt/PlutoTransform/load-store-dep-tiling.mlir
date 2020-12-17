@@ -20,12 +20,12 @@ func @load_store_dep_tiling() {
 
 // CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0) -> (d0 - 1)>
 // CHECK-DAG: #[[MAP2:.*]] = affine_map<(d0) -> (1, d0 * 32)>
-// CHECK-DAG: #[[MAP3:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
+// CHECK-DAG: #[[MAP3:.*]] = affine_map<(d0) -> (d0 * 32 + 32)>
 //
 //
 // CHECK:      func @main(%[[ARG0:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 1 {
-// CHECK-NEXT:     affine.for %[[ARG2:.*]] = 0 to 1 {
+// CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to 2 {
+// CHECK-NEXT:     affine.for %[[ARG2:.*]] = 0 to 2 {
 // CHECK-NEXT:       affine.for %[[ARG3:.*]] = max #[[MAP2]](%[[ARG1]]) to #[[MAP3]](%[[ARG1]]) {
 // CHECK-NEXT:         affine.for %[[ARG4:.*]] = max #[[MAP2]](%[[ARG2]]) to #[[MAP3]](%[[ARG2]]) {
 // CHECK-NEXT:           %[[VAL0:.*]] = affine.apply #[[MAP0]](%[[ARG3]])

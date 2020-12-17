@@ -24,12 +24,12 @@ func @matmul() {
 }
 
 // CHECK-DAG: #[[MAP0:.*]] = affine_map<(d0) -> (d0 * 32)>
-// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
+// CHECK-DAG: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32 + 32)>
 //
 // CHECK:   func @main(%[[ARG0:.*]]: memref<?x?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT:     affine.for %[[ARG3:.*]] = 0 to 1 {
-// CHECK-NEXT:       affine.for %[[ARG4:.*]] = 0 to 1 {
-// CHECK-NEXT:         affine.for %[[ARG5:.*]] = 0 to 1 {
+// CHECK-NEXT:     affine.for %[[ARG3:.*]] = 0 to 2 {
+// CHECK-NEXT:       affine.for %[[ARG4:.*]] = 0 to 2 {
+// CHECK-NEXT:         affine.for %[[ARG5:.*]] = 0 to 2 {
 // CHECK-NEXT:           affine.for %[[ARG6:.*]] = #[[MAP0]](%[[ARG3]]) to #[[MAP1]](%[[ARG3]]) {
 // CHECK-NEXT:             affine.for %[[ARG7:.*]] = #[[MAP0]](%[[ARG5]]) to #[[MAP1]](%[[ARG5]]) {
 // CHECK-NEXT:               affine.for %[[ARG8:.*]] = #[[MAP0]](%[[ARG4]]) to #[[MAP1]](%[[ARG4]]) {
