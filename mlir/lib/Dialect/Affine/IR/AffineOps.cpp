@@ -792,7 +792,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         }
 
         SmallVector<AffineExpr, 0> dimRemapping;
-        unsigned numSymbols = concatenatedSymbols.size();
         unsigned numOtherSymbols = affineApplyOperands.size();
         SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols);
         for (unsigned idx = 0; idx < numOtherSymbols; ++idx) {
@@ -834,7 +833,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           assert(i < affineApplyOperands.size());
           dimRemapping[i] = renumberOneDim(affineApplyOperands[i]);
         }
-        unsigned numSymbols = concatenatedSymbols.size();
         unsigned numOtherSymbols = affineApplyOperands.size();
         SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols - affineApplyMap.getNumDims());
         for (unsigned idx = 0; idx < symRemapping.size(); ++idx) {
