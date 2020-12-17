@@ -395,8 +395,7 @@ bool mlir::isValidSymbol(Value value, Region *region) {
   }
 
   // Constant operation is ok.
-  Attribute operandCst;
-  if (matchPattern(defOp, m_Constant(&operandCst)))
+  if (isa<ConstantOp>(defOp))
     return true;
 
   // Affine apply operation is ok if all of its operands are ok.
