@@ -1,5 +1,7 @@
 // RUN: polymer-opt %s -pluto-opt | FileCheck %s
 
+// This case shows how a single loop with complicated arithmetic body can be optimized (blocked).
+
 func @arith() {
   %A = alloc() : memref<64xf32>
   %B = alloc() : memref<64xf32>
@@ -18,26 +20,23 @@ func @arith() {
   return
 }
 
-// CHECK: #map0 = affine_map<(d0) -> (d0)>
-// CHECK: #map1 = affine_map<(d0) -> (d0 * 32)>
-// CHECK: #map2 = affine_map<(d0) -> (d0 * 32 + 31)>
-// CHECK: #map3 = affine_map<() -> (0)>
-// CHECK: #map4 = affine_map<() -> (1)>
+// CHECK: #[[MAP0:.*]] = affine_map<(d0) -> (d0 * 32)>
+// CHECK: #[[MAP1:.*]] = affine_map<(d0) -> (d0 * 32 + 31)>
 //
 //
 // CHECK: module {
-// CHECK:   func @main(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>) {
-// CHECK:     affine.for %arg4 = 0 to 1 {
-// CHECK:       affine.for %arg5 = #map1(%arg4) to #map2(%arg4) {
-// CHECK:         %0 = affine.load %arg2[%arg5] : memref<?xf32>
-// CHECK:         %1 = affine.load %arg1[%arg5] : memref<?xf32>
-// CHECK:         %2 = addf %1, %0 : f32
-// CHECK:         affine.store %2, %arg0[%arg5] : memref<?xf32>
-// CHECK:         %3 = affine.load %arg2[%arg5] : memref<?xf32>
-// CHECK:         %4 = addf %1, %3 : f32
-// CHECK:         %5 = affine.load %arg1[%arg5] : memref<?xf32>
-// CHECK:         %6 = mulf %5, %4 : f32
-// CHECK:         affine.store %6, %arg3[%arg5] : memref<?xf32>
+// CHECK:   func @main(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>, %[[ARG2:.*]]: memref<?xf32>, %[[ARG3:.*]]: memref<?xf32>) {
+// CHECK:     affine.for %[[ARG4:.*]] = 0 to 1 {
+// CHECK:       affine.for %[[ARG5:.*]] = #[[MAP0]](%[[ARG4]]) to #[[MAP1]](%[[ARG4]]) {
+// CHECK:         %[[VAL0:.*]] = affine.load %[[ARG2]][%[[ARG5]]] : memref<?xf32>
+// CHECK:         %[[VAL1:.*]] = affine.load %[[ARG1]][%[[ARG5]]] : memref<?xf32>
+// CHECK:         %[[VAL2:.*]] = addf %[[VAL1]], %[[VAL0]] : f32
+// CHECK:         affine.store %[[VAL2]], %[[ARG0]][%[[ARG5]]] : memref<?xf32>
+// CHECK:         %[[VAL3:.*]] = affine.load %[[ARG2]][%[[ARG5]]] : memref<?xf32>
+// CHECK:         %[[VAL4:.*]] = addf %[[VAL1]], %[[VAL3]] : f32
+// CHECK:         %[[VAL5:.*]] = affine.load %[[ARG1]][%[[ARG5]]] : memref<?xf32>
+// CHECK:         %[[VAL6:.*]] = mulf %[[VAL5]], %[[VAL4]] : f32
+// CHECK:         affine.store %[[VAL6]], %[[ARG3]][%[[ARG5]]] : memref<?xf32>
 // CHECK:       }
 // CHECK:     }
 // CHECK:     return

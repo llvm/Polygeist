@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Transforms/ExtractScopStmt.h"
-#include "polymer/Transforms/InvariantScopTransform.h"
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 
@@ -79,7 +78,6 @@ int main(int argc, char *argv[]) {
   registerCSEPass();
   registerInlinerPass();
   // Register polymer specific passes.
-  polymer::registerInvariantScopTransformPass();
   polymer::registerPlutoTransformPass();
   polymer::registerRegToMemPass();
   polymer::registerExtractScopStmtPass();

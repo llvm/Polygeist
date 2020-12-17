@@ -5,10 +5,24 @@ include(ExternalProject)
 set(PLUTO_INCLUDE_DIR "${CMAKE_BINARY_DIR}/pluto/include")
 set(PLUTO_LIB_DIR "${CMAKE_BINARY_DIR}/pluto/lib")
 
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+  execute_process(
+    COMMAND bash -c "which ${CMAKE_CXX_COMPILER}"  
+    OUTPUT_VARIABLE CLANG_ABSPATH
+  )
+  get_filename_component(CLANG_BINDIR ${CLANG_ABSPATH} DIRECTORY)
+  get_filename_component(CLANG_PREFIX ${CLANG_BINDIR} DIRECTORY)
+  set(CLANG_PREFIX_CONFIG "--with-clang-prefix=${CLANG_PREFIX}")
+else()
+  set(CLANG_PREFIX_CONFIG "")
+endif()
+
+message(STATUS ${CLANG_PREFIX_CONFIG})
+
 ExternalProject_Add(
   pluto 
   SOURCE_DIR "${CMAKE_SOURCE_DIR}/pluto"
-  CONFIGURE_COMMAND "${CMAKE_SOURCE_DIR}/pluto/autogen.sh" && "${CMAKE_SOURCE_DIR}/pluto/configure" --prefix=${CMAKE_BINARY_DIR}/pluto 
+  CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} ${CMAKE_SOURCE_DIR}/pluto/autogen.sh && ${CMAKE_COMMAND} -E env CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} ${CMAKE_SOURCE_DIR}/pluto/configure --prefix=${CMAKE_BINARY_DIR}/pluto ${CLANG_PREFIX_CONFIG}
   PREFIX ${CMAKE_BINARY_DIR}/pluto
   BUILD_COMMAND make
   INSTALL_COMMAND make install
