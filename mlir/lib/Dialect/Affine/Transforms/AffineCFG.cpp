@@ -210,9 +210,6 @@ static bool isValidIndex(Value val) {
   if (val.getDefiningOp<ConstantIndexOp>())
     return true;
 
-  if (val.getDefiningOp<ConstantOp>())
-    return true;
-
   if (auto ba = val.dyn_cast<BlockArgument>()) {
     if (isa<AffineForOp>(ba.getOwner()->getParentOp()))
       return true;
