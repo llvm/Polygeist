@@ -672,6 +672,13 @@ static AffineMap promoteComposedSymbolsAsDims(AffineMap map,
   return newMap;
 }
 
+static bool isAffineForArg(Value val) {
+  if (!val.isa<BlockArgument>())
+    return false;
+  Operation *parentOp = val.cast<BlockArgument>().getOwner()->getParentOp();
+  return (parentOp && isa<AffineForOp>(parentOp));
+}
+
 /// The AffineNormalizer composes AffineApplyOp recursively. Its purpose is to
 /// keep a correspondence between the mathematical `map` and the `operands` of
 /// a given AffineApplyOp. This correspondence is maintained by iterating over
@@ -814,9 +821,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           llvm::dbgs() << " + prevop: " << op << "\n";
         }
         */
-      } else if (t.isa<BlockArgument>() &&
-                 isa<AffineForOp>(
-                     t.cast<BlockArgument>().getOwner()->getParentOp())) {
+      } else if (isAffineForArg(t)) {
         auxiliaryExprs.push_back(renumberOneDim(t));
       } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
         // a. Compose affine.apply operations.
