@@ -45,8 +45,13 @@ ValueWithOffsets MLIRScanner::getValue(std::string name) {
   }
   if (Glob.globalVariables.find(name) != Glob.globalVariables.end()) {
     auto gv = Glob.GetOrCreateGlobal(Glob.globalVariables[name]);
-    auto gv2 = builder.create<GetGlobalMemrefOp>(loc, gv.type(), gv.getName());
-    return ValueWithOffsets(gv2, {getConstantIndex(0)});
+    auto gv2 = builder.create<GetGlobalMemrefOp>(loc, gv.first.type(),
+                                                 gv.first.getName());
+    bool isArray = gv.second;
+    if (isArray)
+      return ValueWithOffsets(gv2, {});
+    else
+      return ValueWithOffsets(gv2, {getConstantIndex(0)});
   }
   if (Glob.globalFunctions.find(name) != Glob.globalFunctions.end()) {
     auto gv = Glob.GetOrCreateMLIRFunction(Glob.globalFunctions[name]);
@@ -341,39 +346,34 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
   auto affineOp = builder.create<AffineForOp>(
       loc, lb, builder.getSymbolIdentityMap(), ub,
       builder.getSymbolIdentityMap(), descr.getStep(),
-      /*iterArgs=*/llvm::None,
-      (AffineForOp::BodyBuilderFn)([&](OpBuilder &nestedBuilder,
-                                       mlir::Location loc, mlir::Value val,
-                                       ValueRange ivs) {
-        SmallVector<mlir::Value, 1> iv(ivs);
-        assert(ivs.size() == 0 && "expect single ind var");
-        if (!descr.getForwardMode()) {
-          val = nestedBuilder.create<mlir::SubIOp>(loc, val, lb);
-          val = nestedBuilder.create<mlir::SubIOp>(
-              loc,
-              nestedBuilder.create<mlir::SubIOp>(loc, ub, getConstantIndex(1)),
-              val);
-        }
-        auto idx =
-            nestedBuilder.create<mlir::IndexCastOp>(loc, val, descr.getType());
-        createAndSetAllocOp(descr.getName(), idx, 0);
+      /*iterArgs=*/llvm::None);
 
-        auto oldpoint = builder.getInsertionPoint();
-        auto oldblock = builder.getInsertionBlock();
+  auto &reg = affineOp.getLoopBody();
 
-        builder.setInsertionPoint(nestedBuilder.getInsertionBlock(),
-                                  nestedBuilder.getInsertionPoint());
+  auto val = affineOp.getInductionVar();
 
-        // TODO: set loop context.
-        Visit(fors->getBody());
-        builder.create<AffineYieldOp>(loc);
+  reg.front().clear();
 
-        nestedBuilder.setInsertionPoint(builder.getInsertionBlock(),
-                                        builder.getInsertionPoint());
-        // TODO: set the value of the iteration value to the final bound at the
-        // end of the loop.
-        builder.setInsertionPoint(oldblock, oldpoint);
-      }));
+  auto oldpoint = builder.getInsertionPoint();
+  auto oldblock = builder.getInsertionBlock();
+
+  builder.setInsertionPointToEnd(&reg.front());
+
+  if (!descr.getForwardMode()) {
+    val = builder.create<mlir::SubIOp>(loc, val, lb);
+    val = builder.create<mlir::SubIOp>(
+        loc, builder.create<mlir::SubIOp>(loc, ub, getConstantIndex(1)), val);
+  }
+  auto idx = builder.create<mlir::IndexCastOp>(loc, val, descr.getType());
+  createAndSetAllocOp(descr.getName(), idx, 0);
+
+  // TODO: set loop context.
+  Visit(fors->getBody());
+  builder.create<AffineYieldOp>(loc);
+
+  // TODO: set the value of the iteration value to the final bound at the
+  // end of the loop.
+  builder.setInsertionPoint(oldblock, oldpoint);
 }
 
 void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
@@ -480,7 +480,11 @@ mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
 ValueWithOffsets
 MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   auto lhs = Visit(expr->getLHS());
+  // Check the LHS has been successfully emitted
+  assert(lhs.val);
   auto rhs = (mlir::Value)Visit(expr->getRHS());
+  // Check the RHS has been successfully emitted
+  assert(rhs);
   auto offsets = lhs.offsets;
   auto idx = castToIndex(getMLIRLocation(expr->getRBracketLoc()), rhs);
   assert(offsets.size() > 0);
@@ -1730,6 +1734,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
         off.size()) {
 
       E->getSubExpr()->dump();
+      llvm::errs() << "scalar.val: " << scalar.val << "\n";
       llvm::errs() << "{\n";
       for (auto a : off)
         a.dump();
@@ -2017,7 +2022,8 @@ mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const VarDecl *FD) {
              mlir::Attribute());
 }
 
-mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
+std::pair<mlir::GlobalMemrefOp, bool>
+MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
   if (globals.find(FD) != globals.end()) {
     return globals[FD];
   }
@@ -2045,7 +2051,7 @@ mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
       mlir::TypeAttr::get(mr), mlir::Attribute(), false);
   // Private == internal, Public == External [in lowering]
   SymbolTable::setSymbolVisibility(globalOp, SymbolTable::Visibility::Private);
-  return globals[FD] = globalOp;
+  return globals[FD] = std::make_pair(globalOp, isArray);
 }
 
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
