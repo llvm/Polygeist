@@ -258,8 +258,8 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   std::map<std::string, clang::VarDecl *> globalVariables;
   std::map<std::string, clang::FunctionDecl *> globalFunctions;
-  std::map<const VarDecl *, mlir::GlobalMemrefOp> globals;
-  mlir::GlobalMemrefOp GetOrCreateGlobal(const VarDecl *VD);
+  std::map<const VarDecl *, std::pair<mlir::GlobalMemrefOp, bool>> globals;
+  std::pair<mlir::GlobalMemrefOp, bool> GetOrCreateGlobal(const VarDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
   std::set<const FunctionDecl *> done;
