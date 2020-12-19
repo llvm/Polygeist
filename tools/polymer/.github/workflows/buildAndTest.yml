@@ -148,8 +148,8 @@ jobs:
 
       - name: Build and Test Polymer (Assert)
         run: |
-          mkdir build_assert
-          cd build_assert
+          mkdir build
+          cd build
           cmake .. \
             -DCMAKE_BUILD_TYPE=Debug \
             -DLLVM_ENABLE_ASSERTIONS=ON \
@@ -159,5 +159,11 @@ jobs:
             -DCMAKE_CXX_COMPILER=clang++-9 \
             -DLLVM_EXTERNAL_LIT=${PWD}/../llvm/build/bin/llvm-lit \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
+          # LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
+
+      - name: Run Polybench Tests
+        run: |
+          cd example/polybench
+          ./runall SMALL output
+
 
