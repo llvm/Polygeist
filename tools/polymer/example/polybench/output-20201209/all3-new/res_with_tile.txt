@@ -1,8 +1,0 @@
-2mm.clang:10.725792:10.681291
-2mm.polymer:11.149851:11.156108
-3mm.clang:12.797423:12.772629
-3mm.polymer:14.365506:14.357931
-[Clan] Error: syntax error at line 91, column 39.
-Error extracting polyhedra from source file: 'adi.c'
-clang-12: error: no such file or directory: 'adi.pluto.c'
-numactl: execution of `./adi.clang.exe': No such file or directory
