@@ -49,8 +49,7 @@ for f in $(find "${SOURCE_DIR}" -name "*.mlir.ll"); do
   mv $f ${f%.ll}
 done
 
-for f in $(find "${SOURCE_DIR}" -name "correlation.mlir"); do
-# for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
+for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
   DIRNAME=$(dirname "${f}")
   BASENAME=$(basename "${f}")
   NAME="${BASENAME%.*}"
