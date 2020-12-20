@@ -43,3 +43,6 @@ build/
 
 # Log files
 *.log
+
+# Temporary output
+tmp/
