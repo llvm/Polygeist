@@ -1045,7 +1045,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   std::string calleeName;
   if (failed(parseUserStmtBody(body->expression->string[0], calleeName, args)))
     return failure();
-  llvm::errs() << "parsed callee name: " << calleeName << "\n";
+  // llvm::errs() << "parsed callee name: " << calleeName << "\n";
 
   // Create the callee and the caller args.
   FuncOp callee;
@@ -1142,7 +1142,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
 /// Process the if statement.
 LogicalResult Importer::processStmt(clast_guard *guardStmt) {
-  llvm::errs() << "Processing guards ...\n";
+  // llvm::errs() << "Processing guards ...\n";
   // Build the integer set.
   SmallVector<AffineExpr, 4> conds;
   SmallVector<bool, 4> eqFlags;
@@ -1173,7 +1173,7 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
         if (CLAST_STMT_IS_A(s, stmt_ass)) {
           clast_assignment *ass = (clast_assignment *)s;
           if (ass->RHS->type == clast_expr_red) {
-            llvm::errs() << name << "\n";
+            // llvm::errs() << name << "\n";
 
             clast_reduction *red = (clast_reduction *)ass->RHS;
             if ((red->type == clast_red_max && eq.sign < 0) ||
@@ -1320,7 +1320,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Create the for operation.
   mlir::AffineForOp forOp = b.create<mlir::AffineForOp>(
       UnknownLoc::get(context), lbOperands, lbMap, ubOperands, ubMap, stride);
-  forOp.dump();
+  // forOp.dump();
 
   // Update the loop IV mapping.
   auto &entryBlock = *forOp.getLoopBody().getBlocks().begin();

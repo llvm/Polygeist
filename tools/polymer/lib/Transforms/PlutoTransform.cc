@@ -66,10 +66,14 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   pluto_populate_scop(scop->get(), prog, context);
   osl_scop_print(stderr, scop->get());
 
+  const char *dumpClastAfterPlutoStr = nullptr;
+  if (!dumpClastAfterPluto.empty())
+    dumpClastAfterPlutoStr = dumpClastAfterPluto.c_str();
+
   mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
   mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
       std::move(scop), m, dstTable, rewriter.getContext(), prog,
-      dumpClastAfterPluto.c_str()));
+      dumpClastAfterPlutoStr));
 
   pluto_context_free(context);
   return g;
