@@ -95,3 +95,7 @@ echo ""
 printf "%50s\n" "Report:"
 printf "%50s %5d\n" "Total cases:" "${TOTAL_CASES}"
 printf "%50s %5d\n" "Successful cases:" "${SUCCESSFUL_CASES}"
+
+if [ "${TOTAL_CASES}" -ne "${SUCCESSFUL_CASES}" ]; then
+  exit 1
+fi
