@@ -164,6 +164,6 @@ jobs:
       - name: Run Polybench Tests
         run: |
           cd example/polybench
-          ./sanity-check SMALL output
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" ./sanity-check SMALL output
 
 
