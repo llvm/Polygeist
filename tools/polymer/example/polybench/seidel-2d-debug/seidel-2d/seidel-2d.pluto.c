@@ -1,4 +1,3 @@
-#include <omp.h>
 #include <math.h>
 #define ceild(n,d)  (((n)<0) ? -((-(n))/(d)) : ((n)+(d)-1)/(d))
 #define floord(n,d) (((n)<0) ? -((-(n)+(d)-1)/(d)) : (n)/(d))
@@ -81,16 +80,12 @@ void kernel_seidel_2d(int tsteps,
   int t, i, j;
 
   int t1, t2, t3, t4, t5, t6;
- int lb, ub, lbp, ubp, lb2, ub2;
  register int lbv, ubv;
 if ((_PB_N >= 3) && (_PB_TSTEPS >= 1)) {
-  for (t1=0;t1<=floord(2*_PB_TSTEPS+_PB_N-4,32);t1++) {
-    lbp=max(ceild(t1,2),ceild(32*t1-_PB_TSTEPS+1,32));
-    ubp=min(min(floord(_PB_TSTEPS+_PB_N-3,32),floord(32*t1+_PB_N+29,64)),t1);
-#pragma omp parallel for private(lbv,ubv,t3,t4,t5,t6)
-    for (t2=lbp;t2<=ubp;t2++) {
-      for (t3=max(ceild(64*t2-_PB_N-28,32),t1);t3<=min(min(min(min(floord(_PB_TSTEPS+_PB_N-3,16),floord(32*t1-32*t2+_PB_N+29,16)),floord(32*t1+_PB_N+60,32)),floord(64*t2+_PB_N+59,32)),floord(32*t2+_PB_TSTEPS+_PB_N+28,32));t3++) {
-        for (t4=max(max(max(32*t1-32*t2,32*t2-_PB_N+2),16*t3-_PB_N+2),-32*t2+32*t3-_PB_N-29);t4<=min(min(min(min(_PB_TSTEPS-1,32*t2+30),16*t3+14),32*t1-32*t2+31),-32*t2+32*t3+30);t4++) {
+  for (t1=0;t1<=floord(_PB_TSTEPS-1,32);t1++) {
+    for (t2=t1;t2<=min(floord(_PB_TSTEPS+_PB_N-3,32),floord(32*t1+_PB_N+29,32));t2++) {
+      for (t3=max(ceild(64*t2-_PB_N-28,32),t1+t2);t3<=min(min(min(min(floord(_PB_TSTEPS+_PB_N-3,16),floord(32*t1+_PB_N+29,16)),floord(64*t2+_PB_N+59,32)),floord(32*t1+32*t2+_PB_N+60,32)),floord(32*t2+_PB_TSTEPS+_PB_N+28,32));t3++) {
+        for (t4=max(max(max(32*t1,32*t2-_PB_N+2),16*t3-_PB_N+2),-32*t2+32*t3-_PB_N-29);t4<=min(min(min(min(_PB_TSTEPS-1,32*t1+31),32*t2+30),16*t3+14),-32*t2+32*t3+30);t4++) {
           for (t5=max(max(32*t2,t4+1),32*t3-t4-_PB_N+2);t5<=min(min(32*t2+31,32*t3-t4+30),t4+_PB_N-2);t5++) {
             for (t6=max(32*t3,t4+t5+1);t6<=min(32*t3+31,t4+t5+_PB_N-2);t6++) {
               A[(-t4+t5)][(-t4-t5+t6)] = (A[(-t4+t5)-1][(-t4-t5+t6)-1] + A[(-t4+t5)-1][(-t4-t5+t6)] + A[(-t4+t5)-1][(-t4-t5+t6)+1] + A[(-t4+t5)][(-t4-t5+t6)-1] + A[(-t4+t5)][(-t4-t5+t6)] + A[(-t4+t5)][(-t4-t5+t6)+1] + A[(-t4+t5)+1][(-t4-t5+t6)-1] + A[(-t4+t5)+1][(-t4-t5+t6)] + A[(-t4+t5)+1][(-t4-t5+t6)+1])/SCALAR_VAL(9.0);;

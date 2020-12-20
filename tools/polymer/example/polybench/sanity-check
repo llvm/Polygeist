@@ -1,4 +1,5 @@
 #!/bin/bash
+# Sanity check for Polybench test cases.
 
 SOURCE_DIR="$1"
 OUTPUT_DIR="$2"
@@ -40,7 +41,7 @@ compare_result()
 }
 
 
-cd ${PWD}/../../build && ninja && cd -
+cd ${PWD}/../../build && cmake --build . --target all && cd -
 
 printf "%40s %15s %15s %15s\n" "Benchmark" "Exit code" "Scop Diff" "Pluto Diff"
 printf "%40s %15s %15s %15s\n" "--------------------------------" "-------------" "-------------" "-------------"
