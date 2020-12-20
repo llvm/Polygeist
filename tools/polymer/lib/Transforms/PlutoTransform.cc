@@ -37,7 +37,8 @@ using namespace llvm;
 using namespace polymer;
 
 /// The main function that implements the Pluto based optimization.
-static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
+static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
+                                   std::string dumpClastAfterPluto) {
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
 
@@ -56,12 +57,9 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
   context->options->readscop = 1;
 
   context->options->identity = 0;
-// context->options->iss = 0;
-#if 0
   context->options->parallel = 0;
   context->options->unrolljam = 0;
   context->options->prevector = 0;
-#endif
 
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
   pluto_schedule_prog(prog);
@@ -70,7 +68,8 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter) {
 
   mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
   mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
-      std::move(scop), m, dstTable, rewriter.getContext(), prog));
+      std::move(scop), m, dstTable, rewriter.getContext(), prog,
+      dumpClastAfterPluto.c_str()));
 
   pluto_context_free(context);
   return g;
@@ -81,6 +80,14 @@ class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
                                OperationPass<mlir::ModuleOp>> {
 public:
+  PlutoTransformPass() = default;
+  PlutoTransformPass(const PlutoTransformPass &pass) {}
+
+  Option<std::string> dumpClastAfterPluto{
+      *this, "dump-clast-after-pluto",
+      llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
+                     "optimization.")};
+
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
     mlir::OpBuilder b(m.getContext());
@@ -94,7 +101,7 @@ public:
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g = plutoTransform(f, b)) {
+      if (mlir::FuncOp g = plutoTransform(f, b, dumpClastAfterPluto)) {
         funcMap[f] = g;
         g.setPrivate();
       }
