@@ -91,7 +91,7 @@ function run_pluto()
   # Compile Pluto generated code
   clang "${PLUTO_SRC_FILE}" -O3 "${CLANG_OPTIONS}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
-  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -o "${PLUTO_EXE_FILE}" -lm \
+  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" "${CLANG_OPTIONS}" -o "${PLUTO_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET
 
   # Run the Pluto-compiled executable

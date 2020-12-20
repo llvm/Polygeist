@@ -4,6 +4,8 @@
 SOURCE_DIR="$1"
 OUTPUT_DIR="$2"
 
+export LD_LIBRARY_PATH="${PWD}/../../build/pluto/lib:${LD_LIBRARY_PATH}"
+
 LLVM_BINDIR="${PWD}/../../llvm/build/bin"
 BINDIR="${PWD}/../../build/bin"
 
@@ -41,7 +43,7 @@ compare_result()
 }
 
 
-cd ${PWD}/../../build && cmake --build . --target all && cd -
+cd ${PWD}/../../build && cmake --build . --target all 2>&1 >/dev/null && cd - &>/dev/null
 
 printf "%40s %15s %15s %15s\n" "Benchmark" "Exit code" "Scop Diff" "Pluto Diff"
 printf "%40s %15s %15s %15s\n" "--------------------------------" "-------------" "-------------" "-------------"
