@@ -5,8 +5,9 @@ PLUTO_OPTIONS="--noparallel --noprevector --nounrolljam"
 CLANG_OPTIONS="-fno-vectorize"
 SKIP_EXECUTE="false"
 SKIP_CODEGEN="false"
+PLUTO_VARIANT=""
 
-while getopts ":hgspvf:" opt; do 
+while getopts ":hgspvf:t:" opt; do 
   case "${opt}" in 
     h ) 
       echo ""
@@ -19,10 +20,14 @@ while getopts ":hgspvf:" opt; do
       echo "    -v                  Enable vectorization by Clang"
       echo "    -p                  Enable parallelization"
       echo "    -f <target>         Evaluate the <target> file"
+      echo "    -t <pluto var>      Specific Pluto variant (i64, 1d, etc.)"
       exit 0
       ;;
     f )
       TARGET="${OPTARG}"
+      ;;
+    t )
+      PLUTO_VARIANT="${OPTARG}"
       ;;
     g )
       SKIP_CODEGEN="true"
@@ -65,22 +70,39 @@ export PATH="${POLYMER_DIR}/build/bin:${PATH}"
 #    SKIP_EXECUTE       Skip the execution
 #    SKIP_CODEGEN       Skip the codegen
 #    UTILITIES_DIR      Where the polybench utilities placed
+#    PLUTO_VARIANT      Specific Pluto variant
 function run_pluto() 
 {
   local SRC_FILE="$1"
+  local PLUTO_SUFFIX=".pluto"
+  if [ ! -z "${PLUTO_VARIANT}" ]; then
+    PLUTO_SUFFIX="${PLUTO_SUFFIX}.${PLUTO_VARIANT}"
+    SRC_FILE="${SRC_FILE%.c}${PLUTO_SUFFIX}.c"
+  fi
+
+  if [ ! -f "${SRC_FILE}" ]; then
+    echo "Pluto source file ${SRC_FILE} doesn't exist"
+    exit 1
+  fi
+
   local __RESULT_PLUTO_EXE_FILE="$2"
   local __RESULT_PLUTO_RUN_TIME="$3"
   local SRC_DIR="$(dirname "${SRC_FILE}")"
   local PLUTO_SRC_FILE="${SRC_FILE%.c}.pluto.c"
-  local PLUTO_LLVM_IR_FILE="${SRC_FILE%.c}.pluto.ll"
-  local PLUTO_EXE_FILE="${SRC_FILE%.c}.pluto.exe"
+  # If the variant is provided, we don't need to generate the pluto.c file.
+  if [ ! -z "${PLUTO_VARIANT}" ]; then
+    PLUTO_SRC_FILE="${SRC_FILE}"
+  fi
+
+  local PLUTO_LLVM_IR_FILE="${PLUTO_SRC_FILE%.c}.ll"
+  local PLUTO_EXE_FILE="${PLUTO_SRC_FILE%.c}.exe"
   local POLYCC_LOG="polycc_$(date "+%Y%m%d-%H%M%S").log"
   local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
 
   cd "${SRC_DIR}" >/dev/null 2>&1
 
   # Apply Pluto
-  if [ "${SKIP_CODEGEN}" = "false" ]; then
+  if [[ "${SKIP_CODEGEN}" = "false" && -z "${PLUTO_VARIANT}" ]]; then
     polycc "${PLUTO_OPTIONS}" "${SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
   fi
   if [ ! -f "${PLUTO_SRC_FILE}" ]; then

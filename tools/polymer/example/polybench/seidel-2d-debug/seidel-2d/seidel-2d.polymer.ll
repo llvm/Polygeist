@@ -575,7 +575,7 @@ define void @kernel_seidel_2d_new(i32 %0, i32 %1, double* %2, double* %3, i64 %4
 !1 = !DIFile(filename: "LLVMDialectModule", directory: "/")
 !2 = !{i32 2, !"Debug Info Version", i32 3}
 !3 = distinct !DISubprogram(name: "main", linkageName: "main", scope: null, file: !4, line: 14, type: !5, scopeLine: 14, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: !0, retainedNodes: !6)
-!4 = !DIFile(filename: "<stdin>", directory: "/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench")
+!4 = !DIFile(filename: "<stdin>", directory: "/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench/seidel-2d-debug/seidel-2d")
 !5 = !DISubroutineType(types: !6)
 !6 = !{}
 !7 = !DILocation(line: 28, column: 11, scope: !8)
