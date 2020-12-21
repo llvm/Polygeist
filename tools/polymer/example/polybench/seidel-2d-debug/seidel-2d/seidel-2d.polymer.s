@@ -12,7 +12,7 @@
 	.type	main,@function
 main:                                   # @main
 .Lfunc_begin0:
-	.file	1 "/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench" "<stdin>"
+	.file	1 "/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench/seidel-2d-debug/seidel-2d" "<stdin>"
 	.loc	1 14 0                          # <stdin>:14:0
 	.cfi_startproc
 # %bb.0:
