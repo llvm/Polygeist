@@ -467,13 +467,13 @@ mlir::Value add(MLIRScanner &sc, mlir::OpBuilder &builder, mlir::Location loc,
   return builder.create<mlir::AddIOp>(loc, lhs, rhs);
 }
 
-mlir::Value castToIndex(MLIRScanner &sc, mlir::Location loc, mlir::Value val) {
+mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
   assert(val && "Expect non-null value");
 
   if (auto op = val.getDefiningOp<ConstantOp>())
-    return sc.getConstantIndex(op.getValue().cast<IntegerAttr>().getInt());
+    return getConstantIndex(op.getValue().cast<IntegerAttr>().getInt());
 
-  return sc.builder.create<mlir::IndexCastOp>(
+  return builder.create<mlir::IndexCastOp>(
       loc, val, mlir::IndexType::get(val.getContext()));
 }
 
@@ -482,7 +482,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   auto lhs = Visit(expr->getLHS());
   auto rhs = (mlir::Value)Visit(expr->getRHS());
   auto offsets = lhs.offsets;
-  auto idx = castToIndex(*this, loc, rhs);
+  auto idx = castToIndex(getMLIRLocation(expr->getRBracketLoc()), rhs);
   assert(offsets.size() > 0);
   offsets[offsets.size() - 1] =
       add(*this, builder, loc, lhs.offsets.back(), idx);
