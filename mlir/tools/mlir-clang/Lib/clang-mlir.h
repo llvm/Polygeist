@@ -278,15 +278,13 @@ struct MLIRASTConsumer : public ASTConsumer {
 };
 
 struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
-public:
+private:
   MLIRASTConsumer &Glob;
   mlir::FuncOp function;
   mlir::ModuleOp &module;
   mlir::OpBuilder builder;
   mlir::Location loc;
-
   mlir::Block *entryBlock;
-
   std::vector<std::map<std::string, ValueWithOffsets>> scopes;
   std::vector<LoopContext> loops;
 
@@ -310,6 +308,34 @@ public:
   mlir::Value createAndSetAllocOp(std::string name, mlir::Value v,
                                   uint64_t memspace);
 
+  const clang::FunctionDecl *EmitCallee(const Expr *E);
+
+  mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
+
+  std::map<int, mlir::Value> constants;
+  mlir::Value getConstantIndex(int x);
+
+  mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
+
+  bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+
+  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
+
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                     bool forwardLoop);
+
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
+                       bool &forwardLoop);
+
+  void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
+                       const AffineLoopDescriptor &descr);
+
+  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
+                           mlir::Value lb, mlir::Value ub,
+                           const AffineLoopDescriptor &descr);
+
+public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module)
       : Glob(Glob), function(function), module(module),
@@ -359,6 +385,7 @@ public:
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
+
   ValueWithOffsets
   VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
@@ -376,34 +403,9 @@ public:
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
 
-  bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
-
-  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                     bool forwardLoop);
-
-  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                     bool forwardLoop);
-
-  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                       bool &forwardLoop);
-
-  void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
-                       const AffineLoopDescriptor &descr);
-
-  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
-                           mlir::Value lb, mlir::Value ub,
-                           const AffineLoopDescriptor &descr);
-
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
-  mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
-
-  const clang::FunctionDecl *EmitCallee(const Expr *E);
-
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
-
-  std::map<int, mlir::Value> constants;
-  mlir::Value getConstantIndex(int x);
 
   ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
 
