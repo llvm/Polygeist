@@ -387,9 +387,6 @@ public:
   bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
                        bool &forwardLoop);
 
-  bool isValidAffineStore(mlir::Location loc, std::vector<mlir::Value> indexes,
-                          std::vector<mlir::Value> &newIndexes);
-
   void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                        const AffineLoopDescriptor &descr);
 
