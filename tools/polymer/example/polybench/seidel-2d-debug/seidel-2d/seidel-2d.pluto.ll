@@ -1,4 +1,4 @@
-; ModuleID = '/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench/seidel-2d-debug/seidel-2d/seidel-2d.pluto.ll'
+; ModuleID = '/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench/seidel-2d-debug/seidel-2d/seidel-2d.pluto.c'
 source_filename = "/mnt/ccnas2/bdp/rz3515/projects/polymer/example/polybench/seidel-2d-debug/seidel-2d/seidel-2d.pluto.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
@@ -178,13 +178,13 @@ cond.end136.i:                                    ; preds = %cond.end109.thread.
 
 for.body1117.i.preheader:                         ; preds = %cond.end136.i
   %54 = sub i32 %43, %smax83.i176
-  %55 = add i32 %42, %indvars.iv184
+  %55 = add i32 %indvars.iv184, %42
   %56 = or i32 %45, 14
   %57 = icmp sgt i64 %49, %47
   %smax198 = select i1 %57, i64 %49, i64 %47
   br label %for.body1117.i
 
-for.body1117.i:                                   ; preds = %for.inc1582.i, %for.body1117.i.preheader
+for.body1117.i:                                   ; preds = %for.body1117.i.preheader, %for.inc1582.i
   %indvars.iv188 = phi i32 [ %56, %for.body1117.i.preheader ], [ %indvars.iv.next189, %for.inc1582.i ]
   %indvars.iv186 = phi i32 [ %55, %for.body1117.i.preheader ], [ %indvars.iv.next187, %for.inc1582.i ]
   %58 = phi i32 [ %54, %for.body1117.i.preheader ], [ %104, %for.inc1582.i ]
