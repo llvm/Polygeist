@@ -1217,18 +1217,6 @@ bool MLIRScanner::isValidIndex(mlir::Value index,
   return true;
 }
 
-/// If indexes represent an affine access pattern return
-/// the affine expression to be used while creating an affine.store
-// TODO: Find better name as we don't only check but we
-// also return new mlir::Value(s).
-bool MLIRScanner::isValidAffineStore(mlir::Location loc,
-                                     std::vector<mlir::Value> indexes,
-                                     std::vector<mlir::Value> &newIndexes) {
-  return llvm::all_of(indexes, [this, &newIndexes](mlir::Value index) {
-    return isValidIndex(index, newIndexes);
-  });
-}
-
 ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto lhs = Visit(BO->getLHS());
   if (!lhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
@@ -1494,12 +1482,7 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       result = builder.create<mlir::AddIOp>(loc, (mlir::Value)prev,
                                             (mlir::Value)rhs);
     }
-    std::vector<mlir::Value> newOff;
-    if (isValidAffineStore(loc, off, newOff)) {
-      assert(newOff.size() != 0);
-      builder.create<mlir::AffineStoreOp>(loc, result, lhs.val, newOff);
-    } else
-      builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+    builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
     return ValueWithOffsets(prev, {});
   }
   case clang::BinaryOperator::Opcode::BO_SubAssign: {
@@ -1531,12 +1514,7 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       result = builder.create<mlir::MulIOp>(loc, (mlir::Value)prev,
                                             (mlir::Value)rhs);
     }
-    std::vector<mlir::Value> newOff;
-    if (isValidAffineStore(loc, off, newOff)) {
-      assert(newOff.size() != 0);
-      builder.create<mlir::AffineStoreOp>(loc, result, lhs.val, newOff);
-    } else
-      builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
+    builder.create<mlir::StoreOp>(loc, result, lhs.val, off);
     return ValueWithOffsets(prev, {});
   }
   case clang::BinaryOperator::Opcode::BO_DivAssign: {
