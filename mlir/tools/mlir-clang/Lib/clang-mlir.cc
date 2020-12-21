@@ -795,11 +795,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getName() == "strcmp") {
-        // just have it return 1
-        auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
-        // return (mlir::Value)builder.create<mlir::ConstantOp>(
-        //    loc, ty, builder.getIntegerAttr(ty, 0));
-
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -2069,7 +2064,6 @@ mlir::GlobalMemrefOp MLIRASTConsumer::GetOrCreateGlobal(const VarDecl *FD) {
   builder.setInsertionPointToStart(module.getBody());
   // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
   // TODO handle proper global linkage
-  auto lnk = LLVM::Linkage::External;
   // builder.getStringAttr("public")
   auto globalOp = builder.create<mlir::GlobalMemrefOp>(
       module.getLoc(), FD->getName(), mlir::StringAttr(),
