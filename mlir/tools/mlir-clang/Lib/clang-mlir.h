@@ -319,14 +319,11 @@ private:
 
   bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                     bool forwardLoop);
+  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                     bool forwardLoop);
+  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
-  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr,
-                       bool &forwardLoop);
+  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr);
 
   void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
                        const AffineLoopDescriptor &descr);
