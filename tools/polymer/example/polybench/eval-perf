@@ -91,8 +91,8 @@ function run_pluto()
   # Compile Pluto generated code
   clang "${PLUTO_SRC_FILE}" -O3 "${CLANG_OPTIONS}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
-  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -o "${PLUTO_EXE_FILE}" -lm \
-    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET
+  clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 "${CLANG_OPTIONS}" -o "${PLUTO_EXE_FILE}" -lm \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Pluto-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
@@ -126,6 +126,7 @@ function run_polymer()
 
   local SRC_DIR="$(dirname "${SRC_FILE}")"
 
+  cd "${SRC_DIR}" >/dev/null 2>&1
   if [ "${SKIP_CODEGEN}" = "false" ]; then
     # Generate Polymer optimized MLIR code.
     polymer-opt -reg2mem -extract-scop-stmt -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" -canonicalize \
@@ -134,14 +135,17 @@ function run_polymer()
     mlir-opt -lower-affine -convert-scf-to-std -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
       mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
   fi
-  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -o "${POLYMER_EXE_FILE}" -I "${UTILITIES_DIR}" -lm \
-    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET 
+
+  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 "${CLANG_OPTIONS}" -o "${POLYMER_EXE_FILE}" -I "${UTILITIES_DIR}" -lm \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Polymer-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
     eval $__RESULT_POLYMER_RUN_TIME="$("${POLYMER_EXE_FILE}")"
   fi
   eval $__RESULT_POLYMER_EXE_FILE="${POLYMER_EXE_FILE}"
+
+  cd - >/dev/null 2>&1
 }
 
 if [ -f "${TEST_CASE}" ]; then
