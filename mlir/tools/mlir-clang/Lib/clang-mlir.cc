@@ -1188,30 +1188,6 @@ bool hasAffineArith(Operation *op, AffineExpr &expr,
   return hasAffineArith(nonCstOperand.getDefiningOp(), expr, affineForIndVar);
 }
 
-/// An index is valid if:
-/// - it is an index type
-/// - it is in an affine scope (i.e., the parent is an affine.for)
-/// - it is the result of multiplications or additions with
-/// constant values
-bool MLIRScanner::isValidIndex(mlir::Value index,
-                               std::vector<mlir::Value> &newIndexes) {
-  if (!index.getType().isIndex())
-    return false;
-  if (auto *defOp = index.getDefiningOp()) {
-    if (!isInAffineScope(defOp))
-      return false;
-    AffineExpr i;
-    bindDims(defOp->getContext(), i);
-    mlir::Value affineForIndVar = nullptr;
-    if (!hasAffineArith(defOp, i, affineForIndVar))
-      return false;
-    auto newIndex = builder.create<mlir::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, i), affineForIndVar);
-    newIndexes.push_back(newIndex);
-  }
-  return true;
-}
-
 ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto lhs = Visit(BO->getLHS());
   if (!lhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {

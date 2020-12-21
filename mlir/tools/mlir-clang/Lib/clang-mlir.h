@@ -394,8 +394,6 @@ public:
                            mlir::Value lb, mlir::Value ub,
                            const AffineLoopDescriptor &descr);
 
-  bool isValidIndex(mlir::Value index, std::vector<mlir::Value> &newIndexes);
-
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
