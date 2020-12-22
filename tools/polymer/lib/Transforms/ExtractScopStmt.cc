@@ -59,7 +59,6 @@ static mlir::Value
 insertScratchpadForInterprocUses(mlir::Operation *defOp,
                                  mlir::Operation *defInCalleeOp,
                                  CalleeToCallersMap &calleeToCallers,
-
                                  mlir::FuncOp topLevelFun, OpBuilder &b) {
   assert(defOp->getNumResults() == 1);
   assert(topLevelFun.getBlocks().size() != 0);
@@ -125,6 +124,42 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
   return memref;
 }
 
+/// Check is there any load in the use-def chains of op loads from a memref that
+/// is later updated by a store op that dominates the current op. We should use
+/// a proper RAW checker for this purpose.
+static bool isUpdatedByDominatingStore(Operation *op, mlir::FuncOp f) {
+  DominanceInfo dom(f);
+
+  llvm::SmallSetVector<Operation *, 8> visited;
+  llvm::SmallVector<Operation *, 8> worklist;
+
+  visited.insert(op);
+  worklist.push_back(op);
+
+  while (!worklist.empty()) {
+    Operation *currOp = worklist.pop_back_val();
+    if (mlir::AffineLoadOp loadOp = dyn_cast<mlir::AffineLoadOp>(currOp)) {
+      Value memref = loadOp.memref();
+
+      for (Operation *userOp : memref.getUsers())
+        if (mlir::AffineStoreOp storeOp = dyn_cast<mlir::AffineStoreOp>(userOp))
+          if (dom.dominates(storeOp, op))
+            return true;
+    }
+
+    for (mlir::Value operand : currOp->getOperands())
+      if (Operation *defOp = operand.getDefiningOp()) {
+        if (visited.contains(defOp))
+          continue;
+
+        visited.insert(defOp);
+        worklist.push_back(defOp);
+      }
+  }
+
+  return false;
+}
+
 /// Get all the ops belongs to a statement starting from the given
 /// operation. The sequence of the operations in defOps will be reversed,
 /// depth-first, starting from op. Note that the initial op will be placed in
@@ -142,7 +177,8 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     Operation *op = worklist.pop_back_val();
 
     // If op is already in another callee.
-    if (!isa<mlir::ConstantOp>(op) && opToCallee[op]) {
+    if (!isa<mlir::ConstantOp>(op) && opToCallee[op] &&
+        isUpdatedByDominatingStore(op, topLevelFun)) {
       OpBuilder::InsertionGuard guard(b);
       mlir::Value scratchpad = insertScratchpadForInterprocUses(
           op, opToCallee[op], calleeToCallers, topLevelFun, b);
