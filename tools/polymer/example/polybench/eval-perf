@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -x
 # Evaluate the performance difference between Pluto and Polymer.
 
 PLUTO_OPTIONS="--noparallel --noprevector --nounrolljam"
@@ -49,6 +49,10 @@ while getopts ":hgspvf:t:" opt; do
 done
 shift $((OPTIND -1))
 
+if [ "${PLUTO_VARIANT}" = "i64" ]; then
+  PLUTO_OPTIONS="${PLUTO_OPTIONS} --indvar_type 64"
+fi 
+
 TEST_CASE="$(cd "$(dirname "${TARGET}")"; pwd)/$(basename "${TARGET}")"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
 UTILITIES_DIR="${DIR}/utilities"
@@ -77,23 +81,12 @@ function run_pluto()
   local PLUTO_SUFFIX=".pluto"
   if [ ! -z "${PLUTO_VARIANT}" ]; then
     PLUTO_SUFFIX="${PLUTO_SUFFIX}.${PLUTO_VARIANT}"
-    SRC_FILE="${SRC_FILE%.c}${PLUTO_SUFFIX}.c"
-  fi
-
-  if [ ! -f "${SRC_FILE}" ]; then
-    echo "Pluto source file ${SRC_FILE} doesn't exist"
-    exit 1
   fi
 
   local __RESULT_PLUTO_EXE_FILE="$2"
   local __RESULT_PLUTO_RUN_TIME="$3"
   local SRC_DIR="$(dirname "${SRC_FILE}")"
-  local PLUTO_SRC_FILE="${SRC_FILE%.c}.pluto.c"
-  # If the variant is provided, we don't need to generate the pluto.c file.
-  if [ ! -z "${PLUTO_VARIANT}" ]; then
-    PLUTO_SRC_FILE="${SRC_FILE}"
-  fi
-
+  local PLUTO_SRC_FILE="${SRC_FILE%.c}${PLUTO_SUFFIX}.c"
   local PLUTO_LLVM_IR_FILE="${PLUTO_SRC_FILE%.c}.ll"
   local PLUTO_EXE_FILE="${PLUTO_SRC_FILE%.c}.exe"
   local POLYCC_LOG="polycc_$(date "+%Y%m%d-%H%M%S").log"
@@ -102,8 +95,8 @@ function run_pluto()
   cd "${SRC_DIR}" >/dev/null 2>&1
 
   # Apply Pluto
-  if [[ "${SKIP_CODEGEN}" = "false" && -z "${PLUTO_VARIANT}" ]]; then
-    polycc "${PLUTO_OPTIONS}" "${SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
+  if [[ "${SKIP_CODEGEN}" = "false" ]]; then
+    polycc "${PLUTO_OPTIONS}" "${SRC_FILE}" -o "${PLUTO_SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
   fi
   if [ ! -f "${PLUTO_SRC_FILE}" ]; then
     echo "Expected Pluto output ${PLUTO_SRC_FILE} does not exist."
