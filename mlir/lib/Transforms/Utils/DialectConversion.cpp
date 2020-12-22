@@ -2276,7 +2276,6 @@ LogicalResult OperationConverter::legalizeErasedResult(
         << "found live user of result #" << result.getResultNumber() << ": "
         << *liveUserIt;
     op->getBlock()->dump();
-    assert(0 && "what");
     return failure();
   }
   return success();
