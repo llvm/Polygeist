@@ -10,7 +10,9 @@ PLUTO_VARIANT=""
 DELETE_WORKDIR="false"
 SKIPPED_TESTS="adi"
 
-while getopts ":hdgsupvf:t:" opt; do 
+OPT_CONFIG="1" # 1 stands for single O3, 2 for double O3
+
+while getopts ":hdgsupvf:t:c:" opt; do 
   case "${opt}" in 
     h ) 
       echo ""
@@ -51,6 +53,9 @@ while getopts ":hdgsupvf:t:" opt; do
       ;;
     u )
       CLANG_NO_UNROLL_OPTIONS=""
+      ;;
+    c )
+      OPT_CONFIG="${OPTARG}"
       ;;
     \? )
       echo "Invalid Option: -$OPTARG" 1>&2
@@ -118,8 +123,14 @@ function run_pluto()
   fi
 
   # Compile Pluto generated code
-  clang "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
-    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
+  if [ "${OPT_CONFIG}" = "1" ]; then
+    clang "${PLUTO_SRC_FILE}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" -O -Xclang -disable-llvm-passes \
+      -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
+  elif [ "${OPT_CONFIG}" = "2" ]; then
+    clang "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
+      -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
+  fi
+
   clang "${PLUTO_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
@@ -163,6 +174,10 @@ function run_polymer()
     # Compile Polymer generated MLIR code.
     mlir-opt -lower-affine -convert-scf-to-std -inline -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
       mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
+  fi
+
+  if [ "${OPT_CONFIG}" = "2" ]; then
+    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" 
   fi
 
   clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -I "${UTILITIES_DIR}" -lm \
