@@ -4,7 +4,7 @@
 
 Two configurations of Polybench C code are properly converted to MLIR code: `SMALL` for sanity check, and `EXTRALARGE` for performance evaluation.
 
-The conversion is done by the front-end implemented in wsmoses/MLIR-GPU.
+The conversion is done by the front-end implemented in wsmoses/MLIR-GPU@1112d5451cea635029a160c950f14a85f31b2258 
 
 ## Sanity check
 
@@ -52,6 +52,8 @@ This will check whether the output are the same among the original MLIR code, SC
                                       Total cases:    30
                                  Successful cases:    30
 ```
+
+This script is also used in the CI workflow: https://github.com/kumasento/polymer/blob/8e8d4f63a32c5b6df80d8faa1b1481e908c24634/.github/workflows/buildAndTest.yml#L164-L167
 
 ## Performance evaluation
 
