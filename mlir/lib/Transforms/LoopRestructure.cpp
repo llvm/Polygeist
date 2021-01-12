@@ -22,6 +22,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 using namespace mlir;
 
@@ -46,6 +47,7 @@ namespace {
 
   struct LoopRestructure : public mlir::LoopRestructureBase<LoopRestructure> {
     void runOnRegion(DominanceInfo &domInfo, Region& region);
+    void removeIfFromRegion(DominanceInfo &domInfo, Region& region, Block* pseudoExit);
     void runOnFunction() override;
   };
 
@@ -83,14 +85,74 @@ void LoopRestructure::runOnFunction() {
   f.dump();
 }
 
+void LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region& region, Block* pseudoExit) {
+  SmallVector<Block*, 4> Preds;
+  for (auto block: pseudoExit->getPredecessors()) {
+    Preds.push_back(block);
+  }
+  SmallVector<Type, 4> emptyTys;
+  SmallVector<Type, 4> condTys;
+  for(auto a : pseudoExit->getArguments()) {
+    condTys.push_back(a.getType());
+  }
+  pseudoExit->dump();
+  if (Preds.size() == 2) {
+    for (size_t i=0; i<Preds.size(); ++i) {
+      SmallVector<Block*, 4> Succs;
+      for (auto block: Preds[i]->getSuccessors()) {
+        Succs.push_back(block);
+      }
+      if (Succs.size() == 2) {
+        for(size_t j=0; j<Succs.size(); ++j) {
+          if (Succs[j] == pseudoExit && Succs[1-j] == Preds[1-i]) {
+            OpBuilder builder(Preds[i]->getTerminator());
+            auto condBr = cast<CondBranchOp>(Preds[i]->getTerminator());
+            auto ifOp = builder.create<scf::IfOp>(builder.getUnknownLoc(), condTys, condBr.getCondition(), /*hasElse*/true);
+            llvm::errs() << condBr << "\n";
+            Succs[j] = new Block();
+            if (j == 0) {
+              ifOp.elseRegion().getBlocks().splice(ifOp.elseRegion().getBlocks().end(), region.getBlocks(), Succs[1-j]);
+              assert(!ifOp.elseRegion().getBlocks().empty());
+              assert(condTys.size() == condBr.getTrueOperands().size());
+              OpBuilder tbuilder(&ifOp.thenRegion().front(),ifOp.thenRegion().front().begin());
+              tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys, condBr.getTrueOperands());
+            } else {
+              if (!ifOp.thenRegion().getBlocks().empty()) {
+                ifOp.thenRegion().front().erase();
+              }
+              ifOp.thenRegion().getBlocks().splice(ifOp.thenRegion().getBlocks().end(), region.getBlocks(), Succs[1-j]);
+              assert(!ifOp.elseRegion().getBlocks().empty());
+              OpBuilder tbuilder(&ifOp.elseRegion().front(),ifOp.elseRegion().front().begin());
+              assert(condTys.size() == condBr.getFalseOperands().size());
+              tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys, condBr.getFalseOperands());
+            }
+            auto oldTerm = Succs[1-j]->getTerminator();
+            OpBuilder tbuilder(Succs[1-j], Succs[1-j]->end());
+            tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys, oldTerm->getOperands());
+            oldTerm->erase();
+
+            SmallVector<Value, 4> res;
+            for(size_t i=1; i<ifOp->getNumResults(); ++i) {
+              res.push_back(ifOp->getResult(i));
+            }
+            builder.create<scf::ConditionOp>(builder.getUnknownLoc(), ifOp->getResult(0), res);
+            condBr->erase();
+
+            pseudoExit->erase();
+            return;
+          }
+        }
+      }
+    }
+  }
+}
+
 void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
   assert(domInfo.dominanceInfos.count(&region) != 0);
   auto DT = domInfo.dominanceInfos[&region].get();
 
   mlir::LoopInfo LI(*DT);
-  llvm::errs() << "calling for region: " << &region << "\n";
   for(auto L : LI.getTopLevelLoops()) {
-    llvm::errs() << " found mlir loop " << *L << "\n";
 
     Block *header = L->getHeader();
     Block *target = L->getUniqueExitBlock();
@@ -147,32 +209,55 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
     SmallVector<Block*, 4> exitingBlocks;
     L->getExitingBlocks(exitingBlocks);
 
+    Block *pseudoExit = new Block();
+    auto i1Ty = builder.getI1Type();
+    {
+    loop.before().push_back(pseudoExit);
+    SmallVector<Type, 4> tys = {i1Ty};
+    for(auto t : combinedTypes) tys.push_back(t);
+    pseudoExit->addArguments(tys);
+    OpBuilder builder(pseudoExit, pseudoExit->begin());
+    tys.clear();
+    builder.create<scf::ConditionOp>(builder.getUnknownLoc(), tys, pseudoExit->getArguments());
+    }
+
 
     for (auto block: exitingBlocks) {
       Operation *terminator = block->getTerminator();
       for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
         Block *successor = terminator->getSuccessor(i);
         if (successor == target) {
-          Block *pseudoExit = new Block();
-          loop.before().push_back(pseudoExit);
-          pseudoExit->addArguments(returns);
 
-          OpBuilder builder(pseudoExit, pseudoExit->begin());
-          auto i1Ty = builder.getI1Type();
-          SmallVector<Type, 4> tys = {i1Ty};
-          SmallVector<Value, 4> args = { builder.create<mlir::ConstantOp>(
-              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0)) };
-          for(auto a : header->getArguments()) {
-            args.push_back(a);
-            tys.push_back(a.getType());
+          OpBuilder builder(terminator);
+          auto vfalse = builder.create<mlir::ConstantOp>(
+              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
+              
+          std::vector<Value> args = { vfalse };
+          for (auto arg : header->getArguments())
+            args.push_back(arg);
+
+          if (auto op = dyn_cast<BranchOp>(terminator)) {
+            args.insert(args.end(), op.getOperands().begin(),
+                                    op.getOperands().end());
+            auto op2 = builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
+            op.erase();
           }
-          for(auto a : pseudoExit->getArguments()) {
-            args.push_back(a);
-            tys.push_back(a.getType());
+          if (auto op = dyn_cast<CondBranchOp>(terminator)) {
+            std::vector<Value> trueargs(op.getTrueOperands().begin(),
+                                        op.getTrueOperands().end());
+            std::vector<Value> falseargs(op.getFalseOperands().begin(),
+                                        op.getFalseOperands().end());
+            if (op.getTrueDest() == target) {
+              trueargs.insert(trueargs.begin(), args.begin(), args.end());
+            }
+            if (op.getFalseDest() == target) {
+              falseargs.insert(falseargs.begin(), args.begin(), args.end());
+            }
+            auto op2 = builder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest() == target ? pseudoExit : op.getTrueDest(), trueargs,
+                                            op.getFalseDest() == target ? pseudoExit : op.getFalseDest(), falseargs);
+            op.erase();
           }
-          tys.clear();
-          builder.create<scf::ConditionOp>(terminator->getLoc(), tys, args);
-          terminator->setSuccessor(pseudoExit, i);
         }
       }
     }
@@ -187,28 +272,43 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
       for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
         Block *successor = terminator->getSuccessor(i);
         if (successor == header) {
-          Block *pseudoLatch = new Block();
-          loop.before().push_back(pseudoLatch);
-          pseudoLatch->addArguments(headerArgumentTypes);
 
-          OpBuilder builder(pseudoLatch, pseudoLatch->begin());
-          auto i1Ty = builder.getI1Type();
-          SmallVector<Type, 4> tys = {i1Ty};
-          SmallVector<Value, 4> args = { builder.create<mlir::ConstantOp>(
-              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 1)) };
-          for(auto a : pseudoLatch->getArguments()) {
-            args.push_back(a);
-            tys.push_back(a.getType());
+          OpBuilder builder(terminator);
+          auto vtrue = builder.create<mlir::ConstantOp>(
+              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 1));
+              
+          if (auto op = dyn_cast<BranchOp>(terminator)) {
+            std::vector<Value> args(op.getOperands().begin(),
+                                    op.getOperands().end());
+            args.insert(args.begin(), vtrue);
+            for(auto ty : returns) {
+              args.push_back(builder.create<mlir::LLVM::UndefOp>(builder.getUnknownLoc(), ty));
+            }
+            auto op2 = builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
+            op.erase();
           }
-          for(auto ty : returns) {
-            args.push_back(builder.create<mlir::ConstantOp>(
-                builder.getUnknownLoc(), ty, builder.getIntegerAttr(ty, 0)));
-            tys.push_back(ty);
+          if (auto op = dyn_cast<CondBranchOp>(terminator)) {
+            std::vector<Value> trueargs(op.getTrueOperands().begin(),
+                                        op.getTrueOperands().end());
+            std::vector<Value> falseargs(op.getFalseOperands().begin(),
+                                        op.getFalseOperands().end());
+            if (op.getTrueDest() == header) {
+              trueargs.insert(trueargs.begin(), vtrue);
+              for(auto ty : returns) {
+                trueargs.push_back(builder.create<mlir::LLVM::UndefOp>(builder.getUnknownLoc(), ty));
+              }
+            }
+            if (op.getFalseDest() == header) {
+              falseargs.insert(falseargs.begin(), vtrue);
+              for(auto ty : returns) {
+                trueargs.push_back(builder.create<mlir::LLVM::UndefOp>(builder.getUnknownLoc(), ty));
+              }
+            }
+            auto op2 = builder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest() == header ? pseudoExit : op.getTrueDest(), trueargs,
+                                            op.getFalseDest() == header ? pseudoExit : op.getFalseDest(), falseargs);
+            op.erase();
           }
-
-          tys.clear();
-          builder.create<scf::ConditionOp>(terminator->getLoc(), tys, args);
-          terminator->setSuccessor(pseudoLatch, i);
         }
       }
     }
@@ -236,6 +336,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
     builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
     domInfo.recalculate(loop.getOperation());
     runOnRegion(domInfo, loop.before());
+    llvm::errs() << loop << "\n";
+    removeIfFromRegion(domInfo, loop.before(), pseudoExit);
 
 	  // Set branches into loop (header) to branch into caller block
     // Note: This breaks the back-edges, which is why we rewrote them earlier
