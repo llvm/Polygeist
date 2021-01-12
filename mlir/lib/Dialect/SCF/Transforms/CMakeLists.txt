@@ -3,6 +3,7 @@ add_mlir_dialect_library(MLIRSCFTransforms
   LoopSpecialization.cpp
   ParallelLoopFusion.cpp
   ParallelLoopTiling.cpp
+	RaiseToAffine.cpp
   StructuralTypeConversions.cpp
   Utils.cpp
 
