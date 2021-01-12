@@ -68,7 +68,11 @@ void RaiseSCFToAffine::runOnFunction() {
   target
       .addLegalDialect<AffineDialect, StandardOpsDialect, LLVM::LLVMDialect>();
 
+<<<<<<< HEAD
   OwningRewritePatternList patterns(&getContext());
+=======
+  OwningRewritePatternList patterns;
+>>>>>>> 4b0d1241bb2a... Add pass to raise scf.for to affine.for
   patterns.insert<ForOpRaising>(&getContext());
 
   if (failed(
