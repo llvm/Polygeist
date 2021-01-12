@@ -44,4 +44,10 @@ def SCFParallelLoopTiling : FunctionPass<"parallel-loop-tiling"> {
   let dependentDialects = ["AffineDialect"];
 }
 
+def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
+	let summary = "Raise SCF to affine";
+	let constructor = "mlir::createRaiseSCFToAffinePass()";
+	let dependentDialects = ["AffineDialect"];
+}
+
 #endif // MLIR_DIALECT_SCF_PASSES

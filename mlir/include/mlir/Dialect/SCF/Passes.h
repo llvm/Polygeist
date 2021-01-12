@@ -35,6 +35,9 @@ std::unique_ptr<Pass> createParallelLoopSpecializationPass();
 std::unique_ptr<Pass>
 createParallelLoopTilingPass(llvm::ArrayRef<int64_t> tileSize = {});
 
+/// Creates a pass which raise SCF to Affine
+std::unique_ptr<Pass> createRaiseSCFToAffinePass();
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//
