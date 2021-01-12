@@ -188,6 +188,11 @@ def ForOp : SCF_Op<"for",
 
     /// Number of induction variables, always 1 for scf::ForOp.
     unsigned getNumInductionVars() { return 1; }
+
+    Value getLowerBound() { return getOperation()->getOperand(0); } 
+    Value getUpperBound() { return getOperation()->getOperand(1); }
+    Value getStep() { return getOperation()->getOperand(2); }
+
     /// Number of region arguments for loop-carried values
     unsigned getNumRegionIterArgs() {
       return getBody()->getNumArguments() - getNumInductionVars();
