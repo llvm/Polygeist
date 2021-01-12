@@ -425,7 +425,7 @@ void AffineCFGPass::runOnFunction() {
     replaceLoad(load, newIndices);
   });
 
-  // getFunction().dump();
+  getFunction().dump();
   {
     OwningRewritePatternList rpl;
     rpl.insert<SimplfyIntegerCastMath>(getFunction().getContext());

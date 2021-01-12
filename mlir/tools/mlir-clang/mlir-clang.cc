@@ -18,6 +18,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
+static cl::opt<std::string> Standard("std", cl::init(""),
+                              cl::desc("C/C++ std"));
+
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                            cl::desc("<Specify input file>"),
                                            cl::cat(toolOptions));
@@ -93,6 +96,7 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createMem2RegPass());
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createLoopRestructurePass());
   // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::replaceAffineCFGPass());
   optPM.addPass(mlir::createCanonicalizerPass());

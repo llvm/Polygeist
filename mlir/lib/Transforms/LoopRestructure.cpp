@@ -76,9 +76,11 @@ template class llvm::LoopInfoBase<::mlir::Block, ::mlir::Loop>;
 void LoopRestructure::runOnFunction() {
   FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
+  f.dump();
   if (auto region = getOperation().getCallableRegion()) {
 	  runOnRegion(domInfo, *region);
   }
+  f.dump();
 }
 
 void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
@@ -87,7 +89,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
 
   mlir::LoopInfo LI(*DT);
   llvm::errs() << "calling for region: " << &region << "\n";
-  for(auto L : LI) {
+  for(auto L : LI.getTopLevelLoops()) {
     llvm::errs() << " found mlir loop " << *L << "\n";
 
     Block *header = L->getHeader();
@@ -100,8 +102,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
     //  - Easy case all exit blocks have the same argument set
 
 	  // Create a caller block that will contain the loop op
-    Block *wrapper = new Block();
-    wrapper->insertBefore(header);
+
+    Block* wrapper = new Block();
+    region.push_back(wrapper);
+    mlir::OpBuilder builder(wrapper, wrapper->begin());
 
     // Copy the arguments across
     SmallVector<Type, 4> headerArgumentTypes;
@@ -110,35 +114,68 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
     }
     wrapper->addArguments(headerArgumentTypes);
 
+    SmallVector<Type, 4> combinedTypes(headerArgumentTypes.begin(), headerArgumentTypes.end());
     SmallVector<Type, 4> returns;
     for (auto arg: target->getArguments()) {
       returns.push_back(arg.getType());
+      combinedTypes.push_back(arg.getType());
     }
-    // now cut the loop from the environment
-    SmallVector<Block*, 8> newBlocks;
+
+    auto loop = builder.create<mlir::scf::WhileOp>(builder.getUnknownLoc(), combinedTypes, wrapper->getArguments());
+    SmallVector<Value, 4> RetVals;
+    for(size_t i=0; i<returns.size(); ++i) {
+      RetVals.push_back(loop.getResult(i+headerArgumentTypes.size()));
+    }
+    builder.create<BranchOp>(builder.getUnknownLoc(), target, RetVals);
+
+    SmallVector<Block*, 4> Preds;
+
+    for (auto block: header->getPredecessors()) {
+      if (!L->contains(block))
+        Preds.push_back(block);
+    }
+
+    loop.before().getBlocks().splice(loop.before().getBlocks().begin(), region.getBlocks(), header);
+    for (Block* b : L->getBlocks()) {
+      if (b != header) {
+        loop.before().getBlocks().splice(loop.before().getBlocks().end(), region.getBlocks(), b);
+      }
+    }
 
     // Replace branch to exit block with a new block that calls loop.natural.return
     // In caller block, branch to correct exit block
     SmallVector<Block*, 4> exitingBlocks;
     L->getExitingBlocks(exitingBlocks);
-    /* // TODO
+
+
     for (auto block: exitingBlocks) {
       Operation *terminator = block->getTerminator();
       for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
         Block *successor = terminator->getSuccessor(i);
         if (successor == target) {
           Block *pseudoExit = new Block();
-          pseudoExit->insertBefore(target);
+          loop.before().push_back(pseudoExit);
           pseudoExit->addArguments(returns);
 
-          OpBuilder builder(pseudoExit);
-          builder.create<scf::NaturalReturnOp>(terminator->getLoc(), returns, pseudoExit->getArguments());
+          OpBuilder builder(pseudoExit, pseudoExit->begin());
+          auto i1Ty = builder.getI1Type();
+          SmallVector<Type, 4> tys = {i1Ty};
+          SmallVector<Value, 4> args = { builder.create<mlir::ConstantOp>(
+              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0)) };
+          for(auto a : header->getArguments()) {
+            args.push_back(a);
+            tys.push_back(a.getType());
+          }
+          for(auto a : pseudoExit->getArguments()) {
+            args.push_back(a);
+            tys.push_back(a.getType());
+          }
+          tys.clear();
+          builder.create<scf::ConditionOp>(terminator->getLoc(), tys, args);
           terminator->setSuccessor(pseudoExit, i);
-          newBlocks.push_back(pseudoExit);
         }
       }
     }
-    */
 
     // For each back edge create a new block and replace
     // the destination of that edge with said new block
@@ -151,24 +188,61 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
         Block *successor = terminator->getSuccessor(i);
         if (successor == header) {
           Block *pseudoLatch = new Block();
-          pseudoLatch->insertBefore(target);
+          loop.before().push_back(pseudoLatch);
           pseudoLatch->addArguments(headerArgumentTypes);
 
           OpBuilder builder(pseudoLatch, pseudoLatch->begin());
-          builder.create<scf::YieldOp>(terminator->getLoc(), returns, pseudoLatch->getArguments());
+          auto i1Ty = builder.getI1Type();
+          SmallVector<Type, 4> tys = {i1Ty};
+          SmallVector<Value, 4> args = { builder.create<mlir::ConstantOp>(
+              builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 1)) };
+          for(auto a : pseudoLatch->getArguments()) {
+            args.push_back(a);
+            tys.push_back(a.getType());
+          }
+          for(auto ty : returns) {
+            args.push_back(builder.create<mlir::ConstantOp>(
+                builder.getUnknownLoc(), ty, builder.getIntegerAttr(ty, 0)));
+            tys.push_back(ty);
+          }
+
+          tys.clear();
+          builder.create<scf::ConditionOp>(terminator->getLoc(), tys, args);
           terminator->setSuccessor(pseudoLatch, i);
-          newBlocks.push_back(pseudoLatch);
         }
       }
     }
 
+    Block* after = new Block();
+    after->addArguments(headerArgumentTypes);
+    loop.after().push_back(after);
+    OpBuilder builder2(after, after->begin());
+    SmallVector<Value, 4> yieldargs;
+    for(auto a : after->getArguments()) {
+      if (yieldargs.size() == headerArgumentTypes.size()) break;
+      yieldargs.push_back(a);
+    }
+
+    for (auto block: Preds) {
+      Operation *terminator = block->getTerminator();
+      for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
+        Block *successor = terminator->getSuccessor(i);
+        if (successor == header) {
+          terminator->setSuccessor(wrapper, i);
+        }
+      }
+    }
+
+    builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
+    domInfo.recalculate(loop.getOperation());
+    runOnRegion(domInfo, loop.before());
+
 	  // Set branches into loop (header) to branch into caller block
     // Note: This breaks the back-edges, which is why we rewrote them earlier
-    header->replaceAllUsesWith(wrapper);
+    // header->replaceAllUsesWith(wrapper);
 
     // Create loop operation in caller block
 
-	  OpBuilder builder(wrapper, wrapper->begin());
     
     /*
     auto loop = builder.create<scf::ForOp>(header->front().getLoc(), returns, wrapper->getArguments());

@@ -2143,7 +2143,9 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       globalVariables[fd->getName().str()] = fd;
     }
     if (FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it)) {
-      globalFunctions[fd->getName().str()] = fd;
+      if (fd->getIdentifier()) {
+        globalFunctions[fd->getName().str()] = fd;
+      }
     }
   }
 
@@ -2339,7 +2341,8 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   //    Clang->setInvocation(std::shared_ptr<CompilerInvocation>(invocation));
   bool Success;
   //{
-  const char *binary = "clang";
+  const char *binary = CudaLower ? "clang++" : "clang";
+  llvm::errs() << "binary: " << binary << "\n";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
@@ -2352,6 +2355,13 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   }
   if (CudaLower)
     Argv.push_back("--cuda-gpu-arch=sm_35");
+  if (Standard != "") {
+    auto a = "-std=" + Standard;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
   for (auto a : includeDirs) {
     Argv.push_back("-I");
     char *chars = (char *)malloc(a.length() + 1);
