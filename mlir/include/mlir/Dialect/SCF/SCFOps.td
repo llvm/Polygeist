@@ -182,6 +182,10 @@ def ForOp : SCF_Op<"for",
     void setUpperBound(Value bound) { getOperation()->setOperand(1, bound); }
     void setStep(Value step) { getOperation()->setOperand(2, step); }
 
+		Value getLowerBound() { return getOperation()->getOperand(0); }
+		Value getUpperBound() { return getOperation()->getOperand(1); }
+		Value getStep() { return getOperation()->getOperand(2); }
+
     /// Number of region arguments for loop-carried values
     unsigned getNumRegionIterArgs() {
       return getBody()->getNumArguments() - 1;
