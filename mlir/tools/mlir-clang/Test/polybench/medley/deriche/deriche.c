@@ -204,7 +204,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:   func @kernel_derichee(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
+// CHECK:   func @kernel_deriche(%arg0: i32, %arg1: i32, %arg2: f32, %arg3: memref<4096x2160xf32>, %arg4: memref<4096x2160xf32>, %arg5: memref<4096x2160xf32>, %arg6: memref<4096x2160xf32>) {
 // CHECK-NEXT:      %c0 = constant 0 : index
 // CHECK-NEXT:      %cst = constant 1.000000e+00 : f32
 // CHECK-NEXT:      %cst_0 = constant 2.000000e+00 : f32
