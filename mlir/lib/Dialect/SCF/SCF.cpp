@@ -150,7 +150,7 @@ static LogicalResult verify(ForOp op) {
 ///   <prefix>(%inner = %outer, %inner2 = %outer2, <...>)
 /// where 'inner' values are assumed to be region arguments and 'outer' values
 /// are regular SSA values.
-static void printInitializationList(OpAsmPrinter &p,
+static void  printInitializationList(OpAsmPrinter &p,
                                     Block::BlockArgListType blocksArgs,
                                     ValueRange initializers,
                                     StringRef prefix = "") {
@@ -887,7 +887,122 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
     return changed ? success() : failure();
   }
 };
+
+struct MoveWhileDown : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    if (auto ifOp = term.condition().getDefiningOp<scf::IfOp>()) {
+      if (ifOp.getNumResults() != term.args().size() + 1) return failure();
+      if (ifOp.getResult(0) != term.condition()) return failure();
+      for (size_t i=1; i<ifOp.getNumResults(); ++i) {
+        if (ifOp.getResult(i) != term.args()[i-1]) return failure();
+      }
+      auto yield1 = cast<scf::YieldOp>(ifOp.thenRegion().front().getTerminator());
+      auto yield2 = cast<scf::YieldOp>(ifOp.elseRegion().front().getTerminator());
+      if (auto cop = yield1.getOperand(0).getDefiningOp<ConstantOp>()) {
+        if (cop.getValue().cast<IntegerAttr>().getValue() == 0) return failure();
+      } else return failure();
+      if (auto cop = yield2.getOperand(0).getDefiningOp<ConstantOp>()) {
+        if (cop.getValue().cast<IntegerAttr>().getValue() != 0) return failure();
+      } else return failure();
+      if (ifOp.elseRegion().front().getOperations().size() != 1) return failure();
+      op.after().front().getOperations().splice(op.after().front().begin(), ifOp.thenRegion().front().getOperations());
+      term.conditionMutable().assign(ifOp.condition());
+      SmallVector<Value, 2> args;
+      for(size_t i=1; i<yield2.getNumOperands(); ++i) {
+        args.push_back(yield2.getOperand(i));
+      }
+      term.argsMutable().assign(args);
+      rewriter.eraseOp(yield2);
+      rewriter.eraseOp(ifOp);
+
+      for (size_t i=0; i<op.after().front().getNumArguments(); ++i) {
+        op.after().front().getArgument(i).replaceAllUsesWith(yield1.getOperand(i+1));
+      }
+      rewriter.eraseOp(yield1);
+      //TODO move operands from begin to after
+      SmallVector<Value> todo(op.before().front().getArguments().begin(), op.before().front().getArguments().end());
+      for(auto &op : op.before().front()) {
+        for(auto res : op.getResults()) {
+          todo.push_back(res);
+        }
+      }
+      for(auto val : todo) {
+        auto na = op.after().front().addArgument(val.getType());
+        val.replaceUsesWithIf(na, [&](OpOperand& u) -> bool {
+          return op.after().isAncestor(u.getOwner()->getParentRegion());
+        });
+        args.push_back(val);
+      }
+      term.argsMutable().assign(args);
+
+      SmallVector<Type, 4> tys;
+      for(auto a : args) tys.push_back(a.getType());
+
+      auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
+      op2.before().takeBody(op.before());
+      op2.after().takeBody(op.after());
+      SmallVector<Value, 4> replacements;
+      for(auto a : op2.getResults()) {
+        if (replacements.size() == op.getResults().size()) break;
+        replacements.push_back(a);
+      }
+      rewriter.replaceOp(op, replacements);
+      return success();
+    }
+    return failure();
+  }
+};
+
+struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    SmallVector<Value, 4> conds;
+    SmallVector<unsigned, 4> eraseArgs;
+    SmallVector<unsigned, 4> keepArgs;
+    SmallVector<Type, 4> tys;
+    unsigned i=0;
+    for(auto arg : term.args()) {
+      if (op.after().front().getArgument(i).use_empty() &&
+          op.getResult(i).use_empty()) {
+        eraseArgs.push_back((unsigned)i);
+      } else {
+        conds.push_back(arg);
+        keepArgs.push_back((unsigned)i);
+        tys.push_back(arg.getType());
+      }
+      i++;
+    }
+    if (eraseArgs.size() != 0) {
+      auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
+      op2.before().takeBody(op.before());
+      op2.after().takeBody(op.after());
+      unsigned j=0;
+      for(auto i : keepArgs) {
+        op.getResult(i).replaceAllUsesWith(op2.getResult(j));
+        j++;
+      }
+      rewriter.eraseOp(op);
+      rewriter.setInsertionPoint(term);
+      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(), conds);
+      op2.after().front().eraseArguments(eraseArgs);
+      return success();
+    }
+    return failure();
+  }
+};
 } // namespace
+
+void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                       MLIRContext *context) {
+  results.insert<MoveWhileDown, RemoveUnusedCondVar>(context);
+}
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {

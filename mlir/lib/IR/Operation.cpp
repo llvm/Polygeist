@@ -950,8 +950,10 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
 LogicalResult OpTrait::impl::verifyIsTerminator(Operation *op) {
   Block *block = op->getBlock();
   // Verify that the operation is at the end of the respective parent block.
-  if (!block || &block->back() != op)
+  if (!block || &block->back() != op) {
+    block->dump();
     return op->emitOpError("must be the last operation in the parent block");
+  }
   return success();
 }
 

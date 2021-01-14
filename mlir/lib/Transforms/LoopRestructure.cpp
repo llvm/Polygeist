@@ -78,11 +78,9 @@ template class llvm::LoopInfoBase<::mlir::Block, ::mlir::Loop>;
 void LoopRestructure::runOnFunction() {
   FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
-  f.dump();
   if (auto region = getOperation().getCallableRegion()) {
 	  runOnRegion(domInfo, *region);
   }
-  f.dump();
 }
 
 bool attemptToFoldIntoPredecessor(Block* target) {
@@ -113,7 +111,6 @@ void LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region& region,
   for(auto a : pseudoExit->getArguments()) {
     condTys.push_back(a.getType());
   }
-  pseudoExit->dump();
   if (Preds.size() == 2) {
     for (size_t i=0; i<Preds.size(); ++i) {
       SmallVector<Block*, 4> Succs;
@@ -126,7 +123,6 @@ void LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region& region,
             OpBuilder builder(Preds[i]->getTerminator());
             auto condBr = cast<CondBranchOp>(Preds[i]->getTerminator());
             auto ifOp = builder.create<scf::IfOp>(builder.getUnknownLoc(), condTys, condBr.getCondition(), /*hasElse*/true);
-            llvm::errs() << condBr << "\n";
             Succs[j] = new Block();
             if (j == 0) {
               ifOp.elseRegion().getBlocks().splice(ifOp.elseRegion().getBlocks().end(), region.getBlocks(), Succs[1-j]);
@@ -376,12 +372,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region& region) {
     builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
     domInfo.recalculate(loop.getOperation());
     runOnRegion(domInfo, loop.before());
-    llvm::errs() << loop << "\n";
     removeIfFromRegion(domInfo, loop.before(), pseudoExit);
 
     attemptToFoldIntoPredecessor(wrapper);
     attemptToFoldIntoPredecessor(target);
-    loop.dump();
     assert(loop.before().getBlocks().size() == 1);
   }
 }
