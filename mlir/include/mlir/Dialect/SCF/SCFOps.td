@@ -580,6 +580,7 @@ def WhileOp : SCF_Op<"while",
   let extraClassDeclaration = [{
     OperandRange getSuccessorEntryOperands(unsigned index);
   }];
+  let hasCanonicalizer = 1;
 }
 
 def YieldOp : SCF_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
