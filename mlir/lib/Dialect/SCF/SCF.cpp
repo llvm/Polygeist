@@ -968,25 +968,34 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
     SmallVector<unsigned, 4> keepArgs;
     SmallVector<Type, 4> tys;
     unsigned i=0;
+    std::map<void*, unsigned> valueOffsets;
+    std::map<unsigned, unsigned> resultOffsets;
+    SmallVector<Value, 4> resultArgs;
     for(auto arg : term.args()) {
       if (op.after().front().getArgument(i).use_empty() &&
           op.getResult(i).use_empty()) {
         eraseArgs.push_back((unsigned)i);
+      } else if (valueOffsets.find(arg.getAsOpaquePointer()) != valueOffsets.end()) {
+        resultOffsets[i] = valueOffsets[arg.getAsOpaquePointer()];
+        op.after().front().getArgument(i).replaceAllUsesWith(resultArgs[valueOffsets[arg.getAsOpaquePointer()]]);
+        eraseArgs.push_back((unsigned)i);
       } else {
+        valueOffsets[arg.getAsOpaquePointer()] = keepArgs.size();
+        resultOffsets[i] = keepArgs.size();
+        resultArgs.push_back(op.after().front().getArgument(i));
         conds.push_back(arg);
         keepArgs.push_back((unsigned)i);
         tys.push_back(arg.getType());
       }
       i++;
     }
+
     if (eraseArgs.size() != 0) {
       auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
       op2.before().takeBody(op.before());
       op2.after().takeBody(op.after());
-      unsigned j=0;
-      for(auto i : keepArgs) {
-        op.getResult(i).replaceAllUsesWith(op2.getResult(j));
-        j++;
+      for(auto pair : resultOffsets) {
+        op.getResult(pair.first).replaceAllUsesWith(op2.getResult(pair.second));
       }
       rewriter.eraseOp(op);
       rewriter.setInsertionPoint(term);
@@ -997,11 +1006,57 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
     return failure();
   }
 };
+
+struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    SmallVector<Value, 4> conds(term.args().begin(), term.args().end());
+    bool changed = false;
+    unsigned i=0;
+    for(auto arg : term.args()) {
+      if (auto IC = arg.getDefiningOp<IndexCastOp>()) {
+        if (arg.hasOneUse() && op.getResult(i).use_empty()) {
+          auto rep = op.after().front().addArgument(IC->getOperand(0).getType());
+          IC->moveBefore(&op.after().front(), op.after().front().begin());
+          conds.push_back(IC.in());
+          IC.inMutable().assign(rep);
+          op.after().front().getArgument(i).replaceAllUsesWith(IC->getResult(0));
+          changed = true;
+        }
+      }
+      i++;
+    }
+    if (changed) {
+      SmallVector<Type, 4> tys;
+      for(auto arg : conds) {
+        tys.push_back(arg.getType());
+      }
+      auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
+      op2.before().takeBody(op.before());
+      op2.after().takeBody(op.after());
+      unsigned j=0;
+      for(auto a : op.getResults()) {
+        a.replaceAllUsesWith(op2.getResult(j));
+        j++;
+      }
+      rewriter.eraseOp(op);
+      rewriter.setInsertionPoint(term);
+      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(), conds);
+      return success();
+    }
+    return failure();
+  }
+};
+
+
 } // namespace
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<MoveWhileDown, RemoveUnusedCondVar>(context);
+  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
