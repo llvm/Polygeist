@@ -44,4 +44,9 @@ def SCFParallelLoopTiling : FunctionPass<"parallel-loop-tiling"> {
   let dependentDialects = ["AffineDialect"];
 }
 
+def SCFWhileToSCFFor : FunctionPass<"scf-while-to-scf-for"> {
+  let summary = "Covert SCF while op to SCF for op";
+  let constructor = "mlir::createWhileOpToForOpPass()";
+}
+
 #endif // MLIR_DIALECT_SCF_PASSES

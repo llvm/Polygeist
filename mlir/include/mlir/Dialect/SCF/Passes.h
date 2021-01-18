@@ -35,6 +35,9 @@ std::unique_ptr<Pass> createParallelLoopSpecializationPass();
 std::unique_ptr<Pass>
 createParallelLoopTilingPass(llvm::ArrayRef<int64_t> tileSize = {});
 
+/// Convert scf.while to scf.for.
+std::unique_ptr<Pass> createWhileOpToForOpPass();
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//
