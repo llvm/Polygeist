@@ -27,8 +27,8 @@ using namespace clang;
 using namespace mlir;
 
 struct LoopContext {
-  mlir::Block *condB;
-  mlir::Block *exitB;
+  mlir::Value keepRunning;
+  mlir::Value noBreak;
 };
 
 struct AffineLoopDescriptor {
@@ -331,6 +331,11 @@ private:
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
                            const AffineLoopDescriptor &descr);
+  std::vector<Block*> prevBlock;
+  std::vector<Block::iterator> prevIterator;
+public:
+  void pushLoopIf();
+  void popLoopIf();
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
@@ -378,7 +383,7 @@ public:
       } else
         builder.create<mlir::ReturnOp>(loc);
     }
-    // function.dump();
+    //function.dump();
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
