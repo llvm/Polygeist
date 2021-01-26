@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
 
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+  if (true) {
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createMem2RegPass());
   optPM.addPass(mlir::createCSEPass());
@@ -141,6 +142,7 @@ int main(int argc, char **argv) {
   // module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
+  }
   }
 
   if (EmitLLVM) {
