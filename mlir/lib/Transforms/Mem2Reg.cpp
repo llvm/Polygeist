@@ -293,6 +293,7 @@ bool Mem2Reg::forwardStoreToLoad(
     reachableBlocks.erase(blk);
   }
 
+
   {
     std::deque<Block *> todo(reachableBlocks.begin(), reachableBlocks.end());
     while (todo.size()) {
@@ -437,6 +438,7 @@ bool Mem2Reg::forwardStoreToLoad(
               pval = nullptr;
           }
         } else {
+          llvm::errs() << *pred->getParent()->getParentOp() << "\n";
           pred->dump();
           block->dump();
           assert(0 && "unknown branch");
@@ -659,6 +661,7 @@ void Mem2Reg::runOnFunction() {
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+        f.dump();
       }
       memrefsToErase.insert(AI);
     }
