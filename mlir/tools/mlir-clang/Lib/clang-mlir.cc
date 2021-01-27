@@ -395,7 +395,6 @@ void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
 
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   IfScope scope(*this);
-  
   scopes.emplace_back();
 
   auto loc = getMLIRLocation(fors->getForLoc());
@@ -412,10 +411,10 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
 
     auto i1Ty = builder.getIntegerType(1);
     auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-    auto falsev = builder.create<mlir::ConstantOp>(
-      loc, i1Ty, builder.getIntegerAttr(i1Ty, 0));
+    auto truev = builder.create<mlir::ConstantOp>(
+      loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
     loops.push_back((LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type), builder.create<mlir::memref::AllocaOp>(loc, type)});
-    builder.create<mlir::memref::StoreOp>(loc, falsev, loops.back().noBreak);
+    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
 
     auto toadd = builder.getInsertionBlock()->getParent();
     auto &condB = *(new Block());
@@ -2263,7 +2262,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   void MLIRScanner::popLoopIf() {
     if (loops.size() && loops.back().keepRunning) {
       builder.create<scf::YieldOp>(loc);
-      builder.getInsertionBlock()->dump();
       builder.setInsertionPoint(prevBlock.back(), prevIterator.back());
       prevBlock.pop_back();
       prevIterator.pop_back();
@@ -2326,7 +2324,8 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
 
   bool Success;
-  const char *binary = "clang";
+  //{
+  const char *binary = CudaLower ? "clang++" : "clang";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
