@@ -76,7 +76,6 @@ mlir::Type MLIRScanner::getLLVMTypeFromMLIRType(mlir::Type t) {
   if (auto it = t.dyn_cast<mlir::IntegerType>()) {
     return mlir::LLVM::LLVMIntegerType::get(t.getContext(), it.getWidth());
   }
-  // t.dump();
   assert(0 && "unhandled mlir=>llvm type");
 }
 
@@ -393,7 +392,6 @@ void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
 
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   IfScope scope(*this);
-  // fors->dump();
   scopes.emplace_back();
 
   auto loc = getMLIRLocation(fors->getForLoc());
@@ -410,10 +408,10 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
 
     auto i1Ty = builder.getIntegerType(1);
     auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-    auto falsev = builder.create<mlir::ConstantOp>(
-      loc, i1Ty, builder.getIntegerAttr(i1Ty, 0));
+    auto truev = builder.create<mlir::ConstantOp>(
+      loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
     loops.push_back((LoopContext){builder.create<mlir::AllocaOp>(loc, type), builder.create<mlir::AllocaOp>(loc, type)});
-    builder.create<mlir::StoreOp>(loc, falsev, loops.back().noBreak);
+    builder.create<mlir::StoreOp>(loc, truev, loops.back().noBreak);
 
     auto toadd = builder.getInsertionBlock()->getParent();
     auto &condB = *(new Block());
@@ -1610,7 +1608,6 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     }
   }
   auto base = Visit(ME->getBase());
-  // ME->getBase()->getType().getDesugaredType(Glob.astContext)->dump();
   auto rd = cast<RecordType>(
                 ME->getBase()->getType().getDesugaredType(Glob.astContext))
                 ->getDecl();
@@ -2300,7 +2297,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   void MLIRScanner::popLoopIf() {
     if (loops.size() && loops.back().keepRunning) {
       builder.create<scf::YieldOp>(loc);
-      builder.getInsertionBlock()->dump();
       builder.setInsertionPoint(prevBlock.back(), prevIterator.back());
       prevBlock.pop_back();
       prevIterator.pop_back();
@@ -2403,7 +2399,6 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   bool Success;
   //{
   const char *binary = CudaLower ? "clang++" : "clang";
-  llvm::errs() << "binary: " << binary << "\n";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
@@ -2532,7 +2527,6 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
         assert(Clang->hasSourceManager());
 
         Act.EndSourceFile();
-        // llvm::errs() << "ended source file\n";
       }
     }
     DL = Clang->getTarget().getDataLayout();

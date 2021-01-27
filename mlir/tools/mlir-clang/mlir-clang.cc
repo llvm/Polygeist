@@ -88,7 +88,6 @@ int main(int argc, char **argv) {
   parseMLIR(inputFileName, cfunction, includeDirs, defines, module, triple, DL);
 
   mlir::PassManager pm(&context);
-  // module.dump();
 
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();

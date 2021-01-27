@@ -660,7 +660,6 @@ void Mem2Reg::runOnFunction() {
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-        f.dump();
       }
       memrefsToErase.insert(AI);
     }
