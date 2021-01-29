@@ -610,6 +610,9 @@ def WhileOp : SCF_Op<"while",
     OperandRange getSuccessorEntryOperands(unsigned index);
     ConditionOp getConditionOp();
     Block::BlockArgListType getAfterArguments();
+    Value getOperandAtPos(unsigned index); 
+    bool isWhile();
+    bool isDoWhile() { return !isWhile(); }
   }];
 
   let hasCanonicalizer = 1;
