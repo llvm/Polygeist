@@ -2222,6 +2222,10 @@ bool WhileOp::isWhile() {
   return hasCondOp;
 }
 
+Value WhileOp::getOperandAtPos(unsigned index) {
+  return getOperand(index);
+}
+
 OperandRange WhileOp::getSuccessorEntryOperands(unsigned index) {
   assert(index == 0 &&
          "WhileOp is expected to branch only to the first region");
