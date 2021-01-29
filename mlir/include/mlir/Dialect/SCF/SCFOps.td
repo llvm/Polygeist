@@ -575,6 +575,9 @@ def WhileOp : SCF_Op<"while",
 
   let extraClassDeclaration = [{
     OperandRange getSuccessorEntryOperands(unsigned index);
+    Value getOperandAtPos(unsigned index); 
+    bool isWhile();
+    bool isDoWhile() { return !isWhile(); }
   }];
   let hasCanonicalizer = 1;
 }
