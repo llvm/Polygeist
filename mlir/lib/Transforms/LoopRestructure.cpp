@@ -26,7 +26,7 @@
 
 using namespace mlir;
 
-#define DEBUG_TYPE "NaturalLoops"
+#define DEBUG_TYPE "LoopRestructure"
 
 template <>
 struct llvm::GraphTraits<const mlir::Block *> {
@@ -85,6 +85,7 @@ void LoopRestructure::runOnFunction() {
   if (auto region = getOperation().getCallableRegion()) {
     runOnRegion(domInfo, *region);
   }
+  f.dump();
 }
 
 bool attemptToFoldIntoPredecessor(Block *target) {

@@ -30,6 +30,16 @@ using namespace mlir;
 
 #define DEBUG_TYPE "clang-mlir"
 
+class IfScope {
+  public:
+  MLIRScanner& scanner;
+  IfScope(MLIRScanner& scanner) : scanner(scanner) {
+    scanner.pushLoopIf();
+  }
+  ~IfScope() {
+    scanner.popLoopIf();
+  }
+};
 void MLIRScanner::setValue(std::string name, ValueWithOffsets &&val) {
   auto z = scopes.back().emplace(name, val);
   assert(z.second);
@@ -66,7 +76,6 @@ mlir::Type MLIRScanner::getLLVMTypeFromMLIRType(mlir::Type t) {
   if (auto it = t.dyn_cast<mlir::IntegerType>()) {
     return mlir::LLVM::LLVMIntegerType::get(t.getContext(), it.getWidth());
   }
-  // t.dump();
   assert(0 && "unhandled mlir=>llvm type");
 }
 
@@ -101,6 +110,7 @@ mlir::Value MLIRScanner::createAndSetAllocOp(std::string name, mlir::Value v,
 }
 
 ValueWithOffsets MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
+  IfScope scope(*this);
   for (auto sub : decl->decls()) {
     if (auto vd = dyn_cast<VarDecl>(sub)) {
       VisitVarDecl(vd);
@@ -331,7 +341,8 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
   if (!getUpperBound(fors, descr)) {
     LLVM_DEBUG(dbgs() << "getUpperBound -> false\n");
     return false;
-  }
+  } 
+  LLVM_DEBUG(dbgs() << "isTrivialAffineLoop -> true\n");
   return true;
 }
 
@@ -380,7 +391,7 @@ void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
 }
 
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
-  // fors->dump();
+  IfScope scope(*this);
   scopes.emplace_back();
 
   auto loc = getMLIRLocation(fors->getForLoc());
@@ -395,14 +406,21 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
       Visit(s);
     }
 
-    auto toadd = builder.getInsertionBlock()->getParent();
+    auto i1Ty = builder.getIntegerType(1);
+    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+    auto truev = builder.create<mlir::ConstantOp>(
+      loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
+    loops.push_back((LoopContext){builder.create<mlir::AllocaOp>(loc, type), builder.create<mlir::AllocaOp>(loc, type)});
+    builder.create<mlir::StoreOp>(loc, truev, loops.back().noBreak);
 
+    auto toadd = builder.getInsertionBlock()->getParent();
     auto &condB = *(new Block());
     toadd->getBlocks().push_back(&condB);
     auto &bodyB = *(new Block());
     toadd->getBlocks().push_back(&bodyB);
     auto &exitB = *(new Block());
     toadd->getBlocks().push_back(&exitB);
+
 
     builder.create<mlir::BranchOp>(loc, &condB);
 
@@ -414,8 +432,12 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
                                          &exitB);
     }
 
-    loops.push_back((LoopContext){&condB, &exitB});
     builder.setInsertionPointToStart(&bodyB);
+    builder.create<mlir::StoreOp>(loc, 
+      builder.create<mlir::LoadOp>(loc, loops.back().noBreak, std::vector<mlir::Value>()),
+      loops.back().keepRunning, 
+      std::vector<mlir::Value>());
+    
     Visit(fors->getBody());
     if (auto s = fors->getInc()) {
       Visit(s);
@@ -1586,7 +1608,6 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     }
   }
   auto base = Visit(ME->getBase());
-  // ME->getBase()->getType().getDesugaredType(Glob.astContext)->dump();
   auto rd = cast<RecordType>(
                 ME->getBase()->getType().getDesugaredType(Glob.astContext))
                 ->getDecl();
@@ -1884,6 +1905,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
+  IfScope scope(*this);
   auto loc = getMLIRLocation(stmt->getIfLoc());
   auto cond = (mlir::Value)Visit(stmt->getCond());
   assert(cond != nullptr);
@@ -1947,23 +1969,39 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *stmt) {
-  for (auto a : stmt->children())
+  for (auto a : stmt->children()) {
+    IfScope scope(*this);
     Visit(a);
+  }
   return nullptr;
 }
 
 ValueWithOffsets MLIRScanner::VisitBreakStmt(clang::BreakStmt *stmt) {
+    IfScope scope(*this);
   assert(loops.size());
-  builder.create<mlir::BranchOp>(loc, loops.back().exitB);
+  assert(loops.back().keepRunning);
+  assert(loops.back().noBreak);
+  auto i1Ty = builder.getI1Type();
+  auto vfalse = builder.create<mlir::ConstantOp>(
+      builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
+  builder.create<mlir::StoreOp>(loc, vfalse, loops.back().keepRunning);
+  builder.create<mlir::StoreOp>(loc, vfalse, loops.back().noBreak);
+
   return nullptr;
 }
 ValueWithOffsets MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
+  IfScope scope(*this);
   assert(loops.size());
-  builder.create<mlir::BranchOp>(loc, loops.back().condB);
+  assert(loops.back().keepRunning);
+  auto i1Ty = builder.getI1Type();
+  auto vfalse = builder.create<mlir::ConstantOp>(
+      builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
+  builder.create<mlir::StoreOp>(loc, vfalse, loops.back().keepRunning);
   return nullptr;
 }
 
 ValueWithOffsets MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
+    IfScope scope(*this);
   if (stmt->getRetValue()) {
     auto rv = (mlir::Value)Visit(stmt->getRetValue());
     assert(rv);
@@ -2246,6 +2284,25 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   return nullptr;
 }
 
+  void MLIRScanner::pushLoopIf() {
+    if (loops.size() && loops.back().keepRunning) {
+      auto ifOp = builder.create<scf::IfOp>(loc, builder.create<LoadOp>(loc, loops.back().keepRunning), /*hasElse*/false);
+      prevBlock.push_back(builder.getInsertionBlock());
+      prevIterator.push_back(builder.getInsertionPoint());
+      ifOp.thenRegion().back().clear();
+      builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    }
+  }
+
+  void MLIRScanner::popLoopIf() {
+    if (loops.size() && loops.back().keepRunning) {
+      builder.create<scf::YieldOp>(loc);
+      builder.setInsertionPoint(prevBlock.back(), prevIterator.back());
+      prevBlock.pop_back();
+      prevIterator.pop_back();
+    }
+  }
+  
 #include "llvm/Support/Host.h"
 
 #include "clang/Frontend/FrontendAction.h"
@@ -2342,7 +2399,6 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   bool Success;
   //{
   const char *binary = CudaLower ? "clang++" : "clang";
-  llvm::errs() << "binary: " << binary << "\n";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
@@ -2471,7 +2527,6 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
         assert(Clang->hasSourceManager());
 
         Act.EndSourceFile();
-        // llvm::errs() << "ended source file\n";
       }
     }
     DL = Clang->getTarget().getDataLayout();

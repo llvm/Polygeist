@@ -814,13 +814,33 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
     if (!constant)
       return failure();
 
+    Region* region = nullptr;
     if (constant.getValue().cast<BoolAttr>().getValue())
-      replaceOpWithRegion(rewriter, op, op.thenRegion());
+      region = &op.thenRegion();
     else if (!op.elseRegion().empty())
-      replaceOpWithRegion(rewriter, op, op.elseRegion());
-    else
+      region = &op.elseRegion();
+    else {
       rewriter.eraseOp(op);
+      return success();
+    }
 
+    auto bop = op->getParentRegion()->getParentOp();
+    if (region->getBlocks().size() == 1)
+      replaceOpWithRegion(rewriter, op, *region);
+    else {
+      Region* reg = op.getOperation()->getParentRegion();
+      auto condB = rewriter.splitBlock(op.getOperation()->getBlock(), ++op.getOperation()->getIterator());
+      for(auto &B : *region) {
+        if (auto yop = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+          rewriter.setInsertionPoint(&B, B.end());
+          rewriter.replaceOpWithNewOp<BranchOp>(yop, condB);
+        }
+      }
+      Block* oldFront = &region->front();
+      rewriter.inlineRegionBefore(*region, *reg, reg->end());
+      rewriter.setInsertionPoint(op.getOperation()->getBlock(), op.getOperation()->getIterator());
+      rewriter.replaceOpWithNewOp<BranchOp>(op, oldFront);
+    }
     return success();
   }
 };
