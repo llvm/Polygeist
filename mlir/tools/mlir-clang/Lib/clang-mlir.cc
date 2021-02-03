@@ -730,6 +730,25 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               (mlir::Value)args[1], args[0].val, args[0].offsets);
       }
     }
+
+  auto getLLVM = [&](Expr* E) -> mlir::Value {
+    if (auto IC1 = dyn_cast<ImplicitCastExpr>(E)) {
+      if (auto IC2 = dyn_cast<ImplicitCastExpr>(IC1->getSubExpr())) {
+        if (auto slit =
+                dyn_cast<clang::StringLiteral>(IC2->getSubExpr())) {
+          return Glob.GetOrCreateGlobalLLVMString(
+              loc, builder, slit->getString());
+        }
+      }
+      if (auto slit = dyn_cast<clang::StringLiteral>(IC1->getSubExpr())) {
+        return Glob.GetOrCreateGlobalLLVMString(
+            loc, builder, slit->getString());
+      }
+    }
+    auto V = (mlir::Value)Visit(E);
+    return V;
+  };
+
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       // TODO add pow to standard dialect
@@ -810,45 +829,21 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return nullptr;
       }
     }
+
+  std::set<std::string> funcs = {"strcmp", "open", "fopen", "close"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "strcmp") {
+      if (funcs.count(sr->getDecl()->getName().str())) {
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
         std::vector<mlir::Value> args;
-        size_t i = 0;
         for (auto a : expr->arguments()) {
-          if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
-            if (auto IC2 = dyn_cast<ImplicitCastExpr>(IC1->getSubExpr())) {
-              if (auto slit =
-                      dyn_cast<clang::StringLiteral>(IC2->getSubExpr())) {
-                args.push_back(Glob.GetOrCreateGlobalLLVMString(
-                    loc, builder, slit->getString()));
-                i++;
-                continue;
-              }
-            }
-            if (auto slit = dyn_cast<clang::StringLiteral>(IC1->getSubExpr())) {
-              args.push_back(Glob.GetOrCreateGlobalLLVMString(
-                  loc, builder, slit->getString()));
-              i++;
-              continue;
-            }
-          }
-          mlir::Value val = (mlir::Value)Visit(a);
-          auto llvmType =
-              Glob.typeTranslator.translateType(getLLVMType(a->getType()));
-          // if (val.getType() != llvmType)
-          //  val = builder.create<mlir::LLVM::DialectCastOp>(loc, llvmType,
-          //  val);
-          args.push_back(val);
-          i++;
+          args.push_back(getLLVM(a));
         }
+        auto called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
 
-        return ValueWithOffsets(
-            builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult(0),
-            {});
+        return ValueWithOffsets(called.getResult(0), {});
       }
     }
 
@@ -1425,9 +1420,10 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
         tostore = builder.create<mlir::memref::LoadOp>(loc, rhs.val, off);
       }
-    }
-
+     }
     if (tostore == nullptr) {
+      BO->getRHS()->dump();
+      llvm::errs() << "rhs: " << rhs.val << "\n";
       tostore = (mlir::Value)rhs;
     }
     builder.create<mlir::memref::StoreOp>(loc, tostore, lhs.val, off);
@@ -2142,13 +2138,21 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
   if (error)
     return true;
 
-  for (it = dg.begin(); it != dg.end(); ++it) {
-    if (VarDecl *fd = dyn_cast<clang::VarDecl>(*it)) {
+  std::function<void(Decl*)> handle = [&](Decl* D) {
+    if (auto lsd = dyn_cast<clang::LinkageSpecDecl>(D)) {
+      for(auto e : lsd->decls()) handle(e);
+    }
+    if (VarDecl *fd = dyn_cast<clang::VarDecl>(D)) {
       globalVariables[fd->getName().str()] = fd;
     }
-    if (FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(*it)) {
-      globalFunctions[fd->getName().str()] = fd;
+    if (FunctionDecl *fd = dyn_cast<clang::FunctionDecl>(D)) {
+      if (fd->getIdentifier()) {
+        globalFunctions[fd->getName().str()] = fd;
+      }
     }
+  };
+  for (it = dg.begin(); it != dg.end(); ++it) {
+    handle(*it);
   }
 
   for (it = dg.begin(); it != dg.end(); ++it) {
@@ -2308,8 +2312,25 @@ size_t MLIRScanner::getTypeSize(clang::QualType t) {
   return Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) / 8;
 }
 
+std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
+  if (!CanonicalPrefixes) {
+    SmallString<128> ExecutablePath(Argv0);
+    // Do a PATH lookup if Argv0 isn't a valid path.
+    if (!llvm::sys::fs::exists(ExecutablePath))
+      if (llvm::ErrorOr<std::string> P =
+              llvm::sys::findProgramByName(ExecutablePath))
+        ExecutablePath = *P;
+    return std::string(ExecutablePath.str());
+  }
+
+  // This just needs to be some symbol in the binary; C++ doesn't
+  // allow taking the address of ::main however.
+  void *P = (void*) (intptr_t) GetExecutablePath;
+  return llvm::sys::fs::getMainExecutable(Argv0, P);
+}
+
 #include "clang/Frontend/TextDiagnosticBuffer.h"
-static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
+static bool parseMLIR(const char* Argv0, std::vector<std::string> filenames, std::string fn,
                       std::vector<std::string> includeDirs,
                       std::vector<std::string> defines, mlir::ModuleOp &module,
                       llvm::Triple &triple, llvm::DataLayout &DL) {
@@ -2323,7 +2344,7 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
 
   bool Success;
   //{
-  const char *binary = CudaLower ? "clang++" : "clang";
+  const char *binary = Argv0; //CudaLower ? "clang++" : "clang";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   std::vector<const char *> Argv;
@@ -2336,6 +2357,15 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
   }
   if (CudaLower)
     Argv.push_back("--cuda-gpu-arch=sm_35");
+  if (FOpenMP)
+    Argv.push_back("-fopenmp");
+  if (Standard != "") {
+    auto a = "-std=" + Standard;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
   for (auto a : includeDirs) {
     Argv.push_back("-I");
     char *chars = (char *)malloc(a.length() + 1);
@@ -2375,11 +2405,14 @@ static bool parseMLIR(std::vector<std::string> filenames, std::string fn,
                                                  Diags);
     Clang->getInvocation().getFrontendOpts().DisableFree = false;
 
+    void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
     // Infer the builtin include path if unspecified.
-    if (Clang->getHeaderSearchOpts().UseBuiltinIncludes &&
-        Clang->getHeaderSearchOpts().ResourceDir.empty())
+    if (Clang->getHeaderSearchOpts().UseBuiltinIncludes && Clang->getHeaderSearchOpts().ResourceDir.size() == 0)
       Clang->getHeaderSearchOpts().ResourceDir =
-          LLVM_OBJ_ROOT "/lib/clang/" CLANG_VERSION_STRING;
+        CompilerInvocation::GetResourcesPath(Argv0, GetExecutablePathVP);
+
+    //}
+    Clang->getInvocation().getFrontendOpts().DisableFree = false;
 
     // Create the actual diagnostics engine.
     Clang->createDiagnostics();
