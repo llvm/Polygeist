@@ -30,6 +30,9 @@ static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
                                       cl::init("main"), cl::cat(toolOptions));
 
+static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
+                              cl::desc("Enable OpenMP"));
+
 static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
@@ -86,7 +89,7 @@ int main(int argc, char **argv) {
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
-  parseMLIR(inputFileName, cfunction, includeDirs, defines, module, triple, DL);
+  parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module, triple, DL);
 
   mlir::PassManager pm(&context);
 
