@@ -5,10 +5,6 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/Debug.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-//#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-
-//#include "mlir/Analysis/NumberOfExecutions.h"
 
 #define DEBUG_TYPE "convert-while-to-for"
 
