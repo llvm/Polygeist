@@ -99,9 +99,7 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
-static LogicalResult verify(ContainerOp op) {
-  return LogicalResult::Success;
-}
+static LogicalResult verify(ContainerOp op) { return LogicalResult::Success; }
 
 static LogicalResult verify(ForOp op) {
   if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
@@ -150,7 +148,7 @@ static LogicalResult verify(ForOp op) {
 ///   <prefix>(%inner = %outer, %inner2 = %outer2, <...>)
 /// where 'inner' values are assumed to be region arguments and 'outer' values
 /// are regular SSA values.
-static void  printInitializationList(OpAsmPrinter &p,
+static void printInitializationList(OpAsmPrinter &p,
                                     Block::BlockArgListType blocksArgs,
                                     ValueRange initializers,
                                     StringRef prefix = "") {
@@ -190,7 +188,8 @@ static void print(OpAsmPrinter &p, ForOp op) {
   p.printOptionalAttrDict(op.getAttrs());
 }
 
-static ParseResult parseContainerOp(OpAsmParser &parser, OperationState &result) {
+static ParseResult parseContainerOp(OpAsmParser &parser,
+                                    OperationState &result) {
   auto &builder = parser.getBuilder();
 
   // Parse the optional initial iteration arguments.
@@ -814,7 +813,7 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
     if (!constant)
       return failure();
 
-    Region* region = nullptr;
+    Region *region = nullptr;
     if (constant.getValue().cast<BoolAttr>().getValue())
       region = &op.thenRegion();
     else if (!op.elseRegion().empty())
@@ -828,23 +827,24 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
     if (region->getBlocks().size() == 1)
       replaceOpWithRegion(rewriter, op, *region);
     else {
-      Region* reg = op.getOperation()->getParentRegion();
-      auto condB = rewriter.splitBlock(op.getOperation()->getBlock(), ++op.getOperation()->getIterator());
-      for(auto &B : *region) {
+      Region *reg = op.getOperation()->getParentRegion();
+      auto condB = rewriter.splitBlock(op.getOperation()->getBlock(),
+                                       ++op.getOperation()->getIterator());
+      for (auto &B : *region) {
         if (auto yop = dyn_cast<scf::YieldOp>(B.getTerminator())) {
           rewriter.setInsertionPoint(&B, B.end());
           rewriter.replaceOpWithNewOp<BranchOp>(yop, condB);
         }
       }
-      Block* oldFront = &region->front();
+      Block *oldFront = &region->front();
       rewriter.inlineRegionBefore(*region, *reg, reg->end());
-      rewriter.setInsertionPoint(op.getOperation()->getBlock(), op.getOperation()->getIterator());
+      rewriter.setInsertionPoint(op.getOperation()->getBlock(),
+                                 op.getOperation()->getIterator());
       rewriter.replaceOpWithNewOp<BranchOp>(op, oldFront);
     }
     return success();
   }
 };
-
 
 struct RemoveBoolean : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
@@ -853,56 +853,70 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
                                 PatternRewriter &rewriter) const override {
     bool changed = false;
 
-    if ( llvm::all_of(op.results(), [](Value v) { return v.getType().isa<IntegerType>() && v.getType().cast<IntegerType>().getWidth() == 1;})) {
-      if (op.thenRegion().getBlocks().size() == 1 && op.elseRegion().getBlocks().size() == 1) {
-        while(isa<CmpIOp>(op.thenRegion().front().front())) {
+    if (llvm::all_of(op.results(), [](Value v) {
+          return v.getType().isa<IntegerType>() &&
+                 v.getType().cast<IntegerType>().getWidth() == 1;
+        })) {
+      if (op.thenRegion().getBlocks().size() == 1 &&
+          op.elseRegion().getBlocks().size() == 1) {
+        while (isa<CmpIOp>(op.thenRegion().front().front())) {
           op.thenRegion().front().front().moveBefore(op);
           changed = true;
         }
-        while(isa<CmpIOp>(op.elseRegion().front().front())) {
+        while (isa<CmpIOp>(op.elseRegion().front().front())) {
           op.elseRegion().front().front().moveBefore(op);
           changed = true;
         }
-        if (op.thenRegion().front().getOperations().size() == 1 && op.elseRegion().front().getOperations().size() == 1) {
-          auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
-          auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
+        if (op.thenRegion().front().getOperations().size() == 1 &&
+            op.elseRegion().front().getOperations().size() == 1) {
+          auto yop1 =
+              cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
+          auto yop2 =
+              cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
           size_t idx = 0;
 
           auto c1 = (mlir::Value)rewriter.create<mlir::ConstantOp>(
-              op.getLoc(), op.condition().getType(), rewriter.getIntegerAttr(op.condition().getType(), 1));
-          auto notcond = (mlir::Value)rewriter.create<mlir::XOrOp>(op.getLoc(), op.condition(), c1);
+              op.getLoc(), op.condition().getType(),
+              rewriter.getIntegerAttr(op.condition().getType(), 1));
+          auto notcond = (mlir::Value)rewriter.create<mlir::XOrOp>(
+              op.getLoc(), op.condition(), c1);
 
           std::vector<Value> replacements;
           for (auto res : op.results()) {
-            auto rep = rewriter.create<OrOp>(op.getLoc(),
-              rewriter.create<AndOp>(op.getLoc(), op.condition(), yop1.results()[idx]),
-              rewriter.create<AndOp>(op.getLoc(), notcond, yop2.results()[idx])
-            );
+            auto rep = rewriter.create<OrOp>(
+                op.getLoc(),
+                rewriter.create<AndOp>(op.getLoc(), op.condition(),
+                                       yop1.results()[idx]),
+                rewriter.create<AndOp>(op.getLoc(), notcond,
+                                       yop2.results()[idx]));
             replacements.push_back(rep);
             idx++;
           }
           rewriter.replaceOp(op, replacements);
-          //op.erase();
+          // op.erase();
           return success();
         }
       }
-
     }
 
-    if (op.thenRegion().getBlocks().size() == 1 && op.elseRegion().getBlocks().size() == 1 &&
-        op.thenRegion().front().getOperations().size() == 1 && op.elseRegion().front().getOperations().size() == 1) {
-        auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
-        auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
-        size_t idx = 0;
+    if (op.thenRegion().getBlocks().size() == 1 &&
+        op.elseRegion().getBlocks().size() == 1 &&
+        op.thenRegion().front().getOperations().size() == 1 &&
+        op.elseRegion().front().getOperations().size() == 1) {
+      auto yop1 = cast<scf::YieldOp>(op.thenRegion().front().getTerminator());
+      auto yop2 = cast<scf::YieldOp>(op.elseRegion().front().getTerminator());
+      size_t idx = 0;
 
-        std::vector<Value> replacements;
-        for (auto res : op.results()) {
-          auto rep = rewriter.create<SelectOp>(op.getLoc(), op.condition(), yop1.results()[idx], yop2.results()[idx]);
-          replacements.push_back(rep);
-          idx++;
-        }
-        rewriter.replaceOp(op, replacements);
-        return success();
+      std::vector<Value> replacements;
+      for (auto res : op.results()) {
+        auto rep =
+            rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+                                      yop1.results()[idx], yop2.results()[idx]);
+        replacements.push_back(rep);
+        idx++;
+      }
+      rewriter.replaceOp(op, replacements);
+      return success();
     }
     return changed ? success() : failure();
   }
@@ -915,44 +929,58 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
                                 PatternRewriter &rewriter) const override {
     auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
     if (auto ifOp = term.condition().getDefiningOp<scf::IfOp>()) {
-      if (ifOp.getNumResults() != term.args().size() + 1) return failure();
-      if (ifOp.getResult(0) != term.condition()) return failure();
-      for (size_t i=1; i<ifOp.getNumResults(); ++i) {
-        if (ifOp.getResult(i) != term.args()[i-1]) return failure();
+      if (ifOp.getNumResults() != term.args().size() + 1)
+        return failure();
+      if (ifOp.getResult(0) != term.condition())
+        return failure();
+      for (size_t i = 1; i < ifOp.getNumResults(); ++i) {
+        if (ifOp.getResult(i) != term.args()[i - 1])
+          return failure();
       }
-      auto yield1 = cast<scf::YieldOp>(ifOp.thenRegion().front().getTerminator());
-      auto yield2 = cast<scf::YieldOp>(ifOp.elseRegion().front().getTerminator());
+      auto yield1 =
+          cast<scf::YieldOp>(ifOp.thenRegion().front().getTerminator());
+      auto yield2 =
+          cast<scf::YieldOp>(ifOp.elseRegion().front().getTerminator());
       if (auto cop = yield1.getOperand(0).getDefiningOp<ConstantOp>()) {
-        if (cop.getValue().cast<IntegerAttr>().getValue() == 0) return failure();
-      } else return failure();
+        if (cop.getValue().cast<IntegerAttr>().getValue() == 0)
+          return failure();
+      } else
+        return failure();
       if (auto cop = yield2.getOperand(0).getDefiningOp<ConstantOp>()) {
-        if (cop.getValue().cast<IntegerAttr>().getValue() != 0) return failure();
-      } else return failure();
-      if (ifOp.elseRegion().front().getOperations().size() != 1) return failure();
-      op.after().front().getOperations().splice(op.after().front().begin(), ifOp.thenRegion().front().getOperations());
+        if (cop.getValue().cast<IntegerAttr>().getValue() != 0)
+          return failure();
+      } else
+        return failure();
+      if (ifOp.elseRegion().front().getOperations().size() != 1)
+        return failure();
+      op.after().front().getOperations().splice(
+          op.after().front().begin(),
+          ifOp.thenRegion().front().getOperations());
       term.conditionMutable().assign(ifOp.condition());
       SmallVector<Value, 2> args;
-      for(size_t i=1; i<yield2.getNumOperands(); ++i) {
+      for (size_t i = 1; i < yield2.getNumOperands(); ++i) {
         args.push_back(yield2.getOperand(i));
       }
       term.argsMutable().assign(args);
       rewriter.eraseOp(yield2);
       rewriter.eraseOp(ifOp);
 
-      for (size_t i=0; i<op.after().front().getNumArguments(); ++i) {
-        op.after().front().getArgument(i).replaceAllUsesWith(yield1.getOperand(i+1));
+      for (size_t i = 0; i < op.after().front().getNumArguments(); ++i) {
+        op.after().front().getArgument(i).replaceAllUsesWith(
+            yield1.getOperand(i + 1));
       }
       rewriter.eraseOp(yield1);
-      //TODO move operands from begin to after
-      SmallVector<Value> todo(op.before().front().getArguments().begin(), op.before().front().getArguments().end());
-      for(auto &op : op.before().front()) {
-        for(auto res : op.getResults()) {
+      // TODO move operands from begin to after
+      SmallVector<Value> todo(op.before().front().getArguments().begin(),
+                              op.before().front().getArguments().end());
+      for (auto &op : op.before().front()) {
+        for (auto res : op.getResults()) {
           todo.push_back(res);
         }
       }
-      for(auto val : todo) {
+      for (auto val : todo) {
         auto na = op.after().front().addArgument(val.getType());
-        val.replaceUsesWithIf(na, [&](OpOperand& u) -> bool {
+        val.replaceUsesWithIf(na, [&](OpOperand &u) -> bool {
           return op.after().isAncestor(u.getOwner()->getParentRegion());
         });
         args.push_back(val);
@@ -960,14 +988,16 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
       term.argsMutable().assign(args);
 
       SmallVector<Type, 4> tys;
-      for(auto a : args) tys.push_back(a.getType());
+      for (auto a : args)
+        tys.push_back(a.getType());
 
       auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
       op2.before().takeBody(op.before());
       op2.after().takeBody(op.after());
       SmallVector<Value, 4> replacements;
-      for(auto a : op2.getResults()) {
-        if (replacements.size() == op.getResults().size()) break;
+      for (auto a : op2.getResults()) {
+        if (replacements.size() == op.getResults().size())
+          break;
         replacements.push_back(a);
       }
       rewriter.replaceOp(op, replacements);
@@ -987,17 +1017,19 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
     SmallVector<unsigned, 4> eraseArgs;
     SmallVector<unsigned, 4> keepArgs;
     SmallVector<Type, 4> tys;
-    unsigned i=0;
-    std::map<void*, unsigned> valueOffsets;
+    unsigned i = 0;
+    std::map<void *, unsigned> valueOffsets;
     std::map<unsigned, unsigned> resultOffsets;
     SmallVector<Value, 4> resultArgs;
-    for(auto arg : term.args()) {
+    for (auto arg : term.args()) {
       if (op.after().front().getArgument(i).use_empty() &&
           op.getResult(i).use_empty()) {
         eraseArgs.push_back((unsigned)i);
-      } else if (valueOffsets.find(arg.getAsOpaquePointer()) != valueOffsets.end()) {
+      } else if (valueOffsets.find(arg.getAsOpaquePointer()) !=
+                 valueOffsets.end()) {
         resultOffsets[i] = valueOffsets[arg.getAsOpaquePointer()];
-        op.after().front().getArgument(i).replaceAllUsesWith(resultArgs[valueOffsets[arg.getAsOpaquePointer()]]);
+        op.after().front().getArgument(i).replaceAllUsesWith(
+            resultArgs[valueOffsets[arg.getAsOpaquePointer()]]);
         eraseArgs.push_back((unsigned)i);
       } else {
         valueOffsets[arg.getAsOpaquePointer()] = keepArgs.size();
@@ -1014,12 +1046,13 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
       auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
       op2.before().takeBody(op.before());
       op2.after().takeBody(op.after());
-      for(auto pair : resultOffsets) {
+      for (auto pair : resultOffsets) {
         op.getResult(pair.first).replaceAllUsesWith(op2.getResult(pair.second));
       }
       rewriter.eraseOp(op);
       rewriter.setInsertionPoint(term);
-      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(), conds);
+      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(),
+                                                    conds);
       op2.after().front().eraseArguments(eraseArgs);
       return success();
     }
@@ -1035,15 +1068,17 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
     auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
     SmallVector<Value, 4> conds(term.args().begin(), term.args().end());
     bool changed = false;
-    unsigned i=0;
-    for(auto arg : term.args()) {
+    unsigned i = 0;
+    for (auto arg : term.args()) {
       if (auto IC = arg.getDefiningOp<IndexCastOp>()) {
         if (arg.hasOneUse() && op.getResult(i).use_empty()) {
-          auto rep = op.after().front().addArgument(IC->getOperand(0).getType());
+          auto rep =
+              op.after().front().addArgument(IC->getOperand(0).getType());
           IC->moveBefore(&op.after().front(), op.after().front().begin());
           conds.push_back(IC.in());
           IC.inMutable().assign(rep);
-          op.after().front().getArgument(i).replaceAllUsesWith(IC->getResult(0));
+          op.after().front().getArgument(i).replaceAllUsesWith(
+              IC->getResult(0));
           changed = true;
         }
       }
@@ -1051,37 +1086,39 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
     }
     if (changed) {
       SmallVector<Type, 4> tys;
-      for(auto arg : conds) {
+      for (auto arg : conds) {
         tys.push_back(arg.getType());
       }
       auto op2 = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
       op2.before().takeBody(op.before());
       op2.after().takeBody(op.after());
-      unsigned j=0;
-      for(auto a : op.getResults()) {
+      unsigned j = 0;
+      for (auto a : op.getResults()) {
         a.replaceAllUsesWith(op2.getResult(j));
         j++;
       }
       rewriter.eraseOp(op);
       rewriter.setInsertionPoint(term);
-      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(), conds);
+      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(),
+                                                    conds);
       return success();
     }
     return failure();
   }
 };
 
-
 } // namespace
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                       MLIRContext *context) {
-  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile>(context);
+                                          MLIRContext *context) {
+  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile>(
+      context);
 }
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(context);
+  results.insert<RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(
+      context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1511,10 +1548,6 @@ bool WhileOp::isWhile() {
       hasCondOp = true;
   });
   return hasCondOp;
-}
-
-Value WhileOp::getOperandAtPos(unsigned index) {
-  return getOperand(index);
 }
 
 OperandRange WhileOp::getSuccessorEntryOperands(unsigned index) {

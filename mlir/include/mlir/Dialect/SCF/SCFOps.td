@@ -574,8 +574,7 @@ def WhileOp : SCF_Op<"while",
   let regions = (region SizedRegion<1>:$before, SizedRegion<1>:$after);
 
   let extraClassDeclaration = [{
-    OperandRange getSuccessorEntryOperands(unsigned index);
-    Value getOperandAtPos(unsigned index); 
+    OperandRange getSuccessorEntryOperands(unsigned index); 
     bool isWhile();
     bool isDoWhile() { return !isWhile(); }
   }];
