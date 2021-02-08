@@ -13,6 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
+//#include "llvm/Support/Debug.h"
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -922,6 +923,93 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
   }
 };
 
+struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  bool isTopLevel(Value val) const {
+    if (val.cast<BlockArgument>())
+      return true;
+    return false;
+  }
+
+  LogicalResult matchAndRewrite(WhileOp loop,
+                                PatternRewriter &rewriter) const override {
+    if (!loop.isWhile())
+      return failure();
+
+    if (loop.results().size() != loop.inits().size())
+      return failure();
+
+    struct LoopInfo {
+      Value indVar = nullptr;
+      Value ub = nullptr;
+      Value lb = nullptr;
+      Value step = nullptr;
+    } loopInfo;
+
+    auto condOp = cast<ConditionOp>(loop.before().front().getTerminator());
+    SmallVector<Value, 2> results = {condOp.args()};
+    Operation *maybeCmpIOp = condOp.condition().getDefiningOp();
+    if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
+      Value maybeIndVar = cmpIOp.lhs();
+      if (isTopLevel(maybeIndVar))
+        loopInfo.lb =
+            loop.getOperand(maybeIndVar.cast<BlockArgument>().getArgNumber());
+      else
+        return failure();
+
+      size_t pos = 0;
+      for (auto res : condOp.args()) {
+        if (res == maybeIndVar)
+          break;
+        pos++;
+      }
+
+      // follow the indVar in the after region.
+      Value maybeIndVarInAfter = loop.after().getArgument(pos);
+      auto users = maybeIndVarInAfter.getUsers();
+      for (auto u : users) {
+        if (auto addIOp = dyn_cast<AddIOp>(u)) {
+          if (addIOp.getOperand(0) != maybeIndVarInAfter)
+            return failure();
+          else
+            loopInfo.step = addIOp.getOperand(1);
+        }
+      }
+      loopInfo.ub = cmpIOp.rhs();
+      loopInfo.indVar = maybeIndVar;
+    }
+
+    Value ub = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.ub,
+                                            IndexType::get(loop.getContext()));
+    Value lb = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.lb,
+                                            IndexType::get(loop.getContext()));
+    Value step = rewriter.create<IndexCastOp>(
+        loop.getLoc(), loopInfo.step, IndexType::get(loop.getContext()));
+
+    auto forloop = rewriter.create<scf::ForOp>(
+        loop.getLoc(), lb, ub, step, loop.inits(),
+        [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          SmallVector<Value, 2> mappedValues{};
+          mappedValues.append(args.begin(), args.end());
+
+          BlockAndValueMapping mapping;
+          mapping.map(loop.after().getArguments(), mappedValues);
+          for (auto &block : loop.after().getBlocks()) {
+            for (auto &nested : block.without_terminator())
+              b.clone(nested, mapping);
+          }
+
+          // if we yield the indVar and we take the indvar as
+          // input simplify. TODO: check me.
+          b.create<scf::YieldOp>(loop.getLoc(), mappedValues);
+        });
+
+    rewriter.replaceOp(loop, forloop.getResults());
+    return success();
+  }
+};
+
 struct MoveWhileDown : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -1111,8 +1199,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile>(
-      context);
+  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
+                 MoveWhileToFor>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
