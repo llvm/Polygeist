@@ -89,8 +89,8 @@ static void kernel_2mm(unsigned int ni, unsigned int nj, unsigned int nk, unsign
                        DATA_TYPE POLYBENCH_2D(D, NI, NL, ni, nl)) {
   int i, j, k;
 
-  int t1, t2, t3, t4, t5, t6, t7, t8, t9;
- register int lbv, ubv;
+  long long t1, t2, t3, t4, t5, t6, t7, t8, t9;
+ register long long lbv, ubv;
 if (_PB_NI >= 1) {
   for (t2=0;t2<=floord(_PB_NI-1,32);t2++) {
     if ((_PB_NJ >= 0) && (_PB_NL >= 0)) {

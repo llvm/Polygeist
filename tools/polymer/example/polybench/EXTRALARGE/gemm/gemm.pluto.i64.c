@@ -101,8 +101,8 @@ void kernel_gemm(int ni, int nj, int nk,
 //A is NIxNK
 //B is NKxNJ
 //C is NIxNJ
-  int t1, t2, t3, t4, t5, t6, t7;
- register int lbv, ubv;
+  long long t1, t2, t3, t4, t5, t6, t7;
+ register long long lbv, ubv;
 if ((_PB_NI >= 1) && (_PB_NJ >= 1)) {
   for (t2=0;t2<=floord(_PB_NI-1,32);t2++) {
     for (t3=0;t3<=floord(_PB_NJ-1,32);t3++) {

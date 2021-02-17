@@ -96,7 +96,6 @@ void kernel_3mm(int ni, int nj, int nk, int nl, int nm,
   int i, j, k;
 
   int t1, t2, t3, t4, t5, t6, t7, t8, t9;
- int lb, ub, lbp, ubp, lb2, ub2;
  register int lbv, ubv;
 if ((_PB_NI >= 0) && (_PB_NJ >= 0) && (_PB_NL >= 1)) {
   for (t2=0;t2<=floord(_PB_NI+_PB_NJ-1,32);t2++) {
