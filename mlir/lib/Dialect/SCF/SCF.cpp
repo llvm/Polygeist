@@ -980,6 +980,14 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       loopInfo.indVar = maybeIndVar;
     }
 
+    assert(loopInfo.indVar && "must be not null");
+    assert(loopInfo.ub && "must be not null");
+    assert(loopInfo.lb && "must be not null");
+    assert(loopInfo.step && "must be not null");
+    llvm::errs() << "****************\n";
+    loopInfo.indVar.getType().dump();
+    llvm::errs() << "****************\n";
+
     Value ub = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.ub,
                                             IndexType::get(loop.getContext()));
     Value lb = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.lb,
@@ -987,11 +995,25 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Value step = rewriter.create<IndexCastOp>(
         loop.getLoc(), loopInfo.step, IndexType::get(loop.getContext()));
 
+    llvm::errs() << "****************\n";
+    llvm::errs() << "****************\n";
+    ub.dump();
+    lb.dump();    
+    step.dump();
+    llvm::errs() << "****************\n";
+    llvm::errs() << "****************\n";
+
     auto forloop = rewriter.create<scf::ForOp>(
         loop.getLoc(), lb, ub, step, loop.inits(),
         [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          
           SmallVector<Value, 2> mappedValues{};
           mappedValues.append(args.begin(), args.end());
+  
+          // 1. reverse here symm.
+          std::reverse(mappedValues.begin(), mappedValues.end());
+
+          //mappedValues.append(loop.getResults().begin(), loop.getResults().end());
 
           BlockAndValueMapping mapping;
           mapping.map(loop.after().getArguments(), mappedValues);
@@ -1000,11 +1022,57 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
               b.clone(nested, mapping);
           }
 
-          // if we yield the indVar and we take the indvar as
-          // input simplify. TODO: check me.
-          b.create<scf::YieldOp>(loop.getLoc(), mappedValues);
+          SmallVector<Value, 2> yieldOperands {};
+          yieldOperands.reserve(loop.getResults().size());
+
+/*
+          // 2. reverse here symm
+          auto afterArgs = loop.after().getArguments(); 
+          for (auto i = afterArgs.rbegin(), e = afterArgs.rend(); i != e; ++i) {
+            for (auto op : i->getUsers()) {
+              auto results = op->getResults();
+              for (Value res : results) {
+                if (!res.hasOneUser())
+                  continue;
+                auto maybeYield = *(res.getUsers().begin());
+                if (auto yield = dyn_cast<scf::YieldOp>(maybeYield)) {
+                  mapping.lookup(res).getType().dump();
+                  yieldOperands.push_back(mapping.lookup(res));
+                }
+              }
+            }
+          }
+
+*/
+
+          auto afterArgs = loop.after().getArguments(); 
+          for (auto i = afterArgs.begin(), e = afterArgs.end(); i != e; ++i) {
+            for (auto op : i->getUsers()) {
+              auto results = op->getResults();
+              for (Value res : results) {
+                if (!res.hasOneUser())
+                  continue;
+                auto maybeYield = *(res.getUsers().begin());
+                if (auto yield = dyn_cast<scf::YieldOp>(maybeYield)) {
+                  mapping.lookup(res).getType().dump();
+                  yieldOperands.push_back(mapping.lookup(res));
+                }
+              }
+            }
+          }
+
+          b.create<scf::YieldOp>(loop.getLoc(), yieldOperands);
         });
 
+    
+    // 3. we need to fix the user of the result symm
+    // ...
+    //SmallVector<Value, 2> reversed {};
+    //reversed.append(forloop.getResults().begin(), forloop.getResults().end());
+    //std::reverse(reversed.begin(), reversed.end());
+    //rewriter.replaceOp(loop, reversed);
+    auto m = loop.getParentOfType<ModuleOp>();
+    m.dump();
     rewriter.replaceOp(loop, forloop.getResults());
     return success();
   }
@@ -1148,6 +1216,56 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
   }
 };
 
+struct RemoveUnusedCondVarArgs : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+
+    SmallVector<unsigned, 4> eraseArgs{};
+    SmallVector<Type, 4> tys{};
+    SmallVector<Value, 4> conds{};
+    SmallVector<Value, 4> res{};
+    unsigned i = 0;
+    for (auto arg : term.args()) {
+      if (op.after().front().getArgument(i).hasZeroUser()) {
+        eraseArgs.push_back(i);
+        res.push_back(op.getResult(i));
+      } else {
+        tys.push_back(arg.getType());
+        conds.push_back(arg);
+      }
+      i++;
+    }
+
+    if (eraseArgs.size()) {
+      auto loop = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
+      loop.before().takeBody(op.before());
+      loop.after().takeBody(op.after());
+
+      assert(res.size() == loop.getResults().size() &&
+             "expect 'res' to correspond 1-1 with the number of results of "
+             "'loop'");
+
+      i = 0;
+      for (auto r : res) {
+        r.replaceAllUsesWith(loop.getResult(i));
+        i++;
+      }
+
+      rewriter.eraseOp(op);
+      rewriter.setInsertionPoint(term);
+      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(),
+                                                    conds);
+      loop.after().front().eraseArguments(eraseArgs);
+      return success();
+    }
+    return failure();
+  }
+};
+
 struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -1199,8 +1317,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
-                 MoveWhileToFor>(context);
+  results.insert</*MoveWhileDown, RemoveUnusedCondVar, RemoveUnusedCondVarArgs,*/
+                 /*MoveSideEffectFreeWhile, */MoveWhileToFor>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,

@@ -77,7 +77,8 @@ public:
   Value(const Value &) = default;
   Value &operator=(const Value &) = default;
 
-  template <typename U> bool isa() const {
+  template <typename U>
+  bool isa() const {
     assert(*this && "isa<> used on a null type.");
     return U::classof(*this);
   }
@@ -87,13 +88,16 @@ public:
     return isa<First>() || isa<Second, Rest...>();
   }
 
-  template <typename U> U dyn_cast() const {
+  template <typename U>
+  U dyn_cast() const {
     return isa<U>() ? U(ownerAndKind) : U(nullptr);
   }
-  template <typename U> U dyn_cast_or_null() const {
+  template <typename U>
+  U dyn_cast_or_null() const {
     return (*this && isa<U>()) ? U(ownerAndKind) : U(nullptr);
   }
-  template <typename U> U cast() const {
+  template <typename U>
+  U cast() const {
     assert(isa<U>());
     return U(ownerAndKind);
   }
@@ -198,6 +202,11 @@ public:
   user_iterator user_end() const { return use_end(); }
   user_range getUsers() const { return {user_begin(), user_end()}; }
 
+  bool hasZeroUser() const { return llvm::empty(getUsers()); }
+
+  bool hasOneUser() const {
+    return std::distance(getUsers().begin(), getUsers().end()) == 1;
+  }
   //===--------------------------------------------------------------------===//
   // Utilities
 
@@ -351,7 +360,8 @@ inline ::llvm::hash_code hash_value(Value arg) {
 
 namespace llvm {
 
-template <> struct DenseMapInfo<mlir::Value> {
+template <>
+struct DenseMapInfo<mlir::Value> {
   static mlir::Value getEmptyKey() {
     auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::Value::getFromOpaquePointer(pointer);
@@ -367,7 +377,8 @@ template <> struct DenseMapInfo<mlir::Value> {
 };
 
 /// Allow stealing the low bits of a value.
-template <> struct PointerLikeTypeTraits<mlir::Value> {
+template <>
+struct PointerLikeTypeTraits<mlir::Value> {
 public:
   static inline void *getAsVoidPointer(mlir::Value I) {
     return const_cast<void *>(I.getAsOpaquePointer());
@@ -381,7 +392,8 @@ public:
   };
 };
 
-template <> struct DenseMapInfo<mlir::BlockArgument> {
+template <>
+struct DenseMapInfo<mlir::BlockArgument> {
   static mlir::BlockArgument getEmptyKey() {
     auto pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::BlockArgument(
@@ -401,7 +413,8 @@ template <> struct DenseMapInfo<mlir::BlockArgument> {
 };
 
 /// Allow stealing the low bits of a value.
-template <> struct PointerLikeTypeTraits<mlir::BlockArgument> {
+template <>
+struct PointerLikeTypeTraits<mlir::BlockArgument> {
 public:
   static inline void *getAsVoidPointer(mlir::Value I) {
     return const_cast<void *>(I.getAsOpaquePointer());
