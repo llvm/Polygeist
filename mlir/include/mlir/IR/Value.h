@@ -85,7 +85,8 @@ public:
   Value(const Value &) = default;
   Value &operator=(const Value &) = default;
 
-  template <typename U> bool isa() const {
+  template <typename U>
+  bool isa() const {
     assert(*this && "isa<> used on a null type.");
     return U::classof(*this);
   }
@@ -100,7 +101,8 @@ public:
   template <typename U> U dyn_cast_or_null() const {
     return (*this && isa<U>()) ? U(impl) : U(nullptr);
   }
-  template <typename U> U cast() const {
+  template <typename U>
+  U cast() const {
     assert(isa<U>());
     return U(impl);
   }
@@ -203,6 +205,11 @@ public:
   user_iterator user_end() const { return use_end(); }
   user_range getUsers() const { return {user_begin(), user_end()}; }
 
+  bool hasZeroUser() const { return llvm::empty(getUsers()); }
+
+  bool hasOneUser() const {
+    return std::distance(getUsers().begin(), getUsers().end()) == 1;
+  }
   //===--------------------------------------------------------------------===//
   // Utilities
 
@@ -421,7 +428,8 @@ inline ::llvm::hash_code hash_value(Value arg) {
 
 namespace llvm {
 
-template <> struct DenseMapInfo<mlir::Value> {
+template <>
+struct DenseMapInfo<mlir::Value> {
   static mlir::Value getEmptyKey() {
     void *pointer = llvm::DenseMapInfo<void *>::getEmptyKey();
     return mlir::Value::getFromOpaquePointer(pointer);
