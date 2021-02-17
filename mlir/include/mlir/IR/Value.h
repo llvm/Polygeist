@@ -213,6 +213,11 @@ public:
   user_iterator user_end() const { return use_end(); }
   user_range getUsers() const { return {user_begin(), user_end()}; }
 
+  bool hasZeroUser() const { return llvm::empty(getUsers()); }
+
+  bool hasOneUser() const {
+    return std::distance(getUsers().begin(), getUsers().end()) == 1;
+  }
   //===--------------------------------------------------------------------===//
   // Utilities
 
