@@ -1,0 +1,114 @@
+#!/bin/bash
+# This script runs Polly over Polybench code examples to get their execution time.
+shopt -s globstar
+
+LLVM_DIR=""
+CLANG_NO_VECTORIZE_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize"
+CLANG_NO_UNROLL_OPTIONS="-fno-unroll-loops"
+
+while getopts ":huvl:" opt; do 
+  case "${opt}" in 
+    h ) 
+      echo ""
+      echo "    Benchmark Polly on Polybench."
+      echo ""
+      echo "Usage: "
+      echo "    -h                  Display this help message"
+      echo "    -l <llvm dir>       Where LLVM is installed"
+      echo "    -v                  Enable vectorization by Clang"
+      echo "    -u                  Enable loop unroll by Clang"
+      exit 0
+      ;;
+    l )
+      LLVM_DIR="${OPTARG}"
+      ;;
+    v )
+      CLANG_NO_VECTORIZE_OPTIONS=""
+      ;;
+    u )
+      CLANG_NO_UNROLL_OPTIONS=""
+      ;;
+    \? )
+      echo "Invalid Option: -${OPTARG}" 1>&2
+      exit 1
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+
+CLANG_OPTIONS="${CLANG_NO_VECTORIZE_OPTIONS} ${CLANG_NO_UNROLL_OPTIONS}"
+
+# Compile and run the source file by Pluto.
+#
+# Args:
+#    SRC_FILE           File to be compiled and run
+# Outputs:
+#    POLLY_EXE_FILE     Path to the Polly-compiled executable
+#    POLLY_RUN_TIME     Total run time of the Polly-compiled executable
+# Globals:
+#    UTILITIES_DIR      Where the polybench utilities placed
+#    CLANG_OPTIONS      Clang compilation options
+function polly_compile_and_run() {
+  local SRC_FILE="$1"
+  local __RESULT_EXE_FILE="$2"
+  local __RESULT_RUN_TIME="$3"
+
+  local EXE_FILE="${SRC_FILE%.c}.polly.exe"
+
+  clang -O3 ${CLANG_OPTIONS} -mllvm -polly "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" -I "${UTILITIES_DIR}" -lm \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -o "${EXE_FILE}"
+  
+  eval $__RESULT_RUN_TIME="$(taskset -c 1-1 numactl -i all "${EXE_FILE}")"
+  eval $__RESULT_EXE_FILE="${EXE_FILE}"
+}
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+TMP_DIR="${DIR}/tmp"
+UTILITIES_DIR="polybench/polybench-code/utilities"
+
+# Default LLVM install directory.
+if [ ! -d "${LLVM_DIR}" ]; then
+  LLVM_DIR=${HOME}/llvm-project/install
+fi
+
+# Setup environmental variables
+export PATH="${LLVM_DIR}/bin:${PATH}"
+
+# Print out Clang installation information
+echo "Clang Info: "
+which clang
+clang -v
+
+# Download Polybench to TMP_DIR
+echo ""
+echo "Download Polybench ...."
+mkdir -p "${TMP_DIR}"
+cd "${TMP_DIR}"
+
+rm -rf polybench
+git clone https://github.com/Meinersbur/polybench.git 
+
+# Iterate every source file in Polybench
+FILES="$(find polybench -type f -name "*.c" -not -wholename "*/utilities/*" | xargs -L1 -I{} basename "{}" | sort)"
+echo ""
+echo ${FILES}
+
+WORK_LOG="${TMP_DIR}/polly.$(date "+%Y%m%d-%H%M%S").log"
+for f in ${FILES}; do 
+  if [ "${f}" = "Nussinov.orig.c" ] || [ "${f}" = "adi.c" ]; then
+    continue
+  fi
+
+  src_file="$(find polybench -type f -name "${f}")"
+
+  echo "Processing file: ${src_file} ..."
+
+  result_str="${f%.c}"
+  for i in {1..5}; do
+    polly_compile_and_run "${src_file}" exe_file exe_time
+    echo "Polly exe time: ${exe_time}" 
+    result_str="${result_str},${exe_time}"
+  done
+
+  echo "${result_str}" >> "${WORK_LOG}"
+done

@@ -28,6 +28,7 @@ while getopts ":hdgsupvf:t:c:" opt; do
       echo "    -p                  Enable parallelization"
       echo "    -f <target>         Evaluate the <target> file"
       echo "    -t <pluto var>      Specific Pluto variant (i64, 1d, etc.)"
+      echo "    -c <opt level>      1 - single O3, 2 - double O3"
       exit 0
       ;;
     f )
@@ -76,7 +77,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
 TMPDIR="${DIR}/tmp"
 UTILITIES_DIR="${DIR}/utilities"
 PLUTO_DIR="${DIR}/../../pluto"
-LLVM_DIR="${DIR}/../../llvm"
+# LLVM_DIR="${DIR}/../../llvm"
+LLVM_DIR=${HOME}/MLIR-GPU
 POLYMER_DIR="${DIR}/../../"
 
 export PATH="${PATH}:${PLUTO_DIR}"
@@ -115,7 +117,7 @@ function run_pluto()
 
   # Apply Pluto
   if [[ "${SKIP_CODEGEN}" = "false" ]]; then
-    polycc "${PLUTO_OPTIONS}" "${SRC_FILE}" -o "${PLUTO_SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
+    polycc ${PLUTO_OPTIONS} "${SRC_FILE}" -o "${PLUTO_SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
   fi
   if [ ! -f "${PLUTO_SRC_FILE}" ]; then
     echo "Expected Pluto output ${PLUTO_SRC_FILE} does not exist."
@@ -136,7 +138,7 @@ function run_pluto()
 
   # Run the Pluto-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_PLUTO_RUN_TIME="$("${PLUTO_EXE_FILE}")"
+    eval $__RESULT_PLUTO_RUN_TIME="$(taskset -c 1-1 numactl -i all "${PLUTO_EXE_FILE}")"
   fi
   eval $__RESULT_PLUTO_EXE_FILE="${PLUTO_EXE_FILE}"
 
@@ -177,15 +179,15 @@ function run_polymer()
   fi
 
   if [ "${OPT_CONFIG}" = "2" ]; then
-    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" 
+    opt -S "${POLYMER_LLVM_IR_FILE}" -march=native -O3 -o "${POLYMER_LLVM_IR_FILE}" 
   fi
 
-  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -I "${UTILITIES_DIR}" -lm \
+  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Polymer-compiled executable
   if [ "${SKIP_EXECUTE}" = "false" ]; then
-    eval $__RESULT_POLYMER_RUN_TIME="$("${POLYMER_EXE_FILE}")"
+    eval $__RESULT_POLYMER_RUN_TIME="$(taskset -c 1-1 numactl -i all "${POLYMER_EXE_FILE}")"
   fi
   eval $__RESULT_POLYMER_EXE_FILE="${POLYMER_EXE_FILE}"
 
