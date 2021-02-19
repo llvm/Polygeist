@@ -594,11 +594,75 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
     return failure();
   }
 };
+
+/// Remove unused iterator operands.
+struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
+  using OpRewritePattern<ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ForOp op,
+                                PatternRewriter &rewriter) const override {
+
+    SmallVector<Value, 2> usedBlockArgs{};
+    SmallVector<Value, 2> usedResults{};
+    SmallVector<Value, 2> usedOperands{};
+
+    unsigned i = 0;
+    // if the block argument or the result at the
+    // same index position have uses do not eliminate.
+    for (auto blockArg : op.getRegionIterArgs()) {
+      if ((!blockArg.use_empty()) || (!op.getResult(i).use_empty())) {
+        usedOperands.push_back(op.getOperand(3 + i));
+        usedResults.push_back(op.getResult(i));
+        usedBlockArgs.push_back(blockArg);
+      }
+      i++;
+    }
+  
+    // no work to do.
+    if (usedOperands.size() == op.getIterOperands().size())
+      return failure();
+
+    auto newForOp = rewriter.create<ForOp>(
+        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
+        usedOperands,
+        [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          SmallVector<Value, 2> mappedValues{};
+          mappedValues.append(args.begin(), args.end());
+
+          BlockAndValueMapping mapping;
+          mapping.map(usedBlockArgs, mappedValues);
+          for (auto &nested : op.getBody()->getOperations())
+            b.clone(nested, mapping);
+        });
+
+    // adjust return.
+    // TODO: check this cast<OpResult> with Alex and Billy.
+    auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    SmallVector<Value, 2> usedYieldOperands{};
+    llvm::transform(
+        usedResults, std::back_inserter(usedYieldOperands), [&](Value result) {
+          return yieldOp.getOperand(result.cast<OpResult>().getResultNumber());
+        });
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(usedYieldOperands); });
+
+    // Replace the operation's results with the new one.
+    SmallVector<Value, 4> repResults(op.getNumResults());
+    for (auto en : llvm::enumerate(usedResults))
+      repResults[en.value().cast<OpResult>().getResultNumber()] =
+          newForOp.getResult(en.index());
+
+    rewriter.replaceOp(op, repResults);
+    return success();
+  }
+};
+
 } // namespace
 
 void ForOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
-  results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops>(context);
+  results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops, RemoveUnusedArgs>(
+      context);
 }
 
 //===----------------------------------------------------------------------===//
