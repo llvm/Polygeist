@@ -617,7 +617,7 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
       }
       i++;
     }
-  
+
     // no work to do.
     if (usedOperands.size() == op.getIterOperands().size())
       return failure();
@@ -643,8 +643,8 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
         usedResults, std::back_inserter(usedYieldOperands), [&](Value result) {
           return yieldOp.getOperand(result.cast<OpResult>().getResultNumber());
         });
-    rewriter.updateRootInPlace(yieldOp,
-                               [&]() { yieldOp->setOperands(usedYieldOperands); });
+    rewriter.updateRootInPlace(
+        yieldOp, [&]() { yieldOp->setOperands(usedYieldOperands); });
 
     // Replace the operation's results with the new one.
     SmallVector<Value, 4> repResults(op.getNumResults());
@@ -657,12 +657,139 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
   }
 };
 
+struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
+  using OpRewritePattern<ForOp>::OpRewritePattern;
+
+  Optional<int64_t> extractConstantIndex(Value val) const {
+    if (auto cstOp = val.getDefiningOp<ConstantIndexOp>())
+      return cstOp.getValue();
+    return None;
+  }
+
+  Optional<int64_t> extractConstantStep(Value val) const {
+    if (auto cstOp = val.getDefiningOp<ConstantOp>()) {
+      Attribute attr = cstOp.getValue();
+      if (auto intAttr = attr.cast<IntegerAttr>())
+        return intAttr.getInt();
+    }
+    return None;
+  }
+
+  LogicalResult matchAndRewrite(ForOp op,
+                                PatternRewriter &rewriter) const override {
+
+    if (!op.getIterOperands().size())
+      return failure();
+
+    // Start from 1 to account for the induction variable.
+    unsigned blockArgPos = 1;
+    for (Value operand : op.getIterOperands()) {
+      if (operand.getType().isa<IntegerType>()) {
+        auto argBlock = op.getBody()->getArgument(blockArgPos);
+        if (argBlock.hasOneUser()) {
+          Operation *maybeAdd = *(argBlock.getUsers().begin());
+          if (auto addIOp = dyn_cast<AddIOp>(maybeAdd)) {
+            auto addRhs = extractConstantStep(addIOp.getOperand(1));
+            auto step = extractConstantIndex(op.getStep());
+            if (addRhs && step && addRhs == step) {
+              addIOp.getResult().replaceAllUsesWith(op.getInductionVar());
+              rewriter.eraseOp(addIOp);
+            }
+          }
+        }
+      }
+      blockArgPos++;
+    }
+
+    SmallVector<unsigned, 4> nonIndVarIndexes;
+    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
+    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
+      if (yieldOperand.get() != op.getInductionVar()) {
+        yieldOperand.get().dump();
+        op.getInductionVar().dump();
+        nonIndVarIndexes.push_back(yieldOperand.getOperandNumber());
+      }
+
+    for (auto i : nonIndVarIndexes)
+      llvm::errs() << "index: " << i << " ";
+    llvm::errs() << "\n";
+
+    SmallVector<OpResult, 4> nonIndVarResults;
+    llvm::copy_if(
+        op->getOpResults(), std::back_inserter(nonIndVarResults),
+        [&](OpResult result) {
+          if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(),
+                        result.getResultNumber()) != nonIndVarIndexes.end())
+            return true;
+          return false;
+        });
+
+    SmallVector<Value, 4> nonIndVarOperands;
+    SmallVector<Value, 4> nonIndVarBlockArgs;
+
+    unsigned pos = 0;
+    for (Value operand : op.getIterOperands()) {
+      if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(), pos) !=
+          nonIndVarIndexes.end()) {
+        nonIndVarOperands.push_back(operand);
+        nonIndVarBlockArgs.push_back(op.getBody()->getArgument(pos + 1));
+      }
+      pos++;
+    }
+
+    llvm::errs() << "nonIndVarIndexes.size: " << nonIndVarIndexes.size()
+                 << "\n";
+    llvm::errs() << "nonIndVarResults.size: " << nonIndVarResults.size()
+                 << "\n";
+    llvm::errs() << "nonIndVarOperands.size: " << nonIndVarOperands.size()
+                 << "\n";
+
+    auto newForOp = rewriter.create<ForOp>(
+        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
+        nonIndVarOperands,
+        [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          SmallVector<Value, 4> mappedValues;
+          mappedValues.append(args.begin(), args.end());
+
+          BlockAndValueMapping mapping;
+          mapping.map(nonIndVarBlockArgs, mappedValues);
+          for (auto &nested : op.getBody()->getOperations())
+            b.clone(nested, mapping);
+        });
+
+    yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    SmallVector<Value, 4> yieldOperands;
+    llvm::transform(nonIndVarResults, std::back_inserter(yieldOperands),
+                    [&](OpResult result) {
+                      return yieldOp.getOperand(result.getResultNumber());
+                    });
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(yieldOperands); });
+
+    SmallVector<Value, 4> reResults;
+    pos = 0;
+    for (OpResult res : op->getOpResults()) {
+      if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(),
+                    res.getResultNumber()) == nonIndVarIndexes.end()) {
+        rewriter.setInsertionPointAfter(newForOp);
+        auto cast = rewriter.create<IndexCastOp>(
+            op.getLoc(), newForOp.getUpperBound(), res.getType());
+        reResults.push_back(cast);
+      } else
+        reResults.push_back(newForOp.getResult(pos++));
+    }
+
+    rewriter.replaceOp(op, reResults);
+    return success();
+  }
+};
+
 } // namespace
 
 void ForOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
-  results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops, RemoveUnusedArgs>(
-      context);
+  results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops, RemoveUnusedArgs,
+                 DetectTrivialIndVarInArgs>(context);
 }
 
 //===----------------------------------------------------------------------===//
