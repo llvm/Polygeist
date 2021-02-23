@@ -386,6 +386,58 @@ void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
   return;
 }
 
+ValueWithOffsets MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
+  IfScope scope(*this);
+  scopes.emplace_back();
+
+  auto loc = getMLIRLocation(fors->getLParenLoc());
+
+    auto i1Ty = builder.getIntegerType(1);
+    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+    auto truev = builder.create<mlir::ConstantOp>(
+      loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
+    loops.push_back((LoopContext){builder.create<mlir::AllocaOp>(loc, type), builder.create<mlir::AllocaOp>(loc, type)});
+    builder.create<mlir::StoreOp>(loc, truev, loops.back().noBreak);
+
+    auto toadd = builder.getInsertionBlock()->getParent();
+    auto &condB = *(new Block());
+    toadd->getBlocks().push_back(&condB);
+    auto &bodyB = *(new Block());
+    toadd->getBlocks().push_back(&bodyB);
+    auto &exitB = *(new Block());
+    toadd->getBlocks().push_back(&exitB);
+
+
+    builder.create<mlir::BranchOp>(loc, &condB);
+
+    builder.setInsertionPointToStart(&condB);
+
+    if (auto s = fors->getCond()) {
+      auto condRes = Visit(s);
+      builder.create<mlir::CondBranchOp>(loc, (mlir::Value)condRes, &bodyB,
+                                         &exitB);
+    }
+
+    builder.setInsertionPointToStart(&bodyB);
+    builder.create<mlir::StoreOp>(loc, 
+      builder.create<mlir::LoadOp>(loc, loops.back().noBreak, std::vector<mlir::Value>()),
+      loops.back().keepRunning, 
+      std::vector<mlir::Value>());
+    
+    Visit(fors->getBody());
+    loops.pop_back();
+    if (builder.getInsertionBlock()->empty() ||
+        builder.getInsertionBlock()->back().isKnownNonTerminator()) {
+      builder.create<mlir::BranchOp>(loc, &condB);
+    }
+
+    builder.setInsertionPointToStart(&exitB);
+
+  scopes.pop_back();
+  return nullptr;
+}
+
+
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   IfScope scope(*this);
   scopes.emplace_back();
