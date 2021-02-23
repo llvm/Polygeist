@@ -22,6 +22,9 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
+static cl::opt<std::string> Output("o", cl::init("-"),
+                              cl::desc("Output file"));
+
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                            cl::desc("<Specify input file>"),
                                            cl::cat(toolOptions));
@@ -156,9 +159,22 @@ int main(int argc, char **argv) {
     }
     llvmModule->setDataLayout(DL);
     llvmModule->setTargetTriple(triple.getTriple());
-    llvm::outs() << *llvmModule << "\n";
+    if (Output == "-")
+      llvm::outs() << *llvmModule << "\n";
+    else {
+      std::error_code EC;
+     	llvm::raw_fd_ostream out(Output, EC);
+      out << *llvmModule << "\n";
+    }
+ 	
   } else {
-    module.print(outs());
+    if (Output == "-")
+      module.print(outs());
+    else {
+      std::error_code EC;
+     	llvm::raw_fd_ostream out(Output, EC);
+      module.print(outs());
+    }
   }
   return 0;
 }

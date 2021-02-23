@@ -176,6 +176,7 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       inite = (mlir::Value)visit;
       if (!inite) {
         init->dump();
+        assert(0 && inite);
       }
       subType = inite.getType();
     }
@@ -184,6 +185,7 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (isa<llvm::StructType>(getLLVMType(decl->getType()))) {
     isArray = true;
   }
+  llvm::errs() << " lt: " << *getLLVMType(decl->getType()) << " ia: " << isArray << "\n";
   auto op = createAllocOp(subType, decl->getName().str(), memtype, isArray);
   mlir::Value zeroIndex = getConstantIndex(0);
   if (inite) {
@@ -886,10 +888,13 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
-  std::set<std::string> funcs = {"strcmp", "open", "fopen", "close"};
+  std::set<std::string> funcs = {"strcmp", "open", "fopen", "close", "fclose", "atoi", "fscanf"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (funcs.count(sr->getDecl()->getName().str())) {
+        if (sr->getDecl()->getName().str() == "fscanf") {
+          llvm::errs() << "warning fscanf uses implicit case of memref to pointer which may use the wrong location\n";
+        }
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1035,14 +1040,6 @@ MLIRScanner::VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr) {
 
 ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   auto sub = Visit(U->getSubExpr());
-  // TODO note assumptions made here about unsigned / unordered
-  bool signedType = true;
-  if (auto bit = dyn_cast<clang::BuiltinType>(&*U->getType())) {
-    if (bit->isUnsignedInteger())
-      signedType = false;
-    if (bit->isSignedInteger())
-      signedType = true;
-  }
   auto ty = getMLIRType(U->getType());
 
   switch (U->getOpcode()) {
@@ -1474,8 +1471,8 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     auto off = lhs.offsets;
     if (off.size() == 0) {
       BO->dump();
+      assert(off.size() != 0);
     }
-    assert(off.size() != 0);
 
     if (lhs.val.getType().cast<MemRefType>().getShape().size() != off.size()) {
       BO->dump();
@@ -1483,9 +1480,9 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       for (auto a : off)
         a.dump();
       llvm::errs() << "}\n";
+      assert(lhs.val.getType().cast<MemRefType>().getShape().size() ==
+            off.size());
     }
-    assert(lhs.val.getType().cast<MemRefType>().getShape().size() ==
-           off.size());
     mlir::Value tostore = nullptr;
 
     if (auto BO2 = dyn_cast<clang::BinaryOperator>(BO->getRHS())) {
@@ -1500,8 +1497,8 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       }
      }
     if (tostore == nullptr) {
-      BO->getRHS()->dump();
-      llvm::errs() << "rhs: " << rhs.val << "\n";
+      //BO->getRHS()->dump();
+      //llvm::errs() << "rhs: " << rhs.val << "\n";
       tostore = (mlir::Value)rhs;
     }
     builder.create<mlir::StoreOp>(loc, tostore, lhs.val, off);
@@ -1670,10 +1667,15 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
       field = f;
     }
   }
-  // llvm::errs() << "md name: " << memberName << "\n";
+  function.dump();
+  llvm::errs() << "md name: " << memberName << " base: " << base.val << " expr: \n";
+  ME->dump();
   assert(field);
-  return ValueWithOffsets((mlir::Value)base,
-                          {getConstantIndex(layout.getLLVMFieldNo(field))});
+  auto offs = base.offsets;
+  assert(offs.size() >= 1);
+  offs.push_back(getConstantIndex(layout.getLLVMFieldNo(field)));
+  return ValueWithOffsets(base.val,
+                          {offs});
 }
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
@@ -1950,6 +1952,22 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
     Visit(E->getSubExpr());
     return nullptr;
   }
+  case clang::CastKind::CK_PointerToBoolean: {
+    auto scalar = (mlir::Value)Visit(E->getSubExpr());
+    if (auto LT = scalar.getType().dyn_cast<mlir::LLVM::LLVMType>()) {
+      if (LT.isPointerTy()) {
+        auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+        auto ne = builder.create<mlir::LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::ne, scalar, nullptr_llvm);
+        auto mlirType = getMLIRType(E->getType());
+        mlir::Value val = builder.create<mlir::LLVM::DialectCastOp>(loc, mlirType, ne);
+        return ValueWithOffsets(val, {});
+      }
+    }
+    function.dump();
+    llvm::errs() << scalar << "\n";
+    E->dump();
+    assert(0 && "unhandled ptrtobool cast");
+  }
   default:
     E->dump();
     assert(0 && "unhandled cast");
@@ -2081,7 +2099,6 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   auto llvmFnType =
       LLVM::LLVMType::getFunctionTy(rt, types,
                                     /*isVarArg=*/FD->isVariadic());
-
   // Insert the function into the body of the parent module.
 
   mlir::OpBuilder builder(module.getContext());
@@ -2308,6 +2325,22 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
     return builder.getIntegerType(IT->getBitWidth());
   }
   if (auto pt = dyn_cast<llvm::PointerType>(t)) {
+    if (auto ST = dyn_cast<llvm::StructType>(pt->getElementType())) {
+      if (ST->getName() == "struct._IO_FILE") {
+        return typeTranslator.translateType(t);
+      }
+      bool notAllSame = false;
+      for (size_t i = 1; i < ST->getNumElements(); i++) {
+        if (ST->getTypeAtIndex(i) != ST->getTypeAtIndex(0U)) {
+          notAllSame = true;
+          break;
+        }
+      }
+      if (!notAllSame) {
+        return mlir::MemRefType::get({-1, ST->getNumElements()},
+                                    getMLIRType(ST->getTypeAtIndex(0U)), {}, pt->getAddressSpace());
+      }
+    }
     return mlir::MemRefType::get(-1, getMLIRType(pt->getElementType()), {},
                                  pt->getAddressSpace());
   }
@@ -2333,6 +2366,14 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       return mlir::MemRefType::get(ST->getNumElements(),
                                    getMLIRType(ST->getTypeAtIndex(0U)));
     }
+    if (ST->getName() == "struct._IO_FILE") {
+      return typeTranslator.translateType(t);
+    }
+    SmallVector<mlir::Type> types;
+    for (size_t i = 0; i < ST->getNumElements(); i++) {
+      types.push_back(getMLIRType(ST->getTypeAtIndex(i)));
+    }
+    //return mlir::LLVM::StructType::get(ST->getName(), types);
   }
   // if (auto pt = dyn_cast<clang::RecordType>(t)) {
   //    llvm::errs() << " thing: " << pt->getName() << "\n";
