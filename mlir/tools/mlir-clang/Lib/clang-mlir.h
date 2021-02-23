@@ -410,6 +410,8 @@ public:
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
 
+  ValueWithOffsets VisitWhileStmt(clang::WhileStmt *fors);
+
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
