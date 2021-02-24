@@ -398,6 +398,25 @@ def MemRef_CastOp : MemRef_Op<"cast", [
   }];
 
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// SubIndexOp
+//===----------------------------------------------------------------------===//
+
+def SubIndexOp : MemRef_Op<
+    "subindex", [DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect] >  {
+  let summary = "memref subview operation";
+
+  let arguments = (ins
+    AnyMemRef:$source,
+    Index:$index
+  );
+  let results = (outs AnyMemRef:$result);
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
