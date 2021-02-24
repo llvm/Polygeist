@@ -1,0 +1,65 @@
+#!/bin/bash
+# Evaluate the statement splitting.
+
+# Usage:
+#   eval-split <TARGET>
+# 
+# TARGET can be one of the subdirectories.
+
+
+TARGET="$1"
+
+# ----------------------------- GLOBALS ---------------------------------------
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+TMPDIR="${DIR}/tmp"
+POLYBENCH_DIR="${DIR}/../"
+UTILITIES_DIR="${POLYBENCH_DIR}/utilities"
+
+# Submodules
+PLUTO_DIR="${DIR}/../../../pluto"
+
+# Compilation options.
+CLANG_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops"
+POLYBENCH_OPTIONS="-DPOLYBENCH_TIME -DEXTRALARGE_DATASET -DPOLYBENCH_NO_FLUSH_CACHE"
+
+# ----------------------------- Setup ENV -------------------------------------
+export PATH="${PATH}:${PLUTO_DIR}"
+
+
+# -----------------------------  Compile  -------------------------------------
+
+# Compile the provided source file using clang, together with the Polybench library.
+# Return the executable file.
+function compile() {
+  local SRC_FILE="$1"
+  local EXE_FILE="${SRC_FILE%.c}.exe"
+
+  clang -O3 ${CLANG_OPTIONS} ${POLYBENCH_OPTIONS} \
+    "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" \
+    -I "${UTILITIES_DIR}" -lm \
+    -o "${EXE_FILE}"
+  echo "${EXE_FILE}"
+}
+
+# Execute the given executable and return the overall run time.
+# The execution process will be wrapped in taskset.
+function run() {
+  local EXE_FILE="$1"
+  local NUM_RUNS=$2
+  local i=0
+
+  RESULT_STR="$(basename ${EXE_FILE%.exe})"
+  until [ $i -ge $NUM_RUNS ]; do
+    RESULT_STR="${RESULT_STR},$(taskset -c 1-1 numactl -i all "${EXE_FILE}")"
+    ((i++))
+  done
+
+  echo "${RESULT_STR}"
+}
+
+# EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.origin.c")")
+# echo ${EXE_TIME}
+for type in origin split origin.pluto split.pluto; do
+  EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.${type}.c")" 5)
+  echo ${EXE_TIME}
+done
