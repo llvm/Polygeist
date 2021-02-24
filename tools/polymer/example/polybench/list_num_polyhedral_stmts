@@ -1,0 +1,8 @@
+#!/bin/bash
+
+for f in $(find "$1" -name "*.pluto.mlir" -type f); do
+  file_name=$(basename "$f")
+  kernel_name="kernel_${file_name/.pluto.mlir/}"
+
+  echo "${kernel_name}","$(grep -o "func private @S" "$f" | wc -l)"
+done
