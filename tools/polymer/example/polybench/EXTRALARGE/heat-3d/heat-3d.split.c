@@ -65,24 +65,27 @@ static void print_array(int n, DATA_TYPE POLYBENCH_3D(A, N, N, N, n, n, n))
    including the call and return. */
 static void kernel_heat_3d(int tsteps, int n,
                            DATA_TYPE POLYBENCH_3D(A, N, N, N, n, n, n),
-                           DATA_TYPE POLYBENCH_3D(B, N, N, N, n, n, n)) {
-  int t, i, j, k;
+                           DATA_TYPE POLYBENCH_3D(B, N, N, N, n, n, n),
+                           DATA_TYPE POLYBENCH_3D(m1, N, N, N, n, n, n),
+                           DATA_TYPE POLYBENCH_3D(m2, N, N, N, n, n, n),
+                           DATA_TYPE POLYBENCH_3D(m3, N, N, N, n, n, n)) {
+  long long t, i, j, k;
 
 #pragma scop
   for (t = 1; t <= TSTEPS; t++) {
     for (i = 1; i < _PB_N - 1; i++) {
       for (j = 1; j < _PB_N - 1; j++) {
         for (k = 1; k < _PB_N - 1; k++) {
-          B[i][j][k] = SCALAR_VAL(0.125) *
-                           (A[i + 1][j][k] - SCALAR_VAL(2.0) * A[i][j][k] +
-                            A[i - 1][j][k]) +
-                       SCALAR_VAL(0.125) *
-                           (A[i][j + 1][k] - SCALAR_VAL(2.0) * A[i][j][k] +
-                            A[i][j - 1][k]) +
-                       SCALAR_VAL(0.125) *
-                           (A[i][j][k + 1] - SCALAR_VAL(2.0) * A[i][j][k] +
-                            A[i][j][k - 1]) +
-                       A[i][j][k];
+          m1[i][j][k] =
+              SCALAR_VAL(0.125) *
+              (A[i + 1][j][k] - SCALAR_VAL(2.0) * A[i][j][k] + A[i - 1][j][k]);
+          m2[i][j][k] =
+              SCALAR_VAL(0.125) *
+              (A[i][j + 1][k] - SCALAR_VAL(2.0) * A[i][j][k] + A[i][j - 1][k]);
+          m3[i][j][k] =
+              SCALAR_VAL(0.125) *
+              (A[i][j][k + 1] - SCALAR_VAL(2.0) * A[i][j][k] + A[i][j][k - 1]);
+          B[i][j][k] = m1[i][j][k] + m2[i][j][k] + m3[i][j][k] + A[i][j][k];
         }
       }
     }
@@ -115,6 +118,11 @@ int main(int argc, char **argv) {
   POLYBENCH_3D_ARRAY_DECL(A, DATA_TYPE, N, N, N, n, n, n);
   POLYBENCH_3D_ARRAY_DECL(B, DATA_TYPE, N, N, N, n, n, n);
 
+  /* Extended scratchpads */
+  POLYBENCH_3D_ARRAY_DECL(m1, DATA_TYPE, N, N, N, n, n, n);
+  POLYBENCH_3D_ARRAY_DECL(m2, DATA_TYPE, N, N, N, n, n, n);
+  POLYBENCH_3D_ARRAY_DECL(m3, DATA_TYPE, N, N, N, n, n, n);
+
   /* Initialize array(s). */
   init_array(n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(B));
 
@@ -122,7 +130,8 @@ int main(int argc, char **argv) {
   polybench_start_instruments;
 
   /* Run kernel. */
-  kernel_heat_3d(tsteps, n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(B));
+  kernel_heat_3d(tsteps, n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(B),
+                 POLYBENCH_ARRAY(m1), POLYBENCH_ARRAY(m2), POLYBENCH_ARRAY(m3));
 
   /* Stop and print timer. */
   polybench_stop_instruments;
