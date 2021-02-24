@@ -54,9 +54,15 @@ function polly_compile_and_run() {
   local __RESULT_RUN_TIME="$3"
 
   local EXE_FILE="${SRC_FILE%.c}.polly.exe"
+  local LLVMIR_FILE="${SRC_FILE%.c}.polly.ll"
 
-  clang -O3 ${CLANG_OPTIONS} -mllvm -polly "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" -I "${UTILITIES_DIR}" -lm \
-    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -o "${EXE_FILE}"
+  # First -O3 generates LLVM-IR
+  clang -O3 ${CLANG_OPTIONS} -mllvm -polly -mllvm -polly-pattern-matching-based-opts=false \
+   "${SRC_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -o "${LLVMIR_FILE}"
+  # Second -O3 generates the executable 
+  clang "${LLVMIR_FILE}" "${UTILITIES_DIR}/polybench.c" -O3 ${CLANG_OPTIONS} -o "${EXE_FILE}" -lm \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
   
   eval $__RESULT_RUN_TIME="$(taskset -c 1-1 numactl -i all "${EXE_FILE}")"
   eval $__RESULT_EXE_FILE="${EXE_FILE}"
@@ -64,7 +70,7 @@ function polly_compile_and_run() {
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
 TMP_DIR="${DIR}/tmp"
-UTILITIES_DIR="polybench/polybench-code/utilities"
+UTILITIES_DIR="${DIR}/utilities"
 
 # Default LLVM install directory.
 if [ ! -d "${LLVM_DIR}" ]; then
@@ -86,7 +92,7 @@ mkdir -p "${TMP_DIR}"
 cd "${TMP_DIR}"
 
 rm -rf polybench
-git clone https://github.com/Meinersbur/polybench.git 
+git clone https://github.com/kumasento/polybench.git 
 
 # Iterate every source file in Polybench
 FILES="$(find polybench -type f -name "*.c" -not -wholename "*/utilities/*" | xargs -L1 -I{} basename "{}" | sort)"

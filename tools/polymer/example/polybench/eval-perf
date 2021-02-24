@@ -1,9 +1,11 @@
-#!/bin/bash
+#!/bin/bash 
 # Evaluate the performance difference between Pluto and Polymer.
 
 PLUTO_OPTIONS="--noparallel --noprevector --nounrolljam"
 CLANG_NO_VECTORIZE_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize"
 CLANG_NO_UNROLL_OPTIONS="-fno-unroll-loops"
+OPT_NO_VECTORIZE_OPTIONS="-force-vector-width=1 -force-vector-interleave=1"
+OPT_NO_UNROLL_OPTIONS="-disable-loop-unrolling"
 SKIP_EXECUTE="false"
 SKIP_CODEGEN="false"
 PLUTO_VARIANT=""
@@ -51,9 +53,11 @@ while getopts ":hdgsupvf:t:c:" opt; do
       ;;
     v )
       CLANG_NO_VECTORIZE_OPTIONS=""
+      OPT_NO_VECTORIZE_OPTIONS=""
       ;;
     u )
       CLANG_NO_UNROLL_OPTIONS=""
+      OPT_NO_UNROLL_OPTIONS=""
       ;;
     c )
       OPT_CONFIG="${OPTARG}"
@@ -67,6 +71,7 @@ done
 shift $((OPTIND -1))
 
 CLANG_OPTIONS="${CLANG_NO_VECTORIZE_OPTIONS} ${CLANG_NO_UNROLL_OPTIONS}"
+OPT_OPTIONS="${OPT_NO_VECTORIZE_OPTIONS} ${OPT_NO_UNROLL_OPTIONS}"
 
 if [ "${PLUTO_VARIANT}" = "i64" ]; then
   PLUTO_OPTIONS="${PLUTO_OPTIONS} --indvar_type 64"
@@ -78,6 +83,7 @@ TMPDIR="${DIR}/tmp"
 UTILITIES_DIR="${DIR}/utilities"
 PLUTO_DIR="${DIR}/../../pluto"
 # LLVM_DIR="${DIR}/../../llvm"
+# Don't know why but the version under the home directory is extremely fast.
 LLVM_DIR=${HOME}/MLIR-GPU
 POLYMER_DIR="${DIR}/../../"
 
