@@ -14,7 +14,7 @@ SKIPPED_TESTS="adi"
 
 OPT_CONFIG="1" # 1 stands for single O3, 2 for double O3
 
-while getopts ":hdgsupvf:t:c:" opt; do 
+while getopts ":hdgsupvf:t:c:l:" opt; do 
   case "${opt}" in 
     h ) 
       echo ""
@@ -31,6 +31,7 @@ while getopts ":hdgsupvf:t:c:" opt; do
       echo "    -f <target>         Evaluate the <target> file"
       echo "    -t <pluto var>      Specific Pluto variant (i64, 1d, etc.)"
       echo "    -c <opt level>      1 - single O3, 2 - double O3"
+      echo "    -l <LLVM dir>       Path to the llvm install directory"
       exit 0
       ;;
     f )
@@ -62,6 +63,9 @@ while getopts ":hdgsupvf:t:c:" opt; do
     c )
       OPT_CONFIG="${OPTARG}"
       ;;
+    l )
+      LLVM_DIR="${OPTARG}"
+      ;;
     \? )
       echo "Invalid Option: -$OPTARG" 1>&2
       exit 1
@@ -82,10 +86,11 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
 TMPDIR="${DIR}/tmp"
 UTILITIES_DIR="${DIR}/utilities"
 PLUTO_DIR="${DIR}/../../pluto"
-# LLVM_DIR="${DIR}/../../llvm"
-# Don't know why but the version under the home directory is extremely fast.
-LLVM_DIR=${HOME}/MLIR-GPU
 POLYMER_DIR="${DIR}/../../"
+
+if [ -z "${LLVM_DIR}" ]; then
+  LLVM_DIR="${DIR}/../../llvm"
+fi
 
 export PATH="${PATH}:${PLUTO_DIR}"
 export PATH="${LLVM_DIR}/build/bin:${PATH}"
@@ -232,7 +237,7 @@ elif [ -d "${TEST_CASE}" ]; then
         echo "Pluto run time:   ${PLUTO_RUN_TIME}" 
         PLUTO_RESULT_STR="${PLUTO_RESULT_STR},${PLUTO_RUN_TIME}"
 
-        run_polymer "${TEST_FILE%.c}.mlir" POLYMER_EXE_FILE POLYMER_RUN_TIME &>/dev/null
+        run_polymer "${TEST_FILE%.c}.mlir" POLYMER_EXE_FILE POLYMER_RUN_TIME 
         echo "Polymer run time: ${POLYMER_RUN_TIME}" 
         POLYMER_RESULT_STR="${POLYMER_RESULT_STR},${POLYMER_RUN_TIME}"
       done
