@@ -13,7 +13,9 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/InliningUtils.h"
-//#include "llvm/Support/Debug.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "scf-operations"
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -596,23 +598,24 @@ struct SimplifyTrivialLoops : public OpRewritePattern<ForOp> {
 };
 
 /// Remove unused iterator operands.
+// TODO: BlockAndValueMapping for indvar.
 struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(ForOp op,
                                 PatternRewriter &rewriter) const override {
 
-    SmallVector<Value, 2> usedBlockArgs{};
-    SmallVector<Value, 2> usedResults{};
-    SmallVector<Value, 2> usedOperands{};
+    SmallVector<Value, 2> usedBlockArgs;
+    SmallVector<OpResult, 2> usedResults;
+    SmallVector<Value, 2> usedOperands;
 
     unsigned i = 0;
     // if the block argument or the result at the
     // same index position have uses do not eliminate.
     for (auto blockArg : op.getRegionIterArgs()) {
       if ((!blockArg.use_empty()) || (!op.getResult(i).use_empty())) {
-        usedOperands.push_back(op.getOperand(3 + i));
-        usedResults.push_back(op.getResult(i));
+        usedOperands.push_back(op.getOperand(op.getNumControlOperands() + i));
+        usedResults.push_back(op->getOpResult(i));
         usedBlockArgs.push_back(blockArg);
       }
       i++;
@@ -626,7 +629,7 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
         op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
         usedOperands,
         [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-          SmallVector<Value, 2> mappedValues{};
+          SmallVector<Value, 2> mappedValues;
           mappedValues.append(args.begin(), args.end());
 
           BlockAndValueMapping mapping;
@@ -636,17 +639,16 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
         });
 
     // adjust return.
-    // TODO: check this cast<OpResult> with Alex and Billy.
     auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
     SmallVector<Value, 2> usedYieldOperands{};
-    llvm::transform(
-        usedResults, std::back_inserter(usedYieldOperands), [&](Value result) {
-          return yieldOp.getOperand(result.cast<OpResult>().getResultNumber());
-        });
+    llvm::transform(usedResults, std::back_inserter(usedYieldOperands),
+                    [&](OpResult result) {
+                      return yieldOp.getOperand(result.getResultNumber());
+                    });
     rewriter.updateRootInPlace(
         yieldOp, [&]() { yieldOp->setOperands(usedYieldOperands); });
 
-    // Replace the operation's results with the new one.
+    // Replace the operation's results with the new ones.
     SmallVector<Value, 4> repResults(op.getNumResults());
     for (auto en : llvm::enumerate(usedResults))
       repResults[en.value().cast<OpResult>().getResultNumber()] =
@@ -666,7 +668,7 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
     return None;
   }
 
-  Optional<int64_t> extractConstantStep(Value val) const {
+  Optional<int64_t> extractConstant(Value val) const {
     if (auto cstOp = val.getDefiningOp<ConstantOp>()) {
       Attribute attr = cstOp.getValue();
       if (auto intAttr = attr.cast<IntegerAttr>())
@@ -675,88 +677,127 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
     return None;
   }
 
+  bool findIn(ArrayRef<unsigned> array, unsigned pos) const {
+    if (std::find(array.begin(), array.end(), pos) != array.end())
+      return true;
+    return false;
+  }
+
+  bool isTopLevel(Value val) const {
+    if (val.cast<BlockArgument>())
+      return true;
+    return false;
+  }
+
+  bool hasSameStep(Value incAdd, Value forStep) const {
+    auto incAddVal = extractConstant(incAdd);
+    auto forStepVal = extractConstantIndex(forStep);
+    if (incAddVal && forStepVal && incAddVal == forStepVal)
+      return true;
+    return false;
+  }
+
+  // TODO: miss op. if it has more than one uses (i.e., an index cast op).
+  bool isIndVar(Value val, ForOp op) const {
+    if (val == op.getInductionVar())
+      return true;
+    else if (val.hasOneUse()) {
+      Operation *defOp = val.getDefiningOp();
+      if (auto addIOp = dyn_cast<AddIOp>(defOp)) {
+        Value maybeBlockArg = addIOp.getOperand(0);
+        if (isTopLevel(maybeBlockArg) &&
+            hasSameStep(addIOp.getOperand(1), op.getStep()))
+          return true;
+      }
+    }
+    return false;
+  }
+
   LogicalResult matchAndRewrite(ForOp op,
                                 PatternRewriter &rewriter) const override {
 
     if (!op.getIterOperands().size())
       return failure();
 
-    // Start from 1 to account for the induction variable.
-    unsigned blockArgPos = 1;
-    for (Value operand : op.getIterOperands()) {
-      if (operand.getType().isa<IntegerType>()) {
-        auto argBlock = op.getBody()->getArgument(blockArgPos);
-        if (argBlock.hasOneUser()) {
-          Operation *maybeAdd = *(argBlock.getUsers().begin());
-          if (auto addIOp = dyn_cast<AddIOp>(maybeAdd)) {
-            auto addRhs = extractConstantStep(addIOp.getOperand(1));
-            auto step = extractConstantIndex(op.getStep());
-            if (addRhs && step && addRhs == step) {
-              addIOp.getResult().replaceAllUsesWith(op.getInductionVar());
-              rewriter.eraseOp(addIOp);
-            }
-          }
-        }
-      }
-      blockArgPos++;
-    }
-
     SmallVector<unsigned, 4> nonIndVarIndexes;
+    SmallVector<unsigned, 4> indVarIndexes;
+    SmallVector<Type, 4> indVarTypes;
     auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
     for (OpOperand &yieldOperand : yieldOp->getOpOperands())
-      if (yieldOperand.get() != op.getInductionVar()) {
-        yieldOperand.get().dump();
-        op.getInductionVar().dump();
+      if (!isIndVar(yieldOperand.get(), op))
         nonIndVarIndexes.push_back(yieldOperand.getOperandNumber());
+      else {
+        indVarIndexes.push_back(yieldOperand.getOperandNumber());
+        indVarTypes.push_back(yieldOperand.get().getType());
       }
 
-    for (auto i : nonIndVarIndexes)
-      llvm::errs() << "index: " << i << " ";
-    llvm::errs() << "\n";
+    assert(nonIndVarIndexes.size() + indVarIndexes.size() ==
+           op.getNumRegionIterArgs());
+
+    // no work to do.
+    if (!indVarIndexes.size()) {
+      llvm::errs() << "----- failed detect ind var -----\n\n";
+      op.dump();
+      return failure();
+    }
 
     SmallVector<OpResult, 4> nonIndVarResults;
-    llvm::copy_if(
-        op->getOpResults(), std::back_inserter(nonIndVarResults),
-        [&](OpResult result) {
-          if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(),
-                        result.getResultNumber()) != nonIndVarIndexes.end())
-            return true;
-          return false;
-        });
+    llvm::copy_if(op->getOpResults(), std::back_inserter(nonIndVarResults),
+                  [&](OpResult result) {
+                    if (findIn(nonIndVarIndexes, result.getResultNumber()))
+                      return true;
+                    return false;
+                  });
 
     SmallVector<Value, 4> nonIndVarOperands;
     SmallVector<Value, 4> nonIndVarBlockArgs;
+    SmallVector<Value, 2> indVarBlockArgs;
 
     unsigned pos = 0;
     for (Value operand : op.getIterOperands()) {
-      if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(), pos) !=
-          nonIndVarIndexes.end()) {
+      if (findIn(nonIndVarIndexes, pos)) {
         nonIndVarOperands.push_back(operand);
+        // +1 to skip indvar.
         nonIndVarBlockArgs.push_back(op.getBody()->getArgument(pos + 1));
       }
       pos++;
     }
 
-    llvm::errs() << "nonIndVarIndexes.size: " << nonIndVarIndexes.size()
-                 << "\n";
-    llvm::errs() << "nonIndVarResults.size: " << nonIndVarResults.size()
-                 << "\n";
-    llvm::errs() << "nonIndVarOperands.size: " << nonIndVarOperands.size()
-                 << "\n";
+    for (auto index : indVarIndexes)
+      indVarBlockArgs.push_back(op.getBody()->getArgument(index + 1));
 
     auto newForOp = rewriter.create<ForOp>(
         op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
         nonIndVarOperands,
         [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          // clang-format off
+          // mapping {iter_arg_ind_var, iter_arg_ind_var, iter_arg_no_ind_var_one ...}
+          //         {iv_new,           iv_new, iter_arg_no_ind_var_one, new ...}
+          // clang-format on
           SmallVector<Value, 4> mappedValues;
+          for (int i = 0; i < indVarIndexes.size(); i++) {
+            if (!indVarTypes[i].isa<IndexType>())
+              mappedValues.push_back(rewriter.create<IndexCastOp>(
+                  op.getLoc(), iv, indVarTypes[i]));
+            else
+              mappedValues.push_back(iv);
+          }
           mappedValues.append(args.begin(), args.end());
 
+          SmallVector<Value, 4> blockArgs;
+          blockArgs.append(indVarBlockArgs.begin(), indVarBlockArgs.end());
+          blockArgs.append(nonIndVarBlockArgs.begin(),
+                           nonIndVarBlockArgs.end());
+
+          assert(blockArgs.size() == mappedValues.size());
+
           BlockAndValueMapping mapping;
-          mapping.map(nonIndVarBlockArgs, mappedValues);
+          mapping.map(blockArgs, mappedValues);
           for (auto &nested : op.getBody()->getOperations())
             b.clone(nested, mapping);
         });
 
+    // Fix YieldOp.
     yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
     SmallVector<Value, 4> yieldOperands;
     llvm::transform(nonIndVarResults, std::back_inserter(yieldOperands),
@@ -766,11 +807,11 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
     rewriter.updateRootInPlace(yieldOp,
                                [&]() { yieldOp->setOperands(yieldOperands); });
 
+    // Fix returns.
     SmallVector<Value, 4> reResults;
     pos = 0;
     for (OpResult res : op->getOpResults()) {
-      if (std::find(nonIndVarIndexes.begin(), nonIndVarIndexes.end(),
-                    res.getResultNumber()) == nonIndVarIndexes.end()) {
+      if (!findIn(nonIndVarIndexes, res.getResultNumber())) {
         rewriter.setInsertionPointAfter(newForOp);
         auto cast = rewriter.create<IndexCastOp>(
             op.getLoc(), newForOp.getUpperBound(), res.getType());
@@ -1128,11 +1169,9 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     if (!loop.isWhile())
       return failure();
 
-    if (loop.results().size() != loop.inits().size())
-      return failure();
-
     struct LoopInfo {
       Value indVar = nullptr;
+      Type indVarType = nullptr;
       Value ub = nullptr;
       Value lb = nullptr;
       Value step = nullptr;
@@ -1167,8 +1206,10 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
             loopInfo.step = addIOp.getOperand(1);
         }
       }
+      Value indVar = maybeIndVar;
       loopInfo.ub = cmpIOp.rhs();
-      loopInfo.indVar = maybeIndVar;
+      loopInfo.indVar = indVar;
+      loopInfo.indVarType = indVar.getType();
     }
 
     Value ub = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.ub,
@@ -1180,26 +1221,30 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
     // input of the for goes the input of the scf::while plus the output taken
     // from the conditionOp.
-    SmallVector<Value, 8> forArgs{};
+    SmallVector<Value, 8> forArgs;
     forArgs.append(loop.inits().begin(), loop.inits().end());
 
     // Directly using the conditionOp arguments does not work. But if they are
     // blockArgument we can look-up into the input of the scf::while.
-    // TODO: what if is not a blockArgument? getDefiningOp and then res?
     for (auto arg : condOp.args()) {
       if (auto blockArg = arg.dyn_cast<BlockArgument>()) {
         auto pos = blockArg.getArgNumber();
         forArgs.push_back(loop.inits()[pos]);
       } else
-        return failure();
+        forArgs.push_back(arg);
     }
 
     auto forloop = rewriter.create<scf::ForOp>(
         loop.getLoc(), lb, ub, step, forArgs,
         [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          // if the original induction variable was not of type "Index"
+          // we need to insert a cast to the old type.
+          // rewriter.create<IndexCastOp>(loop.getLoc(), iv,
+          // loopInfo.indVarType); loopInfo.indVar.replaceAllUsesWith(castIv);
+
           // map for the conditionOp value.
           size_t pos = loop.inits().size();
-          SmallVector<Value, 2> mappedValues{};
+          SmallVector<Value, 2> mappedValues;
           mappedValues.append(args.begin() + pos, args.end());
 
           BlockAndValueMapping mapping;
@@ -1211,41 +1256,25 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
           auto oldYield =
               cast<scf::YieldOp>(loop.after().front().getTerminator());
-          SmallVector<Value, 2> yieldOperands{};
-          yieldOperands.reserve(loop.getResults().size());
+          SmallVector<Value, 2> yieldOperands;
           for (auto oldYieldArg : oldYield.results())
             yieldOperands.push_back(mapping.lookup(oldYieldArg));
 
-          // start from the after arguments and reach the last
-          // value update which goes as input to the scf::YieldOp.
-          for (auto valArg : loop.after().getArguments()) {
-            if (valArg.hasOneUser())
-              if (auto yield =
-                      dyn_cast<scf::YieldOp>(*valArg.getUsers().begin()))
-                yieldOperands.push_back(mapping.lookup((mlir::Value)valArg));
-            for (auto op : valArg.getUsers()) {
-              auto results = op->getResults();
-              for (Value res : results) {
-                if (!res.hasOneUser())
-                  continue;
-                auto maybeYield = *(res.getUsers().begin());
-                if (auto yield = dyn_cast<scf::YieldOp>(maybeYield))
-                  yieldOperands.push_back(mapping.lookup(res));
-              }
-            }
-          }
+          BlockAndValueMapping outmap;
+          outmap.map(loop.before().getArguments(), yieldOperands);
+          for (auto arg : condOp.args())
+            yieldOperands.push_back(outmap.lookupOrDefault(arg));
 
           b.create<scf::YieldOp>(loop.getLoc(), yieldOperands);
         });
 
-    // auto m = loop.getParentOfType<ModuleOp>();
-    // m.dump();
-
-    SmallVector<Value, 2> replacements{};
+    SmallVector<Value, 2> replacements;
     size_t pos = loop.inits().size();
     replacements.append(forloop.getResults().begin() + pos,
                         forloop.getResults().end());
     rewriter.replaceOp(loop, replacements);
+    // auto m = forloop.getParentOfType<ModuleOp>();
+    // m.dump();
     return success();
   }
 };

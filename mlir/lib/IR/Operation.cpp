@@ -934,15 +934,21 @@ LogicalResult OpTrait::impl::verifySameOperandsAndResultType(Operation *op) {
   auto elementType = getElementTypeOrSelf(type);
   for (auto resultType : op->getResultTypes().drop_front(1)) {
     if (getElementTypeOrSelf(resultType) != elementType ||
-        failed(verifyCompatibleShape(resultType, type)))
+        failed(verifyCompatibleShape(resultType, type))) {
+      auto m = op->getParentOfType<ModuleOp>();
+      m.dump();
       return op->emitOpError()
              << "requires the same type for all operands and results";
+    }
   }
   for (auto opType : op->getOperandTypes()) {
     if (getElementTypeOrSelf(opType) != elementType ||
-        failed(verifyCompatibleShape(opType, type)))
+        failed(verifyCompatibleShape(opType, type))) {
+      auto m = op->getParentOfType<ModuleOp>();
+      m.dump();
       return op->emitOpError()
              << "requires the same type for all operands and results";
+    }
   }
   return success();
 }
