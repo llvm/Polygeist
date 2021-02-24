@@ -1361,6 +1361,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     auto condOp = cast<ConditionOp>(loop.before().front().getTerminator());
     SmallVector<Value, 2> results = {condOp.args()};
     Operation *maybeCmpIOp = condOp.condition().getDefiningOp();
+    if (!maybeCmpIOp) {
+      llvm::errs() << condOp << "\n";
+      llvm::errs() << condOp.condition() << "\n";
+    }
+    assert(maybeCmpIOp);
     if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
       Value maybeIndVar = cmpIOp.lhs();
       if (isTopLevelArgValue(maybeIndVar, &loop.before()))

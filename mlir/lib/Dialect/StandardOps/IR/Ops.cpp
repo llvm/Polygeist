@@ -2398,16 +2398,36 @@ struct MoveStoreToAffine : public OpRewritePattern<StoreOp> {
   }
 };
 
+class LoadOpIndexFolder final : public OpRewritePattern<LoadOp> {
+public:
+  using OpRewritePattern<LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LoadOp loadOp,
+                                PatternRewriter &rewriter) const override {
+    auto subindexOp = loadOp.memref().getDefiningOp<SubIndexOp>();
+    if (!subindexOp)
+      return failure();
+
+    SmallVector<Value, 4> indices = loadOp.indices();
+    if (subindexOp.getType().cast<MemRefType>().getShape().size()
+          == 
+        subindexOp.source().getType().cast<MemRefType>().getShape().size()
+    ) {
+      indices[0] = rewriter.create<AddIOp>(subindexOp.getLoc(), indices[0], subindexOp.index());
+    } else {
+      indices.insert(indices.begin(), subindexOp.index());
+    }
+
+    rewriter.replaceOpWithNewOp<LoadOp>(loadOp,
+                                        subindexOp.source(), indices);
+    return success();
+  }
+};
 } // end anonymous namespace.
 
 void LoadOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                          MLIRContext *context) {
-  results.insert<LoadOfTensorToMemref, MoveLoadToAffine>(context);
-}
-
-void StoreOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) {
-  results.insert<MoveStoreToAffine>(context);
+  results.insert<LoadOfTensorToMemref, MoveLoadToAffine, LoadOpIndexFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3851,6 +3871,144 @@ OpFoldResult SubViewOp::fold(ArrayRef<Attribute> operands) {
     return getViewSource();
 
   return {};
+}
+
+//===----------------------------------------------------------------------===//
+// SubIndexOp
+//===----------------------------------------------------------------------===//
+
+/// Print a subview op of the form:
+/// ```
+///   `subview` ssa-name
+///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
+///     `:` strided-memref-type `to` strided-memref-type
+/// ```
+static void print(OpAsmPrinter &p, SubIndexOp op) {
+  int stdDotLen = StandardOpsDialect::getDialectNamespace().size() + 1;
+  p << op->getName().getStringRef().drop_front(stdDotLen) << ' ';
+  p << op.source() << " ";
+  p << op.index();
+  p << " : " << op.source().getType().cast<MemRefType>() << " to " << op.getType();
+}
+
+/// Parse a subview op of the form:
+/// ```
+///   `subview` ssa-name
+///     `[` offset-list `]` `[` size-list `]` `[` stride-list `]`
+///     `:` strided-memref-type `to` strided-memref-type
+/// ```
+static ParseResult parseSubIndexOp(OpAsmParser &parser, OperationState &result) {
+  OpAsmParser::OperandType srcInfo;
+  if (parser.parseOperand(srcInfo))
+    return failure();
+  OpAsmParser::OperandType index;
+  if (parser.parseOperand(index))
+    return failure();
+  Type srcType, dstType;
+  auto preResolutionFn = [&](OpAsmParser &parser, OperationState &result) {
+    return failure(parser.parseOptionalAttrDict(result.attributes) ||
+                   parser.parseColonType(srcType) ||
+                   parser.parseKeywordType("to", dstType) ||
+                   parser.resolveOperand(srcInfo, srcType, result.operands));
+  };
+  return parser.addTypeToList(dstType, result.types);
+}
+
+// Verifier for SubIndexOp.
+static LogicalResult verify(SubIndexOp op) {
+  MemRefType baseType = op.source().getType().cast<MemRefType>();
+  MemRefType subViewType = op.result().getType().cast<MemRefType>();
+
+  // The base memref and the view memref should be in the same memory space.
+  if (baseType.getMemorySpace() != subViewType.getMemorySpace())
+    return op.emitError("different memory spaces specified for base memref "
+                        "type ")
+           << baseType << " and subview memref type " << subViewType;
+
+  return success();
+}
+
+/// For ViewLikeOpInterface.
+Value SubIndexOp::getViewSource() { return source(); }
+
+class SubIndexOpMemRefCastFolder final : public OpRewritePattern<SubIndexOp> {
+public:
+  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIndexOp subViewOp,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = subViewOp.source().getDefiningOp<MemRefCastOp>();
+    if (!castOp)
+      return failure();
+
+    if (!canFoldIntoConsumerOp(castOp))
+      return failure();
+
+    rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, subViewOp.result().getType().cast<MemRefType>(),
+                                              castOp.source(),
+                                              subViewOp.index());
+    return success();
+  }
+};
+
+void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  results.insert<SubIndexOpMemRefCastFolder>(context);
+}
+
+
+class MemRefCastIndexFolder final : public OpRewritePattern<MemRefCastOp> {
+public:
+  using OpRewritePattern<MemRefCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(MemRefCastOp castOp,
+                                PatternRewriter &rewriter) const override {
+    auto subindexOp = castOp.source().getDefiningOp<SubIndexOp>();
+    if (!subindexOp)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<SubIndexOp>(castOp, castOp.getType().cast<MemRefType>(),
+                                            subindexOp.source(),
+                                            subindexOp.index());
+    return success();
+  }
+};
+
+void MemRefCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                               MLIRContext *context) {
+  results.insert<MemRefCastIndexFolder>(context);
+}
+
+class StoreOpIndexFolder final : public OpRewritePattern<StoreOp> {
+public:
+  using OpRewritePattern<StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(StoreOp storeOp,
+                                PatternRewriter &rewriter) const override {
+    auto subindexOp = storeOp.memref().getDefiningOp<SubIndexOp>();
+    if (!subindexOp)
+      return failure();
+
+    SmallVector<Value, 4> indices = storeOp.indices();
+    if (subindexOp.getType().cast<MemRefType>().getShape().size()
+          == 
+        subindexOp.source().getType().cast<MemRefType>().getShape().size()
+    ) {
+      indices[0] = rewriter.create<AddIOp>(subindexOp.getLoc(), indices[0], subindexOp.index());
+    } else {
+      indices.insert(indices.begin(), subindexOp.index());
+    }
+
+    rewriter.replaceOpWithNewOp<StoreOp>(storeOp,
+                                         storeOp.value(),
+                                          subindexOp.source(), indices);
+    return success();
+  }
+};
+
+void StoreOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<StoreOpIndexFolder, MoveStoreToAffine>(context);
 }
 
 //===----------------------------------------------------------------------===//

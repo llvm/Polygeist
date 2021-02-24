@@ -283,6 +283,9 @@ bool Mem2Reg::forwardStoreToLoad(
       for (auto succ : block->getSuccessors()) {
         todo.push_back(succ);
         assert(succ);
+        if (succ->empty()) {
+          AI.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+        }
         assert(!succ->empty());
       }
     }

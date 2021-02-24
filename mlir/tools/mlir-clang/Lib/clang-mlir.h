@@ -66,52 +66,7 @@ public:
   bool getForwardMode() const { return forwardMode; }
 };
 
-struct ValueWithOffsets {
-  mlir::Value val;
-  std::vector<mlir::Value> offsets;
-  ValueWithOffsets() = default;
-  ValueWithOffsets(const ValueWithOffsets &r) = default;
-  ValueWithOffsets(ValueWithOffsets &&r) = default;
-
-  ValueWithOffsets &operator=(ValueWithOffsets &rhs) {
-    val = rhs.val;
-    offsets = rhs.offsets;
-    return *this;
-  }
-  ValueWithOffsets &operator=(ValueWithOffsets &&rhs) {
-    val = rhs.val;
-    offsets = rhs.offsets;
-    return *this;
-  }
-
-  ValueWithOffsets(mlir::Value val, std::vector<mlir::Value> offsets)
-      : val(val), offsets(offsets) {
-    if (auto MT = val.getType().dyn_cast<MemRefType>())
-      assert(offsets.size() <= MT.getShape().size());
-  }
-  ValueWithOffsets(mlir::Value sval) : val(sval), offsets() {
-    // if (val)
-    //    assert(!val.getType().isa<mlir::MemRefType>());
-  }
-  ValueWithOffsets(std::nullptr_t sval) : val(sval), offsets() {
-    // if (val)
-    //    assert(!val.getType().isa<mlir::MemRefType>());
-  }
-  explicit operator mlir::Value() const {
-    // This is needed because a pointer can be used as an lvalue but it still
-    // has an offset
-    if (offsets.size() != 0) {
-      assert(offsets.size() == 1);
-      if (auto op = offsets[0].getDefiningOp<ConstantIndexOp>()) {
-        assert(op.getValue() == 0);
-      } else {
-        assert(0 && "unable to get value");
-      }
-    }
-    return val;
-  }
-  mlir::Type getType() { return val.getType(); }
-};
+typedef mlir::Value ValueWithOffsets;
 
 /// The location of the scop, as delimited by scop and endscop
 /// pragmas by the user.
@@ -362,8 +317,7 @@ public:
     for (unsigned i = 0, e = function.getNumArguments(); i != e; ++i) {
       // function.getArgument(i).setName(names[i]);
       if (isReference[i])
-        setValue(names[i], ValueWithOffsets(function.getArgument(i),
-                                            {getConstantIndex(0)}));
+        setValue(names[i], function.getArgument(i));
       else
         createAndSetAllocOp(names[i], function.getArgument(i), 0);
     }

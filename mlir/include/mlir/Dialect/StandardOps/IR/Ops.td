@@ -2155,6 +2155,7 @@ def MemRefCastOp : CastOp<"memref_cast", [
     /// The result of a memref_cast is always a memref.
     Type getType() { return getResult().getType(); }
   }];
+  let hasCanonicalizer = 1;
 }
 
 
@@ -3002,6 +3003,8 @@ def StoreOp : Std_Op<"store",
   let assemblyFormat = [{
     $value `,` $memref `[` $indices `]` attr-dict `:` type($memref)
   }];
+
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3237,6 +3240,25 @@ def SubViewOp : BaseOpWithOffsetSizesAndStrides<
 
   let hasCanonicalizer = 1;
   let hasFolder = 1;
+}
+
+
+//===----------------------------------------------------------------------===//
+// SubIndexOp
+//===----------------------------------------------------------------------===//
+
+def SubIndexOp : Std_Op<
+    "subindex", [DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect] >  {
+  let summary = "memref subview operation";
+
+  let arguments = (ins
+    AnyMemRef:$source,
+    Index:$index
+  );
+  let results = (outs AnyMemRef:$result);
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 0;
 }
 
 //===----------------------------------------------------------------------===//
