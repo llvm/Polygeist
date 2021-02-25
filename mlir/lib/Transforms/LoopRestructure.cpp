@@ -80,12 +80,11 @@ template class llvm::LoopBase<::mlir::Block, ::mlir::Loop>;
 template class llvm::LoopInfoBase<::mlir::Block, ::mlir::Loop>;
 
 void LoopRestructure::runOnFunction() {
-  FuncOp f = getFunction();
+  //FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
   if (auto region = getOperation().getCallableRegion()) {
     runOnRegion(domInfo, *region);
   }
-  // f.dump();
 }
 
 bool attemptToFoldIntoPredecessor(Block *target) {

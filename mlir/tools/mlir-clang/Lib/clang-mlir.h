@@ -66,7 +66,66 @@ public:
   bool getForwardMode() const { return forwardMode; }
 };
 
-typedef mlir::Value ValueWithOffsets;
+struct ValueWithOffsets {
+  mlir::Value val;
+  bool isReference;
+  ValueWithOffsets() : val(nullptr), isReference(false) {};
+  ValueWithOffsets(std::nullptr_t) : val(nullptr), isReference(false) {};
+  ValueWithOffsets(mlir::Value val, bool isReference) :
+    val(val), isReference(isReference) {
+      if (isReference) {
+        if (val.getType().isa<mlir::LLVM::LLVMType>()) {
+
+        } else if (val.getType().isa<mlir::MemRefType>()) {
+
+        } else {
+          llvm::errs() << val << "\n";
+          assert(val.getType().isa<mlir::MemRefType>());
+        }
+
+      }
+    };
+  
+  mlir::Value getValue(OpBuilder& builder) const {
+    assert(val);
+    if (!isReference) return val;
+    auto loc = builder.getUnknownLoc();
+    if (val.getType().isa<mlir::LLVM::LLVMType>()) {
+      return builder.create<mlir::LLVM::LoadOp>(loc, val);
+    }
+    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    if (!val.getType().isa<mlir::MemRefType>()) {
+      llvm::errs() << val << "\n";
+    }
+    assert(val.getType().isa<mlir::MemRefType>());
+    return builder.create<LoadOp>(loc, val, std::vector<mlir::Value>({c0}));
+  }
+
+  ValueWithOffsets dereference(OpBuilder& builder) const {
+    assert(val);
+    if (!isReference) return ValueWithOffsets(val, /*isReference*/true);
+    auto loc = builder.getUnknownLoc();
+    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    if (val.getType().isa<mlir::LLVM::LLVMType>()) {
+      return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val), /*isReference*/true);
+    }
+    auto mt = val.getType().cast<mlir::MemRefType>();
+    auto shape = std::vector<int64_t>(mt.getShape());
+    if (shape.size() > 1) {
+      shape.erase(shape.begin());
+    } else {
+      shape[0] = -1;
+      // builder.create<LoadOp>(loc, val, std::vector<mlir::Value>({c0}))
+    }
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              mt.getAffineMaps(), mt.getMemorySpace());
+    auto post = builder.create<SubIndexOp>(loc, mt0, val, c0);
+
+    return ValueWithOffsets(post,
+                            /*isReference*/true);
+  }
+};
 
 /// The location of the scop, as delimited by scop and endscop
 /// pragmas by the user.
@@ -302,26 +361,36 @@ public:
     // fd->dump();
 
     scopes.emplace_back();
-    std::vector<std::string> names;
-    std::vector<bool> isReference;
-    for (auto parm : fd->parameters()) {
-      names.push_back(parm->getName().str());
-      isReference.push_back(isa<LValueReferenceType>(parm->getType()) ||
-                            isa<clang::ArrayType>(parm->getType()));
-    }
 
     entryBlock = function.addEntryBlock();
 
     builder.setInsertionPointToStart(entryBlock);
 
-    for (unsigned i = 0, e = function.getNumArguments(); i != e; ++i) {
+    unsigned i = 0;
+    for (auto parm : fd->parameters()) {
+      assert(i != function.getNumArguments());
+      auto name = parm->getName().str();
       // function.getArgument(i).setName(names[i]);
-      if (isReference[i])
-        setValue(names[i], function.getArgument(i));
-      else
-        createAndSetAllocOp(names[i], function.getArgument(i), 0);
+      auto ty = parm->getType();
+      #if 0
+      if (isa<LValueReferenceType>(ty) || isa<clang::ArrayType>(ty)) {
+        if (isa<clang::DecayedType>(parm->getType())) {
+          auto mt = function.getArgument(i).getType().cast<mlir::MemRefType>();
+          auto shape = std::vector<int64_t>(mt.getShape());
+          shape[0] = -1;
+          auto mt0 =
+              mlir::MemRefType::get(shape, mt.getElementType(),
+                                    mt.getAffineMaps(), mt.getMemorySpace());
+          auto mrc = builder.create<MemRefCastOp>(loc, function.getArgument(i), mt0);
+          createAndSetAllocOp(name, mrc, 0);
+        } else
+          assert(0 && "nondecayed!");
+          //setValue(name, ValueWithOffsets(function.getArgument(i),/*isReference*/true));
+      } else
+      #endif
+        createAndSetAllocOp(name, function.getArgument(i), 0);
+      i++;
     }
-
     scopes.emplace_back();
 
     Stmt *stmt = fd->getBody();

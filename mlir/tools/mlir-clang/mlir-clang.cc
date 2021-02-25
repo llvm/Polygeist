@@ -93,31 +93,35 @@ int main(int argc, char **argv) {
   llvm::Triple triple;
   llvm::DataLayout DL("");
   parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module, triple, DL);
-
   mlir::PassManager pm(&context);
 
+  //llvm::errs() << "<immediate: mlir>\n";
+  //module.dump();
+  //llvm::errs() << "</immediate: mlir>\n";
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createMem2RegPass());
-    optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createLoopRestructurePass());
-    optPM.addPass(mlir::createMemRefDataFlowOptPass());
-    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-    optPM.addPass(mlir::createRaiseSCFToAffinePass());
-    // optPM.addPass(mlir::replaceAffineCFGPass());
-    optPM.addPass(mlir::createCanonicalizerPass());
-
-    if (mlir::failed(pm.run(module)))
-      return 4;
-    // module.dump();
-    if (mlir::failed(mlir::verify(module))) {
-      return 5;
-    }
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createMem2RegPass());
+  optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createMem2RegPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createLoopRestructurePass());
+  // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
+  optPM.addPass(mlir::createRaiseSCFToAffinePass());
+  // optPM.addPass(mlir::replaceAffineCFGPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createMemRefDataFlowOptPass());
+  if (mlir::failed(pm.run(module))) {
+    module.dump();
+    return 4;
+  }
+  if (mlir::failed(mlir::verify(module))) {
+    module.dump();
+    return 5;
+  }
 
 #define optPM optPM2
 #define pm pm2

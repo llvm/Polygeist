@@ -1305,6 +1305,25 @@ struct SimplifyDeadDealloc : public OpRewritePattern<DeallocOp> {
     return success();
   }
 };
+
+
+struct DeallocSubView : public OpRewritePattern<DeallocOp> {
+  using OpRewritePattern<DeallocOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(DeallocOp dealloc,
+                                PatternRewriter &rewriter) const override {
+    // Check that the memref operand's defining operation is an AllocOp.
+    Value memref = dealloc.memref();
+
+    auto subindex = dyn_cast<SubIndexOp>(memref.getDefiningOp());
+    if (!subindex)
+      return failure();
+
+    // Erase the dealloc operation.
+    rewriter.replaceOpWithNewOp<DeallocOp>(dealloc, subindex.source());
+    return success();
+  }
+};
 } // end anonymous namespace.
 
 static LogicalResult verify(DeallocOp op) {
@@ -1315,7 +1334,7 @@ static LogicalResult verify(DeallocOp op) {
 
 void DeallocOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                             MLIRContext *context) {
-  results.insert<SimplifyDeadDealloc>(context);
+  results.insert<SimplifyDeadDealloc, DeallocSubView>(context);
 }
 
 LogicalResult DeallocOp::fold(ArrayRef<Attribute> cstOperands,
@@ -2415,7 +2434,11 @@ public:
     ) {
       indices[0] = rewriter.create<AddIOp>(subindexOp.getLoc(), indices[0], subindexOp.index());
     } else {
-      indices.insert(indices.begin(), subindexOp.index());
+      if (subindexOp.getType().cast<MemRefType>().getShape().size() + 1 ==
+          subindexOp.source().getType().cast<MemRefType>().getShape().size())
+        indices.insert(indices.begin(), subindexOp.index());
+      else
+        indices.erase(indices.begin());
     }
 
     rewriter.replaceOpWithNewOp<LoadOp>(loadOp,
@@ -3951,9 +3974,58 @@ public:
   }
 };
 
+class SubIndex2 final : public OpRewritePattern<SubIndexOp> {
+public:
+  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIndexOp subViewOp,
+                                PatternRewriter &rewriter) const override {
+    auto prevOp = subViewOp.source().getDefiningOp<SubIndexOp>();
+    if (!prevOp)
+      return failure();
+
+    auto mt0 = prevOp.source().getType().cast<MemRefType>();
+    auto mt1 = prevOp.getType().cast<MemRefType>();
+    auto mt2 = subViewOp.getType().cast<MemRefType>();
+    if (mt0.getShape().size() == mt2.getShape().size() && mt1.getShape().size() == mt0.getShape().size() + 1) {
+      rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2,
+                                                prevOp.source(),
+                                                subViewOp.index());
+      return success();
+    }
+    return failure();
+  }
+};
+
+class SubToCast final : public OpRewritePattern<SubIndexOp> {
+public:
+  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIndexOp subViewOp,
+                                PatternRewriter &rewriter) const override {
+    auto prev = subViewOp.source().getType().cast<MemRefType>();
+    auto post = subViewOp.getType().cast<MemRefType>();
+    bool legal = prev.getShape().size() == post.getShape().size();
+    if (legal) {
+    
+      auto cidx = subViewOp.index().getDefiningOp<ConstantIndexOp>();
+      if (!cidx)
+        return failure();
+
+      if (cidx.getValue() != 0 && cidx.getValue() != -1)
+        return failure();
+
+      rewriter.replaceOpWithNewOp<MemRefCastOp>(subViewOp, subViewOp.source(), post);
+      return success();
+    }
+
+    return failure();
+  }
+};
+
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
-  results.insert<SubIndexOpMemRefCastFolder>(context);
+  results.insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast>(context);
 }
 
 
@@ -3996,7 +4068,11 @@ public:
     ) {
       indices[0] = rewriter.create<AddIOp>(subindexOp.getLoc(), indices[0], subindexOp.index());
     } else {
-      indices.insert(indices.begin(), subindexOp.index());
+      if (subindexOp.getType().cast<MemRefType>().getShape().size() + 1 ==
+          subindexOp.source().getType().cast<MemRefType>().getShape().size())
+        indices.insert(indices.begin(), subindexOp.index());
+      else
+        indices.erase(indices.begin());
     }
 
     rewriter.replaceOpWithNewOp<StoreOp>(storeOp,
