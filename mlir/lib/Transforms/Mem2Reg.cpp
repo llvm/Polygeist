@@ -170,11 +170,18 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
+  for (auto sop : StoringOperations) {
+    llvm::errs() << " storingop: " << *sop << "\n";
+  }
+
   // Last value stored in an individual block and the operation which stored it
   std::map<mlir::Block *, mlir::Value> lastStoreInBlock;
 
   // Last value stored in an individual block and the operation which stored it
   std::map<mlir::Block *, mlir::Value> valueAtStartOfBlock;
+
+  // Last value stored in an individual block and the operation which stored it
+  std::map<mlir::Block *, bool> blockedSubStore;
 
   // Start by setting lastStoreInBlock to the last store directly in that block
   // Note that this may miss a store within a region of an operation in that
@@ -221,6 +228,9 @@ bool Mem2Reg::forwardStoreToLoad(
           if (loadOps.count(loadOp)) {
             if (lastVal) {
               changed = true;
+              if (loadOp.getType() != lastVal.getType()) {
+                llvm::errs() << loadOp << " - " << lastVal << "\n";
+              }
               assert(loadOp.getType() == lastVal.getType());
               loadOp.replaceAllUsesWith(lastVal);
               // Record this to erase later.
@@ -234,6 +244,7 @@ bool Mem2Reg::forwardStoreToLoad(
         });
       }
     }
+    blockedSubStore[&block] = seenSubStore;
     lastStoreInBlock[&block] = lastVal;
   }
 
@@ -258,9 +269,11 @@ bool Mem2Reg::forwardStoreToLoad(
       if (unreachableBlocks.count(block))
         continue;
       unreachableBlocks.insert(block);
-      for (auto succ : block->getSuccessors()) {
-        todo.push_back(succ);
-      }
+
+      if (lastStoreInBlock[block] == nullptr)
+        for (auto succ : block->getSuccessors()) {
+          todo.push_back(succ);
+        }
     }
   }
 
@@ -286,14 +299,15 @@ bool Mem2Reg::forwardStoreToLoad(
       if (reachableBlocks.count(block))
         continue;
       reachableBlocks.insert(block);
-      for (auto succ : block->getSuccessors()) {
-        todo.push_back(succ);
-        assert(succ);
-        if (succ->empty()) {
-          AI.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+      if (lastStoreInBlock[block] != nullptr || !blockedSubStore[block])
+        for (auto succ : block->getSuccessors()) {
+          todo.push_back(succ);
+          assert(succ);
+          if (succ->empty()) {
+            AI.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+          }
+          assert(!succ->empty());
         }
-        assert(!succ->empty());
-      }
     }
   }
 
@@ -301,8 +315,10 @@ bool Mem2Reg::forwardStoreToLoad(
     reachableBlocks.erase(blk);
   }
 
-
+  // TODO this is wrong here
   {
+    std::set<Block *> fake;
+    
     std::deque<Block *> todo(reachableBlocks.begin(), reachableBlocks.end());
     while (todo.size()) {
       auto block = todo.front();
@@ -669,6 +685,8 @@ void Mem2Reg::runOnFunction() {
     for(auto AI : toPromote) {
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
+        f.dump();
+        llvm::errs() << " eliminating: " << AI << "\n";
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
       }
       memrefsToErase.insert(AI);
@@ -737,5 +755,5 @@ void Mem2Reg::runOnFunction() {
       freeRemoved.erase();
     }
   }
-
+  f.dump();
 }
