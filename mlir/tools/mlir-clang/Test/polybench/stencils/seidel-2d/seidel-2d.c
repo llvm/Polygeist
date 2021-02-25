@@ -120,32 +120,32 @@ int main(int argc, char** argv)
 
 // CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
 
-// CHECK: func private @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<2000x2000xf64>) {
+// CHECK: func private @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<?x2000xf64>) {
 // CHECK-NEXT:      %cst = constant 9.000000e+00 : f64
-// CHECK-NEXT:      %0 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:      %1 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:      affine.for %arg3 = 0 to %0 {
-// CHECK-NEXT:        affine.for %arg4 = 1 to #map()[%1] {
-// CHECK-NEXT:          affine.for %arg5 = 1 to #map()[%1] {
-// CHECK-NEXT:            %2 = affine.load %arg2[%arg4 - 1, %arg5 - 1] : memref<2000x2000xf64>
-// CHECK-NEXT:            %3 = affine.load %arg2[%arg4 - 1, %arg5] : memref<2000x2000xf64>
+// CHECK-DAG:      %[[a0cst:.+]] = index_cast %arg0 : i32 to index
+// CHECK-DAG:      %[[a1cst:.+]] = index_cast %arg1 : i32 to index
+// CHECK-NEXT:      affine.for %arg3 = 0 to %[[a0cst]] {
+// CHECK-NEXT:        affine.for %arg4 = 1 to #map()[%[[a1cst]]] {
+// CHECK-NEXT:          affine.for %arg5 = 1 to #map()[%[[a1cst]]] {
+// CHECK-NEXT:            %2 = affine.load %arg2[%arg4 - 1, %arg5 - 1] : memref<?x2000xf64>
+// CHECK-NEXT:            %3 = affine.load %arg2[%arg4 - 1, %arg5] : memref<?x2000xf64>
 // CHECK-NEXT:            %4 = addf %2, %3 : f64
-// CHECK-NEXT:            %5 = affine.load %arg2[%arg4 - 1, %arg5 + 1] : memref<2000x2000xf64>
+// CHECK-NEXT:            %5 = affine.load %arg2[%arg4 - 1, %arg5 + 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %6 = addf %4, %5 : f64
-// CHECK-NEXT:            %7 = affine.load %arg2[%arg4, %arg5 - 1] : memref<2000x2000xf64>
+// CHECK-NEXT:            %7 = affine.load %arg2[%arg4, %arg5 - 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %8 = addf %6, %7 : f64
-// CHECK-NEXT:            %9 = affine.load %arg2[%arg4, %arg5] : memref<2000x2000xf64>
+// CHECK-NEXT:            %9 = affine.load %arg2[%arg4, %arg5] : memref<?x2000xf64>
 // CHECK-NEXT:            %10 = addf %8, %9 : f64
-// CHECK-NEXT:            %11 = affine.load %arg2[%arg4, %arg5 + 1] : memref<2000x2000xf64>
+// CHECK-NEXT:            %11 = affine.load %arg2[%arg4, %arg5 + 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %12 = addf %10, %11 : f64
-// CHECK-NEXT:            %13 = affine.load %arg2[%arg4 + 1, %arg5 - 1] : memref<2000x2000xf64>
+// CHECK-NEXT:            %13 = affine.load %arg2[%arg4 + 1, %arg5 - 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %14 = addf %12, %13 : f64
-// CHECK-NEXT:            %15 = affine.load %arg2[%arg4 + 1, %arg5] : memref<2000x2000xf64>
+// CHECK-NEXT:            %15 = affine.load %arg2[%arg4 + 1, %arg5] : memref<?x2000xf64>
 // CHECK-NEXT:            %16 = addf %14, %15 : f64
-// CHECK-NEXT:            %17 = affine.load %arg2[%arg4 + 1, %arg5 + 1] : memref<2000x2000xf64>
+// CHECK-NEXT:            %17 = affine.load %arg2[%arg4 + 1, %arg5 + 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %18 = addf %16, %17 : f64
 // CHECK-NEXT:            %19 = divf %18, %cst : f64
-// CHECK-NEXT:            affine.store %19, %arg2[%arg4, %arg5] : memref<2000x2000xf64>
+// CHECK-NEXT:            affine.store %19, %arg2[%arg4, %arg5] : memref<?x2000xf64>
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
 // CHECK-NEXT:      }
