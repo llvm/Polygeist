@@ -196,6 +196,10 @@ bool Mem2Reg::forwardStoreToLoad(
             changed = true;
             // llvm::errs() << "replacing " << loadOp << " with " << lastVal <<
             // "\n";
+            if (loadOp.getType() != lastVal.getType()) {
+              llvm::errs() << loadOp << " - " << lastVal << "\n";
+            }
+            assert(loadOp.getType() == lastVal.getType());
             loadOp.replaceAllUsesWith(lastVal);
             // Record this to erase later.
             loadOpsToErase.push_back(loadOp);
@@ -217,6 +221,7 @@ bool Mem2Reg::forwardStoreToLoad(
           if (loadOps.count(loadOp)) {
             if (lastVal) {
               changed = true;
+              assert(loadOp.getType() == lastVal.getType());
               loadOp.replaceAllUsesWith(lastVal);
               // Record this to erase later.
               loadOpsToErase.push_back(loadOp);
@@ -347,6 +352,7 @@ bool Mem2Reg::forwardStoreToLoad(
     auto blk = loadOp.getOperation()->getBlock();
     if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end()) {
       changed = true;
+      assert(loadOp.getType() == valueAtStartOfBlock[blk].getType());
       loadOp.replaceAllUsesWith(valueAtStartOfBlock[blk]);
       loadOpsToErase.push_back(loadOp);
     } else {
@@ -506,6 +512,7 @@ bool Mem2Reg::forwardStoreToLoad(
           }
         }
         if (val != nullptr) {
+          assert(blockArg.getType() == val.getType());
           blockArg.replaceAllUsesWith(val);
         } else {
         }
@@ -631,7 +638,6 @@ StoreMap getLastStored(mlir::Value AI) {
 void Mem2Reg::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
-
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
   // memrefs etc, we may need to do multiple passes (first
@@ -701,6 +707,9 @@ void Mem2Reg::runOnFunction() {
           } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
             toErase.push_back(U);
             list.push_back(CO);
+          } else if (auto CO = dyn_cast<memref::SubIndexOp>(U)) {
+            toErase.push_back(U);
+            list.push_back(CO);
           } else {
             error = true;
             break;
@@ -728,4 +737,5 @@ void Mem2Reg::runOnFunction() {
       freeRemoved.erase();
     }
   }
+
 }
