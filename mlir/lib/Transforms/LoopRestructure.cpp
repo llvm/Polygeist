@@ -204,6 +204,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
     if (!target) {
       // Only support one exit block
       llvm::errs() << " found mlir loop with more than one exit, skipping. \n";
+      continue;
     }
     // TODO: Support multiple exit blocks
     //  - Easy case all exit blocks have the same argument set
