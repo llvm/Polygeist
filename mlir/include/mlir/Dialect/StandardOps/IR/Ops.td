@@ -3723,6 +3723,7 @@ def TruncateIOp : Std_Op<"trunci", [NoSideEffect, ElementwiseMappable]> {
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

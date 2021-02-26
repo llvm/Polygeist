@@ -1237,6 +1237,71 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
   }
 };
 
+struct ConditionPropagation : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    bool changed = false;
+    mlir::Type ty = rewriter.getI1Type();
+    for (OpOperand &use : llvm::make_early_inc_range(op.condition().getUses())) {
+      if (op.thenRegion().isAncestor(use.getOwner()->getParentRegion())) {
+        changed = true;
+        rewriter.updateRootInPlace(use.getOwner(),
+          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
+      } else if (op.elseRegion().isAncestor(use.getOwner()->getParentRegion())) {
+        changed = true;
+        rewriter.updateRootInPlace(use.getOwner(),
+          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 0))); });
+      } 
+    }
+    if (changed) return success();
+    else return failure();
+  }
+};
+
+struct CombineIfs : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    assert(op.thenRegion().getBlocks().size());
+    assert(op.elseRegion().getBlocks().size() <= 1);
+    Block* parent = op->getBlock();
+    if (op == &parent->back()) return failure();
+    auto nextIf = dyn_cast<IfOp>(op->getNextNode());
+    if (!nextIf)
+      return failure();
+    if (op.results().size() != 0) return failure();
+    if (nextIf.condition() != op.condition()) return failure();
+
+
+    rewriter.updateRootInPlace(nextIf,
+      [&]() { 
+    Block& then = *op.thenRegion().begin();
+    rewriter.eraseOp(&then.back());
+    nextIf.thenRegion().begin()->getOperations().splice(nextIf.thenRegion().begin()->begin(), then.getOperations());
+
+    assert(nextIf.thenRegion().getBlocks().size());
+
+    if (!op.elseRegion().empty()) {
+      Block& elser = *op.elseRegion().begin();
+      if (nextIf.elseRegion().empty()) {
+        auto &eb = *(new Block());
+        nextIf.elseRegion().getBlocks().push_back(&eb);
+        nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
+
+      } else {
+        rewriter.eraseOp(&elser.back());
+        nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
+      }
+      assert(nextIf.elseRegion().getBlocks().size());
+    }
+      });
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
 struct RemoveBoolean : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
 
@@ -1699,7 +1764,7 @@ void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(
+  results.insert<CombineIfs, ConditionPropagation, RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(
       context);
 }
 

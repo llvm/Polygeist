@@ -173,8 +173,6 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 
   mlir::Type subType = getMLIRType(decl->getType());
   mlir::Value inite = nullptr;
-  decl->dump();
-  llvm::errs() << " vd: " << decl->getMaxAlignment() << " ha " << "\n";
   if (auto init = decl->getInit()) {
     if (!isa<InitListExpr>(init)) {
       auto visit = Visit(init);
@@ -1384,56 +1382,6 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     BO->getLHS()->dump();
     assert(lhs.val);
   }
-
-  switch (BO->getOpcode()) {
-  case clang::BinaryOperator::Opcode::BO_LAnd: {
-    mlir::Type types[] = {builder.getIntegerType(1)};
-    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, lhs.getValue(builder),
-                                                /*hasElseRegion*/ true);
-
-    auto oldpoint = builder.getInsertionPoint();
-    auto oldblock = builder.getInsertionBlock();
-    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
-
-    auto rhs = Visit(BO->getRHS()).getValue(builder);
-    assert(rhs != nullptr);
-    mlir::Value truearray[] = {rhs};
-    builder.create<mlir::scf::YieldOp>(loc, truearray);
-
-    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
-    mlir::Value falsearray[] = {builder.create<mlir::ConstantOp>(
-        loc, types[0], builder.getIntegerAttr(types[0], 0))};
-    builder.create<mlir::scf::YieldOp>(loc, falsearray);
-
-    builder.setInsertionPoint(oldblock, oldpoint);
-    return ValueWithOffsets(ifOp.getResult(0), /*isReference*/false);
-  }
-  case clang::BinaryOperator::Opcode::BO_LOr: {
-    mlir::Type types[] = {builder.getIntegerType(1)};
-    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, lhs.getValue(builder),
-                                                /*hasElseRegion*/ true);
-
-    auto oldpoint = builder.getInsertionPoint();
-    auto oldblock = builder.getInsertionBlock();
-    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
-
-    mlir::Value truearray[] = {builder.create<mlir::ConstantOp>(
-        loc, types[0], builder.getIntegerAttr(types[0], 1))};
-    builder.create<mlir::scf::YieldOp>(loc, truearray);
-
-    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
-    auto rhs = Visit(BO->getRHS()).getValue(builder);
-    assert(rhs != nullptr);
-    mlir::Value falsearray[] = {rhs};
-    builder.create<mlir::scf::YieldOp>(loc, falsearray);
-
-    builder.setInsertionPoint(oldblock, oldpoint);
-
-    return ValueWithOffsets(ifOp.getResult(0), /*isReference*/false);
-  }
-  default:
-    break;
-  }
   auto fixInteger = [&](mlir::Value res) {
     auto prevTy = res.getType().cast<mlir::IntegerType>();
     auto postTy = getMLIRType(BO->getType()).cast<mlir::IntegerType>();
@@ -1453,6 +1401,76 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
     return ValueWithOffsets(res, /*isReference*/false);
   };
+
+  switch (BO->getOpcode()) {
+  case clang::BinaryOperator::Opcode::BO_LAnd: {
+    mlir::Type types[] = {builder.getIntegerType(1)};
+    auto cond = lhs.getValue(builder);
+    auto prevTy = cond.getType().cast<mlir::IntegerType>();
+    if (!prevTy.isInteger(1)) {
+      auto postTy = builder.getI1Type();
+      cond = builder.create<mlir::TruncateIOp>(loc, cond, postTy);
+    }
+    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, cond,
+                                                /*hasElseRegion*/ true);
+
+    auto oldpoint = builder.getInsertionPoint();
+    auto oldblock = builder.getInsertionBlock();
+    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+
+    auto rhs = Visit(BO->getRHS()).getValue(builder);
+    assert(rhs != nullptr);
+    if (!rhs.getType().cast<mlir::IntegerType>().isInteger(1)) {
+      auto postTy = builder.getI1Type();
+      rhs = builder.create<mlir::TruncateIOp>(loc, rhs, postTy);
+    }
+    mlir::Value truearray[] = {rhs};
+    builder.create<mlir::scf::YieldOp>(loc, truearray);
+
+    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    mlir::Value falsearray[] = {builder.create<mlir::ConstantOp>(
+        loc, types[0], builder.getIntegerAttr(types[0], 0))};
+    builder.create<mlir::scf::YieldOp>(loc, falsearray);
+
+    builder.setInsertionPoint(oldblock, oldpoint);
+    return fixInteger(ifOp.getResult(0));
+  }
+  case clang::BinaryOperator::Opcode::BO_LOr: {
+    mlir::Type types[] = {builder.getIntegerType(1)};
+    auto cond = lhs.getValue(builder);
+    auto prevTy = cond.getType().cast<mlir::IntegerType>();
+    if (!prevTy.isInteger(1)) {
+      auto postTy = builder.getI1Type();
+      cond = builder.create<mlir::TruncateIOp>(loc, cond, postTy);
+    }
+    auto ifOp = builder.create<mlir::scf::IfOp>(loc, types, cond,
+                                                /*hasElseRegion*/ true);
+
+    auto oldpoint = builder.getInsertionPoint();
+    auto oldblock = builder.getInsertionBlock();
+    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+
+    mlir::Value truearray[] = {builder.create<mlir::ConstantOp>(
+        loc, types[0], builder.getIntegerAttr(types[0], 1))};
+    builder.create<mlir::scf::YieldOp>(loc, truearray);
+
+    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    auto rhs = Visit(BO->getRHS()).getValue(builder);
+    if (!rhs.getType().cast<mlir::IntegerType>().isInteger(1)) {
+      auto postTy = builder.getI1Type();
+      rhs = builder.create<mlir::TruncateIOp>(loc, rhs, postTy);
+    }
+    assert(rhs != nullptr);
+    mlir::Value falsearray[] = {rhs};
+    builder.create<mlir::scf::YieldOp>(loc, falsearray);
+
+    builder.setInsertionPoint(oldblock, oldpoint);
+
+    return fixInteger(ifOp.getResult(0));
+  }
+  default:
+    break;
+  }
   auto rhs = Visit(BO->getRHS());
   if (!rhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
     BO->getRHS()->dump();
@@ -2145,7 +2163,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   newIfOp.thenRegion().takeBody(ifOp.thenRegion());
   newIfOp.elseRegion().takeBody(ifOp.elseRegion());
   ifOp.erase();
-
+  newIfOp.dump();
   return ValueWithOffsets(newIfOp.getResult(0), /*isReference*/false);
   // return ifOp;
 }

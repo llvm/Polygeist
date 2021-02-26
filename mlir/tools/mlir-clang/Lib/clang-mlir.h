@@ -358,7 +358,7 @@ public:
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
     // llvm::errs() << *fd << "\n";
-    fd->dump();
+    //fd->dump();
 
     scopes.emplace_back();
 

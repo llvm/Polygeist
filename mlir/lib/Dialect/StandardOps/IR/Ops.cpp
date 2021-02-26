@@ -4501,6 +4501,29 @@ OpFoldResult TransposeOp::fold(ArrayRef<Attribute>) {
 // TruncateIOp
 //===----------------------------------------------------------------------===//
 
+template<typename Other>
+struct ExtendThenTrunc : public OpRewritePattern<TruncateIOp> {
+  using OpRewritePattern<TruncateIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TruncateIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto nextIf = op.value().getDefiningOp<Other>();
+    if (!nextIf)
+      return failure();
+
+    if (nextIf.value().getType() == op.getType()) {
+      rewriter.replaceOp(op, nextIf.value());
+      return success();
+    }
+    return failure();
+  }
+};
+
+void TruncateIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                       MLIRContext *context) {
+  results.insert<ExtendThenTrunc<SignExtendIOp>, ExtendThenTrunc<ZeroExtendIOp>>(context);
+}
+
 static LogicalResult verify(TruncateIOp op) {
   auto srcType = getElementTypeOrSelf(op.getOperand().getType());
   auto dstType = getElementTypeOrSelf(op.getType());
