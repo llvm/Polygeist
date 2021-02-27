@@ -132,6 +132,10 @@ struct Analyzer {
           } else if (Good.count(pred) || Legal.count(pred)) {
             continue;
           } else {
+            if (!Other.count(pred)) {
+              pred->getParentOp()->dump();
+              pred->dump();
+            }
             assert(Other.count(pred));
             currentlyLegal = false;
             break;
@@ -278,15 +282,26 @@ bool Mem2Reg::forwardStoreToLoad(
     for (auto a : ops) {
       if (StoringOperations.count(a)) {
         if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
-          if (lastVal)
-            valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
+          if (!lastVal) {
+            OpBuilder B(ifOp.getContext());
+            B.setInsertionPoint(ifOp);
+            SmallVector<mlir::Value, 4> nidx;
+            for(auto i : idx) {
+              nidx.push_back(B.create<mlir::ConstantIndexOp>(ifOp.getLoc(), i));
+            }
+            auto newLoad = B.create<LoadOp>(ifOp.getLoc(), AI, nidx);
+            loadOps.insert(newLoad);
+            lastVal = newLoad;
+          }
+
+          valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
           mlir::Value thenVal = handleBlock(*ifOp.thenRegion().begin(), lastVal);
-          llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal != nullptr) << " tv " << (thenVal != nullptr) << " else: " << ifOp.elseRegion().getBlocks().size() << "\n";
-          if (ifOp.elseRegion().getBlocks().size()) {
-            if (lastVal)
+          //llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal != nullptr) << " tv " << (thenVal != nullptr) << " else: " << ifOp.elseRegion().getBlocks().size() << "\n";
+          if (true) {
+            if (lastVal && ifOp.elseRegion().getBlocks().size())
               valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
-            mlir::Value elseVal = handleBlock(*ifOp.elseRegion().begin(), lastVal);
-            llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) << "\n";
+            mlir::Value elseVal = (ifOp.elseRegion().getBlocks().size()) ? handleBlock(*ifOp.elseRegion().begin(), lastVal) : lastVal;
+            //llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) << "\n";
             if (thenVal == elseVal && thenVal != nullptr) {
               lastVal = thenVal;
               continue;
@@ -302,46 +317,22 @@ bool Mem2Reg::forwardStoreToLoad(
               Block& then = ifOp.thenRegion().back();
               SmallVector<mlir::Value, 4> thenVals = cast<mlir::scf::YieldOp>(then.back()).results();
               thenVals.push_back(thenVal);
-              then.back().erase();
-              nextIf.thenRegion().back().getOperations().splice(nextIf.thenRegion().back().begin(), then.getOperations());
-              B.setInsertionPointAfter(&nextIf.thenRegion().back().back());
-              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), thenVals);
-              if (StoringBlocks.count(&then)) {
-                StoringBlocks.erase(&then);
-                StoringBlocks.insert(&nextIf.thenRegion().back());
-              }
-              if (storeBlocks.count(&then)) {
-                storeBlocks.remove(&then);
-                storeBlocks.insert(&nextIf.thenRegion().back());
-              }
-              if (valueAtStartOfBlock.find(&then) != valueAtStartOfBlock.end()) {
-                valueAtStartOfBlock[&*nextIf.thenRegion().begin()] = valueAtStartOfBlock[&then];
-                valueAtStartOfBlock.erase(&then);
-              }
-              lastStoreInBlock[&*nextIf.thenRegion().begin()] = lastStoreInBlock[&then];
-              lastStoreInBlock.erase(&then);
+              nextIf.thenRegion().getBlocks().clear();
+              nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), ifOp.thenRegion().getBlocks());
+              cast<mlir::scf::YieldOp>(nextIf.thenRegion().back().getTerminator())->setOperands(thenVals);
 
-              Block& elseb = ifOp.elseRegion().back();
-              SmallVector<mlir::Value, 4> elseVals = cast<mlir::scf::YieldOp>(elseb.back()).results();
-              elseVals.push_back(elseVal);
-              elseb.back().erase();
-              nextIf.elseRegion().back().getOperations().splice(nextIf.elseRegion().back().begin(), elseb.getOperations());
-              B.setInsertionPointAfter(&nextIf.elseRegion().back().back());
-              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
-              if (StoringBlocks.count(&elseb)) {
-                StoringBlocks.erase(&elseb);
-                StoringBlocks.insert(&nextIf.elseRegion().back());
+              if (ifOp.elseRegion().getBlocks().size()) {
+                nextIf.elseRegion().getBlocks().clear();
+                SmallVector<mlir::Value, 4> elseVals = cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back()).results();
+                elseVals.push_back(elseVal);
+                nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), ifOp.elseRegion().getBlocks());
+                cast<mlir::scf::YieldOp>(nextIf.elseRegion().back().getTerminator())->setOperands(elseVals);
+              } else {
+                B.setInsertionPoint(&nextIf.elseRegion().back(), nextIf.elseRegion().back().begin());
+                SmallVector<mlir::Value, 4> elseVals;
+                elseVals.push_back(elseVal);
+                B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
               }
-              if (storeBlocks.count(&elseb)) {
-                storeBlocks.remove(&elseb);
-                storeBlocks.insert(&nextIf.elseRegion().back());
-              }
-              if (valueAtStartOfBlock.find(&elseb) != valueAtStartOfBlock.end()) {
-                valueAtStartOfBlock[&*nextIf.elseRegion().begin()] = valueAtStartOfBlock[&elseb];
-                valueAtStartOfBlock.erase(&elseb);
-              }
-              lastStoreInBlock[&*nextIf.elseRegion().begin()] = lastStoreInBlock[&elseb];
-              lastStoreInBlock.erase(&elseb);
 
               SmallVector<mlir::Value, 3> resvals = (nextIf.results());
               lastVal = resvals.back();
@@ -351,62 +342,14 @@ bool Mem2Reg::forwardStoreToLoad(
               StoringOperations.erase(ifOp);
               StoringOperations.insert(nextIf);
               ifOp.erase();
-              llvm::errs() << " replacedWith " << nextIf << "\n";
-              continue;
-            }
-          } else {
-            if (thenVal == lastVal && thenVal != nullptr) {
-              lastVal = thenVal;
-              continue;
-            }
-            if (thenVal != nullptr && lastVal != nullptr) {
-              OpBuilder B(ifOp.getContext());
-              B.setInsertionPoint(ifOp);
-              SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(), ifOp.getResultTypes().end());
-              tys.push_back(lastVal.getType());
-              auto nextIf = B.create<mlir::scf::IfOp>(ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/true);
-              
-              Block& then = ifOp.thenRegion().back();
-              SmallVector<mlir::Value, 4> thenVals = cast<mlir::scf::YieldOp>(then.back()).results();
-              thenVals.push_back(thenVal);
-              then.back().erase();
-              nextIf.thenRegion().back().getOperations().splice(nextIf.thenRegion().back().begin(), then.getOperations());
-              B.setInsertionPointAfter(&nextIf.thenRegion().back().back());
-              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), thenVals);
-              if (StoringBlocks.count(&then)) {
-                StoringBlocks.erase(&then);
-                StoringBlocks.insert(&nextIf.thenRegion().back());
-              }
-              if (storeBlocks.count(&then)) {
-                storeBlocks.remove(&then);
-                storeBlocks.insert(&nextIf.thenRegion().back());
-              }
-              if (valueAtStartOfBlock.find(&then) != valueAtStartOfBlock.end()) {
-                valueAtStartOfBlock[&*nextIf.thenRegion().begin()] = valueAtStartOfBlock[&then];
-                valueAtStartOfBlock.erase(&then);
-              }
-              lastStoreInBlock[&*nextIf.thenRegion().begin()] = lastStoreInBlock[&then];
-              lastStoreInBlock.erase(&then);
-
-              SmallVector<mlir::Value, 4> elseVals;
-              elseVals.push_back(lastVal);
-              B.setInsertionPoint(&nextIf.elseRegion().back(), nextIf.elseRegion().back().begin());
-              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
-
-              SmallVector<mlir::Value, 3> resvals = (nextIf.results());
-              lastVal = resvals.back();
-              resvals.pop_back();
-
-              StoringOperations.erase(ifOp);
-              StoringOperations.insert(nextIf);
-              ifOp.erase();
+              llvm::errs() << " replacedWith1 " << nextIf << "\n";
               continue;
             }
           }
         }
         lastVal = nullptr;
         seenSubStore = true;
-        llvm::errs() << "erased store due to: " << *a << "\n";
+        //llvm::errs() << "erased store due to: " << *a << "\n";
       } else if (auto loadOp = dyn_cast<LoadOp>(a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
