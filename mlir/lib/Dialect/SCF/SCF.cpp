@@ -1347,8 +1347,10 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
     auto constant = op.condition().getDefiningOp<ConstantOp>();
-    if (!constant)
+    if (!constant) {
+      //llvm::errs() << "removeStatic failed\n" << op << "\n";
       return failure();
+    }
 
     Region *region = nullptr;
     if (constant.getValue().cast<BoolAttr>().getValue())
@@ -1422,8 +1424,12 @@ struct ConvertTrivialIfToSelect : public OpRewritePattern<IfOp> {
 
 struct ConditionPropagation : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
+
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
+    if (op.condition().getDefiningOp<ConstantOp>()) {
+      return failure();
+    }
     bool changed = false;
     mlir::Type ty = rewriter.getI1Type();
     for (OpOperand &use : llvm::make_early_inc_range(op.condition().getUses())) {
@@ -1462,7 +1468,9 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
       [&]() { 
     Block& then = *op.thenRegion().begin();
     rewriter.eraseOp(&then.back());
-    nextIf.thenRegion().begin()->getOperations().splice(nextIf.thenRegion().begin()->begin(), then.getOperations());
+    rewriter.mergeBlocks(&*nextIf.thenRegion().begin(), &then);
+    nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), op.thenRegion().getBlocks());
+    //rewriter.mergeBlockBefore(&then, &*nextIf.thenRegion().begin()->begin());
 
     assert(nextIf.thenRegion().getBlocks().size());
 
@@ -1471,16 +1479,19 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
       if (nextIf.elseRegion().empty()) {
         auto &eb = *(new Block());
         nextIf.elseRegion().getBlocks().push_back(&eb);
-        nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
-
+        //nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
+        rewriter.mergeBlocks(&elser, &eb);
       } else {
         rewriter.eraseOp(&elser.back());
-        nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
+        //rewriter.mergeBlockBefore(&elser, &*nextIf.elseRegion().begin()->begin());
+        rewriter.mergeBlocks(&*nextIf.elseRegion().begin(), &elser);
+        nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), op.elseRegion().getBlocks());
       }
       assert(nextIf.elseRegion().getBlocks().size());
     }
       });
     rewriter.eraseOp(op);
+    llvm::errs() << " combineIfs\n" <<  nextIf << "\n";
     return success();
   }
 };
