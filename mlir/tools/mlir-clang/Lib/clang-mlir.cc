@@ -1360,7 +1360,7 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       if (bit->isSignedInteger())
         signedType = true;
     }
-    if (postTy != res.getType()) {
+    if (postTy != prevTy) {
       if (signedType) {
         res = builder.create<mlir::SignExtendIOp>(loc, res, postTy);
       } else {

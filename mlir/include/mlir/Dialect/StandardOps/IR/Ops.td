@@ -1712,6 +1712,7 @@ def SignExtendIOp : Std_Op<"sexti", [NoSideEffect,
   let printer = [{
     return printStandardCastOp(this->getOperation(), p);
   }];
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
