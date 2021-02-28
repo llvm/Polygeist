@@ -95,9 +95,9 @@ int main(int argc, char **argv) {
   parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module, triple, DL);
   mlir::PassManager pm(&context);
 
-  llvm::errs() << "<immediate: mlir>\n";
-  module.dump();
-  llvm::errs() << "</immediate: mlir>\n";
+  //llvm::errs() << "<immediate: mlir>\n";
+  //module.dump();
+  //llvm::errs() << "</immediate: mlir>\n";
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {

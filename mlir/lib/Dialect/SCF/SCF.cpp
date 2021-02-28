@@ -1188,13 +1188,55 @@ struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
     // an else region since the operation returns results).
     transferBody(op.thenRegion(), newOp.thenRegion(), usedResults, rewriter);
     transferBody(op.elseRegion(), newOp.elseRegion(), usedResults, rewriter);
-    newOp.dump();
     // Replace the operation by the new one.
     SmallVector<Value, 4> repResults(op.getNumResults());
     for (auto en : llvm::enumerate(usedResults))
       repResults[en.value().getResultNumber()] = newOp.getResult(en.index());
     rewriter.replaceOp(op, repResults);
     return success();
+  }
+};
+
+struct RemoveNotIf : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    // Replace the operation if only a subset of its results have uses.
+    if (op.getNumResults() == 0)
+      return failure();
+
+    auto trueYield = cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
+    auto falseYield = cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
+
+    rewriter.setInsertionPoint(op->getBlock(), op.getOperation()->getIterator());
+    bool changed = false;
+    for (auto tup : llvm::zip(trueYield.results(), falseYield.results(), op.results())) {
+      if (!std::get<0>(tup).getType().isInteger(1)) continue;
+      if (auto top = std::get<0>(tup).getDefiningOp<ConstantOp>()) {
+        if (auto fop = std::get<1>(tup).getDefiningOp<ConstantOp>()) {
+          if (top.getValue().cast<IntegerAttr>().getValue() == 0 &&
+              fop.getValue().cast<IntegerAttr>().getValue() == 1) {
+
+              for (OpOperand &use : llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+                changed = true;
+                rewriter.updateRootInPlace(use.getOwner(),
+                  [&]() { use.set(rewriter.create<XOrOp>(op.getLoc(), op.condition())); });
+              }
+          }
+          if (top.getValue().cast<IntegerAttr>().getValue() == 1 &&
+              fop.getValue().cast<IntegerAttr>().getValue() == 0) {
+              for (OpOperand &use : llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+                changed = true;
+                rewriter.updateRootInPlace(use.getOwner(),
+                  [&]() { use.set(op.condition()); });
+              }
+          }
+        }   
+      }
+    }
+
+    return changed ? success() : failure();
   }
 };
 
@@ -1801,7 +1843,7 @@ void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<CombineIfs, ConditionPropagation, RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(
+  results.insert<CombineIfs, ConditionPropagation, RemoveNotIf, RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean>(
       context);
 }
 

@@ -370,25 +370,8 @@ public:
     for (auto parm : fd->parameters()) {
       assert(i != function.getNumArguments());
       auto name = parm->getName().str();
-      // function.getArgument(i).setName(names[i]);
-      auto ty = parm->getType();
-      #if 0
-      if (isa<LValueReferenceType>(ty) || isa<clang::ArrayType>(ty)) {
-        if (isa<clang::DecayedType>(parm->getType())) {
-          auto mt = function.getArgument(i).getType().cast<mlir::MemRefType>();
-          auto shape = std::vector<int64_t>(mt.getShape());
-          shape[0] = -1;
-          auto mt0 =
-              mlir::MemRefType::get(shape, mt.getElementType(),
-                                    mt.getAffineMaps(), mt.getMemorySpace());
-          auto mrc = builder.create<MemRefCastOp>(loc, function.getArgument(i), mt0);
-          createAndSetAllocOp(name, mrc, 0);
-        } else
-          assert(0 && "nondecayed!");
-          //setValue(name, ValueWithOffsets(function.getArgument(i),/*isReference*/true));
-      } else
-      #endif
-        createAndSetAllocOp(name, function.getArgument(i), 0);
+      // function.getArgument(i).setName(name);
+      createAndSetAllocOp(name, function.getArgument(i), 0);
       i++;
     }
     scopes.emplace_back();
