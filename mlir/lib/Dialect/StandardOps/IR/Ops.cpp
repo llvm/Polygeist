@@ -1755,6 +1755,25 @@ OpFoldResult SignExtendIOp::fold(ArrayRef<Attribute> operands) {
   return {};
 }
 
+struct SignExtendConstant : public OpRewritePattern<SignExtendIOp> {
+  using OpRewritePattern<SignExtendIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SignExtendIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cop = op.value().getDefiningOp<ConstantOp>();
+    if (!cop) return failure();
+    auto val = cop.getValue().cast<IntegerAttr>().getValue();
+
+    rewriter.replaceOpWithNewOp<ConstantOp>(op, op.getType(), rewriter.getIntegerAttr(op.getType(), val.sext(op.getType().getIntOrFloatBitWidth())));
+    return success();
+  }
+};
+
+void SignExtendIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                        MLIRContext *context) {
+  results.insert<SignExtendConstant>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // SignedDivIOp
 //===----------------------------------------------------------------------===//

@@ -129,9 +129,19 @@ struct Analyzer {
             assert(!Legal.count(block));
             Illegal.insert(block);
             currentlyLegal = false;
+            for (auto succ : block->getSuccessors()) {
+              todo.push_back(succ);
+            }
             break;
           } else if (Good.count(pred) || Legal.count(pred)) {
             continue;
+          } else if (Illegal.count(pred)) {
+            Illegal.insert(block);
+            currentlyLegal = false;
+            for (auto succ : block->getSuccessors()) {
+              todo.push_back(succ);
+            }
+            break;
           } else {
             /*
             if (!Other.count(pred)) {
@@ -497,10 +507,14 @@ bool Mem2Reg::forwardStoreToLoad(
     for (Operation &op : *block) {
       if (!StoringOperations.count(&op)) {
         op.walk([&](Block *blk) { 
-          if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end())
+          if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end()) {
             valueAtStartOfBlock[blk] = arg;
+            if (lastStoreInBlock.find(blk) == lastStoreInBlock.end() || StoringBlocks.count(blk) == 0) {
+              lastStoreInBlock[blk] = arg;
+            }
+          }
         });
-      }
+      } else break;
     }
     if (lastStoreInBlock.find(block) == lastStoreInBlock.end() || StoringBlocks.count(block) == 0) {
       lastStoreInBlock[block] = arg;
@@ -573,9 +587,6 @@ bool Mem2Reg::forwardStoreToLoad(
       }
     }
   }
-
-  llvm::errs() << " addargs\n";
-  AI.getDefiningOp()->getParentRegion()->getParentOp()->dump();
 
   // Remove block arguments if possible
   {
@@ -870,11 +881,11 @@ void Mem2Reg::runOnFunction() {
     for(auto AI : toPromote) {
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
-        llvm::errs() << " PRE " << AI << "\n";
-        f.dump();
+        //llvm::errs() << " PRE " << AI << "\n";
+        //f.dump();
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-        llvm::errs() << " POST " << AI << "\n";
-        f.dump();
+        //llvm::errs() << " POST " << AI << "\n";
+        //f.dump();
       }
       memrefsToErase.insert(AI);
     }
@@ -942,5 +953,5 @@ void Mem2Reg::runOnFunction() {
       freeRemoved.erase();
     }
   }
-  f.dump();
+  //f.dump();
 }
