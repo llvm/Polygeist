@@ -1077,11 +1077,36 @@ struct SimplifyCondBranchFromCondBranchOnSameCondition
 };
 } // end anonymous namespace
 
+struct CondBranchTruthPropagation
+    : public OpRewritePattern<CondBranchOp> {
+  using OpRewritePattern<CondBranchOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CondBranchOp condbr,
+                                PatternRewriter &rewriter) const override {
+    // Check that we have a single distinct predecessor.
+    Block *currentBlock = condbr->getBlock();
+    bool replaced = false;
+    mlir::Type ty = rewriter.getI1Type();
+
+    if (condbr.getTrueDest()->getSinglePredecessor()) {
+      for (OpOperand &use : llvm::make_early_inc_range(condbr.condition().getUses())) {
+        if (use.getOwner()->getBlock() == condbr.getTrueDest()) {
+          replaced = true;
+          rewriter.updateRootInPlace(use.getOwner(),
+          [&]() { use.set(rewriter.create<mlir::ConstantOp>(condbr.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
+        }
+      }
+    }
+    return replaced ? success() : failure();
+  }
+};
+
 void CondBranchOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<SimplifyConstCondBranchPred, SimplifyPassThroughCondBranch,
                  SimplifyCondBranchIdenticalSuccessors,
-                 SimplifyCondBranchFromCondBranchOnSameCondition>(context);
+                 SimplifyCondBranchFromCondBranchOnSameCondition,
+                 CondBranchTruthPropagation>(context);
 }
 
 Optional<MutableOperandRange>
@@ -4519,9 +4544,25 @@ struct ExtendThenTrunc : public OpRewritePattern<TruncateIOp> {
   }
 };
 
+struct TruncateConst : public OpRewritePattern<TruncateIOp> {
+  using OpRewritePattern<TruncateIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TruncateIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cop = op.value().getDefiningOp<ConstantOp>();
+    if (!cop)
+      return failure();
+    
+    auto val = cop.getValue().cast<IntegerAttr>().getValue();
+
+    rewriter.replaceOpWithNewOp<ConstantOp>(op, op.getType(), rewriter.getIntegerAttr(op.getType(), val.trunc(op.getType().getIntOrFloatBitWidth())));
+    return success();
+  }
+};
+
 void TruncateIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<ExtendThenTrunc<SignExtendIOp>, ExtendThenTrunc<ZeroExtendIOp>>(context);
+  results.insert<ExtendThenTrunc<SignExtendIOp>, ExtendThenTrunc<ZeroExtendIOp>, TruncateConst>(context);
 }
 
 static LogicalResult verify(TruncateIOp op) {
@@ -4776,6 +4817,30 @@ OpFoldResult XOrOp::fold(ArrayRef<Attribute> operands) {
 
   return constFoldBinaryOp<IntegerAttr>(operands,
                                         [](APInt a, APInt b) { return a ^ b; });
+}
+
+
+struct NotEqual : public OpRewritePattern<XOrOp> {
+  using OpRewritePattern<XOrOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(XOrOp op,
+                                PatternRewriter &rewriter) const override {
+    auto c1 = op.rhs().getDefiningOp<ConstantOp>();
+    if (!c1) return failure();
+    if (c1.getValue().cast<IntegerAttr>().getValue() != 1) return failure();
+    auto prev = op.lhs().getDefiningOp<CmpIOp>();
+    if (!prev) return failure();
+    if (prev.predicate() == mlir::CmpIPredicate::eq) {
+      rewriter.replaceOpWithNewOp<CmpIOp>(op, mlir::CmpIPredicate::ne, prev.lhs(), prev.rhs());
+      return success();
+    }
+    return failure();
+  }
+};
+
+void XOrOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                        MLIRContext *context) {
+  results.insert<NotEqual>(context);
 }
 
 //===----------------------------------------------------------------------===//

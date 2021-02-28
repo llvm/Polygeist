@@ -116,13 +116,13 @@ struct Analyzer {
   void analyze() {
     while (1) {
       std::deque<Block *> todo(Other.begin(), Other.end());
-      //todo.insert(todo.end(), Good.begin(), Good.end());
+      todo.insert(todo.end(), Good.begin(), Good.end());
       while (todo.size()) {
         auto block = todo.front();
         todo.pop_front();
         if (Legal.count(block) || Illegal.count(block)) continue;
 
-        bool currentlyLegal = true;
+        bool currentlyLegal = !block->hasNoPredecessors();
         for (auto pred : block->getPredecessors()) {
           if (Bad.count(pred)) {
             assert(!Legal.count(block));
@@ -132,11 +132,14 @@ struct Analyzer {
           } else if (Good.count(pred) || Legal.count(pred)) {
             continue;
           } else {
+            /*
             if (!Other.count(pred)) {
               pred->getParentOp()->dump();
               pred->dump();
+              llvm::errs() << " - pred ptr: " << pred << "\n";
             }
             assert(Other.count(pred));
+            */
             currentlyLegal = false;
             break;
           }
@@ -210,8 +213,10 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  if (loadOps.size() == 0)
+  if (loadOps.size() == 0) {
+    llvm::errs() << " no load ops of: " << AI << "\n";
     return changed;
+  }
   /*
   // this is a valid optimization, however it should occur naturally
   // from the logic to follow anyways
@@ -283,6 +288,8 @@ bool Mem2Reg::forwardStoreToLoad(
       if (StoringOperations.count(a)) {
         if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
           if (!lastVal) {
+            lastVal = nullptr;
+            continue;
             OpBuilder B(ifOp.getContext());
             B.setInsertionPoint(ifOp);
             SmallVector<mlir::Value, 4> nidx;
@@ -297,54 +304,52 @@ bool Mem2Reg::forwardStoreToLoad(
           valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
           mlir::Value thenVal = handleBlock(*ifOp.thenRegion().begin(), lastVal);
           //llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal != nullptr) << " tv " << (thenVal != nullptr) << " else: " << ifOp.elseRegion().getBlocks().size() << "\n";
-          if (true) {
-            if (lastVal && ifOp.elseRegion().getBlocks().size())
-              valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
-            mlir::Value elseVal = (ifOp.elseRegion().getBlocks().size()) ? handleBlock(*ifOp.elseRegion().begin(), lastVal) : lastVal;
-            //llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) << "\n";
-            if (thenVal == elseVal && thenVal != nullptr) {
-              lastVal = thenVal;
-              continue;
+
+          if (lastVal && ifOp.elseRegion().getBlocks().size())
+            valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
+          mlir::Value elseVal = (ifOp.elseRegion().getBlocks().size()) ? handleBlock(*ifOp.elseRegion().begin(), lastVal) : lastVal;
+          //llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) << "\n";
+          if (thenVal == elseVal && thenVal != nullptr) {
+            lastVal = thenVal;
+            continue;
+          }
+
+          if (thenVal != nullptr && elseVal != nullptr) {
+            OpBuilder B(ifOp.getContext());
+            B.setInsertionPoint(ifOp);
+            SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(), ifOp.getResultTypes().end());
+            tys.push_back(thenVal.getType());
+            auto nextIf = B.create<mlir::scf::IfOp>(ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/true);
+            
+            Block& then = ifOp.thenRegion().back();
+            SmallVector<mlir::Value, 4> thenVals = cast<mlir::scf::YieldOp>(then.back()).results();
+            thenVals.push_back(thenVal);
+            nextIf.thenRegion().getBlocks().clear();
+            nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), ifOp.thenRegion().getBlocks());
+            cast<mlir::scf::YieldOp>(nextIf.thenRegion().back().getTerminator())->setOperands(thenVals);
+
+            if (ifOp.elseRegion().getBlocks().size()) {
+              nextIf.elseRegion().getBlocks().clear();
+              SmallVector<mlir::Value, 4> elseVals = cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back()).results();
+              elseVals.push_back(elseVal);
+              nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), ifOp.elseRegion().getBlocks());
+              cast<mlir::scf::YieldOp>(nextIf.elseRegion().back().getTerminator())->setOperands(elseVals);
+            } else {
+              B.setInsertionPoint(&nextIf.elseRegion().back(), nextIf.elseRegion().back().begin());
+              SmallVector<mlir::Value, 4> elseVals;
+              elseVals.push_back(elseVal);
+              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
             }
 
-            if (thenVal != nullptr && elseVal != nullptr) {
-              OpBuilder B(ifOp.getContext());
-              B.setInsertionPoint(ifOp);
-              SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(), ifOp.getResultTypes().end());
-              tys.push_back(thenVal.getType());
-              auto nextIf = B.create<mlir::scf::IfOp>(ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/true);
-              
-              Block& then = ifOp.thenRegion().back();
-              SmallVector<mlir::Value, 4> thenVals = cast<mlir::scf::YieldOp>(then.back()).results();
-              thenVals.push_back(thenVal);
-              nextIf.thenRegion().getBlocks().clear();
-              nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), ifOp.thenRegion().getBlocks());
-              cast<mlir::scf::YieldOp>(nextIf.thenRegion().back().getTerminator())->setOperands(thenVals);
+            SmallVector<mlir::Value, 3> resvals = (nextIf.results());
+            lastVal = resvals.back();
+            resvals.pop_back();
+            ifOp.replaceAllUsesWith(resvals);
 
-              if (ifOp.elseRegion().getBlocks().size()) {
-                nextIf.elseRegion().getBlocks().clear();
-                SmallVector<mlir::Value, 4> elseVals = cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back()).results();
-                elseVals.push_back(elseVal);
-                nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), ifOp.elseRegion().getBlocks());
-                cast<mlir::scf::YieldOp>(nextIf.elseRegion().back().getTerminator())->setOperands(elseVals);
-              } else {
-                B.setInsertionPoint(&nextIf.elseRegion().back(), nextIf.elseRegion().back().begin());
-                SmallVector<mlir::Value, 4> elseVals;
-                elseVals.push_back(elseVal);
-                B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
-              }
-
-              SmallVector<mlir::Value, 3> resvals = (nextIf.results());
-              lastVal = resvals.back();
-              resvals.pop_back();
-              ifOp.replaceAllUsesWith(resvals);
-
-              StoringOperations.erase(ifOp);
-              StoringOperations.insert(nextIf);
-              ifOp.erase();
-              llvm::errs() << " replacedWith1 " << nextIf << "\n";
-              continue;
-            }
+            StoringOperations.erase(ifOp);
+            StoringOperations.insert(nextIf);
+            ifOp.erase();
+            continue;
           }
         }
         lastVal = nullptr;
@@ -367,6 +372,9 @@ bool Mem2Reg::forwardStoreToLoad(
           } else if (seenSubStore) {
             // llvm::errs() << "no lastval found for: " << loadOp << "\n";
             loadOps.erase(loadOp);
+            lastVal = loadOp;
+          } else {
+            lastVal = loadOp;
           }
         }
       } else if (auto storeOp = dyn_cast<StoreOp>(a)) {
@@ -415,13 +423,13 @@ bool Mem2Reg::forwardStoreToLoad(
   for (auto &pair : lastStoreInBlock) {
     if (pair.second != nullptr) {
       Good.insert(pair.first);
-        //llvm::errs() << "<GOOD: " << " - " << AI << ">\n";
-        //pair.first->dump();
-        //llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
+      llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
+      pair.first->dump();
+      llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
     } else if (StoringBlocks.count(pair.first)) {
-        //llvm::errs() << "<BAD: " << " - " << AI << ">\n";
-        //pair.first->dump();
-        //llvm::errs() << "</BAD: " << " - " << AI << ">\n";
+      llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
+      pair.first->dump();
+      llvm::errs() << "</BAD: " << " - " << AI << ">\n";
       Bad.insert(pair.first);
     }
   }
@@ -438,16 +446,16 @@ bool Mem2Reg::forwardStoreToLoad(
       if (Good.count(block) || Bad.count(block) || Other.count(block))
         continue;
       if (StoringBlocks.count(block)) {
-        //llvm::errs() << "<BAD2: " << " - " << AI << ">\n";
-        //block->dump();
-        //llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
+        llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
+        block->dump();
+        llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
         Bad.insert(block);
         continue;
       }
       Other.insert(block);
-        //llvm::errs() << "<OTHER2: " << " - " << AI << ">\n";
-        //block->dump();
-        //llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
+      llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
+      block->dump();
+      llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
       if (isa<BranchOp, CondBranchOp>(block->getTerminator())) {
         for (auto succ : block->getSuccessors()) {
           todo.push_back(succ);
@@ -460,6 +468,9 @@ bool Mem2Reg::forwardStoreToLoad(
   A.analyze();
 
   for (auto block : A.Legal) {
+    llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
+    block->dump();
+    llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
     if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
       continue;
     auto arg = block->addArgument(subType);
@@ -493,10 +504,19 @@ bool Mem2Reg::forwardStoreToLoad(
     for (auto pred : block->getPredecessors()) {
       preds.push_back(pred);
     }
+    if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end())
+      continue;
+
+    auto maybeblockArg = valueAtStartOfBlock[block];
+    auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
+    if (!blockArg || blockArg.getOwner() != block)
+      continue;
     for (auto pred : preds) {
       mlir::Value pval = lastStoreInBlock[pred];
       assert(pval);
       assert(pred->getTerminator());
+
+      assert(blockArg.getOwner() == block);
       if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> args(op.getOperands().begin(),
@@ -552,16 +572,25 @@ bool Mem2Reg::forwardStoreToLoad(
 
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
           pval = op.getOperands()[blockArg.getArgNumber()];
+          assert(pval.getType() == AI.getType().cast<MemRefType>().getElementType());
           if (pval == blockArg)
             pval = nullptr;
         } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
           if (op.getTrueDest() == block) {
+            if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
+              block->dump();
+              llvm::errs() << op << " ba: " << blockArg.getArgNumber() << "\n";
+            }
+            assert(blockArg.getArgNumber() < op.getTrueOperands().size());
             pval = op.getTrueOperands()[blockArg.getArgNumber()];
+            assert(pval.getType() == AI.getType().cast<MemRefType>().getElementType());
             if (pval == blockArg)
               pval = nullptr;
           }
           if (op.getFalseDest() == block) {
+            assert(blockArg.getArgNumber() < op.getFalseOperands().size());
             auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
+            assert(pval2.getType() == AI.getType().cast<MemRefType>().getElementType());
             if (pval2 != blockArg) {
               if (pval == nullptr) {
                 pval = pval2;
@@ -583,6 +612,8 @@ bool Mem2Reg::forwardStoreToLoad(
         assert(pval != blockArg);
         if (val == nullptr) {
           val = pval;
+          if (pval)
+            assert(val.getType() == AI.getType().cast<MemRefType>().getElementType());
         } else {
           if (pval != nullptr && val != pval) {
             legal = false;
@@ -628,8 +659,9 @@ bool Mem2Reg::forwardStoreToLoad(
         } else
           used = true;
       }
-      if (!used)
+      if (!used) {
         legal = true;
+      }
 
       if (legal) {
         for (auto U : blockArg.getUsers()) {
@@ -640,6 +672,11 @@ bool Mem2Reg::forwardStoreToLoad(
           }
         }
         if (val != nullptr) {
+          if (blockArg.getType() != val.getType()) {
+            block->dump();
+            llvm::errs() << " AI: " << AI << "\n";
+            llvm::errs() << blockArg << " val " << val << "\n";
+          }
           assert(blockArg.getType() == val.getType());
           blockArg.replaceAllUsesWith(val);
         } else {
@@ -657,7 +694,7 @@ bool Mem2Reg::forwardStoreToLoad(
                                     op.getOperands().end());
             args.erase(args.begin() + blockArg.getArgNumber());
             assert(args.size() == op.getOperands().size() - 1);
-            subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+            auto newBranch = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
             op.erase();
           }
           if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
@@ -675,7 +712,7 @@ bool Mem2Reg::forwardStoreToLoad(
             }
             assert(trueargs.size() < op.getTrueOperands().size() ||
                    falseargs.size() < op.getFalseOperands().size());
-            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+            auto newBranch = subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
                                             op.getTrueDest(), trueargs,
                                             op.getFalseDest(), falseargs);
             op.erase();
@@ -797,7 +834,11 @@ void Mem2Reg::runOnFunction() {
     for(auto AI : toPromote) {
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
+        llvm::errs() << " PRE " << AI << "\n";
+        f.dump();
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+        llvm::errs() << " POST " << AI << "\n";
+        f.dump();
       }
       memrefsToErase.insert(AI);
     }

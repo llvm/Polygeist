@@ -2162,8 +2162,6 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
                                                  /*hasElseRegion*/ true);
   newIfOp.thenRegion().takeBody(ifOp.thenRegion());
   newIfOp.elseRegion().takeBody(ifOp.elseRegion());
-  ifOp.erase();
-  newIfOp.dump();
   return ValueWithOffsets(newIfOp.getResult(0), /*isReference*/false);
   // return ifOp;
 }

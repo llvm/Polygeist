@@ -1145,12 +1145,15 @@ namespace {
 struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
 
-  void transferBody(Block *source, Block *dest, ArrayRef<OpResult> usedResults,
+  void transferBody(Region &source, Region &dest, ArrayRef<OpResult> usedResults,
                     PatternRewriter &rewriter) const {
+    dest.getBlocks().clear();
+    dest.getBlocks().splice(dest.getBlocks().begin(), source.getBlocks());
     // Move all operations to the destination block.
-    rewriter.mergeBlocks(source, dest);
+    //rewriter.mergeBlocks(source, dest);
+    
     // Replace the yield op by one that returns only the used values.
-    auto yieldOp = cast<scf::YieldOp>(dest->getTerminator());
+    auto yieldOp = cast<scf::YieldOp>(dest.back().getTerminator());
     SmallVector<Value, 4> usedOperands;
     llvm::transform(usedResults, std::back_inserter(usedOperands),
                     [&](OpResult result) {
@@ -1183,9 +1186,9 @@ struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
 
     // Move the bodies and replace the terminators (note there is a then and
     // an else region since the operation returns results).
-    transferBody(op.getBody(0), newOp.getBody(0), usedResults, rewriter);
-    transferBody(op.getBody(1), newOp.getBody(1), usedResults, rewriter);
-
+    transferBody(op.thenRegion(), newOp.thenRegion(), usedResults, rewriter);
+    transferBody(op.elseRegion(), newOp.elseRegion(), usedResults, rewriter);
+    newOp.dump();
     // Replace the operation by the new one.
     SmallVector<Value, 4> repResults(op.getNumResults());
     for (auto en : llvm::enumerate(usedResults))
@@ -1260,8 +1263,6 @@ struct ConditionPropagation : public OpRewritePattern<IfOp> {
           [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 0))); });
       } 
     }
-    if (changed) 
-    llvm::errs() << " ConditionPropagation\n" <<  op << "\n";
     if (changed) return success();
     else return failure();
   }
@@ -1310,7 +1311,6 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
     }
       });
     rewriter.eraseOp(op);
-    llvm::errs() << " combineIfs\n" <<  nextIf << "\n";
     return success();
   }
 };
@@ -1766,11 +1766,36 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
   }
 };
 
+
+struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    size_t i=0;
+    bool replaced = false;
+    for (auto arg : term.args()) {
+      if (arg == term.condition()) {
+        mlir::Type ty = rewriter.getI1Type();
+        for (OpOperand &use : llvm::make_early_inc_range(op.after().front().getArgument(i).getUses())) {
+          replaced = true;
+          rewriter.updateRootInPlace(use.getOwner(),
+          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
+        }
+      }
+      i++;
+    }
+    return replaced ? success() : failure();
+  }
+};
+
 } // namespace
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
+                 WhileConditionTruth,
                  MoveWhileToFor>(context);
 }
 
