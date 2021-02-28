@@ -2206,6 +2206,7 @@ def XOrOp : IntBinaryOp<"xor", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
