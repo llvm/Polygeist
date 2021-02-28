@@ -609,6 +609,10 @@ bool Mem2Reg::forwardStoreToLoad(
 
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
           pval = op.getOperands()[blockArg.getArgNumber()];
+          if (pval.getType() != AI.getType().cast<MemRefType>().getElementType()) {
+            pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+            llvm::errs() << pval << " - " << AI << "\n";
+          }
           assert(pval.getType() == AI.getType().cast<MemRefType>().getElementType());
           if (pval == blockArg)
             pval = nullptr;
