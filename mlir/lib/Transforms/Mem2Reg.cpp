@@ -367,6 +367,14 @@ bool Mem2Reg::forwardStoreToLoad(
             }
             assert(loadOp.getType() == lastVal.getType());
             loadOp.replaceAllUsesWith(lastVal);
+            for (auto & pair : lastStoreInBlock) {
+              if (pair.second == loadOp)
+                pair.second = lastVal;
+            }
+            for (auto & pair : valueAtStartOfBlock) {
+              if (pair.second == loadOp)
+                pair.second = lastVal;
+            }
             // Record this to erase later.
             loadOpsToErase.push_back(loadOp);
             loadOps.erase(loadOp);
@@ -395,6 +403,14 @@ bool Mem2Reg::forwardStoreToLoad(
               }
               assert(loadOp.getType() == lastVal.getType());
               loadOp.replaceAllUsesWith(lastVal);
+              for (auto & pair : lastStoreInBlock) {
+                if (pair.second == loadOp)
+                  pair.second = lastVal;
+              }
+              for (auto & pair : valueAtStartOfBlock) {
+                if (pair.second == loadOp)
+                  pair.second = lastVal;
+              }
               // Record this to erase later.
               loadOpsToErase.push_back(loadOp);
               loadOps.erase(loadOp);
@@ -424,13 +440,13 @@ bool Mem2Reg::forwardStoreToLoad(
   for (auto &pair : lastStoreInBlock) {
     if (pair.second != nullptr) {
       Good.insert(pair.first);
-      llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
-      pair.first->dump();
-      llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
+      //llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
+      //pair.first->dump();
+      //llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
     } else if (StoringBlocks.count(pair.first)) {
-      llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
-      pair.first->dump();
-      llvm::errs() << "</BAD: " << " - " << AI << ">\n";
+      //llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
+      //pair.first->dump();
+      //llvm::errs() << "</BAD: " << " - " << AI << ">\n";
       Bad.insert(pair.first);
     }
   }
@@ -447,16 +463,16 @@ bool Mem2Reg::forwardStoreToLoad(
       if (Good.count(block) || Bad.count(block) || Other.count(block))
         continue;
       if (StoringBlocks.count(block)) {
-        llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
-        block->dump();
-        llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
+        //llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
+        //block->dump();
+        //llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
         Bad.insert(block);
         continue;
       }
       Other.insert(block);
-      llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
-      block->dump();
-      llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
+      //llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
+      //block->dump();
+      //llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
       if (isa<BranchOp, CondBranchOp>(block->getTerminator())) {
         for (auto succ : block->getSuccessors()) {
           todo.push_back(succ);
@@ -468,17 +484,22 @@ bool Mem2Reg::forwardStoreToLoad(
   Analyzer A(Good, Bad, Other, {}, {});
   A.analyze();
 
+  SmallPtrSet<Block*, 4> blocksWithAddedArgs;
   for (auto block : A.Legal) {
-    llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
-    block->dump();
-    llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
+    //llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
+    //block->dump();
+    //llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
     if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
       continue;
     auto arg = block->addArgument(subType);
     valueAtStartOfBlock[block] = arg;
+    blocksWithAddedArgs.insert(block);
     for (Operation &op : *block) {
       if (!StoringOperations.count(&op)) {
-        op.walk([&](Block *blk) { valueAtStartOfBlock[blk] = arg; });
+        op.walk([&](Block *blk) { 
+          if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end())
+            valueAtStartOfBlock[blk] = arg;
+        });
       }
     }
     if (lastStoreInBlock.find(block) == lastStoreInBlock.end() || StoringBlocks.count(block) == 0) {
@@ -492,6 +513,14 @@ bool Mem2Reg::forwardStoreToLoad(
       changed = true;
       assert(loadOp.getType() == valueAtStartOfBlock[blk].getType());
       loadOp.replaceAllUsesWith(valueAtStartOfBlock[blk]);
+      for (auto & pair : lastStoreInBlock) {
+        if (pair.second == loadOp)
+          pair.second = valueAtStartOfBlock[blk];
+      }
+      for (auto & pair : valueAtStartOfBlock) {
+        if (pair.second == loadOp)
+          pair.second = valueAtStartOfBlock[blk];
+      }
       loadOpsToErase.push_back(loadOp);
     } else {
       // TODO inter-op
@@ -500,19 +529,14 @@ bool Mem2Reg::forwardStoreToLoad(
     }
   }
 
-  for (auto block : A.Legal) {
-    SmallVector<Block*, 4> preds;
-    for (auto pred : block->getPredecessors()) {
-      preds.push_back(pred);
-    }
-    if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end())
-      continue;
+  for (auto block : blocksWithAddedArgs) {
+    assert (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
     auto maybeblockArg = valueAtStartOfBlock[block];
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-    if (!blockArg || blockArg.getOwner() != block)
-      continue;
-    for (auto pred : preds) {
+    assert (blockArg && blockArg.getOwner() == block);
+
+    for (auto pred : llvm::make_early_inc_range(block->getPredecessors())) {
       mlir::Value pval = lastStoreInBlock[pred];
       assert(pval);
       assert(pred->getTerminator());
@@ -526,8 +550,7 @@ bool Mem2Reg::forwardStoreToLoad(
         auto op2 = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
         //op.replaceAllUsesWith(op2);
         op.erase();
-      }
-      if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
 
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -545,25 +568,28 @@ bool Mem2Reg::forwardStoreToLoad(
                                         op.getFalseDest(), falseargs);
         //op.replaceAllUsesWith(op2);
         op.erase();
+      } else {
+        llvm_unreachable("unknown pred branch");
       }
     }
   }
 
+  llvm::errs() << " addargs\n";
+  AI.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+
   // Remove block arguments if possible
   {
-    std::deque<Block *> todo(A.Legal.begin(), A.Legal.end());
+    std::deque<Block *> todo(blocksWithAddedArgs.begin(), blocksWithAddedArgs.end());
     while (todo.size()) {
       auto block = todo.front();
       todo.pop_front();
-      if (!A.Legal.count(block))
+      if (!blocksWithAddedArgs.count(block))
         continue;
-      if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end())
-        continue;
+      assert (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
       auto maybeblockArg = valueAtStartOfBlock[block];
       auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-      if (!blockArg || blockArg.getOwner() != block)
-        continue;
+      assert (blockArg && blockArg.getOwner() == block);
       assert(blockArg.getOwner() == block);
 
       mlir::Value val = nullptr;
@@ -680,6 +706,14 @@ bool Mem2Reg::forwardStoreToLoad(
           }
           assert(blockArg.getType() == val.getType());
           blockArg.replaceAllUsesWith(val);
+          for (auto & pair : lastStoreInBlock) {
+            if (pair.second == blockArg)
+              pair.second = val;
+          }
+          for (auto & pair : valueAtStartOfBlock) {
+            if (pair.second == blockArg)
+              pair.second = val;
+          }
         } else {
         }
         valueAtStartOfBlock.erase(block);
@@ -720,6 +754,7 @@ bool Mem2Reg::forwardStoreToLoad(
           }
         }
         block->eraseArgument(blockArg.getArgNumber());
+        blocksWithAddedArgs.erase(block);
       }
     }
   }
