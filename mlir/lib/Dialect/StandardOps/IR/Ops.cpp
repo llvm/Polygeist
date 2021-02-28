@@ -3143,9 +3143,25 @@ struct ExtendThenTrunc : public OpRewritePattern<TruncateIOp> {
   }
 };
 
+struct TruncateConst : public OpRewritePattern<TruncateIOp> {
+  using OpRewritePattern<TruncateIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TruncateIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cop = op.value().getDefiningOp<ConstantOp>();
+    if (!cop)
+      return failure();
+    
+    auto val = cop.getValue().cast<IntegerAttr>().getValue();
+
+    rewriter.replaceOpWithNewOp<ConstantOp>(op, op.getType(), rewriter.getIntegerAttr(op.getType(), val.trunc(op.getType().getIntOrFloatBitWidth())));
+    return success();
+  }
+};
+
 void TruncateIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                        MLIRContext *context) {
-  results.insert<ExtendThenTrunc<SignExtendIOp>, ExtendThenTrunc<ZeroExtendIOp>>(context);
+  results.insert<ExtendThenTrunc<SignExtendIOp>, ExtendThenTrunc<ZeroExtendIOp>, TruncateConst>(context);
 }
 
 static LogicalResult verify(TruncateIOp op) {
@@ -3326,6 +3342,7 @@ struct NotICmp : public OpRewritePattern<XOrOp> {
     return failure();
   }
 };
+
 } // namespace
 
 void XOrOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
