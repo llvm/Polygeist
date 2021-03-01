@@ -736,8 +736,8 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
 
     // no work to do.
     if (!indVarIndexes.size()) {
-      llvm::errs() << "----- failed detect ind var -----\n\n";
-      op.dump();
+      // llvm::errs() << "----- failed detect ind var -----\n\n";
+      // op.dump();
       return failure();
     }
 
@@ -820,7 +820,105 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
         reResults.push_back(newForOp.getResult(pos++));
     }
 
+    // auto m = op.getParentOfType<ModuleOp>();
+    // m.dump();
+
     rewriter.replaceOp(op, reResults);
+    return success();
+  }
+};
+
+struct DropConstantReturn : public OpRewritePattern<ForOp> {
+  using OpRewritePattern<ForOp>::OpRewritePattern;
+
+  bool isConstant(Value val) const {
+    if (dyn_cast<ConstantOp>(val.getDefiningOp()))
+      return true;
+    return false;
+  }
+
+  bool isSameAsYield(unsigned i, Value val, ForOp op) const {
+    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
+    auto defOpYield = yieldOp.getOperand(i).getDefiningOp();
+    auto defOpInput = val.getDefiningOp();
+    if (defOpYield == defOpInput)
+      return true;
+    return false;
+  }
+
+  LogicalResult matchAndRewrite(ForOp op,
+                                PatternRewriter &rewriter) const override {
+
+    if (op.getNumIterOperands() == 0)
+      return failure();
+
+    SmallVector<unsigned, 4> toBeErased;
+    SmallVector<Value, 4> operands;
+    for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
+      if (isConstant(op.getIterOperands()[i]) &&
+          isSameAsYield(i, op.getIterOperands()[i], op) &&
+          op.getBody()->getArgument(i + 1).use_empty())
+        toBeErased.push_back(i);
+      else
+        operands.push_back(op.getIterOperands()[i]);
+    }
+
+    if (!toBeErased.size())
+      return failure();
+
+    // llvm::errs() << "------------\n";
+    // for (auto i : toBeErased)
+    //  llvm::errs() << i << "\n";
+    // op.dump();
+    // llvm::errs() << "------------\n";
+
+    SmallVector<Value, 4> repResults;
+    auto newForOp = rewriter.create<ForOp>(
+        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
+        operands, [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+          SmallVector<Value, 2> mappedValues;
+          mappedValues.append(args.begin(), args.end());
+
+          BlockAndValueMapping mapping;
+          SmallVector<Value, 4> nonCstBlockArgs;
+          for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
+            if (std::find(toBeErased.begin(), toBeErased.end(), i) !=
+                toBeErased.end())
+              continue;
+            nonCstBlockArgs.push_back(op.getBody()->getArgument(i + 1));
+          }
+          mapping.map(nonCstBlockArgs, mappedValues);
+
+          for (auto &nested : op.getBody()->getOperations())
+            b.clone(nested, mapping);
+
+          auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
+          for (auto result : yieldOp.getOperands())
+            if (dyn_cast<ConstantOp>(result.getDefiningOp()))
+              repResults.push_back(result);
+            else
+              repResults.push_back(mapping.lookup(result));
+        });
+
+    // fix yield.
+    auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    SmallVector<Value, 4> yieldOperands;
+    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
+      if (std::find(toBeErased.begin(), toBeErased.end(),
+                    yieldOperand.getOperandNumber()) == toBeErased.end())
+        yieldOperands.push_back(yieldOperand.get());
+
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(yieldOperands); });
+
+    // llvm::errs() << "--------------\n";
+    // newForOp.dump();
+    // llvm::errs() << "--------------\n";
+
+    // auto m = op.getParentOfType<ModuleOp>();
+    // m.dump();
+
+    rewriter.replaceOp(op, repResults);
     return success();
   }
 };
@@ -830,7 +928,7 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
 void ForOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
   results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops, RemoveUnusedArgs,
-                 DetectTrivialIndVarInArgs>(context);
+                 DetectTrivialIndVarInArgs, DropConstantReturn>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1417,56 +1515,6 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
   }
 };
 
-struct RemoveUnusedCondVarArgs : public OpRewritePattern<WhileOp> {
-  using OpRewritePattern<WhileOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(WhileOp op,
-                                PatternRewriter &rewriter) const override {
-
-    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
-
-    SmallVector<unsigned, 4> eraseArgs{};
-    SmallVector<Type, 4> tys{};
-    SmallVector<Value, 4> conds{};
-    SmallVector<Value, 4> res{};
-    unsigned i = 0;
-    for (auto arg : term.args()) {
-      if (op.after().front().getArgument(i).hasZeroUser()) {
-        eraseArgs.push_back(i);
-        res.push_back(op.getResult(i));
-      } else {
-        tys.push_back(arg.getType());
-        conds.push_back(arg);
-      }
-      i++;
-    }
-
-    if (eraseArgs.size()) {
-      auto loop = rewriter.create<WhileOp>(op.getLoc(), tys, op.inits());
-      loop.before().takeBody(op.before());
-      loop.after().takeBody(op.after());
-
-      assert(res.size() == loop.getResults().size() &&
-             "expect 'res' to correspond 1-1 with the number of results of "
-             "'loop'");
-
-      i = 0;
-      for (auto r : res) {
-        r.replaceAllUsesWith(loop.getResult(i));
-        i++;
-      }
-
-      rewriter.eraseOp(op);
-      rewriter.setInsertionPoint(term);
-      rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.condition(),
-                                                    conds);
-      loop.after().front().eraseArguments(eraseArgs);
-      return success();
-    }
-    return failure();
-  }
-};
-
 struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -1518,8 +1566,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<MoveWhileDown, RemoveUnusedCondVar, RemoveUnusedCondVarArgs,
-                 MoveSideEffectFreeWhile, MoveWhileToFor>(context);
+  results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
+                 MoveWhileToFor>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
