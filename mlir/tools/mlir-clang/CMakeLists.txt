@@ -20,6 +20,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRGPU
   MLIRTransforms
   MLIRTargetLLVMIRModuleTranslation
+  MLIRSCFTransforms
   MLIRSCFToStandard
   MLIRStandardToLLVM
   MLIRTargetLLVMIR

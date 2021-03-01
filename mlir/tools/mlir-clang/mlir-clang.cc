@@ -1,4 +1,5 @@
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
@@ -99,12 +100,14 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createLoopRestructurePass());
   // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::replaceAffineCFGPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+  optPM.addPass(mlir::createRaiseSCFToAffinePass());
 
   if (mlir::failed(pm.run(module)))
     return 4;
-  // module.dump();
+  //module.dump();
   if (mlir::failed(mlir::verify(module))) {
     return 5;
   }
