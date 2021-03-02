@@ -1111,7 +1111,8 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
   bool isConstant(Value val) const {
-    if (dyn_cast<ConstantOp>(val.getDefiningOp()))
+    auto *defOp = val.getDefiningOp();
+    if (defOp && dyn_cast<ConstantOp>(defOp))
       return true;
     return false;
   }
