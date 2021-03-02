@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/MathExtras.h"
@@ -683,6 +684,7 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
     return false;
   }
 
+  // TODO: use the one from moveWhileToFor
   bool isTopLevel(Value val) const {
     if (val.cast<BlockArgument>())
       return true;
@@ -1256,10 +1258,33 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
 struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
-  bool isTopLevel(Value val) const {
-    if (val.cast<BlockArgument>())
+  bool isTopLevelValue(Value value, Region *region) const {
+    if (auto arg = value.dyn_cast<BlockArgument>())
+      return arg.getParentRegion() == region;
+    return value.getDefiningOp()->getParentRegion() == region;
+  }
+
+  bool isTopLevel(Value value) const {
+    if (auto arg = value.dyn_cast<BlockArgument>())
       return true;
     return false;
+  }
+
+  bool canMoveOpOutsideWhile(Operation *op, WhileOp loop) const {
+    DominanceInfo dom(loop);
+    for (auto operand : op->getOperands()) {
+      if (!dom.properlyDominates(operand, loop))
+        return false;
+    }
+    return true;
+  }
+
+  unsigned countOperations(Region &reg) const {
+    unsigned count = 0;
+    for (auto &block : reg)
+      for (auto &nested : block)
+        count++;
+    return count;
   }
 
   LogicalResult matchAndRewrite(WhileOp loop,
@@ -1280,7 +1305,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Operation *maybeCmpIOp = condOp.condition().getDefiningOp();
     if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
       Value maybeIndVar = cmpIOp.lhs();
-      if (isTopLevel(maybeIndVar))
+      if (isTopLevelValue(maybeIndVar, &loop.before()))
         loopInfo.lb =
             loop.getOperand(maybeIndVar.cast<BlockArgument>().getArgNumber());
       else
@@ -1305,7 +1330,25 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         }
       }
       Value indVar = maybeIndVar;
-      loopInfo.ub = cmpIOp.rhs();
+
+      // handle upper bound as result of a *single*
+      // operation.
+      if (isTopLevel(cmpIOp.rhs())) {
+        loopInfo.ub = cmpIOp.rhs();
+        // make sure to have only two operations in the before reg.
+        if (countOperations(loop.before()) != 2)
+          return failure();
+      } else {
+        auto *op = cmpIOp.rhs().getDefiningOp();
+        if (!op || !canMoveOpOutsideWhile(op, loop) ||
+            (op->getNumResults() != 1))
+          return failure();
+        auto newOp = rewriter.clone(*op);
+        loopInfo.ub = newOp->getResult(0);
+        if (countOperations(loop.before()) != 3)
+          return failure();
+      }
+
       loopInfo.indVar = indVar;
       loopInfo.indVarType = indVar.getType();
     }
@@ -1335,11 +1378,6 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     auto forloop = rewriter.create<scf::ForOp>(
         loop.getLoc(), lb, ub, step, forArgs,
         [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-          // if the original induction variable was not of type "Index"
-          // we need to insert a cast to the old type.
-          // rewriter.create<IndexCastOp>(loop.getLoc(), iv,
-          // loopInfo.indVarType); loopInfo.indVar.replaceAllUsesWith(castIv);
-
           // map for the conditionOp value.
           size_t pos = loop.inits().size();
           SmallVector<Value, 2> mappedValues;
@@ -1347,10 +1385,9 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
           BlockAndValueMapping mapping;
           mapping.map(loop.after().getArguments(), mappedValues);
-          for (auto &block : loop.after().getBlocks()) {
+          for (auto &block : loop.after().getBlocks())
             for (auto &nested : block.without_terminator())
               b.clone(nested, mapping);
-          }
 
           auto oldYield =
               cast<scf::YieldOp>(loop.after().front().getTerminator());
@@ -1371,8 +1408,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     replacements.append(forloop.getResults().begin() + pos,
                         forloop.getResults().end());
     rewriter.replaceOp(loop, replacements);
-    // auto m = forloop.getParentOfType<ModuleOp>();
-    // m.dump();
+    auto m = forloop.getParentOfType<ModuleOp>();
+    m.dump();
     return success();
   }
 };
