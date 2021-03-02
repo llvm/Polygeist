@@ -871,8 +871,10 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
 
     // llvm::errs() << "------------\n";
     // for (auto i : toBeErased)
-    //  llvm::errs() << i << "\n";
+    //  llvm::errs() << "index -> " << i << "\n";
     // op.dump();
+    // for (auto v : operands)
+    //  v.dump();
     // llvm::errs() << "------------\n";
 
     SmallVector<Value, 4> repResults;
@@ -894,17 +896,12 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
 
           for (auto &nested : op.getBody()->getOperations())
             b.clone(nested, mapping);
-
-          auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
-          for (auto result : yieldOp.getOperands())
-            if (dyn_cast<ConstantOp>(result.getDefiningOp()))
-              repResults.push_back(result);
-            else
-              repResults.push_back(mapping.lookup(result));
         });
 
     // fix yield.
     auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    repResults.append(yieldOp.getOperands().begin(),
+                      yieldOp.getOperands().end());
     SmallVector<Value, 4> yieldOperands;
     for (OpOperand &yieldOperand : yieldOp->getOpOperands())
       if (std::find(toBeErased.begin(), toBeErased.end(),
@@ -914,12 +911,9 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
     rewriter.updateRootInPlace(yieldOp,
                                [&]() { yieldOp->setOperands(yieldOperands); });
 
-    // llvm::errs() << "--------------\n";
+    // llvm::errs() << "-----newOp---------\n";
     // newForOp.dump();
-    // llvm::errs() << "--------------\n";
-
-    // auto m = op.getParentOfType<ModuleOp>();
-    // m.dump();
+    // llvm::errs() << "----newOp----------\n";
 
     rewriter.replaceOp(op, repResults);
     return success();
@@ -1259,10 +1253,10 @@ struct RemoveBoolean : public OpRewritePattern<IfOp> {
 struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
-  bool isTopLevelValue(Value value, Region *region) const {
+  bool isTopLevelArgValue(Value value, Region *region) const {
     if (auto arg = value.dyn_cast<BlockArgument>())
       return arg.getParentRegion() == region;
-    return value.getDefiningOp()->getParentRegion() == region;
+    return false;
   }
 
   bool isTopLevel(Value value) const {
@@ -1306,7 +1300,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Operation *maybeCmpIOp = condOp.condition().getDefiningOp();
     if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
       Value maybeIndVar = cmpIOp.lhs();
-      if (isTopLevelValue(maybeIndVar, &loop.before()))
+      if (isTopLevelArgValue(maybeIndVar, &loop.before()))
         loopInfo.lb =
             loop.getOperand(maybeIndVar.cast<BlockArgument>().getArgNumber());
       else
@@ -1349,6 +1343,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
           return failure();
         auto newOp = rewriter.clone(*op);
         loopInfo.ub = newOp->getResult(0);
+        cmpIOp.rhs().replaceAllUsesWith(newOp->getResult(0));
         if (countOperations(loop.before()) != 3)
           return failure();
       }
@@ -1378,7 +1373,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     // loop.dump();
 
     for (Value arg : condOp.args()) {
-      if (isTopLevelValue(arg, &loop.before())) {
+      if (isTopLevelArgValue(arg, &loop.before())) {
         auto blockArg = arg.dyn_cast<BlockArgument>();
         auto pos = blockArg.getArgNumber();
         forArgs.push_back(loop.inits()[pos]);
