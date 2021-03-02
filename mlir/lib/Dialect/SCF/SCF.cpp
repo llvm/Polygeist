@@ -834,7 +834,8 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
   bool isConstant(Value val) const {
-    if (dyn_cast<ConstantOp>(val.getDefiningOp()))
+    auto *defOp = val.getDefiningOp();
+    if (defOp && dyn_cast<ConstantOp>(defOp))
       return true;
     return false;
   }
@@ -1371,10 +1372,14 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     SmallVector<Value, 8> forArgs;
     forArgs.append(loop.inits().begin(), loop.inits().end());
 
-    // Directly using the conditionOp arguments does not work. But if they are
-    // blockArgument we can look-up into the input of the scf::while.
-    for (auto arg : condOp.args()) {
-      if (auto blockArg = arg.dyn_cast<BlockArgument>()) {
+    // auto m = loop.getParentOfType<ModuleOp>();
+    // m.dump();
+    // llvm::errs() << "******************\n";
+    // loop.dump();
+
+    for (Value arg : condOp.args()) {
+      if (isTopLevelValue(arg, &loop.before())) {
+        auto blockArg = arg.dyn_cast<BlockArgument>();
         auto pos = blockArg.getArgNumber();
         forArgs.push_back(loop.inits()[pos]);
       } else
@@ -1414,8 +1419,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     replacements.append(forloop.getResults().begin() + pos,
                         forloop.getResults().end());
     rewriter.replaceOp(loop, replacements);
-    auto m = forloop.getParentOfType<ModuleOp>();
-    m.dump();
+    // m = forloop.getParentOfType<ModuleOp>();
+    // m.dump();
     return success();
   }
 };
