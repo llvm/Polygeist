@@ -1321,12 +1321,16 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       // follow the indVar in the after region.
       Value maybeIndVarInAfter = loop.after().getArgument(pos);
       auto users = maybeIndVarInAfter.getUsers();
+      if (std::distance(users.begin(), users.end()) > 2)
+        return failure();
+
       for (auto u : users) {
+        if (auto castOp = dyn_cast<IndexCastOp>(u))
+          continue;
         if (auto addIOp = dyn_cast<AddIOp>(u)) {
           if (addIOp.getOperand(0) != maybeIndVarInAfter)
             return failure();
-          else
-            loopInfo.step = addIOp.getOperand(1);
+          loopInfo.step = addIOp.getOperand(1);
         }
       }
       Value indVar = maybeIndVar;
