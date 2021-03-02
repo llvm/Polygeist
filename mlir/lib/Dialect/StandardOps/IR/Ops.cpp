@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/CommonFolders.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -1502,10 +1503,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<AddIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
-                                       op.getType()),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
           b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                       op.getType()));
+                                 op.getType()));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<SubIOp>()) {
@@ -1515,10 +1515,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<SubIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
-                                       op.getType()),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
           b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                       op.getType()));
+                                 op.getType()));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<MulIOp>()) {
@@ -1528,10 +1527,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<MulIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0),
-                                       op.getType()),
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
           b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                       op.getType()));
+                                 op.getType()));
       return success();
     }
     return failure();

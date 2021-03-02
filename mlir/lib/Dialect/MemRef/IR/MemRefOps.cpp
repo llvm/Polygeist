@@ -10,6 +10,7 @@
 #include "mlir/Dialect/MemRef/Utils/MemRefUtils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
@@ -1251,11 +1252,74 @@ struct LoadOfBufferCast : public OpRewritePattern<LoadOp> {
     return success();
   }
 };
+
+bool inAffine(Operation *op) {
+  auto *curOp = op;
+  while (auto *parentOp = curOp->getParentOp()) {
+    if (isa<AffineForOp, AffineParallelOp>(parentOp))
+      return true;
+    curOp = parentOp;
+  }
+  return false;
+}
+
+bool isValidIndex(Value value) {
+  if (isValidSymbol(value))
+    return true;
+  if (auto i = value.dyn_cast<BlockArgument>())
+    if (isa<AffineForOp>(i.getOwner()->getParentOp()))
+      return true;
+  return false;
+}
+
+struct MoveLoadToAffine : public OpRewritePattern<LoadOp> {
+  using OpRewritePattern<LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LoadOp load,
+                                PatternRewriter &rewriter) const override {
+    if (!inAffine(load))
+      return failure();
+
+    if (!llvm::all_of(load.getIndices(),
+                      [&](Value index) { return isValidIndex(index); }))
+      return failure();
+
+    AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
+        load.getLoc(), load.getMemRef(), load.getIndices());
+    load.getResult().replaceAllUsesWith(affineLoad.getResult());
+    rewriter.eraseOp(load);
+    return success();
+  }
+};
+
+struct MoveStoreToAffine : public OpRewritePattern<StoreOp> {
+  using OpRewritePattern<StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(StoreOp store,
+                                PatternRewriter &rewriter) const override {
+    if (!inAffine(store))
+      return failure();
+
+    if (!llvm::all_of(store.getIndices(),
+                      [&](Value index) { return isValidIndex(index); }))
+      return failure();
+
+    rewriter.create<AffineStoreOp>(store.getLoc(), store.getValueToStore(),
+                                   store.getMemRef(), store.getIndices());
+    rewriter.eraseOp(store);
+    return success();
+  }
+};
+
 } // end anonymous namespace.
 
 void LoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                          MLIRContext *context) {
-  results.add<LoadOfBufferCast>(context);
+  results.add<LoadOfBufferCast, MoveLoadToAffine>(context);
+}
+void StoreOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<MoveStoreToAffine>(context);
 }
 
 //===----------------------------------------------------------------------===//

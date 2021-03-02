@@ -1148,8 +1148,10 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
 
     // llvm::errs() << "------------\n";
     // for (auto i : toBeErased)
-    //  llvm::errs() << i << "\n";
+    //  llvm::errs() << "index -> " << i << "\n";
     // op.dump();
+    // for (auto v : operands)
+    //  v.dump();
     // llvm::errs() << "------------\n";
 
     SmallVector<Value, 4> repResults;
@@ -1171,17 +1173,12 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
 
           for (auto &nested : op.getBody()->getOperations())
             b.clone(nested, mapping);
-
-          auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
-          for (auto result : yieldOp.getOperands())
-            if (dyn_cast<ConstantOp>(result.getDefiningOp()))
-              repResults.push_back(result);
-            else
-              repResults.push_back(mapping.lookup(result));
         });
 
     // fix yield.
     auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    repResults.append(yieldOp.getOperands().begin(),
+                      yieldOp.getOperands().end());
     SmallVector<Value, 4> yieldOperands;
     for (OpOperand &yieldOperand : yieldOp->getOpOperands())
       if (std::find(toBeErased.begin(), toBeErased.end(),
@@ -1191,12 +1188,9 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
     rewriter.updateRootInPlace(yieldOp,
                                [&]() { yieldOp->setOperands(yieldOperands); });
 
-    // llvm::errs() << "--------------\n";
+    // llvm::errs() << "-----newOp---------\n";
     // newForOp.dump();
-    // llvm::errs() << "--------------\n";
-
-    // auto m = op.getParentOfType<ModuleOp>();
-    // m.dump();
+    // llvm::errs() << "----newOp----------\n";
 
     rewriter.replaceOp(op, repResults);
     return success();
