@@ -2996,6 +2996,7 @@ def StoreOp : Std_Op<"store",
       }
   }];
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
 
   let assemblyFormat = [{
