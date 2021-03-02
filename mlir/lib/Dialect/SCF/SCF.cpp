@@ -1329,13 +1329,31 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       }
       Value indVar = maybeIndVar;
 
-      // handle upper bound as result of a *single*
-      // operation.
       if (isTopLevel(cmpIOp.rhs())) {
-        loopInfo.ub = cmpIOp.rhs();
-        // make sure to have only two operations in the before reg.
-        if (countOperations(loop.before()) != 2)
-          return failure();
+        switch (cmpIOp.getPredicate()) {
+          case CmpIPredicate::slt: {
+            loopInfo.ub = cmpIOp.rhs();
+            break;
+          }
+          case CmpIPredicate::sle: {
+            auto one = rewriter.create<ConstantOp>(
+              loop.getLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
+            auto addIOp = rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
+            loopInfo.ub = addIOp.getResult();
+            break;
+          }
+          case CmpIPredicate::eq:
+          case CmpIPredicate::sge:
+          case CmpIPredicate::sgt:
+          case CmpIPredicate::ne:
+          case CmpIPredicate::ult:
+          case CmpIPredicate::ule:
+          case CmpIPredicate::ugt:
+          case CmpIPredicate::uge: {
+            llvm::errs() << "unhandled icmp";
+            return failure();
+          }
+        }
       } else {
         auto *op = cmpIOp.rhs().getDefiningOp();
         if (!op || !canMoveOpOutsideWhile(op, loop) ||
@@ -1344,8 +1362,6 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         auto newOp = rewriter.clone(*op);
         loopInfo.ub = newOp->getResult(0);
         cmpIOp.rhs().replaceAllUsesWith(newOp->getResult(0));
-        if (countOperations(loop.before()) != 3)
-          return failure();
       }
 
       loopInfo.indVar = indVar;
