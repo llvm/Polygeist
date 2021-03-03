@@ -57,9 +57,25 @@ function run() {
   echo "${RESULT_STR}"
 }
 
+# Generate pluto optimised C code.
+function codegen() {
+  local SRC_FILE="$1"
+  local LOG_FILE="${SRC_FILE%.c}.pluto.log"
+
+  cd "$(dirname "${SRC_FILE}")"
+
+  ${PLUTO_DIR}/polycc "$(basename ${SRC_FILE})" --moredebug --noparallel --noprevector --nounrolljam &> "$(basename "${LOG_FILE}")"
+
+  cd - &>/dev/null
+}
+
 # EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.origin.c")")
 # echo ${EXE_TIME}
-for type in origin split origin.pluto split.pluto; do
-  EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.${type}.c")" 5)
+for ty in origin split; do
+  codegen "${TARGET}/${TARGET}.${ty}.c"
+done
+
+for ty in origin split origin.pluto split.pluto; do
+  EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.${ty}.c")" 5)
   echo ${EXE_TIME}
 done
