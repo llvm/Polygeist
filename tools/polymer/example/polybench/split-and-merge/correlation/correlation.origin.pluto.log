@@ -5045,10 +5045,10 @@ loop types (scalar, scalar, scalar, scalar, scalar, scalar, scalar, scalar)
 [Pluto] Output written to correlation.origin.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.005314s
-[pluto] Auto-transformation time: 0.135606s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.007997s
-[pluto] Code generation time: 0.061023s
-[pluto] Other/Misc time: 0.352382s
-[pluto] Total time: 0.554325s
-[pluto] All times: 0.005314 0.135606 0.061023 0.352382
+[pluto] SCoP extraction + dependence analysis time: 0.006223s
+[pluto] Auto-transformation time: 0.160918s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.009410s
+[pluto] Code generation time: 0.073638s
+[pluto] Other/Misc time: 0.408016s
+[pluto] Total time: 0.648795s
+[pluto] All times: 0.006223 0.160918 0.073638 0.408016

@@ -75,7 +75,7 @@ for ty in origin split; do
   codegen "${TARGET}/${TARGET}.${ty}.c"
 done
 
-for ty in origin split origin.pluto split.pluto; do
+for ty in split.pluto.inner split.pluto.noscr origin split origin.pluto split.pluto ; do
   EXE_TIME=$(run "$(compile "${TARGET}/${TARGET}.${ty}.c")" 5)
   echo ${EXE_TIME}
 done

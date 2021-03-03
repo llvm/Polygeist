@@ -2313,16 +2313,7 @@ T(S2): (2, j, i, 0)
 loop types (scalar, loop, loop, scalar)
 
 T(S3): (3, j, 0, 0)
-loop typest5 {loop with stmts: S2, }
-t4 {loop with stmts: S2, }
-t4 {loop with stmts: S2, }
-t5 {loop with stmts: S4, }
-t4 {loop with stmts: S4, }
-t5 {loop with stmts: S5, }
-t4 {loop with stmts: S5, }
-t7 {loop with stmts: S6, }
-t6 {loop with stmts: S6, }
- (scalar, loop, scalar, scalar)
+loop types (scalar, loop, scalar, scalar)
 
 T(S4): (4, i, j, 0)
 loop types (scalar, loop, loop, scalar)
@@ -2438,7 +2429,16 @@ T(S7): (6, i, j, 0, 0)
 loop types (scalar, loop, loop, scalar, scalar)
 
 T(S8): (6, i, j, 0, 1)
-loop types (scalar, loop, loop, scalar, scalar)
+loop types (scalar, lot5 {loop with stmts: S2, }
+t4 {loop with stmts: S2, }
+t4 {loop with stmts: S2, }
+t5 {loop with stmts: S4, }
+t4 {loop with stmts: S4, }
+t5 {loop with stmts: S5, }
+t4 {loop with stmts: S5, }
+t7 {loop with stmts: S6, }
+t6 {loop with stmts: S6, }
+op, loop, scalar, scalar)
 
 [pluto_tile] Outermost tilable bands
 (t2, t3, ) with stmts {S2, }
@@ -2642,10 +2642,10 @@ loop types (scalar, loop, loop, loop, loop, scalar, scalar, scalar)
 [Pluto] Output written to covariance.origin.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.003779s
-[pluto] Auto-transformation time: 0.033961s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.003078s
-[pluto] Code generation time: 0.040959s
-[pluto] Other/Misc time: 0.225138s
-[pluto] Total time: 0.303837s
-[pluto] All times: 0.003779 0.033961 0.040959 0.225138
+[pluto] SCoP extraction + dependence analysis time: 0.004026s
+[pluto] Auto-transformation time: 0.039582s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.003621s
+[pluto] Code generation time: 0.050214s
+[pluto] Other/Misc time: 0.259008s
+[pluto] Total time: 0.352830s
+[pluto] All times: 0.004026 0.039582 0.050214 0.259008
