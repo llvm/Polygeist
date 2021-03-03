@@ -5357,25 +5357,7 @@ loop types (scalar, scalar, scalar, scalar, scalar)
 [pluto_tile] Outermost tilable bands
 (t2, t3, ) with stmts {S2, }
 (t2, t3, ) with stmts {S5, S9, }
-(t2, t3, ) with stt5 {loop with stmts: S2, }
-t4 {loop with stmts: S2, }
-t4 {loop with stmts: S2, }
-t5 {loop with stmts: S5, S9, }
-t4 {loop with stmts: S5, S9, }
-t4 {loop with stmts: S5, S9, }
-t5 {loop with stmts: S10, }
-t4 {loop with stmts: S10, }
-t5 {loop with stmts: S12, }
-t4 {loop with stmts: S12, }
-t6 {loop with stmts: S13, S14, }
-t5 {loop with stmts: S13, S14, }
-t4 {loop with stmts: S13, S14, }
-t5 {loop with stmts: S15, }
-t4 {loop with stmts: S15, }
-t3 {loop with stmts: S1, S4, S11, }
-t3 {loop with stmts: S3, }
-t3 {loop with stmts: S6, S7, S8, }
-mts {S10, }
+(t2, t3, ) with stmts {S10, }
 (t2, t3, ) with stmts {S12, }
 (t2, t3, ) with stmts {S13, S14, }
 (t2, t3, ) with stmts {S15, }
@@ -5465,7 +5447,25 @@ mts {S10, }
 [pluto] dep_satisfaction_update: dep 75 satisfied
 	 9 dep(s) satisfied
 [pluto] dep_satisfaction_update (level 5)
-[pluto] dep_satisfaction_update: dep 8 satisfied
+[pluto] dep_satisfactiont5 {loop with stmts: S2, }
+t4 {loop with stmts: S2, }
+t4 {loop with stmts: S2, }
+t5 {loop with stmts: S5, S9, }
+t4 {loop with stmts: S5, S9, }
+t4 {loop with stmts: S5, S9, }
+t5 {loop with stmts: S10, }
+t4 {loop with stmts: S10, }
+t5 {loop with stmts: S12, }
+t4 {loop with stmts: S12, }
+t6 {loop with stmts: S13, S14, }
+t5 {loop with stmts: S13, S14, }
+t4 {loop with stmts: S13, S14, }
+t5 {loop with stmts: S15, }
+t4 {loop with stmts: S15, }
+t3 {loop with stmts: S1, S4, S11, }
+t3 {loop with stmts: S3, }
+t3 {loop with stmts: S6, S7, S8, }
+_update: dep 8 satisfied
 [pluto] dep_satisfaction_update: dep 16 satisfied
 [pluto] dep_satisfaction_update: dep 22 satisfied
 [pluto] dep_satisfaction_update: dep 25 satisfied
@@ -5722,10 +5722,10 @@ loop types (scalar, scalar, scalar, scalar, scalar, scalar, scalar)
 [Pluto] Output written to correlation.split.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.006425s
-[pluto] Auto-transformation time: 0.190649s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.011800s
-[pluto] Code generation time: 0.049641s
-[pluto] Other/Misc time: 0.377768s
-[pluto] Total time: 0.624483s
-[pluto] All times: 0.006425 0.190649 0.049641 0.377768
+[pluto] SCoP extraction + dependence analysis time: 0.004505s
+[pluto] Auto-transformation time: 0.222183s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.013409s
+[pluto] Code generation time: 0.059198s
+[pluto] Other/Misc time: 0.428435s
+[pluto] Total time: 0.714321s
+[pluto] All times: 0.004505 0.222183 0.059198 0.428435

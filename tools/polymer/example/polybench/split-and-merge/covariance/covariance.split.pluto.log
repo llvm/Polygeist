@@ -3239,10 +3239,10 @@ loop types (scalar, loop, loop, loop, loop, scalar, scalar)
 [Pluto] Output written to covariance.split.pluto.c
 
 [pluto] Timing statistics
-[pluto] SCoP extraction + dependence analysis time: 0.003618s
-[pluto] Auto-transformation time: 0.058417s
-[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.005343s
-[pluto] Code generation time: 0.029870s
-[pluto] Other/Misc time: 0.236383s
-[pluto] Total time: 0.328288s
-[pluto] All times: 0.003618 0.058417 0.029870 0.236383
+[pluto] SCoP extraction + dependence analysis time: 0.003042s
+[pluto] Auto-transformation time: 0.066145s
+[pluto] 		Total constraint solving time (LP/MIP/ILP) time: 0.005927s
+[pluto] Code generation time: 0.035735s
+[pluto] Other/Misc time: 0.264303s
+[pluto] Total time: 0.369225s
+[pluto] All times: 0.003042 0.066145 0.035735 0.264303
