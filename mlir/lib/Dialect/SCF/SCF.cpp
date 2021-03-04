@@ -920,12 +920,75 @@ struct DropConstantReturn : public OpRewritePattern<ForOp> {
   }
 };
 
+struct DropYieldedInput : public OpRewritePattern<ForOp> {
+  using OpRewritePattern<ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ForOp op,
+                                PatternRewriter &rewriter) const override {
+
+    if (op.getNumIterOperands() == 0)
+      return failure();
+
+    SmallVector<Value, 4> operandsNotYielded;
+    SmallVector<unsigned, 4> toBeErased; 
+    unsigned i = 0;
+    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
+    for (auto iterOp : op.getIterOperands()) {
+      if (iterOp == yieldOp.getOperand(i)) {
+        toBeErased.push_back(i);
+        op.getBody()->getArgument(i + 1).replaceAllUsesWith(iterOp);
+        op.getResult(i).replaceAllUsesWith(iterOp);
+      }
+      else {
+        operandsNotYielded.push_back(iterOp);
+      }
+      i++;
+    }
+
+    if (!toBeErased.size())
+      return failure();
+
+    auto newForOp = rewriter.create<ForOp>(
+      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
+      operandsNotYielded, [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
+        SmallVector<Value, 2> mappedValues{iv};
+        mappedValues.append(args.begin(), args.end());
+          
+        BlockAndValueMapping mapping;
+        SmallVector<Value, 4> oldArgs;
+        oldArgs.push_back(op.getInductionVar());
+        for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
+          if (std::find(toBeErased.begin(), toBeErased.end(), i) == toBeErased.end())
+            oldArgs.push_back(op.getBody()->getArgument(i + 1));
+        }
+        mapping.map(oldArgs, mappedValues);
+
+        for (auto &nested : op.getBody()->getOperations())
+          b.clone(nested, mapping);
+    });
+
+    yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
+    SmallVector<Value, 4> resResults{yieldOp.getOperands().begin(), yieldOp.getOperands().end()};
+    SmallVector<Value, 4> yieldOperands;
+    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
+      if (std::find(toBeErased.begin(), toBeErased.end(),
+                    yieldOperand.getOperandNumber()) == toBeErased.end())
+        yieldOperands.push_back(yieldOperand.get());
+
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(yieldOperands); });
+
+    rewriter.replaceOp(op, resResults); 
+    return success();
+  }
+};
+
 } // namespace
 
 void ForOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                         MLIRContext *context) {
   results.insert<ForOpIterArgsFolder, SimplifyTrivialLoops, RemoveUnusedArgs,
-                 DetectTrivialIndVarInArgs, DropConstantReturn>(context);
+                 DetectTrivialIndVarInArgs, DropConstantReturn, DropYieldedInput>(context);
 }
 
 //===----------------------------------------------------------------------===//
