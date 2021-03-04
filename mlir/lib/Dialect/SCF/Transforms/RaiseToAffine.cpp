@@ -24,14 +24,37 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     // if we have loop-carried values do not raise for now.
     if (loop.hasIterOperands())
       return false;
-    auto operands = loop.getOperands();
-    // all the three operands (lb, ub and step)
-    // shoube be valid Affine indexes.
-    if (!llvm::all_of(operands,
-                      [](Value operand) { return isValidDim(operand); }))
-      return false;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
     return isa_and_nonnull<ConstantIndexOp>(loop.getStep().getDefiningOp());
+  }
+
+  bool canonicalizeLoopBounds(AffineForOp forOp) const {
+    SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
+    SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
+
+    auto lbMap = forOp.getLowerBoundMap();
+    auto ubMap = forOp.getUpperBoundMap();
+    auto prevLbMap = lbMap;
+    auto prevUbMap = ubMap;
+
+    fullyComposeAffineMapAndOperands(&lbMap, &lbOperands);
+    canonicalizeMapAndOperands(&lbMap, &lbOperands);
+    lbMap = removeDuplicateExprs(lbMap);
+
+    fullyComposeAffineMapAndOperands(&ubMap, &ubOperands);
+    canonicalizeMapAndOperands(&ubMap, &ubOperands);
+    ubMap = removeDuplicateExprs(ubMap);
+
+    // Any canonicalization change always leads to updated map(s).
+    if (lbMap == prevLbMap && ubMap == prevUbMap)
+      return false;
+
+    if (lbMap != prevLbMap)
+      forOp.setLowerBound(lbOperands, lbMap);
+    if (ubMap != prevUbMap)
+      forOp.setUpperBound(ubOperands, ubMap);
+
+    return true;
   }
 
   int64_t getStep(mlir::Value value) const {
@@ -49,6 +72,9 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
           loop.getLoc(), loop.getLowerBound(), builder.getSymbolIdentityMap(),
           loop.getUpperBound(), builder.getSymbolIdentityMap(),
           getStep(loop.getStep()), llvm::None);
+
+      if (!canonicalizeLoopBounds(affineLoop))
+        return failure();
 
       Value iv = loop.getInductionVar();
       Region &region = affineLoop.getLoopBody();
