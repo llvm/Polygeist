@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Get the number of splittable statements for mlir files under a given directory.
+
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+BIN_DIR="${DIR}/../../build/bin"
+TMP_DIR="${DIR}/tmp"
+UTILITIES_DIR="${DIR}/utilities"
+
+export PATH="${BIN_DIR}:${PATH}"
+
+function annotate_splittable() {
+  local SRC_FILE="$1"
+  local TARGET_DIR="$2"
+  local DST_FILE="${TARGET_DIR}/$(basename "${SRC_FILE}")"
+
+  polymer-opt "${SRC_FILE}" -annotate-splittable | tee "${DST_FILE}" &>/dev/null
+
+  local NUM_SPLITTABLE="$(grep "scop.splittable" "${DST_FILE}" | wc -l)"
+  echo "$(basename "${SRC_FILE}"),${NUM_SPLITTABLE}"
+}
+
+SRC_FILES="$(find "$1" -type f -name "*.mlir")"
+
+
+WORK_DIR="${TMP_DIR}/splittable.$(date "+%Y%m%d-%H%M%S")"
+mkdir -p "${WORK_DIR}"
+
+for f in ${SRC_FILES}; do
+  annotate_splittable "$f" "${WORK_DIR}"
+done
