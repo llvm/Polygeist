@@ -76,6 +76,10 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       if (!canonicalizeLoopBounds(affineLoop))
         return failure();
 
+      if (!llvm::all_of(affineLoop.getOperands(),
+                        [](Value operand) { return isValidDim(operand); }))
+        return failure();
+
       Value iv = loop.getInductionVar();
       Region &region = affineLoop.getLoopBody();
       rewriter.inlineRegionBefore(loop.getRegion(), region, region.begin());
