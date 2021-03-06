@@ -12,6 +12,8 @@ target_link_libraries(mlir-clang PRIVATE
   LLVMCore
   LLVMSupport
 
+  MLIRSCFTransforms
+
   MLIRSupport
   MLIRIR
   MLIRAnalysis
