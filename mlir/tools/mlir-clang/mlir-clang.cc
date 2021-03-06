@@ -1,6 +1,7 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Export.h"
