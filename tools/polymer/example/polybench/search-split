@@ -1,0 +1,124 @@
+#!/bin/bash
+
+# Search for various splitting candidates.
+CLANG_NO_VECTORIZE_OPTIONS="-fno-vectorize -fno-slp-vectorize -fno-tree-vectorize"
+CLANG_NO_UNROLL_OPTIONS="-fno-unroll-loops"
+OPT_NO_VECTORIZE_OPTIONS="-force-vector-width=1 -force-vector-interleave=1"
+OPT_NO_UNROLL_OPTIONS="-disable-loop-unrolling"
+CLANG_OPTIONS="${CLANG_NO_VECTORIZE_OPTIONS} ${CLANG_NO_UNROLL_OPTIONS}"
+OPT_OPTIONS="${OPT_NO_VECTORIZE_OPTIONS} ${OPT_NO_UNROLL_OPTIONS}"
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+BIN_DIR="${DIR}/../../build/bin"
+TMP_DIR="${DIR}/tmp"
+UTILITIES_DIR="${DIR}/utilities"
+
+LLVM_DIR="${DIR}/../../llvm"
+export PATH="${BIN_DIR}:${PATH}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+
+function annotate_splittable() {
+  local SRC_FILE="$1"
+  local TARGET_DIR="$2"
+  local DST_FILE="${TARGET_DIR}/$(basename "${SRC_FILE}")"
+
+  polymer-opt "${SRC_FILE}" -annotate-splittable | tee "${DST_FILE}" &>/dev/null
+
+  local NUM_SPLITTABLE="$(grep "scop.splittable" "${DST_FILE}" | wc -l)"
+  echo "${NUM_SPLITTABLE}"
+}
+
+function split() {
+  local SRC_FILE="$1"
+  local TARGET_DIR="$2"
+  local SPLIT_ID="$3"
+  local DST_FILE="${TARGET_DIR}/$(basename "${SRC_FILE}")"
+  DST_FILE="${DST_FILE%.mlir}-s${SPLIT_ID}.mlir"
+  local __DST_FILE="$4"
+
+  polymer-opt "${SRC_FILE}" -reg2mem -scop-stmt-split="to-split=${SPLIT_ID}" > "${DST_FILE}"
+
+  status=$?
+  if [ $status -eq 0 ]; then
+    echo "$(basename ${DST_FILE}): OK"
+    eval $__DST_FILE="${DST_FILE}"
+  else 
+    echo "$(basename ${DST_FILE}): FAILED"
+    eval $__DST_FILE=""
+  fi
+}
+
+# Compile and run Polymer generated MLIR code.
+# Args:
+#    SRC_FILE             File to be compiled and run
+# Outputs:
+#    POLYMER_EXE_FILE     Path to the Polymer-compiled executable
+#    POLYMER_RUN_TIME     Total run time of the Polymer-compiled executable
+# Globals:
+#    UTILITIES_DIR      Where the polybench utilities placed
+function run_polymer()
+{
+  local SRC_FILE="$1"
+  local __RESULT_POLYMER_EXE_FILE="$2"
+  local __RESULT_POLYMER_RUN_TIME="$3"
+  local POLYMER_SRC_FILE="${SRC_FILE%.mlir}.polymer.mlir"
+  local POLYMER_LLVM_IR_FILE="${SRC_FILE%.mlir}.polymer.ll"
+  local POLYMER_CLAST_FILE="${SRC_FILE%.mlir}.polymer.cloog"
+  local POLYMER_EXE_FILE="${SRC_FILE%.mlir}.polymer.exe"
+  local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
+
+  local SRC_DIR="$(dirname "${SRC_FILE}")"
+
+  cd "${SRC_DIR}" >/dev/null 2>&1
+
+  # Generate Polymer optimized MLIR code.
+  polymer-opt -reg2mem -extract-scop-stmt -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" -canonicalize \
+    "${SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"
+  # Compile Polymer generated MLIR code.
+  mlir-opt -lower-affine -convert-scf-to-std -inline -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
+    mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
+  opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${OPT_OPTIONS} -o "${POLYMER_LLVM_IR_FILE}" 
+  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
+    -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
+
+  # Run the Polymer-compiled executable
+  eval $__RESULT_POLYMER_RUN_TIME="$(taskset -c 1-1 numactl -i all "${POLYMER_EXE_FILE}")"
+  eval $__RESULT_POLYMER_EXE_FILE="${POLYMER_EXE_FILE}"
+
+  cd - >/dev/null 2>&1
+}
+
+SRC_FILES="$(find "$1" -type f -name "*.mlir" -print0 | sort -z | tr '\0' ' ')"
+echo "Source files to search: ${SRC_FILES}"
+
+WORK_DIR="${TMP_DIR}/search-split.$(date "+%Y%m%d-%H%M%S")"
+WORK_LOG="${TMP_DIR}/search-split.$(date "+%Y%m%d-%H%M%S").log"
+mkdir -p "${WORK_DIR}"
+
+for f in ${SRC_FILES}; do
+  num_splits=$(annotate_splittable "$f" "${WORK_DIR}")
+  END=$(expr ${num_splits} - 1)
+
+  basename="$(basename "${f}")"
+  subdir="${basename%.mlir}"
+  curdir="${WORK_DIR}/${subdir}"
+  mkdir -p "$curdir"
+
+  result_str="$subdir"
+
+  # The original 
+  run_polymer "${WORK_DIR}/${basename}" exe_file run_time
+  result_str="${result_str},${run_time}"
+
+  for i in $(seq 0 $END); do 
+    split "${WORK_DIR}/${basename}" "${curdir}" "$i" dst_file
+    if [ ! -z "$dst_file" ]; then
+      run_polymer $dst_file exe_file run_time
+    else
+      run_time=""
+    fi
+    result_str="${result_str},${run_time}"
+    echo $result_str
+  done
+  echo "$result_str" >> $WORK_LOG
+done
