@@ -266,7 +266,10 @@ static bool isSplittable(Operation *op) {
   // For now we focus on the innermost for loop.
   mlir::AffineForOp forOp = forOps.back();
   mlir::AffineMap lbMap = forOp.getLowerBoundMap();
+  mlir::AffineMap ubMap = forOp.getUpperBoundMap();
   if (!lbMap.isSingleConstant() || lbMap.getSingleConstantResult() != 0)
+    return false;
+  if (ubMap.getNumDims() != 0)
     return false;
 
   return true;
