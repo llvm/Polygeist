@@ -104,16 +104,9 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-  //optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
-  //optPM.addPass(mlir::replaceAffineCFGPass());
-  //optPM.addPass(mlir::createMemRefDataFlowOptPass());
-  //optPM.addPass(mlir::createCanonicalizerPass());
-  //optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createRaiseSCFToAffinePass());
   //optPM.addPass(mlir::replaceAffineCFGPass());
   optPM.addPass(mlir::createCanonicalizerPass());
-  //optPM.addPass(mlir::createCanonicalizerPass());
-  //optPM.addPass(mlir::replaceAffineCFGPass());
 
   if (mlir::failed(pm.run(module))) {
     module.dump();
