@@ -1,6 +1,6 @@
 #include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -20,7 +20,7 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
 static cl::opt<std::string> Standard("std", cl::init(""),
-                              cl::desc("C/C++ std"));
+                                     cl::desc("C/C++ std"));
 
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                            cl::desc("<Specify input file>"),
@@ -93,55 +93,55 @@ int main(int argc, char **argv) {
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createMem2RegPass());
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createLoopRestructurePass());
-  optPM.addPass(mlir::createMemRefDataFlowOptPass());
-  optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createRaiseSCFToAffinePass());
-  //optPM.addPass(mlir::replaceAffineCFGPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createMem2RegPass());
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createLoopRestructurePass());
+    optPM.addPass(mlir::createMemRefDataFlowOptPass());
+    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(mlir::createRaiseSCFToAffinePass());
+    // optPM.addPass(mlir::replaceAffineCFGPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
 
-  if (mlir::failed(pm.run(module)))
-    return 4;
-  //module.dump();
-  if (mlir::failed(mlir::verify(module))) {
-    return 5;
-  }
+    if (mlir::failed(pm.run(module)))
+      return 4;
+    // module.dump();
+    if (mlir::failed(mlir::verify(module))) {
+      return 5;
+    }
 
 #define optPM optPM2
 #define pm pm2
-  mlir::PassManager pm(&context);
-  mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    mlir::PassManager pm(&context);
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
 
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::createSymbolDCEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createSymbolDCEPass());
 
-  if (CudaLower)
-    optPM.addPass(mlir::createParallelLowerPass());
+    if (CudaLower)
+      optPM.addPass(mlir::createParallelLowerPass());
 
-  if (EmitLLVM) {
-    pm.addPass(mlir::createLowerAffinePass());
-    pm.addPass(mlir::createLowerToCFGPass());
-    LowerToLLVMOptions options;
-    // invalid for gemm.c init array
-    // options.useBarePtrCallConv = true;
-    options.dataLayout = DL;
-    pm.addPass(mlir::createLowerToLLVMPass(options));
-  }
+    if (EmitLLVM) {
+      pm.addPass(mlir::createLowerAffinePass());
+      pm.addPass(mlir::createLowerToCFGPass());
+      LowerToLLVMOptions options;
+      // invalid for gemm.c init array
+      // options.useBarePtrCallConv = true;
+      options.dataLayout = DL;
+      pm.addPass(mlir::createLowerToLLVMPass(options));
+    }
 
-  if (mlir::failed(pm.run(module)))
-    return 4;
-  // module.dump();
-  if (mlir::failed(mlir::verify(module))) {
-    return 5;
-  }
+    if (mlir::failed(pm.run(module)))
+      return 4;
+    // module.dump();
+    if (mlir::failed(mlir::verify(module))) {
+      return 5;
+    }
   }
 
   if (EmitLLVM) {
