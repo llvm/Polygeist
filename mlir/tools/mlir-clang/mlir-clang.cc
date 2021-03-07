@@ -1,5 +1,6 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -18,6 +19,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
+
+static cl::opt<std::string> Standard("std", cl::init(""),
+                                     cl::desc("C/C++ std"));
 
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                            cl::desc("<Specify input file>"),
@@ -96,23 +100,22 @@ int main(int argc, char **argv) {
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
   optPM.addPass(mlir::createCSEPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createMem2RegPass());
   optPM.addPass(mlir::createCSEPass());
   optPM.addPass(mlir::createCanonicalizerPass());
+  optPM.addPass(mlir::createMem2RegPass());
+  optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createLoopRestructurePass());
-  optPM.addPass(mlir::createMemRefDataFlowOptPass());
-  optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+  // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
   optPM.addPass(mlir::createRaiseSCFToAffinePass());
-  //optPM.addPass(mlir::replaceAffineCFGPass());
+  // optPM.addPass(mlir::replaceAffineCFGPass());
   optPM.addPass(mlir::createCanonicalizerPass());
-
+  optPM.addPass(mlir::createMemRefDataFlowOptPass());
   if (mlir::failed(pm.run(module))) {
     module.dump();
     return 4;
   }
-
   if (mlir::failed(mlir::verify(module))) {
     module.dump();
     return 5;
@@ -120,33 +123,36 @@ int main(int argc, char **argv) {
 
 #define optPM optPM2
 #define pm pm2
-  mlir::PassManager pm(&context);
-  mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    mlir::PassManager pm(&context);
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
 
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(mlir::createSymbolDCEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    pm.addPass(mlir::createSymbolDCEPass());
 
-  if (CudaLower)
-    optPM.addPass(mlir::createParallelLowerPass());
+    if (CudaLower)
+      optPM.addPass(mlir::createParallelLowerPass());
 
-  if (EmitLLVM) {
-    pm.addPass(mlir::createLowerAffinePass());
-    pm.addPass(mlir::createLowerToCFGPass());
-    LowerToLLVMOptions options(&context);
-    // invalid for gemm.c init array
-    // options.useBarePtrCallConv = true;
-    options.dataLayout = DL;
-    pm.addPass(mlir::createLowerToLLVMPass(options));
-  }
+    if (EmitLLVM) {
+      pm.addPass(mlir::createLowerAffinePass());
+      pm.addPass(mlir::createLowerToCFGPass());
+      LowerToLLVMOptions options(&context);
+      options.dataLayout = DL;
+      // invalid for gemm.c init array
+      // options.useBarePtrCallConv = true;
+      pm.addPass(mlir::createLowerToLLVMPass(options));
+    }
 
-  if (mlir::failed(pm.run(module)))
-    return 4;
-  // module.dump();
-  if (mlir::failed(mlir::verify(module))) {
-    return 5;
-  }
+    if (mlir::failed(pm.run(module))) {
+      module.dump();
+      return 4;
+    }
+    // module.dump();
+    if (mlir::failed(mlir::verify(module))) {
+      module.dump();
+      return 5;
+    }
   }
 
   if (EmitLLVM) {
