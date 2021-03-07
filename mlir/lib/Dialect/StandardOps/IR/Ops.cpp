@@ -2333,19 +2333,48 @@ bool isValidIndex(Value value) {
 struct MoveLoadToAffine : public OpRewritePattern<LoadOp> {
   using OpRewritePattern<LoadOp>::OpRewritePattern;
 
+  void replaceLoad(LoadOp load, PatternRewriter &rewriter) const {
+     AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
+        load.getLoc(), load.getMemRef(), load.indices());
+    load.getResult().replaceAllUsesWith(affineLoad.getResult());
+    rewriter.eraseOp(load);
+  }
+   
   LogicalResult matchAndRewrite(LoadOp load,
                                 PatternRewriter &rewriter) const override {
+
+    // not in an affine for. Do not raise.
     if (!inAffine(load))
       return failure();
 
-    if (!llvm::all_of(load.getIndices(),
-                      [&](Value index) { return isValidIndex(index); }))
-      return failure();
+    // if all the index are good, job done.
+    if (llvm::all_of(load.getIndices(),
+                     [&](Value index) { return isValidIndex(index); })) {
+      replaceLoad(load, rewriter);
+      return success();
+    }
 
-    AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
-        load.getLoc(), load.getMemRef(), load.getIndices());
-    load.getResult().replaceAllUsesWith(affineLoad.getResult());
-    rewriter.eraseOp(load);
+    SmallVector<Value, 4> newIndices;
+    for (auto idx : load.getIndices()) {
+      AffineMap idxmap =
+          AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
+      if (!idx.getType().isa<IndexType>())
+        idx = rewriter.create<mlir::IndexCastOp>(
+            idx.getLoc(), idx, mlir::IndexType::get(idx.getContext()));
+
+      Value idxpack[1] = {idx};
+      newIndices.push_back(
+          rewriter.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
+    }
+    // TODO: here we assume that we can canonicalize the affineApplyOp
+    // which is not alwyas the case.
+/*
+    if (!llvm::all_of(newIndices,
+                      [&](Value index) { return isValidIndex(index); })) {
+      return failure();
+    }
+*/
+    replaceLoad(load, rewriter);
     return success();
   }
 };
