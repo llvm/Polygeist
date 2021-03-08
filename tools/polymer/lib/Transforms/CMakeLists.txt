@@ -3,6 +3,7 @@ add_mlir_library(PolymerTransforms
   Reg2Mem.cc
   ExtractScopStmt.cc
   ScopStmtOpt.cc
+  LoopAnnotate.cc
 
   ADDITIONAL_HEADER_DIRS
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
