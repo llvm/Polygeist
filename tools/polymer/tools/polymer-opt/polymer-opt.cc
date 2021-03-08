@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Transforms/ExtractScopStmt.h"
+#include "polymer/Transforms/LoopAnnotate.h"
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 #include "polymer/Transforms/ScopStmtOpt.h"
@@ -83,6 +84,7 @@ int main(int argc, char *argv[]) {
   polymer::registerRegToMemPass();
   polymer::registerExtractScopStmtPass();
   polymer::registerScopStmtOptPasses();
+  polymer::registerLoopAnnotatePasses();
 
   // Register any pass manager command line options.
   registerMLIRContextCLOptions();

@@ -37,8 +37,10 @@ using namespace llvm;
 using namespace polymer;
 
 /// The main function that implements the Pluto based optimization.
+/// TODO: transform options?
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto) {
+
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
 
