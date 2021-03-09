@@ -29,6 +29,30 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
+/// A recursive function. Terminates when all operands are not defined by
+/// affine.apply, nor loop IVs.
+static void annotatePointLoops(ValueRange operands, OpBuilder &b) {
+  for (mlir::Value operand : operands) {
+    // If a loop IV is directly passed into the statement call.
+    if (BlockArgument arg = operand.dyn_cast<BlockArgument>()) {
+      mlir::AffineForOp forOp =
+          dyn_cast<mlir::AffineForOp>(arg.getOwner()->getParentOp());
+      if (forOp) {
+        // An affine.for that has its indunction var used by a scop.stmt
+        // caller is a point loop.
+        forOp->setAttr("scop.point_loop", b.getUnitAttr());
+      }
+    } else {
+      mlir::AffineApplyOp applyOp =
+          operand.getDefiningOp<mlir::AffineApplyOp>();
+      if (applyOp) {
+        // Mark the parents of its operands, if a loop IVs, as point loops.
+        annotatePointLoops(applyOp.getOperands(), b);
+      }
+    }
+  }
+}
+
 /// Annotate loops in the dst to indicate whether they are point/tile loops.
 /// Should only call this after -canonicalize.
 /// TODO: Support handling index calculation, e.g., jacobi-1d.
@@ -46,19 +70,8 @@ static void annotatePointLoops(FuncOp f, OpBuilder &b) {
       callers.push_back(caller);
   });
 
-  for (mlir::CallOp caller : callers) {
-    for (mlir::Value operand : caller.getOperands()) {
-      if (BlockArgument arg = operand.dyn_cast<BlockArgument>()) {
-        mlir::AffineForOp forOp =
-            dyn_cast<mlir::AffineForOp>(arg.getOwner()->getParentOp());
-        if (forOp) {
-          // An affine.for that has its indunction var used by a scop.stmt
-          // caller is a point loop.
-          forOp->setAttr("scop.point_loop", b.getUnitAttr());
-        }
-      }
-    }
-  }
+  for (mlir::CallOp caller : callers)
+    annotatePointLoops(caller.getOperands(), b);
 }
 
 namespace {
