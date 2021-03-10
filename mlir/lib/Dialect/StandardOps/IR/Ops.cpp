@@ -257,6 +257,71 @@ static SmallVector<int64_t, 4> extractFromI64ArrayAttr(Attribute attr) {
       }));
 }
 
+/// Fold alloc operations with no uses. Alloc has side effects on the heap,
+/// but can still be deleted if it has zero uses.
+struct AddOfSubConst : public OpRewritePattern<AddIOp> {
+  using OpRewritePattern<AddIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AddIOp addop,
+                                PatternRewriter &rewriter) const override {
+    for (int i=0; i<2; i++)
+      if (auto subop = addop.getOperand(i).getDefiningOp<SubIOp>()) {
+        if (auto cop = addop.getOperand(1-i).getDefiningOp<ConstantOp>()) {
+          if (auto prevop = subop.getOperand(0).getDefiningOp<ConstantOp>()) {
+            auto nop = rewriter.create<ConstantOp>(
+              addop.getLoc(),
+              rewriter.getIntegerAttr(addop.getType(), prevop.getValue().cast<IntegerAttr>().getValue() + cop.getValue().cast<IntegerAttr>().getValue())
+            );
+            rewriter.replaceOpWithNewOp<SubIOp>(addop, nop, subop.getOperand(1));
+            return success();
+          }
+        }
+      }
+
+    return failure();
+  }
+};
+
+void AddIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<AddOfSubConst>(context);
+}
+
+struct SubOfSubConst : public OpRewritePattern<SubIOp> {
+  using OpRewritePattern<SubIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIOp lowerop,
+                                PatternRewriter &rewriter) const override {
+    if (auto subop = lowerop.getOperand(0).getDefiningOp<SubIOp>()) {
+      if (auto cop = lowerop.getOperand(1).getDefiningOp<ConstantOp>()) {
+        if (auto prevop = subop.getOperand(0).getDefiningOp<ConstantOp>()) {
+          auto nop = rewriter.create<ConstantOp>(
+            lowerop.getLoc(),
+            rewriter.getIntegerAttr(lowerop.getType(), prevop.getValue().cast<IntegerAttr>().getValue() - cop.getValue().cast<IntegerAttr>().getValue())
+          );
+          rewriter.replaceOpWithNewOp<SubIOp>(lowerop, nop, subop.getOperand(1));
+          return success();
+        }
+        if (auto prevop = subop.getOperand(1).getDefiningOp<ConstantOp>()) {
+          auto nop = rewriter.create<ConstantOp>(
+            lowerop.getLoc(),
+            rewriter.getIntegerAttr(lowerop.getType(), prevop.getValue().cast<IntegerAttr>().getValue() + cop.getValue().cast<IntegerAttr>().getValue())
+          );
+          rewriter.replaceOpWithNewOp<SubIOp>(lowerop, subop.getOperand(0), nop);
+          return success();
+        }
+      }
+    }
+
+    return failure();
+  }
+};
+void SubIOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                          MLIRContext *context) {
+  results.insert<SubOfSubConst>(context);
+}
+
+
 //===----------------------------------------------------------------------===//
 // AllocOp / AllocaOp
 //===----------------------------------------------------------------------===//
@@ -2312,12 +2377,27 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
     return failure();
   }
 };
+
+struct IndexCastOfSExt : public OpRewritePattern<IndexCastOp> {
+  using OpRewritePattern<IndexCastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IndexCastOp op,
+                                PatternRewriter &rewriter) const override {
+    
+    if (auto extop = op.getOperand().getDefiningOp<SignExtendIOp>()) {
+      op.setOperand(extop.getOperand());
+      return success();
+    }
+    return failure();
+  }
+};
 } // namespace
 
 void IndexCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
   results.insert<SimplfyIntegerCastMath>(context);
   results.insert<IndexCastToIndexCast>(context);
+  results.insert<IndexCastOfSExt>(context);
 }
 
 //===----------------------------------------------------------------------===//

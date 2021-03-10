@@ -224,7 +224,6 @@ bool Mem2Reg::forwardStoreToLoad(
   }
 
   if (loadOps.size() == 0) {
-    llvm::errs() << " no load ops of: " << AI << "\n";
     return changed;
   }
   /*
@@ -956,5 +955,4 @@ void Mem2Reg::runOnFunction() {
       freeRemoved.erase();
     }
   }
-  //f.dump();
 }

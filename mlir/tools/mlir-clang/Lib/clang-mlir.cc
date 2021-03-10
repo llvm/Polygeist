@@ -2112,11 +2112,15 @@ ValueWithOffsets MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
 
   auto oldpoint = builder.getInsertionPoint();
   auto oldblock = builder.getInsertionBlock();
+  ifOp.thenRegion().back().clear();
   builder.setInsertionPointToStart(&ifOp.thenRegion().back());
   Visit(stmt->getThen());
+  builder.create<scf::YieldOp>(loc);
   if (hasElseRegion) {
     builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    ifOp.elseRegion().back().clear();
     Visit(stmt->getElse());
+    builder.create<scf::YieldOp>(loc);
   }
 
   builder.setInsertionPoint(oldblock, oldpoint);

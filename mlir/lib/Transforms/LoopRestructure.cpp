@@ -7,7 +7,61 @@
 //===----------------------------------------------------------------------===//
 //
 //===----------------------------------------------------------------------===//
-
+// TODO fix uses of induction or inner variables outside of loop
+/*
+see %2 in
+func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
+  %c0 = constant 0 : index
+  %c0_i32 = constant 0 : i32
+  %c0_i64 = constant 0 : i64
+  %c1_i32 = constant 1 : i32
+  %c1_i64 = constant 1 : i64
+  %c32_i32 = constant 32 : i32
+  %cst = constant 1.000000e+00 : f64
+  br ^bb1(%c0_i64 : i64)
+^bb1(%0: i64):  // 2 preds: ^bb0, ^bb2
+  %1 = subi %arg0, %c1_i32 : i32
+  %2 = cmpi "slt", %1, %c0_i32 : i32
+  %3 = scf.if %2 -> (i32) {
+    %14 = subi %c0_i32, %1 : i32
+    %15 = addi %14, %c32_i32 : i32
+    %16 = subi %15, %c1_i32 : i32
+    %17 = divi_signed %16, %c32_i32 : i32
+    %18 = subi %c0_i32, %17 : i32
+    scf.yield %18 : i32
+  } else {
+    %14 = divi_signed %1, %c32_i32 : i32
+    scf.yield %14 : i32
+  }
+  %4 = sexti %3 : i32 to i64
+  %5 = cmpi "sle", %0, %4 : i64
+  cond_br %5, ^bb2, ^bb3
+^bb2:  // pred: ^bb1
+  %6 = load %arg1[%c0] : memref<?xf64>
+  %7 = mulf %6, %cst : f64
+  store %7, %arg1[%c0] : memref<?xf64>
+  %8 = addi %0, %c1_i64 : i64
+  br ^bb1(%8 : i64)
+^bb3:  // pred: ^bb1
+  %9 = scf.if %2 -> (i32) {
+    %14 = subi %c0_i32, %1 : i32
+    %15 = addi %14, %c32_i32 : i32
+    %16 = subi %15, %c1_i32 : i32
+    %17 = divi_signed %16, %c32_i32 : i32
+    %18 = subi %c0_i32, %17 : i32
+    scf.yield %18 : i32
+  } else {
+    %14 = divi_signed %1, %c32_i32 : i32
+    scf.yield %14 : i32
+  }
+  %10 = sexti %9 : i32 to i64
+  %11 = index_cast %10 : i64 to index
+  %12 = load %arg1[%11] : memref<?xf64>
+  %13 = addf %12, %cst : f64
+  store %13, %arg1[%11] : memref<?xf64>
+  return
+}
+*/
 #include "PassDetail.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -420,6 +474,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
   for (auto &blk : region) {
     for (auto &op : blk ) {
       for (auto &reg : op.getRegions()) {
+        if (reg.getBlocks().size() > 1) {
+          domInfo.recalculate(&op);
+        }
         runOnRegion(domInfo, reg);
       }
     }

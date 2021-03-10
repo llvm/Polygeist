@@ -350,6 +350,7 @@ def AddIOp : IntArithmeticOp<"addi", [Commutative]> {
     ```
   }];
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3044,6 +3045,7 @@ def SubFOp : FloatArithmeticOp<"subf"> {
 def SubIOp : IntArithmeticOp<"subi"> {
   let summary = "integer subtraction operation";
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

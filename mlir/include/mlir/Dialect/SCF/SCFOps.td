@@ -383,9 +383,9 @@ def ParallelOp : SCF_Op<"parallel",
   let hasCanonicalizer = 1;
 }
 
+// HasParent<"ParallelOp">,
 def BarrierOp : SCF_Op<"barrier",
-    [HasParent<"ParallelOp">,
-     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let summary = "barrier for parallel loops";
   let description = [{}];
 }

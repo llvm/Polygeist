@@ -115,19 +115,21 @@ void ParallelLower::runOnFunction() {
   builder.setInsertionPointToStart(blockB);
 
   auto threadr = builder.create<mlir::scf::ParallelOp>(loc, ValueRange({zindex, zindex, zindex}), ValueRange({blockx, blocky, blockz}), ValueRange({oneindex, oneindex, oneindex}));
+  builder.create<mlir::scf::YieldOp>(loc);
   Block* threadB;
     auto iter = threadr.getRegion().getBlocks().begin();
     threadB = &*iter;
     //threadB->begin()->erase();
 
-  builder.create<mlir::scf::YieldOp>(loc);
-  builder.setInsertionPointToStart(threadB);
+  //threadr.getRegion().getBlocks().clear();
+  //builder.create<mlir::scf::YieldOp>(loc);
+  //builder.setInsertionPointToStart(threadB);
 
-  auto container = builder.create<mlir::scf::ContainerOp>(loc, std::vector<mlir::Type>());
+  auto container = threadr;//builder.create<mlir::scf::ContainerOp>(loc, std::vector<mlir::Type>());
 
-  container.getRegion().getBlocks().splice(
-      container.getRegion().getBlocks().end(), f.getBlocks(), std::next(f.getBlocks().begin()),
-      f.getBlocks().end());
+  threadB->getOperations().clear();
+  threadB->getOperations().splice(threadB->begin(), nb->getOperations());
+  nb->erase();
 
   //mlir::OpBuilder builder2(f.getContext());
   //builder2.setInsertionPointToStart(threadB);
@@ -145,6 +147,7 @@ void ParallelLower::runOnFunction() {
       bidx.replaceAllUsesWith((mlir::Value)blockB->getArgument(idx));
       bidx.erase();
   });
+
   container.walk([&](mlir::gpu::ThreadIdOp bidx) {
       mlir::OpBuilder bz(f.getContext());
       bz.setInsertionPoint(bidx);
@@ -156,6 +159,7 @@ void ParallelLower::runOnFunction() {
       bidx.replaceAllUsesWith((mlir::Value)threadB->getArgument(idx));
       bidx.erase();
   });
+
   container.walk([&](mlir::ReturnOp op) {
       mlir::OpBuilder bz(f.getContext());
       bz.setInsertionPoint(op);//, bidx.getParentBlock());
@@ -179,6 +183,4 @@ void ParallelLower::runOnFunction() {
         op.erase();
       }
   });
-
-  f.dump();
 }
