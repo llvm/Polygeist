@@ -459,6 +459,8 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
+
+  //llvm::errs() << " prememref\n"; f.dump();
   //f.dump();
   //if (!llvm::hasSingleElement(f)) {
   //  markAllAnalysesPreserved();
@@ -519,5 +521,5 @@ void MemRefDataFlowOpt::runOnFunction() {
       user->erase();
     defOp->erase();
   }
-  //f.dump();
+  //llvm::errs() << " postmemref\n"; f.dump();
 }

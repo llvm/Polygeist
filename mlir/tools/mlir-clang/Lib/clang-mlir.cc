@@ -1660,6 +1660,30 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
             tostore.getType().isa<mlir::LLVM::LLVMType>()) {
         tostore = builder.create<mlir::LLVM::DialectCastOp>(loc, lhs.val.getType().cast<MemRefType>().getElementType(), tostore);
       }
+      if (auto prevTy = tostore.getType().dyn_cast<mlir::IntegerType>()) {
+        if (auto postTy = lhs.val.getType().cast<MemRefType>().getElementType().dyn_cast<mlir::IntegerType>()) {
+          bool signedType = true;
+          if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
+            if (bit->isUnsignedInteger())
+              signedType = false;
+            if (bit->isSignedInteger())
+              signedType = true;
+          }
+
+          if (prevTy.getWidth() < postTy.getWidth()) {
+            if (signedType) {
+              tostore = builder.create<mlir::SignExtendIOp>(
+                  loc, tostore, postTy);
+            } else {
+              tostore = builder.create<mlir::ZeroExtendIOp>(
+                  loc, tostore, postTy);
+            }
+          } else if (prevTy.getWidth() > postTy.getWidth()) {
+            tostore = builder.create<mlir::TruncateIOp>(
+                loc, tostore, postTy);
+          }
+        }
+      }
     }
     assert(tostore.getType() == lhs.val.getType().cast<MemRefType>().getElementType());
     builder.create<mlir::StoreOp>(loc, tostore, lhs.val, std::vector<mlir::Value>({getConstantIndex(0)}));
