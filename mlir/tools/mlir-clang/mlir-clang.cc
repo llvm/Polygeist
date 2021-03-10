@@ -20,6 +20,10 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
+
+static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
+                              cl::desc("Emit immediate mlir"));
+
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
@@ -101,9 +105,11 @@ int main(int argc, char **argv) {
   parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module, triple, DL);
   mlir::PassManager pm(&context);
 
-  //llvm::errs() << "<immediate: mlir>\n";
-  //module.dump();
-  //llvm::errs() << "</immediate: mlir>\n";
+  if (ImmediateMLIR) {
+    llvm::errs() << "<immediate: mlir>\n";
+    module.dump();
+    llvm::errs() << "</immediate: mlir>\n";
+  }
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {

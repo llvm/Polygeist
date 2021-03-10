@@ -1497,6 +1497,7 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
 
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
+    if (op.elseRegion().getBlocks().size() >= 2) return failure();
     assert(op.thenRegion().getBlocks().size());
     assert(op.elseRegion().getBlocks().size() <= 1);
     Block* parent = op->getBlock();

@@ -225,6 +225,7 @@ struct PragmaEndScopHandler : public PragmaHandler {
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
+  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::FuncOp> &functions;
   Preprocessor &PP;
   ASTContext &astContext;
@@ -244,9 +245,11 @@ struct MLIRASTConsumer : public ASTConsumer {
   MLIRASTConsumer(
       std::set<std::string> &emitIfFound,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
+      std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
+        globals(globals),
         functions(functions), PP(PP), astContext(astContext), module(module),
         SM(SM), lcontext(), llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
@@ -275,7 +278,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   std::map<std::string, clang::VarDecl *> globalVariables;
   std::map<std::string, clang::FunctionDecl *> globalFunctions;
-  std::map<const VarDecl *, std::pair<mlir::memref::GlobalOp, bool>> globals;
   std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const VarDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
@@ -421,6 +423,8 @@ public:
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
+
+  ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
 
