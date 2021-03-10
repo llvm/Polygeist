@@ -177,7 +177,7 @@ void ParallelLower::runOnFunction() {
       if (auto mt = op.getType().dyn_cast<mlir::MemRefType>()) {
           if (mt.getMemorySpaceAsInt() != 5) return;
         mlir::OpBuilder bz(f.getContext());
-        bz.setInsertionPoint(block);//, bidx.getParentBlock());
+        bz.setInsertionPointToStart(&block.getRegion().getBlocks().front());//, bidx.getParentBlock());
         //auto mr = mlir::MemRefType::get(mt.getShape(), mt.getElementType(), mt.getAffineMaps(), 0);     
         auto rep = bz.create<mlir::memref::AllocaOp>(loc, mt);
         op.replaceAllUsesWith((mlir::Value)rep);
