@@ -337,7 +337,7 @@ struct AddConstantReorder : public OpRewritePattern<AddIOp> {
                 rewriter.getIntegerAttr(addop.getType(), origConst - midConst));
             rewriter.replaceOpWithNewOp<AddIOp>(addop, nextConstant,
                                                 midSubOp.getOperand(0));
-            return success();
+
           }
         }
       }
@@ -1535,6 +1535,7 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
     return failure();
   }
 };
+
 } // namespace
 
 void IndexCastOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
@@ -2000,8 +2001,13 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(rhs(), m_Zero()))
     return lhs();
 
-  return constFoldBinaryOp<IntegerAttr>(operands,
-                                        [](APInt a, APInt b) { return a - b; });
+  // Fold IndexCast(constant) -> constant
+  // A little hack because we go through int.  Otherwise, the size
+  // of the constant might need to change.
+  if (auto value = operands[0].dyn_cast_or_null<IntegerAttr>())
+    return IntegerAttr::get(getType(), value.getInt());
+
+  return {};
 }
 
 /// Canonicalize a sub of a constant and (constant +/- something) to simply be
