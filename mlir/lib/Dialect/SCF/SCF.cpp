@@ -1381,7 +1381,6 @@ struct RemoveNotIf : public OpRewritePattern<IfOp> {
         }   
       }
     }
-
     return changed ? success() : failure();
   }
 };
