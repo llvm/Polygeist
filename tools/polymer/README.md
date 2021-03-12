@@ -11,6 +11,20 @@ Supported polyhedral schedulers:
 
 ## Setup
 
+### Setup with Docker
+
+To build the docker container:
+```
+make build-docker
+```
+
+To enter the docker container:
+```
+make shell
+```
+
+### Manual Setup
+
 Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) and [Pluto](https://github.com/kumasento/pluto/blob/master/README.md).
 
 * `cmake` >= 3.13.4
