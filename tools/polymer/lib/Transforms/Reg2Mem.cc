@@ -183,7 +183,7 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
         val.dyn_cast<mlir::OpResult>(), b, &entryBlock);
 
     // Create the store op that stores val into the scratchpad for future uses.
-    mlir::AffineStoreOp storeOp = createScratchpadStoreOp(val, allocaOp, b);
+    createScratchpadStoreOp(val, allocaOp, b);
 
     // Iterate each use of val, and create the load op, the result of which will
     // replace the original val. After creating this load op, we replaces the
@@ -300,6 +300,87 @@ public:
 
 } // namespace
 
+/// TODO: value analysis
+static void insertRedundantLoad(mlir::FuncOp f, OpBuilder &b) {
+  DominanceInfo dom(f);
+
+  SmallVector<mlir::AffineStoreOp, 4> storeOps;
+  f.walk([&storeOps](mlir::AffineStoreOp op) { storeOps.push_back(op); });
+
+  SetVector<mlir::Operation *> storeOpsToLoad;
+
+  for (mlir::AffineStoreOp storeOp : storeOps) {
+    Value valueToStore = storeOp.getValueToStore();
+    Value memref = storeOp.getMemRef();
+
+    // TODO: deal with the complexity here.
+    for (mlir::Operation *user : valueToStore.getUsers()) {
+      if (user == storeOp)
+        continue;
+      if (user->getBlock() != storeOp->getBlock())
+        continue;
+
+      //  This user is another storeOp that dominates the current storeOp.
+      if (isa<mlir::AffineStoreOp>(user) && dom.dominates(user, storeOp)) {
+        // ... and there is no other storeOp that is beging dominated in
+        // between.
+        bool hasDominatedMemStore = false;
+        for (mlir::Operation *memUser : memref.getUsers()) {
+          if (memUser == storeOp || memUser == user)
+            continue;
+          if (isa<mlir::AffineStoreOp>(memUser) &&
+              dom.dominates(user, memUser) && dom.dominates(memUser, storeOp)) {
+            hasDominatedMemStore = true;
+            break;
+          }
+        }
+
+        if (hasDominatedMemStore)
+          continue;
+
+        storeOpsToLoad.insert(user);
+      }
+    }
+  }
+
+  for (mlir::Operation *op : storeOpsToLoad) {
+    mlir::AffineStoreOp storeOpToLoad = cast<mlir::AffineStoreOp>(op);
+
+    OpBuilder::InsertionGuard guard(b);
+    b.setInsertionPointAfter(storeOpToLoad);
+
+    Value value = storeOpToLoad.getValueToStore();
+    Value memref = storeOpToLoad.getMemRef();
+    mlir::AffineLoadOp loadOp = b.create<mlir::AffineLoadOp>(
+        storeOpToLoad.getLoc(), memref, storeOpToLoad.getAffineMap(),
+        storeOpToLoad.getMapOperands());
+
+    value.replaceUsesWithIf(loadOp.getResult(), [=](mlir::OpOperand &operand) {
+      return operand.getOwner() != op &&
+             operand.getOwner()->getBlock() == op->getBlock();
+    });
+  }
+}
+
+namespace {
+class InsertRedundantLoadPass
+    : public mlir::PassWrapper<InsertRedundantLoadPass,
+                               OperationPass<mlir::FuncOp>> {
+
+public:
+  void runOnOperation() override {
+    mlir::FuncOp f = getOperation();
+    OpBuilder b(f.getContext());
+
+    insertRedundantLoad(f, b);
+  }
+};
+
+} // namespace
+
 void polymer::registerRegToMemPass() {
   PassRegistration<RegToMemPass>("reg2mem", "Demote register to memref.");
+  PassRegistration<InsertRedundantLoadPass>(
+      "insert-redundant-load", "Insert redundant affine.load to avoid "
+                               "creating unnecessary scratchpads.");
 }

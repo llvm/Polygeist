@@ -80,6 +80,35 @@ std::unique_ptr<ScopStmtImpl> ScopStmtImpl::get(mlir::Operation *callerOp,
   return stmt;
 }
 
+static BlockArgument findTopLevelBlockArgument(mlir::Value val) {
+  if (val.isa<mlir::BlockArgument>())
+    return val.cast<mlir::BlockArgument>();
+
+  mlir::Operation *defOp = val.getDefiningOp();
+  assert((defOp && isa<mlir::IndexCastOp>(defOp)) &&
+         "Only allow defOp of a parameter to be an IndexCast.");
+  return findTopLevelBlockArgument(defOp->getOperand(0));
+}
+
+static void
+promoteSymbolToTopLevel(mlir::Value val, FlatAffineConstraints &domain,
+                        llvm::DenseMap<mlir::Value, mlir::Value> &symMap) {
+  BlockArgument arg = findTopLevelBlockArgument(val);
+  assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
+         "Found top-level argument should be a FuncOp argument.");
+  // NOTE: This cannot pass since the found argument may not be of index type,
+  // i.e., it will be index cast later.
+  // assert(isValidSymbol(arg) &&
+  //        "Found top-level argument should be a valid symbol.");
+
+  unsigned int pos;
+  assert(domain.findId(val, &pos) &&
+         "Provided value should be in the given domain");
+  domain.setIdValue(pos, arg);
+
+  symMap[val] = arg;
+}
+
 void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // Extract the affine for/if ops enclosing the caller and insert them into the
   // enclosingOps list.
@@ -100,36 +129,39 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   llvm::DenseMap<mlir::Value, mlir::Value> symMap;
   domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
                      &symValues);
-  for (unsigned i = 0; i < symValues.size(); i++) {
-    mlir::Value val = symValues[i];
+  for (mlir::Value val : symValues) {
+    // mlir::Value val = symValues[i];
 
-    if (val.isa<mlir::BlockArgument>()) {
-      mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
-      symMap[val] = val;
-      assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
-             "Any block argument that acts as a parameter should be from the "
-             "top-level.");
-    } else {
-      mlir::Operation *defOp = val.getDefiningOp();
-      assert(defOp != nullptr);
-      assert(isa<mlir::IndexCastOp>(defOp) &&
-             "Only allow defOp of a parameter to be an IndexCast.");
+    promoteSymbolToTopLevel(val, domain, symMap);
 
-      mlir::IndexCastOp indexCastOp = dyn_cast<mlir::IndexCastOp>(defOp);
-      assert(indexCastOp.getOperand().isa<mlir::BlockArgument>());
-      assert(isa<mlir::FuncOp>(indexCastOp.getOperand()
-                                   .cast<mlir::BlockArgument>()
-                                   .getOwner()
-                                   ->getParentOp()) &&
-             "ifAny block argument that acts as a parameter should be from the "
-             "top-level.");
+    // if (val.isa<mlir::BlockArgument>()) {
+    //   mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
+    //   symMap[val] = val;
+    //   assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
+    //          "Any block argument that acts as a parameter should be from the
+    //          " "top-level.");
+    // } else {
+    //   mlir::Operation *defOp = val.getDefiningOp();
+    //   assert(defOp != nullptr);
+    //   assert(isa<mlir::IndexCastOp>(defOp) &&
+    //          "Only allow defOp of a parameter to be an IndexCast.");
 
-      // replace the sym value.
-      domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
-      symMap[val] = indexCastOp.getOperand();
-    }
+    //   mlir::IndexCastOp indexCastOp = dyn_cast<mlir::IndexCastOp>(defOp);
+    //   assert(indexCastOp.getOperand().isa<mlir::BlockArgument>());
+    //   assert(isa<mlir::FuncOp>(indexCastOp.getOperand()
+    //                                .cast<mlir::BlockArgument>()
+    //                                .getOwner()
+    //                                ->getParentOp()) &&
+    //          "ifAny block argument that acts as a parameter should be from
+    //          the " "top-level.");
+
+    //   // replace the sym value.
+    //   domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
+    //   symMap[val] = indexCastOp.getOperand();
+    // }
   }
 
+#if 0
   // SmallVector<mlir::Value, 8> symValues;
   domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
                      &symValues);
@@ -194,15 +226,16 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   }
 
   domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
-  for (auto dimValue : dimValues) {
-    if (dimValue.getDefiningOp()) {
-      domain.projectOut(dimValue);
-    }
-  }
+  // for (auto dimValue : dimValues) {
+  //   if (dimValue.getDefiningOp()) {
+  //     domain.projectOut(dimValue);
+  //   }
+  // }
   domain.removeTrivialRedundancy();
   domain.removeRedundantConstraints();
   // llvm::errs() << "After pruning all affine.apply\n";
   // domain.dump();
+#endif
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {

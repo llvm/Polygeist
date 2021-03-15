@@ -66,10 +66,11 @@ for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
   mkdir -p "${OUT_DIR}"
 
   "${BINDIR}/polymer-opt" "$f" 2>/dev/null | tee "${SRC_FILE}" >/dev/null
-  "${BINDIR}/polymer-opt" -reg2mem -extract-scop-stmt -canonicalize "$f" 2>/dev/null | tee "${SCOP_FILE}" >/dev/null
+  "${BINDIR}/polymer-opt" -reg2mem -insert-redundant-load -extract-scop-stmt -canonicalize "$f" 2>/dev/null | tee "${SCOP_FILE}" >/dev/null
   # The optimization command
   "${BINDIR}/polymer-opt" \
     -reg2mem \
+    -insert-redundant-load \
     -extract-scop-stmt \
     -pluto-opt \
     -canonicalize \
