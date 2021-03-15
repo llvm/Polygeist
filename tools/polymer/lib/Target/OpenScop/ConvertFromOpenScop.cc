@@ -1538,7 +1538,10 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
   options->quiet = 0;
   options->scop = scop->get();
 
+  osl_scop_print(stderr, scop->get());
   CloogInput *input = cloog_input_from_osl_scop(options->state, scop->get());
+  // cloog_input_dump_cloog(stderr, input, options);
+
   cloog_options_copy_from_osl_scop(scop->get(), options);
   if (prog != nullptr)
     updateCloogOptionsByPlutoProg(options, prog);
@@ -1546,10 +1549,14 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
   // Create cloog_program
   CloogProgram *program =
       cloog_program_alloc(input->context, input->ud, options);
+  assert(program->loop);
+  // cloog_loop_print(stderr, program->loop);
   program = cloog_program_generate(program, options);
+  assert(program->loop);
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);
+  assert(rootStmt);
   if (prog != nullptr)
     transformClastByPlutoProg(rootStmt, prog, options, prog->context->options);
 

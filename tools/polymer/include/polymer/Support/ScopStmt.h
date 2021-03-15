@@ -36,8 +36,8 @@ public:
   ScopStmt &operator=(ScopStmt &&);
   ScopStmt &operator=(const ScopStmt &&) = delete;
 
-  /// Get the pointer to the domain.
   mlir::FlatAffineConstraints *getDomain() const;
+
   /// Get a copy of the enclosing operations.
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                        bool forOnly = false) const;

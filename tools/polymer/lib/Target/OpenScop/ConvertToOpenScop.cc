@@ -69,6 +69,26 @@ private:
 
 } // namespace
 
+static FlatAffineConstraints mergeDomainAndContext(FlatAffineConstraints dom,
+                                                   FlatAffineConstraints ctx) {
+  FlatAffineConstraints cst(dom);
+
+  SmallVector<mlir::Value, 4> dims;
+  ctx.getIdValues(0, ctx.getNumDimIds(), &dims);
+
+  for (mlir::Value dim : dims)
+    ctx.projectOut(dim);
+  ctx.removeIndependentConstraints(0, ctx.getNumDimAndSymbolIds());
+  ctx.removeRedundantInequalities();
+  ctx.removeRedundantConstraints();
+  ctx.removeTrivialRedundancy();
+
+  cst.mergeAndAlignIdsWithOther(0, &ctx);
+  cst.append(ctx);
+
+  return cst;
+}
+
 /// Build OslScop from a given FuncOp.
 std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
@@ -92,6 +112,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
   // Build context in it.
   buildScopContext(scop.get(), scopStmtMap, ctx);
+  ctx.dump();
 
   // Counter for the statement inserted.
   unsigned stmtId = 0;
@@ -99,7 +120,8 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     // llvm::errs() << scopStmtName << "\n";
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
     // Collet the domain
-    FlatAffineConstraints *domain = stmt.getDomain();
+    FlatAffineConstraints domain =
+        mergeDomainAndContext(*stmt.getDomain(), ctx);
     // Collect the enclosing ops.
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
     stmt.getEnclosingOps(enclosingOps);
@@ -108,8 +130,8 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
     // Create a statement in OslScop and setup relations in it.
     scop->createStatement();
-    scop->addDomainRelation(stmtId, *domain);
-    scop->addScatteringRelation(stmtId, *domain, enclosingOps);
+    scop->addDomainRelation(stmtId, domain);
+    scop->addScatteringRelation(stmtId, domain, enclosingOps);
     callee.walk([&](mlir::Operation *op) {
       if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
         bool isRead = isa<mlir::AffineReadOpInterface>(op);
@@ -117,7 +139,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
         mlir::Value memref;
 
         stmt.getAccessMapAndMemRef(op, &vMap, &memref);
-        scop->addAccessRelation(stmtId, isRead, memref, vMap, *domain);
+        scop->addAccessRelation(stmtId, isRead, memref, vMap, domain);
       }
     });
 
