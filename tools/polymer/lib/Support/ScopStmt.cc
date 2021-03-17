@@ -115,11 +115,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
 
   // The domain constraints can then be collected from the enclosing ops.
-  // caller.dump();
-  // for (auto op : enclosingOps)
-  //   op->dump();
   getIndexSet(enclosingOps, &domain);
-  // domain.dump();
 
   // Symbol values, which could be a BlockArgument, or the result of DimOp or
   // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
@@ -129,113 +125,8 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   llvm::DenseMap<mlir::Value, mlir::Value> symMap;
   domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
                      &symValues);
-  for (mlir::Value val : symValues) {
-    // mlir::Value val = symValues[i];
-
+  for (mlir::Value val : symValues)
     promoteSymbolToTopLevel(val, domain, symMap);
-
-    // if (val.isa<mlir::BlockArgument>()) {
-    //   mlir::BlockArgument arg = val.cast<mlir::BlockArgument>();
-    //   symMap[val] = val;
-    //   assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
-    //          "Any block argument that acts as a parameter should be from the
-    //          " "top-level.");
-    // } else {
-    //   mlir::Operation *defOp = val.getDefiningOp();
-    //   assert(defOp != nullptr);
-    //   assert(isa<mlir::IndexCastOp>(defOp) &&
-    //          "Only allow defOp of a parameter to be an IndexCast.");
-
-    //   mlir::IndexCastOp indexCastOp = dyn_cast<mlir::IndexCastOp>(defOp);
-    //   assert(indexCastOp.getOperand().isa<mlir::BlockArgument>());
-    //   assert(isa<mlir::FuncOp>(indexCastOp.getOperand()
-    //                                .cast<mlir::BlockArgument>()
-    //                                .getOwner()
-    //                                ->getParentOp()) &&
-    //          "ifAny block argument that acts as a parameter should be from
-    //          the " "top-level.");
-
-    //   // replace the sym value.
-    //   domain.setIdValue(i + domain.getNumDimIds(), indexCastOp.getOperand());
-    //   symMap[val] = indexCastOp.getOperand();
-    // }
-  }
-
-#if 0
-  // SmallVector<mlir::Value, 8> symValues;
-  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
-                     &symValues);
-  // for (unsigned i = 0; i < symValues.size(); i++)
-  //   symValues[i].dump();
-
-  // TODO: good or bad?
-  SmallVector<mlir::Value, 8> dimValues;
-  domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
-
-  for (auto dimValue : dimValues) {
-    if (dimValue.getDefiningOp()) {
-      Operation *defOp = dimValue.getDefiningOp();
-      assert(isa<mlir::AffineApplyOp>(defOp));
-
-      unsigned pos;
-      if (!domain.findId(dimValue, &pos))
-        continue;
-
-      mlir::AffineApplyOp applyOp = cast<mlir::AffineApplyOp>(defOp);
-      // applyOp.dump();
-
-      mlir::AffineValueMap vmap = applyOp.getAffineValueMap();
-
-      for (unsigned i = 0; i < vmap.getNumOperands(); i++) {
-        unsigned pos;
-        Value v = vmap.getOperand(i);
-        if (symMap.find(v) != symMap.end())
-          v = symMap.lookup(v);
-        if (!domain.findId(v, &pos)) {
-          if (i < vmap.getNumDims())
-            domain.addDimId(domain.getNumDimIds(), v);
-          else if (i - vmap.getNumDims() < vmap.getNumSymbols())
-            domain.addSymbolId(domain.getNumSymbolIds(), v);
-        }
-      }
-      // domain.dump();
-
-      std::vector<SmallVector<int64_t, 8>> eqs;
-      SmallVector<int64_t, 8> newEq(domain.getNumCols(), 0);
-      getFlattenedAffineExprs(vmap.getAffineMap(), &eqs);
-      assert(vmap.getNumResults() == 1);
-
-      assert(domain.findId(dimValue, &pos));
-      newEq[pos] = eqs[0][0];
-
-      for (unsigned i = 1; i < eqs[0].size(); i++) {
-        unsigned pos;
-        assert(i - 1 < vmap.getNumOperands());
-        Value v = vmap.getOperand(i - 1);
-        if (symMap.find(v) != symMap.end())
-          v = symMap.lookup(v);
-        // v.dump();
-        assert(domain.findId(v, &pos));
-        // assert(pos < eqs[0].size());
-
-        newEq[pos] = eqs[0][i];
-      }
-
-      domain.addEquality(newEq);
-    }
-  }
-
-  domain.getIdValues(0, domain.getNumDimIds(), &dimValues);
-  // for (auto dimValue : dimValues) {
-  //   if (dimValue.getDefiningOp()) {
-  //     domain.projectOut(dimValue);
-  //   }
-  // }
-  domain.removeTrivialRedundancy();
-  domain.removeRedundantConstraints();
-  // llvm::errs() << "After pruning all affine.apply\n";
-  // domain.dump();
-#endif
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {

@@ -72,6 +72,7 @@ for f in $(find "${SOURCE_DIR}" -name "*.mlir"); do
     -reg2mem \
     -insert-redundant-load \
     -extract-scop-stmt \
+    -canonicalize \
     -pluto-opt \
     -canonicalize \
     "$f" 2>/dev/null | "${BINDIR}/polymer-opt" | tee "${PLUTO_FILE}" >/dev/null

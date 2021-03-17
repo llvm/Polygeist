@@ -8,6 +8,7 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -97,46 +98,27 @@ static mlir::Value getMemRefSize(mlir::AffineForOp forOp, FuncOp f, CallOp call,
 
   BlockAndValueMapping mapping;
   mapping.map(f.getArguments(), call.getOperands());
-  // for (Value arg : f.getArguments()) {
-  // arg.dump();
-  // mapping.lookup(arg).dump();
-  // }
 
   mlir::AffineMap lbMap = forOp.getLowerBoundMap();
   mlir::AffineMap ubMap = forOp.getUpperBoundMap();
 
-  // assert(lbMap.getNumResults() == 1 && "Should be a single lower bound.");
-
-  assert(lbMap.isSingleConstant());
-  assert(lbMap.getSingleConstantResult() == 0);
-  assert(ubMap.getNumResults() == 1 && "Should be a single upper bound.");
-
-  // lbMap.dump();
-  // ubMap.dump();
-
-  // TODO: find better way to do this.
-  // Operation *lbOp =
-  //     apply(lbMap, forOp.getLowerBoundOperands(), mapping, call, b);
+  assert(lbMap.getNumResults() == 1 &&
+         "The given loop should have a single lower bound.");
+  assert(ubMap.getNumResults() == 1 &&
+         "The given loop should have a single upper bound.");
+  Operation *lbOp =
+      apply(lbMap, forOp.getLowerBoundOperands(), mapping, call, b);
   Operation *ubOp =
       apply(ubMap, forOp.getUpperBoundOperands(), mapping, call, b);
-  // lbOp->dump();
-  // ubOp->dump();
 
-  // AffineMap affMap =
-  //     AffineMap::get(0, 2, b.getAffineSymbolExpr(0) -
-  //     b.getAffineSymbolExpr(1),
-  //                    f.getContext());
+  b.setInsertionPointAfter(ubOp);
 
-  // b.setInsertionPoint(call);
-  // Operation *memSize = b.create<mlir::AffineApplyOp>(
-  //     forOp.getLoc(), ubMap,
-  //     ;
-  // Operation *memSize = b.create<mlir::AffineApplyOp>(
-  //     forOp.getLoc(), affMap,
-  //     ValueRange({ubOp->getResult(0), lbOp->getResult(0)}));
-  // memSize->dump();
-
-  return ubOp->getResult(0);
+  mlir::AffineApplyOp memRefSizeApply = b.create<mlir::AffineApplyOp>(
+      forOp.getLoc(),
+      mlir::AffineMap::get(0, 2,
+                           b.getAffineSymbolExpr(1) - b.getAffineSymbolExpr(0)),
+      ValueRange{lbOp->getResult(0), ubOp->getResult(0)});
+  return memRefSizeApply.getResult();
 }
 
 /// Append the given argument to the end of the argument list for both the
@@ -230,7 +212,6 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
       call = callOp;
   });
 
-  // call.dump();
   scopStmtSplit(m, b, func, call, opToSplit);
 }
 
@@ -256,6 +237,10 @@ struct ScopStmtSplitPass
 } // namespace
 
 static bool isSplittable(Operation *op) {
+  // NOTE: some ops cannot be annotated in textual format. We skip them for now.
+  if (isa<mlir::SIToFPOp>(op)) {
+    return false;
+  }
 
   SmallVector<mlir::AffineForOp, 4> forOps;
   getLoopIVs(*op, &forOps);
@@ -267,9 +252,9 @@ static bool isSplittable(Operation *op) {
   mlir::AffineForOp forOp = forOps.back();
   mlir::AffineMap lbMap = forOp.getLowerBoundMap();
   mlir::AffineMap ubMap = forOp.getUpperBoundMap();
-  if (!lbMap.isSingleConstant() || lbMap.getSingleConstantResult() != 0)
+  if (lbMap.getNumDims() != 0 && lbMap.getNumResults() == 1)
     return false;
-  if (ubMap.getNumDims() != 0)
+  if (ubMap.getNumDims() != 0 && ubMap.getNumResults() == 1)
     return false;
 
   return true;

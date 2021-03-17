@@ -186,6 +186,7 @@ function run_polymer()
       -reg2mem \
       -insert-redundant-load \
       -extract-scop-stmt \
+      -canonicalize \
       -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" \
       -canonicalize \
       "${SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"

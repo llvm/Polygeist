@@ -119,6 +119,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   for (const auto &scopStmtName : *scopStmtNames) {
     // llvm::errs() << scopStmtName << "\n";
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
+
     // Collet the domain
     FlatAffineConstraints domain =
         mergeDomainAndContext(*stmt.getDomain(), ctx);
@@ -145,7 +146,6 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
     stmtId++;
   }
-  // osl_scop_print(stderr, scop->get());
 
   // Setup the symbol table within the OslScop, which builds the mapping from
   // mlir::Value to their names in the OpenScop representation, and maps them
@@ -155,14 +155,16 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   // Insert body extension.
   for (unsigned stmtId = 0; stmtId < scopStmtNames->size(); stmtId++) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
+    osl_scop_print(stderr, scop->get());
     scop->addBodyExtension(stmtId, stmt);
   }
+  assert(scop->validate() && "The scop object created cannot be validated.");
 
   // Additionally, setup the name of the function in the comment.
   std::string funcName(f.getName());
   scop->addExtensionGeneric("comment", funcName);
 
-  // osl_scop_print(stderr, scop->get());
+  osl_scop_print(stderr, scop->get());
   assert(scop->validate() && "The scop object created cannot be validated.");
   return scop;
 }
@@ -206,7 +208,6 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     ctx.append(cst);
     ctx.removeRedundantConstraints();
   }
-  // ctx.dump();
 
   // Then, create the single context relation in scop.
   scop->addContextRelation(ctx);
@@ -220,13 +221,6 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   for (const auto &it : *scopStmtMap) {
     FlatAffineConstraints *domain = it.second.getDomain();
 
-    // SmallVector<mlir::Value, 8> domSymbols;
-    // domain->getIdValues(domain->getNumDimIds(),
-    // domain->getNumDimAndSymbolIds(),
-    //                     &domSymbols);
-    // for (auto sym : domSymbols)
-    //   sym.dump();
-
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
       mlir::Value sym = symValues[i];
       unsigned pos;
@@ -237,12 +231,6 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
         domain->addSymbolId(i, sym);
       }
     }
-
-    // domain->getIdValues(domain->getNumDimIds(),
-    // domain->getNumDimAndSymbolIds(),
-    //                     &domSymbols);
-    // for (auto sym : domSymbols)
-    //   sym.dump();
   }
 }
 
