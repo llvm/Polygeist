@@ -16,8 +16,8 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Attributes.h"
-#include "mlir/IR/Operation.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
@@ -467,6 +467,8 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   // }
 
   ss << ")";
+
+  llvm::errs() << body << "\n";
 
   addGeneric(stmtId + 1, "body", body);
 }

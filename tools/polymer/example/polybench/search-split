@@ -72,7 +72,7 @@ function run_polymer()
   cd "${SRC_DIR}" >/dev/null 2>&1
 
   # Generate Polymer optimized MLIR code.
-  polymer-opt -reg2mem -insert-redundant-load -extract-scop-stmt -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" -canonicalize \
+  polymer-opt -reg2mem -insert-redundant-load -extract-scop-stmt -canonicalize -pluto-opt="dump-clast-after-pluto=${POLYMER_CLAST_FILE}" -canonicalize \
     "${SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"
   # Compile Polymer generated MLIR code.
   mlir-opt -lower-affine -convert-scf-to-std -inline -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
