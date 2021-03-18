@@ -16,8 +16,9 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/StandardTypes.h"
+//#include "mlir/IR/StandardTypes.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
+#include "llvm/IR/DerivedTypes.h"
 
 #include "../../../../clang/lib/CodeGen/CGRecordLayout.h"
 #include "../../../../clang/lib/CodeGen/CodeGenModule.h"
