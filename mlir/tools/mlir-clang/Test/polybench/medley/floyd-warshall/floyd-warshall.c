@@ -129,7 +129,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:           %2 = affine.load %arg1[%arg3, %arg2] : memref<2800x2800xi32>
 // CHECK-NEXT:           %3 = affine.load %arg1[%arg2, %arg4] : memref<2800x2800xi32>
 // CHECK-NEXT:           %4 = addi %2, %3 : i32
-// CHECK-NEXT:           %5 = cmpi "slt", %1, %4 : i32
+// CHECK-NEXT:           %5 = cmpi slt, %1, %4 : i32
 // CHECK-NEXT:           %6 = select %5, %1, %4 : i32
 // CHECK-NEXT:           affine.store %6, %arg1[%arg3, %arg4] : memref<2800x2800xi32>
 // CHECK-NEXT:         }
