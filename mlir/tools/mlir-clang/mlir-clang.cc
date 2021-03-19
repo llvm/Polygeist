@@ -98,10 +98,13 @@ int main(int argc, char **argv) {
   optPM.addPass(mlir::createCanonicalizerPass());
   optPM.addPass(mlir::createMemRefDataFlowOptPass());
 
-  if (mlir::failed(pm.run(module)))
+  if (mlir::failed(pm.run(module))) {
+    module.dump();
     return 4;
-  // module.dump();
+  }
+  
   if (mlir::failed(mlir::verify(module))) {
+    module.dump();
     return 5;
   }
 

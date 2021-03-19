@@ -624,79 +624,421 @@ static LogicalResult replaceDimOrSym(AffineMap *map,
   return success();
 }
 
-/// Iterate over `operands` and fold away all those produced by an AffineApplyOp
-/// iteratively. Perform canonicalization of map and operands as well as
-/// AffineMap simplification. `map` and `operands` are mutated in place.
 static void composeAffineMapAndOperands(AffineMap *map,
                                         SmallVectorImpl<Value> *operands) {
-  if (map->getNumResults() == 0) {
-    canonicalizeMapAndOperands(map, operands);
-    *map = simplifyAffineMap(*map);
+  AffineApplyNormalizer normalizer(*map, *operands);
+  auto normalizedMap = normalizer.getAffineMap();
+  auto normalizedOperands = normalizer.getOperands();
+  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  *map = normalizedMap;
+  *operands = normalizedOperands;
+  assert(*map);
+}
+
+AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
+  DenseMap<Value, unsigned>::iterator iterPos;
+  bool inserted = false;
+  std::tie(iterPos, inserted) =
+      dimValueToPosition.insert(std::make_pair(v, dimValueToPosition.size()));
+  if (inserted) {
+    reorderedDims.push_back(v);
+  }
+  return getAffineDimExpr(iterPos->second, v.getContext())
+      .cast<AffineDimExpr>();
+}
+
+// Gather the positions of the operands that are produced by an AffineApplyOp.
+static llvm::SetVector<unsigned>
+indicesFromAffineApplyOp(ArrayRef<Value> operands) {
+  llvm::SetVector<unsigned> res;
+  for (auto en : llvm::enumerate(operands)) {
+    if (isa_and_nonnull<AffineApplyOp, AddIOp, SubIOp, MulIOp>(
+            en.value().getDefiningOp()) ||
+        (en.value().isa<BlockArgument>() &&
+         isa<AffineForOp>(
+             en.value().cast<BlockArgument>().getOwner()->getParentOp())))
+      res.insert(en.index());
+  }
+  return res;
+}
+
+static AffineMap promoteComposedSymbolsAsDims(AffineMap map,
+                                              ArrayRef<Value> symbols) {
+  if (symbols.empty()) {
+    return map;
+  }
+
+  // Sanity check on symbols.
+  for (auto sym : symbols) {
+    // assert(isValidSymbol(sym) && "Expected only valid symbols");
+    (void)sym;
+  }
+
+  // Extract the symbol positions that come from an AffineApplyOp and
+  // needs to be rewritten as dims.
+  auto symPositions = indicesFromAffineApplyOp(symbols);
+  if (symPositions.empty()) {
+    return map;
+  }
+
+  // Create the new map by replacing each symbol at pos by the next new dim.
+  unsigned numDims = map.getNumDims();
+  unsigned numSymbols = map.getNumSymbols();
+  unsigned numNewDims = 0;
+  unsigned numNewSymbols = 0;
+  SmallVector<AffineExpr, 8> symReplacements(numSymbols);
+  for (unsigned i = 0; i < numSymbols; ++i) {
+    symReplacements[i] =
+        symPositions.count(i) > 0
+            ? getAffineDimExpr(numDims + numNewDims++, map.getContext())
+            : getAffineSymbolExpr(numNewSymbols++, map.getContext());
+  }
+  assert(numSymbols >= numNewDims);
+  AffineMap newMap = map.replaceDimsAndSymbols(
+      {}, symReplacements, numDims + numNewDims, numNewSymbols);
+
+  return newMap;
+}
+
+
+
+static bool isAffineForArg(Value val) {
+  if (!val.isa<BlockArgument>())
+    return false;
+  Operation *parentOp = val.cast<BlockArgument>().getOwner()->getParentOp();
+  return (parentOp && isa<AffineForOp>(parentOp));
+}
+
+/// The AffineNormalizer composes AffineApplyOp recursively. Its purpose is to
+/// keep a correspondence between the mathematical `map` and the `operands` of
+/// a given AffineApplyOp. This correspondence is maintained by iterating over
+/// the operands and forming an `auxiliaryMap` that can be composed
+/// mathematically with `map`. To keep this correspondence in cases where
+/// symbols are produced by affine.apply operations, we perform a local rewrite
+/// of symbols as dims.
+///
+/// Rationale for locally rewriting symbols as dims:
+/// ================================================
+/// The mathematical composition of AffineMap must always concatenate symbols
+/// because it does not have enough information to do otherwise. For example,
+/// composing `(d0)[s0] -> (d0 + s0)` with itself must produce
+/// `(d0)[s0, s1] -> (d0 + s0 + s1)`.
+///
+/// The result is only equivalent to `(d0)[s0] -> (d0 + 2 * s0)` when
+/// applied to the same mlir::Value for both s0 and s1.
+/// As a consequence mathematical composition of AffineMap always concatenates
+/// symbols.
+///
+/// When AffineMaps are used in AffineApplyOp however, they may specify
+/// composition via symbols, which is ambiguous mathematically. This corner case
+/// is handled by locally rewriting such symbols that come from AffineApplyOp
+/// into dims and composing through dims.
+/// TODO: Composition via symbols comes at a significant code
+/// complexity. Alternatively we should investigate whether we want to
+/// explicitly disallow symbols coming from affine.apply and instead force the
+/// user to compose symbols beforehand. The annoyances may be small (i.e. 1 or 2
+/// extra API calls for such uses, which haven't popped up until now) and the
+/// benefit potentially big: simpler and more maintainable code for a
+/// non-trivial, recursive, procedure.
+AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
+                                             ArrayRef<Value> operands)
+    : AffineApplyNormalizer() {
+  static_assert(kMaxAffineApplyDepth > 0, "kMaxAffineApplyDepth must be > 0");
+  assert(map.getNumInputs() == operands.size() &&
+         "number of operands does not match the number of map inputs");
+
+  LLVM_DEBUG(map.print(dbgs() << "\nInput map: "));
+
+  // Promote symbols that come from an AffineApplyOp to dims by rewriting the
+  // map to always refer to:
+  //   (dims, symbols coming from AffineApplyOp, other symbols).
+  // The order of operands can remain unchanged.
+  // This is a simplification that relies on 2 ordering properties:
+  //   1. rewritten symbols always appear after the original dims in the map;
+  //   2. operands are traversed in order and either dispatched to:
+  //      a. auxiliaryExprs (dims and symbols rewritten as dims);
+  //      b. concatenatedSymbols (all other symbols)
+  // This allows operand order to remain unchanged.
+  unsigned numDimsBeforeRewrite = map.getNumDims();
+  map = promoteComposedSymbolsAsDims(map,
+                                     operands.take_back(map.getNumSymbols()));
+
+  LLVM_DEBUG(map.print(dbgs() << "\nRewritten map: "));
+
+  SmallVector<AffineExpr, 8> auxiliaryExprs;
+  bool furtherCompose = (affineApplyDepth() <= kMaxAffineApplyDepth);
+  // We fully spell out the 2 cases below. In this particular instance a little
+  // code duplication greatly improves readability.
+  // Note that the first branch would disappear if we only supported full
+  // composition (i.e. infinite kMaxAffineApplyDepth).
+  if (!furtherCompose) {
+    // 1. Only dispatch dims or symbols.
+    for (auto en : llvm::enumerate(operands)) {
+      auto t = en.value();
+      assert(t.getType().isIndex());
+      bool isDim = (en.index() < map.getNumDims());
+      if (isDim) {
+        // a. The mathematical composition of AffineMap composes dims.
+        auxiliaryExprs.push_back(renumberOneDim(t));
+      } else {
+        // b. The mathematical composition of AffineMap concatenates symbols.
+        //    We do the same for symbol operands.
+        concatenatedSymbols.push_back(t);
+      }
+    }
+  } else {
+    assert(numDimsBeforeRewrite <= operands.size());
+
+    SmallVector<Value, 8> addedValues;
+
+    // 2. Compose AffineApplyOps and dispatch dims or symbols.
+    for (unsigned i = 0, e = operands.size(); i < e; ++i) {
+      auto t = operands[i];
+
+      if (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+          t.getDefiningOp<MulIOp>()) {
+
+        AffineMap affineApplyMap;
+        SmallVector<Value, 8> affineApplyOperands;
+
+        //llvm::dbgs() << "\nop to start: " << t << "\n";
+
+        if (auto op = t.getDefiningOp<AddIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) +
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else if (auto op = t.getDefiningOp<SubIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) -
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else if (auto op = t.getDefiningOp<MulIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) *
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else {
+          llvm_unreachable("");
+        }
+
+        SmallVector<AffineExpr, 0> dimRemapping;
+        unsigned numOtherSymbols = affineApplyOperands.size();
+        SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols);
+        for (unsigned idx = 0; idx < numOtherSymbols; ++idx) {
+          symRemapping[idx] =
+              getAffineSymbolExpr(addedValues.size(),
+              affineApplyMap.getContext());
+          addedValues.push_back(affineApplyOperands[idx]);
+        }
+        affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
+                                        dimRemapping, symRemapping,
+                                        reorderedDims.size(),
+                                        addedValues.size());
+
+        LLVM_DEBUG(affineApplyMap.print(
+            dbgs() << "\nRenumber into current normalizer: "));
+        auxiliaryExprs.push_back(affineApplyMap.getResult(0));
+        /*
+        llvm::dbgs() << "\n";
+        for(auto op : affineApplyOperands) {
+          llvm::dbgs() << " + prevop: " << op << "\n";
+        }
+        */
+      } else if (isAffineForArg(t)) {
+        auxiliaryExprs.push_back(renumberOneDim(t));
+      } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
+        // a. Compose affine.apply operations.
+        LLVM_DEBUG(affineApply->print(
+            dbgs() << "\nCompose AffineApplyOp recursively: "));
+        AffineMap affineApplyMap = affineApply.getAffineMap();
+        SmallVector<Value, 8> affineApplyOperands(
+            affineApply.getOperands().begin(), affineApply.getOperands().end());
+
+        
+        SmallVector<AffineExpr, 0> dimRemapping(affineApplyMap.getNumDims());
+
+        for (size_t i=0; i<affineApplyMap.getNumDims(); ++i) {
+          assert(i < affineApplyOperands.size());
+          dimRemapping[i] = renumberOneDim(affineApplyOperands[i]);
+        }
+        unsigned numOtherSymbols = affineApplyOperands.size();
+        SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols - affineApplyMap.getNumDims());
+        for (unsigned idx = 0; idx < symRemapping.size(); ++idx) {
+          symRemapping[idx] =
+              getAffineSymbolExpr(addedValues.size(),
+              affineApplyMap.getContext());
+          addedValues.push_back(affineApplyOperands[idx + affineApplyMap.getNumDims()]);
+        }
+        affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
+                                        dimRemapping, symRemapping,
+                                        reorderedDims.size(),
+                                        addedValues.size());
+
+        LLVM_DEBUG(affineApplyMap.print(
+            dbgs() << "\nAffine apply fixup map: "));
+        auxiliaryExprs.push_back(affineApplyMap.getResult(0));
+      } else {
+        if (i < numDimsBeforeRewrite) {
+          // b. The mathematical composition of AffineMap composes dims.
+          auxiliaryExprs.push_back(renumberOneDim(t));
+        } else {
+          // c. The mathematical composition of AffineMap concatenates symbols.
+          //    Note that the map composition will put symbols already present
+          //    in the map before any symbols coming from the auxiliary map, so
+          //    we insert them before any symbols that are due to renumbering,
+          //    and after the proper symbols we have seen already.
+          concatenatedSymbols.insert(
+              std::next(concatenatedSymbols.begin(), numProperSymbols++), t);
+        }
+      }
+    }
+    for (auto val : addedValues) {
+      concatenatedSymbols.push_back(val);
+    }
+  }
+
+  // Early exit if `map` is already composed.
+  if (auxiliaryExprs.empty()) {
+    affineMap = map;
     return;
   }
 
-  MLIRContext *ctx = map->getContext();
-  SmallVector<Value, 4> dims(operands->begin(),
-                             operands->begin() + map->getNumDims());
-  SmallVector<Value, 4> syms(operands->begin() + map->getNumDims(),
-                             operands->end());
+  assert(concatenatedSymbols.size() >= map.getNumSymbols() &&
+         "Unexpected number of concatenated symbols");
+  auto numDims = dimValueToPosition.size();
+  assert(dimValueToPosition.size() == reorderedDims.size());
+  auto numSymbols = concatenatedSymbols.size() - map.getNumSymbols();
+  auto auxiliaryMap =
+      AffineMap::get(numDims, numSymbols, auxiliaryExprs, map.getContext());
 
-  // Iterate over dims and symbols coming from AffineApplyOp and replace until
-  // exhaustion. This iteratively mutates `map`, `dims` and `syms`. Both `dims`
-  // and `syms` can only increase by construction.
-  // The implementation uses a `while` loop to support the case of symbols
-  // that may be constructed from dims ;this may be overkill.
-  while (true) {
-    bool changed = false;
-    for (unsigned pos = 0; pos != dims.size() + syms.size(); ++pos)
-      if ((changed |= succeeded(replaceDimOrSym(map, pos, dims, syms))))
-        break;
-    if (!changed)
-      break;
+  /*
+  llvm::dbgs() << "prev operands\n";
+  for(auto a : concatenatedSymbols) {
+    llvm::dbgs() << " &&& concatsym: " << a << "\n";
   }
+  llvm::dbgs() << "\nprev operands\n";
+  for(auto a : operands) {
+    llvm::dbgs() << " *** pop: " << a << "\n";
+  }
+  */
 
-  // Clear operands so we can fill them anew.
-  operands->clear();
+  LLVM_DEBUG(map.print(dbgs() << "\nCompose map: "));
+  LLVM_DEBUG(auxiliaryMap.print(dbgs() << "\nWith map: "));
+  LLVM_DEBUG(map.compose(auxiliaryMap).print(dbgs() << "\nResult: "));
 
-  // At this point we may have introduced null operands, prune them out before
-  // canonicalizing map and operands.
-  unsigned nDims = 0, nSyms = 0;
-  SmallVector<AffineExpr, 4> dimReplacements, symReplacements;
-  dimReplacements.reserve(dims.size());
-  symReplacements.reserve(syms.size());
-  for (auto *container : {&dims, &syms}) {
-    bool isDim = (container == &dims);
-    auto &repls = isDim ? dimReplacements : symReplacements;
-    for (auto en : llvm::enumerate(*container)) {
-      Value v = en.value();
-      if (!v) {
-        assert(isDim ? !map->isFunctionOfDim(en.index())
-                     : !map->isFunctionOfSymbol(en.index()) &&
-                           "map is function of unexpected expr@pos");
-        repls.push_back(getAffineConstantExpr(0, ctx));
-        continue;
+  // TODO: Disabling simplification results in major speed gains.
+  // Another option is to cache the results as it is expected a lot of redundant
+  // work is performed in practice.
+  affineMap = simplifyAffineMap(map.compose(auxiliaryMap));
+
+  LLVM_DEBUG(affineMap.print(dbgs() << "\nSimplified result: "));
+  LLVM_DEBUG(dbgs() << "\n");
+}
+
+void AffineApplyNormalizer::normalize(AffineMap *otherMap,
+                                      SmallVectorImpl<Value> *otherOperands) {
+  AffineApplyNormalizer other(*otherMap, *otherOperands);
+  *otherMap = renumber(other);
+
+  otherOperands->reserve(reorderedDims.size() + concatenatedSymbols.size());
+  otherOperands->assign(reorderedDims.begin(), reorderedDims.end());
+  otherOperands->append(concatenatedSymbols.begin(), concatenatedSymbols.end());
+}
+
+bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
+  for(size_t i=0; i<map->getNumInputs(); ++i) {
+    auto v = (*operands)[i];
+    if (i >= map->getNumDims()) {
+      if (v.isa<BlockArgument>() &&
+                  isa<AffineForOp>(
+                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
+        return true;
       }
-      repls.push_back(isDim ? getAffineDimExpr(nDims++, ctx)
-                            : getAffineSymbolExpr(nSyms++, ctx));
-      operands->push_back(v);
     }
+    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
+               v.getDefiningOp()))
+      return true;
   }
-  *map = map->replaceDimsAndSymbols(dimReplacements, symReplacements, nDims,
-                                    nSyms);
-
-  // Canonicalize and simplify before returning.
-  canonicalizeMapAndOperands(map, operands);
-  *map = simplifyAffineMap(*map);
+  return false;
 }
 
 void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
                                             SmallVectorImpl<Value> *operands) {
-  while (llvm::any_of(*operands, [](Value v) {
-    return isa_and_nonnull<AffineApplyOp>(v.getDefiningOp());
-  })) {
+
+  while (need(map, operands)) {
+    //llvm::errs() << "pre: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
     composeAffineMapAndOperands(map, operands);
+    //llvm::errs() << "post: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
   }
 }
+
+bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
+  for(size_t i=0; i<map->getNumInputs(); ++i) {
+    auto v = (*operands)[i];
+    if (i >= map->getNumDims()) {
+      if (v.isa<BlockArgument>() &&
+                  isa<AffineForOp>(
+                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
+        return true;
+      }
+    }
+    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
+               v.getDefiningOp()))
+      return true;
+  }
+  return false;
+}
+
+
+/// Implements `map` and `operands` composition and simplification to support
+/// `makeComposedAffineApply`. This can be called to achieve the same effects
+/// on `map` and `operands` without creating an AffineApplyOp that needs to be
+/// immediately deleted.
+static void composeIntegerSetAndOperands(IntegerSet *set,
+                                        SmallVectorImpl<Value> *operands) {
+  auto amap = AffineMap::get(set->getNumDims(), set->getNumSymbols(), set->getConstraints(), set->getContext());
+  AffineApplyNormalizer normalizer(amap, *operands);
+  auto normalizedMap = normalizer.getAffineMap();
+  auto normalizedOperands = normalizer.getOperands();
+  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  *set = IntegerSet::get(normalizedMap.getNumDims(), normalizedMap.getNumSymbols(), normalizedMap.getResults(), set->getEqFlags());
+  *operands = normalizedOperands;
+}
+
+void fullyComposeIntegerSetAndOperands(IntegerSet *set,
+                                            SmallVectorImpl<Value> *operands) {
+
+  while (need(set, operands)) {
+    //llvm::errs() << "pre: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+    composeIntegerSetAndOperands(set, operands);
+    //llvm::errs() << "post: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+  }
+}
+
+/// Iterate over `operands` and fold away all those produced by an AffineApplyOp
+/// iteratively. Perform canonicalization of map and operands as well as
+/// AffineMap simplification. `map` and `operands` are mutated in place.
+
+
 
 AffineApplyOp mlir::makeComposedAffineApply(OpBuilder &b, Location loc,
                                             AffineMap map,
@@ -874,6 +1216,7 @@ struct SimplifyAffineOp : public OpRewritePattern<AffineOpTy> {
     SmallVector<Value, 8> resultOperands(oldOperands);
     composeAffineMapAndOperands(&map, &resultOperands);
     canonicalizeMapAndOperands(&map, &resultOperands);
+
     if (map == oldMap && std::equal(oldOperands.begin(), oldOperands.end(),
                                     resultOperands.begin()))
       return failure();
@@ -1603,22 +1946,34 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   auto prevLbMap = lbMap;
   auto prevUbMap = ubMap;
 
-  composeAffineMapAndOperands(&lbMap, &lbOperands);
+  llvm::errs() << "*********\n";
+  ubMap.dump();
+
+  fullyComposeAffineMapAndOperands(&lbMap, &lbOperands);
   canonicalizeMapAndOperands(&lbMap, &lbOperands);
   lbMap = removeDuplicateExprs(lbMap);
 
-  composeAffineMapAndOperands(&ubMap, &ubOperands);
+  fullyComposeAffineMapAndOperands(&ubMap, &ubOperands);
   canonicalizeMapAndOperands(&ubMap, &ubOperands);
   ubMap = removeDuplicateExprs(ubMap);
+
+  ubMap.dump();
+  forOp.dump();
 
   // Any canonicalization change always leads to updated map(s).
   if (lbMap == prevLbMap && ubMap == prevUbMap)
     return failure();
 
+
+  //llvm::errs() << "oldParent:" << *forOp.getParentOp() << "\n"; 
+  //llvm::errs() << "oldfor:" << forOp << "\n"; 
+
   if (lbMap != prevLbMap)
     forOp.setLowerBound(lbOperands, lbMap);
   if (ubMap != prevUbMap)
     forOp.setUpperBound(ubOperands, ubMap);
+
+  //llvm::errs() << "newfor:" << forOp << "\n"; 
   return success();
 }
 
@@ -2096,6 +2451,8 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
                                SmallVectorImpl<OpFoldResult> &) {
   auto set = getIntegerSet();
   SmallVector<Value, 4> operands(getOperands());
+
+  fullyComposeIntegerSetAndOperands(&set, &operands);
   canonicalizeSetAndOperands(&set, &operands);
 
 
