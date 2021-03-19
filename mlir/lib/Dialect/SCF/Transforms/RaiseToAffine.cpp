@@ -20,10 +20,9 @@ struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
 struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
 
+  // TODO: remove me or rename me.
   bool isAffine(scf::ForOp loop) const {
-    // if we have loop-carried values do not raise for now.
-    if (loop.hasIterOperands())
-      return false;
+    // return true;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
     return isa_and_nonnull<ConstantIndexOp>(loop.getStep().getDefiningOp());
   }
@@ -63,6 +62,14 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     return cstOp.getValue();
   }
 
+  bool isConstantLike(Value val) const {
+    Operation *op = val.getDefiningOp();
+    if (!op)
+      return false;
+    return op->getNumOperands() == 0 && op->getNumResults() == 1 &&
+           op->hasTrait<OpTrait::ConstantLike>();
+  }
+
   LogicalResult matchAndRewrite(scf::ForOp loop,
                                 PatternRewriter &rewriter) const final {
     if (isAffine(loop)) {
@@ -71,22 +78,48 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       AffineForOp affineLoop = rewriter.create<AffineForOp>(
           loop.getLoc(), loop.getLowerBound(), builder.getSymbolIdentityMap(),
           loop.getUpperBound(), builder.getSymbolIdentityMap(),
-          getStep(loop.getStep()), llvm::None);
+          getStep(loop.getStep()), loop.getIterOperands());
 
       if (!canonicalizeLoopBounds(affineLoop))
         return failure();
 
-      if (!llvm::all_of(affineLoop.getOperands(),
-                        [](Value operand) { return isValidDim(operand); }))
+      // constant should be ok too.
+      if (!llvm::all_of(affineLoop.getOperands(), [this](Value operand) {
+            return isValidDim(operand) || isConstantLike(operand);
+          }))
         return failure();
 
-      Value iv = loop.getInductionVar();
-      Region &region = affineLoop.getLoopBody();
-      rewriter.inlineRegionBefore(loop.getRegion(), region, region.begin());
-      Operation &terminator = region.front().back();
-      rewriter.eraseOp(&terminator);
-      rewriter.mergeBlocks(&region.back(), &region.front(), iv);
-      rewriter.eraseOp(loop);
+      SmallVector<Value, 4> newBlockTransferArgs;
+      newBlockTransferArgs.reserve(1 + loop.getNumIterOperands());
+      Value iv = affineLoop.getInductionVar();
+      newBlockTransferArgs.push_back(iv);
+      llvm::append_range(newBlockTransferArgs, affineLoop.getIterOperands());
+
+      Block &newBlock = affineLoop.region().front();
+
+      // The terminator is added if the iterator args are not provided.
+      // see the ::build method.
+      if (affineLoop.getNumIterOperands() == 0) {
+        auto affineYiledOp = newBlock.getTerminator();
+        rewriter.eraseOp(affineYiledOp);
+      }
+
+      Block &oldBlock = loop.region().front();
+      assert(oldBlock.getNumArguments() == newBlockTransferArgs.size() &&
+             "unexpected argument size mismatch");
+
+      auto fixYield = [&](scf::YieldOp mergedTerminator) {
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPoint(mergedTerminator);
+        rewriter.create<AffineYieldOp>(mergedTerminator.getLoc(),
+                                       mergedTerminator.getOperands());
+      };
+
+      rewriter.mergeBlocks(&oldBlock, &newBlock, newBlockTransferArgs);
+      auto mergedYieldOp = cast<scf::YieldOp>(newBlock.getTerminator());
+      fixYield(mergedYieldOp);
+      rewriter.eraseOp(mergedYieldOp);
+      rewriter.replaceOp(loop, affineLoop.getResults());
       return success();
     }
     return failure();
