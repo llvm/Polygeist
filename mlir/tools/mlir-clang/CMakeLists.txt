@@ -19,13 +19,12 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRNVVMIR
   MLIRGPU
   MLIRTransforms
-  MLIRTargetLLVMIRModuleTranslation
   MLIRSCFToStandard
   MLIRStandardToLLVM
-  MLIRTargetLLVMIR
   MLIRAffineTransforms
   MLIRAffineToStandard
-
+  MLIRTargetLLVMIRImport
+  
   clangBasic
   clangCodeGen
   clangDriver

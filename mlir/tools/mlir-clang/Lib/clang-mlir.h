@@ -12,11 +12,13 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
-//#include "mlir/IR/StandardTypes.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
 #include "llvm/IR/DerivedTypes.h"
 
@@ -259,8 +261,8 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   std::map<std::string, clang::VarDecl *> globalVariables;
   std::map<std::string, clang::FunctionDecl *> globalFunctions;
-  std::map<const VarDecl *, std::pair<mlir::GlobalMemrefOp, bool>> globals;
-  std::pair<mlir::GlobalMemrefOp, bool> GetOrCreateGlobal(const VarDecl *VD);
+  std::map<const VarDecl *, std::pair<mlir::memref::GlobalOp, bool>> globals;
+  std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const VarDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
   std::set<const FunctionDecl *> done;
@@ -370,7 +372,8 @@ public:
     Visit(stmt);
 
     auto endBlock = builder.getInsertionBlock();
-    if (endBlock->empty() || endBlock->back().isKnownNonTerminator()) {
+    if (endBlock->empty() ||
+        !endBlock->back().mightHaveTrait<OpTrait::IsTerminator>()) {
       if (function.getType().getResults().size()) {
         auto ty = function.getType().getResults()[0].cast<mlir::IntegerType>();
         auto val = (mlir::Value)builder.create<mlir::ConstantOp>(

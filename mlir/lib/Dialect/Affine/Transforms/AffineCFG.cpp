@@ -4,7 +4,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/IntegerSet.h"
 #include "llvm/Support/Debug.h"
-
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "mlir/IR/PatternMatch.h"
@@ -296,7 +296,7 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   return true;
 }
 
-static void replaceStore(StoreOp store,
+static void replaceStore(memref::StoreOp store,
                          const SmallVector<Value, 2> &newIndexes) {
   OpBuilder builder(store);
   Location loc = store.getLoc();
@@ -305,7 +305,7 @@ static void replaceStore(StoreOp store,
   store.erase();
 }
 
-static void replaceLoad(LoadOp load, const SmallVector<Value, 2> &newIndexes) {
+static void replaceLoad(memref::LoadOp load, const SmallVector<Value, 2> &newIndexes) {
   OpBuilder builder(load);
   Location loc = load.getLoc();
   AffineLoadOp affineLoad =
@@ -371,7 +371,7 @@ void AffineCFGPass::runOnFunction() {
     }
   });
 
-  getFunction().walk([](StoreOp store) {
+  getFunction().walk([](memref::StoreOp store) {
     if (!inAffine(store))
       return;
     if (!llvm::all_of(store.getIndices(),
@@ -398,7 +398,7 @@ void AffineCFGPass::runOnFunction() {
     replaceStore(store, newIndices);
   });
 
-  getFunction().walk([](LoadOp load) {
+  getFunction().walk([](memref::LoadOp load) {
     if (!inAffine(load))
       return;
     if (!llvm::all_of(load.getIndices(),
@@ -427,11 +427,10 @@ void AffineCFGPass::runOnFunction() {
 
   // getFunction().dump();
   {
-    OwningRewritePatternList rpl;
-    rpl.insert<SimplfyIntegerCastMath>(getFunction().getContext());
-    rpl.insert<CanonicalizeAffineApply>(getFunction().getContext());
-    rpl.insert<CanonicalizeIndexCast>(getFunction().getContext());
-    rpl.insert<IndexCastMovement>(getFunction().getContext());
+    
+    mlir::RewritePatternSet rpl(getFunction().getContext());
+    rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply, 
+            CanonicalizeIndexCast, IndexCastMovement>(getFunction().getContext());
     applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
                                  /*fold*/ false);
   }

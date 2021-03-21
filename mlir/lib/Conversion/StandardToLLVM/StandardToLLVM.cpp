@@ -4146,7 +4146,7 @@ struct LLVMLoweringPass : public ConvertStandardToLLVMBase<LLVMLoweringPass> {
     }
     std::string dlstr = this->dataLayout;
     if (auto dataLayoutAttr =
-            getOperation().getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
+            getOperation()->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
       dlstr = dataLayoutAttr.cast<StringAttr>().getValue().str();
     }
     if (failed(LLVM::LLVMDialect::verifyDataLayoutString(

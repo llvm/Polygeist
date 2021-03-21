@@ -3,7 +3,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
-#include "mlir/Target/LLVMIR.h"
+#include "mlir/Target/LLVMIR/Export.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
@@ -60,7 +60,10 @@ int main(int argc, char **argv) {
 
   // registerDialect<AffineDialect>();
   // registerDialect<StandardOpsDialect>();
-  MLIRContext context;
+  mlir::DialectRegistry registry;
+  mlir::registerLLVMDialectTranslation(registry);
+  MLIRContext context(registry);
+
   context.disableMultithreading();
   context.getOrLoadDialect<AffineDialect>();
   context.getOrLoadDialect<StandardOpsDialect>();
@@ -68,6 +71,8 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
+  context.getOrLoadDialect<mlir::math::MathDialect>();
+  context.getOrLoadDialect<mlir::memref::MemRefDialect>();
   // MLIRContext context;
 
   if (showDialects) {
@@ -102,7 +107,7 @@ int main(int argc, char **argv) {
     module.dump();
     return 4;
   }
-  
+
   if (mlir::failed(mlir::verify(module))) {
     module.dump();
     return 5;
@@ -142,6 +147,7 @@ int main(int argc, char **argv) {
     llvm::LLVMContext llvmContext;
     auto llvmModule = mlir::translateModuleToLLVMIR(module, llvmContext);
     if (!llvmModule) {
+      module.dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
     }

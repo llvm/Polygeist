@@ -605,8 +605,8 @@ LogicalResult MemRefType::verify(function_ref<InFlightDiagnostic()> emitError,
                                  ArrayRef<int64_t> shape, Type elementType,
                                  ArrayRef<AffineMap> affineMapComposition,
                                  Attribute memorySpace) {
-  if (!BaseMemRefType::isValidElementType(elementType))
-    return emitError() << "invalid memref element type";
+  // if (!BaseMemRefType::isValidElementType(elementType))
+  //   return emitError() << "invalid memref element type";
 
   // Negative sizes are not allowed except for `-1` that means dynamic size.
   for (int64_t s : shape)

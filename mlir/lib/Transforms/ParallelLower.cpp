@@ -22,6 +22,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #define DEBUG_TYPE "parallel-lower-opt"
 
@@ -168,13 +169,13 @@ void ParallelLower::runOnFunction() {
       auto rep = bz.create<mlir::scf::BarrierOp>(loc);
       op.erase();
   });
-  container.walk([&](mlir::AllocaOp op) {
+  container.walk([&](mlir::memref::AllocaOp op) {
       if (auto mt = op.getType().dyn_cast<mlir::MemRefType>()) {
-          if (mt.getMemorySpace() != 5) return;
+          if (mt.getMemorySpaceAsInt() != 5) return;
         mlir::OpBuilder bz(f.getContext());
         bz.setInsertionPoint(block);//, bidx.getParentBlock());
         //auto mr = mlir::MemRefType::get(mt.getShape(), mt.getElementType(), mt.getAffineMaps(), 0);     
-        auto rep = bz.create<mlir::AllocaOp>(loc, mt);
+        auto rep = bz.create<mlir::memref::AllocaOp>(loc, mt);
         op.replaceAllUsesWith((mlir::Value)rep);
         op.erase();
       }

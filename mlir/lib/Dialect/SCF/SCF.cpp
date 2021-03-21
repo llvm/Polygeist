@@ -101,7 +101,9 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
-static LogicalResult verify(ContainerOp op) { return LogicalResult::Success; }
+static LogicalResult verify(ContainerOp op) {
+  return success();
+}
 
 static LogicalResult verify(ForOp op) {
   if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
@@ -173,7 +175,7 @@ static void print(OpAsmPrinter &p, ContainerOp op) {
   p.printRegion(op.region(),
                 /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/printBlockTerminators);
-  p.printOptionalAttrDict(op.getAttrs());
+  p.printOptionalAttrDict(op->getAttrs());
 }
 
 static void print(OpAsmPrinter &p, ForOp op) {
