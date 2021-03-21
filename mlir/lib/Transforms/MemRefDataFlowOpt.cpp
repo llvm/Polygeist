@@ -23,10 +23,12 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
+#include <set>
 
 #define DEBUG_TYPE "memref-dataflow-opt"
 
 using namespace mlir;
+using namespace memref;
 
 namespace {
 // The store to load forwarding relies on three conditions:
@@ -64,9 +66,19 @@ namespace {
 struct MemRefDataFlowOpt : public MemRefDataFlowOptBase<MemRefDataFlowOpt> {
   void runOnFunction() override;
 
-  void forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo);
-  void removeUnusedStore(AffineWriteOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo);
-  void forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, DominanceInfo* domInfo);
+  void forwardStoreToLoad(AffineReadOpInterface loadOp,
+                          SmallVectorImpl<Operation *> &loadOpsToErase,
+                          SmallPtrSetImpl<Value> &memrefsToErase,
+                          DominanceInfo *domInfo,
+                          PostDominanceInfo *postDominanceInfo);
+  void removeUnusedStore(AffineWriteOpInterface loadOp,
+                         SmallVectorImpl<Operation *> &loadOpsToErase,
+                         SmallPtrSetImpl<Value> &memrefsToErase,
+                         DominanceInfo *domInfo,
+                         PostDominanceInfo *postDominanceInfo);
+  void forwardLoadToLoad(AffineReadOpInterface loadOp,
+                         SmallVectorImpl<Operation *> &loadOpsToErase,
+                         DominanceInfo *domInfo);
 };
 
 } // end anonymous namespace
@@ -77,204 +89,224 @@ std::unique_ptr<OperationPass<FuncOp>> mlir::createMemRefDataFlowOptPass() {
   return std::make_unique<MemRefDataFlowOpt>();
 }
 
-bool hasNoInterveningStore(Operation* start, AffineReadOpInterface loadOp) {
-    bool legal = true;
-    std::function<void(Operation*)> check = [&](Operation* op) {
-      if (!legal) return;
-	    
-      if (auto store = dyn_cast<AffineStoreOp>(op)) {
-              if (loadOp.getMemRef().getDefiningOp<AllocaOp>() || loadOp.getMemRef().getDefiningOp<AllocOp>()) {
-                if (store.getMemRef().getDefiningOp<AllocaOp>() || store.getMemRef().getDefiningOp<AllocOp>()) {
-		  if (loadOp.getMemRef() == store.getMemRef()) legal = false;
-		  return;
-		}
-	      }
-            }
+bool hasNoInterveningStore(Operation *start, AffineReadOpInterface loadOp) {
+  bool legal = true;
+  std::function<void(Operation *)> check = [&](Operation *op) {
+    if (!legal)
+      return;
 
-      if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
-        // Collect all memory effects on `v`.
-        SmallVector<MemoryEffects::EffectInstance, 1> effects;
-        memEffect.getEffectsOnValue(loadOp.getMemRef(), effects);
-
-        if (llvm::any_of(
-                effects, [](const MemoryEffects::EffectInstance &instance) {
-                  return isa<MemoryEffects::Write>(instance.getEffect());
-                })) {
+    if (auto store = dyn_cast<AffineStoreOp>(op)) {
+      if (loadOp.getMemRef().getDefiningOp<memref::AllocaOp>() ||
+          loadOp.getMemRef().getDefiningOp<memref::AllocOp>()) {
+        if (store.getMemRef().getDefiningOp<memref::AllocaOp>() ||
+            store.getMemRef().getDefiningOp<memref::AllocOp>()) {
+          if (loadOp.getMemRef() == store.getMemRef())
             legal = false;
-            return;
-          }
-      }
-
-      if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
-        // Recurse into the regions for this op and check whether the contained ops
-        // can be hoisted.
-        for (auto &region : op->getRegions()) {
-          for (auto &block : region) {
-            for (auto &innerOp : block) {
-              check(&innerOp);
-              if (!legal) return;
-            }
-          }
+          return;
         }
       }
-    };
+    }
 
-    auto until = [&](Operation* parent, Operation* to) {
-      // todo perhaps recur
-      check(parent);
-    };
+    if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
+      // Collect all memory effects on `v`.
+      SmallVector<MemoryEffects::EffectInstance, 1> effects;
+      memEffect.getEffectsOnValue(loadOp.getMemRef(), effects);
 
-    std::function<void(Operation*, Operation*)> recur = [&](Operation* from, Operation* to) {
-      if (from->getParentRegion() != to->getParentRegion()) {
-        recur(from, to->getParentOp());
-        until(to->getParentOp(), to);
+      if (llvm::any_of(effects,
+                       [](const MemoryEffects::EffectInstance &instance) {
+                         return isa<MemoryEffects::Write>(instance.getEffect());
+                       })) {
+        legal = false;
         return;
       }
-      std::deque<Block*> todo;
-      {
-        bool seen = false;
-        for(auto& op : *from->getBlock()) {
-          if (&op == from) {
-            seen = true;
-            continue;
-          }
-          if (!seen) {
-            continue;
-          }
-          if (&op == to) {
-            break;
-          }
-          check(&op);
-          if (&op == from->getBlock()->getTerminator()) {
-            for (auto succ : from->getBlock()->getSuccessors()) {
-              todo.push_back(succ);
-            }
+    }
+
+    if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+      // Recurse into the regions for this op and check whether the contained
+      // ops can be hoisted.
+      for (auto &region : op->getRegions()) {
+        for (auto &block : region) {
+          for (auto &innerOp : block) {
+            check(&innerOp);
+            if (!legal)
+              return;
           }
         }
       }
-      SmallPtrSet<Block*, 4> done;
-      while(todo.size()) {
-        auto blk = todo.front();
-        todo.pop_front();
-        if (done.count(blk)) continue;
-        done.insert(blk);
-        for(auto& op : *blk) {
-          if (&op == to) {
-            break;
-          }
-          check(&op);
-          if (&op == blk->getTerminator()) {
-            for (auto succ : blk->getSuccessors()) {
-              todo.push_back(succ);
-            }
+    }
+  };
+
+  auto until = [&](Operation *parent, Operation *to) {
+    // todo perhaps recur
+    check(parent);
+  };
+
+  std::function<void(Operation *, Operation *)> recur = [&](Operation *from,
+                                                            Operation *to) {
+    if (from->getParentRegion() != to->getParentRegion()) {
+      recur(from, to->getParentOp());
+      until(to->getParentOp(), to);
+      return;
+    }
+    std::deque<Block *> todo;
+    {
+      bool seen = false;
+      for (auto &op : *from->getBlock()) {
+        if (&op == from) {
+          seen = true;
+          continue;
+        }
+        if (!seen) {
+          continue;
+        }
+        if (&op == to) {
+          break;
+        }
+        check(&op);
+        if (&op == from->getBlock()->getTerminator()) {
+          for (auto succ : from->getBlock()->getSuccessors()) {
+            todo.push_back(succ);
           }
         }
       }
-    };
-    recur(start, loadOp.getOperation());
-    return legal;
+    }
+    SmallPtrSet<Block *, 4> done;
+    while (todo.size()) {
+      auto blk = todo.front();
+      todo.pop_front();
+      if (done.count(blk))
+        continue;
+      done.insert(blk);
+      for (auto &op : *blk) {
+        if (&op == to) {
+          break;
+        }
+        check(&op);
+        if (&op == blk->getTerminator()) {
+          for (auto succ : blk->getSuccessors()) {
+            todo.push_back(succ);
+          }
+        }
+      }
+    }
+  };
+  recur(start, loadOp.getOperation());
+  return legal;
 }
 
-bool hasNoInterveningLoad(AffineWriteOpInterface start, AffineWriteOpInterface loadOp) {
-    bool legal = true;
-    std::function<void(Operation*)> check = [&](Operation* op) {
-      if (!legal) return;
-	    
-      if (auto store = dyn_cast<AffineLoadOp>(op)) {
-              if (loadOp.getMemRef().getDefiningOp<AllocaOp>() || loadOp.getMemRef().getDefiningOp<AllocOp>()) {
-                if (store.getMemRef().getDefiningOp<AllocaOp>() || store.getMemRef().getDefiningOp<AllocOp>()) {
-		  if (loadOp.getMemRef() == store.getMemRef()) legal = false;
-		  return;
-		}
-	      }
-            }
+bool hasNoInterveningLoad(AffineWriteOpInterface start,
+                          AffineWriteOpInterface loadOp) {
+  bool legal = true;
+  std::function<void(Operation *)> check = [&](Operation *op) {
+    if (!legal)
+      return;
 
-      if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
-        // Collect all memory effects on `v`.
-        SmallVector<MemoryEffects::EffectInstance, 1> effects;
-        memEffect.getEffectsOnValue(start.getMemRef(), effects);
-//	llvm::errs() << " -----  potential use " << *op << " -- ";
-       //for(auto e : effects) llvm::errs() << e.getEffect() << " ";
-       //llvm::errs() << "\n";
-        if (llvm::any_of(
-                effects, [](const MemoryEffects::EffectInstance &instance) {
-                  return isa<MemoryEffects::Read>(instance.getEffect());
-                })) {
+    if (auto store = dyn_cast<AffineLoadOp>(op)) {
+      if (loadOp.getMemRef().getDefiningOp<memref::AllocaOp>() ||
+          loadOp.getMemRef().getDefiningOp<AllocOp>()) {
+        if (store.getMemRef().getDefiningOp<memref::AllocaOp>() ||
+            store.getMemRef().getDefiningOp<AllocOp>()) {
+          if (loadOp.getMemRef() == store.getMemRef())
             legal = false;
-            return;
-          }
-      }
-
-      if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
-        // Recurse into the regions for this op and check whether the contained ops
-        // can be hoisted.
-        for (auto &region : op->getRegions()) {
-          for (auto &block : region) {
-            for (auto &innerOp : block) {
-              check(&innerOp);
-              if (!legal) return;
-            }
-          }
+          return;
         }
       }
-    };
+    }
 
-    auto until = [&](Operation* parent, Operation* to) {
-      // todo perhaps recur
-      check(parent);
-    };
-
-    std::function<void(Operation*, Operation*)> recur = [&](Operation* from, Operation* to) {
-      if (from->getParentRegion() != to->getParentRegion()) {
-        recur(from, to->getParentOp());
-        until(to->getParentOp(), to);
+    if (auto memEffect = dyn_cast<MemoryEffectOpInterface>(op)) {
+      // Collect all memory effects on `v`.
+      SmallVector<MemoryEffects::EffectInstance, 1> effects;
+      memEffect.getEffectsOnValue(start.getMemRef(), effects);
+      //	llvm::errs() << " -----  potential use " << *op << " -- ";
+      // for(auto e : effects) llvm::errs() << e.getEffect() << " ";
+      // llvm::errs() << "\n";
+      if (llvm::any_of(effects,
+                       [](const MemoryEffects::EffectInstance &instance) {
+                         return isa<MemoryEffects::Read>(instance.getEffect());
+                       })) {
+        legal = false;
         return;
       }
-      std::deque<Block*> todo;
-      {
-        bool seen = false;
-        for(auto& op : *from->getBlock()) {
-          if (&op == from) {
-            seen = true;
-            continue;
-          }
-          if (!seen) {
-            continue;
-          }
-          if (&op == to) {
-            break;
-          }
-          check(&op);
-          if (&op == from->getBlock()->getTerminator()) {
-            for (auto succ : from->getBlock()->getSuccessors()) {
-              todo.push_back(succ);
-            }
+    }
+
+    if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+      // Recurse into the regions for this op and check whether the contained
+      // ops can be hoisted.
+      for (auto &region : op->getRegions()) {
+        for (auto &block : region) {
+          for (auto &innerOp : block) {
+            check(&innerOp);
+            if (!legal)
+              return;
           }
         }
       }
-      SmallPtrSet<Block*, 4> done;
-      while(todo.size()) {
-        auto blk = todo.front();
-        todo.pop_front();
-        if (done.count(blk)) continue;
-        done.insert(blk);
-        for(auto& op : *blk) {
-          if (&op == to) {
-            break;
-          }
-          check(&op);
-          if (&op == blk->getTerminator()) {
-            for (auto succ : blk->getSuccessors()) {
-              todo.push_back(succ);
-            }
+    }
+  };
+
+  auto until = [&](Operation *parent, Operation *to) {
+    // todo perhaps recur
+    check(parent);
+  };
+
+  std::function<void(Operation *, Operation *)> recur = [&](Operation *from,
+                                                            Operation *to) {
+    if (from->getParentRegion() != to->getParentRegion()) {
+      recur(from, to->getParentOp());
+      until(to->getParentOp(), to);
+      return;
+    }
+    std::deque<Block *> todo;
+    {
+      bool seen = false;
+      for (auto &op : *from->getBlock()) {
+        if (&op == from) {
+          seen = true;
+          continue;
+        }
+        if (!seen) {
+          continue;
+        }
+        if (&op == to) {
+          break;
+        }
+        check(&op);
+        if (&op == from->getBlock()->getTerminator()) {
+          for (auto succ : from->getBlock()->getSuccessors()) {
+            todo.push_back(succ);
           }
         }
       }
-    };
-    recur(start.getOperation(), loadOp.getOperation());
-    return legal;
+    }
+    SmallPtrSet<Block *, 4> done;
+    while (todo.size()) {
+      auto blk = todo.front();
+      todo.pop_front();
+      if (done.count(blk))
+        continue;
+      done.insert(blk);
+      for (auto &op : *blk) {
+        if (&op == to) {
+          break;
+        }
+        check(&op);
+        if (&op == blk->getTerminator()) {
+          for (auto succ : blk->getSuccessors()) {
+            todo.push_back(succ);
+          }
+        }
+      }
+    }
+  };
+  recur(start.getOperation(), loadOp.getOperation());
+  return legal;
 }
-void MemRefDataFlowOpt::removeUnusedStore(AffineWriteOpInterface writeOp, SmallVectorImpl<Operation*> &loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo) {
+
+void MemRefDataFlowOpt::removeUnusedStore(
+    AffineWriteOpInterface writeOp,
+    SmallVectorImpl<Operation *> &loadOpsToErase,
+    SmallPtrSetImpl<Value> &memrefsToErase, DominanceInfo *domInfo,
+    PostDominanceInfo *postDominanceInfo) {
   // First pass over the use list to get the minimum number of surrounding
   // loops common between the load op and the store op, with min taken across
   // all store ops.
@@ -293,14 +325,16 @@ void MemRefDataFlowOpt::removeUnusedStore(AffineWriteOpInterface writeOp, SmallV
   // Store ops that have a dependence into the load (even if they aren't
   // forwarding candidates). Each forwarding candidate will be checked for a
   // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
-  //llvm::errs() << " considering potential erasable store: " << writeOp << "\n";
+  // llvm::errs() << " considering potential erasable store: " << writeOp <<
+  // "\n";
   for (auto *storeOp : storeOps) {
-    if (storeOp == writeOp) continue;
+    if (storeOp == writeOp)
+      continue;
     MemRefAccess srcAccess(storeOp);
     MemRefAccess destAccess(writeOp);
 
-    if (storeOp->getParentRegion() != writeOp.getParentRegion())
-	continue;
+    if (storeOp->getParentRegion() != writeOp->getParentRegion())
+      continue;
     // Stores that *may* be reaching the load.
 
     // 1. Check if the store and the load have mathematically equivalent
@@ -314,14 +348,15 @@ void MemRefDataFlowOpt::removeUnusedStore(AffineWriteOpInterface writeOp, SmallV
     if (srcAccess != destAccess) {
       continue;
     }
-    //llvm::errs() << " + -- " << *storeOp << "\n";  
+    // llvm::errs() << " + -- " << *storeOp << "\n";
     if (!postDominanceInfo->postDominates(storeOp, writeOp)) {
       continue;
     }
-    
+
     bool legal = hasNoInterveningLoad(writeOp, storeOp);
-    //llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
-    if (!legal) continue;
+    // llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
+    if (!legal)
+      continue;
 
     loadOpsToErase.push_back(writeOp);
     break;
@@ -330,7 +365,10 @@ void MemRefDataFlowOpt::removeUnusedStore(AffineWriteOpInterface writeOp, SmallV
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*> &loadOpsToErase, SmallPtrSetImpl<Value>& memrefsToErase, DominanceInfo* domInfo, PostDominanceInfo* postDominanceInfo) {
+void MemRefDataFlowOpt::forwardStoreToLoad(
+    AffineReadOpInterface loadOp, SmallVectorImpl<Operation *> &loadOpsToErase,
+    SmallPtrSetImpl<Value> &memrefsToErase, DominanceInfo *domInfo,
+    PostDominanceInfo *postDominanceInfo) {
   // First pass over the use list to get the minimum number of surrounding
   // loops common between the load op and the store op, with min taken across
   // all store ops.
@@ -353,7 +391,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVe
   // forwarding candidates). Each forwarding candidate will be checked for a
   // post-dominance on these. 'fwdingCandidates' are a subset of depSrcStores.
   SmallVector<Operation *, 8> depSrcStores;
-  //llvm::errs() << " considering load: " << loadOp << "\n";
+  // llvm::errs() << " considering load: " << loadOp << "\n";
   for (auto *storeOp : storeOps) {
     MemRefAccess srcAccess(storeOp);
     MemRefAccess destAccess(loadOp);
@@ -372,14 +410,15 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVe
     if (srcAccess != destAccess) {
       continue;
     }
-    
+
     if (!domInfo->dominates(storeOp, loadOp)) {
       continue;
     }
-    
+
     bool legal = hasNoInterveningStore(storeOp, loadOp);
-    //llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
-    if (!legal) continue;
+    // llvm::errs() << " + " << *storeOp << " legal: " << legal << "\n";
+    if (!legal)
+      continue;
 
     // We now have a candidate for forwarding.
     fwdingCandidates.push_back(storeOp);
@@ -402,7 +441,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVe
 
   // Perform the actual store to load forwarding.
   Value storeVal =
-    cast<AffineWriteOpInterface>(lastWriteStoreOp).getValueToStore();
+      cast<AffineWriteOpInterface>(lastWriteStoreOp).getValueToStore();
   loadOp.getValue().replaceAllUsesWith(storeVal);
   // Record the memref for a later sweep to optimize away.
   memrefsToErase.insert(loadOp.getMemRef());
@@ -412,7 +451,9 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp, SmallVe
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVectorImpl<Operation*>& loadOpsToErase, DominanceInfo* domInfo) {
+void MemRefDataFlowOpt::forwardLoadToLoad(
+    AffineReadOpInterface loadOp, SmallVectorImpl<Operation *> &loadOpsToErase,
+    DominanceInfo *domInfo) {
   SmallVector<AffineReadOpInterface, 4> LoadOptions;
   for (auto *user : loadOp.getMemRef().getUsers()) {
     auto loadOp2 = dyn_cast<AffineReadOpInterface>(user);
@@ -426,27 +467,15 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
       continue;
     }
 
-  // Perform the actual store to load forwarding.
-  Value storeVal =
-    cast<mlir::StoreOp>(lastWriteStoreOp).getValueToStore();
-  loadOp.replaceAllUsesWith(storeVal);
-
-  // Record this to erase later.
-  loadOpsToErase.push_back(loadOp);
-
-  // Last value stored in an individual block and the operation which stored it
-  std::map<mlir::Block*, mlir::BlockArgument> valueAtStartOfBlock;
-
-  for(auto block : reachableBlocks) {
-    if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
     // 2. The store has to dominate the load op to be candidate.
     if (!domInfo->dominates(loadOp2, loadOp)) {
-      //llvm::errs() << " - not fone from dominating load\n";
+      // llvm::errs() << " - not fone from dominating load\n";
       continue;
     }
 
     bool legal = hasNoInterveningStore(loadOp2.getOperation(), loadOp);
-    if (!legal) continue;
+    if (!legal)
+      continue;
 
     LoadOptions.push_back(loadOp2);
   }
@@ -454,7 +483,9 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
   Value lastOp = nullptr;
   for (auto option : LoadOptions) {
     if (llvm::all_of(LoadOptions, [&](AffineReadOpInterface depStore) {
-          return depStore == option || domInfo->dominates(option.getOperation(), depStore.getOperation());
+          return depStore == option ||
+                 domInfo->dominates(option.getOperation(),
+                                    depStore.getOperation());
         })) {
       lastOp = option.getValue();
       break;
@@ -462,19 +493,18 @@ void MemRefDataFlowOpt::forwardLoadToLoad(AffineReadOpInterface loadOp, SmallVec
   }
 
   if (lastOp) {
-    //llvm::errs() << "replacing: " << loadOp << " with " << lastOp << "\n"; 
+    // llvm::errs() << "replacing: " << loadOp << " with " << lastOp << "\n";
     loadOp.getValue().replaceAllUsesWith(lastOp);
     // Record this to erase later.
     loadOpsToErase.push_back(loadOp);
   }
-
 }
 
 void MemRefDataFlowOpt::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
-  //f.dump();
-  //if (!llvm::hasSingleElement(f)) {
+  // f.dump();
+  // if (!llvm::hasSingleElement(f)) {
   //  markAllAnalysesPreserved();
   //  return;
   //}
@@ -488,93 +518,34 @@ void MemRefDataFlowOpt::runOnFunction() {
   auto domInfo = &getAnalysis<DominanceInfo>();
   auto postDominanceInfo = &getAnalysis<PostDominanceInfo>();
 
+  // f.dump();
 
-    // Check if the store fwd'ed memrefs are now left with only stores and can
-    // thus be completely deleted. Note: the canonicalize pass should be able
-    // to do this as well, but we'll do it here since we collected these anyway.
-    for (auto memref : memrefsToErase) {
-    // If the memref hasn't been alloc'ed in this function, skip.
-    Operation *defOp = memref.getDefiningOp();
-    if (!defOp || !isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp))
-      // TODO: if the memref was returned by a 'call' operation, we
-      // could still erase it if the call had no side-effects.
-      continue;
-
-    if (llvm::any_of(memref.getUsers(), [&](Operation *ownerOp) {
-      bool cantHandle = !isa<StoreOp, memref::DeallocOp>(ownerOp);
-      if (cantHandle)
-        ownerOp->dump();
-      return cantHandle;
-        }))
-      continue;
-
-    std::deque<mlir::Value> list = { memref };
-    std::set<mlir::Operation*> toErase;
-    bool error = false;
-    while(list.size()) {
-      auto val = list.front();
-      list.pop_front();
-
-      for (auto U : val.getUsers()) {
-        if (isa<StoreOp, DeallocOp>(U)) {
-          toErase.insert(U);
-        } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
-          toErase.insert(U);
-        } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
-          toErase.insert(U);
-          list.push_back(CO);
-        } else {
-          error = true;
-          break;
-
-      // If the memref hasn't been alloc'ed in this function, skip.
-      Operation *defOp = memref.getDefiningOp();
-      if (!defOp || !(isa<AllocOp>(defOp) || isa<AllocaOp>(defOp)))
-        // TODO: if the memref was returned by a 'call' operation, we
-        // could still erase it if the call had no side-effects.
-        continue;
-
-      std::deque<mlir::Value> list = {memref};
-      std::vector<mlir::Operation *> toErase;
-      bool error = false;
-      while (list.size()) {
-        auto val = list.front();
-        list.pop_front();
-
-        for (auto U : val.getUsers()) {
-          if (isa<StoreOp, DeallocOp>(U)) {
-            toErase.push_back(U);
-          } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
-            toErase.push_back(U);
-          } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
-            toErase.push_back(U);
-            list.push_back(CO);
-          } else {
-            error = true;
-            break;
-          }
-        }
-        if (error)
-          break;
-      }
   // Walk all load's and perform store to load forwarding.
-  f.walk([&](AffineReadOpInterface loadOp) { forwardStoreToLoad(loadOp, loadOpsToErase, memrefsToErase, domInfo, postDominanceInfo); });
+  f.walk([&](AffineReadOpInterface loadOp) {
+    forwardStoreToLoad(loadOp, loadOpsToErase, memrefsToErase, domInfo,
+                       postDominanceInfo);
+  });
 
   // Erase all load op's whose results were replaced with store fwd'ed ones.
   for (auto *loadOp : loadOpsToErase)
     loadOp->erase();
   loadOpsToErase.clear();
 
-  //f.dump();
-  f.walk([&](AffineReadOpInterface loadOp) { forwardLoadToLoad(loadOp, loadOpsToErase, domInfo); });
+  // f.dump();
+  f.walk([&](AffineReadOpInterface loadOp) {
+    forwardLoadToLoad(loadOp, loadOpsToErase, domInfo);
+  });
   for (auto *loadOp : loadOpsToErase)
     loadOp->erase();
   loadOpsToErase.clear();
-  
-  //f.dump();
-  f.walk([&](AffineWriteOpInterface loadOp) { removeUnusedStore(loadOp, loadOpsToErase, memrefsToErase, domInfo, postDominanceInfo); });
 
-  //f.dump();
+  // f.dump();
+  f.walk([&](AffineWriteOpInterface loadOp) {
+    removeUnusedStore(loadOp, loadOpsToErase, memrefsToErase, domInfo,
+                      postDominanceInfo);
+  });
+
+  // f.dump();
   // Erase all load op's whose results were replaced with store fwd'ed ones.
   for (auto *loadOp : loadOpsToErase)
     loadOp->erase();
@@ -599,5 +570,5 @@ void MemRefDataFlowOpt::runOnFunction() {
       user->erase();
     defOp->erase();
   }
-  //f.dump();
+  // f.dump();
 }

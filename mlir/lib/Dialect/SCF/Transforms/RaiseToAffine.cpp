@@ -68,7 +68,7 @@ void RaiseSCFToAffine::runOnFunction() {
   target
       .addLegalDialect<AffineDialect, StandardOpsDialect, LLVM::LLVMDialect>();
 
-  OwningRewritePatternList patterns;
+  OwningRewritePatternList patterns(&getContext());
   patterns.insert<ForOpRaising>(&getContext());
 
   if (failed(

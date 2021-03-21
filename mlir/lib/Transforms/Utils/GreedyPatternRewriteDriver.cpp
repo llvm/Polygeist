@@ -237,6 +237,7 @@ mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
   return applyPatternsAndFoldGreedily(regions, patterns,
                                       maxPatternMatchIterations);
 }
+
 LogicalResult
 mlir::applyPatternsAndFoldGreedily(MutableArrayRef<Region> regions,
                                    const FrozenRewritePatternSet &patterns,

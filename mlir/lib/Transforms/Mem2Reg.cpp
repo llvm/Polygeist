@@ -22,6 +22,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #define DEBUG_TYPE "memref-dataflow-opt"
 
@@ -104,10 +105,10 @@ bool Mem2Reg::forwardStoreToLoad(
     mlir::Value AI, std::vector<ssize_t> idx,
     SmallVectorImpl<Operation *> &loadOpsToErase) {
   bool changed = false;
-  std::set<mlir::LoadOp> loadOps;
+  std::set<mlir::memref::LoadOp> loadOps;
   mlir::Type subType = nullptr;
-  std::map<mlir::Block *, std::set<mlir::StoreOp>> storeOps;
-  std::set<mlir::StoreOp> allStoreOps;
+  std::map<mlir::Block *, std::set<mlir::memref::StoreOp>> storeOps;
+  std::set<mlir::memref::StoreOp> allStoreOps;
 
   std::deque<mlir::Value> list = {AI};
 
@@ -115,17 +116,17 @@ bool Mem2Reg::forwardStoreToLoad(
     auto val = list.front();
     list.pop_front();
     for (auto *user : val.getUsers()) {
-      if (auto co = dyn_cast<mlir::MemRefCastOp>(user)) {
+      if (auto co = dyn_cast<mlir::memref::CastOp>(user)) {
         list.push_back(co);
         continue;
       }
-      if (auto loadOp = dyn_cast<mlir::LoadOp>(user)) {
+      if (auto loadOp = dyn_cast<mlir::memref::LoadOp>(user)) {
         if (matchesIndices(loadOp.getIndices(), idx)) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
         }
       }
-      if (auto storeOp = dyn_cast<mlir::StoreOp>(user)) {
+      if (auto storeOp = dyn_cast<mlir::memref::StoreOp>(user)) {
         if (matchesIndices(storeOp.getIndices(), idx)) {
           storeOps[storeOp.getOperation()->getBlock()].insert(storeOp);
           allStoreOps.insert(storeOp);
@@ -189,7 +190,7 @@ bool Mem2Reg::forwardStoreToLoad(
         lastVal = nullptr;
         seenSubStore = true;
         // llvm::errs() << "erased store due to: " << a << "\n";
-      } else if (auto loadOp = dyn_cast<LoadOp>(&a)) {
+      } else if (auto loadOp = dyn_cast<memref::LoadOp>(&a)) {
         if (loadOps.count(loadOp)) {
           if (lastVal) {
             changed = true;
@@ -204,7 +205,7 @@ bool Mem2Reg::forwardStoreToLoad(
             loadOps.erase(loadOp);
           }
         }
-      } else if (auto storeOp = dyn_cast<StoreOp>(&a)) {
+      } else if (auto storeOp = dyn_cast<memref::StoreOp>(&a)) {
         if (pair.second.count(storeOp)) {
           last = &a;
           lastVal = storeOp.getValueToStore();
@@ -212,7 +213,7 @@ bool Mem2Reg::forwardStoreToLoad(
       } else {
         // since not storing operation the value at the start and end of block
         // is lastVal
-        a.walk([&](LoadOp loadOp) {
+        a.walk([&](memref::LoadOp loadOp) {
           if (loadOps.count(loadOp)) {
             if (lastVal) {
               changed = true;
@@ -555,7 +556,7 @@ bool isPromotable(mlir::Value AI) {
     list.pop_front();
 
     for (auto U : val.getUsers()) {
-      if (auto LO = dyn_cast<LoadOp>(U)) {
+      if (auto LO = dyn_cast<memref::LoadOp>(U)) {
         for (auto idx : LO.getIndices()) {
           if (!idx.getDefiningOp<ConstantOp>() &&
               !idx.getDefiningOp<ConstantIndexOp>()) {
@@ -565,7 +566,7 @@ bool isPromotable(mlir::Value AI) {
           }
         }
         continue;
-      } else if (auto SO = dyn_cast<StoreOp>(U)) {
+      } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         if (SO.value() == val)
           return false;
         for (auto idx : SO.getIndices()) {
@@ -577,11 +578,11 @@ bool isPromotable(mlir::Value AI) {
           }
         }
         continue;
-      } else if (isa<DeallocOp>(U)) {
+      } else if (isa<memref::DeallocOp>(U)) {
         continue;
       } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
         continue;
-      } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+      } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       } else {
         // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue
@@ -602,7 +603,7 @@ StoreMap getLastStored(mlir::Value AI) {
     auto val = list.front();
     list.pop_front();
     for (auto U : val.getUsers()) {
-      if (auto SO = dyn_cast<StoreOp>(U)) {
+      if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
           if (auto op = idx.getDefiningOp<ConstantOp>()) {
@@ -614,7 +615,7 @@ StoreMap getLastStored(mlir::Value AI) {
           }
         }
         lastStored.insert(vec);
-      } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+      } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       }
     }
@@ -643,12 +644,12 @@ void Mem2Reg::runOnFunction() {
 
     // Walk all load's and perform store to load forwarding.
     SmallVector<mlir::Value, 4> toPromote;
-    f.walk([&](mlir::AllocaOp AI) {
+    f.walk([&](mlir::memref::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](mlir::AllocOp AI) {
+    f.walk([&](mlir::memref::AllocOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
@@ -675,7 +676,7 @@ void Mem2Reg::runOnFunction() {
 
       // If the memref hasn't been alloc'ed in this function, skip.
       Operation *defOp = memref.getDefiningOp();
-      if (!defOp || !(isa<AllocOp>(defOp) || isa<AllocaOp>(defOp)))
+      if (!defOp || !(isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp)))
         // TODO: if the memref was returned by a 'call' operation, we
         // could still erase it if the call had no side-effects.
         continue;
@@ -688,11 +689,11 @@ void Mem2Reg::runOnFunction() {
         list.pop_front();
 
         for (auto U : val.getUsers()) {
-          if (isa<StoreOp, DeallocOp>(U)) {
+          if (isa<memref::StoreOp, memref::DeallocOp>(U)) {
             toErase.push_back(U);
           } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
             toErase.push_back(U);
-          } else if (auto CO = dyn_cast<MemRefCastOp>(U)) {
+          } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
             toErase.push_back(U);
             list.push_back(CO);
           } else {

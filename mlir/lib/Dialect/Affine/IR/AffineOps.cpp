@@ -65,7 +65,7 @@ remainsLegalAfterInline(Value value, Region *src, Region *dest,
   // op won't be top-level anymore after inlining.
 
   if (value.isa<OpResult>() && !value.getDefiningOp<ConstantOp>() &&
-      !value.getDefiningOp<DimOp>())
+      !value.getDefiningOp<memref::DimOp>())
     return false;
 
   return true;
@@ -1924,8 +1924,8 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   auto prevLbMap = lbMap;
   auto prevUbMap = ubMap;
 
-  llvm::errs() << "*********\n";
-  ubMap.dump();
+  //llvm::errs() << "*********\n";
+  //ubMap.dump();
 
   fullyComposeAffineMapAndOperands(&lbMap, &lbOperands);
   canonicalizeMapAndOperands(&lbMap, &lbOperands);
@@ -1935,8 +1935,8 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   canonicalizeMapAndOperands(&ubMap, &ubOperands);
   ubMap = removeDuplicateExprs(ubMap);
 
-  ubMap.dump();
-  forOp.dump();
+  //ubMap.dump();
+  //forOp.dump();
 
   // Any canonicalization change always leads to updated map(s).
   if (lbMap == prevLbMap && ubMap == prevUbMap)

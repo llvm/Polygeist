@@ -30,6 +30,8 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/SourceMgr.h"
 
+#include "mlir/Target/LLVMIR/TypeTranslation.h"
+
 using namespace mlir;
 using namespace mlir::LLVM;
 
@@ -177,7 +179,7 @@ private:
   MLIRContext &context;
 };
 } // end namespace detail
-
+/*
 /// Utility class to translate LLVM IR types to the MLIR LLVM dialect. Stores
 /// the translation state, in particular any identified structure types that are
 /// reused across translations.
@@ -193,7 +195,7 @@ private:
   /// Private implementation.
   std::unique_ptr<detail::TypeFromLLVMIRTranslatorImpl> impl;
 };
-
+*/
 } // end namespace LLVM
 } // end namespace mlir
 
