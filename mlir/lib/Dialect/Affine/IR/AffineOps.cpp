@@ -1936,10 +1936,22 @@ static LogicalResult foldLoopBounds(AffineForOp forOp) {
   return success(folded);
 }
 
+static bool areChanged(SmallVectorImpl<Value> &afterOperands,
+                       SmallVectorImpl<Value> &beforeOperands) {
+  if (afterOperands.size() != beforeOperands.size())
+    return true;
+  if (!std::equal(afterOperands.begin(), afterOperands.end(),
+                  beforeOperands.begin()))
+    return true;
+  return false;
+}
+
 /// Canonicalize the bounds of the given loop.
 static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
   SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
+  SmallVector<Value, 4> origLbOperands(forOp.getLowerBoundOperands());
+  SmallVector<Value, 4> origUbOperands(forOp.getUpperBoundOperands());
 
   auto lbMap = forOp.getLowerBoundMap();
   auto ubMap = forOp.getUpperBoundMap();
@@ -1960,17 +1972,20 @@ static LogicalResult canonicalizeLoopBounds(AffineForOp forOp) {
   //ubMap.dump();
   //forOp.dump();
 
-  // Any canonicalization change always leads to updated map(s).
-  if (lbMap == prevLbMap && ubMap == prevUbMap)
+  // Any canonicalization change in map or operands always leads to updated
+  // map(s).
+  if ((lbMap == prevLbMap && ubMap == prevUbMap) &&
+      (!areChanged(lbOperands, origLbOperands)) &&
+      (!areChanged(ubOperands, origUbOperands)))
     return failure();
 
 
   //llvm::errs() << "oldParent:" << *forOp.getParentOp() << "\n"; 
-  //llvm::errs() << "oldfor:" << forOp << "\n"; 
+  //llvm::errs() << "oldfor:" << forOp << "\n";
 
-  if (lbMap != prevLbMap)
+  if ((lbMap != prevLbMap) || areChanged(lbOperands, origLbOperands))
     forOp.setLowerBound(lbOperands, lbMap);
-  if (ubMap != prevUbMap)
+  if ((ubMap != prevUbMap) || areChanged(ubOperands, origUbOperands))
     forOp.setUpperBound(ubOperands, ubMap);
 
   //llvm::errs() << "newfor:" << forOp << "\n"; 
