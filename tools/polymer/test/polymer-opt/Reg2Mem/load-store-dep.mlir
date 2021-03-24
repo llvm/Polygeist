@@ -1,7 +1,5 @@
 // RUN: polymer-opt %s -reg2mem -split-input-file | FileCheck %s
 
-// -----
-
 // This is a general test case that covers many different aspects for checking.
 
 func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
@@ -31,36 +29,33 @@ func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
   return 
 }
 
-// CHECK: func @load_store_dep(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
+// CHECK:       func @load_store_dep(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT:   %[[MEM1:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT:   %[[CST:.*]] = constant 1.230000e+00 : f32
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
-// CHECK-NEXT:   affine.store %[[CST]], %[[MEM0]][0] : memref<1xf32>
-// CHECK-NEXT:   %[[DIM0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
-// CHECK-NEXT:   %[[DIM1:.*]] = dim %[[ARG1]], %[[C1]] : memref<?x?xf32>
-// CHECK-NEXT:   affine.for %[[I:.*]] = 0 to %[[DIM0]] {
-// CHECK-NEXT:     %[[VAL0:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
-// CHECK-NEXT:     %[[VAL1:.*]] = affine.load %[[ARG0]][%[[I]]] : memref<?xf32>
-// CHECK-NEXT:     %[[MEM1:.*]] = alloca() : memref<1xf32>
-// CHECK-NEXT:     affine.store %[[VAL1]], %[[MEM1]][0] : memref<1xf32>
-// CHECK-NEXT:     %[[VAL2:.*]] = mulf %[[VAL1]], %[[VAL1]] : f32
-// CHECK-NEXT:     %[[MEM2:.*]] = alloca() : memref<1xf32>
-// CHECK-NEXT:     affine.store %[[VAL2]], %[[MEM2]][0] : memref<1xf32>
-// CHECK-NEXT:     affine.store %[[VAL0]], %[[ARG0]][%[[I]]] : memref<?xf32>
-// CHECK-NEXT:     affine.for %[[J:.*]] = 0 to %[[DIM1]] {
-// CHECK-DAG:   %[[VAL3:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
-// CHECK-DAG:   %[[VAL4:.*]] = affine.load %[[MEM1]][0] : memref<1xf32>
-// CHECK-DAG:   %[[VAL5:.*]] = affine.load %[[MEM2]][0] : memref<1xf32>
-// CHECK-NEXT:       %[[VAL6:.*]] = mulf %[[VAL5]], %[[VAL4]] : f32
-// CHECK-NEXT:       %[[VAL7:.*]] = addf %[[VAL5]], %[[VAL6]] : f32
-// CHECK-NEXT:       %[[VAL8:.*]] = subf %[[VAL7]], %[[VAL3]] : f32
-// CHECK-NEXT:       affine.store %[[VAL8]], %[[ARG1]][%[[I]], %[[J]]] : memref<?x?xf32>
+// CHECK-NEXT:   %[[VAL2:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
+// CHECK-NEXT:   %[[VAL3:.*]] = dim %[[ARG1]], %[[C1]] : memref<?x?xf32>
+// CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to %[[VAL2]] {
+// CHECK-NEXT:     %[[VAL4:.*]] = affine.load %[[ARG0]][%[[ARG2]]] : memref<?xf32>
+// CHECK-NEXT:     affine.store %[[VAL4]], %[[MEM0]][0] : memref<1xf32>
+// CHECK-NEXT:     %[[VAL5:.*]] = mulf %[[VAL4]], %[[VAL4]] : f32
+// CHECK-NEXT:     affine.store %[[VAL5]], %[[MEM1]][0] : memref<1xf32>
+// CHECK-NEXT:     affine.store %[[CST]], %[[ARG0]][%[[ARG2]]] : memref<?xf32>
+// CHECK-NEXT:     affine.for %[[ARG3:.*]] = 0 to %[[VAL3]] {
+// CHECK-NEXT:       %[[VAL6:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
+// CHECK-NEXT:       %[[VAL7:.*]] = affine.load %[[MEM1]][0] : memref<1xf32>
+// CHECK-NEXT:       %[[VAL8:.*]] = mulf %[[VAL7]], %[[VAL6]] : f32
+// CHECK-NEXT:       %[[VAL9:.*]] = addf %[[VAL7]], %[[VAL8]] : f32
+// CHECK-NEXT:       %[[VAL10:.*]] = subf %[[VAL9]], %[[CST]] : f32
+// CHECK-NEXT:       affine.store %[[VAL10]], %[[ARG1]][%[[ARG2]], %[[ARG3]]] : memref<?x?xf32>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     affine.store %[[VAL2]], %[[ARG0]][%[[I]]] : memref<?xf32>
+// CHECK-NEXT:     affine.store %[[VAL5]], %[[ARG0]][%[[ARG2]]] : memref<?xf32>
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
+
 
 // -----
 
@@ -133,6 +128,7 @@ func @multi_uses_at_diff_blocks(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memr
 }
 
 // CHECK: func @multi_uses_at_diff_blocks(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?x?xf32>) {
+// CHECK-NEXT: %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT: %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT: %[[C2:.*]] = constant 2 : index
@@ -141,7 +137,6 @@ func @multi_uses_at_diff_blocks(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memr
 // CHECK-NEXT: %[[DIM2:.*]] = dim %[[ARG2]], %[[C2]] : memref<?x?x?xf32>
 // CHECK-NEXT: affine.for %[[I:.*]] = 0 to %[[DIM0]] {
 // CHECK-NEXT:   %[[VAL0:.*]] = affine.load %[[ARG0]][%[[I]]] : memref<?xf32>
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:   affine.store %[[VAL0]], %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:   affine.for %[[J:.*]] = 0 to %[[DIM1]] {
 // CHECK-NEXT:     %[[VAL1:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
@@ -176,13 +171,13 @@ func @multi_uses_at_same_block(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memre
 }
 
 // CHECK: func @multi_uses_at_same_block(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT: %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT: %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT: %[[DIM0:.*]] = dim %[[ARG2]], %[[C0]] : memref<?x?xf32>
 // CHECK-NEXT: %[[DIM1:.*]] = dim %[[ARG2]], %[[C1]] : memref<?x?xf32>
 // CHECK-NEXT: affine.for %[[I:.*]] = 0 to %[[DIM0]] {
 // CHECK-NEXT:   %[[VAL0:.*]] = affine.load %[[ARG0]][%[[I]]] : memref<?xf32>
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:   affine.store %[[VAL0]], %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:   affine.for %[[J:.*]] = 0 to %[[DIM1]] {
 // CHECK-NEXT:     %[[VAL1:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
@@ -214,17 +209,18 @@ func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>, %C: memref<?xf32>) {
 }
 
 // CHECK: func @use_in_conds(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>, %[[ARG2:.*]]: memref<?xf32>) {
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[VAL0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
 // CHECK-NEXT:   %[[VAL1:.*]] = dim %[[ARG1]], %[[C0]] : memref<?xf32>
 // CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to %[[VAL0]] {
 // CHECK-NEXT:     %[[VAL2:.*]] = affine.load %[[ARG0]][%[[ARG3]]] : memref<?xf32>
-// CHECK-NEXT:     %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:     affine.store %[[VAL2]], %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:     affine.if #[[SET0:.*]](%[[ARG3]])[%[[VAL1]]] {
 // CHECK-NEXT:       %[[VAL3:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG1]][%[[ARG3]]] : memref<?xf32>
-// CHECK-NEXT:     } else {
+// CHECK-NEXT:     } 
+// CHECK-NEXT:     affine.if #[[SET1:.*]](%[[ARG3]])[%[[VAL1]]] {
 // CHECK-NEXT:       %[[VAL3:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:       affine.store %[[VAL3]], %[[ARG2]][%[[ARG3]]] : memref<?xf32>
 // CHECK-NEXT:     }
@@ -262,13 +258,13 @@ func @use_by_arith_call(%A: memref<?xf32>, %B: memref<?x?xf32>) {
 }
 
 // CHECK: func @use_by_arith_call(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:   %[[CST0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[CST1:.*]] = constant 1 : index
 // CHECK-NEXT:   %[[DIM0:.*]] = dim %[[ARG1]], %[[CST0]] : memref<?x?xf32>
 // CHECK-NEXT:   %[[DIM1:.*]] = dim %[[ARG1]], %[[CST1]] : memref<?x?xf32>
 // CHECK-NEXT:   affine.for %[[I:.*]] = 0 to %[[DIM0]] {
 // CHECK-NEXT:     %[[VAL0:.*]] = affine.load %[[ARG0]][%[[I]]] : memref<?xf32>
-// CHECK-NEXT:     %[[MEM0:.*]] = alloca() : memref<1xf32>
 // CHECK-NEXT:     affine.store %[[VAL0]], %[[MEM0]][0] : memref<1xf32>
 // CHECK-NEXT:     affine.for %[[J:.*]] = 1 to %[[DIM1]] {
 // CHECK-NEXT:       %[[VAL1:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
