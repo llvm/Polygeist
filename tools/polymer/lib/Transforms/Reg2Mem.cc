@@ -23,8 +23,12 @@
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Transforms/Utils.h"
+
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
+
+#include <map>
 
 using namespace mlir;
 using namespace llvm;
@@ -32,7 +36,7 @@ using namespace llvm;
 #define DEBUG_TYPE "reg2mem"
 
 using DefToUsesMap =
-    llvm::DenseMap<mlir::Value, llvm::SetVector<mlir::Operation *>>;
+    llvm::MapVector<mlir::Value, llvm::SetVector<mlir::Operation *>>;
 
 /// Build the mapping of values from where they are defined to where they are
 /// used. We will need this information to decide whether a Value should be
@@ -166,7 +170,7 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
 
   DefToUsesMap defToUses;
   Block &entryBlock = *f.getBody().begin();
-  // entryBlock.dump();
+
   // Get the mapping from a value to its uses that are in a
   // different block as where the value itself is defined.
   mapDefToUses(f, defToUses);
@@ -206,80 +210,73 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
   }
 }
 
-static void separateAffineIfBlocks(mlir::FuncOp f, OpBuilder &b) {
-  Operation *op;
-  f.walk([&](Operation *subOp) {
-    if (isa<mlir::AffineIfOp>(subOp)) {
-      if (cast<mlir::AffineIfOp>(subOp).hasElse()) {
-        op = subOp;
-      }
+static IntegerSet getIntegerSetForElse(const IntegerSet &iSet, OpBuilder &b) {
+  SmallVector<AffineExpr, 8> newExprs;
+  SmallVector<bool, 8> newEqFlags;
+
+  auto eqFlags = iSet.getEqFlags();
+  for (unsigned i = 0; i < iSet.getNumConstraints(); i++) {
+    AffineExpr expr = iSet.getConstraint(i);
+
+    if (eqFlags[i]) {
+      // For equality, we create two inequalities that exclude the target.
+      newExprs.push_back(expr - b.getAffineConstantExpr(1));
+      newEqFlags.push_back(false);
+      newExprs.push_back(-expr - b.getAffineConstantExpr(1));
+      newEqFlags.push_back(false);
+    } else {
+      // For inequality, we simply negate the condition.
+      newExprs.push_back(-expr - b.getAffineConstantExpr(1));
+      newEqFlags.push_back(eqFlags[i]);
     }
-  });
+  }
 
-  while (op) {
-    mlir::AffineIfOp ifOp = cast<mlir::AffineIfOp>(op);
-    // ifOp.dump();
-    assert(ifOp.hasElse());
+  return IntegerSet::get(iSet.getNumDims(), iSet.getNumSymbols(), newExprs,
+                         newEqFlags);
+}
 
-    // IntegerSet iset2 = ifOp.getIntegerSet();
-    // SmallVector<mlir::Value, 8> operands2(ifOp.getOperands());
-    // iset2.dump();
-    // for (mlir::Value operand : operands2)
-    //   operand.dump();
+/// Turns affine.if with else block into two affine.if. It works iteratively:
+/// one affine.if op (with else) should be handled at one time.
+static void separateAffineIfBlocks(mlir::FuncOp f, OpBuilder &b) {
+  // Get the first affine.if operation that has an else block.
+  auto findIfWithElse = [&](auto &f) {
+    Operation *opFound = nullptr;
+    f.walk([&](mlir::AffineIfOp ifOp) {
+      if (!opFound && ifOp.hasElse()) {
+        opFound = ifOp;
+        return;
+      }
+    });
+    return opFound;
+  };
 
-    // canonicalizeSetAndOperands(&iset2, &operands2);
-    // iset2.dump();
-    // for (mlir::Value operand : operands2)
-    //   operand.dump();
+  Operation *op;
+  while ((op = findIfWithElse(f)) != nullptr) {
+    mlir::AffineIfOp ifOp = dyn_cast<mlir::AffineIfOp>(op);
+    assert(ifOp.hasElse() && "The if op found should have an else block.");
 
     OpBuilder::InsertionGuard guard(b);
-    b.setInsertionPointAfter(op);
+    b.setInsertionPointAfter(ifOp);
 
-    mlir::AffineIfOp newIfThenOp = cast<mlir::AffineIfOp>(b.clone(*op));
-    newIfThenOp.getElseBlock()->erase();
+    // Here we create two new if operations, one for the then block, one for the
+    // else block.
+    mlir::AffineIfOp newIfThenOp =
+        cast<mlir::AffineIfOp>(b.clone(*ifOp.getOperation()));
+    newIfThenOp.getElseBlock()->erase(); // TODO: can we don't create it?
 
     b.setInsertionPointAfter(newIfThenOp);
-    mlir::AffineIfOp newIfElseOp = cast<mlir::AffineIfOp>(b.clone(*op));
+    mlir::AffineIfOp newIfElseOp =
+        cast<mlir::AffineIfOp>(b.clone(*ifOp.getOperation()));
 
     // Build new integer set.
-    IntegerSet iSet = ifOp.getIntegerSet();
-
-    SmallVector<AffineExpr, 8> newExprs;
-    SmallVector<bool, 8> newEqFlags;
-
-    auto eqFlags = iSet.getEqFlags();
-    for (unsigned i = 0; i < iSet.getNumConstraints(); i++) {
-      AffineExpr expr = iSet.getConstraint(i);
-      if (eqFlags[i]) {
-        newExprs.push_back(expr - b.getAffineConstantExpr(1));
-        newEqFlags.push_back(false);
-        newExprs.push_back(-expr - b.getAffineConstantExpr(1));
-        newEqFlags.push_back(false);
-      } else {
-        newExprs.push_back(-expr - b.getAffineConstantExpr(1));
-        newEqFlags.push_back(eqFlags[i]);
-      }
-    }
-    IntegerSet oSet = IntegerSet::get(iSet.getNumDims(), iSet.getNumSymbols(),
-                                      newExprs, newEqFlags);
-    newIfElseOp.setConditional(oSet, ifOp.getOperands());
+    newIfElseOp.setConditional(getIntegerSetForElse(ifOp.getIntegerSet(), b),
+                               ifOp.getOperands());
 
     Block *oldThenBlock = newIfElseOp.getThenBlock();
     newIfElseOp.getElseBlock()->moveBefore(oldThenBlock);
     oldThenBlock->erase();
 
     ifOp.erase();
-
-    // newIfThenOp.dump();
-    // newIfElseOp.dump();
-
-    op = nullptr;
-    f.walk([&](Operation *subOp) {
-      if (subOp && isa<mlir::AffineIfOp>(subOp) &&
-          cast<mlir::AffineIfOp>(subOp).hasElse()) {
-        op = subOp;
-      }
-    });
   }
 }
 

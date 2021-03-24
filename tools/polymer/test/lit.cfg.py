@@ -21,7 +21,7 @@ config.suffixes = ['.mlir', '.scop']
 
 # excludes: A list of directories or files to exclude from the testsuite even
 # if they match the suffixes pattern.
-config.excludes = []
+config.excludes = ['archive']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
