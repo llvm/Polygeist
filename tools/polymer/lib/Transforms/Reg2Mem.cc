@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
@@ -375,9 +376,166 @@ public:
 
 } // namespace
 
+namespace {
+using IterArgToMemMap = llvm::MapVector<mlir::Value, mlir::Value>;
+}
+
+static void findReductionLoops(mlir::FuncOp f,
+                               SmallVectorImpl<mlir::AffineForOp> &forOps) {
+  f.walk([&](mlir::AffineForOp forOp) {
+    if (!forOp.getIterOperands().empty())
+      forOps.push_back(forOp);
+  });
+}
+
+static mlir::AffineYieldOp findYieldOp(mlir::AffineForOp forOp) {
+  mlir::Operation *retOp;
+  forOp.walk([&](mlir::AffineYieldOp yieldOp) { retOp = yieldOp; });
+
+  assert(retOp != nullptr);
+  assert(isa<mlir::AffineYieldOp>(retOp));
+
+  return cast<mlir::AffineYieldOp>(retOp);
+}
+
+static mlir::Value createIterScratchpad(mlir::Value iterArg,
+                                        IterArgToMemMap &iterArgToMem,
+                                        mlir::AffineForOp forOp, OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPoint(forOp);
+
+  assert(!iterArgToMem.count(iterArg) &&
+         "A scratchpad has been created for the given iterArg");
+
+  mlir::Value spad = b.create<mlir::AllocaOp>(
+      forOp.getLoc(), MemRefType::get({1}, iterArg.getType()));
+  iterArgToMem[iterArg] = spad;
+
+  return spad;
+}
+
+static void storeInitValue(mlir::Value initVal, mlir::Value spad,
+                           mlir::AffineForOp forOp, OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfterValue(spad);
+  b.create<mlir::AffineStoreOp>(spad.getLoc(), initVal, spad,
+                                b.getConstantAffineMap(0), llvm::None);
+}
+
+static mlir::Value loadIterArg(mlir::Value iterArg,
+                               IterArgToMemMap &iterArgToMem,
+                               mlir::AffineForOp forOp, OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointToStart(forOp.getBody());
+
+  assert(iterArgToMem.count(iterArg));
+
+  return b.create<mlir::AffineLoadOp>(forOp.getLoc(), iterArgToMem[iterArg],
+                                      b.getConstantAffineMap(0), llvm::None);
+}
+
+static void replaceIterArg(mlir::Value origIterArg, mlir::Value spadIterArg) {
+  origIterArg.replaceAllUsesWith(spadIterArg);
+}
+
+static void storeIterArg(int idx, mlir::Value spad, mlir::AffineYieldOp yieldOp,
+                         OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPoint(yieldOp);
+  b.create<mlir::AffineStoreOp>(yieldOp.getLoc(), yieldOp.getOperand(idx), spad,
+                                b.getConstantAffineMap(0), llvm::None);
+}
+
+static mlir::Value loadFinalIterVal(mlir::Value spad, mlir::AffineForOp forOp,
+                                    OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(forOp);
+
+  return b.create<mlir::AffineLoadOp>(forOp.getLoc(), spad,
+                                      b.getConstantAffineMap(0), llvm::None);
+}
+
+static void replaceResult(int idx, mlir::AffineForOp forOp,
+                          mlir::Value retVal) {
+  mlir::Value origRetVal = forOp.getResult(idx);
+  origRetVal.replaceAllUsesWith(retVal);
+}
+
+static mlir::AffineForOp cloneAffineForWithoutIterArgs(mlir::AffineForOp forOp,
+                                                       OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(forOp);
+
+  mlir::AffineForOp newForOp = b.create<mlir::AffineForOp>(
+      forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
+      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(), forOp.getStep());
+
+  BlockAndValueMapping mapping;
+  mapping.map(forOp.getInductionVar(), newForOp.getInductionVar());
+
+  b.setInsertionPointToStart(newForOp.getBody());
+  forOp.walk([&](mlir::Operation *op) {
+    if (!isa<mlir::AffineYieldOp>(op) && op->getParentOp() == forOp)
+      b.clone(*op, mapping);
+  });
+
+  return newForOp;
+}
+
+static void demoteLoopReduction(mlir::FuncOp f, mlir::AffineForOp forOp,
+                                OpBuilder &b) {
+  SmallVector<mlir::Value, 4> initVals{forOp.getIterOperands()};
+  mlir::Block *body = forOp.getBody();
+  mlir::AffineYieldOp yieldOp = findYieldOp(forOp);
+
+  IterArgToMemMap iterArgToMem;
+  for (auto initVal : enumerate(initVals)) {
+    mlir::Value iterArg = body->getArgument(initVal.index() + 1);
+    mlir::Value spad = createIterScratchpad(iterArg, iterArgToMem, forOp, b);
+    storeInitValue(initVal.value(), spad, forOp, b);
+
+    mlir::Value iterArgFromSpad = loadIterArg(iterArg, iterArgToMem, forOp, b);
+    replaceIterArg(iterArg, iterArgFromSpad);
+    storeIterArg(initVal.index(), spad, yieldOp, b);
+
+    mlir::Value finalIterVal = loadFinalIterVal(spad, forOp, b);
+    replaceResult(initVal.index(), forOp, finalIterVal);
+  }
+
+  cloneAffineForWithoutIterArgs(forOp, b);
+  for (mlir::Value result : forOp.getResults())
+    assert(result.getUses().empty());
+  forOp.erase();
+}
+
+static void demoteLoopReduction(mlir::FuncOp f, OpBuilder &b) {
+  SmallVector<mlir::AffineForOp, 4> forOps;
+  findReductionLoops(f, forOps);
+
+  for (mlir::AffineForOp forOp : forOps)
+    demoteLoopReduction(f, forOp, b);
+}
+
+namespace {
+class DemoteLoopReductionPass
+    : public mlir::PassWrapper<DemoteLoopReductionPass,
+                               OperationPass<mlir::FuncOp>> {
+public:
+  void runOnOperation() override {
+    mlir::FuncOp f = getOperation();
+    OpBuilder b(f.getContext());
+
+    demoteLoopReduction(f, b);
+  }
+};
+
+} // namespace
+
 void polymer::registerRegToMemPass() {
   PassRegistration<RegToMemPass>("reg2mem", "Demote register to memref.");
   PassRegistration<InsertRedundantLoadPass>(
       "insert-redundant-load", "Insert redundant affine.load to avoid "
                                "creating unnecessary scratchpads.");
+  PassRegistration<DemoteLoopReductionPass>(
+      "demote-loop-reduction", "Demote reduction to normal affine.for");
 }
