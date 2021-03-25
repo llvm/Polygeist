@@ -112,6 +112,13 @@ static void filterUsesInSameBlock(DefToUsesMap &defToUses) {
   }
 }
 
+/// Add scop.scratchpad to newly created AllocaOp for scratchpad.
+static mlir::AllocaOp annotateScratchpad(mlir::AllocaOp allocaOp) {
+  allocaOp.setAttr("scop.scratchpad",
+                   mlir::UnitAttr::get(allocaOp.getContext()));
+  return allocaOp;
+}
+
 /// Creates a single-entry scratchpad memory that stores values from the
 /// defining point and can be loaded when needed at the uses.
 static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
@@ -125,8 +132,8 @@ static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
   b.setInsertionPointToStart(entryBlock);
 
   // The memref shape is 1 and the type is derived from val.
-  return b.create<mlir::AllocaOp>(defOp->getLoc(),
-                                  MemRefType::get({1}, val.getType()));
+  return annotateScratchpad(b.create<mlir::AllocaOp>(
+      defOp->getLoc(), MemRefType::get({1}, val.getType())));
 }
 
 /// Creata an AffineStoreOp for the value to be stored on the scratchpad.
