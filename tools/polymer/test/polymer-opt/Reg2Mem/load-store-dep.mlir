@@ -30,8 +30,8 @@ func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
 }
 
 // CHECK:       func @load_store_dep(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
-// CHECK-NEXT:   %[[MEM1:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK-NEXT:   %[[MEM1:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT:   %[[CST:.*]] = constant 1.230000e+00 : f32
@@ -128,7 +128,7 @@ func @multi_uses_at_diff_blocks(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memr
 }
 
 // CHECK: func @multi_uses_at_diff_blocks(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?x?xf32>) {
-// CHECK-NEXT: %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT: %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT: %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT: %[[C2:.*]] = constant 2 : index
@@ -171,7 +171,7 @@ func @multi_uses_at_same_block(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memre
 }
 
 // CHECK: func @multi_uses_at_same_block(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT: %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT: %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT: %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT: %[[C1:.*]] = constant 1 : index
 // CHECK-NEXT: %[[DIM0:.*]] = dim %[[ARG2]], %[[C0]] : memref<?x?xf32>
@@ -209,7 +209,7 @@ func @use_in_conds(%A: memref<?xf32>, %B: memref<?xf32>, %C: memref<?xf32>) {
 }
 
 // CHECK: func @use_in_conds(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?xf32>, %[[ARG2:.*]]: memref<?xf32>) {
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[VAL0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
 // CHECK-NEXT:   %[[VAL1:.*]] = dim %[[ARG1]], %[[C0]] : memref<?xf32>
@@ -258,7 +258,7 @@ func @use_by_arith_call(%A: memref<?xf32>, %B: memref<?x?xf32>) {
 }
 
 // CHECK: func @use_by_arith_call(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
-// CHECK-NEXT:   %[[MEM0:.*]] = alloca() : memref<1xf32>
+// CHECK-NEXT:   %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   %[[CST0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[CST1:.*]] = constant 1 : index
 // CHECK-NEXT:   %[[DIM0:.*]] = dim %[[ARG1]], %[[CST0]] : memref<?x?xf32>
