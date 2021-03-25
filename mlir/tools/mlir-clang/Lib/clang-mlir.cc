@@ -850,7 +850,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             auto indexType = mlir::IntegerType::get(module.getContext(), 64);
             auto one = builder.create<mlir::ConstantOp>(
                 loc, indexType,
-                builder.getIntegerAttr(builder.getIndexType(), 1));
+                builder.getIntegerAttr(builder.getIntegerType(64), 1));
             alloc = builder.create<mlir::LLVM::AllocaOp>(
                 loc,
                 Glob.typeTranslator.translateType((getLLVMType(a->getType()))),
