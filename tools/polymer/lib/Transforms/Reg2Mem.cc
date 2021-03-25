@@ -21,6 +21,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "mlir/Transforms/Utils.h"
@@ -414,8 +415,8 @@ static mlir::Value createIterScratchpad(mlir::Value iterArg,
   assert(!iterArgToMem.count(iterArg) &&
          "A scratchpad has been created for the given iterArg");
 
-  mlir::Value spad = b.create<mlir::AllocaOp>(
-      forOp.getLoc(), MemRefType::get({1}, iterArg.getType()));
+  mlir::Value spad = annotateScratchpad(b.create<mlir::AllocaOp>(
+      forOp.getLoc(), MemRefType::get({1}, iterArg.getType())));
   iterArgToMem[iterArg] = spad;
 
   return spad;
@@ -538,6 +539,346 @@ public:
 
 } // namespace
 
+/// ---------------- Array Expansion -------------------
+
+static void findAllScratchpads(mlir::FuncOp f,
+                               SmallVector<mlir::Value, 4> &spads) {
+  // All scratchpads are allocated by AllocaOp.
+  f.walk([&](mlir::AllocaOp op) {
+    if (op->hasAttr("scop.scratchpad"))
+      spads.push_back(op);
+  });
+}
+
+static void
+getEnclosingAffineForOps(mlir::Operation *op, mlir::Operation *topOp,
+                         SmallVectorImpl<mlir::Operation *> &forOps) {
+  SmallVector<mlir::Operation *, 4> forAndIfOps;
+  getEnclosingAffineForAndIfOps(*op, &forAndIfOps);
+
+  for (mlir::Operation *forOrIfOp : forAndIfOps) {
+    if (forOrIfOp == topOp)
+      break;
+    if (isa<mlir::AffineForOp>(forOrIfOp))
+      forOps.push_back(forOrIfOp);
+  }
+}
+
+static void getScratchpadIterDomains(
+    mlir::Value spad, mlir::SmallVectorImpl<FlatAffineConstraints> &indexSets) {
+  mlir::SmallPtrSet<mlir::Operation *, 4> parentVisited;
+  for (mlir::Operation *user : spad.getUsers()) {
+    mlir::Operation *parent = user->getParentOp();
+    if (parent == nullptr || parentVisited.count(parent))
+      continue;
+    parentVisited.insert(parent);
+
+    SmallVector<mlir::Operation *, 4> forOps;
+    getEnclosingAffineForOps(user, spad.getParentBlock()->getParentOp(),
+                             forOps);
+
+    FlatAffineConstraints domain;
+    assert(succeeded(getIndexSet(forOps, &domain)) &&
+           "Cannot get the iteration domain of the given forOps");
+
+    indexSets.push_back(domain);
+  }
+}
+
+static void getNonZeroDims(ArrayRef<int64_t> coeffs,
+                           const FlatAffineConstraints &cst,
+                           SmallVectorImpl<int64_t> &dims) {
+  for (unsigned int i = 0; i < coeffs.size(); i++)
+    if (coeffs[i] != 0 && i < cst.getNumDimIds())
+      dims.push_back(i);
+}
+
+static FlatAffineConstraints
+unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineConstraints> domains) {
+  unsigned int maxDepth = 0;
+  SetVector<mlir::Value> unionSymbols;
+  SmallVector<mlir::Value, 4> domainSymbols;
+
+  // Calculate the max depth and retrive all the symbols.
+  for (const auto &domain : domains) {
+    // depth
+    maxDepth = std::max(domain.getNumDimIds(), maxDepth);
+    // symbols
+    domainSymbols.clear();
+    domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+                       &domainSymbols);
+    for (mlir::Value sym : domainSymbols)
+      unionSymbols.insert(sym);
+  }
+
+  // Create the union domain with maxDepth number of dims and the union of all
+  // symbols appeared.
+  FlatAffineConstraints unionDomain(/*numDims=*/maxDepth,
+                                    /*numSymbols=*/unionSymbols.size());
+  for (auto symbol : enumerate(unionSymbols))
+    unionDomain.setIdValue(symbol.index() + unionDomain.getNumDimIds(),
+                           symbol.value());
+
+  // Merge constraints. Only consider inequalities and those with single dim and
+  // multiple symbols involved.
+  for (const auto &domain : domains) {
+    // TODO: Should deal with local IDs later.
+    assert(domain.getNumLocalIds() == 0);
+
+    for (unsigned int i = 0; i < domain.getNumInequalities(); i++) {
+      ArrayRef<int64_t> inEq = domain.getInequality(i);
+
+      SmallVector<int64_t, 4> nonZeroDims;
+      getNonZeroDims(inEq, domain, nonZeroDims);
+
+      // TODO: Will cover this scenario later.
+      assert(nonZeroDims.size() == 1);
+
+      SmallVector<int64_t, 4> newInEq(unionDomain.getNumCols(), 0);
+      // Merge dims
+      for (unsigned int j = 0; j < unionDomain.getNumDimIds(); j++)
+        if (j == nonZeroDims[0]) // only one nonzero dim is allowed.
+          newInEq[j] = inEq[j];
+      // Merge symbols
+      for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
+        mlir::Value symbol = domain.getIdValue(j + domain.getNumDimIds());
+        unsigned int pos;
+        assert(unionDomain.findId(symbol, &pos));
+        newInEq[pos] = inEq[j + domain.getNumDimIds()];
+      }
+      // Merge constant
+      newInEq[unionDomain.getNumCols() - 1] = inEq[domain.getNumCols() - 1];
+
+      unionDomain.addInequality(newInEq);
+    }
+  }
+
+  // Post-process
+  unionDomain.removeRedundantInequalities();
+
+  return unionDomain;
+}
+
+static void getLowerOrUpperBound(unsigned int dimId, bool isUpper,
+                                 const FlatAffineConstraints &domain,
+                                 mlir::AffineMap &affMap,
+                                 llvm::SmallVectorImpl<mlir::Value> &operands,
+                                 OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+  SmallVector<mlir::AffineExpr, 4> exprs;
+  MapVector<mlir::Value, unsigned int> symToPos;
+
+  for (unsigned int i = 0; i < domain.getNumInequalities(); i++) {
+    ArrayRef<int64_t> inEq = domain.getInequality(i);
+
+    SmallVector<int64_t, 4> nonZeroDims;
+    getNonZeroDims(inEq, domain, nonZeroDims);
+    assert(nonZeroDims.size() == 1);
+
+    if (nonZeroDims[0] != dimId || (isUpper && inEq[dimId] > 0) ||
+        (!isUpper && inEq[dimId] < 0))
+      continue;
+
+    mlir::AffineExpr expr = b.getAffineConstantExpr(0);
+
+    for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
+      mlir::Value symbol = domain.getIdValue(j + domain.getNumDimIds());
+      int numSymbols = symToPos.size();
+      if (!symToPos.count(symbol)) {
+        symToPos[symbol] = numSymbols;
+        operands.push_back(symbol);
+      }
+
+      mlir::AffineExpr term = inEq[j + domain.getNumDimIds()] *
+                              b.getAffineSymbolExpr(symToPos[symbol]);
+      if (isUpper)
+        expr = expr + term;
+      else
+        expr = expr - term;
+    }
+
+    mlir::AffineExpr constExpr =
+        b.getAffineConstantExpr(inEq[domain.getNumCols() - 1]);
+    if (isUpper)
+      expr = expr + constExpr + b.getAffineConstantExpr(1);
+    else
+      expr = expr - constExpr;
+
+    exprs.push_back(expr);
+  }
+
+  // Finally setup the map.
+  affMap = mlir::AffineMap::get(0, operands.size(), exprs, b.getContext());
+}
+
+static mlir::Value findInsertionPointAfter(mlir::FuncOp f, mlir::Value spad,
+                                           ArrayRef<mlir::Value> candidates) {
+  DominanceInfo dom(f);
+  for (auto v1 : candidates) {
+    if (v1.isa<BlockArgument>())
+      continue;
+
+    bool dominatesOthers = false;
+    for (auto v2 : candidates) {
+      if (v2.isa<BlockArgument>())
+        continue;
+
+      if (v1 != v2 && dom.dominates(v1.getDefiningOp(), v2.getDefiningOp())) {
+        dominatesOthers = true;
+        break;
+      }
+    }
+
+    if (!dominatesOthers)
+      return v1;
+  }
+  return spad;
+}
+
+static mlir::AllocaOp
+createScratchpadAllocaOp(mlir::FuncOp f, mlir::Value spad,
+                         const FlatAffineConstraints &domain, OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+
+  SmallVector<mlir::Value, 4> symbols;
+  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+                     &symbols);
+  b.setInsertionPointAfterValue(findInsertionPointAfter(f, spad, symbols));
+
+  mlir::MemRefType memRefType = mlir::MemRefType::get(
+      SmallVector<int64_t, 4>(domain.getNumDimIds(), -1),
+      spad.getType().cast<mlir::MemRefType>().getElementType());
+
+  llvm::SmallVector<mlir::Value, 4> memSizes(domain.getNumDimIds());
+  for (unsigned int i = 0; i < domain.getNumDimIds(); i++) {
+    mlir::AffineMap lbMap, ubMap;
+    llvm::SmallVector<mlir::Value, 4> lbOperands, ubOperands;
+
+    getLowerOrUpperBound(i, true, domain, ubMap, ubOperands, b);
+    getLowerOrUpperBound(i, false, domain, lbMap, lbOperands, b);
+
+    mlir::Value lb =
+        b.create<mlir::AffineMinOp>(spad.getLoc(), lbMap, lbOperands);
+    mlir::Value ub =
+        b.create<mlir::AffineMaxOp>(spad.getLoc(), ubMap, ubOperands);
+    mlir::Value size = b.create<mlir::AffineApplyOp>(
+        spad.getLoc(),
+        AffineMap::get(0, 2,
+                       b.getAffineSymbolExpr(0) - b.getAffineSymbolExpr(1)),
+        ValueRange({ub, lb}));
+    memSizes[i] = size;
+  }
+
+  return b.create<mlir::AllocaOp>(spad.getLoc(), memRefType, memSizes);
+}
+
+static void resetLoadAndStoreOpsToScratchpad(mlir::FuncOp f, mlir::Value spad,
+                                             OpBuilder &b) {
+  OpBuilder::InsertionGuard guard(b);
+
+  for (mlir::Operation *op : spad.getUsers()) {
+    if (isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op)) {
+      llvm::SmallVector<mlir::AffineForOp, 4> forOps;
+      getLoopIVs(*op, &forOps);
+
+      mlir::MemRefType memRefType = spad.getType().cast<mlir::MemRefType>();
+      SmallVector<mlir::AffineExpr, 4> indices(memRefType.getShape().size(),
+                                               b.getAffineConstantExpr(0));
+      SmallVector<mlir::Value, 4> operands;
+
+      b.setInsertionPointAfter(op);
+      int numOperands = 0;
+      for (auto forOp : enumerate(forOps)) {
+        mlir::AffineMap lbMap = forOp.value().getLowerBoundMap();
+        llvm::SmallVector<mlir::Value, 4> lbOperands{
+            forOp.value().getLowerBoundOperands()};
+        mlir::Value lb =
+            b.create<mlir::AffineApplyOp>(op->getLoc(), lbMap, lbOperands);
+
+        indices[forOp.index()] = b.getAffineDimExpr(numOperands) -
+                                 b.getAffineDimExpr(numOperands + 1);
+
+        operands.push_back(forOp.value().getInductionVar());
+        operands.push_back(lb);
+        numOperands += 2;
+
+        // TODO: should use a comprehensive array expansion algorithm.
+        if (isa<mlir::AffineStoreOp>(op)) {
+          mlir::AffineMap ubMap = forOp.value().getUpperBoundMap();
+          llvm::SmallVector<mlir::Value, 4> ubOperands{
+              forOp.value().getUpperBoundOperands()};
+          mlir::Value ub =
+              b.create<mlir::AffineApplyOp>(op->getLoc(), ubMap, ubOperands);
+
+          mlir::Value size = b.create<mlir::AffineApplyOp>(
+              op->getLoc(),
+              mlir::AffineMap::get(
+                  0, 2, b.getAffineSymbolExpr(0) - b.getAffineSymbolExpr(1)),
+              ValueRange({ub, lb}));
+
+          indices[forOp.index()] =
+              (indices[forOp.index()] + b.getAffineConstantExpr(1)) %
+              b.getAffineDimExpr(numOperands);
+          operands.push_back(size);
+          numOperands++;
+        }
+      }
+
+      mlir::AffineMap affMap =
+          mlir::AffineMap::get(numOperands, 0, indices, b.getContext());
+
+      if (isa<mlir::AffineLoadOp>(op)) {
+        mlir::AffineLoadOp loadOp = dyn_cast<mlir::AffineLoadOp>(op);
+        mlir::AffineLoadOp newLoadOp = b.create<mlir::AffineLoadOp>(
+            op->getLoc(), loadOp.getMemRef(), affMap, operands);
+        loadOp.replaceAllUsesWith(newLoadOp.getOperation());
+        loadOp.erase();
+      } else {
+        assert(isa<mlir::AffineStoreOp>(op));
+        mlir::AffineStoreOp storeOp = dyn_cast<mlir::AffineStoreOp>(op);
+        b.create<mlir::AffineStoreOp>(op->getLoc(), storeOp.getValueToStore(),
+                                      storeOp.getMemRef(), affMap, operands);
+        storeOp.erase();
+      }
+    }
+  }
+}
+
+/// Expand scratchpad based on its deepest/widest loop nest.
+/// TODO: allow expansion to a specific depth.
+static void expandScratchpad(mlir::FuncOp f, mlir::Value spad, OpBuilder &b) {
+  mlir::SmallVector<FlatAffineConstraints, 4> domains;
+  getScratchpadIterDomains(spad, domains);
+  FlatAffineConstraints unionDomain = unionScratchpadIterDomains(domains);
+
+  mlir::Value newSpad =
+      annotateScratchpad(createScratchpadAllocaOp(f, spad, unionDomain, b));
+  spad.replaceAllUsesWith(newSpad);
+  resetLoadAndStoreOpsToScratchpad(f, newSpad, b);
+  spad.getDefiningOp()->erase();
+}
+
+static void arrayExpansion(mlir::FuncOp f, OpBuilder &b) {
+  SmallVector<mlir::Value, 4> spads;
+  findAllScratchpads(f, spads);
+  for (mlir::Value spad : spads)
+    expandScratchpad(f, spad, b);
+}
+
+namespace {
+class ArrayExpansionPass
+    : public mlir::PassWrapper<ArrayExpansionPass,
+                               OperationPass<mlir::FuncOp>> {
+public:
+  void runOnOperation() override {
+    mlir::FuncOp f = getOperation();
+    OpBuilder b(f.getContext());
+
+    arrayExpansion(f, b);
+  }
+};
+} // namespace
+
 void polymer::registerRegToMemPass() {
   PassRegistration<RegToMemPass>("reg2mem", "Demote register to memref.");
   PassRegistration<InsertRedundantLoadPass>(
@@ -545,4 +886,12 @@ void polymer::registerRegToMemPass() {
                                "creating unnecessary scratchpads.");
   PassRegistration<DemoteLoopReductionPass>(
       "demote-loop-reduction", "Demote reduction to normal affine.for");
+
+  PassPipelineRegistration<>(
+      "array-expansion",
+      "Expand scratchpad to allow independant access across iteration domain.",
+      [](mlir::OpPassManager &pm) {
+        pm.addPass(std::make_unique<ArrayExpansionPass>());
+        pm.addPass(mlir::createCanonicalizerPass());
+      });
 }
