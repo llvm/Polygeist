@@ -54,6 +54,11 @@ def AffineCFG : FunctionPass<"affine-cfg"> {
   let constructor = "mlir::replaceAffineCFGPass()";
 }
 
+def AffineReduction : FunctionPass<"detect-reduction"> {
+  let summary = "Detect reductions in affine.for";
+  let constructor = "mlir::detectReductionPass()";
+}
+
 def AffineLoopTiling : FunctionPass<"affine-loop-tile"> {
   let summary = "Tile affine loop nests";
   let constructor = "mlir::createLoopTilingPass()";

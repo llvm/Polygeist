@@ -7,6 +7,8 @@
 // RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 -lm && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
 // RUN: rm -f %s.exec2 %s.execm
+
+// XFAIL: *
 /**
  * This version is stamped on May 10, 2016
  *

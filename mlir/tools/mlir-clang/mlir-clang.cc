@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(mlir::createRaiseSCFToAffinePass());
     }
+    optPM.addPass(mlir::detectReductionPass());
     if (mlir::failed(pm.run(module))) {
       module.dump();
       return 4;
