@@ -13,14 +13,6 @@ Bridging polyhedral analysis tools to the MLIR framework.
 }
 ```
 
-- [Polymer](#polymer)
-  - [Setup](#setup)
-    - [Setup with Docker](#setup-with-docker)
-    - [Manual Setup](#manual-setup)
-  - [Install](#install)
-  - [Basic usage](#basic-usage)
-
-
 ## Setup
 
 ### Setup with Docker
