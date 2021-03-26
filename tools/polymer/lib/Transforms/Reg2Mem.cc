@@ -801,27 +801,6 @@ static void resetLoadAndStoreOpsToScratchpad(mlir::FuncOp f, mlir::Value spad,
         operands.push_back(forOp.value().getInductionVar());
         operands.push_back(lb);
         numOperands += 2;
-
-        // TODO: should use a comprehensive array expansion algorithm.
-        if (isa<mlir::AffineStoreOp>(op)) {
-          mlir::AffineMap ubMap = forOp.value().getUpperBoundMap();
-          llvm::SmallVector<mlir::Value, 4> ubOperands{
-              forOp.value().getUpperBoundOperands()};
-          mlir::Value ub =
-              b.create<mlir::AffineApplyOp>(op->getLoc(), ubMap, ubOperands);
-
-          mlir::Value size = b.create<mlir::AffineApplyOp>(
-              op->getLoc(),
-              mlir::AffineMap::get(
-                  0, 2, b.getAffineSymbolExpr(0) - b.getAffineSymbolExpr(1)),
-              ValueRange({ub, lb}));
-
-          indices[forOp.index()] =
-              (indices[forOp.index()] + b.getAffineConstantExpr(1)) %
-              b.getAffineDimExpr(numOperands);
-          operands.push_back(size);
-          numOperands++;
-        }
       }
 
       mlir::AffineMap affMap =
