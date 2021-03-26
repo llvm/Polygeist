@@ -4,10 +4,22 @@
 
 Bridging polyhedral analysis tools to the MLIR framework.
 
-Supported polyhedral schedulers:
+```bib
+@inproceedings{polygeist,
+  title={Polygeist: Affine C in MLIR},
+  author={Moses, William S and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
+  booktitle={{IMPACT}},
+  year={2021}
+}
+```
 
-- [x] Pluto
-- [ ] ISL
+- [Polymer](#polymer)
+  - [Setup](#setup)
+    - [Setup with Docker](#setup-with-docker)
+    - [Manual Setup](#manual-setup)
+  - [Install](#install)
+  - [Basic usage](#basic-usage)
+
 
 ## Setup
 
