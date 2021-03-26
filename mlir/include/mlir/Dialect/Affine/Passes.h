@@ -34,6 +34,8 @@ createAffineLoopInvariantCodeMotionPass();
 /// Creates a pass replacing scf.if with affine.if and similar
 std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
 
+std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
+
 /// Creates a pass to convert all parallel affine.for's into 1-d affine.parallel
 /// ops.
 std::unique_ptr<OperationPass<FuncOp>> createAffineParallelizePass();
