@@ -129,7 +129,7 @@ int main(int argc, char **argv) {
   if (EmitLLVM) {
     pm.addPass(mlir::createLowerAffinePass());
     pm.addPass(mlir::createLowerToCFGPass());
-    LowerToLLVMOptions options;
+    LowerToLLVMOptions options(&context);
     // invalid for gemm.c init array
     // options.useBarePtrCallConv = true;
     options.dataLayout = DL;

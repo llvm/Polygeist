@@ -122,11 +122,11 @@ int main(int argc, char** argv)
 
 // CHECK: func private @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<2000x2000xf64>) {
 // CHECK-NEXT:      %cst = constant 9.000000e+00 : f64
-// CHECK-NEXT:      %0 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:      %1 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:      affine.for %arg3 = 0 to %1 {
-// CHECK-NEXT:        affine.for %arg4 = 1 to #map()[%0] {
-// CHECK-NEXT:          affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:      %0 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:      %1 = index_cast %arg1 : i32 to index
+// CHECK-NEXT:      affine.for %arg3 = 0 to %0 {
+// CHECK-NEXT:        affine.for %arg4 = 1 to #map()[%1] {
+// CHECK-NEXT:          affine.for %arg5 = 1 to #map()[%1] {
 // CHECK-NEXT:            %2 = affine.load %arg2[%arg4 - 1, %arg5 - 1] : memref<2000x2000xf64>
 // CHECK-NEXT:            %3 = affine.load %arg2[%arg4 - 1, %arg5] : memref<2000x2000xf64>
 // CHECK-NEXT:            %4 = addf %2, %3 : f64
