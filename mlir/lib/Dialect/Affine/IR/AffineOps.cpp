@@ -1947,11 +1947,183 @@ struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
     return success();
   }
 };
+
+struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
+  using OpRewritePattern<AffineForOp>::OpRewritePattern;
+
+  bool isInCurrentAffineFor(Operation *op, AffineForOp forOp) const {
+    auto *curOp = op;
+    while (auto *parentOp = curOp->getParentOp()) {
+      auto maybeParentFor = dyn_cast<AffineForOp>(parentOp);
+      if (maybeParentFor && maybeParentFor == forOp)
+        return true;
+      curOp = parentOp;
+    }
+    return false;
+  }
+
+  bool hasAllDimsReduced(ArrayRef<Value> indices, Value indVar) const {
+    if (llvm::all_of(indices,
+                     [indVar](Value index) { return index != indVar; }))
+      return true;
+    return false;
+  }
+
+  // bool isAffineLoadWithReducedDims(Operation *op, Value indVar) const {
+  //  if (auto load = dyn_cast<AffineLoadOp>(op)) {
+  //    SmallVector<Value, 4> indices(load.indices());
+  //    return hasAllDimReduced(indices, indVar);
+  //  }
+  //  return false;
+  //}
+
+  // bool isAffineStoreWithReducedDims(Operation *op, Value indVar) const {
+  //  if (auto store = dyn_cast<AffineStoreOp>(op)) {
+  //    SmallVector<Value, 4> indices(store.indices());
+  //    return hasAllDimReduced(indices, indVar);
+  //  }
+  //  return false;
+  //}
+
+  template <typename T>
+  bool haveSameIndices(AffineLoadOp load, T storeOrLoad) const {
+    static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
+                  "applies to only AffineLoadOp or AffineStoreOp");
+    SmallVector<Value, 4> loadIndices(load.indices());
+    SmallVector<Value, 4> storeIndices = storeOrLoad.indices();
+    if (loadIndices.size() != storeIndices.size())
+      return false;
+    return std::equal(loadIndices.begin(), loadIndices.end(),
+                      storeIndices.begin());
+  }
+
+  // bool isCurrentLoad(Operation *op, AffineLoadOp load) const {
+  //  auto currentLoad = dyn_cast<AffineLoadOp>(op);
+  //  if (currentLoad && currentLoad == load)
+  //    return true;
+  //  return false;
+  //}
+
+  LogicalResult matchAndRewrite(AffineForOp forOp,
+                                PatternRewriter &rewriter) const override {
+    Block *block = forOp.getBody();
+    SmallVector<std::pair<Operation *, Operation *>, 0> candidateOpsInFor;
+    SmallVector<Operation *> candidateLoadsOutsideFor;
+    block->walk([&](Operation *operation) {
+      if (auto load = dyn_cast<AffineLoadOp>(operation)) {
+        Value memref = load.getMemRef();
+        bool foundLoad = false;
+        bool foundStore = false;
+        for (auto user : memref.getUsers()) {
+          if (auto maybeOutsideLoad = dyn_cast<AffineLoadOp>(user)) {
+            // check for a load outside the current for.
+            if (!foundLoad &&
+                !isInCurrentAffineFor(maybeOutsideLoad.getOperation(), forOp) &&
+                maybeOutsideLoad.getMemRef() == memref &&
+                haveSameIndices<AffineLoadOp>(load, maybeOutsideLoad)) {
+              foundLoad = true;
+              candidateLoadsOutsideFor.push_back(user);
+            }
+          }
+          if (auto store = dyn_cast<AffineStoreOp>(user)) {
+            SmallVector<Value, 4> indices(load.indices());
+            // check for a store in the current for.
+            if (!foundStore &&
+                isInCurrentAffineFor(store.getOperation(), forOp) &&
+                store.getMemRef() == memref &&
+                haveSameIndices<AffineStoreOp>(load, store) &&
+                hasAllDimsReduced(indices, forOp.getInductionVar())) {
+              foundStore = true;
+              candidateOpsInFor.push_back(
+                  std::make_pair(load.getOperation(), store.getOperation()));
+            }
+          }
+        }
+      }
+    });
+
+    // no work to do.
+    if (!candidateOpsInFor.size() || !candidateLoadsOutsideFor.size() ||
+        (candidateOpsInFor.size() != candidateLoadsOutsideFor.size()))
+      return failure();
+
+    // move the load outside the loop. All the load indexes are
+    // not used in the current for (see hasAllDimReduced).
+    // The load result are passed to the new forOp as iter args.
+    SmallVector<Value, 4> newIterArgs;
+    llvm::append_range(newIterArgs, forOp.getRegionIterArgs());
+    rewriter.setInsertionPoint(forOp);
+    for (auto pair : candidateOpsInFor) {
+      auto movedLoad = rewriter.clone(*std::get<0>(pair));
+      newIterArgs.push_back(movedLoad->getResult(0));
+    }
+
+    // create the for.
+    AffineForOp newForOp = rewriter.create<AffineForOp>(
+        forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
+        forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
+        forOp.getStep(), newIterArgs);
+
+    // remove load operation inside the for.
+    size_t i = 0;
+    for (auto pair : candidateOpsInFor) {
+      std::get<0>(pair)->getResult(0).replaceAllUsesWith(
+          newForOp.getBody()
+              ->getArguments()[i + forOp.getNumRegionIterArgs() + 1]);
+      rewriter.eraseOp(std::get<0>(pair));
+      ++i;
+    }
+
+    Block *newBlock = newForOp.getBody();
+    Block *oldBlock = forOp.getBody();
+    SmallVector<Value, 4> newBlockTransferArgs;
+    newBlockTransferArgs.push_back(newForOp.getInductionVar());
+    for (size_t i = 0; i < forOp.getNumRegionIterArgs(); i++)
+      newBlockTransferArgs.push_back(newForOp.getRegionIterArgs()[i]);
+    assert(oldBlock->getNumArguments() == newBlockTransferArgs.size() &&
+           "unexpected argument size mismatch");
+    rewriter.mergeBlocks(oldBlock, newBlock, newBlockTransferArgs);
+
+    auto cloneFilteredTerminator = [&](AffineYieldOp mergedTerminator) {
+      SmallVector<Value, 4> newOperands;
+      llvm::append_range(newOperands, mergedTerminator.getOperands());
+      // store operands are now returned.
+      for (auto pair : candidateOpsInFor) {
+        newOperands.push_back(std::get<1>(pair)->getOperand(0));
+        rewriter.eraseOp(std::get<1>(pair));
+      }
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPoint(mergedTerminator);
+      rewriter.create<AffineYieldOp>(mergedTerminator.getLoc(), newOperands);
+    };
+
+    auto mergedYieldOp = cast<AffineYieldOp>(newBlock->getTerminator());
+    cloneFilteredTerminator(mergedYieldOp);
+
+    // propagate results new forOp to downstream users.
+    i = 0;
+    for (auto outsideLoad : candidateLoadsOutsideFor)
+      outsideLoad->getResult(0).replaceAllUsesWith(
+          newForOp.getResults()[forOp.getResults().size() + i++]);
+    rewriter.eraseOp(mergedYieldOp);
+
+    // prepare for new yielded value for 'replaceOp'.
+    SmallVector<Value, 4> newYieldedRes;
+    SmallVector<Value, 4> newRes(newForOp.getResults());
+    int additionalRes =
+        newForOp.getResults().size() - forOp.getResults().size();
+    assert(additionalRes >= 0 && "must be >= 0");
+    newRes.insert(newRes.end(), newRes.begin(), newRes.end() - additionalRes);
+
+    rewriter.replaceOp(forOp, newYieldedRes);
+    return success();
+  }
+};
 } // end anonymous namespace
 
 void AffineForOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
-  results.insert<AffineForEmptyLoopFolder>(context);
+  results.insert<AffineForEmptyLoopFolder, AffineForReductionIter>(context);
 }
 
 LogicalResult AffineForOp::fold(ArrayRef<Attribute> operands,
