@@ -163,7 +163,8 @@ AffineExprBuilder::process(clast_name *expr,
       affExprs.push_back(b.getAffineSymbolExpr(symbolNames[expr->name]));
     else {
       affExprs.push_back(b.getAffineSymbolExpr(symbolNames.size()));
-      symbolNames[expr->name] = symbolNames.size();
+      size_t numSymbols = symbolNames.size();
+      symbolNames[expr->name] = numSymbols;
 
       Value v = symbolTable->lookup(expr->name);
       valueMap[v] = expr->name;
@@ -173,7 +174,8 @@ AffineExprBuilder::process(clast_name *expr,
       affExprs.push_back(b.getAffineDimExpr(dimNames[expr->name]));
     else {
       affExprs.push_back(b.getAffineDimExpr(dimNames.size()));
-      dimNames[expr->name] = dimNames.size();
+      size_t numDims = dimNames.size();
+      dimNames[expr->name] = numDims;
       valueMap[iv] = expr->name;
     }
   } else {

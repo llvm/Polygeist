@@ -28,6 +28,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/Utils.h"
@@ -36,10 +37,25 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
+namespace {
+struct PlutoOptPipelineOptions
+    : public mlir::PassPipelineOptions<PlutoOptPipelineOptions> {
+  Option<std::string> dumpClastAfterPluto{
+      *this, "dump-clast-after-pluto",
+      llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
+                     "optimization.")};
+  Option<bool> parallelize{
+      *this, "parallelize",
+      llvm::cl::desc("Enable parallelization from Pluto.")};
+};
+
+} // namespace
+
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
-                                   std::string dumpClastAfterPluto) {
+                                   std::string dumpClastAfterPluto,
+                                   bool parallelize) {
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -59,7 +75,7 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   context->options->readscop = 1;
 
   context->options->identity = 0;
-  context->options->parallel = 0;
+  context->options->parallel = parallelize;
   context->options->unrolljam = 0;
   context->options->prevector = 0;
 
@@ -85,14 +101,15 @@ namespace {
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
                                OperationPass<mlir::ModuleOp>> {
+  std::string dumpClastAfterPluto = "";
+  bool parallelize = false;
+
 public:
   PlutoTransformPass() = default;
   PlutoTransformPass(const PlutoTransformPass &pass) {}
-
-  Option<std::string> dumpClastAfterPluto{
-      *this, "dump-clast-after-pluto",
-      llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
-                     "optimization.")};
+  PlutoTransformPass(const PlutoOptPipelineOptions &options)
+      : dumpClastAfterPluto(options.dumpClastAfterPluto),
+        parallelize(options.parallelize) {}
 
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
@@ -107,7 +124,8 @@ public:
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g = plutoTransform(f, b, dumpClastAfterPluto)) {
+      if (mlir::FuncOp g =
+              plutoTransform(f, b, dumpClastAfterPluto, parallelize)) {
         funcMap[f] = g;
         g.setPrivate();
       }
@@ -131,6 +149,10 @@ public:
 } // namespace
 
 void polymer::registerPlutoTransformPass() {
-  PassRegistration<PlutoTransformPass>("pluto-opt",
-                                       "Optimization implemented by PLUTO.");
+  PassPipelineRegistration<PlutoOptPipelineOptions>(
+      "pluto-opt", "Optimization implemented by PLUTO.",
+      [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
+        pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
+        pm.addPass(createCanonicalizerPass());
+      });
 }
