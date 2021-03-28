@@ -148,11 +148,123 @@ public:
 
 } // namespace
 
+// -------------------------- PlutoParallelizePass ----------------------------
+
+/// Find a single affine.for with scop.parallelizable attr.
+static mlir::AffineForOp findParallelizableLoop(mlir::FuncOp f) {
+  mlir::AffineForOp ret = nullptr;
+  f.walk([&ret](mlir::AffineForOp forOp) {
+    if (!ret && forOp->hasAttr("scop.parallelizable"))
+      ret = forOp;
+  });
+  return ret;
+}
+
+/// Turns a single affine.for with scop.parallelizable into affine.parallel. The
+/// design of this function is almost the same as affineParallelize. The
+/// differences are:
+///
+/// 1. It is not necessary to check whether the parentOp of a parallelizable
+/// affine.for has the AffineScop trait.
+static void plutoParallelize(mlir::AffineForOp forOp, OpBuilder b) {
+  assert(forOp->hasAttr("scop.parallelizable"));
+
+  OpBuilder::InsertionGuard guard(b);
+  b.setInsertionPointAfter(forOp);
+
+  Location loc = forOp.getLoc();
+
+  // If a loop has a 'max' in the lower bound, emit it outside the parallel loop
+  // as it does not have implicit 'max' behavior.
+  AffineMap lowerBoundMap = forOp.getLowerBoundMap();
+  ValueRange lowerBoundOperands = forOp.getLowerBoundOperands();
+  AffineMap upperBoundMap = forOp.getUpperBoundMap();
+  ValueRange upperBoundOperands = forOp.getUpperBoundOperands();
+
+  bool needsMax = lowerBoundMap.getNumResults() > 1;
+  bool needsMin = upperBoundMap.getNumResults() > 1;
+  AffineMap identityMap;
+  if (needsMax || needsMin)
+    identityMap = AffineMap::getMultiDimIdentityMap(1, loc->getContext());
+  if (needsMax) {
+    auto maxOp = b.create<AffineMaxOp>(loc, lowerBoundMap, lowerBoundOperands);
+    lowerBoundMap = identityMap;
+    lowerBoundOperands = maxOp->getResults();
+  }
+
+  // Same for the upper bound.
+  if (needsMin) {
+    auto minOp = b.create<AffineMinOp>(loc, upperBoundMap, upperBoundOperands);
+    upperBoundMap = identityMap;
+    upperBoundOperands = minOp->getResults();
+  }
+
+  // Creating empty 1-D affine.parallel op.
+  AffineParallelOp newPloop = b.create<AffineParallelOp>(
+      loc, llvm::None, llvm::None, lowerBoundMap, lowerBoundOperands,
+      upperBoundMap, upperBoundOperands);
+  // Steal the body of the old affine for op and erase it.
+  newPloop.region().takeBody(forOp.region());
+
+  for (auto user : forOp->getUsers()) {
+    user->dump();
+  }
+  forOp.erase();
+}
+
+/// Need to check whether the bounds of the for loop are using top-level values
+/// as operands. If not, then the loop cannot be directly turned into
+/// affine.parallel.
+static bool isBoundParallelizable(mlir::AffineForOp forOp, bool isUpper) {
+  llvm::SmallVector<mlir::Value, 4> mapOperands =
+      isUpper ? forOp.getUpperBoundOperands() : forOp.getLowerBoundOperands();
+
+  for (mlir::Value operand : mapOperands)
+    if (!isTopLevelValue(operand))
+      return false;
+  return true;
+}
+static bool isBoundParallelizable(mlir::AffineForOp forOp) {
+  return isBoundParallelizable(forOp, true) &&
+         isBoundParallelizable(forOp, false);
+}
+
+/// Iteratively replace affine.for with scop.parallelizable with
+/// affine.parallel.
+static void plutoParallelize(mlir::FuncOp f, OpBuilder b) {
+  mlir::AffineForOp forOp = nullptr;
+  while ((forOp = findParallelizableLoop(f)) != nullptr) {
+    if (!isBoundParallelizable(forOp))
+      llvm_unreachable(
+          "Loops marked as parallelizable should have parallelizable bounds.");
+    plutoParallelize(forOp, b);
+  }
+}
+
+namespace {
+/// Turn affine.for marked as scop.parallelizable by Pluto into actual
+/// affine.parallel operation.
+struct PlutoParallelizePass
+    : public mlir::PassWrapper<PlutoParallelizePass,
+                               OperationPass<mlir::FuncOp>> {
+  void runOnOperation() override {
+    FuncOp f = getOperation();
+    OpBuilder b(f.getContext());
+
+    plutoParallelize(f, b);
+  }
+};
+} // namespace
+
 void polymer::registerPlutoTransformPass() {
   PassPipelineRegistration<PlutoOptPipelineOptions>(
       "pluto-opt", "Optimization implemented by PLUTO.",
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
         pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
         pm.addPass(createCanonicalizerPass());
+        if (pipelineOptions.parallelize) {
+          pm.addPass(std::make_unique<PlutoParallelizePass>());
+          pm.addPass(createCanonicalizerPass());
+        }
       });
 }
