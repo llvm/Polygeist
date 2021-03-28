@@ -10,6 +10,9 @@
 #include "pluto/internal/pluto.h"
 #include "pluto/osl_pluto.h"
 #include "pluto/pluto.h"
+extern "C" {
+#include "pluto/internal/ast_transform.h"
+}
 
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
@@ -24,6 +27,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -1322,6 +1326,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Create the for operation.
   mlir::AffineForOp forOp = b.create<mlir::AffineForOp>(
       UnknownLoc::get(context), lbOperands, lbMap, ubOperands, ubMap, stride);
+
   // forOp.dump();
 
   // Update the loop IV mapping.
@@ -1375,6 +1380,11 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   //     // fulfillSymbolDependence(it.first());
   //   }
   // }
+
+  // TODO: affine.parallel currently has more restrictions on what it can cover.
+  // So we don't create a parallel op at this stage.
+  if (forStmt->parallel)
+    forOp.setAttr("scop.parallelizable", b.getUnitAttr());
 
   return success();
 }
@@ -1523,11 +1533,18 @@ static void unrollJamClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
   clast_unroll_jam(root);
 }
 
+static void markParallel(clast_stmt *root, const PlutoProg *prog,
+                         CloogOptions *cloogOptions) {
+  pluto_mark_parallel(root, prog, cloogOptions);
+}
+
 static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
                                       CloogOptions *cloogOptions,
                                       PlutoOptions *plutoOptions) {
   if (plutoOptions->unrolljam)
     unrollJamClastByPlutoProg(root, prog, cloogOptions, plutoOptions->ufactor);
+  if (plutoOptions->parallel)
+    markParallel(root, prog, cloogOptions);
 }
 
 mlir::Operation *polymer::createFuncOpFromOpenScop(
