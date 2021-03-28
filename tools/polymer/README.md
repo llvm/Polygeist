@@ -1,6 +1,6 @@
 # Polymer
 
-![Build and Test](https://github.com/kumasento/polymer/workflows/Build%20and%20Test/badge.svg)
+[![Build and Test](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml/badge.svg)](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml)
 
 Bridging polyhedral analysis tools to the MLIR framework.
 
