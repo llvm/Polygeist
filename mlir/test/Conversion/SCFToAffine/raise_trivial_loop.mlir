@@ -10,9 +10,9 @@ func private @trivial_loop(%arg0: i32, %arg1: i32, %arg3: f64, %arg4: memref<100
     scf.for %arg5 = %c0 to %0 step %c1	{
       // CHECK: affine.for
       scf.for %arg6 = %c0 to %1 step %c1 {
-        %3 = load %arg4[%arg5, %arg6] : memref<1000x1100xf64>
+        %3 = memref.load %arg4[%arg5, %arg6] : memref<1000x1100xf64>
         %4 = mulf %3, %arg3 : f64
-        store %4, %arg4[%arg5, %arg6] : memref<1000x1100xf64>
+        memref.store %4, %arg4[%arg5, %arg6] : memref<1000x1100xf64>
       } 
     }
     return
