@@ -128,7 +128,7 @@ function run_pluto()
 
   # Apply Pluto
   if [[ "${SKIP_CODEGEN}" = "false" ]]; then
-    polycc ${PLUTO_OPTIONS} "${SRC_FILE}" -o "${PLUTO_SRC_FILE}" 2>&1 >"${POLYCC_LOG}"
+    polycc ${PLUTO_OPTIONS} "${SRC_FILE}" -o "${PLUTO_SRC_FILE}" 2>&1 | tee "${POLYCC_LOG}" &>/dev/null
   fi
   if [ ! -f "${PLUTO_SRC_FILE}" ]; then
     echo "Expected Pluto output ${PLUTO_SRC_FILE} does not exist."
@@ -173,6 +173,8 @@ function run_polymer()
   local __RESULT_POLYMER_RUN_TIME="$3"
   local POLYMER_SRC_FILE="${SRC_FILE%.mlir}.polymer.mlir"
   local POLYMER_LLVM_IR_FILE="${SRC_FILE%.mlir}.polymer.ll"
+  local POLYMER_LLVM_IR_TMP_FILE="${SRC_FILE%.mlir}.polymer.tmp.ll"
+  local POLYMER_LLVM_IR_OPT_FILE="${SRC_FILE%.mlir}.polymer.opt.ll"
   local POLYMER_CLAST_FILE="${SRC_FILE%.mlir}.polymer.cloog"
   local POLYMER_EXE_FILE="${SRC_FILE%.mlir}.polymer.exe"
   local POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
@@ -199,7 +201,14 @@ function run_polymer()
     opt -S "${POLYMER_LLVM_IR_FILE}" -march=native -O3 -o "${POLYMER_LLVM_IR_FILE}" 
   fi
 
-  clang "${POLYMER_LLVM_IR_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
+
+  if [ "${OPT_CONFIG}" = "2" ]; then
+    opt -S "${POLYMER_LLVM_IR_FILE}" -O3 ${OPT_OPTIONS} -o "${POLYMER_LLVM_IR_OPT_FILE}" 
+  else
+    cp "${POLYMER_LLVM_IR_FILE}" "${POLYMER_LLVM_IR_OPT_FILE}" 
+  fi
+
+  clang "${POLYMER_LLVM_IR_OPT_FILE}" "${POLYBENCH_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${POLYMER_EXE_FILE}" -lm \
     -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET -save-temps
 
   # Run the Polymer-compiled executable
