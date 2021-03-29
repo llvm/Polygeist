@@ -140,7 +140,7 @@ function run_pluto()
     clang "${PLUTO_SRC_FILE}" -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" -O -Xclang -disable-llvm-passes \
       -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
   elif [ "${OPT_CONFIG}" = "2" ]; then
-    clang "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
+    clang  "${PLUTO_SRC_FILE}" -O3 ${CLANG_OPTIONS} -o "${PLUTO_LLVM_IR_FILE}" -S -emit-llvm -I "${UTILITIES_DIR}" \
       -D POLYBENCH_TIME -D POLYBENCH_NO_FLUSH_CACHE -D EXTRALARGE_DATASET  
   fi
 
