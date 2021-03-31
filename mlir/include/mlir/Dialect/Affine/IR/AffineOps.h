@@ -39,10 +39,6 @@ struct AffineApplyNormalizer {
   unsigned getNumSymbols() { return concatenatedSymbols.size(); }
   unsigned getNumDims() { return reorderedDims.size(); }
 
-  /// Normalizes 'otherMap' and its operands 'otherOperands' to map to this
-  /// normalizer's coordinate space.
-  void normalize(AffineMap *otherMap, SmallVectorImpl<Value> *otherOperands);
-
 private:
   /// Helper function to insert `v` into the coordinate system of the current
   /// AffineApplyNormalizer. Returns the AffineDimExpr with the corresponding
