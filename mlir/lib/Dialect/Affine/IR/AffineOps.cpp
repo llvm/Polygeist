@@ -941,17 +941,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
   LLVM_DEBUG(affineMap.print(dbgs() << "\nSimplified result: "));
   LLVM_DEBUG(dbgs() << "\n");
-}
-
-void AffineApplyNormalizer::normalize(AffineMap *otherMap,
-                                      SmallVectorImpl<Value> *otherOperands) {
-  AffineApplyNormalizer other(*otherMap, *otherOperands);
-  *otherMap = renumber(other);
-
-  otherOperands->reserve(reorderedDims.size() + concatenatedSymbols.size());
-  otherOperands->assign(reorderedDims.begin(), reorderedDims.end());
-  otherOperands->append(concatenatedSymbols.begin(), concatenatedSymbols.end());
-}
+}\
 
 bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   for(size_t i=0; i<map->getNumInputs(); ++i) {
