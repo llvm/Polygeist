@@ -17,6 +17,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/OpenMP/OmpCommon.td"
 
@@ -174,6 +175,7 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              Variadic<AnyType>:$lastprivate_vars,
              Variadic<AnyType>:$linear_vars,
              Variadic<AnyType>:$linear_step_vars,
+             Variadic<LLVM_AnyPointer>:$reduction_vars,
              OptionalAttr<ScheduleKind>:$schedule_val,
              Optional<AnyType>:$schedule_chunk_var,
              Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$collapse_val,
@@ -181,6 +183,7 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
              Confined<OptionalAttr<I64Attr>, [IntMinValue<0>]>:$ordered_val,
              OptionalAttr<OrderKind>:$order_val,
              UnitAttr:$inclusive);
+  let results = (outs Variadic<AnyType>:$reduction_results);
 
   let skipDefaultBuilders = 1;
 
@@ -210,11 +213,12 @@ def WsLoopOp : OpenMP_Op<"wsloop", [AttrSizedOperandSegments,
 
   let parser = [{ return parseWsLoopOp(parser, result); }];
   let printer = [{ return printWsLoopOp(p, *this); }];
-  let verifier = [{ return ::verify(*this); }];
+  let verifier = [{ return ::verifyWsLoopOp(*this); }];
 }
 
-def YieldOp : OpenMP_Op<"yield", [NoSideEffect, ReturnLike, Terminator,
-                                  HasParent<"WsLoopOp">]> {
+def YieldOp : OpenMP_Op<"yield",
+    [NoSideEffect, ReturnLike, Terminator,
+     ParentOneOf<["WsLoopOp", "ReductionDeclareOp"]>]> {
   let summary = "loop yield and termination operation";
   let description = [{
     "omp.yield" yields SSA values from the OpenMP dialect op region and
@@ -301,6 +305,43 @@ def TaskwaitOp : OpenMP_Op<"taskwait"> {
   }];
 
   let assemblyFormat = "attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.19.5.7 declare reduction Directive
+//===----------------------------------------------------------------------===//
+
+def ReductionDeclareOp : OpenMP_Op<"reduction.declare", [Symbol]> {
+  let summary = "declares a reduction kind";
+
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       TypeAttr:$type);
+
+  let regions = (region AnyRegion:$initializerRegion,
+                        AnyRegion:$reductionRegion,
+                        AnyRegion:$atomicReductionRegion);
+  let verifier = "return ::verifyReductionDeclareOp(*this);";
+
+  let assemblyFormat = "$sym_name `:` $type attr-dict-with-keyword "
+                       "`neutral` $initializerRegion "
+                       "`reduction` $reductionRegion "
+                       "custom<AtomicReductionRegion>($atomicReductionRegion)";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.19.5.4 reduction clause
+//===----------------------------------------------------------------------===//
+
+def ReductionOp : OpenMP_Op<"reduction", [HasParent<"WsLoopOp">]> {
+  let summary = "reduction construct";
+  let description = [{
+    A reduction scoping clause and a reduction participating clause. These can
+    appear inside parallel and worksharing constructs.
+  }];
+
+  let arguments= (ins AnyType:$operand, SymbolRefAttr:$sym);
+  let assemblyFormat = "$sym $operand attr-dict `:` type($operand) ";
+  let verifier = "return ::verifyReductionOp(*this);";
 }
 
 #endif // OPENMP_OPS
