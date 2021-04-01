@@ -177,18 +177,20 @@ convertOmpParallel(Operation &opInst, llvm::IRBuilderBase &builder,
     pbKind = llvm::omp::getProcBindKind(bind.getValue());
   // TODO: Is the Parallel construct cancellable?
   bool isCancellable = false;
-  // TODO: Determine the actual alloca insertion point, e.g., the function
-  // entry or the alloca insertion point as provided by the body callback
-  // above.
-  llvm::OpenMPIRBuilder::InsertPointTy allocaIP(builder.saveIP());
-  if (failed(bodyGenStatus))
-    return failure();
+
+  // Insert allocas at the entry block of the current function.
+  llvm::BasicBlock &funcEntryBlock =
+      builder.GetInsertBlock()->getParent()->getEntryBlock();
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP(
+      &funcEntryBlock, funcEntryBlock.getFirstInsertionPt());
+
   llvm::OpenMPIRBuilder::LocationDescription ompLoc(
       builder.saveIP(), builder.getCurrentDebugLocation());
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createParallel(
       ompLoc, allocaIP, bodyGenCB, privCB, finiCB, ifCond, numThreads, pbKind,
       isCancellable));
-  return success();
+
+  return bodyGenStatus;
 }
 
 /// Converts an OpenMP 'master' operation into LLVM IR using OpenMPIRBuilder.
