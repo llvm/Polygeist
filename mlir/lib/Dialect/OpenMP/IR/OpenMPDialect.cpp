@@ -441,6 +441,23 @@ parseScheduleClause(OpAsmParser &parser, SmallString<8> &schedule,
   return success();
 }
 
+/// reduction-init ::= `reduction_vars` `(` value-and-type-list `)`
+/// value-and-type-list ::= ssa-value `:` type (`,` value-and-type-list)?
+static ParseResult
+parseReductionVarList(OpAsmParser &parser,
+                      SmallVectorImpl<OpAsmParser::OperandType> &operands,
+                      SmallVectorImpl<Type> &types) {
+  if (failed(parser.parseLParen()))
+    return failure();
+
+  do {
+    if (failed(parser.parseOperand(operands.emplace_back())) ||
+        failed(parser.parseColonType(types.emplace_back())))
+      return failure();
+  } while (succeeded(parser.parseOptionalComma()));
+  return parser.parseRParen();
+}
+
 /// Parses an OpenMP Workshare Loop operation
 ///
 /// operation ::= `omp.wsloop` loop-control clause-list
@@ -505,9 +522,10 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
   SmallVector<OpAsmParser::OperandType> linears;
   SmallVector<Type> linearTypes;
   SmallVector<OpAsmParser::OperandType> linearSteps;
+  SmallVector<OpAsmParser::OperandType> reductionVars;
+  SmallVector<Type> reductionVarTypes;
   SmallString<8> schedule;
   Optional<OpAsmParser::OperandType> scheduleChunkSize;
-  std::array<int, 9> segments{numIVs, numIVs, numIVs, 0, 0, 0, 0, 0, 0};
 
   const StringRef opName = result.name.getStringRef();
   StringRef keyword;
@@ -521,8 +539,10 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
     lastprivateClausePos,
     linearClausePos,
     linearStepPos,
+    reductionVarPos,
     scheduleClausePos,
   };
+  std::array<int, 10> segments{numIVs, numIVs, numIVs, 0, 0, 0, 0, 0, 0, 0};
 
   while (succeeded(parser.parseOptionalKeyword(&keyword))) {
     if (keyword == "private") {
@@ -594,6 +614,13 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
     } else if (keyword == "inclusive") {
       auto attr = UnitAttr::get(parser.getBuilder().getContext());
       result.addAttribute("inclusive", attr);
+    } else if (keyword == "reduction") {
+      if (segments[reductionVarPos])
+        return allowedOnce(parser, "reduction", opName);
+      if (failed(
+              parseReductionVarList(parser, reductionVars, reductionVarTypes)))
+        return failure();
+      segments[reductionVarPos] = reductionVars.size();
     }
   }
 
@@ -619,6 +646,13 @@ static ParseResult parseWsLoopOp(OpAsmParser &parser, OperationState &result) {
     SmallVector<Type> linearStepTypes(linearSteps.size(), linearStepType);
     parser.resolveOperands(linearSteps, linearStepTypes,
                            linearSteps[0].location, result.operands);
+  }
+
+  if (segments[reductionVarPos]) {
+    if (failed(parser.resolveOperands(reductionVars, reductionVarTypes,
+                                      parser.getNameLoc(), result.operands))) {
+      return failure();
+    }
   }
 
   if (!schedule.empty()) {
@@ -696,11 +730,93 @@ static void printWsLoopOp(OpAsmPrinter &p, WsLoopOp op) {
     p << " ordered(" << ordered << ")";
   }
 
+  if (!op.reduction_vars().empty()) {
+    p << " reduction(";
+    llvm::interleaveComma(op.reduction_vars(), p.getStream(),
+                          [&](Value v) { p << v << " : " << v.getType(); });
+    p << ")";
+  }
+
   if (op.inclusive()) {
     p << " inclusive";
   }
 
   p.printRegion(op.region(), /*printEntryBlockArgs=*/false);
+}
+
+//===----------------------------------------------------------------------===//
+// ReductionOp
+//===----------------------------------------------------------------------===//
+
+static ParseResult parseAtomicReductionRegion(OpAsmParser &parser,
+                                              Region &region) {
+  if (parser.parseOptionalKeyword("atomic"))
+    return success();
+  return parser.parseRegion(region);
+}
+
+static void printAtomicReductionRegion(OpAsmPrinter &printer,
+                                       ReductionDeclareOp op, Region &region) {
+  if (region.empty())
+    return;
+  printer << "atomic ";
+  printer.printRegion(region);
+}
+
+static LogicalResult verifyReductionDeclareOp(ReductionDeclareOp op) {
+  if (op.initializerRegion().empty())
+    return op.emitOpError() << "expects non-empty initializer region";
+  Block &initializerEntryBlock = op.initializerRegion().front();
+  if (!initializerEntryBlock.args_empty())
+    return op.emitOpError() << "expects initializer region with no arguments";
+
+  for (YieldOp yieldOp : op.initializerRegion().getOps<YieldOp>()) {
+    if (yieldOp.results().size() != 1 ||
+        yieldOp.results().getTypes()[0] != op.type())
+      return op.emitOpError() << "expects initializer region to yield a value "
+                                 "of the reduction type";
+  }
+
+  if (op.reductionRegion().empty())
+    return op.emitOpError() << "expects non-empty reduction region";
+  Block &reductionEntryBlock = op.reductionRegion().front();
+  if (reductionEntryBlock.getNumArguments() != 2 ||
+      reductionEntryBlock.getArgumentTypes()[0] !=
+          reductionEntryBlock.getArgumentTypes()[1] ||
+      reductionEntryBlock.getArgumentTypes()[0] != op.type())
+    return op.emitOpError() << "expects reduction region with two arguments of "
+                               "the reduction type";
+  for (YieldOp yieldOp : op.reductionRegion().getOps<YieldOp>()) {
+    if (yieldOp.results().size() != 1 ||
+        yieldOp.results().getTypes()[0] != op.type())
+      return op.emitOpError() << "expects reduction region to yield a value "
+                                 "of the reduction type";
+  }
+
+  if (op.atomicReductionRegion().empty())
+    return success();
+
+  Block &atomicReductionEntryBlock = op.atomicReductionRegion().front();
+  if (atomicReductionEntryBlock.getNumArguments() != 2 ||
+      atomicReductionEntryBlock.getArgumentTypes()[0] !=
+          atomicReductionEntryBlock.getArgumentTypes()[1])
+    return op.emitOpError() << "expects atomic reduction region with two "
+                               "arguments of the same type";
+  auto ptrType = atomicReductionEntryBlock.getArgumentTypes()[0]
+                     .dyn_cast<LLVM::LLVMPointerType>();
+  if (!ptrType || ptrType.getElementType() != op.type())
+    return op.emitOpError() << "expects atomic reduction region arguments to "
+                               "be pointers to the reduction type";
+  return success();
+}
+
+static LogicalResult verifyReductionOp(ReductionOp op) {
+  SymbolTable symbolTable(
+      op->getParentOfType<SymbolOpInterface>()->getParentOp());
+  if (!symbolTable.lookupNearestSymbolFrom<ReductionDeclareOp>(op, op.sym()))
+    return op.emitOpError()
+           << "expects a reference to an OpenMP reduction symbol";
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -771,7 +887,7 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &result,
            static_cast<int32_t>(firstprivateVars.size()),
            static_cast<int32_t>(lastprivateVars.size()),
            static_cast<int32_t>(linearVars.size()),
-           static_cast<int32_t>(linearStepVars.size()),
+           static_cast<int32_t>(linearStepVars.size()), 0,
            static_cast<int32_t>(scheduleChunkVar != nullptr ? 1 : 0)}));
 
   Region *bodyRegion = result.addRegion();
@@ -783,9 +899,33 @@ void WsLoopOp::build(OpBuilder &builder, OperationState &result,
   }
 }
 
-static LogicalResult verify(WsLoopOp loop) {
-  if (loop.lowerBound().empty())
-    return loop.emitOpError("must have non-empty lower bound ");
+static LogicalResult verifyWsLoopOp(WsLoopOp op) {
+  auto reductionOps = op.region().getOps<ReductionOp>();
+  unsigned numReductionOps =
+      std::distance(reductionOps.begin(), reductionOps.end());
+  if (numReductionOps != op.reduction_vars().size()) {
+    return op.emitOpError() << "expected as many reduction variables ("
+                            << op.reduction_vars().size() << ") as reductions ("
+                            << numReductionOps << ")";
+  }
+
+  for (auto args :
+       llvm::zip(op.reduction_vars().getTypes(), reductionOps,
+                 llvm::seq<unsigned>(0, op.reduction_vars().size()))) {
+    Type varType =
+        std::get<0>(args).cast<LLVM::LLVMPointerType>().getElementType();
+    Type operandType = std::get<1>(args).operand().getType();
+    if (varType != operandType) {
+      InFlightDiagnostic diag =
+          op.emitOpError() << "expected the types of reduction variable "
+                           << std::get<2>(args) << " and reduction operand "
+                           << std::get<2>(args) << " to match";
+      diag.attachNote() << "reduction variable type: " << varType;
+      diag.attachNote() << "reduction operand type: " << operandType;
+      return diag;
+    }
+  }
+
   return success();
 }
 
