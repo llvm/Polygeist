@@ -8,5 +8,6 @@ add_mlir_dialect_library(MLIROpenMP
   MLIROpenMPOpsIncGen
 
   LINK_LIBS PUBLIC
+  MLIRLLVMIR
   MLIRIR
   )
