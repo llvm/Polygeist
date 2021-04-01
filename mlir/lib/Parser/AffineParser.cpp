@@ -55,6 +55,7 @@ public:
   IntegerSet parseIntegerSetConstraints(unsigned numDims, unsigned numSymbols);
   ParseResult parseAffineMapOfSSAIds(AffineMap &map,
                                      OpAsmParser::Delimiter delimiter);
+  ParseResult parseAffineExprOfSSAIds(AffineExpr &expr);
   void getDimsAndSymbolSSAIds(SmallVectorImpl<StringRef> &dimAndSymbolSSAIds,
                               unsigned &numDims);
 
@@ -579,6 +580,11 @@ AffineParser::parseAffineMapOfSSAIds(AffineMap &map,
   return success();
 }
 
+ParseResult AffineParser::parseAffineExprOfSSAIds(AffineExpr &expr) {
+  expr = parseAffineExpr();
+  return success(expr != nullptr);
+}
+
 /// Parse the range and sizes affine map definition inline.
 ///
 ///  affine-map ::= dim-and-symbol-id-lists `->` multi-dim-affine-expr
@@ -723,4 +729,11 @@ Parser::parseAffineMapOfSSAIds(AffineMap &map,
                                OpAsmParser::Delimiter delimiter) {
   return AffineParser(state, /*allowParsingSSAIds=*/true, parseElement)
       .parseAffineMapOfSSAIds(map, delimiter);
+}
+
+ParseResult
+Parser::parseAffineExprOfSSAIds(AffineExpr &expr,
+                                function_ref<ParseResult(bool)> parseElement) {
+  return AffineParser(state, /*allowParsingSSAIds=*/true, parseElement)
+      .parseAffineExprOfSSAIds(expr);
 }

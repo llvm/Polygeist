@@ -649,7 +649,9 @@ def AffineParallelOp : Affine_Op<"parallel",
   let arguments = (ins
      TypedArrayAttrBase<AtomicRMWKindAttr, "Reduction ops">:$reductions,
      AffineMapAttr:$lowerBoundsMap,
+     I32ElementsAttr:$lowerBoundsGroups,
      AffineMapAttr:$upperBoundsMap,
+     I32ElementsAttr:$upperBoundsGroups,
      I64ArrayAttr:$steps,
      Variadic<Index>:$mapOperands);
   let results = (outs Variadic<AnyType>:$results);
@@ -659,19 +661,14 @@ def AffineParallelOp : Affine_Op<"parallel",
     OpBuilder<(ins "TypeRange":$resultTypes,
       "ArrayRef<AtomicRMWKind>":$reductions, "ArrayRef<int64_t>":$ranges)>,
     OpBuilder<(ins "TypeRange":$resultTypes,
-      "ArrayRef<AtomicRMWKind>":$reductions, "AffineMap":$lbMap,
-      "ValueRange":$lbArgs, "AffineMap":$ubMap, "ValueRange":$ubArgs)>,
-    OpBuilder<(ins "TypeRange":$resultTypes,
-      "ArrayRef<AtomicRMWKind>":$reductions, "AffineMap":$lbMap,
-      "ValueRange":$lbArgs, "AffineMap":$ubMap, "ValueRange":$ubArgs,
+      "ArrayRef<AtomicRMWKind>":$reductions, "ArrayRef<AffineMap>":$lbMaps,
+      "ValueRange":$lbArgs, "ArrayRef<AffineMap>":$ubMaps, "ValueRange":$ubArgs,
       "ArrayRef<int64_t>":$steps)>
   ];
 
   let extraClassDeclaration = [{
     /// Get the number of dimensions.
     unsigned getNumDims();
-
-    AffineValueMap getRangesValueMap();
 
     /// Get ranges as constants, may fail in dynamic case.
     Optional<SmallVector<int64_t, 8>> getConstantRanges();
@@ -682,11 +679,13 @@ def AffineParallelOp : Affine_Op<"parallel",
       return getBody()->getArguments();
     }
 
+    AffineMap getLowerBoundMap(unsigned pos);
     operand_range getLowerBoundsOperands();
     AffineValueMap getLowerBoundsValueMap();
     void setLowerBounds(ValueRange operands, AffineMap map);
     void setLowerBoundsMap(AffineMap map);
 
+    AffineMap getUpperBoundMap(unsigned pos);
     operand_range getUpperBoundsOperands();
     AffineValueMap getUpperBoundsValueMap();
     void setUpperBounds(ValueRange operands, AffineMap map);
@@ -697,8 +696,19 @@ def AffineParallelOp : Affine_Op<"parallel",
 
     static StringRef getReductionsAttrName() { return "reductions"; }
     static StringRef getLowerBoundsMapAttrName() { return "lowerBoundsMap"; }
+    static StringRef getLowerBoundsGroupsAttrName() {
+      return "lowerBoundsGroups";
+    }
     static StringRef getUpperBoundsMapAttrName() { return "upperBoundsMap"; }
+    static StringRef getUpperBoundsGroupsAttrName() {
+      return "upperBoundsGroups";
+    }
     static StringRef getStepsAttrName() { return "steps"; }
+
+    bool hasMinMaxBounds() {
+      return lowerBoundsMap().getNumResults() != getNumDims() ||
+             upperBoundsMap().getNumResults() != getNumDims();
+    }
   }];
 
   let hasFolder = 1;
