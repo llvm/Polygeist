@@ -1172,11 +1172,11 @@ void mlir::getSequentialLoops(AffineForOp forOp,
 }
 
 /// Returns true if 'forOp' is parallel.
-bool mlir::isLoopParallel(AffineForOp forOp) {
+bool mlir::isLoopParallel(AffineForOp forOp, bool reductionsAreParallel) {
   // Loop is not parallel if it has SSA loop-carried dependences.
   // TODO: Conditionally support reductions and other loop-carried dependences
   // that could be handled in the context of a parallel loop.
-  if (forOp.getNumIterOperands() > 0)
+  if (forOp.getNumIterOperands() > 0 && !reductionsAreParallel)
     return false;
 
   // Collect all load and store ops in loop nest rooted at 'forOp'.

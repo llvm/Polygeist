@@ -42,7 +42,7 @@ void AffineParallelize::runOnFunction() {
   // the front of a deque.
   std::deque<AffineForOp> parallelizableLoops;
   f.walk([&](AffineForOp loop) {
-    if (isLoopParallel(loop))
+    if (isLoopParallel(loop, /*reductionsAreParallel=*/true))
       parallelizableLoops.push_front(loop);
   });
 
@@ -55,8 +55,12 @@ void AffineParallelize::runOnFunction() {
         ++numParentParallelOps;
     }
 
-    if (numParentParallelOps < maxNested)
-      affineParallelize(loop);
+    if (numParentParallelOps < maxNested) {
+      if (failed(affineParallelize(loop))) {
+        signalPassFailure();
+        return;
+      }
+    }
   }
 }
 

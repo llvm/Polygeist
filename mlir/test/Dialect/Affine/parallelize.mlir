@@ -159,10 +159,11 @@ func @max_nested(%m: memref<?x?xf32>, %lb0: index, %lb1: index,
   return
 }
 
-// CHECK-LABEL: @unsupported_iter_args
-func @unsupported_iter_args(%in: memref<10xf32>) {
+// CHECK-LABEL: @iter_args
+func @iter_args(%in: memref<10xf32>) {
   %cst = constant 0.000000e+00 : f32
-  // CHECK-NOT: affine.parallel
+  // CHECK: affine.parallel
+  // CHECK: reduce ("addf")
   %final_red = affine.for %i = 0 to 10 iter_args(%red_iter = %cst) -> (f32) {
     %ld = affine.load %in[%i] : memref<10xf32>
     %add = addf %red_iter, %ld : f32
@@ -171,12 +172,13 @@ func @unsupported_iter_args(%in: memref<10xf32>) {
   return
 }
 
-// CHECK-LABEL: @unsupported_nested_iter_args
-func @unsupported_nested_iter_args(%in: memref<20x10xf32>) {
+// CHECK-LABEL: @nested_iter_args
+func @nested_iter_args(%in: memref<20x10xf32>) {
   %cst = constant 0.000000e+00 : f32
   // CHECK: affine.parallel
   affine.for %i = 0 to 20 {
-    // CHECK: affine.for
+    // CHECK: affine.parallel
+    // CHECK: reduce ("addf")
     %final_red = affine.for %j = 0 to 10 iter_args(%red_iter = %cst) -> (f32) {
       %ld = affine.load %in[%i, %j] : memref<20x10xf32>
       %add = addf %red_iter, %ld : f32
