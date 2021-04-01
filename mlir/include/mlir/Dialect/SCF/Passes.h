@@ -38,9 +38,6 @@ createParallelLoopTilingPass(llvm::ArrayRef<int64_t> tileSize = {});
 /// Creates a pass which raise SCF to Affine
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 
-/// Convert scf.while to scf.for.
-std::unique_ptr<Pass> createWhileOpToForOpPass();
-
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//
