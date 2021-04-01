@@ -72,26 +72,26 @@ public:
 struct ValueWithOffsets {
   mlir::Value val;
   bool isReference;
-  ValueWithOffsets() : val(nullptr), isReference(false) {};
-  ValueWithOffsets(std::nullptr_t) : val(nullptr), isReference(false) {};
-  ValueWithOffsets(mlir::Value val, bool isReference) :
-    val(val), isReference(isReference) {
-      if (isReference) {
-        if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+  ValueWithOffsets() : val(nullptr), isReference(false){};
+  ValueWithOffsets(std::nullptr_t) : val(nullptr), isReference(false){};
+  ValueWithOffsets(mlir::Value val, bool isReference)
+      : val(val), isReference(isReference) {
+    if (isReference) {
+      if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
 
-        } else if (val.getType().isa<mlir::MemRefType>()) {
+      } else if (val.getType().isa<mlir::MemRefType>()) {
 
-        } else {
-          llvm::errs() << val << "\n";
-          assert(val.getType().isa<mlir::MemRefType>());
-        }
-
+      } else {
+        llvm::errs() << val << "\n";
+        assert(val.getType().isa<mlir::MemRefType>());
       }
-    };
-  
-  mlir::Value getValue(OpBuilder& builder) const {
+    }
+  };
+
+  mlir::Value getValue(OpBuilder &builder) const {
     assert(val);
-    if (!isReference) return val;
+    if (!isReference)
+      return val;
     auto loc = builder.getUnknownLoc();
     if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
       return builder.create<mlir::LLVM::LoadOp>(loc, val);
@@ -101,16 +101,19 @@ struct ValueWithOffsets {
       llvm::errs() << val << "\n";
     }
     assert(val.getType().isa<mlir::MemRefType>());
-    return builder.create<memref::LoadOp>(loc, val, std::vector<mlir::Value>({c0}));
+    return builder.create<memref::LoadOp>(loc, val,
+                                          std::vector<mlir::Value>({c0}));
   }
 
-  ValueWithOffsets dereference(OpBuilder& builder) const {
+  ValueWithOffsets dereference(OpBuilder &builder) const {
     assert(val);
-    if (!isReference) return ValueWithOffsets(val, /*isReference*/true);
+    if (!isReference)
+      return ValueWithOffsets(val, /*isReference*/ true);
     auto loc = builder.getUnknownLoc();
     auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
     if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
-      return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val), /*isReference*/true);
+      return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val),
+                              /*isReference*/ true);
     }
     auto mt = val.getType().cast<mlir::MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
@@ -120,13 +123,12 @@ struct ValueWithOffsets {
       shape[0] = -1;
       // builder.create<LoadOp>(loc, val, std::vector<mlir::Value>({c0}))
     }
-    auto mt0 =
-        mlir::MemRefType::get(shape, mt.getElementType(),
-                              mt.getAffineMaps(), mt.getMemorySpace());
+    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                     mt.getAffineMaps(), mt.getMemorySpace());
     auto post = builder.create<memref::SubIndexOp>(loc, mt0, val, c0);
 
     return ValueWithOffsets(post,
-                            /*isReference*/true);
+                            /*isReference*/ true);
   }
 };
 
@@ -249,9 +251,9 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
-        globals(globals),
-        functions(functions), PP(PP), astContext(astContext), module(module),
-        SM(SM), lcontext(), llvmMod("tmp", lcontext), codegenops(),
+        globals(globals), functions(functions), PP(PP), astContext(astContext),
+        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
+        codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
@@ -363,7 +365,7 @@ public:
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
     // llvm::errs() << *fd << "\n";
-    //fd->dump();
+    // fd->dump();
 
     scopes.emplace_back();
 
