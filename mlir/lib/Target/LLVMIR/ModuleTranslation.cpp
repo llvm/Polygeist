@@ -371,8 +371,9 @@ ModuleTranslation::convertOperation(Operation &op,
 /// been created for `bb` and included in the block mapping.  Inserts new
 /// instructions at the end of the block and leaves `builder` in a state
 /// suitable for further insertion into the end of the block.
-LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments,
-                                              llvm::IRBuilderBase &builder) {
+LogicalResult ModuleTranslation::convertBlock(
+    Block &bb, bool ignoreArguments, llvm::IRBuilderBase &builder,
+    function_ref<LogicalResult(Operation &, llvm::IRBuilderBase &)> convertOp) {
   builder.SetInsertPoint(lookupBlock(&bb));
   auto *subprogram = builder.GetInsertBlock()->getParent()->getSubprogram();
 
@@ -397,13 +398,20 @@ LogicalResult ModuleTranslation::convertBlock(Block &bb, bool ignoreArguments,
     }
   }
 
+  // Use the default converter if the custom converter was not provided.
+  auto defaultConvertOp = [this](Operation &op, llvm::IRBuilderBase &builder) {
+    return convertOperation(op, builder);
+  };
+  if (!convertOp)
+    convertOp = defaultConvertOp;
+
   // Traverse operations.
   for (auto &op : bb) {
     // Set the current debug location within the builder.
     builder.SetCurrentDebugLocation(
         debugTranslation->translateLoc(op.getLoc(), subprogram));
 
-    if (failed(convertOperation(op, builder)))
+    if (failed(convertOp(op, builder)))
       return failure();
   }
 
@@ -670,10 +678,10 @@ LogicalResult ModuleTranslation::convertDialectAttributes(Operation *op) {
 
 /// Check whether the module contains only supported ops directly in its body.
 static LogicalResult checkSupportedModuleOps(Operation *m) {
-  for (Operation &o : getModuleBody(m).getOperations())
-    if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::MetadataOp>(&o) &&
-        !o.hasTrait<OpTrait::IsTerminator>())
-      return o.emitOpError("unsupported module-level operation");
+  // for (Operation &o : getModuleBody(m).getOperations())
+  //   if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::MetadataOp>(&o) &&
+  //       !o.hasTrait<OpTrait::IsTerminator>())
+  //     return o.emitOpError("unsupported module-level operation");
   return success();
 }
 

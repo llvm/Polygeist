@@ -1,9 +1,9 @@
 // RUN: mlir-translate -verify-diagnostics -split-input-file -mlir-to-llvmir %s
 
-// expected-error @+1 {{unsupported module-level operation}}
-func @foo() {
-  llvm.return
-}
+// xpected-error @+1 {{unsupported module-level operation}}
+// func @foo() {
+//  llvm.return
+// }
 
 // -----
 

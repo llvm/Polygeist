@@ -11,7 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
@@ -63,20 +65,65 @@ findAllocaInsertPoint(llvm::IRBuilderBase &builder,
 /// LLVM IR, creating a branch from the `sourceBlock` to the entry block of the
 /// region, and a branch from any block with an successor-less OpenMP terminator
 /// to `continuationBlock`.
-static void convertOmpOpRegions(Region &region, StringRef blockName,
-                                llvm::BasicBlock &sourceBlock,
-                                llvm::BasicBlock &continuationBlock,
-                                llvm::IRBuilderBase &builder,
-                                LLVM::ModuleTranslation &moduleTranslation,
-                                LogicalResult &bodyGenStatus) {
+static void convertOmpOpRegions(
+    Region &region, StringRef blockName, llvm::BasicBlock &sourceBlock,
+    llvm::BasicBlock &continuationBlock, llvm::IRBuilderBase &builder,
+    LLVM::ModuleTranslation &moduleTranslation, LogicalResult &bodyGenStatus,
+    SmallVectorImpl<llvm::PHINode *> *continuationBlockPHIs = nullptr,
+    function_ref<LogicalResult(Operation &, llvm::IRBuilderBase &)> convertOp =
+        nullptr) {
   llvm::LLVMContext &llvmContext = builder.getContext();
   for (Block &bb : region) {
     llvm::BasicBlock *llvmBB = llvm::BasicBlock::Create(
-        llvmContext, blockName, builder.GetInsertBlock()->getParent());
+        llvmContext, blockName, builder.GetInsertBlock()->getParent(),
+        builder.GetInsertBlock()->getNextNode());
     moduleTranslation.mapBlock(&bb, llvmBB);
   }
 
   llvm::Instruction *sourceTerminator = sourceBlock.getTerminator();
+
+  // Terminators (namely YieldOp) may be forwarding values to the region that
+  // need to be available in the continuation block. Collect the types of these
+  // operands in preparation of creating PHI nodes.
+  SmallVector<llvm::Type *> continuationBlockPHITypes;
+  bool operandsProcessed = false;
+  unsigned numYields = 0;
+  for (Block &bb : region.getBlocks()) {
+    if (omp::YieldOp yield = dyn_cast<omp::YieldOp>(bb.getTerminator())) {
+      if (!operandsProcessed) {
+        for (unsigned i = 0, e = yield->getNumOperands(); i < e; ++i) {
+          continuationBlockPHITypes.push_back(
+              moduleTranslation.convertType(yield->getOperand(i).getType()));
+        }
+        operandsProcessed = true;
+      } else {
+        assert(continuationBlockPHITypes.size() == yield->getNumOperands() &&
+               "mismatching number of values yielded from the region");
+        for (unsigned i = 0, e = yield->getNumOperands(); i < e; ++i) {
+          llvm::Type *operandType =
+              moduleTranslation.convertType(yield->getOperand(i).getType());
+          (void)operandType;
+          assert(continuationBlockPHITypes[i] == operandType &&
+                 "values of mismatching types yielded from the region");
+        }
+      }
+      numYields++;
+    }
+  }
+
+  // Insert PHI nodes in the continuation block for any values forwarded by the
+  // terminators in this region.
+  if (!continuationBlockPHITypes.empty())
+    assert(
+        continuationBlockPHIs &&
+        "expected continuation block PHIs if converted regions yield values");
+  if (continuationBlockPHIs) {
+    llvm::IRBuilderBase::InsertPointGuard guard(builder);
+    continuationBlockPHIs->reserve(continuationBlockPHITypes.size());
+    builder.SetInsertPoint(&continuationBlock, continuationBlock.begin());
+    for (llvm::Type *ty : continuationBlockPHITypes)
+      continuationBlockPHIs->push_back(builder.CreatePHI(ty, numYields));
+  }
 
   // Convert blocks one by one in topological order to ensure
   // defs are converted before uses.
@@ -95,8 +142,8 @@ static void convertOmpOpRegions(Region &region, StringRef blockName,
     }
 
     llvm::IRBuilderBase::InsertPointGuard guard(builder);
-    if (failed(
-            moduleTranslation.convertBlock(*bb, bb->isEntryBlock(), builder))) {
+    if (failed(moduleTranslation.convertBlock(*bb, bb->isEntryBlock(), builder,
+                                              convertOp))) {
       bodyGenStatus = failure();
       return;
     }
@@ -108,8 +155,14 @@ static void convertOmpOpRegions(Region &region, StringRef blockName,
     // ModuleTranslation class to set up the correct insertion point. This is
     // also consistent with MLIR's idiom of handling special region terminators
     // in the same code that handles the region-owning operation.
-    if (isa<omp::TerminatorOp, omp::YieldOp>(bb->getTerminator()))
+    Operation *terminator = bb->getTerminator();
+    if (isa<omp::TerminatorOp, omp::YieldOp>(terminator)) {
       builder.CreateBr(&continuationBlock);
+
+      for (unsigned i = 0, e = terminator->getNumOperands(); i < e; ++i)
+        (*continuationBlockPHIs)[i]->addIncoming(
+            moduleTranslation.lookupValue(terminator->getOperand(i)), llvmBB);
+    }
   }
   // Finally, after all blocks have been traversed and values mapped,
   // connect the PHI nodes to the results of preceding blocks.
@@ -204,6 +257,95 @@ convertOmpMaster(Operation &opInst, llvm::IRBuilderBase &builder,
   return success();
 }
 
+namespace {
+class BinOpReductionGenerator {
+public:
+  BinOpReductionGenerator(llvm::IRBuilderBase &b,
+                          llvm::Instruction::BinaryOps opc)
+      : builder(b), opcode(opc) {}
+  llvm::Value *operator()(llvm::OpenMPIRBuilder::InsertPointTy insertionPoint,
+                          llvm::Value *lhs, llvm::Value *rhs) {
+    builder.restoreIP(insertionPoint);
+    return builder.CreateBinOp(opcode, lhs, rhs);
+  }
+
+private:
+  llvm::IRBuilderBase &builder;
+  llvm::Instruction::BinaryOps opcode;
+};
+
+class AtomicRMWReductionGenerator {
+public:
+  AtomicRMWReductionGenerator(llvm::IRBuilderBase &b,
+                              llvm::AtomicRMWInst::BinOp opc)
+      : builder(b), opcode(opc) {}
+  llvm::Value *operator()(llvm::OpenMPIRBuilder::InsertPointTy insertionPoint,
+                          llvm::Value *lhsPtr, llvm::Value *rhsPtr) const {
+    builder.restoreIP(insertionPoint);
+    llvm::Value *rhs = builder.CreateLoad(rhsPtr);
+    builder.CreateAtomicRMW(opcode, lhsPtr, rhs, llvm::None,
+                            llvm::AtomicOrdering::Monotonic);
+    return rhs;
+  }
+
+private:
+  llvm::IRBuilderBase &builder;
+  llvm::AtomicRMWInst::BinOp opcode;
+};
+} // namespace
+
+static void
+collectReductionInfos(Region &region,
+                      SmallVectorImpl<omp::ReductionDeclareOp> &reductions) {
+  for (auto reduction : region.getOps<omp::ReductionOp>()) {
+    omp::ReductionDeclareOp declaration =
+        SymbolTable::lookupNearestSymbolFrom<omp::ReductionDeclareOp>(
+            region.getParentOp(), reduction.sym());
+    assert(declaration != nullptr && "undeclared OpenMP reduction");
+    reductions.push_back(declaration);
+  }
+}
+
+static LogicalResult inlineConvertOmpRegions(
+    Region &region, StringRef blockName, llvm::IRBuilderBase &builder,
+    LLVM::ModuleTranslation &moduleTranslation,
+    SmallVectorImpl<llvm::PHINode *> *continuationBlockPHIs = nullptr,
+    function_ref<LogicalResult(Operation &, llvm::IRBuilderBase &)> convertOp =
+        nullptr) {
+  if (region.empty())
+    return success();
+
+  // TODO(zinenko): add a special case for single-block regions that doesn't
+  // create additional blocks.
+  //   if (llvm::hasSingleElement(region)) {
+  //     moduleTranslation.mapBlock(&region.front(), builder.GetInsertBlock());
+  //     if (failed(moduleTranslation.convertBlock(
+  //             region.front(), /*ignoreArguments=*/true, builder, convertOp)))
+  //       return failure();
+
+  //     continuationBlockPHIs =
+  //         moduleTranslation.lookupValues(region.front().back().getOperands());
+
+  //     return success();
+  //   }
+
+  llvm::BasicBlock *continuationBlock =
+      llvm::BasicBlock::Create(builder.getContext(), blockName + ".cont",
+                               builder.GetInsertBlock()->getParent(),
+                               builder.GetInsertBlock()->getNextNode());
+  builder.CreateBr(continuationBlock);
+
+  LogicalResult bodyGenStatus = success();
+  convertOmpOpRegions(region, blockName, *builder.GetInsertBlock(),
+                      *continuationBlock, builder, moduleTranslation,
+                      bodyGenStatus, continuationBlockPHIs, convertOp);
+  if (failed(bodyGenStatus))
+    return failure();
+  builder.SetInsertPoint(continuationBlock,
+                         continuationBlock->getFirstInsertionPt());
+  return success();
+}
+
 /// Converts an OpenMP workshare loop into LLVM IR using OpenMPIRBuilder.
 static LogicalResult
 convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
@@ -232,6 +374,77 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
           ? moduleTranslation.lookupValue(loop.schedule_chunk_var())
           : llvm::ConstantInt::get(ivType, 1);
 
+  SmallVector<omp::ReductionDeclareOp> reductionDecls;
+  collectReductionInfos(loop.region(), reductionDecls);
+
+  // TODO: get the alloca insertion point from the parallel operation builder.
+  // If we insert the at the top of the current function, they will be passed as
+  // extra arguments into the function the parallel operation builder outlines.
+  // Put them at the start of the current block for now.
+  llvm::BasicBlock *insertBlock = builder.GetInsertBlock();
+  llvm::OpenMPIRBuilder::InsertPointTy allocaIP(
+      insertBlock, insertBlock->getFirstInsertionPt());
+
+  // Allocate space for privatized reduction variables.
+  SmallVector<llvm::Value *> privateReductionVariables;
+  unsigned numReductions = loop.reduction_vars().size();
+  privateReductionVariables.reserve(numReductions);
+  if (numReductions != 0) {
+    llvm::IRBuilderBase::InsertPointGuard guard(builder);
+    builder.restoreIP(allocaIP);
+    for (unsigned i = 0; i < numReductions; ++i) {
+      auto reductionType =
+          loop.reduction_vars()[i].getType().cast<LLVM::LLVMPointerType>();
+      llvm::Value *var = builder.CreateAlloca(
+          moduleTranslation.convertType(reductionType.getElementType()));
+      privateReductionVariables.push_back(var);
+    }
+  }
+
+  unsigned numProcessedReductions = 0;
+  std::function<LogicalResult(Operation &, llvm::IRBuilderBase &)> convertOp =
+      [&](Operation &op, llvm::IRBuilderBase &builder) {
+        if (auto reductionOp = dyn_cast<omp::ReductionOp>(op)) {
+          Region &reductionRegion =
+              reductionDecls[numProcessedReductions].reductionRegion();
+
+          llvm::Value *reductionVal = builder.CreateLoad(
+              privateReductionVariables[numProcessedReductions]);
+          moduleTranslation.mapValue(reductionRegion.front().getArgument(0),
+                                     reductionVal);
+          moduleTranslation.mapValue(
+              reductionRegion.front().getArgument(1),
+              moduleTranslation.lookupValue(reductionOp.operand()));
+
+          SmallVector<llvm::PHINode *> phis;
+          if (failed(inlineConvertOmpRegions(
+                  reductionRegion, "omp.reduction.body", builder,
+                  moduleTranslation, &phis, convertOp)))
+            return failure();
+          assert(phis.size() == 1 && "expected one value to be yielded from "
+                                     "the reduction body declaration region");
+          builder.CreateStore(
+              phis[0], privateReductionVariables[numProcessedReductions++]);
+
+          return success();
+        }
+        return moduleTranslation.convertOperation(op, builder);
+      };
+
+  // Before the loop, store the initial values of reductions into reduction
+  // variables. Although this could be done after allocas, we don't want to mess
+  // up with the alloca insertion point.
+  for (unsigned i = 0; i < numReductions; ++i) {
+    SmallVector<llvm::PHINode *> phis;
+    if (failed(inlineConvertOmpRegions(reductionDecls[i].initializerRegion(),
+                                       "omp.reduction.neutral", builder,
+                                       moduleTranslation, &phis, convertOp)))
+      return failure();
+    assert(phis.size() == 1 && "expected one value to be yielded from the "
+                               "reduction neutral element declaration region");
+    builder.CreateStore(phis[0], privateReductionVariables[i]);
+  }
+
   // Set up the source location value for OpenMP runtime.
   llvm::DISubprogram *subprogram =
       builder.GetInsertBlock()->getParent()->getSubprogram();
@@ -257,7 +470,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
 
     // Convert the body of the loop.
     convertOmpOpRegions(loop.region(), "omp.wsloop.region", *entryBlock,
-                        *exitBlock, builder, moduleTranslation, bodyGenStatus);
+                        *exitBlock, builder, moduleTranslation, bodyGenStatus,
+                        nullptr, convertOp);
   };
 
   // Delegate actual loop construction to the OpenMP IRBuilder.
@@ -268,6 +482,8 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
       moduleTranslation.getOpenMPBuilder()->createCanonicalLoop(
           ompLoc, bodyGen, lowerBound, upperBound, step, /*IsSigned=*/true,
           /*InclusiveStop=*/loop.inclusive());
+  assert(numProcessedReductions == loop.reduction_vars().size() &&
+         "could not process all reductions");
   if (failed(bodyGenStatus))
     return failure();
 
@@ -304,7 +520,89 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   }
 
   // Continue building IR after the loop.
-  builder.restoreIP(afterIP);
+  builder.restoreIP(loopInfo->getAfterIP());
+
+  using OwningReductionGen = std::function<llvm::OpenMPIRBuilder::InsertPointTy(
+      llvm::OpenMPIRBuilder::InsertPointTy, llvm::Value *, llvm::Value *,
+      llvm::Value *&)>;
+  SmallVector<OwningReductionGen> owningReductionGens,
+      owningAtomicReductionGens;
+  SmallVector<std::unique_ptr<Region>> owningBodyRegions;
+  bool hasAtomic = true;
+  for (unsigned i = 0; i < numReductions; ++i) {
+    OwningReductionGen gen =
+        [&, i](llvm::OpenMPIRBuilder::InsertPointTy insertPoint,
+               llvm::Value *lhs, llvm::Value *rhs, llvm::Value *&result) {
+          owningBodyRegions.emplace_back(new Region);
+          Region &reductionRegion = *owningBodyRegions.back();
+          BlockAndValueMapping emptyMapping;
+          reductionDecls[i].reductionRegion().cloneInto(&reductionRegion,
+                                                        emptyMapping);
+
+          moduleTranslation.mapValue(reductionRegion.front().getArgument(0),
+                                     lhs);
+          moduleTranslation.mapValue(reductionRegion.front().getArgument(1),
+                                     rhs);
+          builder.restoreIP(insertPoint);
+          SmallVector<llvm::PHINode *> phis;
+          if (failed(inlineConvertOmpRegions(
+                  reductionRegion, "omp.reduction.nonatomic.body", builder,
+                  moduleTranslation, &phis, convertOp)))
+            return llvm::OpenMPIRBuilder::InsertPointTy();
+          assert(phis.size() == 1);
+          result = phis[0];
+          return builder.saveIP();
+        };
+    owningReductionGens.push_back(std::move(gen));
+
+    if (reductionDecls[i].atomicReductionRegion().empty() || !hasAtomic) {
+      hasAtomic = false;
+      owningAtomicReductionGens.clear();
+      continue;
+    }
+
+    OwningReductionGen atomicGen =
+        [&, i](llvm::OpenMPIRBuilder::InsertPointTy insertPoint,
+               llvm::Value *lhs, llvm::Value *rhs, llvm::Value *&) {
+          Region &atomicRegion = reductionDecls[i].atomicReductionRegion();
+          moduleTranslation.mapValue(atomicRegion.front().getArgument(0), lhs);
+          moduleTranslation.mapValue(atomicRegion.front().getArgument(1), rhs);
+          builder.restoreIP(insertPoint);
+          SmallVector<llvm::PHINode *> phis;
+          if (failed(inlineConvertOmpRegions(
+                  atomicRegion, "omp.reduction.atomic.body", builder,
+                  moduleTranslation, &phis, convertOp)))
+            return llvm::OpenMPIRBuilder::InsertPointTy();
+          assert(phis.empty());
+          return builder.saveIP();
+        };
+    owningAtomicReductionGens.push_back(std::move(atomicGen));
+  }
+
+  auto reductionGens = llvm::to_vector<2>(llvm::map_range(
+      owningReductionGens,
+      [](const OwningReductionGen &gen)
+          -> llvm::OpenMPIRBuilder::ReductionGenTy { return gen; }));
+  auto atomicReductionGens = llvm::to_vector<2>(llvm::map_range(
+      owningAtomicReductionGens,
+      [](const OwningReductionGen &gen)
+          -> llvm::OpenMPIRBuilder::ReductionGenTy { return gen; }));
+
+  if (!loop.reduction_vars().empty()) {
+    llvm::OpenMPIRBuilder::InsertPointTy contInsertPoint =
+        moduleTranslation.getOpenMPBuilder()->createReductions(
+            builder.saveIP(), allocaIP,
+            moduleTranslation.lookupValues(loop.reduction_vars()),
+            privateReductionVariables, reductionGens, atomicReductionGens,
+            /*IsNoWait=*/false);
+    if (!contInsertPoint.getBlock())
+      return loop->emitOpError() << "failed to convert reductions";
+    auto nextInsertionPoint =
+        moduleTranslation.getOpenMPBuilder()->createBarrier(
+            contInsertPoint, llvm::omp::OMPD_for);
+    builder.restoreIP(nextInsertionPoint);
+  }
+
   return success();
 }
 
@@ -371,8 +669,8 @@ LogicalResult OpenMPDialectLLVMIRTranslationInterface::convertOperation(
       .Case<omp::YieldOp, omp::TerminatorOp>([](auto op) {
         // `yield` and `terminator` can be just omitted. The block structure was
         // created in the function that handles their parent operation.
-        assert(op->getNumOperands() == 0 &&
-               "unexpected OpenMP terminator with operands");
+        // assert(op->getNumOperands() == 0 &&
+        //        "unexpected OpenMP terminator with operands");
         return success();
       })
       .Default([&](Operation *inst) {
