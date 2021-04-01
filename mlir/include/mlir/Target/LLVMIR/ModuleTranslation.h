@@ -168,9 +168,15 @@ public:
   /// translate the IR, leaving it at the end of the block. If `ignoreArguments`
   /// is set, does not produce PHI nodes for the block arguments. Otherwise, the
   /// PHI nodes are constructed for block arguments but are _not_ connected to
-  /// the predecessors that may not exist yet.
-  LogicalResult convertBlock(Block &bb, bool ignoreArguments,
-                             llvm::IRBuilderBase &builder);
+  /// the predecessors that may not exist yet. If `convertOp` is provided, use
+  /// it to translate operations in the block; otherwise use `convertOperation`.
+  LogicalResult
+  convertBlock(Block &bb, bool ignoreArguments, llvm::IRBuilderBase &builder,
+               function_ref<LogicalResult(Operation &, llvm::IRBuilderBase &)>
+                   convertOp = nullptr);
+
+  /// Translates the given operation to LLVM IR.
+  LogicalResult convertOperation(Operation &op, llvm::IRBuilderBase &builder);
 
   /// Gets the named metadata in the LLVM IR module being constructed, creating
   /// it if it does not exist.
@@ -182,7 +188,6 @@ private:
   ~ModuleTranslation();
 
   /// Converts individual components.
-  LogicalResult convertOperation(Operation &op, llvm::IRBuilderBase &builder);
   LogicalResult convertFunctionSignatures();
   LogicalResult convertFunctions();
   LogicalResult convertGlobals();
