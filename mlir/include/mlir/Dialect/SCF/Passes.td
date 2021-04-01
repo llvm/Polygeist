@@ -51,9 +51,4 @@ def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
 	let dependentDialects = ["AffineDialect"];
 }
 
-def SCFWhileToSCFFor : FunctionPass<"scf-while-to-scf-for"> {
-  let summary = "Covert SCF while op to SCF for op";
-  let constructor = "mlir::createWhileOpToForOpPass()";
-}
-
 #endif // MLIR_DIALECT_SCF_PASSES
