@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -131,6 +132,48 @@ static AffineIfOp hoistAffineIfOp(AffineIfOp ifOp, Operation *hoistOverOp) {
   return hoistedIfOp;
 }
 
+/// Get the AtomicRMWKind that corresponds to the class of the operation. This
+/// list of cases covered must be kept in sync with `getSupportedReduction` and
+/// `affineParallelize`.
+static AtomicRMWKind getReductionOperationKind(Operation *op) {
+  return TypeSwitch<Operation *, AtomicRMWKind>(op)
+      .Case<AddFOp>([](Operation *) { return AtomicRMWKind::addf; })
+      .Case<MulFOp>([](Operation *) { return AtomicRMWKind::mulf; })
+      .Case<AddIOp>([](Operation *) { return AtomicRMWKind::addi; })
+      .Case<MulIOp>([](Operation *) { return AtomicRMWKind::muli; })
+      .Default([](Operation *) -> AtomicRMWKind {
+        llvm_unreachable("unsupported reduction op");
+      });
+}
+
+/// Get the value that is being reduced by `pos`-th reduction in the loop if
+/// such a reduction can be performed by affine parallel loops. This assumes
+/// floating-point operations are commutative. On success, `kind` will be the
+/// reduction kind suitable for use in affine parallel loop builder. The list
+/// of supported cases must be kept in sync with `affineParallelize`. If the
+/// reduction is not supported, returns null.
+static Value getSupportedReduction(AffineForOp forOp, unsigned pos,
+                                   AtomicRMWKind &kind) {
+  auto yieldOp = cast<AffineYieldOp>(forOp.getBody()->back());
+  Value yielded = yieldOp.operands()[pos];
+  Operation *definition = yielded.getDefiningOp();
+  if (!isa_and_nonnull<AddFOp, MulFOp, AddIOp, MulIOp>(definition))
+    return nullptr;
+
+  if (!forOp.getRegionIterArgs()[pos].hasOneUse())
+    return nullptr;
+
+  kind = getReductionOperationKind(definition);
+  if (definition->getOperand(0) == forOp.getRegionIterArgs()[pos]) {
+    return definition->getOperand(1);
+  }
+  if (definition->getOperand(1) == forOp.getRegionIterArgs()[pos]) {
+    return definition->getOperand(0);
+  }
+
+  return nullptr;
+}
+
 /// Replace affine.for with a 1-d affine.parallel and clone the former's body
 /// into the latter while remapping values. Parallelizes the specified
 /// reductions. Parallelization will fail in presence of loop iteration
@@ -163,7 +206,7 @@ mlir::affineParallelize(AffineForOp forOp,
   // Steal the body of the old affine for op.
   newPloop.region().takeBody(forOp.region());
   Operation *yieldOp = &newPloop.getBody()->back();
-
+  
   // Handle the initial values of reductions because the parallel loop always
   // starts from the neutral value.
   SmallVector<Value> newResults;
