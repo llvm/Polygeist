@@ -889,6 +889,7 @@ void OpenMPIRBuilder::createTaskyield(const LocationDescription &Loc) {
   emitTaskyieldImpl(Loc);
 }
 
+<<<<<<< HEAD
 OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createSections(
     const LocationDescription &Loc, InsertPointTy AllocaIP,
     ArrayRef<StorableBodyGenCallbackTy> SectionCBs, PrivatizeCallbackTy PrivCB,
@@ -1019,6 +1020,144 @@ OpenMPIRBuilder::createSection(const LocationDescription &Loc,
   return EmitOMPInlinedRegion(OMPD, nullptr, nullptr, BodyGenCB, FiniCBWrapper,
                               /*Conditional*/ false, /*hasFinalize*/ true,
                               /*IsCancellable*/ true);
+}
+
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createReductions(
+    const LocationDescription &Loc, InsertPointTy AllocaIP,
+    ArrayRef<Value *> Variables, ArrayRef<Value *> PrivateVariables,
+    ArrayRef<ReductionGenTy> ReductionGen,
+    ArrayRef<ReductionGenTy> AtomicReductionGen, bool IsNoWait) {
+  assert(Variables.size() == PrivateVariables.size());
+  for (auto pair : zip(Variables, PrivateVariables)) {
+    assert(std::get<0>(pair)->getType() == std::get<1>(pair)->getType() &&
+           "expected variables and their private equivalents to have the same "
+           "type");
+    assert(std::get<0>(pair)->getType()->isPointerTy() &&
+           "expected variables to be pointers");
+  }
+  assert(ReductionGen.size() == Variables.size());
+  assert(AtomicReductionGen.size() == Variables.size() ||
+         AtomicReductionGen.empty());
+
+  if (!updateToLocation(Loc))
+    return InsertPointTy();
+
+  Type *RedArrayTy = ArrayType::get(Builder.getInt8PtrTy(), Variables.size());
+  Value *RedArray;
+  {
+    IRBuilderBase::InsertPointGuard guard(Builder);
+    Builder.restoreIP(AllocaIP);
+    RedArray = Builder.CreateAlloca(RedArrayTy, nullptr, "red.array");
+  }
+
+  for (unsigned i = 0, e = Variables.size(); i < e; ++i) {
+    Value *RedArrayElemPtr = Builder.CreateConstInBoundsGEP2_64(
+        RedArray, 0, i, "red.array.elem." + Twine(i));
+    Value *Casted =
+        Builder.CreateBitCast(PrivateVariables[i], Builder.getInt8PtrTy(),
+                              "private.red.var." + Twine(i) + ".casted");
+    Builder.CreateStore(Casted, RedArrayElemPtr);
+  }
+
+  Function *function = Builder.GetInsertBlock()->getParent();
+  Module *module = function->getParent();
+  Value *RedArrayPtr =
+      Builder.CreateBitCast(RedArray, Builder.getInt8PtrTy(), "red.array.ptr");
+  Constant *SrcLocStr = getOrCreateSrcLocStr(Loc);
+  Value *Ident =
+      getOrCreateIdent(SrcLocStr, !AtomicReductionGen.empty()
+                                      ? IdentFlag::OMP_IDENT_FLAG_ATOMIC_REDUCE
+                                      : IdentFlag(0));
+  Value *ThreadId = getOrCreateThreadID(Ident);
+  Constant *NumVariables = Builder.getInt32(Variables.size());
+  const DataLayout &DL = module->getDataLayout();
+  unsigned RedArrayByteSize = divideCeil(DL.getTypeSizeInBits(RedArrayTy), 8);
+  Constant *RedArraySize = Builder.getInt64(RedArrayByteSize);
+  FunctionCallee ReductionFunc = module->getOrInsertFunction(
+      ".omp.reduction.func", Builder.getVoidTy(), Builder.getInt8PtrTy(),
+      Builder.getInt8PtrTy());
+  Value *Lock = getOMPCriticalRegionLock(".reduction");
+  Function *ReduceFunc = getOrCreateRuntimeFunctionPtr(
+      IsNoWait ? RuntimeFunction::OMPRTL___kmpc_reduce_nowait
+               : RuntimeFunction::OMPRTL___kmpc_reduce);
+  CallInst *ReduceCall =
+      Builder.CreateCall(ReduceFunc,
+                         {Ident, ThreadId, NumVariables, RedArraySize,
+                          RedArrayPtr, ReductionFunc.getCallee(), Lock},
+                         "reduce");
+
+  BasicBlock *NonAtomicRedBlock = BasicBlock::Create(
+      module->getContext(), "reduce.switch.nonatomic", function);
+  BasicBlock *AtomicRedBlock = BasicBlock::Create(
+      module->getContext(), "reduce.switch.atomic", function);
+  BasicBlock *ContinuationBlock =
+      BasicBlock::Create(module->getContext(), "reduce.switch.cont", function);
+  SwitchInst *Switch =
+      Builder.CreateSwitch(ReduceCall, ContinuationBlock, /* NumCases */ 2);
+  Switch->addCase(Builder.getInt32(1), NonAtomicRedBlock);
+  Switch->addCase(Builder.getInt32(2), AtomicRedBlock);
+
+  Builder.SetInsertPoint(NonAtomicRedBlock);
+  for (unsigned i = 0, e = Variables.size(); i < e; ++i) {
+    Value *RedValue = Builder.CreateLoad(Variables[i], "red.value." + Twine(i));
+    Value *PrivateRedValue = Builder.CreateLoad(
+        PrivateVariables[i], "red.private.value." + Twine(i));
+    Value *Reduced;
+    Builder.restoreIP(
+        ReductionGen[i](Builder.saveIP(), RedValue, PrivateRedValue, Reduced));
+    if (!Builder.GetInsertBlock())
+      return InsertPointTy();
+    Builder.CreateStore(Reduced, Variables[i]);
+  }
+  Function *EndReduceFunc = getOrCreateRuntimeFunctionPtr(
+      IsNoWait ? RuntimeFunction::OMPRTL___kmpc_end_reduce_nowait
+               : RuntimeFunction::OMPRTL___kmpc_end_reduce);
+  Builder.CreateCall(EndReduceFunc, {Ident, ThreadId, Lock});
+  Builder.CreateBr(ContinuationBlock);
+
+  Builder.SetInsertPoint(AtomicRedBlock);
+  if (AtomicReductionGen.empty()) {
+    Builder.CreateUnreachable();
+  } else {
+    for (unsigned i = 0, e = Variables.size(); i < e; ++i) {
+      Value *unused;
+      Builder.restoreIP(AtomicReductionGen[i](Builder.saveIP(), Variables[i],
+                                              PrivateVariables[i], unused));
+      if (!Builder.GetInsertBlock())
+        return InsertPointTy();
+    }
+    Builder.CreateBr(ContinuationBlock);
+  }
+
+  // Populate the outlined reduction function.
+  Function *ReductionFunction = cast<Function>(ReductionFunc.getCallee());
+  BasicBlock *ReductionFuncBlock =
+      BasicBlock::Create(module->getContext(), "", ReductionFunction);
+  Builder.SetInsertPoint(ReductionFuncBlock);
+  Value *LHSArrayPtr = Builder.CreateBitCast(ReductionFunction->getArg(0),
+                                             RedArrayTy->getPointerTo());
+  Value *RHSArrayPtr = Builder.CreateBitCast(ReductionFunction->getArg(1),
+                                             RedArrayTy->getPointerTo());
+  for (unsigned i = 0, e = Variables.size(); i < e; ++i) {
+    Value *LHSI8PtrPtr = Builder.CreateConstInBoundsGEP2_64(LHSArrayPtr, 0, i);
+    Value *LHSI8Ptr = Builder.CreateLoad(LHSI8PtrPtr);
+    Value *LHSPtr = Builder.CreateBitCast(LHSI8Ptr, Variables[i]->getType());
+    Value *LHS = Builder.CreateLoad(LHSPtr);
+    Value *RHSI8PtrPtr = Builder.CreateConstInBoundsGEP2_64(RHSArrayPtr, 0, i);
+    Value *RHSI8Ptr = Builder.CreateLoad(RHSI8PtrPtr);
+    Value *RHSPtr =
+        Builder.CreateBitCast(RHSI8Ptr, PrivateVariables[i]->getType());
+    Value *RHS = Builder.CreateLoad(RHSPtr);
+    Value *Reduced;
+    Builder.restoreIP(ReductionGen[i](Builder.saveIP(), LHS, RHS, Reduced));
+    if (!Builder.GetInsertBlock())
+      return InsertPointTy();
+    Builder.CreateStore(Reduced, LHSPtr);
+  }
+  Builder.CreateRetVoid();
+
+  Builder.SetInsertPoint(ContinuationBlock);
+  return Builder.saveIP();
 }
 
 OpenMPIRBuilder::InsertPointTy

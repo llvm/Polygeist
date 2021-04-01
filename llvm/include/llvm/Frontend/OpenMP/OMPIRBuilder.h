@@ -486,6 +486,34 @@ public:
   /// \param Loc The location where the taskyield directive was encountered.
   void createTaskyield(const LocationDescription &Loc);
 
+  /// Functions used to generate reductions. Such functions take two Values
+  /// representing LHS and RHS of the reduction, respectively. They return the
+  /// reduced value on success and \c nullptr on failure.
+  using ReductionGenTy =
+      function_ref<InsertPointTy(InsertPointTy, Value *, Value *, Value *&)>;
+
+  /// Generator for '#omp reduction'
+  ///
+  /// \param Loc                The location where the reduction was
+  ///                           encountered.
+  /// \param AllocaIP           An insertion point suitable for allocas usable
+  ///                           in reductions.
+  /// \param Variables          A list of variables in which the reduction
+  ///                           results will be stored (values of pointer type).
+  /// \param PrivateVariables   A list of variables in which the partial
+  ///                           reduction results are stored (values of pointer
+  ///                           type). Coindexed with Variables.
+  /// \param ReductionGen       A list of generators for non-atomic reduction
+  ///                           .bodies.
+  /// \param AtomicReductionGen A list of generators for atomic reduction
+  ///                           bodies, empty if the reduction cannot be
+  ///                           performed with atomics.
+  InsertPointTy createReductions(
+      const LocationDescription &Loc, InsertPointTy AllocaIP,
+      ArrayRef<Value *> Variables, ArrayRef<Value *> PrivateVariables,
+      ArrayRef<ReductionGenTy> ReductionGen,
+      ArrayRef<ReductionGenTy> AtomicReductionGen = {}, bool IsNoWait = false);
+
   ///}
 
   /// Return the insertion point used by the underlying IRBuilder.
