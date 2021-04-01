@@ -224,7 +224,7 @@ convertOmpParallel(Operation &opInst, llvm::IRBuilderBase &builder,
   builder.restoreIP(moduleTranslation.getOpenMPBuilder()->createParallel(
       ompLoc, findAllocaInsertPoint(builder, moduleTranslation), bodyGenCB,
       privCB, finiCB, ifCond, numThreads, pbKind, isCancellable));
-
+  
   return bodyGenStatus;
 }
 
