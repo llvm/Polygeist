@@ -9,9 +9,9 @@ int kernel_deriche(int a[30]) {
 // CHECK-NEXT:    %c0 = constant 0 : index
 // CHECK-NEXT:    %c1_i32 = constant 1 : i32
 // CHECK-NEXT:    %c1 = constant 1 : index
-// CHECK-NEXT:    %0 = load %arg0[%c0] : memref<?xi32>
+// CHECK-NEXT:    %0 = memref.load %arg0[%c0] : memref<?xi32>
 // CHECK-NEXT:    %1 = addi %0, %c1_i32 : i32
-// CHECK-NEXT:    store %1, %arg0[%c0] : memref<?xi32>
-// CHECK-NEXT:    %2 = load %arg0[%c1] : memref<?xi32>
+// CHECK-NEXT:    memref.store %1, %arg0[%c0] : memref<?xi32>
+// CHECK-NEXT:    %2 = memref.load %arg0[%c1] : memref<?xi32>
 // CHECK-NEXT:    return %2 : i32
 // CHECK-NEXT:  }

@@ -1666,6 +1666,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     if (!maybeCmpIOp) {
       llvm::errs() << condOp << "\n";
       llvm::errs() << condOp.condition() << "\n";
+      return failure();
     }
     assert(maybeCmpIOp);
     if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
