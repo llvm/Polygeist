@@ -1874,13 +1874,9 @@ OpFoldResult SubIOp::fold(ArrayRef<Attribute> operands) {
   if (matchPattern(rhs(), m_Zero()))
     return lhs();
 
-  // Fold IndexCast(constant) -> constant
-  // A little hack because we go through int.  Otherwise, the size
-  // of the constant might need to change.
-  if (auto value = operands[0].dyn_cast_or_null<IntegerAttr>())
-    return IntegerAttr::get(getType(), value.getInt());
 
-  return {};
+  return constFoldBinaryOp<IntegerAttr>(operands,
+                                        [](APInt a, APInt b) { return a - b; });
 }
 
 //===----------------------------------------------------------------------===//

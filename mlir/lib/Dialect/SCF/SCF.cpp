@@ -2021,8 +2021,7 @@ struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
-                 WhileConditionTruth,
-                 MoveWhileToFor>(context);
+                 WhileConditionTruth/*, MoveWhileToFor*/>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,

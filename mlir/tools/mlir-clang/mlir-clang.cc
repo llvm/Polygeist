@@ -2,7 +2,6 @@
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -20,15 +19,13 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
-
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
-                              cl::desc("Emit immediate mlir"));
+                                   cl::desc("Emit immediate mlir"));
 
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
-static cl::opt<std::string> Output("o", cl::init("-"),
-                              cl::desc("Output file"));
+static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                            cl::desc("<Specify input file>"),
@@ -39,7 +36,7 @@ static cl::opt<std::string> cfunction("function",
                                       cl::init("main"), cl::cat(toolOptions));
 
 static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
-                              cl::desc("Enable OpenMP"));
+                             cl::desc("Enable OpenMP"));
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -102,7 +99,8 @@ int main(int argc, char **argv) {
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
-  parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module, triple, DL);
+  parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module,
+            triple, DL);
   mlir::PassManager pm(&context);
 
   if (ImmediateMLIR) {
@@ -113,27 +111,27 @@ int main(int argc, char **argv) {
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createMem2RegPass());
-  optPM.addPass(mlir::createCSEPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createMem2RegPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createLoopRestructurePass());
-  // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
-  optPM.addPass(mlir::createRaiseSCFToAffinePass());
-  optPM.addPass(mlir::replaceAffineCFGPass());
-  optPM.addPass(mlir::createCanonicalizerPass());
-  optPM.addPass(mlir::createMemRefDataFlowOptPass());
-  if (mlir::failed(pm.run(module))) {
-    module.dump();
-    return 4;
-  }
-  if (mlir::failed(mlir::verify(module))) {
-    module.dump();
-    return 5;
-  }
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createMem2RegPass());
+    optPM.addPass(mlir::createCSEPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createMem2RegPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createLoopRestructurePass());
+    // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
+    optPM.addPass(mlir::createRaiseSCFToAffinePass());
+    optPM.addPass(mlir::replaceAffineCFGPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(mlir::createMemRefDataFlowOptPass());
+    if (mlir::failed(pm.run(module))) {
+      module.dump();
+      return 4;
+    }
+    if (mlir::failed(mlir::verify(module))) {
+      module.dump();
+      return 5;
+    }
 
 #define optPM optPM2
 #define pm pm2
@@ -183,16 +181,16 @@ int main(int argc, char **argv) {
       llvm::outs() << *llvmModule << "\n";
     else {
       std::error_code EC;
-     	llvm::raw_fd_ostream out(Output, EC);
+      llvm::raw_fd_ostream out(Output, EC);
       out << *llvmModule << "\n";
     }
- 	
+
   } else {
     if (Output == "-")
       module.print(outs());
     else {
       std::error_code EC;
-     	llvm::raw_fd_ostream out(Output, EC);
+      llvm::raw_fd_ostream out(Output, EC);
       module.print(outs());
     }
   }
