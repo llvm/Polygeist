@@ -1301,45 +1301,6 @@ bool isValidIndex(Value value) {
   return false;
 }
 
-struct MoveLoadToAffine : public OpRewritePattern<LoadOp> {
-  using OpRewritePattern<LoadOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(LoadOp load,
-                                PatternRewriter &rewriter) const override {
-    if (!inAffine(load))
-      return failure();
-
-    if (!llvm::all_of(load.getIndices(),
-                      [&](Value index) { return isValidIndex(index); }))
-      return failure();
-
-    AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
-        load.getLoc(), load.getMemRef(), load.getIndices());
-    load.getResult().replaceAllUsesWith(affineLoad.getResult());
-    rewriter.eraseOp(load);
-    return success();
-  }
-};
-
-struct MoveStoreToAffine : public OpRewritePattern<StoreOp> {
-  using OpRewritePattern<StoreOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(StoreOp store,
-                                PatternRewriter &rewriter) const override {
-    if (!inAffine(store))
-      return failure();
-
-    if (!llvm::all_of(store.getIndices(),
-                      [&](Value index) { return isValidIndex(index); }))
-      return failure();
-
-    rewriter.create<AffineStoreOp>(store.getLoc(), store.getValueToStore(),
-                                   store.getMemRef(), store.getIndices());
-    rewriter.eraseOp(store);
-    return success();
-  }
-};
-
 class LoadOpIndexFolder final : public OpRewritePattern<LoadOp> {
 public:
   using OpRewritePattern<LoadOp>::OpRewritePattern;
@@ -1405,11 +1366,11 @@ public:
 
 void LoadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                          MLIRContext *context) {
-  results.add<LoadOfBufferCast, MoveLoadToAffine, LoadOpIndexFolder>(context);
+  results.add<LoadOfBufferCast, LoadOpIndexFolder>(context);
 }
 void StoreOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  results.insert<MoveStoreToAffine, StoreOpIndexFolder>(context);
+  results.insert<StoreOpIndexFolder>(context);
 }
 
 //===----------------------------------------------------------------------===//

@@ -314,6 +314,45 @@ static void replaceLoad(memref::LoadOp load, const SmallVector<Value, 2> &newInd
   load.erase();
 }
 
+struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
+  using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::LoadOp load,
+                                PatternRewriter &rewriter) const override {
+    if (!inAffine(load))
+      return failure();
+
+    if (!llvm::all_of(load.getIndices(),
+                      [&](Value index) { return isValidIndex(index); }))
+      return failure();
+
+    AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
+        load.getLoc(), load.getMemRef(), load.getIndices());
+    load.getResult().replaceAllUsesWith(affineLoad.getResult());
+    rewriter.eraseOp(load);
+    return success();
+  }
+};
+
+struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
+  using OpRewritePattern<memref::StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::StoreOp store,
+                                PatternRewriter &rewriter) const override {
+    if (!inAffine(store))
+      return failure();
+
+    if (!llvm::all_of(store.getIndices(),
+                      [&](Value index) { return isValidIndex(index); }))
+      return failure();
+
+    rewriter.create<AffineStoreOp>(store.getLoc(), store.getValueToStore(),
+                                   store.getMemRef(), store.getIndices());
+    rewriter.eraseOp(store);
+    return success();
+  }
+};
+
 void AffineCFGPass::runOnFunction() {
   getFunction().walk([&](scf::IfOp ifOp) {
     if (inAffine(ifOp)) {
@@ -430,7 +469,8 @@ void AffineCFGPass::runOnFunction() {
     
     mlir::RewritePatternSet rpl(getFunction().getContext());
     rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply, 
-            CanonicalizeIndexCast, IndexCastMovement>(getFunction().getContext());
+            CanonicalizeIndexCast, IndexCastMovement,
+            MoveStoreToAffine, MoveLoadToAffine>(getFunction().getContext());
     applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
                                  /*fold*/ false);
   }

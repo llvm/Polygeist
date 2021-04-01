@@ -36,10 +36,10 @@ int main(int argc, char** argv)
 
 // CHECK:     func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %0 = alloc() : memref<2800xi32>
-// CHECK-NEXT:     %1 = memref_cast %0 : memref<2800xi32> to memref<?xi32>
+// CHECK-NEXT:     %0 = memref.alloc() : memref<2800xi32>
+// CHECK-NEXT:     %1 = memref.cast %0 : memref<2800xi32> to memref<?xi32>
 // CHECK-NEXT:     call @init_array(%1) : (memref<?xi32>) -> ()
-// CHECK-NEXT:     dealloc %0 : memref<2800xi32>
+// CHECK-NEXT:     memref.dealloc %0 : memref<2800xi32>
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func private @init_array(%arg0: memref<?xi32>) {

@@ -31,9 +31,9 @@ void set (int path[20])
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg1: i32):  // no predecessors
 // CHECK-NEXT:       %1 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:       store %c3_i32, %arg0[%1] : memref<?xi32>
+// CHECK-NEXT:       memref.store %c3_i32, %arg0[%1] : memref<?xi32>
 // CHECK-NEXT:       %2 = addi %arg1, %c1_i32 : i32
-// CHECK-NEXT:       %3 = cmpi "ne", %2, %c20_i32 : i32
+// CHECK-NEXT:       %3 = cmpi ne, %2, %c20_i32 : i32
 // CHECK-NEXT:       scf.yield %3, %2 : i1, i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
