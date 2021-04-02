@@ -22,6 +22,9 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
                                    cl::desc("Emit immediate mlir"));
 
+static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
+                                   cl::desc("Raise SCF to Affine"));
+
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
@@ -119,11 +122,13 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createLoopRestructurePass());
-    // optPM.addPass(mlir::createAffineLoopInvariantCodeMotionPass());
-    optPM.addPass(mlir::createRaiseSCFToAffinePass());
     optPM.addPass(mlir::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createMemRefDataFlowOptPass());
+    if (RaiseToAffine) {
+      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+      optPM.addPass(mlir::createRaiseSCFToAffinePass());
+    }
     if (mlir::failed(pm.run(module))) {
       module.dump();
       return 4;
