@@ -105,9 +105,7 @@ void ForOp::build(OpBuilder &builder, OperationState &result, Value lb,
   }
 }
 
-static LogicalResult verify(ContainerOp op) {
-  return success();
-}
+static LogicalResult verify(ContainerOp op) { return success(); }
 
 static LogicalResult verify(ForOp op) {
   if (auto cst = op.step().getDefiningOp<ConstantIndexOp>())
@@ -1058,13 +1056,14 @@ namespace {
 struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
 
-  void transferBody(Region &source, Region &dest, ArrayRef<OpResult> usedResults,
+  void transferBody(Region &source, Region &dest,
+                    ArrayRef<OpResult> usedResults,
                     PatternRewriter &rewriter) const {
     dest.getBlocks().clear();
     dest.getBlocks().splice(dest.getBlocks().begin(), source.getBlocks());
     // Move all operations to the destination block.
-    //rewriter.mergeBlocks(source, dest);
-    
+    // rewriter.mergeBlocks(source, dest);
+
     // Replace the yield op by one that returns only the used values.
     auto yieldOp = cast<scf::YieldOp>(dest.back().getTerminator());
     SmallVector<Value, 4> usedOperands;
@@ -1120,32 +1119,39 @@ struct RemoveNotIf : public OpRewritePattern<IfOp> {
       return failure();
 
     auto trueYield = cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
-    auto falseYield = cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
+    auto falseYield =
+        cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
 
-    rewriter.setInsertionPoint(op->getBlock(), op.getOperation()->getIterator());
+    rewriter.setInsertionPoint(op->getBlock(),
+                               op.getOperation()->getIterator());
     bool changed = false;
-    for (auto tup : llvm::zip(trueYield.results(), falseYield.results(), op.results())) {
-      if (!std::get<0>(tup).getType().isInteger(1)) continue;
+    for (auto tup :
+         llvm::zip(trueYield.results(), falseYield.results(), op.results())) {
+      if (!std::get<0>(tup).getType().isInteger(1))
+        continue;
       if (auto top = std::get<0>(tup).getDefiningOp<ConstantOp>()) {
         if (auto fop = std::get<1>(tup).getDefiningOp<ConstantOp>()) {
           if (top.getValue().cast<IntegerAttr>().getValue() == 0 &&
               fop.getValue().cast<IntegerAttr>().getValue() == 1) {
 
-              for (OpOperand &use : llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
-                changed = true;
-                rewriter.updateRootInPlace(use.getOwner(),
-                  [&]() { use.set(rewriter.create<XOrOp>(op.getLoc(), op.condition())); });
-              }
+            for (OpOperand &use :
+                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+              changed = true;
+              rewriter.updateRootInPlace(use.getOwner(), [&]() {
+                use.set(rewriter.create<XOrOp>(op.getLoc(), op.condition()));
+              });
+            }
           }
           if (top.getValue().cast<IntegerAttr>().getValue() == 1 &&
               fop.getValue().cast<IntegerAttr>().getValue() == 0) {
-              for (OpOperand &use : llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
-                changed = true;
-                rewriter.updateRootInPlace(use.getOwner(),
-                  [&]() { use.set(op.condition()); });
-              }
+            for (OpOperand &use :
+                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+              changed = true;
+              rewriter.updateRootInPlace(use.getOwner(),
+                                         [&]() { use.set(op.condition()); });
+            }
           }
-        }   
+        }
       }
     }
     return changed ? success() : failure();
@@ -1159,7 +1165,7 @@ struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
                                 PatternRewriter &rewriter) const override {
     auto constant = op.condition().getDefiningOp<ConstantOp>();
     if (!constant) {
-      //llvm::errs() << "removeStatic failed\n" << op << "\n";
+      // llvm::errs() << "removeStatic failed\n" << op << "\n";
       return failure();
     }
 
@@ -1243,19 +1249,27 @@ struct ConditionPropagation : public OpRewritePattern<IfOp> {
     }
     bool changed = false;
     mlir::Type ty = rewriter.getI1Type();
-    for (OpOperand &use : llvm::make_early_inc_range(op.condition().getUses())) {
+    for (OpOperand &use :
+         llvm::make_early_inc_range(op.condition().getUses())) {
       if (op.thenRegion().isAncestor(use.getOwner()->getParentRegion())) {
         changed = true;
-        rewriter.updateRootInPlace(use.getOwner(),
-          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
-      } else if (op.elseRegion().isAncestor(use.getOwner()->getParentRegion())) {
+        rewriter.updateRootInPlace(use.getOwner(), [&]() {
+          use.set(rewriter.create<mlir::ConstantOp>(
+              op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1)));
+        });
+      } else if (op.elseRegion().isAncestor(
+                     use.getOwner()->getParentRegion())) {
         changed = true;
-        rewriter.updateRootInPlace(use.getOwner(),
-          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 0))); });
-      } 
+        rewriter.updateRootInPlace(use.getOwner(), [&]() {
+          use.set(rewriter.create<mlir::ConstantOp>(
+              op.getLoc(), ty, rewriter.getIntegerAttr(ty, 0)));
+        });
+      }
     }
-    if (changed) return success();
-    else return failure();
+    if (changed)
+      return success();
+    else
+      return failure();
   }
 };
 
@@ -1264,44 +1278,52 @@ struct CombineIfs : public OpRewritePattern<IfOp> {
 
   LogicalResult matchAndRewrite(IfOp op,
                                 PatternRewriter &rewriter) const override {
-    if (op.elseRegion().getBlocks().size() >= 2) return failure();
+    if (op.elseRegion().getBlocks().size() >= 2)
+      return failure();
     assert(op.thenRegion().getBlocks().size());
     assert(op.elseRegion().getBlocks().size() <= 1);
-    Block* parent = op->getBlock();
-    if (op == &parent->back()) return failure();
+    Block *parent = op->getBlock();
+    if (op == &parent->back())
+      return failure();
     auto nextIf = dyn_cast<IfOp>(op->getNextNode());
     if (!nextIf)
       return failure();
-    if (op.results().size() != 0) return failure();
-    if (nextIf.condition() != op.condition()) return failure();
+    if (op.results().size() != 0)
+      return failure();
+    if (nextIf.condition() != op.condition())
+      return failure();
 
+    rewriter.updateRootInPlace(nextIf, [&]() {
+      Block &then = *op.thenRegion().begin();
+      rewriter.eraseOp(&then.back());
+      rewriter.mergeBlocks(&*nextIf.thenRegion().begin(), &then);
+      nextIf.thenRegion().getBlocks().splice(
+          nextIf.thenRegion().getBlocks().begin(), op.thenRegion().getBlocks());
+      // rewriter.mergeBlockBefore(&then,
+      // &*nextIf.thenRegion().begin()->begin());
 
-    rewriter.updateRootInPlace(nextIf,
-      [&]() { 
-    Block& then = *op.thenRegion().begin();
-    rewriter.eraseOp(&then.back());
-    rewriter.mergeBlocks(&*nextIf.thenRegion().begin(), &then);
-    nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), op.thenRegion().getBlocks());
-    //rewriter.mergeBlockBefore(&then, &*nextIf.thenRegion().begin()->begin());
+      assert(nextIf.thenRegion().getBlocks().size());
 
-    assert(nextIf.thenRegion().getBlocks().size());
-
-    if (!op.elseRegion().empty()) {
-      Block& elser = *op.elseRegion().begin();
-      if (nextIf.elseRegion().empty()) {
-        auto &eb = *(new Block());
-        nextIf.elseRegion().getBlocks().push_back(&eb);
-        //nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(), elser.getOperations());
-        rewriter.mergeBlocks(&elser, &eb);
-      } else {
-        rewriter.eraseOp(&elser.back());
-        //rewriter.mergeBlockBefore(&elser, &*nextIf.elseRegion().begin()->begin());
-        rewriter.mergeBlocks(&*nextIf.elseRegion().begin(), &elser);
-        nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), op.elseRegion().getBlocks());
+      if (!op.elseRegion().empty()) {
+        Block &elser = *op.elseRegion().begin();
+        if (nextIf.elseRegion().empty()) {
+          auto &eb = *(new Block());
+          nextIf.elseRegion().getBlocks().push_back(&eb);
+          // nextIf.elseRegion().begin()->getOperations().splice(nextIf.elseRegion().begin()->begin(),
+          // elser.getOperations());
+          rewriter.mergeBlocks(&elser, &eb);
+        } else {
+          rewriter.eraseOp(&elser.back());
+          // rewriter.mergeBlockBefore(&elser,
+          // &*nextIf.elseRegion().begin()->begin());
+          rewriter.mergeBlocks(&*nextIf.elseRegion().begin(), &elser);
+          nextIf.elseRegion().getBlocks().splice(
+              nextIf.elseRegion().getBlocks().begin(),
+              op.elseRegion().getBlocks());
+        }
+        assert(nextIf.elseRegion().getBlocks().size());
       }
-      assert(nextIf.elseRegion().getBlocks().size());
-    }
-      });
+    });
     rewriter.eraseOp(op);
     return success();
   }
@@ -1469,28 +1491,30 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
       if (isTopLevel(cmpIOp.rhs())) {
         switch (cmpIOp.getPredicate()) {
-          case CmpIPredicate::slt: {
-            loopInfo.ub = cmpIOp.rhs();
-            break;
-          }
-          case CmpIPredicate::sle: {
-            auto one = rewriter.create<ConstantOp>(
-              loop.getLoc(), rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
-            auto addIOp = rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
-            loopInfo.ub = addIOp.getResult();
-            break;
-          }
-          case CmpIPredicate::eq:
-          case CmpIPredicate::sge:
-          case CmpIPredicate::sgt:
-          case CmpIPredicate::ne:
-          case CmpIPredicate::ult:
-          case CmpIPredicate::ule:
-          case CmpIPredicate::ugt:
-          case CmpIPredicate::uge: {
-            llvm::errs() << "unhandled icmp";
-            return failure();
-          }
+        case CmpIPredicate::slt: {
+          loopInfo.ub = cmpIOp.rhs();
+          break;
+        }
+        case CmpIPredicate::sle: {
+          auto one =
+              rewriter.create<ConstantOp>(loop.getLoc(), rewriter.getI32Type(),
+                                          rewriter.getI32IntegerAttr(1));
+          auto addIOp =
+              rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
+          loopInfo.ub = addIOp.getResult();
+          break;
+        }
+        case CmpIPredicate::eq:
+        case CmpIPredicate::sge:
+        case CmpIPredicate::sgt:
+        case CmpIPredicate::ne:
+        case CmpIPredicate::ult:
+        case CmpIPredicate::ule:
+        case CmpIPredicate::ugt:
+        case CmpIPredicate::uge: {
+          llvm::errs() << "unhandled icmp";
+          return failure();
+        }
         }
       } else {
         auto *op = cmpIOp.rhs().getDefiningOp();
@@ -1568,8 +1592,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     replacements.append(forloop.getResults().begin() + pos,
                         forloop.getResults().end());
     rewriter.replaceOp(loop, replacements);
-    auto m = forloop->getParentOfType<ModuleOp>();
-    m.dump();
+    // auto m = forloop->getParentOfType<ModuleOp>();
+    // m.dump();
     return success();
   }
 };
@@ -1759,22 +1783,24 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
   }
 };
 
-
 struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(WhileOp op,
                                 PatternRewriter &rewriter) const override {
     auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
-    size_t i=0;
+    size_t i = 0;
     bool replaced = false;
     for (auto arg : term.args()) {
       if (arg == term.condition()) {
         mlir::Type ty = rewriter.getI1Type();
-        for (OpOperand &use : llvm::make_early_inc_range(op.after().front().getArgument(i).getUses())) {
+        for (OpOperand &use : llvm::make_early_inc_range(
+                 op.after().front().getArgument(i).getUses())) {
           replaced = true;
-          rewriter.updateRootInPlace(use.getOwner(),
-          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
+          rewriter.updateRootInPlace(use.getOwner(), [&]() {
+            use.set(rewriter.create<mlir::ConstantOp>(
+                op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1)));
+          });
         }
       }
       i++;
@@ -1793,8 +1819,9 @@ void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                        MLIRContext *context) {
-  results.insert<CombineIfs, ConditionPropagation, RemoveNotIf, RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean, ConvertTrivialIfToSelect>(
-      context);
+  results.insert<CombineIfs, ConditionPropagation, RemoveNotIf,
+                 RemoveUnusedResults, RemoveStaticCondition, RemoveBoolean,
+                 ConvertTrivialIfToSelect>(context);
 }
 
 //===----------------------------------------------------------------------===//
