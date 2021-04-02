@@ -941,325 +941,93 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
 struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
-  Optional<int64_t> extractConstantIndex(Value val) const {
-    if (auto cstOp = val.getDefiningOp<ConstantIndexOp>())
-      return cstOp.getValue();
-    return None;
-  }
-
-  Optional<int64_t> extractConstant(Value val) const {
-    if (auto cstOp = val.getDefiningOp<ConstantOp>()) {
+  bool hasSameInitValue(Value iter, ForOp forOp) const {
+    Operation *cst = iter.getDefiningOp();
+    if (!cst)
+      return false;
+    if (auto cstOp = dyn_cast<ConstantOp>(cst)) {
       Attribute attr = cstOp.getValue();
-      if (auto intAttr = attr.cast<IntegerAttr>())
-        return intAttr.getInt();
-    }
-    return None;
-  }
-
-  bool findIn(ArrayRef<unsigned> array, unsigned pos) const {
-    if (std::find(array.begin(), array.end(), pos) != array.end())
-      return true;
-    return false;
-  }
-
-  bool isTopLevel(Value val) const {
-    if (val.cast<BlockArgument>())
-      return true;
-    return false;
-  }
-
-  bool hasSameStep(Value incAdd, Value forStep) const {
-    auto incAddVal = extractConstant(incAdd);
-    auto forStepVal = extractConstantIndex(forStep);
-    if (incAddVal && forStepVal && incAddVal == forStepVal)
-      return true;
-    return false;
-  }
-
-  // TODO: miss op. if it has more than one uses (i.e., an index cast op).
-  bool isIndVar(Value val, ForOp op) const {
-    if (val == op.getInductionVar())
-      return true;
-    else if (val.hasOneUse()) {
-      Operation *defOp = val.getDefiningOp();
-      if (auto addIOp = dyn_cast<AddIOp>(defOp)) {
-        Value maybeBlockArg = addIOp.getOperand(0);
-        if (isTopLevel(maybeBlockArg) &&
-            hasSameStep(addIOp.getOperand(1), op.getStep()))
+      if (auto intAttr = attr.cast<IntegerAttr>()) {
+        Operation *lbDefOp = forOp.getLowerBound().getDefiningOp();
+        if (!lbDefOp)
+          return false;
+        ConstantIndexOp lb = dyn_cast_or_null<ConstantIndexOp>(lbDefOp);
+        if (lb && lb.getValue() == intAttr.getInt())
           return true;
       }
     }
     return false;
   }
 
-  LogicalResult matchAndRewrite(ForOp op,
-                                PatternRewriter &rewriter) const override {
-
-    if (!op.getIterOperands().size())
-      return failure();
-
-    SmallVector<unsigned, 4> nonIndVarIndexes;
-    SmallVector<unsigned, 4> indVarIndexes;
-    SmallVector<Type, 4> indVarTypes;
-    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
-    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
-      if (!isIndVar(yieldOperand.get(), op))
-        nonIndVarIndexes.push_back(yieldOperand.getOperandNumber());
-      else {
-        indVarIndexes.push_back(yieldOperand.getOperandNumber());
-        indVarTypes.push_back(yieldOperand.get().getType());
+  bool hasSameStepValue(Value regIter, Value yieldOp, ForOp forOp) const {
+    auto addOp = cast<AddIOp>(yieldOp.getDefiningOp());
+    Value addStep = addOp.getOperand(1);
+    Operation *defOpStep = addStep.getDefiningOp();
+    if (!defOpStep)
+      return false;
+    if (auto cstStep = dyn_cast<ConstantOp>(defOpStep)) {
+      Attribute attr = cstStep.getValue();
+      if (auto intAttr = attr.cast<IntegerAttr>()) {
+        Operation *stepForDefOp = forOp.getStep().getDefiningOp();
+        if (!stepForDefOp)
+          return false;
+        ConstantIndexOp stepFor =
+            dyn_cast_or_null<ConstantIndexOp>(stepForDefOp);
+        if (stepFor && stepFor.getValue() == intAttr.getInt())
+          return true;
       }
-
-    assert(nonIndVarIndexes.size() + indVarIndexes.size() ==
-           op.getNumRegionIterArgs());
-
-    // no work to do.
-    if (!indVarIndexes.size()) {
-      // llvm::errs() << "----- failed detect ind var -----\n\n";
-      // op.dump();
-      return failure();
     }
-
-    SmallVector<OpResult, 4> nonIndVarResults;
-    llvm::copy_if(op->getOpResults(), std::back_inserter(nonIndVarResults),
-                  [&](OpResult result) {
-                    if (findIn(nonIndVarIndexes, result.getResultNumber()))
-                      return true;
-                    return false;
-                  });
-
-    SmallVector<Value, 4> nonIndVarOperands;
-    SmallVector<Value, 4> nonIndVarBlockArgs;
-    SmallVector<Value, 2> indVarBlockArgs;
-
-    unsigned pos = 0;
-    for (Value operand : op.getIterOperands()) {
-      if (findIn(nonIndVarIndexes, pos)) {
-        nonIndVarOperands.push_back(operand);
-        // +1 to skip indvar.
-        nonIndVarBlockArgs.push_back(op.getBody()->getArgument(pos + 1));
-      }
-      pos++;
-    }
-
-    for (auto index : indVarIndexes)
-      indVarBlockArgs.push_back(op.getBody()->getArgument(index + 1));
-
-    auto newForOp = rewriter.create<ForOp>(
-        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
-        nonIndVarOperands,
-        [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-          // clang-format off
-          // mapping {iter_arg_ind_var, iter_arg_ind_var, iter_arg_no_ind_var_one ...}
-          //         {iv_new,           iv_new, iter_arg_no_ind_var_one, new ...}
-          // clang-format on
-          SmallVector<Value, 4> mappedValues;
-          for (int i = 0; i < indVarIndexes.size(); i++) {
-            if (!indVarTypes[i].isa<IndexType>())
-              mappedValues.push_back(rewriter.create<IndexCastOp>(
-                  op.getLoc(), iv, indVarTypes[i]));
-            else
-              mappedValues.push_back(iv);
-          }
-          mappedValues.append(args.begin(), args.end());
-
-          SmallVector<Value, 4> blockArgs;
-          blockArgs.append(indVarBlockArgs.begin(), indVarBlockArgs.end());
-          blockArgs.append(nonIndVarBlockArgs.begin(),
-                           nonIndVarBlockArgs.end());
-
-          assert(blockArgs.size() == mappedValues.size());
-
-          BlockAndValueMapping mapping;
-          mapping.map(blockArgs, mappedValues);
-          for (auto &nested : op.getBody()->getOperations())
-            b.clone(nested, mapping);
-        });
-
-    // Fix YieldOp.
-    yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
-    SmallVector<Value, 4> yieldOperands;
-    llvm::transform(nonIndVarResults, std::back_inserter(yieldOperands),
-                    [&](OpResult result) {
-                      return yieldOp.getOperand(result.getResultNumber());
-                    });
-    rewriter.updateRootInPlace(yieldOp,
-                               [&]() { yieldOp->setOperands(yieldOperands); });
-
-    // Fix returns.
-    SmallVector<Value, 4> reResults;
-    pos = 0;
-    for (OpResult res : op->getOpResults()) {
-      if (!findIn(nonIndVarIndexes, res.getResultNumber())) {
-        rewriter.setInsertionPointAfter(newForOp);
-        auto cast = rewriter.create<IndexCastOp>(
-            op.getLoc(), newForOp.getUpperBound(), res.getType());
-        reResults.push_back(cast);
-      } else
-        reResults.push_back(newForOp.getResult(pos++));
-    }
-
-    // auto m = op.getParentOfType<ModuleOp>();
-    // m.dump();
-
-    rewriter.replaceOp(op, reResults);
-    return success();
-  }
-};
-
-struct DropConstantReturn : public OpRewritePattern<ForOp> {
-  using OpRewritePattern<ForOp>::OpRewritePattern;
-
-  bool isConstant(Value val) const {
-    auto *defOp = val.getDefiningOp();
-    if (defOp && dyn_cast<ConstantOp>(defOp))
-      return true;
     return false;
   }
 
-  bool isSameAsYield(unsigned i, Value val, ForOp op) const {
-    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
-    auto defOpYield = yieldOp.getOperand(i).getDefiningOp();
-    auto defOpInput = val.getDefiningOp();
-    if (defOpYield == defOpInput)
-      return true;
-    return false;
+  bool preconditionIndVar(Value regIter, Value yieldOp, ForOp forOp) const {
+    Operation *mustBeAdd = yieldOp.getDefiningOp();
+    if (!mustBeAdd || !isa<AddIOp>(mustBeAdd))
+      return false;
+    auto addOp = cast<AddIOp>(mustBeAdd);
+    if (addOp.getOperand(0) != regIter)
+      return false;
+    // check users. We allow only index cast and 'addOp`.
+    for (auto u : regIter.getUsers()) {
+      if (isa<IndexCastOp>(u) || (u == addOp.getOperation()))
+        continue;
+      return false;
+    }
+    // the user of the add should be a yieldop.
+    Value res = addOp.getResult();
+    for (auto u : res.getUsers())
+      if (!isa<YieldOp>(u))
+        return false;
+
+    return true;
   }
 
-  LogicalResult matchAndRewrite(ForOp op,
+  bool isIndVar(Value iter, Value regIter, Value yieldOp, ForOp forOp) const {
+    if (!preconditionIndVar(regIter, yieldOp, forOp))
+      return false;
+    if (!hasSameInitValue(iter, forOp))
+      return false;
+    if (!hasSameStepValue(regIter, yieldOp, forOp))
+      return false;
+    return true;
+  }
+
+  LogicalResult matchAndRewrite(ForOp forOp,
                                 PatternRewriter &rewriter) const override {
-
-    if (op.getNumIterOperands() == 0)
+    if (!forOp.getNumIterOperands())
       return failure();
 
-    SmallVector<unsigned, 4> toBeErased;
-    SmallVector<Value, 4> operands;
-    for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
-      if (isConstant(op.getIterOperands()[i]) &&
-          isSameAsYield(i, op.getIterOperands()[i], op) &&
-          op.getBody()->getArgument(i + 1).use_empty())
-        toBeErased.push_back(i);
-      else
-        operands.push_back(op.getIterOperands()[i]);
+    Block &block = forOp.region().front();
+    auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
+
+    for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
+                             yieldOp.getOperands())) {
+      if (isIndVar(std::get<0>(it), std::get<1>(it), std::get<2>(it), forOp))
+        std::get<1>(it).replaceAllUsesWith(forOp.getInductionVar());
     }
-
-    if (!toBeErased.size())
-      return failure();
-
-    // llvm::errs() << "------------\n";
-    // for (auto i : toBeErased)
-    //  llvm::errs() << "index -> " << i << "\n";
-    // op.dump();
-    // for (auto v : operands)
-    //  v.dump();
-    // llvm::errs() << "------------\n";
-
-    SmallVector<Value, 4> repResults;
-    auto newForOp = rewriter.create<ForOp>(
-        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
-        operands, [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-          SmallVector<Value, 2> mappedValues;
-          mappedValues.append(args.begin(), args.end());
-
-          BlockAndValueMapping mapping;
-          SmallVector<Value, 4> nonCstBlockArgs;
-          for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
-            if (std::find(toBeErased.begin(), toBeErased.end(), i) !=
-                toBeErased.end())
-              continue;
-            nonCstBlockArgs.push_back(op.getBody()->getArgument(i + 1));
-          }
-          mapping.map(nonCstBlockArgs, mappedValues);
-
-          for (auto &nested : op.getBody()->getOperations())
-            b.clone(nested, mapping);
-        });
-
-    // fix yield.
-    auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
-    repResults.append(yieldOp.getOperands().begin(),
-                      yieldOp.getOperands().end());
-    SmallVector<Value, 4> yieldOperands;
-    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
-      if (std::find(toBeErased.begin(), toBeErased.end(),
-                    yieldOperand.getOperandNumber()) == toBeErased.end())
-        yieldOperands.push_back(yieldOperand.get());
-
-    rewriter.updateRootInPlace(yieldOp,
-                               [&]() { yieldOp->setOperands(yieldOperands); });
-
-    // llvm::errs() << "-----newOp---------\n";
-    // newForOp.dump();
-    // llvm::errs() << "----newOp----------\n";
-
-    rewriter.replaceOp(op, repResults);
     return success();
   }
 };
-
-struct DropYieldedInput : public OpRewritePattern<ForOp> {
-  using OpRewritePattern<ForOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(ForOp op,
-                                PatternRewriter &rewriter) const override {
-
-    if (op.getNumIterOperands() == 0)
-      return failure();
-
-    SmallVector<Value, 4> operandsNotYielded;
-    SmallVector<unsigned, 4> toBeErased; 
-    unsigned i = 0;
-    auto yieldOp = cast<scf::YieldOp>(op.getBody()->getTerminator());
-    for (auto iterOp : op.getIterOperands()) {
-      if (iterOp == yieldOp.getOperand(i)) {
-        toBeErased.push_back(i);
-        op.getBody()->getArgument(i + 1).replaceAllUsesWith(iterOp);
-        op.getResult(i).replaceAllUsesWith(iterOp);
-      }
-      else {
-        operandsNotYielded.push_back(iterOp);
-      }
-      i++;
-    }
-
-    if (!toBeErased.size())
-      return failure();
-
-    auto newForOp = rewriter.create<ForOp>(
-      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep(),
-      operandsNotYielded, [&](OpBuilder &b, Location loc, Value iv, ValueRange args) {
-        SmallVector<Value, 2> mappedValues{iv};
-        mappedValues.append(args.begin(), args.end());
-          
-        BlockAndValueMapping mapping;
-        SmallVector<Value, 4> oldArgs;
-        oldArgs.push_back(op.getInductionVar());
-        for (unsigned i = 0; i < op.getNumIterOperands(); i++) {
-          if (std::find(toBeErased.begin(), toBeErased.end(), i) == toBeErased.end())
-            oldArgs.push_back(op.getBody()->getArgument(i + 1));
-        }
-        mapping.map(oldArgs, mappedValues);
-
-        for (auto &nested : op.getBody()->getOperations())
-          b.clone(nested, mapping);
-    });
-
-    yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
-    SmallVector<Value, 4> resResults{yieldOp.getOperands().begin(), yieldOp.getOperands().end()};
-    SmallVector<Value, 4> yieldOperands;
-    for (OpOperand &yieldOperand : yieldOp->getOpOperands())
-      if (std::find(toBeErased.begin(), toBeErased.end(),
-                    yieldOperand.getOperandNumber()) == toBeErased.end())
-        yieldOperands.push_back(yieldOperand.get());
-
-    rewriter.updateRootInPlace(yieldOp,
-                               [&]() { yieldOp->setOperands(yieldOperands); });
-
-    rewriter.replaceOp(op, resResults); 
-    return success();
-  }
-};
-
 } // namespace
 
 void ForOp::getCanonicalizationPatterns(RewritePatternSet &results,
@@ -2067,7 +1835,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
               cast<scf::YieldOp>(loop.after().front().getTerminator());
           SmallVector<Value, 2> yieldOperands;
           for (auto oldYieldArg : oldYield.results())
-            yieldOperands.push_back(mapping.lookup(oldYieldArg));
+            yieldOperands.push_back(mapping.lookupOrDefault(oldYieldArg));
 
           BlockAndValueMapping outmap;
           outmap.map(loop.before().getArguments(), yieldOperands);
@@ -2082,8 +1850,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     replacements.append(forloop.getResults().begin() + pos,
                         forloop.getResults().end());
     rewriter.replaceOp(loop, replacements);
-    // m = forloop.getParentOfType<ModuleOp>();
-    // m.dump();
+    auto m = forloop->getParentOfType<ModuleOp>();
+    m.dump();
     return success();
   }
 };
@@ -2302,7 +2070,7 @@ struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
   results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
-                 WhileConditionTruth/*, MoveWhileToFor*/>(context);
+                 WhileConditionTruth, MoveWhileToFor>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,
