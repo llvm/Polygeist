@@ -8,7 +8,6 @@
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 -lm && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
 // RUN: rm -f %s.exec2 %s.execm
 
-// XFAIL: *
 /**
  * This version is stamped on May 10, 2016
  *

@@ -25,6 +25,10 @@ static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
 static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
                                    cl::desc("Raise SCF to Affine"));
 
+static cl::opt<bool>
+    DetectReduction("detect-reduction", cl::init(false),
+                    cl::desc("Detect reduction in inner most loop"));
+
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
@@ -129,7 +133,8 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(mlir::createRaiseSCFToAffinePass());
     }
-    optPM.addPass(mlir::detectReductionPass());
+    if (DetectReduction)
+      optPM.addPass(mlir::detectReductionPass());
     if (mlir::failed(pm.run(module))) {
       module.dump();
       return 4;
