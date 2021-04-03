@@ -221,25 +221,24 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         downStreamLoads[i]->getResult(0).replaceAllUsesWith(
             newForOp.getResults()[forOp.getResults().size() + i]);
         rewriter.eraseOp(downStreamLoads[i]);
-      } else {
-        auto store = cast<AffineStoreOp>(std::get<1>(pair));
-        rewriter.setInsertionPointAfter(newForOp);
-        auto rank = store.getMemRef().getType().cast<MemRefType>().getRank();
-        // constant. Why Mem2Reg does not remove them?
-        // if (rank == 1 && store.indices().size() == 0) {
-        //  ConstantIndexOp cst =
-        //  rewriter.create<ConstantIndexOp>(store.getLoc(), 0);
-        //  rewriter.create<AffineStoreOp>(
-        //    newForOp.getLoc(),
-        //    newForOp.getResults()[forOp.getResults().size() + i],
-        //    store.getMemRef(), cst.getResult());
-        //} else {
-        rewriter.create<AffineStoreOp>(
-            newForOp.getLoc(),
-            newForOp.getResults()[forOp.getResults().size() + i],
-            store.getMemRef(), store.getAffineMap(), store.indices());
-        //}
       }
+      auto store = cast<AffineStoreOp>(std::get<1>(pair));
+      rewriter.setInsertionPointAfter(newForOp);
+      auto rank = store.getMemRef().getType().cast<MemRefType>().getRank();
+      // constant. Why Mem2Reg does not remove them?
+      // if (rank == 1 && store.indices().size() == 0) {
+      //  ConstantIndexOp cst =
+      //  rewriter.create<ConstantIndexOp>(store.getLoc(), 0);
+      //  rewriter.create<AffineStoreOp>(
+      //    newForOp.getLoc(),
+      //    newForOp.getResults()[forOp.getResults().size() + i],
+      //    store.getMemRef(), cst.getResult());
+      //} else {
+      rewriter.create<AffineStoreOp>(
+          newForOp.getLoc(),
+          newForOp.getResults()[forOp.getResults().size() + i],
+          store.getMemRef(), store.getAffineMap(), store.indices());
+      //}
       rewriter.eraseOp(std::get<1>(pair));
       ++i;
     }
