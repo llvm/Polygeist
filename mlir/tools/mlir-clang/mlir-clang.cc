@@ -26,7 +26,7 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
                                    cl::desc("Raise SCF to Affine"));
 
 static cl::opt<bool>
-    DetectReduction("detect-reduction", cl::init(false),
+    DetectReduction("detect-reduction", cl::init(true),
                     cl::desc("Detect reduction in inner most loop"));
 
 static cl::opt<std::string> Standard("std", cl::init(""),

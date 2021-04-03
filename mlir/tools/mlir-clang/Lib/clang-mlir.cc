@@ -2726,7 +2726,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
     for (size_t i = 0; i < ST->getNumElements(); i++) {
       types.push_back(getMLIRType(ST->getTypeAtIndex(i)));
     }
-    // return mlir::LLVM::StructType::get(ST->getName(), types);
+    return mlir::LLVM::LLVMStructType::getLiteral(module.getContext(), types);
+    //return mlir::LLVM::StructType::get(ST->getName(), types);
   }
   llvm::errs() << *t << "\n";
   assert(0 && "unknown type to convert");
