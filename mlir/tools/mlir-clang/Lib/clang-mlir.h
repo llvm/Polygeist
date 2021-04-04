@@ -313,6 +313,24 @@ private:
 
   ValueWithOffsets getValue(std::string name);
 
+  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
+  mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
+    auto &vec = bufs[t.getAsOpaquePointer()];
+    if (i < vec.size())
+      return vec[i];
+
+    mlir::OpBuilder subbuilder(builder.getContext());
+    subbuilder.setInsertionPointToStart(entryBlock);
+
+    auto indexType = subbuilder.getIntegerType(64);
+    auto one = subbuilder.create<mlir::ConstantOp>(
+        loc, indexType,
+        subbuilder.getIntegerAttr(subbuilder.getIntegerType(64), 1));
+    auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
+    vec.push_back(rs);
+    return rs;
+  }
+
   mlir::Type getLLVMTypeFromMLIRType(mlir::Type t);
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
