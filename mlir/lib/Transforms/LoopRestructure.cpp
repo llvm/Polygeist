@@ -367,6 +367,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                   falseargs);
               op.erase();
             }
+            break;
           }
         }
       }
