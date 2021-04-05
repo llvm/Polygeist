@@ -1673,10 +1673,17 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     return false;
   }
 
-  bool isTopLevel(Value value) const {
+  bool isBlockArg(Value value) const {
     if (auto arg = value.dyn_cast<BlockArgument>())
       return true;
     return false;
+  }
+
+  bool dominateWhile(Value value, WhileOp loop) const {
+    Operation *op = value.getDefiningOp();
+    assert(op && "expect non-null");
+    DominanceInfo dom(loop);
+    return dom.properlyDominates(op, loop);
   }
 
   bool canMoveOpOutsideWhile(Operation *op, WhileOp loop) const {
@@ -1749,7 +1756,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       }
       Value indVar = maybeIndVar;
 
-      if (isTopLevel(cmpIOp.rhs())) {
+      if (isBlockArg(cmpIOp.rhs()) || dominateWhile(cmpIOp.rhs(), loop)) {
         switch (cmpIOp.getPredicate()) {
           case CmpIPredicate::slt: {
             loopInfo.ub = cmpIOp.rhs();
@@ -2069,10 +2076,8 @@ struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
 
 void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                           MLIRContext *context) {
-  //results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
-  //               WhileConditionTruth, MoveWhileToFor>(context);
   results.insert<MoveWhileDown, RemoveUnusedCondVar, MoveSideEffectFreeWhile,
-                 WhileConditionTruth>(context);
+                 WhileConditionTruth, MoveWhileToFor>(context);
 }
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,
