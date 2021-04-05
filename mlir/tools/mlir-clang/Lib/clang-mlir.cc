@@ -312,12 +312,14 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
 // Make sure that the induction variable initialized in
 // the for is the same as the one used in the condition.
 bool matchIndvar(const Expr *expr, std::string indVar) {
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr))
-    if (auto declRef = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      auto declRefName = declRef->getDecl()->getName().str();
-      if (declRefName == indVar)
-        return true;
-    }
+  while (auto IC = dyn_cast<ImplicitCastExpr>(expr)) {
+    expr = IC->getSubExpr();
+  }
+  if (auto declRef = dyn_cast<DeclRefExpr>(expr)) {
+    auto declRefName = declRef->getDecl()->getName().str();
+    if (declRefName == indVar)
+      return true;
+  }
   return false;
 }
 
