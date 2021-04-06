@@ -1,4 +1,4 @@
-// TODO: mlir-clang %s %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %stdinclude | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
 // RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
@@ -167,43 +167,37 @@ int main(int argc, char** argv)
 
   return 0;
 }
-
-// CHECK:   func @kernel_2mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: f64, %arg5: f64, %arg6: memref<800x900xf64>, %arg7: memref<800x1100xf64>, %arg8: memref<1100x900xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<800x1200xf64>) {
-// CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
-// CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:  %1 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:  %2 = index_cast %arg2 : i32 to index
-// CHECK-NEXT:  affine.for %arg11 = 0 to %0 {
-// CHECK-NEXT:    affine.for %arg12 = 0 to %1 {
-// CHECK-NEXT:      affine.store %cst, %arg6[%arg11, %arg12] : memref<800x900xf64>
-// CHECK-NEXT:      %4 = affine.load %arg6[%arg11, %arg12] : memref<800x900xf64>
-// CHECK-NEXT:      affine.for %arg13 = 0 to %2 {
-// CHECK-NEXT:        %5 = affine.load %arg7[%arg11, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:        %6 = mulf %arg4, %5 : f64
-// CHECK-NEXT:        %7 = affine.load %arg8[%arg13, %arg12] : memref<1100x900xf64>
-// CHECK-NEXT:        %8 = mulf %6, %7 : f64
-// CHECK-NEXT:        %9 = addf %4, %8 : f64
-// CHECK-NEXT:        affine.store %9, %arg6[%arg11, %arg12] : memref<800x900xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  %3 = index_cast %arg3 : i32 to index
-// CHECK-NEXT:  affine.for %arg11 = 0 to %0 {
-// CHECK-NEXT:    affine.for %arg12 = 0 to %3 {
-// CHECK-NEXT:      %4 = affine.load %arg10[%arg11, %arg12] : memref<800x1200xf64>
-// CHECK-NEXT:      %5 = mulf %4, %arg5 : f64
-// CHECK-NEXT:      affine.store %5, %arg10[%arg11, %arg12] : memref<800x1200xf64>
-// CHECK-NEXT:      %6 = affine.load %arg10[%arg11, %arg12] : memref<800x1200xf64>
-// CHECK-NEXT:      affine.for %arg13 = 0 to %1 {
-// CHECK-NEXT:      %7 = affine.load %arg6[%arg11, %arg13] : memref<800x900xf64>
-// CHECK-NEXT:      %8 = affine.load %arg9[%arg13, %arg12] : memref<900x1200xf64>
-// CHECK-NEXT:      %9 = mulf %7, %8 : f64
-// CHECK-NEXT:      %10 = addf %6, %9 : f64
-// CHECK-NEXT:      affine.store %10, %arg10[%arg11, %arg12] : memref<800x1200xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  return
-// CHECK-NEXT: }
+// CHECK:  @kernel_2mm
+// CHECK:  affine.for %arg11 = 0 to {{.*}} {
+// CHECK:    affine.for %arg12 = 0 to {{.*}} {
+// CHECK:      affine.store %cst, %arg6[%arg11, %arg12] : memref<?x900xf64>
+// CHECK:      affine.for %arg13 = 0 to {{.*}} {
+// CHECK:        %4 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
+// CHECK:        %5 = mulf %arg4, %4 : f64
+// CHECK:        %6 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
+// CHECK:        %7 = mulf %5, %6 : f64
+// CHECK:        %8 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
+// CHECK:        %9 = addf %8, %7 : f64
+// CHECK:        affine.store %9, %arg6[%arg11, %arg12] : memref<?x900xf64>
+// CHECK:      }
+// CHECK:    }
+// CHECK:  }
+// CHECK:  affine.for %arg11 = 0 to {{.*}} {
+// CHECK:    affine.for %arg12 = 0 to {{.*}} {
+// CHECK:      %4 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// CHECK:      %5 = mulf %4, %arg5 : f64
+// CHECK:      affine.store %5, %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// CHECK:      affine.for %arg13 = 0 to {{.*}} {
+// CHECK:      %6 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64> 
+// CHECK:      %7 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
+// CHECK:      %8 = mulf %6, %7 : f64
+// CHECK:      %9 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// CHECK:      %10 = addf %9, %8 : f64
+// CHECK:      affine.store %10, %arg10[%arg11, %arg12] : memref<?x1200xf64>
+// CHECK:      }
+// CHECK:    }
+// CHECK:  }
+// CHECK:  return
+// CHECK: }
 
 // EXEC: {{[0-9]\.[0-9]+}}
