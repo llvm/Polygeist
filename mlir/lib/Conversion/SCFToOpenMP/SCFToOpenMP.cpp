@@ -254,7 +254,11 @@ struct ReduceOpLowering : public OpRewritePattern<scf::ReduceOp> {
 /// Applies the conversion patterns in the given function.
 static LogicalResult applyPatterns(FuncOp func) {
   ConversionTarget target(*func.getContext());
-  target.addIllegalOp<scf::ReduceOp, scf::ReduceReturnOp>();
+  target.addDynamicallyLegalOp<scf::ReduceOp>(
+      [](scf::ReduceOp op) { return isa<scf::ParallelOp>(op->getParentOp()); });
+  target.addDynamicallyLegalOp<scf::ReduceReturnOp>([](scf::ReduceReturnOp op) {
+    return isa<scf::ReduceOp>(op->getParentOp());
+  });
   target.addDynamicallyLegalOp<scf::ParallelOp>([](scf::ParallelOp op) {
     return op->getParentOfType<omp::ParallelOp>() != nullptr;
   });
