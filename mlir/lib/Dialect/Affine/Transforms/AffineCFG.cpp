@@ -210,6 +210,9 @@ static bool isValidIndex(Value val) {
   if (val.getDefiningOp<ConstantIndexOp>())
     return true;
 
+  if (val.getDefiningOp<ConstantOp>())
+    return true;
+
   if (auto ba = val.dyn_cast<BlockArgument>()) {
     if (isa<AffineForOp>(ba.getOwner()->getParentOp()))
       return true;
@@ -220,7 +223,8 @@ static bool isValidIndex(Value val) {
     if (isa<FuncOp>(ba.getOwner()->getParentOp()))
       return true;
   }
-  LLVM_DEBUG(llvm::dbgs() << "illegal isValisIndex: " << val << "\n");
+
+  LLVM_DEBUG(llvm::dbgs() << "illegal isValidIndex: " << val << "\n");
   return false;
 }
 
@@ -372,8 +376,9 @@ void AffineCFGPass::runOnFunction() {
         auto cur = todo.front();
         todo.pop_front();
         if (auto cmpi = cur.getDefiningOp<CmpIOp>()) {
-          if (!handle(b, cmpi, exprs, eqflags, applies))
+          if (!handle(b, cmpi, exprs, eqflags, applies)) {
             return;
+          }
           continue;
         }
         if (auto andi = cur.getDefiningOp<AndOp>()) {
