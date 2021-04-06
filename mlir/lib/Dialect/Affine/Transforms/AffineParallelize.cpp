@@ -55,13 +55,9 @@ void AffineParallelize::runOnFunction() {
         ++numParentParallelOps;
     }
 
-    if (numParentParallelOps < maxNested) {
-      if (failed(affineParallelize(loop))) {
-        loop.emitError() << "failed to parallelize";
-        signalPassFailure();
-        return;
-      }
-    }
+    if (numParentParallelOps < maxNested)
+      if (failed(affineParallelize(loop)))
+        loop.emitRemark() << "failed to parallelize";
   }
 }
 
