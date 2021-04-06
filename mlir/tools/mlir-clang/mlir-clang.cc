@@ -132,6 +132,7 @@ int main(int argc, char **argv) {
     if (RaiseToAffine) {
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(mlir::createRaiseSCFToAffinePass());
+      optPM.addPass(mlir::replaceAffineCFGPass());
     }
     if (DetectReduction)
       optPM.addPass(mlir::detectReductionPass());
