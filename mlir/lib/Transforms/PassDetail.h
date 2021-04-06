@@ -16,6 +16,14 @@ namespace mlir {
 template <typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);
 
+namespace gpu {
+class GPUDialect;
+} // end namespace gpu
+
+namespace scf {
+class SCFDialect;
+} // end namespace scf
+
 namespace linalg {
 class LinalgDialect;
 } // end namespace linalg
