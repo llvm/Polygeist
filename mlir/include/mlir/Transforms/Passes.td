@@ -532,10 +532,13 @@ def Mem2Reg : FunctionPass<"mem2reg"> {
 
 def ParallelLower : FunctionPass<"parallel-lower-opt"> {
   let constructor = "mlir::createParallelLowerPass()";
+  let dependentDialects = ["::mlir::gpu::GPUDialect",
+                           "::mlir::memref::MemRefDialect"];
 }
 
 def LoopRestructure : FunctionPass<"loop-restructure"> {
   let constructor = "mlir::createLoopRestructurePass()";
+  let dependentDialects = ["::mlir::scf::SCFDialect"];
 }
 
 

@@ -38,6 +38,8 @@ add_mlir_library(MLIRTransforms
   MLIRAffine
   MLIRAnalysis
   MLIRCopyOpInterface
+  MLIRGPU
+  MLIRLLVMIR
   MLIRLinalg
   MLIRLoopLikeInterface
   MLIRMemRef
