@@ -10,6 +10,7 @@ target_include_directories(mlir-clang PRIVATE
 target_compile_definitions(mlir-clang PUBLIC -DLLVM_OBJ_ROOT="${CMAKE_BINARY_DIR}")
 target_link_libraries(mlir-clang PRIVATE
   LLVMCore
+  LLVMOption
   LLVMSupport
 
   MLIRSCFTransforms
@@ -26,12 +27,14 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRAffineTransforms
   MLIRAffineToStandard
   MLIRTargetLLVMIRImport
-  
+
+  clangAST
   clangBasic
   clangCodeGen
   clangDriver
   clangFrontend
   clangFrontendTool
+  clangLex
   clangSerialization
 )
 
