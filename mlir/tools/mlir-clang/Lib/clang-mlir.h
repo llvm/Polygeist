@@ -188,6 +188,12 @@ struct ScopLocList {
 
   // Check if the current location is in the scop.
   bool isInScop(SourceLocation target) {
+    // If the user selects the raise-scf-to-affine we ignore pragmas and try to
+    // raise all we can. Similar behavior to pet --autodetect. This allow us to
+    // test the raising.
+    if (RaiseToAffine)
+      return false;
+
     if (!list.size())
       return false;
     for (auto &scopLoc : list)
