@@ -652,11 +652,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
              valueAtStartOfBlock[blk].getType());
       loadOp->getResult(0).replaceAllUsesWith(valueAtStartOfBlock[blk]);
       for (auto &pair : lastStoreInBlock) {
-        if (pair.second.getDefiningOp() == loadOp)
+        if (pair.second && pair.second.getDefiningOp() == loadOp)
           pair.second = valueAtStartOfBlock[blk];
       }
       for (auto &pair : valueAtStartOfBlock) {
-        if (pair.second.getDefiningOp() == loadOp)
+        if (pair.second && pair.second.getDefiningOp() == loadOp)
           pair.second = valueAtStartOfBlock[blk];
       }
       loadOpsToErase.push_back(loadOp);
