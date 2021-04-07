@@ -126,6 +126,22 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     if (!candidateOpsInFor.size())
       return failure();
 
+    llvm::errs() << "------------\n";
+    llvm::errs() << "#downStreamloads: " << downStreamLoads.size() << "\n";
+    llvm::errs() << "#candidateOpsInFor: " << candidateOpsInFor.size() << "\n";
+
+    llvm::errs() << "candidateOpsInFor\n";
+    for (auto pair : candidateOpsInFor) {
+      std::get<0>(pair)->dump();
+      std::get<1>(pair)->dump();
+    }
+    llvm::errs() << "downStreamLoads\n";
+    for (auto l : downStreamLoads)
+      l->dump();
+    llvm::errs() << "-for-\n";
+    forOp.dump();
+    llvm::errs() << "------------\n";
+
     // move the load outside the loop. All the load indexes are
     // not used in the current for (see hasAllDimReduced).
     // The load result are passed to the new forOp as iter args.
