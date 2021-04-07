@@ -991,6 +991,29 @@ StoreMap getLastStored(mlir::Value AI) {
           }
         }
         lastStored.insert(vec);
+      } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
+        std::vector<ssize_t> vec;
+        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
+          if (auto op = idx.dyn_cast<AffineConstantExpr>()) {
+            vec.push_back(op.getValue());
+          } else {
+            assert(0 && "unhandled op");
+          }
+        }
+        lastStored.insert(vec);
+      } 
+      if (auto SO = dyn_cast<memref::LoadOp>(U)) {
+        std::vector<ssize_t> vec;
+        for (auto idx : SO.getIndices()) {
+          if (auto op = idx.getDefiningOp<ConstantOp>()) {
+            vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
+          } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
+            vec.push_back(op.getValue());
+          } else {
+            assert(0 && "unhandled op");
+          }
+        }
+        lastStored.insert(vec);
       } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
