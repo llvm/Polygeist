@@ -146,27 +146,39 @@ LogicalResult mlir::inlineRegion(InlinerInterface &interface, Region *src,
                                  bool shouldCloneInlinedRegion) {
   assert(resultsToReplace.size() == regionResultTypes.size());
   // We expect the region to have at least one block.
-  if (src->empty())
+  if (src->empty()) {
+    LLVM_DEBUG(llvm::dbgs() << " + failed to inline empty region\n");
     return failure();
+  }
 
   // Check that all of the region arguments have been mapped.
   auto *srcEntryBlock = &src->front();
   if (llvm::any_of(srcEntryBlock->getArguments(),
-                   [&](BlockArgument arg) { return !mapper.contains(arg); }))
+                   [&](BlockArgument arg) { return !mapper.contains(arg); })) {
+    LLVM_DEBUG(llvm::dbgs() << " + failed to inline region without mapped type\n");
     return failure();
+  }
 
   // The insertion point must be within a block.
   Block *insertBlock = inlinePoint->getBlock();
-  if (!insertBlock)
+  if (!insertBlock) {
+    LLVM_DEBUG(llvm::dbgs() << " + failed to inline region without entry block\n");
     return failure();
+  }
   Region *insertRegion = insertBlock->getParent();
 
   // Check that the operations within the source region are valid to inline.
   if (!interface.isLegalToInline(insertRegion, src, shouldCloneInlinedRegion,
                                  mapper) ||
       !isLegalToInline(interface, src, insertRegion, shouldCloneInlinedRegion,
-                       mapper))
+                       mapper)) {
+    LLVM_DEBUG(llvm::dbgs() << " + illegal to inline region interface legality: " <<
+      (bool)interface.isLegalToInline(insertRegion, src, shouldCloneInlinedRegion,
+                                 mapper) << " general legality: " << 
+                                 (bool)isLegalToInline(interface, src, insertRegion, shouldCloneInlinedRegion,
+                       mapper) << "\n");
     return failure();
+  }
 
   // Split the insertion block.
   Block *postInsertBlock =
@@ -299,8 +311,10 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
                                CallableOpInterface callable, Region *src,
                                bool shouldCloneInlinedRegion) {
   // We expect the region to have at least one block.
-  if (src->empty())
+  if (src->empty()) {
+    LLVM_DEBUG(llvm::dbgs() << " + function " << call << " was empty, skipping\n");
     return failure();
+  }
   auto *entryBlock = &src->front();
   ArrayRef<Type> callableResultTypes = callable.getCallableResults();
 
@@ -309,8 +323,10 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
   SmallVector<Value, 8> callOperands(call.getArgOperands());
   SmallVector<Value, 8> callResults(call->getResults());
   if (callOperands.size() != entryBlock->getNumArguments() ||
-      callResults.size() != callableResultTypes.size())
+      callResults.size() != callableResultTypes.size()) {
+    LLVM_DEBUG(llvm::dbgs() << " + function " << call << " has inconsistent results, skipping\n");
     return failure();
+  }
 
   // A set of cast operations generated to matchup the signature of the region
   // with the signature of the call.
@@ -342,8 +358,10 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
     Type regionArgType = regionArg.getType();
     if (operand.getType() != regionArgType) {
       if (!(operand = materializeConversion(callInterface, castOps, castBuilder,
-                                            operand, regionArgType, castLoc)))
+                                            operand, regionArgType, castLoc))) {
+        LLVM_DEBUG(llvm::dbgs() << " + function " << call << " has inconsistent types, skipping\n");
         return cleanupState();
+      }
     }
     mapper.map(regionArg, operand);
   }
@@ -360,20 +378,26 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
     Value castResult =
         materializeConversion(callInterface, castOps, castBuilder, callResult,
                               callResult.getType(), castLoc);
-    if (!castResult)
+    if (!castResult) {
+      LLVM_DEBUG(llvm::dbgs() << " + function " << call << " could not cast result, skipping\n");
       return cleanupState();
+    }
     callResult.replaceAllUsesWith(castResult);
     castResult.getDefiningOp()->replaceUsesOfWith(castResult, callResult);
   }
 
   // Check that it is legal to inline the callable into the call.
-  if (!interface.isLegalToInline(call, callable, shouldCloneInlinedRegion))
+  if (!interface.isLegalToInline(call, callable, shouldCloneInlinedRegion)) {
+    LLVM_DEBUG(llvm::dbgs() << " + function " << call << " not legal to inline, skipping\n");
     return cleanupState();
+  }
 
   // Attempt to inline the call.
   if (failed(inlineRegion(interface, src, call, mapper, callResults,
                           callableResultTypes, call.getLoc(),
-                          shouldCloneInlinedRegion)))
+                          shouldCloneInlinedRegion))) {
+    LLVM_DEBUG(llvm::dbgs() << " + function " << call << " failed to inline region, skipping\n");
     return cleanupState();
+  }
   return success();
 }
