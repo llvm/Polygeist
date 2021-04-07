@@ -219,11 +219,18 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   std::set<mlir::Operation *> allStoreOps;
 
   std::deque<mlir::Value> list = {AI};
+
+  SmallPtrSet<Operation *, 4> AliasingStoreOperations;
+
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
     for (auto *user : val.getUsers()) {
       if (auto co = dyn_cast<mlir::memref::CastOp>(user)) {
+        list.push_back(co);
+        continue;
+      }
+      if (auto co = dyn_cast<mlir::memref::SubIndexOp>(user)) {
         list.push_back(co);
         continue;
       }
@@ -255,6 +262,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           allStoreOps.insert(storeOp);
         }
       }
+      if (auto callOp = dyn_cast<mlir::CallOp>(user)) {
+        if (callOp.callee() != "free") {
+          AliasingStoreOperations.insert(callOp);
+        }
+      }
     }
   }
 
@@ -283,6 +295,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     std::deque<Block *> todo;
     for (auto &pair : allStoreOps)
       todo.push_back(pair->getBlock());
+    for (auto op : AliasingStoreOperations) {
+      StoringOperations.insert(op);
+      todo.push_back(op->getBlock());
+    }
     while (todo.size()) {
       auto block = todo.front();
       assert(block);
@@ -957,6 +973,9 @@ bool isPromotable(mlir::Value AI) {
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
       } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
+        continue;
+      } else if (isa<CallOp>(U)) {
+        // TODO check "no capture", currently assume as a fallback always nocapture
         continue;
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
