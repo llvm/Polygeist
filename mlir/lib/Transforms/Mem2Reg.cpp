@@ -17,16 +17,16 @@
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/Passes.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "llvm/ADT/SetVector.h"
 
-#define DEBUG_TYPE "memref-dataflow-opt"
+#define DEBUG_TYPE "mem2reg"
 
 using namespace mlir;
 #include <set>
@@ -101,6 +101,20 @@ bool matchesIndices(mlir::OperandRange ops, const std::vector<ssize_t> &idx) {
   return true;
 }
 
+bool matchesIndices(ArrayRef<AffineExpr> ops, const std::vector<ssize_t> &idx) {
+  if (ops.size() != idx.size())
+    return false;
+  for (size_t i = 0; i < idx.size(); i++) {
+    if (auto op = ops[i].dyn_cast<AffineConstantExpr>()) {
+      if (op.getValue() != idx[i])
+        return false;
+    } else {
+      assert(0 && "unhandled op");
+    }
+  }
+  return true;
+}
+
 struct Analyzer {
 
   const std::set<Block *> &Good;
@@ -110,9 +124,10 @@ struct Analyzer {
   std::set<Block *> Illegal;
   size_t depth;
   Analyzer(const std::set<Block *> &Good, const std::set<Block *> &Bad,
-           const std::set<Block *> &Other, std::set<Block *> Legal, std::set<Block *> Illegal,
-           size_t depth = 0) :
-    Good(Good), Bad(Bad), Other(Other), Legal(Legal), Illegal(Illegal), depth(depth) {}
+           const std::set<Block *> &Other, std::set<Block *> Legal,
+           std::set<Block *> Illegal, size_t depth = 0)
+      : Good(Good), Bad(Bad), Other(Other), Legal(Legal), Illegal(Illegal),
+        depth(depth) {}
 
   void analyze() {
     while (1) {
@@ -121,7 +136,8 @@ struct Analyzer {
       while (todo.size()) {
         auto block = todo.front();
         todo.pop_front();
-        if (Legal.count(block) || Illegal.count(block)) continue;
+        if (Legal.count(block) || Illegal.count(block))
+          continue;
 
         bool currentlyLegal = !block->hasNoPredecessors();
         for (auto pred : block->getPredecessors()) {
@@ -165,7 +181,8 @@ struct Analyzer {
       }
       bool changed = false;
       for (auto O : Other) {
-        if (Legal.count(O) || Illegal.count(O)) continue;
+        if (Legal.count(O) || Illegal.count(O))
+          continue;
         Analyzer AssumeLegal(Good, Bad, Other, Legal, Illegal, depth + 1);
         AssumeLegal.Legal.insert(O);
         AssumeLegal.analyze();
@@ -186,20 +203,20 @@ struct Analyzer {
           assert(!Legal.count(O));
         }
       }
-      if (!changed) break;
+      if (!changed)
+        break;
     }
   }
 };
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-bool Mem2Reg::forwardStoreToLoad(
-    mlir::Value AI, std::vector<ssize_t> idx,
-    SmallVectorImpl<Operation *> &loadOpsToErase) {
+bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
+                                 SmallVectorImpl<Operation *> &loadOpsToErase) {
   bool changed = false;
-  std::set<mlir::memref::LoadOp> loadOps;
+  std::set<mlir::Operation *> loadOps;
   mlir::Type subType = nullptr;
-  std::set<mlir::memref::StoreOp> allStoreOps;
+  std::set<mlir::Operation *> allStoreOps;
 
   std::deque<mlir::Value> list = {AI};
   while (list.size()) {
@@ -214,10 +231,27 @@ bool Mem2Reg::forwardStoreToLoad(
         if (matchesIndices(loadOp.getIndices(), idx)) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
+          LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+        }
+      }
+      if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+        if (matchesIndices(loadOp.getAffineMapAttr().getValue().getResults(),
+                           idx)) {
+          subType = loadOp.getType();
+          loadOps.insert(loadOp);
+          LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
         }
       }
       if (auto storeOp = dyn_cast<mlir::memref::StoreOp>(user)) {
         if (matchesIndices(storeOp.getIndices(), idx)) {
+          LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
+          allStoreOps.insert(storeOp);
+        }
+      }
+      if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
+        if (matchesIndices(storeOp.getAffineMapAttr().getValue().getResults(),
+                           idx)) {
+          LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
           allStoreOps.insert(storeOp);
         }
       }
@@ -265,14 +299,13 @@ bool Mem2Reg::forwardStoreToLoad(
   }
 
   llvm::SetVector<mlir::Block *> storeBlocks;
-  for( auto& B : *AI.getDefiningOp()->getParentRegion()) {
+  for (auto &B : *AI.getDefiningOp()->getParentRegion()) {
     storeBlocks.insert(&B);
   };
-  AI.getDefiningOp()->getParentRegion()->walk([&](Block* B) {
-    storeBlocks.insert(B);
-  });
+  AI.getDefiningOp()->getParentRegion()->walk(
+      [&](Block *B) { storeBlocks.insert(B); });
   // Do not include entry to region
-  //storeBlocks.remove(&AI.getDefiningOp()->getParentRegion()->front());
+  // storeBlocks.remove(&AI.getDefiningOp()->getParentRegion()->front());
 
   // Last value stored in an individual block and the operation which stored it
   std::map<mlir::Block *, mlir::Value> lastStoreInBlock;
@@ -283,156 +316,245 @@ bool Mem2Reg::forwardStoreToLoad(
   // Start by setting lastStoreInBlock to the last store directly in that block
   // Note that this may miss a store within a region of an operation in that
   // block
-  std::function<mlir::Value(Block&,mlir::Value)> handleBlock = [&](Block& block, mlir::Value lastVal) {
-    if (!storeBlocks.count(&block)) {
-      assert(lastStoreInBlock.find(&block) != lastStoreInBlock.end());
-      return lastStoreInBlock[&block];
-    }
-    storeBlocks.remove(&block);
-    bool seenSubStore = false;
-    SmallVector<Operation*, 10> ops;
-    for (auto &a : block) {
-      ops.push_back(&a);
-    }
-    for (auto a : ops) {
-      if (StoringOperations.count(a)) {
-        if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
-          if (!lastVal) {
+  std::function<mlir::Value(Block &, mlir::Value)> handleBlock =
+      [&](Block &block, mlir::Value lastVal) {
+        if (!storeBlocks.count(&block)) {
+          assert(lastStoreInBlock.find(&block) != lastStoreInBlock.end());
+          return lastStoreInBlock[&block];
+        }
+        storeBlocks.remove(&block);
+        bool seenSubStore = false;
+        SmallVector<Operation *, 10> ops;
+        for (auto &a : block) {
+          ops.push_back(&a);
+        }
+        for (auto a : ops) {
+          if (StoringOperations.count(a)) {
+            if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
+              if (!lastVal) {
+                lastVal = nullptr;
+                continue;
+                OpBuilder B(ifOp.getContext());
+                B.setInsertionPoint(ifOp);
+                SmallVector<mlir::Value, 4> nidx;
+                for (auto i : idx) {
+                  nidx.push_back(
+                      B.create<mlir::ConstantIndexOp>(ifOp.getLoc(), i));
+                }
+                auto newLoad =
+                    B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
+                loadOps.insert(newLoad);
+                lastVal = newLoad;
+              }
+
+              valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
+              mlir::Value thenVal =
+                  handleBlock(*ifOp.thenRegion().begin(), lastVal);
+              // llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal !=
+              // nullptr) << " tv " << (thenVal != nullptr) << " else: " <<
+              // ifOp.elseRegion().getBlocks().size() << "\n";
+
+              if (lastVal && ifOp.elseRegion().getBlocks().size())
+                valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
+              mlir::Value elseVal =
+                  (ifOp.elseRegion().getBlocks().size())
+                      ? handleBlock(*ifOp.elseRegion().begin(), lastVal)
+                      : lastVal;
+              // llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) <<
+              // "\n";
+              if (thenVal == elseVal && thenVal != nullptr) {
+                lastVal = thenVal;
+                continue;
+              }
+
+              if (thenVal != nullptr && elseVal != nullptr) {
+                OpBuilder B(ifOp.getContext());
+                B.setInsertionPoint(ifOp);
+                SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
+                                               ifOp.getResultTypes().end());
+                tys.push_back(thenVal.getType());
+                auto nextIf = B.create<mlir::scf::IfOp>(
+                    ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/ true);
+
+                Block &then = ifOp.thenRegion().back();
+                SmallVector<mlir::Value, 4> thenVals =
+                    cast<mlir::scf::YieldOp>(then.back()).results();
+                thenVals.push_back(thenVal);
+                nextIf.thenRegion().getBlocks().clear();
+                nextIf.thenRegion().getBlocks().splice(
+                    nextIf.thenRegion().getBlocks().begin(),
+                    ifOp.thenRegion().getBlocks());
+                cast<mlir::scf::YieldOp>(
+                    nextIf.thenRegion().back().getTerminator())
+                    ->setOperands(thenVals);
+
+                if (ifOp.elseRegion().getBlocks().size()) {
+                  nextIf.elseRegion().getBlocks().clear();
+                  SmallVector<mlir::Value, 4> elseVals =
+                      cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back())
+                          .results();
+                  elseVals.push_back(elseVal);
+                  nextIf.elseRegion().getBlocks().splice(
+                      nextIf.elseRegion().getBlocks().begin(),
+                      ifOp.elseRegion().getBlocks());
+                  cast<mlir::scf::YieldOp>(
+                      nextIf.elseRegion().back().getTerminator())
+                      ->setOperands(elseVals);
+                } else {
+                  B.setInsertionPoint(&nextIf.elseRegion().back(),
+                                      nextIf.elseRegion().back().begin());
+                  SmallVector<mlir::Value, 4> elseVals;
+                  elseVals.push_back(elseVal);
+                  B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
+                }
+
+                SmallVector<mlir::Value, 3> resvals = (nextIf.results());
+                lastVal = resvals.back();
+                resvals.pop_back();
+                ifOp.replaceAllUsesWith(resvals);
+
+                StoringOperations.erase(ifOp);
+                StoringOperations.insert(nextIf);
+                ifOp.erase();
+                continue;
+              }
+            }
             lastVal = nullptr;
-            continue;
-            OpBuilder B(ifOp.getContext());
-            B.setInsertionPoint(ifOp);
-            SmallVector<mlir::Value, 4> nidx;
-            for(auto i : idx) {
-              nidx.push_back(B.create<mlir::ConstantIndexOp>(ifOp.getLoc(), i));
+            seenSubStore = true;
+            // llvm::errs() << "erased store due to: " << *a << "\n";
+          } else if (auto loadOp = dyn_cast<memref::LoadOp>(a)) {
+            if (loadOps.count(loadOp)) {
+              if (lastVal) {
+                changed = true;
+                // llvm::errs() << "replacing " << loadOp << " with " << lastVal
+                // <<
+                // "\n";
+                if (loadOp.getType() != lastVal.getType()) {
+                  llvm::errs() << loadOp << " - " << lastVal << "\n";
+                }
+                assert(loadOp.getType() == lastVal.getType());
+                loadOp.replaceAllUsesWith(lastVal);
+                for (auto &pair : lastStoreInBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                for (auto &pair : valueAtStartOfBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                // Record this to erase later.
+                loadOpsToErase.push_back(loadOp);
+                loadOps.erase(loadOp);
+              } else if (seenSubStore) {
+                // llvm::errs() << "no lastval found for: " << loadOp << "\n";
+                loadOps.erase(loadOp);
+                lastVal = loadOp;
+              } else {
+                lastVal = loadOp;
+              }
             }
-            auto newLoad = B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
-            loadOps.insert(newLoad);
-            lastVal = newLoad;
-          }
-
-          valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
-          mlir::Value thenVal = handleBlock(*ifOp.thenRegion().begin(), lastVal);
-          //llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal != nullptr) << " tv " << (thenVal != nullptr) << " else: " << ifOp.elseRegion().getBlocks().size() << "\n";
-
-          if (lastVal && ifOp.elseRegion().getBlocks().size())
-            valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
-          mlir::Value elseVal = (ifOp.elseRegion().getBlocks().size()) ? handleBlock(*ifOp.elseRegion().begin(), lastVal) : lastVal;
-          //llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) << "\n";
-          if (thenVal == elseVal && thenVal != nullptr) {
-            lastVal = thenVal;
-            continue;
-          }
-
-          if (thenVal != nullptr && elseVal != nullptr) {
-            OpBuilder B(ifOp.getContext());
-            B.setInsertionPoint(ifOp);
-            SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(), ifOp.getResultTypes().end());
-            tys.push_back(thenVal.getType());
-            auto nextIf = B.create<mlir::scf::IfOp>(ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/true);
-            
-            Block& then = ifOp.thenRegion().back();
-            SmallVector<mlir::Value, 4> thenVals = cast<mlir::scf::YieldOp>(then.back()).results();
-            thenVals.push_back(thenVal);
-            nextIf.thenRegion().getBlocks().clear();
-            nextIf.thenRegion().getBlocks().splice(nextIf.thenRegion().getBlocks().begin(), ifOp.thenRegion().getBlocks());
-            cast<mlir::scf::YieldOp>(nextIf.thenRegion().back().getTerminator())->setOperands(thenVals);
-
-            if (ifOp.elseRegion().getBlocks().size()) {
-              nextIf.elseRegion().getBlocks().clear();
-              SmallVector<mlir::Value, 4> elseVals = cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back()).results();
-              elseVals.push_back(elseVal);
-              nextIf.elseRegion().getBlocks().splice(nextIf.elseRegion().getBlocks().begin(), ifOp.elseRegion().getBlocks());
-              cast<mlir::scf::YieldOp>(nextIf.elseRegion().back().getTerminator())->setOperands(elseVals);
-            } else {
-              B.setInsertionPoint(&nextIf.elseRegion().back(), nextIf.elseRegion().back().begin());
-              SmallVector<mlir::Value, 4> elseVals;
-              elseVals.push_back(elseVal);
-              B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
+          } else if (auto loadOp = dyn_cast<AffineLoadOp>(a)) {
+            if (loadOps.count(loadOp)) {
+              if (lastVal) {
+                changed = true;
+                // llvm::errs() << "replacing " << loadOp << " with " << lastVal
+                // <<
+                // "\n";
+                if (loadOp.getType() != lastVal.getType()) {
+                  llvm::errs() << loadOp << " - " << lastVal << "\n";
+                }
+                assert(loadOp.getType() == lastVal.getType());
+                loadOp.replaceAllUsesWith(lastVal);
+                for (auto &pair : lastStoreInBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                for (auto &pair : valueAtStartOfBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                // Record this to erase later.
+                loadOpsToErase.push_back(loadOp);
+                loadOps.erase(loadOp);
+              } else if (seenSubStore) {
+                // llvm::errs() << "no lastval found for: " << loadOp << "\n";
+                loadOps.erase(loadOp);
+                lastVal = loadOp;
+              } else {
+                lastVal = loadOp;
+              }
             }
-
-            SmallVector<mlir::Value, 3> resvals = (nextIf.results());
-            lastVal = resvals.back();
-            resvals.pop_back();
-            ifOp.replaceAllUsesWith(resvals);
-
-            StoringOperations.erase(ifOp);
-            StoringOperations.insert(nextIf);
-            ifOp.erase();
-            continue;
-          }
-        }
-        lastVal = nullptr;
-        seenSubStore = true;
-        //llvm::errs() << "erased store due to: " << *a << "\n";
-      } else if (auto loadOp = dyn_cast<memref::LoadOp>(a)) {
-        if (loadOps.count(loadOp)) {
-          if (lastVal) {
-            changed = true;
-            // llvm::errs() << "replacing " << loadOp << " with " << lastVal <<
-            // "\n";
-            if (loadOp.getType() != lastVal.getType()) {
-              llvm::errs() << loadOp << " - " << lastVal << "\n";
+          } else if (auto storeOp = dyn_cast<memref::StoreOp>(a)) {
+            if (allStoreOps.count(storeOp)) {
+              lastVal = storeOp.getValueToStore();
+              seenSubStore = false;
             }
-            assert(loadOp.getType() == lastVal.getType());
-            loadOp.replaceAllUsesWith(lastVal);
-            for (auto & pair : lastStoreInBlock) {
-              if (pair.second == loadOp)
-                pair.second = lastVal;
+          } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
+            if (allStoreOps.count(storeOp)) {
+              lastVal = storeOp.getValueToStore();
+              seenSubStore = false;
             }
-            for (auto & pair : valueAtStartOfBlock) {
-              if (pair.second == loadOp)
-                pair.second = lastVal;
-            }
-            // Record this to erase later.
-            loadOpsToErase.push_back(loadOp);
-            loadOps.erase(loadOp);
-          } else if (seenSubStore) {
-            // llvm::errs() << "no lastval found for: " << loadOp << "\n";
-            loadOps.erase(loadOp);
-            lastVal = loadOp;
           } else {
-            lastVal = loadOp;
+            // since not storing operation the value at the start and end of
+            // block is lastVal
+            a->walk([&](memref::LoadOp loadOp) {
+              if (loadOps.count(loadOp)) {
+                if (lastVal) {
+                  changed = true;
+                  if (loadOp.getType() != lastVal.getType()) {
+                    llvm::errs() << loadOp << " - " << lastVal << "\n";
+                  }
+                  assert(loadOp.getType() == lastVal.getType());
+                  loadOp.replaceAllUsesWith(lastVal);
+                  for (auto &pair : lastStoreInBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  for (auto &pair : valueAtStartOfBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  // Record this to erase later.
+                  loadOpsToErase.push_back(loadOp);
+                  loadOps.erase(loadOp);
+                } else if (seenSubStore) {
+                  // llvm::errs() << "ano lastval found for: " << loadOp <<
+                  // "\n";
+                  loadOps.erase(loadOp);
+                }
+              }
+            });
+            a->walk([&](AffineLoadOp loadOp) {
+              if (loadOps.count(loadOp)) {
+                if (lastVal) {
+                  changed = true;
+                  if (loadOp.getType() != lastVal.getType()) {
+                    llvm::errs() << loadOp << " - " << lastVal << "\n";
+                  }
+                  assert(loadOp.getType() == lastVal.getType());
+                  loadOp.replaceAllUsesWith(lastVal);
+                  for (auto &pair : lastStoreInBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  for (auto &pair : valueAtStartOfBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  // Record this to erase later.
+                  loadOpsToErase.push_back(loadOp);
+                  loadOps.erase(loadOp);
+                } else if (seenSubStore) {
+                  // llvm::errs() << "ano lastval found for: " << loadOp <<
+                  // "\n";
+                  loadOps.erase(loadOp);
+                }
+              }
+            });
           }
         }
-      } else if (auto storeOp = dyn_cast<memref::StoreOp>(a)) {
-        if (allStoreOps.count(storeOp)) {
-          lastVal = storeOp.getValueToStore();
-          seenSubStore = false;
-        }
-      } else {
-        // since not storing operation the value at the start and end of block
-        // is lastVal
-        a->walk([&](memref::LoadOp loadOp) {
-          if (loadOps.count(loadOp)) {
-            if (lastVal) {
-              changed = true;
-              if (loadOp.getType() != lastVal.getType()) {
-                llvm::errs() << loadOp << " - " << lastVal << "\n";
-              }
-              assert(loadOp.getType() == lastVal.getType());
-              loadOp.replaceAllUsesWith(lastVal);
-              for (auto & pair : lastStoreInBlock) {
-                if (pair.second == loadOp)
-                  pair.second = lastVal;
-              }
-              for (auto & pair : valueAtStartOfBlock) {
-                if (pair.second == loadOp)
-                  pair.second = lastVal;
-              }
-              // Record this to erase later.
-              loadOpsToErase.push_back(loadOp);
-              loadOps.erase(loadOp);
-            } else if (seenSubStore) {
-              // llvm::errs() << "ano lastval found for: " << loadOp << "\n";
-              loadOps.erase(loadOp);
-            }
-          }
-        });
-      }
-    }
-    return lastStoreInBlock[&block] = lastVal;
-  };
+        return lastStoreInBlock[&block] = lastVal;
+      };
 
   while (storeBlocks.size()) {
     auto blk = storeBlocks.begin();
@@ -449,21 +571,20 @@ bool Mem2Reg::forwardStoreToLoad(
   for (auto &pair : lastStoreInBlock) {
     if (pair.second != nullptr) {
       Good.insert(pair.first);
-      //llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
-      //pair.first->dump();
-      //llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
+      // llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
+      // pair.first->dump();
+      // llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
     } else if (StoringBlocks.count(pair.first)) {
-      //llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
-      //pair.first->dump();
-      //llvm::errs() << "</BAD: " << " - " << AI << ">\n";
+      // llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
+      // pair.first->dump();
+      // llvm::errs() << "</BAD: " << " - " << AI << ">\n";
       Bad.insert(pair.first);
     }
   }
 
-  
   {
     std::deque<Block *> todo;
-    for (auto B : Good) 
+    for (auto B : Good)
       for (auto succ : B->getSuccessors())
         todo.push_back(succ);
     while (todo.size()) {
@@ -472,16 +593,16 @@ bool Mem2Reg::forwardStoreToLoad(
       if (Good.count(block) || Bad.count(block) || Other.count(block))
         continue;
       if (StoringBlocks.count(block)) {
-        //llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
-        //block->dump();
-        //llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
+        // llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
+        // block->dump();
+        // llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
         Bad.insert(block);
         continue;
       }
       Other.insert(block);
-      //llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
-      //block->dump();
-      //llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
+      // llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
+      // block->dump();
+      // llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
       if (isa<BranchOp, CondBranchOp>(block->getTerminator())) {
         for (auto succ : block->getSuccessors()) {
           todo.push_back(succ);
@@ -493,11 +614,11 @@ bool Mem2Reg::forwardStoreToLoad(
   Analyzer A(Good, Bad, Other, {}, {});
   A.analyze();
 
-  SmallPtrSet<Block*, 4> blocksWithAddedArgs;
+  SmallPtrSet<Block *, 4> blocksWithAddedArgs;
   for (auto block : A.Legal) {
-    //llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
-    //block->dump();
-    //llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
+    // llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
+    // block->dump();
+    // llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
     if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
       continue;
     auto arg = block->addArgument(subType);
@@ -505,33 +626,37 @@ bool Mem2Reg::forwardStoreToLoad(
     blocksWithAddedArgs.insert(block);
     for (Operation &op : *block) {
       if (!StoringOperations.count(&op)) {
-        op.walk([&](Block *blk) { 
+        op.walk([&](Block *blk) {
           if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end()) {
             valueAtStartOfBlock[blk] = arg;
-            if (lastStoreInBlock.find(blk) == lastStoreInBlock.end() || StoringBlocks.count(blk) == 0) {
+            if (lastStoreInBlock.find(blk) == lastStoreInBlock.end() ||
+                StoringBlocks.count(blk) == 0) {
               lastStoreInBlock[blk] = arg;
             }
           }
         });
-      } else break;
+      } else
+        break;
     }
-    if (lastStoreInBlock.find(block) == lastStoreInBlock.end() || StoringBlocks.count(block) == 0) {
+    if (lastStoreInBlock.find(block) == lastStoreInBlock.end() ||
+        StoringBlocks.count(block) == 0) {
       lastStoreInBlock[block] = arg;
     }
   }
 
   for (auto loadOp : loadOps) {
-    auto blk = loadOp.getOperation()->getBlock();
+    auto blk = loadOp->getBlock();
     if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end()) {
       changed = true;
-      assert(loadOp.getType() == valueAtStartOfBlock[blk].getType());
-      loadOp.replaceAllUsesWith(valueAtStartOfBlock[blk]);
-      for (auto & pair : lastStoreInBlock) {
-        if (pair.second == loadOp)
+      assert(loadOp->getResult(0).getType() ==
+             valueAtStartOfBlock[blk].getType());
+      loadOp->getResult(0).replaceAllUsesWith(valueAtStartOfBlock[blk]);
+      for (auto &pair : lastStoreInBlock) {
+        if (pair.second.getDefiningOp() == loadOp)
           pair.second = valueAtStartOfBlock[blk];
       }
-      for (auto & pair : valueAtStartOfBlock) {
-        if (pair.second == loadOp)
+      for (auto &pair : valueAtStartOfBlock) {
+        if (pair.second.getDefiningOp() == loadOp)
           pair.second = valueAtStartOfBlock[blk];
       }
       loadOpsToErase.push_back(loadOp);
@@ -543,11 +668,11 @@ bool Mem2Reg::forwardStoreToLoad(
   }
 
   for (auto block : blocksWithAddedArgs) {
-    assert (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
+    assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
     auto maybeblockArg = valueAtStartOfBlock[block];
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-    assert (blockArg && blockArg.getOwner() == block);
+    assert(blockArg && blockArg.getOwner() == block);
 
     for (auto pred : llvm::make_early_inc_range(block->getPredecessors())) {
       mlir::Value pval = lastStoreInBlock[pred];
@@ -561,7 +686,7 @@ bool Mem2Reg::forwardStoreToLoad(
                                 op.getOperands().end());
         args.push_back(pval);
         auto op2 = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-        //op.replaceAllUsesWith(op2);
+        // op.replaceAllUsesWith(op2);
         op.erase();
       } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
 
@@ -576,10 +701,10 @@ bool Mem2Reg::forwardStoreToLoad(
         if (op.getFalseDest() == block) {
           falseargs.push_back(pval);
         }
-        auto op2 = subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                        op.getTrueDest(), trueargs,
-                                        op.getFalseDest(), falseargs);
-        //op.replaceAllUsesWith(op2);
+        auto op2 = subbuilder.create<CondBranchOp>(
+            op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
+            op.getFalseDest(), falseargs);
+        // op.replaceAllUsesWith(op2);
         op.erase();
       } else {
         llvm_unreachable("unknown pred branch");
@@ -589,17 +714,18 @@ bool Mem2Reg::forwardStoreToLoad(
 
   // Remove block arguments if possible
   {
-    std::deque<Block *> todo(blocksWithAddedArgs.begin(), blocksWithAddedArgs.end());
+    std::deque<Block *> todo(blocksWithAddedArgs.begin(),
+                             blocksWithAddedArgs.end());
     while (todo.size()) {
       auto block = todo.front();
       todo.pop_front();
       if (!blocksWithAddedArgs.count(block))
         continue;
-      assert (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
+      assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
       auto maybeblockArg = valueAtStartOfBlock[block];
       auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-      assert (blockArg && blockArg.getOwner() == block);
+      assert(blockArg && blockArg.getOwner() == block);
       assert(blockArg.getOwner() == block);
 
       mlir::Value val = nullptr;
@@ -609,11 +735,13 @@ bool Mem2Reg::forwardStoreToLoad(
 
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
           pval = op.getOperands()[blockArg.getArgNumber()];
-          if (pval.getType() != AI.getType().cast<MemRefType>().getElementType()) {
+          if (pval.getType() !=
+              AI.getType().cast<MemRefType>().getElementType()) {
             pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
             llvm::errs() << pval << " - " << AI << "\n";
           }
-          assert(pval.getType() == AI.getType().cast<MemRefType>().getElementType());
+          assert(pval.getType() ==
+                 AI.getType().cast<MemRefType>().getElementType());
           if (pval == blockArg)
             pval = nullptr;
         } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
@@ -624,14 +752,16 @@ bool Mem2Reg::forwardStoreToLoad(
             }
             assert(blockArg.getArgNumber() < op.getTrueOperands().size());
             pval = op.getTrueOperands()[blockArg.getArgNumber()];
-            assert(pval.getType() == AI.getType().cast<MemRefType>().getElementType());
+            assert(pval.getType() ==
+                   AI.getType().cast<MemRefType>().getElementType());
             if (pval == blockArg)
               pval = nullptr;
           }
           if (op.getFalseDest() == block) {
             assert(blockArg.getArgNumber() < op.getFalseOperands().size());
             auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
-            assert(pval2.getType() == AI.getType().cast<MemRefType>().getElementType());
+            assert(pval2.getType() ==
+                   AI.getType().cast<MemRefType>().getElementType());
             if (pval2 != blockArg) {
               if (pval == nullptr) {
                 pval = pval2;
@@ -654,7 +784,8 @@ bool Mem2Reg::forwardStoreToLoad(
         if (val == nullptr) {
           val = pval;
           if (pval)
-            assert(val.getType() == AI.getType().cast<MemRefType>().getElementType());
+            assert(val.getType() ==
+                   AI.getType().cast<MemRefType>().getElementType());
         } else {
           if (pval != nullptr && val != pval) {
             legal = false;
@@ -662,7 +793,8 @@ bool Mem2Reg::forwardStoreToLoad(
           }
         }
       }
-      if (legal) assert(val || block->hasNoPredecessors());
+      if (legal)
+        assert(val || block->hasNoPredecessors());
 
       bool used = false;
       for (auto U : blockArg.getUsers()) {
@@ -720,11 +852,11 @@ bool Mem2Reg::forwardStoreToLoad(
           }
           assert(blockArg.getType() == val.getType());
           blockArg.replaceAllUsesWith(val);
-          for (auto & pair : lastStoreInBlock) {
+          for (auto &pair : lastStoreInBlock) {
             if (pair.second == blockArg)
               pair.second = val;
           }
-          for (auto & pair : valueAtStartOfBlock) {
+          for (auto &pair : valueAtStartOfBlock) {
             if (pair.second == blockArg)
               pair.second = val;
           }
@@ -732,7 +864,7 @@ bool Mem2Reg::forwardStoreToLoad(
         }
         valueAtStartOfBlock.erase(block);
 
-        SmallVector<Block*, 4> preds;
+        SmallVector<Block *, 4> preds;
         for (auto pred : block->getPredecessors()) {
           preds.push_back(pred);
         }
@@ -743,7 +875,8 @@ bool Mem2Reg::forwardStoreToLoad(
                                     op.getOperands().end());
             args.erase(args.begin() + blockArg.getArgNumber());
             assert(args.size() == op.getOperands().size() - 1);
-            auto newBranch = subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+            auto newBranch =
+                subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
             op.erase();
           }
           if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
@@ -761,9 +894,9 @@ bool Mem2Reg::forwardStoreToLoad(
             }
             assert(trueargs.size() < op.getTrueOperands().size() ||
                    falseargs.size() < op.getFalseOperands().size());
-            auto newBranch = subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                            op.getTrueDest(), trueargs,
-                                            op.getFalseDest(), falseargs);
+            auto newBranch = subbuilder.create<CondBranchOp>(
+                op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
+                op.getFalseDest(), falseargs);
             op.erase();
           }
         }
@@ -793,6 +926,13 @@ bool isPromotable(mlir::Value AI) {
           }
         }
         continue;
+      } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
+        for (auto idx : LO.getAffineMapAttr().getValue().getResults()) {
+          if (!idx.isa<AffineConstantExpr>()) {
+            return false;
+          }
+        }
+        continue;
       } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         if (SO.value() == val)
           return false;
@@ -805,6 +945,15 @@ bool isPromotable(mlir::Value AI) {
           }
         }
         continue;
+      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+        if (SO.value() == val)
+          return false;
+        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
+          if (!idx.isa<AffineConstantExpr>()) {
+            return false;
+          }
+        }
+        continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
       } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
@@ -812,8 +961,8 @@ bool isPromotable(mlir::Value AI) {
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       } else {
-        // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "  udue
-        // to " << *U << "\n";
+        LLVM_DEBUG(llvm::dbgs()
+                   << "non promotable " << AI << " due to " << *U << "\n");
         return false;
       }
     }
@@ -836,6 +985,16 @@ StoreMap getLastStored(mlir::Value AI) {
           if (auto op = idx.getDefiningOp<ConstantOp>()) {
             vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
           } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
+            vec.push_back(op.getValue());
+          } else {
+            assert(0 && "unhandled op");
+          }
+        }
+        lastStored.insert(vec);
+      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+        std::vector<ssize_t> vec;
+        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
+          if (auto op = idx.dyn_cast<AffineConstantExpr>()) {
             vec.push_back(op.getValue());
           } else {
             assert(0 && "unhandled op");
@@ -881,14 +1040,21 @@ void Mem2Reg::runOnFunction() {
       }
     });
 
-    for(auto AI : toPromote) {
+    for (auto AI : toPromote) {
+      LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
-        //llvm::errs() << " PRE " << AI << "\n";
-        //f.dump();
+
+        LLVM_DEBUG(llvm::dbgs() << " + forwarding vec to promote {";
+                   for (auto m
+                        : vec) llvm::dbgs()
+                   << (int)m << ",";
+                   llvm::dbgs() << "} of " << AI << "\n");
+        // llvm::errs() << " PRE " << AI << "\n";
+        // f.dump();
         changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
-        //llvm::errs() << " POST " << AI << "\n";
-        //f.dump();
+        // llvm::errs() << " POST " << AI << "\n";
+        // f.dump();
       }
       memrefsToErase.insert(AI);
     }
@@ -906,7 +1072,8 @@ void Mem2Reg::runOnFunction() {
 
       // If the memref hasn't been alloc'ed in this function, skip.
       Operation *defOp = memref.getDefiningOp();
-      if (!defOp || !(isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp)))
+      if (!defOp ||
+          !(isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp)))
         // TODO: if the memref was returned by a 'call' operation, we
         // could still erase it if the call had no side-effects.
         continue;
@@ -919,7 +1086,7 @@ void Mem2Reg::runOnFunction() {
         list.pop_front();
 
         for (auto U : val.getUsers()) {
-          if (isa<memref::StoreOp, memref::DeallocOp>(U)) {
+          if (isa<memref::StoreOp, AffineStoreOp, memref::DeallocOp>(U)) {
             toErase.push_back(U);
           } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
             toErase.push_back(U);
