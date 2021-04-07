@@ -633,7 +633,7 @@ struct DeallocSubView : public OpRewritePattern<DeallocOp> {
     // Check that the memref operand's defining operation is an AllocOp.
     Value memref = dealloc.memref();
 
-    auto subindex = dyn_cast<SubIndexOp>(memref.getDefiningOp());
+    auto subindex = dyn_cast_or_null<SubIndexOp>(memref.getDefiningOp());
     if (!subindex)
       return failure();
 
@@ -1289,15 +1289,6 @@ bool inAffine(Operation *op) {
       return true;
     curOp = parentOp;
   }
-  return false;
-}
-
-bool isValidIndex(Value value) {
-  if (isValidSymbol(value))
-    return true;
-  if (auto i = value.dyn_cast<BlockArgument>())
-    if (isa<AffineForOp>(i.getOwner()->getParentOp()))
-      return true;
   return false;
 }
 
