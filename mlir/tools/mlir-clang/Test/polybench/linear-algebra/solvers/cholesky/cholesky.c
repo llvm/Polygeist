@@ -8,6 +8,12 @@
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 -lm && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
 // RUN: rm -f %s.exec2 %s.execm
 
+// RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 -lm && %s.exec1 &> %s.out1
+// RUN: mlir-clang %s %polyverify %stdinclude -detect-reduction -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: rm -f %s.exec1 %s.execm
+// RUN: diff %s.out1 %s.out2
+// RUN: rm -f %s.out1 %s.out2
+
 /**
  * This version is stamped on May 10, 2016
  *
