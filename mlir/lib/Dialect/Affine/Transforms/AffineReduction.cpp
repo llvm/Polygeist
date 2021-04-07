@@ -74,73 +74,49 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 
     Block *block = forOp.getBody();
     SmallVector<std::pair<Operation *, Operation *>, 0> candidateOpsInFor;
-    SmallVector<Operation *> downStreamLoads;
+
     block->walk([&](Operation *operation) {
       if (auto load = dyn_cast<AffineLoadOp>(operation)) {
+        SmallVector<Value, 4> indices(load.indices());
+        // skip load if all dimensions are not reduced.
+        if (!hasAllDimsReduced(indices, forOp.getInductionVar()))
+          return WalkResult::advance();
+        // locate possible compatible stores.
         Value memref = load.getMemRef();
-        bool foundDownStreamLoad = false;
-        bool foundPairOfLoadStore = false;
-
-        // among the users of the load memref locate
-        // a possible compatible store.
+        SmallVector<AffineStoreOp> candidateStores;
         for (auto user : memref.getUsers()) {
           if (auto store = dyn_cast<AffineStoreOp>(user)) {
-            SmallVector<Value, 4> indices(load.indices());
-            // check for a store in the current for.
-            if (!foundPairOfLoadStore &&
-                // load and store must be in the same for.
-                areInSameAffineFor(load, store, forOp) &&
-                // must have same memref and indices.
-                areCompatible<AffineStoreOp>(load, store) &&
-                // load must domainte the store.
-                checkDominance(load, store) &&
-                // all the indices need to reduce in the current for.
-                hasAllDimsReduced(indices, forOp.getInductionVar())) {
-              foundPairOfLoadStore = true;
-              candidateOpsInFor.push_back(
-                  std::make_pair(load.getOperation(), store.getOperation()));
+            if (areInSameAffineFor(load, store, forOp) &&
+                areCompatible<AffineStoreOp>(load, store)) {
+              candidateStores.push_back(store);
             }
           }
         }
-
-        // iterate again to check for any compatible down stream load.
-        for (auto user : memref.getUsers()) {
-          if (auto maybeDownStreamLoad = dyn_cast<AffineLoadOp>(user)) {
-            PostDominanceInfo postDom(forOp);
-            // check for a load after the current for.
-            if (!foundDownStreamLoad && foundPairOfLoadStore &&
-                // load must post dominate the current for.
-                postDom.properlyPostDominates(
-                    maybeDownStreamLoad.getOperation(), forOp.getOperation()) &&
-                // loads need to be compatible.
-                areCompatible<AffineLoadOp>(load, maybeDownStreamLoad)) {
-              foundDownStreamLoad = true;
-              downStreamLoads.push_back(maybeDownStreamLoad.getOperation());
-            }
-          }
-        }
+        // require a single store. The load must dominate the single store.
+        if ((candidateStores.size() == 1) &&
+            checkDominance(load, candidateStores[0]))
+          candidateOpsInFor.push_back(std::make_pair(
+              load.getOperation(), candidateStores[0].getOperation()));
       }
+      return WalkResult::advance();
     });
 
     // no work to do.
     if (!candidateOpsInFor.size())
       return failure();
 
-    llvm::errs() << "------------\n";
-    llvm::errs() << "#downStreamloads: " << downStreamLoads.size() << "\n";
-    llvm::errs() << "#candidateOpsInFor: " << candidateOpsInFor.size() << "\n";
+    // llvm::errs() << "------------\n";
+    // llvm::errs() << "#candidateOpsInFor: " << candidateOpsInFor.size() <<
+    // "\n";
 
-    llvm::errs() << "candidateOpsInFor\n";
-    for (auto pair : candidateOpsInFor) {
-      std::get<0>(pair)->dump();
-      std::get<1>(pair)->dump();
-    }
-    llvm::errs() << "downStreamLoads\n";
-    for (auto l : downStreamLoads)
-      l->dump();
-    llvm::errs() << "-for-\n";
-    forOp.dump();
-    llvm::errs() << "------------\n";
+    // llvm::errs() << "candidateOpsInFor\n";
+    // for (auto pair : candidateOpsInFor) {
+    //   std::get<0>(pair)->dump();
+    //   std::get<1>(pair)->dump();
+    // }
+    // llvm::errs() << "-for-\n";
+    // forOp.dump();
+    // llvm::errs() << "------------\n";
 
     // move the load outside the loop. All the load indexes are
     // not used in the current for (see hasAllDimReduced).
@@ -208,20 +184,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     // otherwise insert a store right after the for. The stored
     // element is the result of the for.
     i = 0;
-    bool hasDownstreamLoads = downStreamLoads.size() != 0;
-    // make sure to have a 1:1 downstream loads with a candidate load/store in
-    // for.
-    if (hasDownstreamLoads &&
-        (downStreamLoads.size() != candidateOpsInFor.size()))
-      return failure();
-
     for (auto pair : candidateOpsInFor) {
-      if (hasDownstreamLoads) {
-        assert(downStreamLoads.size() == candidateOpsInFor.size());
-        downStreamLoads[i]->getResult(0).replaceAllUsesWith(
-            newForOp.getResults()[forOp.getResults().size() + i]);
-        rewriter.eraseOp(downStreamLoads[i]);
-      }
       auto store = cast<AffineStoreOp>(std::get<1>(pair));
       rewriter.setInsertionPointAfter(newForOp);
       auto rank = store.getMemRef().getType().cast<MemRefType>().getRank();
