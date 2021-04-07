@@ -1745,7 +1745,10 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       auto users = maybeIndVarInAfter.getUsers();
 
       for (auto u : users) {
+        // TODO: have something like ConstantLike but for Cast Ops.
         if (auto castOp = dyn_cast<IndexCastOp>(u))
+          continue;
+        if (auto castOpSiToFp = dyn_cast<SIToFPOp>(u))
           continue;
         else if (auto addIOp = dyn_cast<AddIOp>(u)) {
           if ((addIOp.getOperand(0) != maybeIndVarInAfter) || (loopInfo.step))
