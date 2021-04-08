@@ -2520,6 +2520,97 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
   return failure();
 }
 
+/// Returns `true` if the integer set is known to contain the point identified
+/// by the given dimension and symbol identifier, `false` if it is known not to
+/// contain this point, `None` if neither can be demonstrated.
+Optional<bool> setContains(IntegerSet set, ValueRange dimOperands,
+                           ValueRange symOperands) {
+  // If the operands are in fact constants, fold them into the set.
+  MLIRContext *ctx = set.getContext();
+  SmallVector<AffineExpr> dimReplacements;
+  SmallVector<AffineExpr> symReplacements;
+  for (unsigned i = 0, e = dimOperands.size(); i < e; ++i) {
+    APInt value;
+    if (matchPattern(dimOperands[i], m_ConstantInt(&value)))
+      dimReplacements.push_back(
+          getAffineConstantExpr(value.getSExtValue(), ctx));
+    else
+      dimReplacements.push_back(getAffineDimExpr(i, ctx));
+  }
+  for (unsigned i = 0, e = symOperands.size(); i < e; ++i) {
+    APInt value;
+    if (matchPattern(symOperands[i], m_ConstantInt(&value)))
+      dimReplacements.push_back(
+          getAffineConstantExpr(value.getSExtValue(), ctx));
+    else
+      dimReplacements.push_back(getAffineSymbolExpr(i, ctx));
+  }
+  set = set.replaceDimsAndSymbols(dimReplacements, symReplacements,
+                                  set.getNumDims(), set.getNumSymbols());
+
+  // Check all constraints one by one. Since the set is a conjunction of
+  // constraints, if one is violated, the point does not belong to the set; if
+  // all are satisfied, the point does belong to the set. We can check the
+  // satisfaction if the constraint had folded to a constant expression.
+  bool allProcessed = true;
+  for (unsigned i = 0, e = set.getNumConstraints(); i < e; ++i) {
+    AffineExpr constraint = set.getConstraint(i);
+    if (auto constValue = constraint.dyn_cast<AffineConstantExpr>()) {
+      if (set.isEq(i)) {
+        if (constValue.getValue() != 0)
+          return false;
+      } else {
+        if (constValue.getValue() < 0)
+          return false;
+      }
+    } else {
+      allProcessed = false;
+    }
+  }
+
+  if (allProcessed)
+    return true;
+  return llvm::None;
+}
+/*
+namespace {
+struct SimplifyKnownCondition : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op,
+                                PatternRewriter &rewriter) const override {
+    IntegerSet set = op.getIntegerSet();
+    Optional<bool> contains =
+        setContains(set, op.getOperands().take_front(set.getNumDims()),
+                    op.getOperands().drop_front(set.getNumDims()));
+    if (!contains)
+      return failure();
+
+    Block *remainingBlock = nullptr;
+    if (*contains) {
+      remainingBlock = op.getThenBlock();
+    } else {
+      if (op.hasElse()) {
+        remainingBlock = op.getElseBlock();
+      }
+    }
+
+    if (remainingBlock) {
+      Operation *terminator = remainingBlock->getTerminator();
+      rewriter.mergeBlockBefore(remainingBlock, op);
+      rewriter.replaceOp(op, terminator->getOperands());
+      rewriter.eraseOp(terminator);
+    } else {
+      rewriter.eraseOp(op);
+    }
+
+    return success();
+  }
+};
+*/
+
+} // end namespace
+
 void AffineIfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   results.add<SimplifyDeadElse, AlwaysTrueOrFalseIf>(context);
