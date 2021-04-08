@@ -176,8 +176,6 @@ struct AffineInlinerInterface : public DialectInlinerInterface {
                 // Conservatively disallow inlining ops we cannot reason about.
                 return false;
               });
-      if (isa<memref::LoadOp, memref::StoreOp>(op))
-        continue;
       if (!remainsValid)
         return false;
     }
