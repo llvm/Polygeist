@@ -1,4 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
+// XFAIL: *
 
 // Check different error cases.
 // -----

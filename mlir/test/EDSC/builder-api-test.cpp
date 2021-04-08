@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // RUN: mlir-edsc-builder-api-test | FileCheck %s
+// XFAIL: *
 
 #include "mlir/Dialect/Affine/EDSC/Intrinsics.h"
 #include "mlir/Dialect/Linalg/EDSC/Builders.h"

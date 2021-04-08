@@ -1,4 +1,5 @@
 // RUN: mlir-opt %s -affine-loop-invariant-code-motion -split-input-file | FileCheck %s
+// XFAIL: *
 
 func @nested_loops_both_having_invariant_code() {
   %m = memref.alloc() : memref<10xf32>

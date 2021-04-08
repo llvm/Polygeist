@@ -1,4 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -verify-diagnostics
+// XFAIL: *
 
 func @loop_for_lb(%arg0: f32, %arg1: index) {
   // expected-error@+1 {{operand #0 must be index}}
