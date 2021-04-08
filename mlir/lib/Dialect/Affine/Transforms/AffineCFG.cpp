@@ -416,9 +416,7 @@ void AffineCFGPass::runOnFunction() {
   });
 
   getFunction().walk([](memref::StoreOp store) {
-    if (!inAffine(store) && !llvm::all_of(store.getIndices(), [](mlir::Value V) {
-      return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
+    if (!inAffine(store))
       return;
     if (!llvm::all_of(store.getIndices(),
                       [](Value index) { return isValidIndex(index); }))
@@ -445,9 +443,7 @@ void AffineCFGPass::runOnFunction() {
   });
 
   getFunction().walk([](memref::LoadOp load) {
-    if (!inAffine(load) && !llvm::all_of(load.getIndices(), [](mlir::Value V) {
-      return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
+    if (!inAffine(load))
       return;
     if (!llvm::all_of(load.getIndices(),
                       [](Value index) { return isValidIndex(index); }))
