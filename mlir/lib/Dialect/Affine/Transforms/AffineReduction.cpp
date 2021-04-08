@@ -55,7 +55,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     return haveSameIndices<T>(load, store);
   }
 
-  bool checkDominance(Operation *a, Operation* b) const {
+  bool checkDominance(Operation *a, Operation *b) const {
     DominanceInfo dom(a);
     return dom.properlyDominates(a, b);
   }
@@ -84,7 +84,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         return true;
       currOp = parentOp;
     }
-    return false; 
+    return false;
   }
 
   LogicalResult matchAndRewrite(AffineForOp forOp,
@@ -109,17 +109,19 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
             if (areInSameAffineFor(load, store, forOp) &&
                 areCompatible<AffineStoreOp>(load, store)) {
               candidateStores.push_back(store);
-            }
-            else if (areCompatible<AffineStoreOp>(load, store) && hasParentOp(store.getOperation(), forOp.getOperation()))
+            } else if (areCompatible<AffineStoreOp>(load, store) &&
+                       hasParentOp(store.getOperation(), forOp.getOperation()))
               otherStores.push_back(store);
           }
           if (auto otherLoad = dyn_cast<AffineLoadOp>(user)) {
-            if (areCompatible<AffineLoadOp>(load, otherLoad) && load != otherLoad && hasParentOp(otherLoad.getOperation(), forOp.getOperation()))
+            if (areCompatible<AffineLoadOp>(load, otherLoad) &&
+                load != otherLoad &&
+                hasParentOp(otherLoad.getOperation(), forOp.getOperation()))
               otherLoads.push_back(otherLoad);
           }
         }
-        // require a single store within the current for. The load must dominate the single store.
-        // There must be no other stores in the current for.
+        // require a single store within the current for. The load must dominate
+        // the single store. There must be no other stores in the current for.
         if ((candidateStores.size() == 1) &&
             checkDominance(load.getOperation(), candidateStores[0].getOperation()) &&
             otherStores.size() == 0 /*
@@ -218,12 +220,12 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     i = 0;
     for (auto pair : candidateOpsInFor) {
       auto store = cast<AffineStoreOp>(std::get<1>(pair));
-      
+
       auto loads = loadsInFor[i];
       for (auto load : loads)
         load->getResult(0).replaceAllUsesWith(store.getOperand(0));
 
-      rewriter.setInsertionPointAfter(newForOp); 
+      rewriter.setInsertionPointAfter(newForOp);
       rewriter.create<AffineStoreOp>(
           newForOp.getLoc(),
           newForOp.getResults()[forOp.getResults().size() + i],
