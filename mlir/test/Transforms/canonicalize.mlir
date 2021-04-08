@@ -512,9 +512,7 @@ func @dim_op_fold(%arg0: index, %arg1: index, %arg2: index, %BUF: memref<?xi8>, 
       %sv = memref.subview %0[%c0, %c0][%s,%arg4][%c1,%c1] : memref<?x?xf32> to memref<?x?xf32, #map1>
       %l = memref.dim %v, %c1 : memref<?x?xf32>
       %u = memref.dim %sv, %c0 : memref<?x?xf32, #map1>
-      affine.for %arg5 = %l to %u {
-        "foo"() : () -> ()
-      }
+      "use"(%l, %u) : (index, index) -> ()
       %sv2 = memref.subview %0[0, 0][17, %arg4][1, 1] : memref<?x?xf32> to memref<17x?xf32, #map3>
       %l2 = memref.dim %v, %c1 : memref<?x?xf32>
       %u2 = memref.dim %sv2, %c1 : memref<17x?xf32, #map3>
@@ -525,9 +523,7 @@ func @dim_op_fold(%arg0: index, %arg1: index, %arg2: index, %BUF: memref<?xi8>, 
   }
   //      CHECK: affine.for %[[I:.*]] = 0 to %[[ARG2]] {
   // CHECK-NEXT:   affine.for %[[J:.*]] = 0 to %[[ARG0]] {
-  // CHECK-NEXT:     affine.for %[[K:.*]] = %[[ARG0]] to %[[ARG0]] {
-  // CHECK-NEXT:       "foo"() : () -> ()
-  // CHECK-NEXT:     }
+  // CHECK-NEXT:     "use"(%[[ARG0]], %[[ARG0]])
   // CHECK-NEXT:     scf.for %[[KK:.*]] = %[[ARG0]] to %[[J]] step %{{.*}} {
   // CHECK-NEXT:       "foo"() : () -> ()
   // CHECK-NEXT:     }

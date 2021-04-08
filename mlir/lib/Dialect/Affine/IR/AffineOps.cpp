@@ -1995,11 +1995,62 @@ struct AffineForEmptyLoopFolder : public OpRewritePattern<AffineForOp> {
     return success();
   }
 };
+
+struct RemoveSingleIterationLoop : public OpRewritePattern<AffineForOp> {
+  using OpRewritePattern<AffineForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineForOp forOp,
+                                PatternRewriter &rewriter) const override {
+    AffineMap lb = forOp.getLowerBoundMap();
+    AffineMap ub = forOp.getUpperBoundMap();
+
+    // Bail out on loops with min/max bounds, for now.
+    if (lb.getNumResults() != 1 || ub.getNumResults() != 1)
+      return failure();
+
+    AffineValueMap span;
+    AffineValueMap::difference(
+        AffineValueMap(forOp.getUpperBoundMap(), forOp.getUpperBoundOperands()),
+        AffineValueMap(forOp.getLowerBoundMap(), forOp.getLowerBoundOperands()),
+        &span);
+
+    // Difference computation will canonicalize the maps.
+    assert(span.getNumResults() == 1);
+    if (auto constant = span.getResult(0).dyn_cast<AffineConstantExpr>()) {
+      llvm::errs() << "found " << constant.getValue() << "\n";
+      // Loop with more than one iteration, keep as is.
+      if (constant.getValue() > forOp.getStep())
+        return failure();
+
+      // Loop with no iterations, remove it.
+      if (constant.getValue() <= 0) {
+        forOp.getLoc().dump();
+        rewriter.replaceOp(forOp, forOp.getIterOperands());
+        return success();
+      }
+
+      // Loop with one iteration, inline the body.
+      Value lbInit = rewriter.create<AffineApplyOp>(
+          forOp.getLoc(), lb, forOp.getLowerBoundOperands());
+      SmallVector<Value> blockArguments;
+      blockArguments.reserve(1 + forOp.getNumIterOperands());
+      blockArguments.push_back(lbInit);
+      llvm::append_range(blockArguments, forOp.getIterOperands());
+      Block *body = forOp.getBody();
+      Operation *terminator = body->getTerminator();
+      rewriter.mergeBlockBefore(body, forOp, blockArguments);
+      rewriter.replaceOp(forOp, terminator->getOperands());
+      rewriter.eraseOp(terminator);
+      return success();
+    }
+    return failure();
+  }
+};
 } // end anonymous namespace
 
 void AffineForOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<AffineForEmptyLoopFolder>(context);
+  results.add<AffineForEmptyLoopFolder, RemoveSingleIterationLoop>(context);
 }
 
 LogicalResult AffineForOp::fold(ArrayRef<Attribute> operands,
