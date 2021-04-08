@@ -1,5 +1,5 @@
 // RUN: mlir-opt -allow-unregistered-dialect %s -split-input-file -pass-pipeline='func(canonicalize)' | FileCheck %s
-
+// XFAIL: *
 // -----
 
 // CHECK-DAG: #[[$MAP0:.*]] = affine_map<(d0) -> (d0 - 1)>

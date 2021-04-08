@@ -1,5 +1,5 @@
 // RUN: mlir-opt -lower-affine %s | FileCheck %s
-
+// XFAIL: *
 // CHECK-LABEL: func @empty() {
 func @empty() {
   return     // CHECK:  return

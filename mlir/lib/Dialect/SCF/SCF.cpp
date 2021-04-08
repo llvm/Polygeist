@@ -1022,8 +1022,12 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<ForOp> {
 
     for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
                              yieldOp.getOperands())) {
-      if (isIndVar(std::get<0>(it), std::get<1>(it), std::get<2>(it), forOp))
-        std::get<1>(it).replaceAllUsesWith(forOp.getInductionVar());
+      if (isIndVar(std::get<0>(it), std::get<1>(it), std::get<2>(it), forOp)) {
+        rewriter.setInsertionPointToStart(forOp.getBody());
+        auto indexCast = rewriter.create<IndexCastOp>(
+            forOp.getLoc(), forOp.getInductionVar(), rewriter.getI32Type());
+        std::get<1>(it).replaceAllUsesWith(indexCast);
+      }
     }
     return success();
   }

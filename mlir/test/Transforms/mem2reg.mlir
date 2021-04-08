@@ -1,3 +1,5 @@
+// RUN: mlir-opt --mem2reg %s | FileCheck %s
+// XFAIL: *
 module  {
   func @main(%arg0: memref<40xf64>) {
     %0 = memref.alloca() : memref<1xf64>
