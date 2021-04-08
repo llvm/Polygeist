@@ -2018,10 +2018,15 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
   }
   auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                    mt.getAffineMaps(), mt.getMemorySpace());
-  return ValueWithOffsets(
-      builder.create<memref::SubIndexOp>(
-          loc, mt0, base.val, getConstantIndex(layout.getLLVMFieldNo(field))),
-      /*isReference*/ true);
+  shape[0] = -1;
+  auto mt1 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                   mt.getAffineMaps(), mt.getMemorySpace());
+  return ValueWithOffsets(builder.create<memref::SubIndexOp>(
+                              loc, mt1,
+                              builder.create<memref::SubIndexOp>(
+                                  loc, mt0, base.val, getConstantIndex(0)),
+                              getConstantIndex(layout.getLLVMFieldNo(field))),
+                          /*isReference*/ true);
 }
 
 ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {

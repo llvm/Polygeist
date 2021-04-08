@@ -9,8 +9,7 @@ void kernel_deriche(int *a) {
 }
 
 // CHECK:    func @kernel_deriche(%arg0: memref<?xi32>) {
-// CHECK-NEXT:    %c0 = constant 0 : index
-// CHECK-NEXT:    %0 = memref.load %arg0[%c0] : memref<?xi32>
+// CHECK-NEXT:    %0 = affine.load %arg0[0] : memref<?xi32>
 // CHECK-NEXT:    %1 = call @deref(%0) : (i32) -> i32
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
