@@ -21,11 +21,10 @@ void caller(double* array) {
 }
 
 // CHECK:  func @caller(%arg0: memref<?xf64>) {
-// CHECK-NEXT:    %c0 = constant 0 : index
 // CHECK-NEXT:    %0 = memref.alloca() : memref<1xf64>
 // CHECK-NEXT:    %1 = memref.cast %0 : memref<1xf64> to memref<?xf64>
 // CHECK-NEXT:    call @sum(%1, %arg0) : (memref<?xf64>, memref<?xf64>) -> ()
-// CHECK-NEXT:    %2 = memref.load %0[%c0] : memref<1xf64>
+// CHECK-NEXT:    %2 = affine.load %0[0] : memref<1xf64>
 // CHECK-NEXT:    %3 = call @print(%2) : (f64) -> i32
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
