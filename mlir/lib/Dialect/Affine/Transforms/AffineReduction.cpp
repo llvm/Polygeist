@@ -55,11 +55,19 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     return haveSameIndices<T>(load, store);
   }
 
-  bool checkDominance(AffineLoadOp load, AffineStoreOp store) const {
-    Operation *loadOp = load.getOperation();
-    Operation *storeOp = store.getOperation();
-    DominanceInfo dom(loadOp);
-    return dom.properlyDominates(loadOp, storeOp);
+  bool checkDominance(Operation *a, Operation* b) const {
+    DominanceInfo dom(a);
+    return dom.properlyDominates(a, b);
+  }
+
+  bool checkDominance(Operation *a, ArrayRef<Operation *> bs) const {
+    bool res = true;
+    for (auto b : bs)
+      if (!checkDominance(b, a)) {
+        res = false;
+        break;
+      }
+    return res;
   }
 
   bool hasAllDimsReduced(ArrayRef<Value> indices, Value indVar) const {
@@ -69,12 +77,22 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     return false;
   }
 
+  bool hasParentOp(Operation *a, Operation *b) const {
+    Operation *currOp = a;
+    while (Operation *parentOp = currOp->getParentOp()) {
+      if (isa<mlir::AffineForOp>(parentOp) && parentOp == b)
+        return true;
+      currOp = parentOp;
+    }
+    return false; 
+  }
+
   LogicalResult matchAndRewrite(AffineForOp forOp,
                                 PatternRewriter &rewriter) const override {
 
     Block *block = forOp.getBody();
     SmallVector<std::pair<Operation *, Operation *>, 0> candidateOpsInFor;
-
+    SmallVector<SmallVector<Operation *>> loadsInFor;
     block->walk([&](Operation *operation) {
       if (auto load = dyn_cast<AffineLoadOp>(operation)) {
         SmallVector<Value, 4> indices(load.indices());
@@ -84,19 +102,32 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         // locate possible compatible stores.
         Value memref = load.getMemRef();
         SmallVector<AffineStoreOp> candidateStores;
+        SmallVector<Operation *> otherStores;
+        SmallVector<Operation *> otherLoads;
         for (auto user : memref.getUsers()) {
           if (auto store = dyn_cast<AffineStoreOp>(user)) {
             if (areInSameAffineFor(load, store, forOp) &&
                 areCompatible<AffineStoreOp>(load, store)) {
               candidateStores.push_back(store);
             }
+            else if (areCompatible<AffineStoreOp>(load, store) && hasParentOp(store.getOperation(), forOp.getOperation()))
+              otherStores.push_back(store);
+          }
+          if (auto otherLoad = dyn_cast<AffineLoadOp>(user)) {
+            if (areCompatible<AffineLoadOp>(load, otherLoad) && load != otherLoad && hasParentOp(otherLoad.getOperation(), forOp.getOperation()))
+              otherLoads.push_back(otherLoad);
           }
         }
-        // require a single store. The load must dominate the single store.
+        // require a single store within the current for. The load must dominate the single store.
+        // There must be no other stores in the current for.
         if ((candidateStores.size() == 1) &&
-            checkDominance(load, candidateStores[0]))
+            checkDominance(load.getOperation(), candidateStores[0].getOperation()) &&
+            otherStores.size() == 0 /*
+            checkDominance(candidateStores[0].getOperation(), otherStores)*/) {
           candidateOpsInFor.push_back(std::make_pair(
               load.getOperation(), candidateStores[0].getOperation()));
+          loadsInFor.push_back(otherLoads);
+        }
       }
       return WalkResult::advance();
     });
@@ -183,25 +214,20 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     // propagate results new forOp to downstream loads if any,
     // otherwise insert a store right after the for. The stored
     // element is the result of the for.
+    assert(candidateOpsInFor.size() == loadsInFor.size());
     i = 0;
     for (auto pair : candidateOpsInFor) {
       auto store = cast<AffineStoreOp>(std::get<1>(pair));
-      rewriter.setInsertionPointAfter(newForOp);
-      auto rank = store.getMemRef().getType().cast<MemRefType>().getRank();
-      // constant. Why Mem2Reg does not remove them?
-      // if (rank == 1 && store.indices().size() == 0) {
-      //  ConstantIndexOp cst =
-      //  rewriter.create<ConstantIndexOp>(store.getLoc(), 0);
-      //  rewriter.create<AffineStoreOp>(
-      //    newForOp.getLoc(),
-      //    newForOp.getResults()[forOp.getResults().size() + i],
-      //    store.getMemRef(), cst.getResult());
-      //} else {
+      
+      auto loads = loadsInFor[i];
+      for (auto load : loads)
+        load->getResult(0).replaceAllUsesWith(store.getOperand(0));
+
+      rewriter.setInsertionPointAfter(newForOp); 
       rewriter.create<AffineStoreOp>(
           newForOp.getLoc(),
           newForOp.getResults()[forOp.getResults().size() + i],
           store.getMemRef(), store.getAffineMap(), store.indices());
-      //}
       rewriter.eraseOp(std::get<1>(pair));
       ++i;
     }
