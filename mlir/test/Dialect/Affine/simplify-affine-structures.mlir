@@ -253,7 +253,7 @@ func @simplify_set(%a : index, %b : index) {
   affine.if affine_set<(d0, d1) : (1 >= 0, 3 >= 0)>(%a, %b) {
     call @external() : () -> ()
   }
-	return
+  return
 }
 
 // -----

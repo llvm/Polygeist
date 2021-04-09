@@ -235,7 +235,7 @@ func @perfect_if_else(%arg0 : memref<?x?xf64>, %arg1 : memref<?x?xf64>, %v : f64
 
 // CHECK-LABEL: func @multiple_if
 func @multiple_if(%N : index) {
-  affine.if affine_set<() : (0 == 0)>() {
+  affine.if affine_set<()[s0] : (s0 >= 0)>()[%N] {
     call @external() : () -> ()
   }
   affine.for %i = 0 to 100 {
