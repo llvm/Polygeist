@@ -2017,14 +2017,12 @@ struct RemoveSingleIterationLoop : public OpRewritePattern<AffineForOp> {
     // Difference computation will canonicalize the maps.
     assert(span.getNumResults() == 1);
     if (auto constant = span.getResult(0).dyn_cast<AffineConstantExpr>()) {
-      llvm::errs() << "found " << constant.getValue() << "\n";
       // Loop with more than one iteration, keep as is.
       if (constant.getValue() > forOp.getStep())
         return failure();
 
       // Loop with no iterations, remove it.
       if (constant.getValue() <= 0) {
-        forOp.getLoc().dump();
         rewriter.replaceOp(forOp, forOp.getIterOperands());
         return success();
       }
