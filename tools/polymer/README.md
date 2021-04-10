@@ -4,11 +4,19 @@
 
 Bridging polyhedral analysis tools to the MLIR framework.
 
+## Related Publications
+
 ```bib
 @inproceedings{polygeist,
   title={Polygeist: Affine C in MLIR},
   author={Moses, William S and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
   booktitle={{IMPACT}},
+  year={2021}
+}
+@article{phism,
+  title={Phism: Polyhedral High-Level Synthesis in MLIR},
+  author={Zhao, Ruizhe and Cheng, Jianyi},
+  journal={arXiv preprint arXiv:2103.15103},
   year={2021}
 }
 ```
