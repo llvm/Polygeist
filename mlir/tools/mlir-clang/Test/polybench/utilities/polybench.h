@@ -228,9 +228,14 @@ extern void polybench_papi_print();
 # endif
 
 /* Function prototypes. */
-extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
-extern void polybench_free_data(void* ptr);
-
+//extern void* polybench_alloc_data(unsigned long long int n, int elt_size);
+//extern void polybench_free_data(void* ptr);
+static inline void* polybench_alloc_data(unsigned long long int n, int elt_size) {
+  return malloc(n*elt_size);
+}
+static inline void polybench_free_data(void* ptr) {
+  free(ptr);
+}
 /* PolyBench internal functions that should not be directly called by */
 /* the user, unless when designing customized execution profiling */
 /* approaches. */
