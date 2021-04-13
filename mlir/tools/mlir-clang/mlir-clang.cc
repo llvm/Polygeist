@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
     else {
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
-      module.print(outs());
+      module.print(out);
     }
   }
   return 0;
