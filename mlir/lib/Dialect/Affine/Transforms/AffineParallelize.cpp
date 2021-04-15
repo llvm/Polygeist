@@ -46,6 +46,8 @@ void AffineParallelize::runOnFunction() {
       parallelizableLoops.push_front(loop);
   });
 
+  LLVM_DEBUG(llvm::dbgs() << "#parallelizableLoops: " << parallelizableLoops.size() << "\n");
+
   for (AffineForOp loop : parallelizableLoops) {
     unsigned numParentParallelOps = 0;
     for (Operation *op = loop->getParentOp();

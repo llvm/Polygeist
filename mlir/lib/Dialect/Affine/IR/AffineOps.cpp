@@ -647,16 +647,25 @@ AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
       .cast<AffineDimExpr>();
 }
 
+static bool legalCondition(Value en, bool outer=true) {
+	if (en.getDefiningOp() && isa<AffineApplyOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp>(en.getDefiningOp())) {
+		return true;
+	}
+	//if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
+	//	if (!outer || legalCondition(IC.getOperand(), false)) return true;
+	//}
+	if (auto BA = en.dyn_cast<BlockArgument>()) {
+		if (isa<AffineForOp>(BA.getOwner()->getParentOp())) return true;
+	}
+	return false;
+}
+
 // Gather the positions of the operands that are produced by an AffineApplyOp.
 static llvm::SetVector<unsigned>
 indicesFromAffineApplyOp(ArrayRef<Value> operands) {
   llvm::SetVector<unsigned> res;
   for (auto en : llvm::enumerate(operands)) {
-    if (isa_and_nonnull<AffineApplyOp, IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp>(
-            en.value().getDefiningOp()) ||
-        (en.value().isa<BlockArgument>() &&
-         isa<AffineForOp>(
-             en.value().cast<BlockArgument>().getOwner()->getParentOp())))
+    if (legalCondition(en.value()))
       res.insert(en.index());
   }
   return res;
@@ -853,12 +862,24 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         */
       } else if (isAffineForArg(t)) {
         auxiliaryExprs.push_back(renumberOneDim(t));
+      /*
       } else if (auto op = t.getDefiningOp<IndexCastOp>()) {
-      	auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
-	addedValues.push_back(op.getOperand());
+	// Todo index cast
+	if (legalCondition(op.getOperand())) {
+        	if (i < numDimsBeforeRewrite) {
+			auxiliaryExprs.push_back(renumberOneDim(t));
+		} else {
+      			auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
+			addedValues.push_back(op.getOperand());
+		}
+	} else {
+      		auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
+		addedValues.push_back(op);
+	}
       } else if (auto op = t.getDefiningOp<ZeroExtendIOp>()) {
       	auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
 	addedValues.push_back(op.getOperand());
+	*/
       } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
         // a. Compose affine.apply operations.
         LLVM_DEBUG(affineApply->print(
@@ -950,16 +971,9 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
 bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   for(size_t i=0; i<map->getNumInputs(); ++i) {
-    auto v = (*operands)[i];
-    if (i >= map->getNumDims()) {
-      if (v.isa<BlockArgument>() &&
-                  isa<AffineForOp>(
-                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
-        return true;
-      }
-    }
-    if (isa_and_nonnull<IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp, AffineApplyOp>(
-               v.getDefiningOp()))
+    if (i < map->getNumDims()) continue;
+	  auto v = (*operands)[i];
+    if (legalCondition(v))
       return true;
   }
   return false;
@@ -983,17 +997,9 @@ void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
 
 bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
   for(size_t i=0; i<map->getNumInputs(); ++i) {
+    if (i < map->getNumDims()) continue;
     auto v = (*operands)[i];
-    if (i >= map->getNumDims()) {
-      if (v.isa<BlockArgument>() &&
-                  isa<AffineForOp>(
-                      v.cast<BlockArgument>().getOwner()->getParentOp())) {
-        return true;
-      }
-    }
-    if (isa_and_nonnull<IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp, AffineApplyOp>(
-               v.getDefiningOp()))
-      return true;
+    if (legalCondition(v)) return true;
   }
   return false;
 }
@@ -1018,12 +1024,15 @@ void fullyComposeIntegerSetAndOperands(IntegerSet *set,
                                             SmallVectorImpl<Value> *operands) {
 
   while (need(set, operands)) {
-    //llvm::errs() << "pre: " << *map << "\n";
+    //llvm::errs() << "pre: ";
+    //set->dump(); llvm::errs() << "\n";
+
     //for(auto op : *operands) {
     //  llvm::errs() << " -- operands: " << op << "\n";
     //}
     composeIntegerSetAndOperands(set, operands);
-    //llvm::errs() << "post: " << *map << "\n";
+    //llvm::errs() << "post: ";
+    //set->dump(); llvm::errs() << "\n";
     //for(auto op : *operands) {
     //  llvm::errs() << " -- operands: " << op << "\n";
     //}
@@ -2447,7 +2456,6 @@ LogicalResult AffineIfOp::fold(ArrayRef<Attribute>,
                                SmallVectorImpl<OpFoldResult> &) {
   auto set = getIntegerSet();
   SmallVector<Value, 4> operands(getOperands());
-
   fullyComposeIntegerSetAndOperands(&set, &operands);
   canonicalizeSetAndOperands(&set, &operands);
 
