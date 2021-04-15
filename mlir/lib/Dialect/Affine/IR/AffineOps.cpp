@@ -652,7 +652,7 @@ static llvm::SetVector<unsigned>
 indicesFromAffineApplyOp(ArrayRef<Value> operands) {
   llvm::SetVector<unsigned> res;
   for (auto en : llvm::enumerate(operands)) {
-    if (isa_and_nonnull<AffineApplyOp, AddIOp, SubIOp, MulIOp>(
+    if (isa_and_nonnull<AffineApplyOp, IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp>(
             en.value().getDefiningOp()) ||
         (en.value().isa<BlockArgument>() &&
          isa<AffineForOp>(
@@ -853,6 +853,12 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         */
       } else if (isAffineForArg(t)) {
         auxiliaryExprs.push_back(renumberOneDim(t));
+      } else if (auto op = t.getDefiningOp<IndexCastOp>()) {
+      	auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
+	addedValues.push_back(op.getOperand());
+      } else if (auto op = t.getDefiningOp<ZeroExtendIOp>()) {
+      	auxiliaryExprs.push_back(getAffineSymbolExpr(addedValues.size(), op.getContext()));
+	addedValues.push_back(op.getOperand());
       } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
         // a. Compose affine.apply operations.
         LLVM_DEBUG(affineApply->print(
@@ -952,7 +958,7 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
         return true;
       }
     }
-    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
+    if (isa_and_nonnull<IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp, AffineApplyOp>(
                v.getDefiningOp()))
       return true;
   }
@@ -985,7 +991,7 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
         return true;
       }
     }
-    if (isa_and_nonnull<AddIOp, SubIOp, MulIOp, AffineApplyOp>(
+    if (isa_and_nonnull<IndexCastOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp, AffineApplyOp>(
                v.getDefiningOp()))
       return true;
   }
