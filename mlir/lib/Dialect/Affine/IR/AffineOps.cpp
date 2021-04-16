@@ -647,13 +647,14 @@ AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
       .cast<AffineDimExpr>();
 }
 
-static bool legalCondition(Value en, bool outer=true) {
+static bool legalCondition(Value en, bool outer=true, bool dim=false) {
 	if (en.getDefiningOp() && isa<AffineApplyOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp>(en.getDefiningOp())) {
 		return true;
 	}
 	//if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
 	//	if (!outer || legalCondition(IC.getOperand(), false)) return true;
 	//}
+	if (!dim)
 	if (auto BA = en.dyn_cast<BlockArgument>()) {
 		if (isa<AffineForOp>(BA.getOwner()->getParentOp())) return true;
 	}
@@ -971,9 +972,8 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
 bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   for(size_t i=0; i<map->getNumInputs(); ++i) {
-    if (i < map->getNumDims()) continue;
-	  auto v = (*operands)[i];
-    if (legalCondition(v))
+    auto v = (*operands)[i];
+    if (legalCondition(v, true, i < map->getNumDims()))
       return true;
   }
   return false;
@@ -997,9 +997,8 @@ void mlir::fullyComposeAffineMapAndOperands(AffineMap *map,
 
 bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
   for(size_t i=0; i<map->getNumInputs(); ++i) {
-    if (i < map->getNumDims()) continue;
     auto v = (*operands)[i];
-    if (legalCondition(v)) return true;
+    if (legalCondition(v, true, i < map->getNumDims())) return true;
   }
   return false;
 }
@@ -1023,6 +1022,12 @@ static void composeIntegerSetAndOperands(IntegerSet *set,
 void fullyComposeIntegerSetAndOperands(IntegerSet *set,
                                             SmallVectorImpl<Value> *operands) {
 
+    //llvm::errs() << "tpre: ";
+    //set->dump(); llvm::errs() << "\n";
+
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
   while (need(set, operands)) {
     //llvm::errs() << "pre: ";
     //set->dump(); llvm::errs() << "\n";
