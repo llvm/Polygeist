@@ -82,8 +82,9 @@ using namespace mlir;
 
 #define DEBUG_TYPE "LoopRestructure"
 
+namespace llvm {
 template <>
-struct llvm::GraphTraits<const mlir::Block *> {
+struct GraphTraits<const mlir::Block *> {
   using ChildIteratorType = mlir::Block::succ_iterator;
   using Node = const mlir::Block;
   using NodeRef = Node *;
@@ -97,6 +98,7 @@ struct llvm::GraphTraits<const mlir::Block *> {
     return const_cast<mlir::Block *>(node)->succ_end();
   }
 };
+}
 
 namespace {
 
