@@ -46,7 +46,7 @@ static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
 
 static cl::opt<std::string> MArch("march", cl::init(""),
-                             cl::desc("Architecture"));
+                                  cl::desc("Architecture"));
 
 static cl::opt<bool>
     showDialects("show-dialects",
