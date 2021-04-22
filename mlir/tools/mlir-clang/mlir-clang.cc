@@ -132,7 +132,11 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createMemRefDataFlowOptPass());
+    optPM.addPass(mlir::createCanonicalizeForPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
     if (RaiseToAffine) {
+      optPM.addPass(mlir::createCanonicalizeForPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(mlir::createRaiseSCFToAffinePass());
       optPM.addPass(mlir::replaceAffineCFGPass());

@@ -92,6 +92,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       SmallVector<Value, 4> newBlockTransferArgs;
       newBlockTransferArgs.reserve(1 + loop.getNumIterOperands());
       Value iv = affineLoop.getInductionVar();
+      loop.getInductionVar().replaceAllUsesWith(iv);
       newBlockTransferArgs.push_back(iv);
       llvm::append_range(newBlockTransferArgs, affineLoop.getIterOperands());
 
