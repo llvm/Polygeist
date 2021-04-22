@@ -51,4 +51,9 @@ def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
 	let dependentDialects = ["AffineDialect"];
 }
 
+def SCFCanonicalizeFor : FunctionPass<"canonicalize-scf-for"> {
+  let summary = "Run some additional canonicalization for scf::for";
+  let constructor = "mlir::createCanonicalizeForPass()";
+}
+
 #endif // MLIR_DIALECT_SCF_PASSES
