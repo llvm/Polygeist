@@ -1372,7 +1372,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       llvm::errs() << condOp.condition() << "\n";
       return failure();
     }
-    assert(maybeCmpIOp);
+    assert(maybeCmpIOp && "expect non-null");
     if (auto cmpIOp = dyn_cast<CmpIOp>(maybeCmpIOp)) {
       Value maybeIndVar = cmpIOp.lhs();
       if (isTopLevelArgValue(maybeIndVar, &loop.before()))
@@ -1409,11 +1409,13 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
       if (isBlockArg(cmpIOp.rhs()) || dominateWhile(cmpIOp.rhs(), loop)) {
         switch (cmpIOp.getPredicate()) {
-        case CmpIPredicate::slt: {
+        case CmpIPredicate::slt:
+        case CmpIPredicate::ult: {
           loopInfo.ub = cmpIOp.rhs();
           break;
         }
         case CmpIPredicate::sle: {
+          // TODO: f32 likely not always true.
           auto one =
               rewriter.create<ConstantOp>(loop.getLoc(), rewriter.getI32Type(),
                                           rewriter.getI32IntegerAttr(1));
@@ -1426,11 +1428,9 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         case CmpIPredicate::sge:
         case CmpIPredicate::sgt:
         case CmpIPredicate::ne:
-        case CmpIPredicate::ult:
         case CmpIPredicate::ule:
         case CmpIPredicate::ugt:
         case CmpIPredicate::uge: {
-          llvm::errs() << "unhandled icmp";
           return failure();
         }
         }
