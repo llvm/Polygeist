@@ -30,6 +30,10 @@ using namespace mlir;
 
 #define DEBUG_TYPE "clang-mlir"
 
+static cl::opt<bool>
+    memRefFullRank("memref-fullrank", cl::init(false),
+                   cl::desc("Get the full rank of the memref."));
+
 class IfScope {
 public:
   MLIRScanner &scanner;
@@ -2687,11 +2691,45 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
   // return builder.getFileLineColLoc(mlirIdentifier, lineNumber, colNumber);
 }
 
+/// Iteratively get the size of each dim of the given ConstantArrayType inst.
+static void getConstantArrayShapeAndElemType(const clang::QualType &ty,
+                                             SmallVectorImpl<int64_t> &shape,
+                                             clang::QualType &elemTy) {
+  shape.clear();
+
+  clang::QualType curTy = ty;
+  while (curTy->isConstantArrayType()) {
+    auto cstArrTy = cast<clang::ConstantArrayType>(curTy);
+    shape.push_back(cstArrTy->getSize().getSExtValue());
+    curTy = cstArrTy->getElementType();
+  }
+
+  elemTy = curTy;
+}
+
 mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType t) {
   if (t->isVoidType()) {
     mlir::OpBuilder builder(module.getContext());
     return builder.getNoneType();
   }
+
+  // Constant array types like `int A[30][20]` will be converted to LLVM type
+  // `[20 x i32]* %0`, which has the outermost dimension size erased, and we can
+  // only recover to `memref<?x20xi32>` from there. This prevents us from doing
+  // more comprehensive analysis.
+  // Here we specifically handle this case by unwrapping the clang-adjusted
+  // type, to get the corresponding ConstantArrayType with the full dimensions.
+  if (memRefFullRank && isa<clang::DecayedType>(t)) {
+    clang::QualType origTy = dyn_cast<clang::DecayedType>(t)->getOriginalType();
+    if (origTy->isConstantArrayType()) {
+      SmallVector<int64_t, 4> shape;
+      clang::QualType elemTy;
+      getConstantArrayShapeAndElemType(origTy, shape, elemTy);
+
+      return mlir::MemRefType::get(shape, getMLIRType(elemTy));
+    }
+  }
+
   llvm::Type *T = CGM.getTypes().ConvertType(t);
   return getMLIRType(T);
 }
