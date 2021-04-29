@@ -487,7 +487,7 @@ convertOmpWsLoop(Operation &opInst, llvm::IRBuilderBase &builder,
   if (failed(bodyGenStatus))
     return failure();
 
-  llvm::OpenMPIRBuilder::InsertPointTy allocaIP =
+  /*llvm::OpenMPIRBuilder::InsertPointTy*/ allocaIP =
       findAllocaInsertPoint(builder, moduleTranslation);
   llvm::OpenMPIRBuilder::InsertPointTy afterIP;
   llvm::OpenMPIRBuilder *ompBuilder = moduleTranslation.getOpenMPBuilder();

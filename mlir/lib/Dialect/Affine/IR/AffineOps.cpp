@@ -756,7 +756,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   assert(map.getNumInputs() == operands.size() &&
          "number of operands does not match the number of map inputs");
 
-  LLVM_DEBUG(map.print(dbgs() << "\nInput map: "));
+  LLVM_DEBUG(map.print(llvm::dbgs() << "\nInput map: "));
 
   // Promote symbols that come from an AffineApplyOp to dims by rewriting the
   // map to always refer to:
@@ -772,7 +772,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   map = promoteComposedSymbolsAsDims(map,
                                      operands.take_back(map.getNumSymbols()));
 
-  LLVM_DEBUG(map.print(dbgs() << "\nRewritten map: "));
+  LLVM_DEBUG(map.print(llvm::dbgs() << "\nRewritten map: "));
 
   SmallVector<AffineExpr, 8> auxiliaryExprs;
   bool furtherCompose = (affineApplyDepth() <= kMaxAffineApplyDepth);
@@ -852,7 +852,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
                                         addedValues.size());
 
         LLVM_DEBUG(affineApplyMap.print(
-            dbgs() << "\nRenumber into current normalizer: "));
+            llvm::dbgs() << "\nRenumber into current normalizer: "));
         auxiliaryExprs.push_back(affineApplyMap.getResult(0));
         /*
         llvm::dbgs() << "\n";
@@ -883,7 +883,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
         // a. Compose affine.apply operations.
         LLVM_DEBUG(affineApply->print(
-            dbgs() << "\nCompose AffineApplyOp recursively: "));
+            llvm::dbgs() << "\nCompose AffineApplyOp recursively: "));
         AffineMap affineApplyMap = affineApply.getAffineMap();
         SmallVector<Value, 8> affineApplyOperands(
             affineApply.getOperands().begin(), affineApply.getOperands().end());
@@ -909,7 +909,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
                                         addedValues.size());
 
         LLVM_DEBUG(affineApplyMap.print(
-            dbgs() << "\nAffine apply fixup map: "));
+            llvm::dbgs() << "\nAffine apply fixup map: "));
         auxiliaryExprs.push_back(affineApplyMap.getResult(0));
       } else {
         if (i < numDimsBeforeRewrite) {
@@ -956,17 +956,17 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   }
   */
 
-  LLVM_DEBUG(map.print(dbgs() << "\nCompose map: "));
-  LLVM_DEBUG(auxiliaryMap.print(dbgs() << "\nWith map: "));
-  LLVM_DEBUG(map.compose(auxiliaryMap).print(dbgs() << "\nResult: "));
+  LLVM_DEBUG(map.print(llvm::dbgs() << "\nCompose map: "));
+  LLVM_DEBUG(auxiliaryMap.print(llvm::dbgs() << "\nWith map: "));
+  LLVM_DEBUG(map.compose(auxiliaryMap).print(llvm::dbgs() << "\nResult: "));
 
   // TODO: Disabling simplification results in major speed gains.
   // Another option is to cache the results as it is expected a lot of redundant
   // work is performed in practice.
   affineMap = simplifyAffineMap(map.compose(auxiliaryMap));
 
-  LLVM_DEBUG(affineMap.print(dbgs() << "\nSimplified result: "));
-  LLVM_DEBUG(dbgs() << "\n");
+  LLVM_DEBUG(affineMap.print(llvm::dbgs() << "\nSimplified result: "));
+  LLVM_DEBUG(llvm::dbgs() << "\n");
 }\
 
 bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {

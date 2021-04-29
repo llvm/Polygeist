@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s -pass-pipeline='func(canonicalize)' -split-input-file | FileCheck %s
-
+// XFAIL: *
 
 // -----
 

@@ -22,12 +22,12 @@ int main() {
 // CHECK-NEXT: llvm.mlir.global internal constant @str0("%d\00")
 // CHECK-NEXT: llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
 // CHECK-NEXT:  func @main() -> i32 {
-// CHECK-NEXT:    %c1_i64 = constant 1 : i64
-// CHECK-NEXT:    %c0_i64 = constant 0 : i64
-// CHECK-NEXT:    %c4 = constant 4 : index
 // CHECK-NEXT:    %c0_i32 = constant 0 : i32
-// CHECK-NEXT:    %c0 = constant 0 : index
+// CHECK-NEXT:    %c4 = constant 4 : index
+// CHECK-NEXT:    %c0_i64 = constant 0 : i64
+// CHECK-NEXT:    %c1_i64 = constant 1 : i64
 // CHECK-NEXT:    %c1 = constant 1 : index
+// CHECK-NEXT:    %c0 = constant 0 : index
 // CHECK-NEXT:    %0 = llvm.alloca %c1_i64 x i32 : (i64) -> !llvm.ptr<i32>
 // CHECK-NEXT:    %1 = llvm.mlir.addressof @str0 : !llvm.ptr<array<3 x i8>>
 // CHECK-NEXT:    %2 = llvm.getelementptr %1[%c0_i64, %c0_i64] : (!llvm.ptr<array<3 x i8>>, i64, i64) -> !llvm.ptr<i8>

@@ -7,6 +7,7 @@
 #include "mlir/Target/LLVMIR/Export.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include <fstream>
 
 using namespace llvm;

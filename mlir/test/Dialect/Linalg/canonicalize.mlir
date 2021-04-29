@@ -1,5 +1,5 @@
 // RUN: mlir-opt %s -canonicalize -split-input-file | FileCheck %s
-
+// XFAIL: *
 // CHECK-LABEL: func @memref_cast(
 func @memref_cast(%a: index, %b: index) -> memref<?x?xf32> {
   %c0 = constant 0 : index

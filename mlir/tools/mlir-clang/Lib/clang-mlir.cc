@@ -2996,11 +2996,9 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
                                            Clang->getTargetOpts());
 
-    module->setAttr(
-        LLVM::LLVMDialect::getDataLayoutAttrName(),
-        StringAttr::get(
-            module.getContext(),
-            Clang->getTarget().getDataLayout().getStringRepresentation()));
+    module->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
+                    StringAttr::get(module.getContext(),
+                                    Clang->getTarget().getDataLayoutString()));
     module->setAttr(
         LLVM::LLVMDialect::getTargetTripleAttrName(),
         StringAttr::get(module.getContext(),
@@ -3023,7 +3021,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
         Act.EndSourceFile();
       }
     }
-    DL = Clang->getTarget().getDataLayout();
+    DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
     triple = Clang->getTarget().getTriple();
   }
   return true;

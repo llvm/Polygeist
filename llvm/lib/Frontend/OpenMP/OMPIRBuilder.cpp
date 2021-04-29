@@ -889,7 +889,6 @@ void OpenMPIRBuilder::createTaskyield(const LocationDescription &Loc) {
   emitTaskyieldImpl(Loc);
 }
 
-<<<<<<< HEAD
 OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createSections(
     const LocationDescription &Loc, InsertPointTy AllocaIP,
     ArrayRef<StorableBodyGenCallbackTy> SectionCBs, PrivatizeCallbackTy PrivCB,

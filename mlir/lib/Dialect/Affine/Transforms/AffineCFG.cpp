@@ -1,13 +1,13 @@
 #include "PassDetail.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/IntegerSet.h"
-#include "llvm/Support/Debug.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/Support/Debug.h"
+#include <deque>
 
 #define DEBUG_TYPE "affine-cfg"
 
@@ -480,8 +480,7 @@ void AffineCFGPass::runOnFunction() {
     rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply, 
             CanonicalizeIndexCast, IndexCastMovement,
             MoveStoreToAffine, MoveLoadToAffine>(getFunction().getContext());
-    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                 /*fold*/ false);
+    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl));
   }
   // getFunction().dump();
 }

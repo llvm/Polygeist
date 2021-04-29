@@ -221,12 +221,13 @@ struct SimplifyDeadAlloc : public OpRewritePattern<T> {
 
 void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                           MLIRContext *context) {
-  results.add<SimplifyAllocConst<AllocOp>, SimplifyDeadAlloc<AllocOp>>(context);
+  results.add<SimplifyAllocConst<AllocOp> /*, SimplifyDeadAlloc<AllocOp>*/>(
+      context);
 }
 
 void AllocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                            MLIRContext *context) {
-  results.add<SimplifyAllocConst<AllocaOp>, SimplifyDeadAlloc<AllocaOp>>(
+  results.add<SimplifyAllocConst<AllocaOp> /*, SimplifyDeadAlloc<AllocaOp>*/>(
       context);
 }
 

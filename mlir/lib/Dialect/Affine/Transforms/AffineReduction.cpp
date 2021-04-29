@@ -246,8 +246,7 @@ void AffineReductionPass::runOnFunction() {
   {
     mlir::RewritePatternSet rpl(getFunction().getContext());
     rpl.add<AffineForReductionIter>(getFunction().getContext());
-    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                 /*fold*/ false);
+    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl));
   }
   // getFunction().dump();
 }

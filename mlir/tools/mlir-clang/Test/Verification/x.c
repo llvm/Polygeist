@@ -7,11 +7,9 @@ int kernel_deriche(int x) {
     return x;
 }
 
-// CHECK:  func @kernel_deriche(%arg0: i32) -> i32 {
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %c2_i32 = constant 2 : i32
-// CHECK-NEXT:     %0 = addi %arg0, %c1_i32 : i32
-// CHECK-NEXT:     %1 = addi %0, %c1_i32 : i32
-// CHECK-NEXT:     %2 = muli %1, %c2_i32 : i32
-// CHECK-NEXT:     return %2 : i32
+// CHECK:  func @kernel_deriche(%[[arg:.+]]: i32) -> i32 {
+// CHECK-NEXT:     %[[cst:.+]] = constant 2 : i32
+// CHECK-NEXT:     %[[add:.+]] = addi %[[arg]], %[[cst]] : i32
+// CHECK-NEXT:     %[[mul:.+]] = muli %[[add]], %[[cst]] : i32
+// CHECK-NEXT:     return %[[mul]] : i32
 // CHECK-NEXT:   }

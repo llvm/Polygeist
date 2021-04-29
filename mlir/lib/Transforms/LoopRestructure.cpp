@@ -250,9 +250,9 @@ void LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
 
 void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
   if (region.getBlocks().size() > 1) {
-    assert(domInfo.dominanceInfos.count(&region) != 0);
-    auto DT = domInfo.dominanceInfos[&region].get();
-    mlir::LoopInfo LI(*DT);
+    //assert(domInfo.dominanceInfos.count(&region) != 0);
+    auto &DT = domInfo.getDomTree(&region);/*dominanceInfos[&region].get();*/
+    mlir::LoopInfo LI(DT);
     for (auto L : LI.getTopLevelLoops()) {
       Block *header = L->getHeader();
       Block *target = L->getUniqueExitBlock();
@@ -462,7 +462,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       }
 
       builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
-      domInfo.recalculate(loop.getOperation());
+      domInfo.invalidate(&loop.before());
       runOnRegion(domInfo, loop.before());
       removeIfFromRegion(domInfo, loop.before(), pseudoExit);
 
@@ -478,7 +478,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
     for (auto &op : blk ) {
       for (auto &reg : op.getRegions()) {
         if (reg.getBlocks().size() > 1) {
-          domInfo.recalculate(&op);
+          domInfo.invalidate(&reg);
         }
         runOnRegion(domInfo, reg);
       }

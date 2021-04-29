@@ -482,6 +482,7 @@ def MemRef_DeallocOp : MemRef_Op<"dealloc", [MemRefsNormalizable]> {
 
   let arguments = (ins Arg<AnyRankedOrUnrankedMemRef, "", [MemFree]>:$memref);
 
+  let hasCanonicalizer = 1;
   let hasFolder = 1;
   let verifier = ?;
   let assemblyFormat = "$memref attr-dict `:` type($memref)";

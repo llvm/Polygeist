@@ -82,17 +82,18 @@ bool isOpLoopInvariant(Operation &op, Value indVar, ValueRange iterArgs,
       return false;
     }
   } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-    definedOps.insert(&op);
+    opsWithUsers.insert(&op);
     if (!ifOp.condition().getDefiningOp()) return false;
-    if (definedOps.count(ifOp.condition().getDefiningOp()) && opsToHoist.count(ifOp.condition().getDefiningOp()) == 0) {
+    if (opsWithUsers.count(ifOp.condition().getDefiningOp()) &&
+        opsToHoist.count(ifOp.condition().getDefiningOp()) == 0) {
       return false;
     }
-    if (!areAllOpsInTheBlockListInvariant(ifOp.thenRegion(), indVar, definedOps,
-                                          opsToHoist)) {
+    if (!areAllOpsInTheBlockListInvariant(ifOp.thenRegion(), indVar, iterArgs,
+                                          opsWithUsers, opsToHoist)) {
       return false;
     }
-    if (!areAllOpsInTheBlockListInvariant(ifOp.elseRegion(), indVar, definedOps,
-                                          opsToHoist)) {
+    if (!areAllOpsInTheBlockListInvariant(ifOp.elseRegion(), indVar, iterArgs,
+                                          opsWithUsers, opsToHoist)) {
       return false;
     }
     return true;

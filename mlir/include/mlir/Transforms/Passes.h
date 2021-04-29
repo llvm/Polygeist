@@ -61,6 +61,9 @@ std::unique_ptr<FunctionPass> createFinalizingBufferizePass();
 /// Creates a pass that converts memref function results to out-params.
 std::unique_ptr<Pass> createBufferResultsToOutParamsPass();
 
+/// Create a parallel lower pass for GPU.
+std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+
 /// Creates an instance of the Canonicalizer pass, configured with default
 /// settings (which can be overridden by pass options on the command line).
 std::unique_ptr<Pass> createCanonicalizerPass();

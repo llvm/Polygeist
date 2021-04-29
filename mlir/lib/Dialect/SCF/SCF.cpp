@@ -1154,6 +1154,55 @@ struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
   }
 };
 
+struct RemoveNotIf : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    // Replace the operation if only a subset of its results have uses.
+    if (op.getNumResults() == 0)
+      return failure();
+
+    auto trueYield = cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
+    auto falseYield =
+        cast<scf::YieldOp>(op.thenRegion().back().getTerminator());
+
+    rewriter.setInsertionPoint(op->getBlock(),
+                               op.getOperation()->getIterator());
+    bool changed = false;
+    for (auto tup :
+         llvm::zip(trueYield.results(), falseYield.results(), op.results())) {
+      if (!std::get<0>(tup).getType().isInteger(1))
+        continue;
+      if (auto top = std::get<0>(tup).getDefiningOp<ConstantOp>()) {
+        if (auto fop = std::get<1>(tup).getDefiningOp<ConstantOp>()) {
+          if (top.getValue().cast<IntegerAttr>().getValue() == 0 &&
+              fop.getValue().cast<IntegerAttr>().getValue() == 1) {
+
+            for (OpOperand &use :
+                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+              changed = true;
+              rewriter.updateRootInPlace(use.getOwner(), [&]() {
+                use.set(rewriter.create<XOrOp>(op.getLoc(), op.condition()));
+              });
+            }
+          }
+          if (top.getValue().cast<IntegerAttr>().getValue() == 1 &&
+              fop.getValue().cast<IntegerAttr>().getValue() == 0) {
+            for (OpOperand &use :
+                 llvm::make_early_inc_range(std::get<2>(tup).getUses())) {
+              changed = true;
+              rewriter.updateRootInPlace(use.getOwner(),
+                                         [&]() { use.set(op.condition()); });
+            }
+          }
+        }
+      }
+    }
+    return changed ? success() : failure();
+  }
+};
+
 struct RemoveStaticCondition : public OpRewritePattern<IfOp> {
   using OpRewritePattern<IfOp>::OpRewritePattern;
 
@@ -1962,27 +2011,52 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
   }
 };
 
-
+/// Replace uses of the condition within the do block with true, since otherwise
+/// the block would not be evaluated.
+///
+/// scf.while (..) : (i1, ...) -> ... {
+///  %condition = call @evaluate_condition() : () -> i1
+///  scf.condition(%condition) %condition : i1, ...
+/// } do {
+/// ^bb0(%arg0: i1, ...):
+///    use(%arg0)
+///    ...
+///
+/// becomes
+/// scf.while (..) : (i1, ...) -> ... {
+///  %condition = call @evaluate_condition() : () -> i1
+///  scf.condition(%condition) %condition : i1, ...
+/// } do {
+/// ^bb0(%arg0: i1, ...):
+///    use(%true)
+///    ...
 struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(WhileOp op,
                                 PatternRewriter &rewriter) const override {
-    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
-    size_t i=0;
+    auto term = op.getConditionOp();
+
+    // These variables serve to prevent creating duplicate constants
+    // and hold constant true or false values.
+    Value constantTrue = nullptr;
+
     bool replaced = false;
-    for (auto arg : term.args()) {
-      if (arg == term.condition()) {
-        mlir::Type ty = rewriter.getI1Type();
-        for (OpOperand &use : llvm::make_early_inc_range(op.after().front().getArgument(i).getUses())) {
+    for (auto yieldedAndBlockArgs :
+         llvm::zip(term.args(), op.getAfterArguments())) {
+      if (std::get<0>(yieldedAndBlockArgs) == term.condition()) {
+        if (!std::get<1>(yieldedAndBlockArgs).use_empty()) {
+          if (!constantTrue)
+            constantTrue = rewriter.create<mlir::ConstantOp>(
+                op.getLoc(), term.condition().getType(),
+                rewriter.getBoolAttr(true));
+
+          std::get<1>(yieldedAndBlockArgs).replaceAllUsesWith(constantTrue);
           replaced = true;
-          rewriter.updateRootInPlace(use.getOwner(),
-          [&]() { use.set(rewriter.create<mlir::ConstantOp>(op.getLoc(), ty, rewriter.getIntegerAttr(ty, 1))); });
         }
       }
-      i++;
     }
-    return replaced ? success() : failure();
+    return success(replaced);
   }
 };
 
@@ -1998,7 +2072,8 @@ void IfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                        MLIRContext *context) {
   results.add<RemoveUnusedResults, RemoveStaticCondition,
               ConvertTrivialIfToSelect, RemoveBoolean, ConditionPropagation,
-              ReplaceIfYieldWithConditionOrValue, CombineIfs>(context);
+              RemoveNotIf, ReplaceIfYieldWithConditionOrValue, CombineIfs>(
+      context);
 }
 
 Block *IfOp::thenBlock() { return &thenRegion().back(); }
@@ -2673,62 +2748,6 @@ static LogicalResult verify(scf::WhileOp op) {
       op, op.after(),
       "expects the 'after' region to terminate with 'scf.yield'");
   return success(afterTerminator != nullptr);
-}
-
-namespace {
-/// Replace uses of the condition within the do block with true, since otherwise
-/// the block would not be evaluated.
-///
-/// scf.while (..) : (i1, ...) -> ... {
-///  %condition = call @evaluate_condition() : () -> i1
-///  scf.condition(%condition) %condition : i1, ...
-/// } do {
-/// ^bb0(%arg0: i1, ...):
-///    use(%arg0)
-///    ...
-///
-/// becomes
-/// scf.while (..) : (i1, ...) -> ... {
-///  %condition = call @evaluate_condition() : () -> i1
-///  scf.condition(%condition) %condition : i1, ...
-/// } do {
-/// ^bb0(%arg0: i1, ...):
-///    use(%true)
-///    ...
-struct WhileConditionTruth : public OpRewritePattern<WhileOp> {
-  using OpRewritePattern<WhileOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(WhileOp op,
-                                PatternRewriter &rewriter) const override {
-    auto term = op.getConditionOp();
-
-    // These variables serve to prevent creating duplicate constants
-    // and hold constant true or false values.
-    Value constantTrue = nullptr;
-
-    bool replaced = false;
-    for (auto yieldedAndBlockArgs :
-         llvm::zip(term.args(), op.getAfterArguments())) {
-      if (std::get<0>(yieldedAndBlockArgs) == term.condition()) {
-        if (!std::get<1>(yieldedAndBlockArgs).use_empty()) {
-          if (!constantTrue)
-            constantTrue = rewriter.create<mlir::ConstantOp>(
-                op.getLoc(), term.condition().getType(),
-                rewriter.getBoolAttr(true));
-
-          std::get<1>(yieldedAndBlockArgs).replaceAllUsesWith(constantTrue);
-          replaced = true;
-        }
-      }
-    }
-    return success(replaced);
-  }
-};
-} // namespace
-
-void WhileOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                          MLIRContext *context) {
-  results.insert<WhileConditionTruth>(context);
 }
 
 //===----------------------------------------------------------------------===//
