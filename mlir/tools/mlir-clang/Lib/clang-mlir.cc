@@ -1,5 +1,7 @@
 #include "clang-mlir.h"
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
 #include <clang/Basic/DiagnosticOptions.h>
 #include <clang/Basic/FileManager.h>
@@ -725,6 +727,60 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
   assert(0 && "indirect references not handled");
 }
 
+// Try to typecast the caller arg of type MemRef to fit the corresponding callee
+// arg type. We only deal with the cast that src and dst has the same shape size
+// and the elem type, just the first shape differs: src has -1 and dst has a
+// constant integer.
+static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
+                                       mlir::Type calleeArgType,
+                                       mlir::OpBuilder &b) {
+  mlir::OpBuilder::InsertionGuard guard(b);
+  mlir::Type callerArgType = callerArg.getType();
+
+  if (MemRefType dstTy = calleeArgType.dyn_cast<MemRefType>()) {
+    MemRefType srcTy = callerArgType.dyn_cast<MemRefType>();
+    if (srcTy && dstTy.getElementType() == srcTy.getElementType()) {
+      auto srcShape = srcTy.getShape();
+      auto dstShape = dstTy.getShape();
+
+      if (srcShape.size() == dstShape.size() && !srcShape.empty() &&
+          srcShape[0] == -1 &&
+          std::equal(std::next(srcShape.begin()), srcShape.end(),
+                     std::next(dstShape.begin()))) {
+        b.setInsertionPointAfterValue(callerArg);
+
+        return b.create<mlir::memref::CastOp>(callerArg.getLoc(), callerArg,
+                                              calleeArgType);
+      }
+    }
+  }
+
+  // Return the original value when casting fails.
+  return callerArg;
+}
+
+/// Typecast the caller args to match the callee's signature. Mismatches that
+/// cannot be resolved by given rules won't raise exceptions.
+static void castCallerArgs(mlir::FuncOp callee,
+                           llvm::SmallVectorImpl<mlir::Value> &args,
+                           mlir::OpBuilder &b) {
+  mlir::FunctionType funcTy = callee.getType().cast<mlir::FunctionType>();
+  assert(args.size() == funcTy.getNumInputs() &&
+         "The caller arguments should have the same size as the number of "
+         "callee arguments as the interface.");
+
+  for (unsigned i = 0; i < args.size(); ++i) {
+    mlir::Type calleeArgType = funcTy.getInput(i);
+    mlir::Type callerArgType = args[i].getType();
+
+    if (calleeArgType == callerArgType)
+      continue;
+
+    if (calleeArgType.isa<MemRefType>())
+      args[i] = castCallerMemRefArg(args[i], calleeArgType, b);
+  }
+}
+
 ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto ME = dyn_cast<MemberExpr>(ic->getSubExpr())) {
@@ -1165,7 +1221,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 
   auto tocall = EmitDirectCallee(EmitCallee(expr->getCallee()));
-  std::vector<mlir::Value> args;
+  llvm::SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getType();
   size_t i = 0;
   for (auto a : expr->arguments()) {
@@ -1188,6 +1244,10 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     args.push_back(val);
     i++;
   }
+
+  // Try to rescue some mismatched types.
+  castCallerArgs(tocall, args, builder);
+
   auto op = builder.create<mlir::CallOp>(loc, tocall, args);
   if (op.getNumResults())
     return ValueWithOffsets(op.getResult(0), /*isReference*/ false);
