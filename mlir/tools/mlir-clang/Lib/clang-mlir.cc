@@ -727,17 +727,17 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
   assert(0 && "indirect references not handled");
 }
 
-// Try to typecast the caller arg of type MemRef to fit the corresponding callee
-// arg type. We only deal with the cast that src and dst has the same shape size
-// and the elem type, just the first shape differs: src has -1 and dst has a
-// constant integer.
+/// Try to typecast the caller arg of type MemRef to fit the corresponding
+/// callee arg type. We only deal with the cast where src and dst have the same
+/// shape size and elem type, and just the first shape differs: src has -1 and
+/// dst has a constant integer.
 static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
                                        mlir::Type calleeArgType,
                                        mlir::OpBuilder &b) {
   mlir::OpBuilder::InsertionGuard guard(b);
   mlir::Type callerArgType = callerArg.getType();
 
-  if (MemRefType dstTy = calleeArgType.dyn_cast<MemRefType>()) {
+  if (MemRefType dstTy = calleeArgType.dyn_cast_or_null<MemRefType>()) {
     MemRefType srcTy = callerArgType.dyn_cast<MemRefType>();
     if (srcTy && dstTy.getElementType() == srcTy.getElementType()) {
       auto srcShape = srcTy.getShape();
@@ -760,7 +760,10 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
 }
 
 /// Typecast the caller args to match the callee's signature. Mismatches that
-/// cannot be resolved by given rules won't raise exceptions.
+/// cannot be resolved by given rules won't raise exceptions, e.g., if the
+/// expected type for an arg is memref<10xi8> while the provided is
+/// memref<20xf32>, we will simply ignore the case in this function and wait for
+/// the rest of the pipeline to detect it.
 static void castCallerArgs(mlir::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
