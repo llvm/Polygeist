@@ -11,6 +11,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -46,7 +47,7 @@ static void discoverMemWriteOps(mlir::FuncOp f,
   f.getOperation()->walk([&](Operation *op) {
     if (isa<mlir::AffineForOp>(op))
       hasAffineScope = true;
-    if (isa<mlir::AffineWriteOpInterface, mlir::StoreOp>(op))
+    if (isa<mlir::AffineWriteOpInterface, memref::StoreOp>(op))
       ops.push_back(op);
   });
 
@@ -72,8 +73,8 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 
   // The memref shape is 1 and the type is derived from val.
   mlir::Type memrefType = MemRefType::get({1}, val.getType());
-  mlir::Operation *allocaOp =
-      b.create<mlir::AllocaOp>(defOp->getLoc(), memrefType.cast<MemRefType>());
+  mlir::Operation *allocaOp = b.create<memref::AllocaOp>(
+      defOp->getLoc(), memrefType.cast<MemRefType>());
   mlir::Value memref = allocaOp->getResult(0);
 
   // Give the callee an additional argument
@@ -205,8 +206,8 @@ static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
     // Also, we should leave the dim SSA value in the original scope. Otherwise,
     // if we consume it in the callee, the AffineValueMap built for the accesses
     // that use this dim cannot relate it with the global context.
-    if (isa<mlir::AllocaOp, mlir::AllocOp, mlir::DimOp, mlir::AffineApplyOp,
-            mlir::IndexCastOp>(op)) {
+    if (isa<memref::AllocaOp, memref::AllocOp, memref::DimOp,
+            mlir::AffineApplyOp, mlir::IndexCastOp>(op)) {
       for (mlir::Value result : op->getResults())
         args.insert(result);
       continue;
@@ -317,7 +318,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   // Set the scop_stmt attribute for identification at a later stage.
   // TODO: in the future maybe we could create a customized dialect, e.g., Scop,
   // that contains scop stmt FuncOp, e.g., ScopStmtOp.
-  callee.setAttr(SCOP_STMT_ATTR_NAME, b.getUnitAttr());
+  callee->setAttr(SCOP_STMT_ATTR_NAME, b.getUnitAttr());
 
   // Set the callee to be private for inlining.
   callee.setPrivate();
@@ -371,7 +372,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   unsigned numWriteOps = writeOps.size();
 
   // Use the top-level module to locate places for new functions insertion.
-  mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
+  mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
   // A writeOp will result in a new caller/callee pair.
   for (unsigned i = 0; i < numWriteOps; i++) {
     SetVector<Operation *> ops;

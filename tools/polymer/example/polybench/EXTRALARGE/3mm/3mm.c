@@ -1,12 +1,3 @@
-// TODO: mlir-clang %s %stdinclude | FileCheck %s
-// RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
-// RUN: rm -f %s.exec1 %s.execm
-// RUN: diff %s.out1 %s.out2
-// RUN: rm -f %s.out1 %s.out2
-// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
-// RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
-// RUN: rm -f %s.exec2 %s.execm
 /**
  * This version is stamped on May 10, 2016
  *
@@ -176,54 +167,3 @@ int main(int argc, char** argv)
 
   return 0;
 }
-
-// CHECK:   func @kernel_3mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: memref<800x900xf64>, %arg6: memref<800x1000xf64>, %arg7: memref<1000x900xf64>, %arg8: memref<900x1100xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<1200x1100xf64>, %arg11: memref<800x1100xf64>) {
-// CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
-// CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:  %1 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:  %2 = index_cast %arg2 : i32 to index
-// CHECK-NEXT:  affine.for %arg12 = 0 to %0 {
-// CHECK-NEXT:    affine.for %arg13 = 0 to %1 {
-// CHECK-NEXT:      affine.store %cst, %arg5[%arg12, %arg13] : memref<800x900xf64>
-// CHECK-NEXT:      %5 = affine.load %arg5[%arg12, %arg13] : memref<800x900xf64>
-// CHECK-NEXT:      affine.for %arg14 = 0 to %2 {
-// CHECK-NEXT:        %6 = affine.load %arg6[%arg12, %arg14] : memref<800x1000xf64>
-// CHECK-NEXT:        %7 = affine.load %arg7[%arg14, %arg13] : memref<1000x900xf64>
-// CHECK-NEXT:        %8 = mulf %6, %7 : f64
-// CHECK-NEXT:        %9 = addf %5, %8 : f64
-// CHECK-NEXT:        affine.store %9, %arg5[%arg12, %arg13] : memref<800x900xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  %3 = index_cast %arg3 : i32 to index
-// CHECK-NEXT:  %4 = index_cast %arg4 : i32 to index
-// CHECK-NEXT:  affine.for %arg12 = 0 to %1 {
-// CHECK-NEXT:    affine.for %arg13 = 0 to %3 {
-// CHECK-NEXT:      affine.store %cst, %arg8[%arg12, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:      %5 = affine.load %arg8[%arg12, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:      affine.for %arg14 = 0 to %4 {
-// CHECK-NEXT:        %6 = affine.load %arg9[%arg12, %arg14] : memref<900x1200xf64>
-// CHECK-NEXT:        %7 = affine.load %arg10[%arg14, %arg13] : memref<1200x1100xf64>
-// CHECK-NEXT:        %8 = mulf %6, %7 : f64
-// CHECK-NEXT:        %9 = addf %5, %8 : f64
-// CHECK-NEXT:        affine.store %9, %arg8[%arg12, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  affine.for %arg12 = 0 to %0 {
-// CHECK-NEXT:    affine.for %arg13 = 0 to %3 {
-// CHECK-NEXT:      affine.store %cst, %arg11[%arg12, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:      %5 = affine.load %arg11[%arg12, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:      affine.for %arg14 = 0 to %1 {
-// CHECK-NEXT:        %6 = affine.load %arg5[%arg12, %arg14] : memref<800x900xf64>
-// CHECK-NEXT:        %7 = affine.load %arg8[%arg14, %arg13] : memref<900x1100xf64>
-// CHECK-NEXT:        %8 = mulf %6, %7 : f64
-// CHECK-NEXT:        %9 = addf %5, %8 : f64
-// CHECK-NEXT:        affine.store %9, %arg11[%arg12, %arg13] : memref<800x1100xf64>
-// CHECK-NEXT:      }
-// CHECK-NEXT:    }
-// CHECK-NEXT:  }
-// CHECK-NEXT:  return
-// CHECK-NEXT: }
-
-// EXEC: {{[0-9]\.[0-9]+}}

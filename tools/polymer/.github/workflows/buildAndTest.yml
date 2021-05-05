@@ -63,6 +63,12 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_ASSERTIONS=ON
           cmake --build . --target install -- -j$(nproc)
+
+      # Run MLIR-GPU tests 
+      - name: Test MLIR-GPU
+        run: |
+          cd llvm/build
+          cmake --build . --target check-mlir-clang
     # Installing the results into the cache is an action which is automatically
     # added by the cache action above.
 
@@ -164,6 +170,6 @@ jobs:
       - name: Run Polybench Tests
         run: |
           cd example/polybench
-          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" ./sanity-check SMALL output
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" ./sanity-check-data EXTRALARGE 
 
 

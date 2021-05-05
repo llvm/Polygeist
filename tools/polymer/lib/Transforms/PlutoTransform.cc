@@ -44,9 +44,15 @@ struct PlutoOptPipelineOptions
       *this, "dump-clast-after-pluto",
       llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
                      "optimization.")};
-  Option<bool> parallelize{
-      *this, "parallelize",
-      llvm::cl::desc("Enable parallelization from Pluto.")};
+  Option<bool> parallelize{*this, "parallelize",
+                           llvm::cl::desc("Enable parallelization from Pluto."),
+                           llvm::cl::init(false)};
+  Option<bool> debug{*this, "debug",
+                     llvm::cl::desc("Enable moredebug in Pluto."),
+                     llvm::cl::init(false)};
+  Option<bool> generateParallel{
+      *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
+      llvm::cl::init(false)};
 };
 
 } // namespace
@@ -55,7 +61,8 @@ struct PlutoOptPipelineOptions
 /// TODO: transform options?
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto,
-                                   bool parallelize) {
+                                   bool parallelize = false,
+                                   bool debug = false) {
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -69,8 +76,9 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   osl_scop_print(stderr, scop->get());
 
   // Should use isldep, candl cannot work well for this case.
-  context->options->silent = 1;
-  context->options->moredebug = 0;
+  context->options->silent = !debug;
+  context->options->moredebug = debug;
+  context->options->debug = debug;
   context->options->isldep = 1;
   context->options->readscop = 1;
 
@@ -82,13 +90,19 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
   pluto_schedule_prog(prog);
   pluto_populate_scop(scop->get(), prog, context);
+
+  if (debug) { // Otherwise things dumped afterwards will mess up.
+    fflush(stderr);
+    fflush(stdout);
+  }
+
   osl_scop_print(stderr, scop->get());
 
   const char *dumpClastAfterPlutoStr = nullptr;
   if (!dumpClastAfterPluto.empty())
     dumpClastAfterPlutoStr = dumpClastAfterPluto.c_str();
 
-  mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f.getParentOp());
+  mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f->getParentOp());
   mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
       std::move(scop), m, dstTable, rewriter.getContext(), prog,
       dumpClastAfterPlutoStr));
@@ -103,13 +117,14 @@ class PlutoTransformPass
                                OperationPass<mlir::ModuleOp>> {
   std::string dumpClastAfterPluto = "";
   bool parallelize = false;
+  bool debug = false;
 
 public:
   PlutoTransformPass() = default;
   PlutoTransformPass(const PlutoTransformPass &pass) {}
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
-        parallelize(options.parallelize) {}
+        parallelize(options.parallelize), debug(options.debug) {}
 
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
@@ -119,13 +134,13 @@ public:
     llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
 
     m.walk([&](mlir::FuncOp f) {
-      if (!f.getAttr("scop.stmt"))
+      if (!f->getAttr("scop.stmt"))
         funcOps.push_back(f);
     });
 
     for (mlir::FuncOp f : funcOps)
       if (mlir::FuncOp g =
-              plutoTransform(f, b, dumpClastAfterPluto, parallelize)) {
+              plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug)) {
         funcMap[f] = g;
         g.setPrivate();
       }
@@ -139,7 +154,7 @@ public:
         if (f != from)
           f.walk([&](mlir::CallOp op) {
             if (op.getCallee() == from.getName())
-              op.setAttr("callee", b.getSymbolRefAttr(to.getName()));
+              op->setAttr("callee", b.getSymbolRefAttr(to.getName()));
           });
       }
     });
@@ -181,28 +196,10 @@ static void plutoParallelize(mlir::AffineForOp forOp, OpBuilder b) {
   AffineMap upperBoundMap = forOp.getUpperBoundMap();
   ValueRange upperBoundOperands = forOp.getUpperBoundOperands();
 
-  bool needsMax = lowerBoundMap.getNumResults() > 1;
-  bool needsMin = upperBoundMap.getNumResults() > 1;
-  AffineMap identityMap;
-  if (needsMax || needsMin)
-    identityMap = AffineMap::getMultiDimIdentityMap(1, loc->getContext());
-  if (needsMax) {
-    auto maxOp = b.create<AffineMaxOp>(loc, lowerBoundMap, lowerBoundOperands);
-    lowerBoundMap = identityMap;
-    lowerBoundOperands = maxOp->getResults();
-  }
-
-  // Same for the upper bound.
-  if (needsMin) {
-    auto minOp = b.create<AffineMinOp>(loc, upperBoundMap, upperBoundOperands);
-    upperBoundMap = identityMap;
-    upperBoundOperands = minOp->getResults();
-  }
-
   // Creating empty 1-D affine.parallel op.
-  AffineParallelOp newPloop = b.create<AffineParallelOp>(
+  mlir::AffineParallelOp newPloop = b.create<mlir::AffineParallelOp>(
       loc, llvm::None, llvm::None, lowerBoundMap, lowerBoundOperands,
-      upperBoundMap, upperBoundOperands);
+      upperBoundMap, upperBoundOperands, 1);
   // Steal the body of the old affine for op and erase it.
   newPloop.region().takeBody(forOp.region());
 
@@ -262,7 +259,7 @@ void polymer::registerPlutoTransformPass() {
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
         pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
         pm.addPass(createCanonicalizerPass());
-        if (pipelineOptions.parallelize) {
+        if (pipelineOptions.generateParallel) {
           pm.addPass(std::make_unique<PlutoParallelizePass>());
           pm.addPass(createCanonicalizerPass());
         }

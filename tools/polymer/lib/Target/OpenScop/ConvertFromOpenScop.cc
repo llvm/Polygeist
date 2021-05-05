@@ -28,6 +28,7 @@ extern "C" {
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -35,8 +36,6 @@ extern "C" {
 #include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-// #include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
 #include "mlir/Translation.h"
@@ -655,7 +654,7 @@ void Importer::initializeSymbol(mlir::Value val) {
   // may be symbols that are not yet initialized (e.g., IVs in loops not
   // constructed). We should place them into the symbolToDeps map.
   mlir::Operation *defOp = val.getDefiningOp();
-  if (isa<mlir::AllocaOp>(defOp) && defOp->getNumOperands() == 0) {
+  if (isa<memref::AllocaOp>(defOp) && defOp->getNumOperands() == 0) {
     b.setInsertionPointToStart(&entryBlock);
     symbolTable[symbol] = b.clone(*defOp)->getResult(0);
     return;
@@ -1021,7 +1020,7 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
       // Special handling for the memory allocation case.
       mlir::Operation *defOp = arg.getDefiningOp();
-      if (defOp && isa<mlir::AllocaOp>(defOp)) {
+      if (defOp && isa<memref::AllocaOp>(defOp)) {
         // If this memory has been allocated, need to check its owner.
         if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
           DominanceInfo dom(func);
@@ -1256,7 +1255,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // TODO: affine.parallel currently has more restrictions on what it can cover.
   // So we don't create a parallel op at this stage.
   if (forStmt->parallel)
-    forOp.setAttr("scop.parallelizable", b.getUnitAttr());
+    forOp->setAttr("scop.parallelizable", b.getUnitAttr());
 
   return success();
 }
@@ -1464,7 +1463,7 @@ polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
                                    MLIRContext *context) {
   context->loadDialect<AffineDialect>();
   OwningModuleRef module(ModuleOp::create(
-      FileLineColLoc::get("", /*line=*/0, /*column=*/0, context)));
+      FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
   OslSymbolTable symTable;
   if (!createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,

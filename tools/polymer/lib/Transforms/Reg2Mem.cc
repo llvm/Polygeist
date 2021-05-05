@@ -12,6 +12,7 @@
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -71,8 +72,9 @@ static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
         // - DimOp/AffineApplyOp: indices and bounds shouldn't be loaded from
         // memory, otherwise, it would mess up with the dependence analysis.
         if (!defOp ||
-            isa<mlir::AllocOp, mlir::AllocaOp, mlir::DimOp, mlir::ConstantOp,
-                mlir::AffineApplyOp, mlir::IndexCastOp>(defOp))
+            isa<memref::AllocOp, memref::AllocaOp, memref::DimOp,
+                mlir::ConstantOp, mlir::AffineApplyOp, mlir::IndexCastOp>(
+                defOp))
           continue;
 
         // The block that defines the value is different from the block of the
@@ -114,17 +116,17 @@ static void filterUsesInSameBlock(DefToUsesMap &defToUses) {
 }
 
 /// Add scop.scratchpad to newly created AllocaOp for scratchpad.
-static mlir::AllocaOp annotateScratchpad(mlir::AllocaOp allocaOp) {
-  allocaOp.setAttr("scop.scratchpad",
-                   mlir::UnitAttr::get(allocaOp.getContext()));
+static memref::AllocaOp annotateScratchpad(memref::AllocaOp allocaOp) {
+  allocaOp->setAttr("scop.scratchpad",
+                    mlir::UnitAttr::get(allocaOp.getContext()));
   return allocaOp;
 }
 
 /// Creates a single-entry scratchpad memory that stores values from the
 /// defining point and can be loaded when needed at the uses.
-static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
-                                               mlir::OpBuilder &b,
-                                               mlir::Block *entryBlock) {
+static memref::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
+                                                 mlir::OpBuilder &b,
+                                                 mlir::Block *entryBlock) {
   // Sanity checks on the defining op.
   mlir::Operation *defOp = val.getOwner();
 
@@ -133,13 +135,13 @@ static mlir::AllocaOp createScratchpadAllocaOp(mlir::OpResult val,
   b.setInsertionPointToStart(entryBlock);
 
   // The memref shape is 1 and the type is derived from val.
-  return annotateScratchpad(b.create<mlir::AllocaOp>(
+  return annotateScratchpad(b.create<memref::AllocaOp>(
       defOp->getLoc(), MemRefType::get({1}, val.getType())));
 }
 
 /// Creata an AffineStoreOp for the value to be stored on the scratchpad.
 static mlir::AffineStoreOp createScratchpadStoreOp(mlir::Value valToStore,
-                                                   mlir::AllocaOp allocaOp,
+                                                   memref::AllocaOp allocaOp,
                                                    mlir::OpBuilder &b) {
   // Create a storeOp to the memref using address 0. The new storeOp will be
   // placed right after the allocaOp, and its location is hinted by allocaOp.
@@ -159,7 +161,7 @@ static mlir::AffineStoreOp createScratchpadStoreOp(mlir::Value valToStore,
 /// original value that is stored in the scratchpad (some replacement could
 /// happen already), you need to do that before calling this function to avoid
 /// possible redundancy. This function won't replace uses.
-static mlir::AffineLoadOp createScratchpadLoadOp(mlir::AllocaOp allocaOp,
+static mlir::AffineLoadOp createScratchpadLoadOp(memref::AllocaOp allocaOp,
                                                  mlir::Operation *useOp,
                                                  mlir::OpBuilder &b) {
   // The insertion point will be at the beginning of the parent block for useOp.
@@ -192,7 +194,7 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
     mlir::Value val = defUsesPair.first;
 
     // Create the alloca op for the scratchpad.
-    mlir::AllocaOp allocaOp = createScratchpadAllocaOp(
+    memref::AllocaOp allocaOp = createScratchpadAllocaOp(
         val.dyn_cast<mlir::OpResult>(), b, &entryBlock);
 
     // Create the store op that stores val into the scratchpad for future uses.
@@ -415,7 +417,7 @@ static mlir::Value createIterScratchpad(mlir::Value iterArg,
   assert(!iterArgToMem.count(iterArg) &&
          "A scratchpad has been created for the given iterArg");
 
-  mlir::Value spad = annotateScratchpad(b.create<mlir::AllocaOp>(
+  mlir::Value spad = annotateScratchpad(b.create<memref::AllocaOp>(
       forOp.getLoc(), MemRefType::get({1}, iterArg.getType())));
   iterArgToMem[iterArg] = spad;
 
@@ -544,7 +546,7 @@ public:
 static void findAllScratchpads(mlir::FuncOp f,
                                SmallVector<mlir::Value, 4> &spads) {
   // All scratchpads are allocated by AllocaOp.
-  f.walk([&](mlir::AllocaOp op) {
+  f.walk([&](memref::AllocaOp op) {
     if (op->hasAttr("scop.scratchpad"))
       spads.push_back(op);
   });
@@ -735,7 +737,7 @@ static mlir::Value findInsertionPointAfter(mlir::FuncOp f, mlir::Value spad,
   return spad;
 }
 
-static mlir::AllocaOp
+static memref::AllocaOp
 createScratchpadAllocaOp(mlir::FuncOp f, mlir::Value spad,
                          const FlatAffineConstraints &domain, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
@@ -769,7 +771,7 @@ createScratchpadAllocaOp(mlir::FuncOp f, mlir::Value spad,
     memSizes[i] = size;
   }
 
-  return b.create<mlir::AllocaOp>(spad.getLoc(), memRefType, memSizes);
+  return b.create<memref::AllocaOp>(spad.getLoc(), memRefType, memSizes);
 }
 
 static void resetLoadAndStoreOpsToScratchpad(mlir::FuncOp f, mlir::Value spad,
