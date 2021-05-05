@@ -88,7 +88,7 @@ find_package(GMP REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
 
 # Configure and build PLUTO to ${CMAKE_BUILD_DIR}/pluto
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PLUTO.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
 include_directories("${PLUTO_INCLUDE_DIR}")
 
 # ------------------------------------------------- This project
