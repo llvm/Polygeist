@@ -27,6 +27,9 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   find_package(LLVM REQUIRED CONFIG)
   find_package(MLIR REQUIRED CONFIG)
 
+  include_directories("${LLVM_INCLUDE_DIRS}")
+  include_directories("${MLIR_INCLUDE_DIRS}")
+
   list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
@@ -57,6 +60,14 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 endif()
 
+set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}" )
+set(POLYMER_MAIN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include" )
+
+set(POLYMER_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}")
+set(POLYMER_BINARY_DIR  "${CMAKE_CURRENT_BINARY_DIR}/bin")
+set(POLYMER_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) 
+set(POLYMER_TOOLS_DIR   "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bin")
+
 # ----------------------------- Customize CMake
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -81,18 +92,8 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PLUTO.cmake")
 include_directories("${PLUTO_INCLUDE_DIR}")
 
 # ------------------------------------------------- This project
-set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}" )
-set(POLYMER_MAIN_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include" )
-
-set(POLYMER_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}")
-set(POLYMER_BINARY_DIR  "${CMAKE_CURRENT_BINARY_DIR}/bin")
-set(POLYMER_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include" ) 
-set(POLYMER_TOOLS_DIR   "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bin")
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")
 include_directories("${POLYMER_INCLUDE_DIR}")
-
-include_directories("${LLVM_INCLUDE_DIRS}")
-include_directories("${MLIR_INCLUDE_DIRS}")
 
 add_subdirectory(include/polymer)
 add_subdirectory(lib)
