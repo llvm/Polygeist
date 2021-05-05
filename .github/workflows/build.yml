@@ -26,6 +26,7 @@ jobs:
       with:
         fetch-depth: 1
         path: src
+        submodules: "true"
 
 
     - name: mkdir
