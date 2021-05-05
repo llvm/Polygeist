@@ -1,0 +1,3 @@
+[submodule "mlir/tools/polymer"]
+	path = mlir/tools/polymer
+	url = https://github.com/kumasento/polymer
