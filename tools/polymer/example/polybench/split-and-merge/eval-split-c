@@ -1,0 +1,145 @@
+#!/bin/bash
+# Evaluate the statement splitting.
+
+# Usage:
+#   eval-split-c <TARGET> <TYPES>
+# 
+# TARGET can be one of the subdirectories.
+# TYPES are what you are going to compare, e.g., "origin split", etc.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+
+TARGET="$1"
+shift
+TYPES=("$@")
+
+echo ""
+echo ">>> Evaluating statement splitting in pure C "
+echo ""
+echo " Args:"
+echo "    TARGET: ${TARGET}"
+echo "    TYPES:  ${TYPES[*]}"
+echo ""
+
+# ----------------------------- GLOBALS ---------------------------------------
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+TMPDIR="${DIR}/tmp"
+POLYBENCH_DIR="${DIR}/../"
+UTILITIES_DIR="${POLYBENCH_DIR}/utilities"
+
+# Submodules
+PLUTO_DIR="${DIR}/../../../pluto"
+LLVM_DIR="${DIR}/../../../llvm"
+BUILD_DIR="${DIR}/../../../build"
+
+# Compilation options.
+CLANG_FLAGS=(-march=native)
+# CLANG_FLAGS=(-march=native -fno-unroll-loops)
+# CLANG_FLAGS=(-march=native -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize)
+# CLANG_FLAGS=(-march=native -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops)
+# CLANG_FLAGS=(-march=native -I "${LLVM_DIR}/clang/lib/Headers")
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE)
+LDFLAGS=(-L"${LLVM_DIR}/build/lib" -lm)
+
+# ----------------------------- Setup ENV -------------------------------------
+export PATH="${PATH}:${PLUTO_DIR}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+export PATH="${BUILD_DIR}/bin:${PATH}"
+
+export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
+export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
+
+
+# -----------------------------  Compile  -------------------------------------
+
+# Compile the provided source file using clang, together with the Polybench library.
+# Return the executable file.
+function compile() {
+  local SRC_FILE="$1"
+  local EXE_FILE="${SRC_FILE%.c}.exe"
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
+
+  polybench_flags+=("-DEXTRALARGE_DATASET" "-DPOLYBENCH_TIME")
+
+  clang -O3 "${CLANG_FLAGS[@]}" "${polybench_flags[@]}" \
+    "${SRC_FILE}" "${UTILITIES_DIR}/polybench.c" \
+    -I "${UTILITIES_DIR}" -lm \
+    -o "${EXE_FILE}"
+  echo "${EXE_FILE}"
+}
+
+# Execute the given executable and return the overall run time.
+# The execution process will be wrapped in taskset.
+function run() {
+  local EXE_FILE="$1"
+  local NUM_RUNS=$2
+  local i=0
+
+  RESULT_STR="$(basename "${EXE_FILE%.exe}")"
+  until [ $i -ge "${NUM_RUNS}" ]; do
+    RESULT_STR="${RESULT_STR},$(taskset -c 1-8 numactl -i all "${EXE_FILE}")"
+    ((i++))
+  done
+
+  echo "${RESULT_STR}"
+}
+
+# Generate pluto optimised C code.
+function codegen() {
+  local SRC_FILE="$1"
+  local LOG_FILE="${SRC_FILE%.c}.pluto.log"
+
+  cd "$(dirname "${SRC_FILE}")" || exit
+
+  "${PLUTO_DIR}/polycc" "$(basename "${SRC_FILE}")" --moredebug --noparallel --noprevector --nounrolljam &> "$(basename "${LOG_FILE}")"
+
+  cd - &>/dev/null || exit
+}
+
+function gen_output() {
+  local src_file="$1"
+  local exe_file="${src_file%.c}.sanity-check.exe"
+  local out_file="${src_file%.c}.out"
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
+  polybench_flags+=("-DSMALL_DATASET" "-DPOLYBENCH_DUMP_ARRAYS")
+
+  clang "${src_file}" "${UTILITIES_DIR}/polybench.c" "${polybench_flags[@]}" "${LDFLAGS[@]}" -o "${exe_file}" 
+  "${exe_file}" 2>&1 | tee "${out_file}" &>/dev/null 
+}
+
+
+for ty in "${TYPES[@]}"; do
+  codegen "${TARGET}/${TARGET}.${ty}.c"
+done
+
+for ty in "${TYPES[@]}" ; do
+  for with_pluto in "" ".pluto"; do 
+    SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
+    echo ">>> Generating output for ${SRC_FILE} "
+    gen_output "${SRC_FILE}"
+  done
+done
+
+echo ">>> Sanity checking ..."
+GOLDEN_OUT="${TARGET}/${TARGET}.origin.out"
+for ty in "${TYPES[@]}" ; do
+  for with_pluto in "" ".pluto"; do 
+    SRC_OUT="${TARGET}/${TARGET}.${ty}${with_pluto}.out"
+    diff "${GOLDEN_OUT}" "${SRC_OUT}" >/dev/null 2>&1 || echo "Failed comparison between ${GOLDEN_OUT} and ${SRC_OUT}"
+  done
+done
+echo "Done"
+echo ""
+
+# split.pluto.inner split.pluto.noscr 
+for ty in "${TYPES[@]}" ; do
+  for with_pluto in ".pluto"; do 
+    SRC_FILE="${TARGET}/${TARGET}.${ty}${with_pluto}.c"
+    echo ">>> Running ${SRC_FILE} ..."
+    EXE_TIME=$(run "$(compile "${SRC_FILE}")" 5)
+    echo "${EXE_TIME}"
+  done
+done

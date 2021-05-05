@@ -2,7 +2,7 @@
 
 func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
   %c0 = constant 0 : index
-  %N = dim %A, %c0 : memref<?xf32>
+  %N = memref.dim %A, %c0 : memref<?xf32>
 
   %sum_0 = constant 0.0 : f32
   %prod_0 = constant 1.0 : f32
@@ -21,12 +21,12 @@ func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
 
 // CHECK:      func @reduce_with_iter_args(%[[ARG0:.*]]: memref<?xf32>) -> f32 {
 // CHECK-NEXT:   %[[CST0:.*]] = constant 0 : index
-// CHECK-NEXT:   %[[VAL0:.*]] = dim %[[ARG0]], %[[CST0]] : memref<?xf32>
+// CHECK-NEXT:   %[[VAL0:.*]] = memref.dim %[[ARG0]], %[[CST0]] : memref<?xf32>
 // CHECK-NEXT:   %[[CST1:.*]] = constant 0.000000e+00 : f32
 // CHECK-NEXT:   %[[CST2:.*]] = constant 1.000000e+00 : f32
-// CHECK-NEXT:   %[[MEM1:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK-NEXT:   %[[MEM1:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   affine.store %[[CST1]], %[[MEM1]][0] : memref<1xf32>
-// CHECK-NEXT:   %[[MEM2:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK-NEXT:   %[[MEM2:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   affine.store %[[CST2]], %[[MEM2]][0] : memref<1xf32>
 // CHECK-NEXT:   affine.for %[[ARG1:.*]] = 0 to %[[VAL0]] {
 // CHECK-NEXT:     %[[VAL6:.*]] = affine.load %[[MEM2]][0] : memref<1xf32>
@@ -48,9 +48,9 @@ func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
 func @nested(%A: memref<?xf32>, %B: memref<?x?xf32>, %out: memref<1xf32>) {
   %c0 = constant 0 : index
   %c1 = constant 0 : index
-  %N = dim %A, %c0 : memref<?xf32>
-  %M = dim %B, %c0 : memref<?x?xf32>
-  %K = dim %B, %c1 : memref<?x?xf32>
+  %N = memref.dim %A, %c0 : memref<?xf32>
+  %M = memref.dim %B, %c0 : memref<?x?xf32>
+  %K = memref.dim %B, %c1 : memref<?x?xf32>
 
   %sum_0 = constant 0.0 : f32
   %sum_a = affine.for %i = 0 to %N iter_args(%sum_iter=%sum_0) -> (f32) {
@@ -74,18 +74,18 @@ func @nested(%A: memref<?xf32>, %B: memref<?x?xf32>, %out: memref<1xf32>) {
 }
 
 // CHECK: func @nested(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<1xf32>) {
-// CHECK:   %[[MEM0:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK:   %[[MEM0:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK:   affine.store %{{.*}}, %[[MEM0]][0] : memref<1xf32>
 // CHECK:   affine.for %{{.*}} = 0 to %{{.*}} {
 // CHECK:     %{{.*}} = affine.load %[[MEM0]][0] : memref<1xf32>
 // CHECK:     affine.store %{{.*}}, %[[MEM0]][0] : memref<1xf32>
 // CHECK:   }
 // CHECK:   %[[VAL0:.*]] = affine.load %[[MEM0]][0] : memref<1xf32>
-// CHECK:   %[[MEM1:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK:   %[[MEM1:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK:   affine.store %[[VAL0]], %[[MEM1]][0] : memref<1xf32>
 // CHECK:   affine.for %{{.*}} = 0 to %{{.*}} {
 // CHECK:     %{{.*}} = affine.load %[[MEM1]][0] : memref<1xf32>
-// CHECK:     %[[MEM2:.*]] = alloca() {scop.scratchpad} : memref<1xf32>
+// CHECK:     %[[MEM2:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK:     affine.store %{{.*}}, %[[MEM2]][0] : memref<1xf32>
 // CHECK:     affine.for %{{.*}} = 0 to %{{.*}} {
 // CHECK:       %{{.*}} = affine.load %[[MEM2]][0] : memref<1xf32>

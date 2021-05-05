@@ -57,7 +57,7 @@ static void annotatePointLoops(ValueRange operands, OpBuilder &b) {
 /// Should only call this after -canonicalize.
 /// TODO: Support handling index calculation, e.g., jacobi-1d.
 static void annotatePointLoops(FuncOp f, OpBuilder &b) {
-  ModuleOp m = f.getParentOfType<ModuleOp>();
+  ModuleOp m = f->getParentOfType<ModuleOp>();
   assert(m && "A FuncOp should be wrapped in a ModuleOp");
 
   SmallVector<mlir::CallOp> callers;

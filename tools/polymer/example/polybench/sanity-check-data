@@ -1,0 +1,200 @@
+#!/bin/bash
+# Sanity check for Polybench test cases.
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+TIMESTAMP="$(date "+%Y%m%d-%H%M%S")"
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+SOURCE_DIR="$1"
+OUTPUT_DIR="/tmp/polymer/sanity-check.${TIMESTAMP}"
+mkdir -p "${OUTPUT_DIR}"
+
+LLVM_DIR="${PWD}/../../llvm"
+LLVM_BINDIR="${PWD}/../../llvm/build/bin"
+BINDIR="${PWD}/../../build/bin"
+UTILITIES_DIR="${DIR}/utilities"
+
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_DUMP_ARRAYS -D MINI_DATASET)
+LDFLAGS=(-lm)
+
+echo ">>> Sanity check Polymer results "
+echo ""
+echo "    Source dir: ${SOURCE_DIR}"
+echo "    Output dir: ${OUTPUT_DIR}"
+echo "    Timestamp:  ${TIMESTAMP}"
+echo " Compilation flags:"
+echo "    POLYBENCH_FLAGS: ${POLYBENCH_FLAGS[*]}"
+echo ""
+
+export LD_LIBRARY_PATH="${PWD}/../../build/pluto/lib:${LD_LIBRARY_PATH}"
+export PATH="${LLVM_BINDIR}:${BINDIR}:${PATH}"
+
+TOTAL_CASES=0
+SUCCESSFUL_CASES=0
+
+# Copy source files from the SOURCE_DIR to a temporary place in the OUTPUT_DIR.
+function copy_source_files() {
+  local src_dir="$1"
+  local dst_dir="$2"
+
+  echo ""
+  echo ">>> Copying source files from ${src_dir} to ${dst_dir} ..."
+
+  cp -r "${src_dir}"/* "${dst_dir}"
+
+  echo ""
+}
+
+# Use mlir-clang to compile a single input C file to MLIR.
+function compile_to_mlir() {
+  local src_file="$1" # input C file 
+  local dst_file="${src_file%.c}.mlir"
+
+
+  mlir-clang "${src_file}" "${POLYBENCH_FLAGS[@]}" 2>&1 \
+    | tee "${dst_file}" &>/dev/null
+}
+
+# Compile every C files in the directory to MLIR.
+function compile_files_to_mlir() {
+  local src_dir="$1"
+
+  echo ""
+  echo ">>> Compiling C files to MLIR in ${src_dir} ..."
+
+  find "${src_dir}" -name '*.c' -print0 |
+    while IFS= read -r -d '' line; do 
+      printf "%s " "$(basename "${line}")"
+      compile_to_mlir "$line"
+    done
+  
+  echo ""
+}
+
+# Compile a single MLIR file by Polymer 
+function compile_file_by_polymer() {
+  local src_file="$1"
+  local dst_file="${src_file%.mlir}.polymer.mlir"
+
+  polymer-opt \
+    -reg2mem \
+    -insert-redundant-load \
+    -extract-scop-stmt \
+    -pluto-opt \
+    "${src_file}" 2>/dev/null | polymer-opt | tee "${dst_file}" >/dev/null
+}
+
+# Compile every MLIR files (excluding .polymer*.mlir) in the directory by Polymer.
+function compile_files_by_polymer() {
+  local src_dir="$1"
+
+  echo ""
+  echo ">>> Compiling MLIR files by Polymer in ${src_dir} ..."
+
+  find "${src_dir}"  -not -name "*.polymer.mlir" -name '*.mlir' -print0 |
+    while IFS= read -r -d '' line; do 
+      printf "%s " "$(basename "${line}")"
+      compile_file_by_polymer "$line"
+    done
+  
+  echo ""
+}
+
+# Generate golden output by compiling the original C files.
+function gen_golden_output() {
+  local src_file="$1"
+  local exe_file="${src_file%.c}.exe"
+  local out_file="${src_file%.c}.golden.out"
+
+  clang "${src_file}" "${UTILITIES_DIR}/polybench.c" "${POLYBENCH_FLAGS[@]}" "${LDFLAGS[@]}" -o "${exe_file}" 
+  "${exe_file}" 2>&1 | tee "${out_file}" &>/dev/null 
+}
+
+function gen_golden_outputs() {
+  local src_dir="$1"
+
+  echo ""
+  echo ">>> Generating golden data from C files ..."
+
+  find "${src_dir}" -name '*.c' -print0 |
+    while IFS= read -r -d '' line; do 
+      printf "%s " "$(basename "${line}")"
+      gen_golden_output "$line"
+    done
+
+  echo ""
+}
+
+function gen_mlir_output() {
+  local src_file="$1"
+  local out_file="${src_file%.mlir}.out"
+
+  mlir-opt "${src_file}" -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm |\
+  mlir-translate -mlir-to-llvmir |\
+  opt -O3 -march=native |\
+  lli 2>&1 | tee "${out_file}" &>/dev/null
+}
+
+function gen_mlir_outputs() {
+  local src_dir="$1"
+
+  echo ""
+  echo ">>> Generating MLIR data ..."
+
+  find "${src_dir}" -name '*.mlir' -print0 |
+    while IFS= read -r -d '' line; do 
+      printf "%s " "$(basename "${line}")"
+      gen_mlir_output "$line"
+    done
+
+  echo ""
+}
+
+# Compare the output files in the given directory to the golden data.
+function verify() {
+  local src_dir="$1"
+  local base_name
+  base_name=$(basename "${src_dir}")
+
+  local golden_out="${src_dir}/${base_name}.golden.out"
+
+  find "${src_dir}" -name '*.out' -not -name '*.golden.out' -print0 |
+    while IFS= read -r -d '' line; do 
+      diff "${golden_out}" "${line}" >/dev/null 2>&1
+      err=$?
+      if [ "${err}" -eq 1 ]; then
+        echo "Failed comparison between ${golden_out} and ${line}"
+        exit 1
+      fi
+    done
+}
+
+function verify_all() {
+  local src_dir="$1"
+
+  echo ""
+  echo ">>> Verifying results under directory ${src_dir} ..."
+
+  for d in "${src_dir}"/*/; do
+    printf "%s " "$(basename "${d}")"
+    verify "$d"
+  done
+
+  echo "All Good!"
+}
+
+# Update build if necessary
+function try_rebuild() {
+  cd "${PWD}/../../build" && cmake --build . --target all >/dev/null 2>&1  && cd - &>/dev/null
+}
+
+try_rebuild
+copy_source_files "${SOURCE_DIR}" "${OUTPUT_DIR}"
+gen_golden_outputs "${OUTPUT_DIR}"
+compile_files_to_mlir "${OUTPUT_DIR}"
+compile_files_by_polymer "${OUTPUT_DIR}"
+gen_mlir_outputs "${OUTPUT_DIR}"
+verify_all "${OUTPUT_DIR}"

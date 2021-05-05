@@ -68,7 +68,7 @@ static void getArgs(Operation *parentOp, SetVector<Value> &args) {
 
 static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
                            OpBuilder &b) {
-  ModuleOp m = f.getParentOfType<ModuleOp>();
+  ModuleOp m = f->getParentOfType<ModuleOp>();
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(m.getBody(), std::prev(m.getBody()->end()));
 
@@ -99,7 +99,7 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
 }
 
 static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
-  ModuleOp m = f.getParentOfType<ModuleOp>();
+  ModuleOp m = f->getParentOfType<ModuleOp>();
 
   SmallVector<Operation *, 4> callers;
   f.walk([&](mlir::CallOp caller) {

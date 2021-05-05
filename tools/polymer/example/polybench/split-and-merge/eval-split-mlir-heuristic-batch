@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic

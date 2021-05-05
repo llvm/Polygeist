@@ -22,7 +22,6 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/LoopUtils.h"
 #include "mlir/Transforms/Utils.h"
@@ -173,7 +172,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
                                       OslScop::ScopStmtNames *scopStmtNames,
                                       OslScop::ScopStmtMap *scopStmtMap) const {
-  mlir::ModuleOp m = cast<mlir::ModuleOp>(f.getParentOp());
+  mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
 
   f.walk([&](mlir::Operation *op) {
     if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
@@ -181,7 +180,7 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
       mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
 
       // If the callee is of scop.stmt, we create a new instance in the map
-      if (callee.getAttr(SCOP_STMT_ATTR_NAME)) {
+      if (callee->getAttr(SCOP_STMT_ATTR_NAME)) {
         scopStmtNames->push_back(std::string(calleeName));
         scopStmtMap->insert(
             std::make_pair(calleeName, ScopStmt(caller, callee)));
@@ -317,7 +316,7 @@ void ModuleEmitter::emitMLIRModule(
   for (auto &op : *module.getBody()) {
     if (auto func = dyn_cast<mlir::FuncOp>(op)) {
       // Will only look at functions that are not attributed as scop.stmt
-      if (func.getAttr(SCOP_STMT_ATTR_NAME))
+      if (func->getAttr(SCOP_STMT_ATTR_NAME))
         continue;
       if (failed(emitFuncOp(func, scops))) {
         state.encounteredError = true;

@@ -14,6 +14,7 @@ target_link_libraries(polymer-opt
   MLIRAnalysis
   MLIRDialect
   MLIREDSC
+  MLIRMath
   MLIROptLib
   MLIRParser
   MLIRPass
