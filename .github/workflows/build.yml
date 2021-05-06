@@ -77,7 +77,7 @@ jobs:
       - name: Get dependences
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
+          sudo apt-get install -y build-essential ninja-build libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
 
 
       - name: Get Polymer
