@@ -60,7 +60,6 @@ jobs:
 
   build-with-polymer:
     name: Build ${{ matrix.build }} ${{ matrix.os }} ${{ matrix.compiler }} with Polymer
-    needs: build
     runs-on: ${{ matrix.os }}
 
     strategy:
