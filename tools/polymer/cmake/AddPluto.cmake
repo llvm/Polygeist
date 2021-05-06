@@ -39,6 +39,7 @@ if (NOT PLUTO_LIBCLANG_PREFIX)
   set(PLUTO_LIBCLANG_PREFIX_CONFIG "")
 else()
   # If a valid libclang is still not found, we try to search it on the system.
+  message(STATUS "PLUTO_LIBCLANG_PREFIX: ${PLUTO_LIBCLANG_PREFIX}")
   set(PLUTO_LIBCLANG_PREFIX_CONFIG "--with-clang-prefix=${PLUTO_LIBCLANG_PREFIX}")
 endif()
 
