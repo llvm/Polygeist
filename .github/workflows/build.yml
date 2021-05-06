@@ -73,6 +73,10 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y build-essential ninja-build libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
 
+      - name: Install FileCheck to /usr/bin
+        run: |
+          sudo update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-9 100
+
       - name: Setup cymbl
         run: |
             cd /
