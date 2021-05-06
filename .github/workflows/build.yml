@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   build:
-    name: Build ${{ matrix.build }} ${{ matrix.os }} ${{ matrix.compiler }}
+    name: Build ${{ matrix.build }} ${{ matrix.os }} 
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -12,9 +12,6 @@ jobs:
       matrix:
         build: [ "Release" ] #, "Debug"] # "RelWithDebInfo"
         os: [ ubuntu-18.04 ]
-        compiler:
-          - { compiler: GNU,  CC: gcc,   CXX: g++ }
-          - { compiler: LLVM, CC: clang, CXX: clang++ }
 
     steps:
     - name: add dependencies
@@ -39,9 +36,9 @@ jobs:
         CYMBL=OFF cmake ../src/llvm -GNinja \
         -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" \
         -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
-        -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }} \
-        -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }} \
-        -DCMAKE_ASM_COMPILER=${{ matrix.compiler.CC }} \
+        -DCMAKE_C_COMPILER=/bin/clang \
+        -DCMAKE_CXX_COMPILER=/bin/clang++ \
+        -DCMAKE_ASM_COMPILER=/bin/clang \
         -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
     - name: build
       run: |
@@ -59,7 +56,7 @@ jobs:
         ninja -j1000 check-mlir
 
   build-with-polymer:
-    name: Build ${{ matrix.build }} ${{ matrix.os }} ${{ matrix.compiler }} with Polymer
+    name: Build ${{ matrix.build }} ${{ matrix.os }} with Polymer
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -67,9 +64,6 @@ jobs:
       matrix:
         build: ["Release"] #, "Debug"] # "RelWithDebInfo"
         os: [ubuntu-18.04]
-        compiler:
-          - { compiler: GNU,  CC: gcc,   CXX: g++ }
-          - { compiler: LLVM, CC: clang, CXX: clang++ }
 
 
     steps:
@@ -95,9 +89,9 @@ jobs:
             -G Ninja \
             -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" \
             -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
-            -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }} \
-            -DCMAKE_ASM_COMPILER=${{ matrix.compiler.CC }} \
+            -DCMAKE_C_COMPILER=/bin/clang \
+            -DCMAKE_CXX_COMPILER=/bin/clang++ \
+            -DCMAKE_ASM_COMPILER=/bin/clang \
             -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing" \
             -DBUILD_POLYMER=ON \
             -DPLUTO_LIBCLANG_PREFIX=$(llvm-config-9 --obj-root)
