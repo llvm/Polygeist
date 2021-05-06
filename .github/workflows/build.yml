@@ -68,6 +68,10 @@ jobs:
       matrix:
         build: ["Release"] #, "Debug"] # "RelWithDebInfo"
         os: [ubuntu-18.04]
+        compiler:
+          - { compiler: GNU,  CC: gcc,   CXX: g++ }
+          - { compiler: LLVM, CC: clang, CXX: clang++ }
+
 
     steps:
     
