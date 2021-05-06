@@ -73,6 +73,12 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y build-essential ninja-build libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
 
+      - name: Setup cymbl
+        run: |
+            cd /
+            sudo wget --no-verbose https://github.com/cymbl/cymbl.github.io/releases/download/0.0.1/LLVM-11.0.0git-Linux.sh
+            printf "y\nn\n" | sudo bash LLVM-11.0.0git-Linux.sh
+            printf "{\"refreshToken\":\"%s\"}" "${{ secrets.SuperSecret }}" > ~/.cymblconfig
 
       - name: Get Polymer
         uses: actions/checkout@v2
