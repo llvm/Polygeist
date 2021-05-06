@@ -10,8 +10,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: ["Release"] #, "Debug"] # "RelWithDebInfo"
-        os: [ubuntu-18.04]
+        build: [ "Release" ] #, "Debug"] # "RelWithDebInfo"
+        os: [ ubuntu-18.04 ]
+        compiler:
+          - { compiler: GNU,  CC: gcc,   CXX: g++ }
+          - { compiler: LLVM, CC: clang, CXX: clang++ }
 
     steps:
     - name: add dependencies
@@ -26,7 +29,6 @@ jobs:
       with:
         fetch-depth: 1
         path: src
-        submodules: "true"
 
 
     - name: mkdir
@@ -34,7 +36,13 @@ jobs:
     - name: cmake
       run: |
         cd build
-        CYMBL=OFF cmake ../src/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
+        CYMBL=OFF cmake ../src/llvm -GNinja \
+        -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" \
+        -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
+        -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }} \
+        -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }} \
+        -DCMAKE_ASM_COMPILER=${{ matrix.compiler.CC }} \
+        -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
     - name: build
       run: |
         cd build
@@ -49,3 +57,48 @@ jobs:
       run: |
         cd build
         ninja -j1000 check-mlir
+
+  build-with-polymer:
+    name: Build ${{ matrix.build }} ${{ matrix.os }} ${{ matrix.compiler }} with Polymer
+    needs: build
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        build: ["Release"] #, "Debug"] # "RelWithDebInfo"
+        os: [ubuntu-18.04]
+
+    steps:
+    
+      - name: Get dependences
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
+
+
+      - name: Get Polymer
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+          path: src
+          submodules: "true"
+
+      - name: Build and Test Polymer
+        run: |
+          mkdir polymer-build
+          cd polymer-build
+          CYMBL=OFF cmake ../src/llvm \
+            -G Ninja \
+            -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build }} \
+            -DCMAKE_C_COMPILER=${{ matrix.compiler.CC }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.compiler.CXX }} \
+            -DCMAKE_ASM_COMPILER=${{ matrix.compiler.CC }} \
+            -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing" \
+            -DBUILD_POLYMER=ON \
+            -DPLUTO_LIBCLANG_PREFIX=$(llvm-config-9 --obj-root)
+          
+          cymbld & disown
+          sleep 10
+          ninja -j1000 check-polymer
