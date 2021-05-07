@@ -5,6 +5,9 @@ add_mlir_library(PolymerSupport
   ScopStmt.cc
   ScatteringUtils.cc
 
+  DEPENDS
+  intrinsics_gen
+
   ADDITIONAL_HEADER_DIRS
   ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Support
 
