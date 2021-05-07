@@ -9,8 +9,7 @@ add_mlir_translation_library(PolymerTargetOpenScop
   Core
   TransformUtils
 
-  LINK_LIBS
-  PUBLIC
+  LINK_LIBS PUBLIC
   MLIRIR
   MLIRAffine
   MLIRAffineUtils
