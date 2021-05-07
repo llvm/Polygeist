@@ -2,7 +2,7 @@
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   project(polymer LANGUAGES CXX C)
-  cmake_minimum_required(VERSION 3.10)
+  cmake_minimum_required(VERSION 3.13.4)
 
   message (STATUS "Building Polymer as a standalone project")
 
@@ -95,6 +95,11 @@ message(STATUS "Will build and use Polymer-bundled Pluto")
 # ------------------------------------------------- This project
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")
 include_directories("${POLYMER_INCLUDE_DIR}")
+
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+  message(STATUS "dir='${dir}'")
+endforeach()
 
 add_subdirectory(include/polymer)
 add_subdirectory(lib)
