@@ -9,10 +9,8 @@ on: [push, pull_request]
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-  # Build the LLVM submodule then cache it. Do not rebuild if hit in the
-  # cache.
-  build-llvm:
-    name: Build LLVM
+  build-polymer:
+    name: Build Polymer
     runs-on: ubuntu-20.04
     steps:
       # Clone the Polymer repo and its submodules. 
