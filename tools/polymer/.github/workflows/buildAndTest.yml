@@ -25,6 +25,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "wsmoses/Polygeist"
+          ref: "4f57b35f48a1e87677f8d4399bf0e0a29b47b65a"
           path: "llvm"
 
       # Extract the LLVM submodule hash for use in the cache key.
