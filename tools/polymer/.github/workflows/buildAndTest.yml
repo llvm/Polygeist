@@ -17,6 +17,7 @@ jobs:
       - name: Get Polymer
         uses: actions/checkout@v2
         with:
+          path: "polymer"
           submodules: "true"
 
       # Get the latest Polygeist on its main branch.
@@ -24,12 +25,12 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "wsmoses/Polygeist"
-          path: "../llvm"
+          path: "llvm"
 
       # Extract the LLVM submodule hash for use in the cache key.
       - name: Get LLVM Hash
         id: get-llvm-hash
-        run: cd ../llvm && echo "::set-output name=hash::$(git rev-parse HEAD)"
+        run: cd llvm && echo "::set-output name=hash::$(git rev-parse HEAD)"
         shell: bash
 
       # Print out clang version
@@ -43,16 +44,16 @@ jobs:
         id: cache-llvm
         uses: actions/cache@v2
         with:
-          path: ../llvm
+          path: llvm
           key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
 
       # Build LLVM if we didn't hit in the cache.
       - name: Rebuild and Install LLVM
         if: steps.cache-llvm.outputs.cache-hit != 'true'
         run: |
-          mkdir ../llvm/build
-          mkdir ../llvm/install
-          cd ../llvm/build
+          mkdir llvm/build
+          mkdir llvm/install
+          cd llvm/build
           cmake ../llvm \
             -DLLVM_BUILD_EXAMPLES=OFF \
             -DLLVM_TARGETS_TO_BUILD="host" \
@@ -69,7 +70,7 @@ jobs:
       # Run Polygeist tests 
       - name: Test Polygeist
         run: |
-          cd ../llvm/build
+          cd llvm/build
           cmake --build . --target check-mlir-clang
 
       # --------------------- Build for Polymer
@@ -92,12 +93,12 @@ jobs:
 
       - name: Link Polymer into Polygeist
         run: |
-          cd ../llvm/mlir/tools/
-          ln -s "${GITHUB_WORKSPACE}" ./polymer
+          cd llvm/mlir/tools/
+          ln -s "${GITHUB_WORKSPACE}/polymer" ./polymer
 
       - name: Build and Test Polymer (Assert)
         run: |
-          cd ../llvm/build
+          cd llvm/build
           cmake .. \
             -DBUILD_POLYMER=ON \
             -DPLUTO_LIBCLANG_PREFIX=$(llvm-config-9 --prefix)
@@ -105,7 +106,7 @@ jobs:
 
       - name: Run Polybench Tests
         run: |
-          cd example/polybench
+          cd polymer/example/polybench
           LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" ./sanity-check-data EXTRALARGE 
 
 
