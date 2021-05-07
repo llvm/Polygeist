@@ -108,4 +108,4 @@ jobs:
           
           cymbld & disown
           sleep 10
-          ninja -j1000 check-polymer
+          CYMBL=OFF ninja check-polymer
