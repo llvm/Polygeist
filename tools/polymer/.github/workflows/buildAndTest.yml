@@ -93,7 +93,7 @@ jobs:
       - name: Link Polymer into Polygeist
         run: |
           cd ../llvm/mlir/tools/
-          ln -s ${{ GITHUB_WORKSPACE }} ./polymer
+          ln -s "${GITHUB_WORKSPACE}" ./polymer
 
       - name: Build and Test Polymer (Assert)
         run: |
