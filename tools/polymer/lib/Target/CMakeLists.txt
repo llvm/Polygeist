@@ -5,6 +5,9 @@ add_mlir_translation_library(PolymerTargetOpenScop
   ADDITIONAL_HEADER_DIRS
   ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Target/OpenScop
 
+  DEPENDS
+  intrinsics_gen
+
   LINK_COMPONENTS
   Core
   TransformUtils
