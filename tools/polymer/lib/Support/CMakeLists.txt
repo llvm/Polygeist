@@ -6,9 +6,9 @@ add_mlir_library(PolymerSupport
   ScatteringUtils.cc
 
   DEPENDS
-  intrinsics_gen
+  mlir-headers
 
-  ADDITIONAL_HEADER_DIRS
+  ADDITIONAL_HEADERS
   ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Support
 
   LINK_LIBS PUBLIC
