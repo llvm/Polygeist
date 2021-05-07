@@ -5,40 +5,23 @@
 
 Bridging polyhedral analysis tools to the MLIR framework.
 
-## Related Publications
+Polymer is a component of the [Polygeist](https://github.com/wsmoses/Polygeist) framework.
+Please read on to find [how to install](#install-polymer) and [use](#basic-usage) Polymer.
 
-```bib
-@inproceedings{polygeist,
-  title={Polygeist: Affine C in MLIR},
-  author={Moses, William S and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
-  booktitle={{IMPACT}},
-  year={2021}
-}
-@article{phism,
-  title={Phism: Polyhedral High-Level Synthesis in MLIR},
-  author={Zhao, Ruizhe and Cheng, Jianyi},
-  journal={arXiv preprint arXiv:2103.15103},
-  year={2021}
-}
-```
+## Related Publications/Talks
 
-## Setup
+[[bibtex](resources/polymer.bib)]
 
-### Setup with Docker
+### Papers
 
-To build the docker container:
-```
-make build-docker
-```
+Polymer is a essential component to the following two papers:
 
-To enter the docker container:
-```
-make shell
-```
+* [Polygeist: Affine C in MLIR](https://acohen.gitlabpages.inria.fr/impact/impact2021/papers/IMPACT_2021_paper_1.pdf). This paper gives an overview of the whole Polygeist framework, in which Polymer does the polyhedral optimisation part of work.
+* [Phism: Polyhedral HLS in MLIR](https://capra.cs.cornell.edu/latte21/paper/1.pdf). This paper demonstrates an interesting way to leverage Polymer for polyhedral HLS within the MLIR ecosystem.
 
-### Manual Setup
+### Talks
 
-Install prerequisites for [MLIR/LLVM](https://mlir.llvm.org/getting_started/) and [Pluto](https://github.com/kumasento/pluto/blob/master/README.md).
+Polymer appears in the following talks:
 
 * `cmake` >= 3.13.4
 * Valid compiler tool-chain that supports C++ 14
@@ -106,6 +89,7 @@ The build step for Pluto is integrated in the CMake workflow, see [here](cmake/P
 
 The final `ninja check-polymer` aims to the unit testing. It is possible that there are unresolved tests, but besides them, other tests should pass.
 
+You can also install Polymer as an [individual, out-of-tree project](docs/INSTALL_INDIVIDUALLY.md). 
 
 ## Basic usage
 
