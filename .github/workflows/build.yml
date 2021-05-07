@@ -93,8 +93,8 @@ jobs:
 
       - name: Build and Test Polymer
         run: |
-          mkdir polymer-build
-          cd polymer-build
+          mkdir build
+          cd build
           CYMBL=OFF cmake ../src/llvm \
             -G Ninja \
             -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" \
