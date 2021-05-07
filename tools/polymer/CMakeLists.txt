@@ -72,15 +72,6 @@ set(POLYMER_TOOLS_DIR   "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/bin")
 
 set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-# ----------------------------- Customize flags
-
-# From MLIR/CMakeLists.txt
-# Forbid implicit function declaration: this may lead to subtle bugs and we
-# don't have a reason to support this.
-check_c_compiler_flag("-Werror=implicit-function-declaration" C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION)
-append_if(C_SUPPORTS_WERROR_IMPLICIT_FUNCTION_DECLARATION "-Werror=implicit-function-declaration" CMAKE_C_FLAGS)
-
-
 # ----------------------------- Dependencies
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
