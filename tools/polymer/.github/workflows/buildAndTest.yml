@@ -65,8 +65,9 @@ jobs:
             -DLLVM_ENABLE_BINDINGS=OFF \
             -DLLVM_INSTALL_UTILS=ON \
             -DCMAKE_BUILD_TYPE=Release \
-            -DLLVM_ENABLE_ASSERTIONS=ON
-          cmake --build . --target install -- -j$(nproc)
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -G Ninja
+          cmake --build . --target install
 
       # Run Polygeist tests 
       - name: Test Polygeist
@@ -95,7 +96,9 @@ jobs:
       - name: Link Polymer into Polygeist
         run: |
           cd llvm/mlir/tools/
+          rm -rf polymer
           ln -s "${GITHUB_WORKSPACE}/polymer" ./polymer
+          ls -al polymer
 
       - name: Build and Test Polymer (Assert)
         run: |
