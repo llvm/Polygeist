@@ -108,9 +108,9 @@ jobs:
             -DPLUTO_LIBCLANG_PREFIX=$(llvm-config-9 --prefix)
           LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" cmake --build . --target check-polymer
 
-      - name: Run Polybench Tests
-        run: |
-          cd polymer/example/polybench
-          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" ./sanity-check-data EXTRALARGE 
+      # - name: Run Polybench Tests
+      #  run: |
+      #     cd polymer/example/polybench
+      #    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" ./sanity-check-data EXTRALARGE 
 
 
