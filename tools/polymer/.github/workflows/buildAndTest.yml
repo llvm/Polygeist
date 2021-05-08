@@ -100,7 +100,7 @@ jobs:
       - name: Build and Test Polymer (Assert)
         run: |
           cd llvm/build
-          cmake .. \
+          cmake ../llvm \
             -DBUILD_POLYMER=ON \
             -DPLUTO_LIBCLANG_PREFIX=$(llvm-config-9 --prefix)
           LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" cmake --build . --target check-polymer
