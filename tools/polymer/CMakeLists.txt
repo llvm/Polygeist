@@ -75,8 +75,6 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
 # ----------------------------- Dependencies
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
-# TODO: there could be a better way to do this?
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -lgmp" )
 
 # Configure and build PLUTO to ${CMAKE_BUILD_DIR}/pluto
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
