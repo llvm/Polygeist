@@ -13,6 +13,16 @@ jobs:
     name: Build Polymer
     runs-on: ubuntu-20.04
     steps:
+      - name: Get dependences
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo ninja-build
+
+      - name: Update the LLVM/Clang version to 9
+        run: |
+          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-9 100
+          sudo update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-9 100
+
       # Clone the Polymer repo and its submodules. 
       - name: Get Polymer
         uses: actions/checkout@v2
@@ -76,16 +86,6 @@ jobs:
           cmake --build . --target check-mlir-clang
 
       # --------------------- Build for Polymer
-
-      - name: Get dependences
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo
-
-      - name: Update the LLVM/Clang version to 9
-        run: |
-          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-9 100
-          sudo update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-9 100
 
       - name: Download submodules in Pluto
         run: |
