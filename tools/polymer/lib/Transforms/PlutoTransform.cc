@@ -142,7 +142,7 @@ public:
       if (mlir::FuncOp g =
               plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug)) {
         funcMap[f] = g;
-        g.setPrivate();
+        g.setPublic();
       }
 
     // Replacing the original scop top-level function with the pluto transformed
