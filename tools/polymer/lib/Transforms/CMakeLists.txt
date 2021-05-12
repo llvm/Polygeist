@@ -9,6 +9,11 @@ add_mlir_conversion_library(PolymerTransforms
   ADDITIONAL_HEADER_DIRS
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
 
+  DEPENDS
+  MLIRAffineOpsIncGen
+  MLIRAffinePassIncGen
+  MLIRLoopLikeInterfaceIncGen
+
   LINK_LIBS PUBLIC
   MLIRAffine
   MLIRAnalysis
