@@ -110,4 +110,4 @@ jobs:
           
           cymbld & disown
           sleep 10
-          ninja -j1000 check-polymer
+          LD_LIBRARY_PATH="`pwd`/tools/mlir/tools/polymer/pluto/lib:${LD_LIBRARY_PATH}" ninja -j1000 check-polymer
