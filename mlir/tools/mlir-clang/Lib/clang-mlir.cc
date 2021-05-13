@@ -1,26 +1,30 @@
 #include "clang-mlir.h"
 
+#include "clang/AST/Attr.h"
+#include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/FileSystemOptions.h"
+#include "clang/Basic/LangStandard.h"
+#include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Version.h"
+#include "clang/Driver/Compilation.h"
+#include "clang/Driver/Driver.h"
+#include "clang/Driver/Tool.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/FrontendOptions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/Frontend/Utils.h"
+#include "clang/Lex/Pragma.h"
+#include "clang/Parse/ParseAST.h"
+#include "clang/Parse/Parser.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaDiagnostic.h"
+
 #include "llvm/Support/Debug.h"
-#include <clang/Basic/DiagnosticOptions.h>
-#include <clang/Basic/FileManager.h>
-#include <clang/Basic/FileSystemOptions.h>
-#include <clang/Basic/LangStandard.h>
-#include <clang/Basic/TargetInfo.h>
-#include <clang/Basic/TargetOptions.h>
-#include <clang/Basic/Version.h>
-#include <clang/Driver/Compilation.h>
-#include <clang/Driver/Driver.h>
-#include <clang/Driver/Tool.h>
-#include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/CompilerInvocation.h>
-#include <clang/Frontend/FrontendOptions.h>
-#include <clang/Frontend/TextDiagnosticPrinter.h>
-#include <clang/Frontend/Utils.h>
-#include <clang/Lex/Pragma.h>
-#include <clang/Parse/ParseAST.h>
-#include <clang/Parse/Parser.h>
-#include <clang/Sema/Sema.h>
-#include <clang/Sema/SemaDiagnostic.h>
+#include "llvm/Support/Host.h"
 
 using namespace std;
 using namespace clang;
@@ -174,7 +178,6 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   assert(0 && "bad");
 }
 
-#include "clang/AST/Attr.h"
 ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
   unsigned memtype = 0;
@@ -511,7 +514,7 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   auto loc = getMLIRLocation(fors->getForLoc());
 
   AffineLoopDescriptor affineLoopDescr;
-  if (Glob.scopLocList.isInScop(fors->getForLoc()) &&
+  if (Glob.scopLocList.isInScop(fors->getForLoc(), RaiseToAffine) &&
       isTrivialAffineLoop(fors, affineLoopDescr)) {
     buildAffineLoop(fors, loc, affineLoopDescr);
   } else {
@@ -2628,7 +2631,8 @@ void MLIRASTConsumer::run() {
     if (done.count(todo))
       continue;
     done.insert(todo);
-    MLIRScanner ms(*this, GetOrCreateMLIRFunction(todo), todo, module);
+    MLIRScanner ms(*this, GetOrCreateMLIRFunction(todo), todo, module,
+                   RaiseToAffine);
   }
 }
 
@@ -2805,28 +2809,6 @@ void MLIRScanner::popLoopIf() {
   }
 }
 
-#include "llvm/Support/Host.h"
-
-#include "clang/Frontend/FrontendAction.h"
-class MLIRAction : public clang::ASTFrontendAction {
-public:
-  std::set<std::string> emitIfFound;
-  mlir::ModuleOp &module;
-  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
-  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
-  std::map<std::string, mlir::FuncOp> functions;
-  MLIRAction(std::string fn, mlir::ModuleOp &module) : module(module) {
-    emitIfFound.insert(fn);
-  }
-  std::unique_ptr<clang::ASTConsumer>
-  CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return std::unique_ptr<clang::ASTConsumer>(
-        new MLIRASTConsumer(emitIfFound, llvmStringGlobals, globals, functions,
-                            CI.getPreprocessor(), CI.getASTContext(), module,
-                            CI.getSourceManager()));
-  }
-};
-
 mlir::FuncOp MLIRScanner::EmitDirectCallee(GlobalDecl GD) {
   const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
   return Glob.GetOrCreateMLIRFunction(FD);
@@ -2864,167 +2846,4 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   // allow taking the address of ::main however.
   void *P = (void *)(intptr_t)GetExecutablePath;
   return llvm::sys::fs::getMainExecutable(Argv0, P);
-}
-
-#include "clang/Frontend/TextDiagnosticBuffer.h"
-static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
-                      std::string fn, std::vector<std::string> includeDirs,
-                      std::vector<std::string> defines, mlir::ModuleOp &module,
-                      llvm::Triple &triple, llvm::DataLayout &DL) {
-
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  // Buffer diagnostics from argument parsing so that we can output them using a
-  // well formed diagnostic object.
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
-
-  bool Success;
-  //{
-  const char *binary = Argv0; // CudaLower ? "clang++" : "clang";
-  const unique_ptr<Driver> driver(
-      new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
-  std::vector<const char *> Argv;
-  Argv.push_back(binary);
-  for (auto a : filenames) {
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  if (CudaLower)
-    Argv.push_back("--cuda-gpu-arch=sm_35");
-  if (FOpenMP)
-    Argv.push_back("-fopenmp");
-  if (Standard != "") {
-    auto a = "-std=" + Standard;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  if (MArch != "") {
-    auto a = "-march=" + MArch;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  for (auto a : includeDirs) {
-    Argv.push_back("-I");
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  for (auto a : defines) {
-    char *chars = (char *)malloc(a.length() + 3);
-    chars[0] = '-';
-    chars[1] = 'D';
-    memcpy(chars + 2, a.data(), a.length());
-    chars[2 + a.length()] = 0;
-    Argv.push_back(chars);
-  }
-
-  Argv.push_back("-emit-ast");
-
-  const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
-  JobList &Jobs = compilation->getJobs();
-  if (Jobs.size() < 1)
-    return false;
-
-  MLIRAction Act(fn, module);
-
-  for (auto &job : Jobs) {
-    std::unique_ptr<CompilerInstance> Clang(new CompilerInstance());
-
-    Command *cmd = cast<Command>(&job);
-    if (strcmp(cmd->getCreator().getName(), "clang"))
-      return false;
-
-    const ArgStringList *args = &cmd->getArguments();
-
-    Success = CompilerInvocation::CreateFromArgs(Clang->getInvocation(), *args,
-                                                 Diags);
-    Clang->getInvocation().getFrontendOpts().DisableFree = false;
-
-    void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
-    // Infer the builtin include path if unspecified.
-    if (Clang->getHeaderSearchOpts().UseBuiltinIncludes &&
-        Clang->getHeaderSearchOpts().ResourceDir.size() == 0)
-      Clang->getHeaderSearchOpts().ResourceDir =
-          CompilerInvocation::GetResourcesPath(Argv0, GetExecutablePathVP);
-
-    //}
-    Clang->getInvocation().getFrontendOpts().DisableFree = false;
-
-    // Create the actual diagnostics engine.
-    Clang->createDiagnostics();
-    if (!Clang->hasDiagnostics())
-      return false;
-
-    DiagsBuffer->FlushDiagnostics(Clang->getDiagnostics());
-    if (!Success)
-      return false;
-
-    // Create and execute the frontend action.
-
-    // Create the target instance.
-    Clang->setTarget(TargetInfo::CreateTargetInfo(
-        Clang->getDiagnostics(), Clang->getInvocation().TargetOpts));
-    if (!Clang->hasTarget())
-      return false;
-
-    // Create TargetInfo for the other side of CUDA and OpenMP compilation.
-    if ((Clang->getLangOpts().CUDA || Clang->getLangOpts().OpenMPIsDevice) &&
-        !Clang->getFrontendOpts().AuxTriple.empty()) {
-      auto TO = std::make_shared<clang::TargetOptions>();
-      TO->Triple = llvm::Triple::normalize(Clang->getFrontendOpts().AuxTriple);
-      TO->HostTriple = Clang->getTarget().getTriple().str();
-      Clang->setAuxTarget(
-          TargetInfo::CreateTargetInfo(Clang->getDiagnostics(), TO));
-    }
-
-    // Inform the target of the language options.
-    //
-    // FIXME: We shouldn't need to do this, the target should be immutable once
-    // created. This complexity should be lifted elsewhere.
-    Clang->getTarget().adjust(Clang->getLangOpts());
-
-    // Adjust target options based on codegen options.
-    Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
-                                           Clang->getTargetOpts());
-
-    module->setAttr(
-        LLVM::LLVMDialect::getDataLayoutAttrName(),
-        StringAttr::get(
-            module.getContext(),
-            Clang->getTarget().getDataLayout().getStringRepresentation()));
-    module->setAttr(
-        LLVM::LLVMDialect::getTargetTripleAttrName(),
-        StringAttr::get(module.getContext(),
-                        Clang->getTarget().getTriple().getTriple()));
-
-    for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
-      // Reset the ID tables if we are reusing the SourceManager and parsing
-      // regular files.
-      if (Clang->hasSourceManager() && !Act.isModelParsingAction())
-        Clang->getSourceManager().clearIDTables();
-      if (Act.BeginSourceFile(*Clang, FIF)) {
-
-        llvm::Error err = Act.Execute();
-        if (err) {
-          llvm::errs() << "saw error: " << err << "\n";
-          return false;
-        }
-        assert(Clang->hasSourceManager());
-
-        Act.EndSourceFile();
-      }
-    }
-    DL = Clang->getTarget().getDataLayout();
-    triple = Clang->getTarget().getTriple();
-  }
-  return true;
 }

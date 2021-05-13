@@ -1,31 +1,58 @@
 #ifndef CLANG_MLIR_H
 #define CLANG_MLIR_H
 
+#include "CodeGen/CGRecordLayout.h"
+#include "CodeGen/CodeGenModule.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Attr.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/StmtVisitor.h"
-#include <clang/AST/ASTConsumer.h>
-#include <clang/Lex/HeaderSearch.h>
-#include <clang/Lex/HeaderSearchOptions.h>
-#include <clang/Lex/Preprocessor.h>
-#include <clang/Lex/PreprocessorOptions.h>
+#include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/FileSystemOptions.h"
+#include "clang/Basic/LangStandard.h"
+#include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Version.h"
+#include "clang/Driver/Compilation.h"
+#include "clang/Driver/Driver.h"
+#include "clang/Driver/Tool.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/FrontendOptions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/Frontend/Utils.h"
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/Pragma.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
+#include "clang/Parse/ParseAST.h"
+#include "clang/Parse/Parser.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaDiagnostic.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/Passes.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeTranslation.h"
+
 #include "llvm/IR/DerivedTypes.h"
 
-#include "../../../../clang/lib/CodeGen/CGRecordLayout.h"
-#include "../../../../clang/lib/CodeGen/CodeGenModule.h"
-#include "clang/AST/Mangle.h"
-
+using namespace llvm;
 using namespace clang;
 using namespace mlir;
 
@@ -187,7 +214,7 @@ struct ScopLocList {
   }
 
   // Check if the current location is in the scop.
-  bool isInScop(SourceLocation target) {
+  bool isInScop(SourceLocation target, bool RaiseToAffine) {
     // If the user selects the raise-scf-to-affine we ignore pragmas and try to
     // raise all we can. Similar behavior to pet --autodetect. This allow us to
     // test the raising.
@@ -245,6 +272,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   CodeGen::CodeGenModule CGM;
   bool error;
   ScopLocList scopLocList;
+  bool RaiseToAffine;
 
   /// The stateful type translator (contains named structs).
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
@@ -255,7 +283,8 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
-      ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
+      ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM,
+      bool RaiseToAffine)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
         globals(globals), functions(functions), PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
@@ -263,7 +292,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
-        reverseTypeTranslator(lcontext) {
+        reverseTypeTranslator(lcontext), RaiseToAffine(RaiseToAffine) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
   }
@@ -314,6 +343,8 @@ private:
   mlir::Block *entryBlock;
   std::vector<std::map<std::string, ValueWithOffsets>> scopes;
   std::vector<LoopContext> loops;
+
+  bool RaiseToAffine;
 
   void setValue(std::string name, ValueWithOffsets &&val);
 
@@ -385,9 +416,11 @@ public:
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-              const FunctionDecl *fd, mlir::ModuleOp &module)
+              const FunctionDecl *fd, mlir::ModuleOp &module,
+              bool RaiseToAffine)
       : Glob(Glob), function(function), module(module),
-        builder(module.getContext()), loc(builder.getUnknownLoc()) {
+        builder(module.getContext()), loc(builder.getUnknownLoc()),
+        RaiseToAffine(RaiseToAffine) {
     // llvm::errs() << *fd << "\n";
     // fd->dump();
 
@@ -489,5 +522,29 @@ public:
 
   ValueWithOffsets VisitReturnStmt(clang::ReturnStmt *stmt);
 };
+
+class MLIRAction : public clang::ASTFrontendAction {
+public:
+  std::set<std::string> emitIfFound;
+  mlir::ModuleOp &module;
+  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
+  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
+  std::map<std::string, mlir::FuncOp> functions;
+  bool RaiseToAffine;
+
+  MLIRAction(std::string fn, mlir::ModuleOp &module, bool RaiseToAffine)
+      : module(module), RaiseToAffine(RaiseToAffine) {
+    emitIfFound.insert(fn);
+  }
+  std::unique_ptr<clang::ASTConsumer>
+  CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
+    return std::unique_ptr<clang::ASTConsumer>(
+        new MLIRASTConsumer(emitIfFound, llvmStringGlobals, globals, functions,
+                            CI.getPreprocessor(), CI.getASTContext(), module,
+                            CI.getSourceManager(), RaiseToAffine));
+  }
+};
+
+std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes);
 
 #endif
