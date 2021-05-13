@@ -1,5 +1,5 @@
-#ifndef CLANG_MLIR_H
-#define CLANG_MLIR_H
+#ifndef MLIR_TOOLS_MLIRCLANG_LIB_MLIRCLANG_H
+#define MLIR_TOOLS_MLIRCLANG_LIB_MLIRCLANG_H
 
 #include "CodeGen/CGRecordLayout.h"
 #include "CodeGen/CodeGenModule.h"

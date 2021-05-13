@@ -1,6 +1,5 @@
-
 add_mlir_library(MLIRClang
-  clang-mlir.cc
+  MLIRClang.cc
 
   EXCLUDE_FROM_LIBMLIR
 

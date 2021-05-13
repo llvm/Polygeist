@@ -1,4 +1,4 @@
-#include "Lib/clang-mlir.h"
+#include "Lib/MLIRClang.h"
 
 #include <fstream>
 

@@ -1,4 +1,4 @@
-#include "clang-mlir.h"
+#include "MLIRClang.h"
 
 #include "clang/AST/Attr.h"
 #include "clang/Basic/DiagnosticOptions.h"
