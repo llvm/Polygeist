@@ -1,5 +1,6 @@
 add_mlir_library(MLIRClang
   MLIRClang.cc
+  PragmaLowerToHandler.cc
 
   EXCLUDE_FROM_LIBMLIR
 
@@ -36,4 +37,5 @@ add_mlir_library(MLIRClang
   clangFrontendTool
   clangLex
   clangSerialization
+  clangSema
 )

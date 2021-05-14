@@ -1,6 +1,8 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_LIB_MLIRCLANG_H
 #define MLIR_TOOLS_MLIRCLANG_LIB_MLIRCLANG_H
 
+#include "PragmaLowerToHandler.h"
+
 #include "CodeGen/CGRecordLayout.h"
 #include "CodeGen/CodeGenModule.h"
 #include "clang/AST/ASTConsumer.h"
@@ -272,7 +274,9 @@ struct MLIRASTConsumer : public ASTConsumer {
   CodeGen::CodeGenModule CGM;
   bool error;
   ScopLocList scopLocList;
+
   bool RaiseToAffine;
+  LowerToInfo &LTInfo;
 
   /// The stateful type translator (contains named structs).
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
@@ -284,7 +288,7 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM,
-      bool RaiseToAffine)
+      bool RaiseToAffine, LowerToInfo &LTInfo)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
         globals(globals), functions(functions), PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
@@ -292,9 +296,13 @@ struct MLIRASTConsumer : public ASTConsumer {
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
-        reverseTypeTranslator(lcontext), RaiseToAffine(RaiseToAffine) {
+        reverseTypeTranslator(lcontext), RaiseToAffine(RaiseToAffine),
+        LTInfo(LTInfo) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
+
+    Sema Actions(PP, astContext, *this);
+    addPragmaLowerToHandlers(PP, Actions, LTInfo);
   }
 
   ~MLIRASTConsumer() {}
@@ -532,6 +540,8 @@ public:
   std::map<std::string, mlir::FuncOp> functions;
   bool RaiseToAffine;
 
+  LowerToInfo LTInfo;
+
   MLIRAction(std::string fn, mlir::ModuleOp &module, bool RaiseToAffine)
       : module(module), RaiseToAffine(RaiseToAffine) {
     emitIfFound.insert(fn);
@@ -541,7 +551,7 @@ public:
     return std::unique_ptr<clang::ASTConsumer>(
         new MLIRASTConsumer(emitIfFound, llvmStringGlobals, globals, functions,
                             CI.getPreprocessor(), CI.getASTContext(), module,
-                            CI.getSourceManager(), RaiseToAffine));
+                            CI.getSourceManager(), RaiseToAffine, LTInfo));
   }
 };
 
