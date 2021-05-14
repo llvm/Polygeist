@@ -2373,6 +2373,14 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     i++;
   }
 
+  if (LTInfo.SymbolTable.count(tocall.getName())) {
+    return ValueWithOffsets(
+        replaceFuncByOperation(tocall, LTInfo.SymbolTable[tocall.getName()],
+                               args, builder)
+            ->getResult(0),
+        /*isReference=*/false);
+  }
+
   bool isArrayReturn = false;
   if (!(expr->isLValue() || expr->isXValue()))
     Glob.getMLIRType(expr->getType(), &isArrayReturn);
