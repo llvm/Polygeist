@@ -78,7 +78,8 @@ static FlatAffineConstraints mergeDomainAndContext(FlatAffineConstraints dom,
 
   for (mlir::Value dim : dims)
     ctx.projectOut(dim);
-  ctx.removeIndependentConstraints(0, ctx.getNumDimAndSymbolIds());
+  if (ctx.getNumDimAndSymbolIds() > 0)
+    ctx.removeIndependentConstraints(0, ctx.getNumDimAndSymbolIds());
   ctx.removeRedundantInequalities();
   ctx.removeRedundantConstraints();
   ctx.removeTrivialRedundancy();
@@ -112,7 +113,6 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
   // Build context in it.
   buildScopContext(scop.get(), scopStmtMap, ctx);
-  ctx.dump();
 
   // Counter for the statement inserted.
   unsigned stmtId = 0;
