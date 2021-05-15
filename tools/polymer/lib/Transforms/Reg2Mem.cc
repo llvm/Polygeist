@@ -644,7 +644,7 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineConstraints> domains) {
       // Merge symbols
       for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
         mlir::Value symbol = domain.getIdValue(j + domain.getNumDimIds());
-        unsigned int pos;
+        unsigned int pos = 0;
         assert(unionDomain.findId(symbol, &pos));
         newInEq[pos] = inEq[j + domain.getNumDimIds()];
       }
