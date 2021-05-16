@@ -21,9 +21,9 @@
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
-#include "llvm/IR/DerivedTypes.h"
-
 #include "polygeist/Ops.h"
+#include "pragmaLowerToHandler.h"
+#include "llvm/IR/DerivedTypes.h"
 
 #include "../../llvm-project/clang/lib/CodeGen/CGRecordLayout.h"
 #include "../../llvm-project/clang/lib/CodeGen/CodeGenModule.h"
@@ -255,7 +255,7 @@ struct ValueWithOffsets {
   }
 
   ValueWithOffsets dereference(OpBuilder &builder) const {
-    assert(val);
+    assert(val && "val must be not-null");
 
     auto loc = builder.getUnknownLoc();
     if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
@@ -410,6 +410,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   CodeGen::CodeGenModule CGM;
   bool error;
   ScopLocList scopLocList;
+  LowerToInfo LTInfo;
 
   /// The stateful type translator (contains named structs).
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
@@ -436,6 +437,8 @@ struct MLIRASTConsumer : public ASTConsumer {
         reverseTypeTranslator(lcontext) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
+    Sema Actions(PP, astContext, *this);
+    addPragmaLowerToHandlers(PP, Actions, LTInfo);
   }
 
   ~MLIRASTConsumer() {}
@@ -553,11 +556,14 @@ public:
   std::vector<mlir::Value> arrayinit;
   ValueWithOffsets ThisVal;
   mlir::Value returnVal;
+  LowerToInfo &LTInfo;
+
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-              const FunctionDecl *fd, mlir::ModuleOp &module)
+              const FunctionDecl *fd, mlir::ModuleOp &module,
+              LowerToInfo &LTInfo)
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()),
-        EmittingFunctionDecl(fd), ThisCapture(nullptr) {
+        EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
 
     if (ShowAST) {
       llvm::errs() << "Emitting fn: " << function.getName() << "\n";
@@ -690,10 +696,13 @@ public:
   VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
   ValueWithOffsets VisitConstantExpr(clang::ConstantExpr *expr);
+
   ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral *expr);
+
   ValueWithOffsets VisitCharacterLiteral(clang::CharacterLiteral *expr);
 
   ValueWithOffsets VisitFloatingLiteral(clang::FloatingLiteral *expr);
+
   ValueWithOffsets VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueWithOffsets VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
@@ -705,10 +714,12 @@ public:
   ValueWithOffsets VisitVarDecl(clang::VarDecl *decl);
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
+
   ValueWithOffsets
   VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
 
   ValueWithOffsets VisitWhileStmt(clang::WhileStmt *fors);
+
   ValueWithOffsets VisitDoStmt(clang::DoStmt *fors);
 
   ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
@@ -716,34 +727,36 @@ public:
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
 
   ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
+
   ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr,
                                         VarDecl *name, unsigned space,
                                         mlir::Value mem = nullptr);
 
-  ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
+  ValueWithOffsets VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *expr);
 
   ValueWithOffsets VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr);
 
   ValueWithOffsets VisitUnaryOperator(clang::UnaryOperator *U);
 
   ValueWithOffsets
-  VisitSubstNonTypeTemplateParmExpr(SubstNonTypeTemplateParmExpr *expr);
+  VisitSubstNonTypeTemplateParmExpr(clang::SubstNonTypeTemplateParmExpr *expr);
 
-  ValueWithOffsets VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop);
+  ValueWithOffsets
+  VisitUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *Uop);
 
   ValueWithOffsets VisitBinaryOperator(clang::BinaryOperator *BO);
 
-  ValueWithOffsets VisitAttributedStmt(AttributedStmt *AS);
+  ValueWithOffsets VisitAttributedStmt(clang::AttributedStmt *AS);
 
-  ValueWithOffsets VisitExprWithCleanups(ExprWithCleanups *E);
+  ValueWithOffsets VisitExprWithCleanups(clang::ExprWithCleanups *E);
 
-  ValueWithOffsets VisitDeclRefExpr(DeclRefExpr *E);
+  ValueWithOffsets VisitDeclRefExpr(clang::DeclRefExpr *E);
 
-  ValueWithOffsets VisitOpaqueValueExpr(OpaqueValueExpr *E);
+  ValueWithOffsets VisitOpaqueValueExpr(clang::OpaqueValueExpr *E);
 
-  ValueWithOffsets VisitMemberExpr(MemberExpr *ME);
+  ValueWithOffsets VisitMemberExpr(clang::MemberExpr *ME);
 
-  ValueWithOffsets VisitCastExpr(CastExpr *E);
+  ValueWithOffsets VisitCastExpr(clang::CastExpr *E);
 
   ValueWithOffsets VisitIfStmt(clang::IfStmt *stmt);
 
@@ -790,7 +803,9 @@ public:
 
   ValueWithOffsets CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
                                      mlir::Value val);
+
   ValueWithOffsets CommonArrayLookup(ValueWithOffsets val, mlir::Value idx);
+
   ValueWithOffsets CommonArrayToPointer(ValueWithOffsets val);
 };
 

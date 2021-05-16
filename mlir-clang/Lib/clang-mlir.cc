@@ -1,5 +1,5 @@
 #include "clang-mlir.h"
-
+#include "utils.h"
 #include "llvm/Support/Debug.h"
 #include <clang/AST/Decl.h>
 #include <clang/Basic/DiagnosticOptions.h>
@@ -2373,10 +2373,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     i++;
   }
 
+  // handle lowerto pragma.
   if (LTInfo.SymbolTable.count(tocall.getName())) {
     return ValueWithOffsets(
-        replaceFuncByOperation(tocall, LTInfo.SymbolTable[tocall.getName()],
-                               args, builder)
+        mlirclang::replaceFuncByOperation(
+            tocall, LTInfo.SymbolTable[tocall.getName()], args, builder)
             ->getResult(0),
         /*isReference=*/false);
   }
@@ -4558,7 +4559,7 @@ void MLIRASTConsumer::run() {
     if (done.count(name))
       continue;
     done.insert(name);
-    MLIRScanner ms(*this, GetOrCreateMLIRFunction(FD), FD, module);
+    MLIRScanner ms(*this, GetOrCreateMLIRFunction(FD), FD, module, LTInfo);
   }
 }
 

@@ -1,4 +1,4 @@
-#include "PragmaLowerToHandler.h"
+#include "pragmaLowerToHandler.h"
 
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
