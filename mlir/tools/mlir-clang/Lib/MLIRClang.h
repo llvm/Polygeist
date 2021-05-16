@@ -353,6 +353,7 @@ private:
   std::vector<LoopContext> loops;
 
   bool RaiseToAffine;
+  LowerToInfo &LTInfo;
 
   void setValue(std::string name, ValueWithOffsets &&val);
 
@@ -425,10 +426,10 @@ public:
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module,
-              bool RaiseToAffine)
+              bool RaiseToAffine, LowerToInfo &LTInfo)
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()),
-        RaiseToAffine(RaiseToAffine) {
+        RaiseToAffine(RaiseToAffine), LTInfo(LTInfo) {
     // llvm::errs() << *fd << "\n";
     // fd->dump();
 

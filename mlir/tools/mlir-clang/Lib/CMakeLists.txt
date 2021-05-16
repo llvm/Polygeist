@@ -1,5 +1,6 @@
 add_mlir_library(MLIRClang
   MLIRClang.cc
+  Utils.cc
   PragmaLowerToHandler.cc
 
   EXCLUDE_FROM_LIBMLIR

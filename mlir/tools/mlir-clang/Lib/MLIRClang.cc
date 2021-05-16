@@ -1,4 +1,5 @@
 #include "MLIRClang.h"
+#include "Utils.h"
 
 #include "clang/AST/Attr.h"
 #include "clang/Basic/DiagnosticOptions.h"
@@ -31,6 +32,7 @@ using namespace clang;
 using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
+using namespace mlirclang;
 
 #define DEBUG_TYPE "clang-mlir"
 
@@ -1164,6 +1166,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 
   auto tocall = EmitDirectCallee(EmitCallee(expr->getCallee()));
+
   std::vector<mlir::Value> args;
   auto fnType = tocall.getType();
   size_t i = 0;
@@ -1187,6 +1190,15 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     args.push_back(val);
     i++;
   }
+
+  if (LTInfo.SymbolTable.count(tocall.getName())) {
+    return ValueWithOffsets(
+        replaceFuncByOperation(tocall, LTInfo.SymbolTable[tocall.getName()],
+                               args, builder)
+            ->getResult(0),
+        /*isReference=*/false);
+  }
+
   auto op = builder.create<mlir::CallOp>(loc, tocall, args);
   if (op.getNumResults())
     return ValueWithOffsets(op.getResult(0), /*isReference*/ false);
@@ -2632,7 +2644,7 @@ void MLIRASTConsumer::run() {
       continue;
     done.insert(todo);
     MLIRScanner ms(*this, GetOrCreateMLIRFunction(todo), todo, module,
-                   RaiseToAffine);
+                   RaiseToAffine, LTInfo);
   }
 }
 
