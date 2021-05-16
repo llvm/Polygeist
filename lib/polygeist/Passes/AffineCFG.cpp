@@ -781,11 +781,11 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
 static void replaceStore(memref::StoreOp store,
                          const SmallVector<Value, 2> &newIndexes) {
   auto memrefType = store.getMemRef().getType().cast<MemRefType>();
-  int64_t rank = memrefType.getRank();
+  size_t rank = memrefType.getRank();
   if (rank != newIndexes.size()) {
     llvm::errs() << store << "\n";
   }
-  assert(rank == newIndexes.size());
+  assert(rank == newIndexes.size() && "Expect rank to match new indexes");
 
   OpBuilder builder(store);
   Location loc = store.getLoc();
@@ -800,11 +800,11 @@ static void replaceLoad(memref::LoadOp load,
   Location loc = load.getLoc();
 
   auto memrefType = load.getMemRef().getType().cast<MemRefType>();
-  int64_t rank = memrefType.getRank();
+  size_t rank = memrefType.getRank();
   if (rank != newIndexes.size()) {
     llvm::errs() << load << "\n";
   }
-  assert(rank == newIndexes.size());
+  assert(rank == newIndexes.size() && "rank must equal new indexes size");
 
   AffineLoadOp affineLoad =
       builder.create<AffineLoadOp>(loc, load.getMemRef(), newIndexes);

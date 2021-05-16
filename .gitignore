@@ -20,6 +20,15 @@
 .sw?
 #OS X specific files.
 .DS_store
+# Tests
+*.time
+*.cfg
+# Tablegen generated
+*.inc
+*.cmake
+*.txt
+*.a
+##
 
 # Ignore the user specified CMake presets in subproject directories.
 /*/CMakeUserPresets.json
