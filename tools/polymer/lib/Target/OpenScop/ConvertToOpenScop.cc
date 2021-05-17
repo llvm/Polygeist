@@ -117,7 +117,6 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   // Counter for the statement inserted.
   unsigned stmtId = 0;
   for (const auto &scopStmtName : *scopStmtNames) {
-    // llvm::errs() << scopStmtName << "\n";
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
 
     // Collet the domain
@@ -155,7 +154,6 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   // Insert body extension.
   for (unsigned stmtId = 0; stmtId < scopStmtNames->size(); stmtId++) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
-    osl_scop_print(stderr, scop->get());
     scop->addBodyExtension(stmtId, stmt);
   }
   assert(scop->validate() && "The scop object created cannot be validated.");
@@ -164,7 +162,6 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   std::string funcName(f.getName());
   scop->addExtensionGeneric("comment", funcName);
 
-  osl_scop_print(stderr, scop->get());
   assert(scop->validate() && "The scop object created cannot be validated.");
   return scop;
 }

@@ -18,6 +18,7 @@ extern "C" {
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Support/ScopStmt.h"
+#include "polymer/Support/Utils.h"
 #include "polymer/Target/OpenScop.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
@@ -472,6 +473,9 @@ private:
                                  llvm::ArrayRef<std::string> args,
                                  mlir::FuncOp &callee,
                                  SmallVectorImpl<mlir::Value> &callerArgs);
+
+  /// Number of internal functions created.
+  int64_t numInternalFunctions = 0;
 
   /// The current builder, pointing at where the next Instruction should be
   /// generated.
@@ -1139,14 +1143,40 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
   return success();
 }
 
+/// We treat the provided the clast_expr as a loop bound. If it is a min/max
+/// reduction, we will expand that into multiple expressions.
+static LogicalResult processClastLoopBound(clast_expr *expr,
+                                           AffineExprBuilder &builder,
+                                           SmallVectorImpl<AffineExpr> &exprs) {
+  SmallVector<clast_expr *, 1> expandedExprs;
+
+  if (expr->type == clast_expr_red) {
+    clast_reduction *red = reinterpret_cast<clast_reduction *>(expr);
+    if (red->type == clast_red_max || red->type == clast_red_min) {
+      for (int i = 0; i < red->n; i++) {
+        expandedExprs.push_back(red->elts[i]);
+      }
+    }
+  }
+
+  if (expandedExprs.empty()) // no expansion, just put the original input in.
+    expandedExprs.push_back(expr);
+
+  for (clast_expr *e : expandedExprs)
+    if (failed(builder.process(e, exprs)))
+      return failure();
+
+  return success();
+}
+
 LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
                              AffineMap &affMap, bool isUpper) {
   AffineExprBuilder builder(context, symTable, &symbolTable, scop, options);
   SmallVector<AffineExpr, 4> boundExprs;
-  // Build the AffineExpr for the loop bound.
-  if (failed(builder.process(expr, boundExprs)))
+
+  if (failed(processClastLoopBound(expr, builder, boundExprs)))
     return failure();
 
   // If looking at the upper bound, we should add 1 to all of them.
@@ -1247,6 +1277,58 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // So we don't create a parallel op at this stage.
   if (forStmt->parallel)
     forOp->setAttr("scop.parallelizable", b.getUnitAttr());
+
+  // Finally, we will move this affine.for op into a FuncOp if it uses values
+  // defined by affine.min/max as loop bound operands.
+  auto isMinMaxDefined = [](mlir::Value operand) {
+    return isa_and_nonnull<mlir::AffineMaxOp, mlir::AffineMinOp>(
+        operand.getDefiningOp());
+  };
+
+  if (std::none_of(lbOperands.begin(), lbOperands.end(), isMinMaxDefined) &&
+      std::none_of(ubOperands.begin(), ubOperands.end(), isMinMaxDefined))
+    return success();
+
+  // Extract forOp out of the current block into a function.
+  Block *prevBlock = forOp->getBlock();
+  Block *currBlock = prevBlock->splitBlock(forOp);
+  Block *nextBlock = currBlock->splitBlock(forOp->getNextNode());
+
+  SetVector<mlir::Value> args;
+  inferBlockArgs(currBlock, args);
+
+  // Create the function body
+  mlir::FunctionType funcTy =
+      b.getFunctionType(TypeRange(args.getArrayRef()), llvm::None);
+  b.setInsertionPoint(&*getFuncInsertPt());
+  mlir::FuncOp func = b.create<mlir::FuncOp>(
+      forOp->getLoc(), std::string("T") + std::to_string(numInternalFunctions),
+      funcTy);
+  numInternalFunctions++;
+  Block *newEntry = func.addEntryBlock();
+  BlockAndValueMapping vMap;
+  vMap.map(args, func.getArguments());
+  b.setInsertionPointToStart(newEntry);
+  b.clone(*forOp.getOperation(), vMap);
+  b.create<mlir::ReturnOp>(func.getLoc(), llvm::None);
+
+  // Create function call.
+  b.setInsertionPointAfter(forOp);
+  mlir::CallOp caller = b.create<mlir::CallOp>(forOp.getLoc(), func,
+                                               ValueRange(args.getArrayRef()));
+
+  // Clean up
+  forOp.erase();
+  b.setInsertionPointToEnd(prevBlock);
+  for (Operation &op : *currBlock)
+    b.clone(op);
+  for (Operation &op : *nextBlock)
+    b.clone(op);
+  currBlock->erase();
+  nextBlock->erase();
+
+  // Set the insertion point right before the terminator.
+  b.setInsertionPoint(&*std::prev(prevBlock->end()));
 
   return success();
 }
@@ -1400,7 +1482,6 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
   options->quiet = 0;
   options->scop = scop->get();
 
-  osl_scop_print(stderr, scop->get());
   CloogInput *input = cloog_input_from_osl_scop(options->state, scop->get());
 
   cloog_options_copy_from_osl_scop(scop->get(), options);
@@ -1411,7 +1492,6 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
   CloogProgram *program =
       cloog_program_alloc(input->context, input->ud, options);
   assert(program->loop);
-  // cloog_loop_print(stderr, program->loop);
   program = cloog_program_generate(program, options);
   assert(program->loop);
 
