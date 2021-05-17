@@ -143,19 +143,15 @@ public:
         g.setPublic();
       }
 
-    // Replacing the original scop top-level function with the pluto transformed
-    // result, such that the whole end-to-end optimization is complete.
-    m.walk([&](mlir::FuncOp f) {
-      for (const auto &it : funcMap) {
-        mlir::FuncOp from = it.first;
-        mlir::FuncOp to = it.second;
-        if (f != from)
-          f.walk([&](mlir::CallOp op) {
-            if (op.getCallee() == from.getName())
-              op->setAttr("callee", b.getSymbolRefAttr(to.getName()));
-          });
-      }
-    });
+    // Finally, we delete the definition of the original function, and make the
+    // Pluto optimized version have the same name.
+    for (const auto &it : funcMap) {
+      mlir::FuncOp from, to;
+      std::tie(from, to) = it;
+
+      to.setName(std::string(from.getName()));
+      from.erase();
+    }
   }
 };
 
