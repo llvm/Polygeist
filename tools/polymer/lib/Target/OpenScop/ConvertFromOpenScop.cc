@@ -1314,8 +1314,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
 
   // Create function call.
   b.setInsertionPointAfter(forOp);
-  mlir::CallOp caller = b.create<mlir::CallOp>(forOp.getLoc(), func,
-                                               ValueRange(args.getArrayRef()));
+  b.create<mlir::CallOp>(forOp.getLoc(), func, ValueRange(args.getArrayRef()));
 
   // Clean up
   forOp.erase();
@@ -1493,7 +1492,11 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
       cloog_program_alloc(input->context, input->ud, options);
   assert(program->loop);
   program = cloog_program_generate(program, options);
-  assert(program->loop);
+  if (!program->loop) {
+    cloog_program_print(stderr, program);
+    assert(false && "No loop found in the CloogProgram, which may indicate the "
+                    "provided OpenScop is malformed.");
+  }
 
   // Convert to clast
   clast_stmt *rootStmt = cloog_clast_create(program, options);

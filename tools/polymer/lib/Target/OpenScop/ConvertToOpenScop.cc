@@ -69,25 +69,13 @@ private:
 
 } // namespace
 
-static FlatAffineConstraints mergeDomainAndContext(FlatAffineConstraints dom,
-                                                   FlatAffineConstraints ctx) {
-  FlatAffineConstraints cst(dom);
-
-  SmallVector<mlir::Value, 4> dims;
-  ctx.getIdValues(0, ctx.getNumDimIds(), &dims);
-
-  for (mlir::Value dim : dims)
-    ctx.projectOut(dim);
-  if (ctx.getNumDimAndSymbolIds() > 0)
-    ctx.removeIndependentConstraints(0, ctx.getNumDimAndSymbolIds());
-  ctx.removeRedundantInequalities();
-  ctx.removeRedundantConstraints();
-  ctx.removeTrivialRedundancy();
-
-  cst.mergeAndAlignIdsWithOther(0, &ctx);
-  cst.append(ctx);
-
-  return cst;
+/// Sometimes the domain generated might be malformed. It is always better to
+/// inform this at an early stage.
+static void sanityCheckDomain(FlatAffineConstraints &dom) {
+  if (dom.isEmpty()) {
+    llvm::errs() << "A domain is found to be empty!";
+    dom.dump();
+  }
 }
 
 /// Build OslScop from a given FuncOp.
@@ -120,8 +108,9 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
 
     // Collet the domain
-    FlatAffineConstraints domain =
-        mergeDomainAndContext(*stmt.getDomain(), ctx);
+    FlatAffineConstraints domain = *stmt.getDomain();
+    sanityCheckDomain(domain);
+
     // Collect the enclosing ops.
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
     stmt.getEnclosingOps(enclosingOps);
