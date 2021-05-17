@@ -10,7 +10,7 @@ func @const_loop_bounds(%A: memref<64xf32>) {
   return
 }
 
-// CHECK-LABEL: @const_loop_bounds_opt
+// CHECK-LABEL: @const_loop_bounds
 // CHECK: affine.for %[[ARG1:.*]] = 0 to 2
 // CHECK: affine.for %[[ARG2:.*]] = #[[MAP0:.*]](%[[ARG1]]) to #[[MAP1:.*]](%[[ARG1]])
 // CHECK: call @[[S0:.*]](%[[ARG0:.*]], %[[ARG2]])
