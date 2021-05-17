@@ -73,8 +73,6 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   if (scop->getNumStatements() == 0)
     return nullptr;
 
-  osl_scop_print(stderr, scop->get());
-
   // Should use isldep, candl cannot work well for this case.
   context->options->silent = !debug;
   context->options->moredebug = debug;

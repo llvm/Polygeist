@@ -469,8 +469,6 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
 
   ss << ")";
 
-  llvm::errs() << body << "\n";
-
   addGeneric(stmtId + 1, "body", body);
 }
 
@@ -584,7 +582,7 @@ void OslScop::createAccessRelationConstraints(
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
-  cst.composeMap(&vMap);
+  assert(cst.composeMap(&vMap).succeeded());
 }
 
 OslScop::SymbolTable *OslScop::getSymbolTable() { return &symbolTable; }

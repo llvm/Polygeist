@@ -4,6 +4,7 @@ add_mlir_library(PolymerSupport
   OslSymbolTable.cc
   ScopStmt.cc
   ScatteringUtils.cc
+  Utils.cc
 
   DEPENDS
   mlir-headers
