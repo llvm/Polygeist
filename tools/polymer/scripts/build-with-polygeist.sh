@@ -38,24 +38,34 @@ cd "${POLYGEIST_DIR}"
 mkdir -p build
 cd build
 
-# Comment out -G Ninja if you don't want to use that.
-cmake ../llvm \
-  -G Ninja \
-  -DCMAKE_BUILD_TYPE=RELEASE \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_PROJECTS="llvm;mlir;clang" \
-  -DLLVM_OPTIMIZED_TABLEGEN=ON \
-  -DLLVM_ENABLE_OCAMLDOC=OFF \
-  -DLLVM_ENABLE_BINDINGS=OFF \
-  -DLLVM_INSTALL_UTILS=ON \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DLLVM_BUILD_EXAMPLES=OFF \
-  -DBUILD_POLYMER=ON \
-  -DPLUTO_LIBCLANG_PREFIX="$(llvm-config --prefix)"
+if [ ! -f CMakeCache.txt ]; then
+  # Comment out -G Ninja if you don't want to use that.
+  cmake ../llvm \
+    -G Ninja \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DLLVM_TARGETS_TO_BUILD="host" \
+    -DLLVM_ENABLE_PROJECTS="llvm;mlir;clang" \
+    -DLLVM_OPTIMIZED_TABLEGEN=ON \
+    -DLLVM_ENABLE_OCAMLDOC=OFF \
+    -DLLVM_ENABLE_BINDINGS=OFF \
+    -DLLVM_INSTALL_UTILS=ON \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DLLVM_BUILD_EXAMPLES=OFF \
+    -DBUILD_POLYMER=ON \
+    -DPLUTO_LIBCLANG_PREFIX="$(llvm-config --prefix)"
+else
+  echo "-- CMakeCache.txt file has been found. CMake generation is therefore skipped."
+fi
 
 # Build
-cmake --build . --target check-polymer
+LD_LIBRARY_PATH="${POLYGEIST_DIR}/build/tools/mlir/tools/polymer/pluto/lib:${LD_LIBRARY_PATH}" cmake --build . --target check-polymer
 
 echo ">>> Done!"
+
+rm "${POLYMER_DIR}/build"
+ln -s "${POLYGEIST_DIR}/build" "${POLYMER_DIR}/build"
+
 echo ""
-echo "    Polymer utilities are built under ${POLYGEIST_DIR}/build"
+echo "    Polymer utilities are built under ${POLYGEIST_DIR}/build,"
+echo "    and they are linked back to ${POLYMER_DIR}/build."
+echo ""
