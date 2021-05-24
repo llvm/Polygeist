@@ -20,8 +20,12 @@ echo ""
 
 echo ">>> Cloning and checkout Polygeist ..."
 
-git clone https://github.com/wsmoses/Polygeist "${POLYGEIST_DIR}"
+if [ ! -d "${POLYGEIST_DIR}" ]; then
+  git clone https://github.com/wsmoses/Polygeist "${POLYGEIST_DIR}"
+fi
+
 cd "${POLYGEIST_DIR}"
+git fetch origin "${POLYGEIST_VERSION}"
 git checkout "${POLYGEIST_VERSION}"
 cd - &>/dev/null
 
@@ -31,7 +35,7 @@ ln -s "${POLYMER_DIR}" "${POLYGEIST_DIR}/mlir/tools/polymer"
 
 echo ">>> Building Polygeist ..."
 cd "${POLYGEIST_DIR}"
-mkdir build
+mkdir -p build
 cd build
 
 # Comment out -G Ninja if you don't want to use that.
