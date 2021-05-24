@@ -36,6 +36,7 @@
 *.app
 
 # CMake
+build
 build/
 
 # Editor
