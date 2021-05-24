@@ -32,7 +32,7 @@ export PATH="${LLVM_DIR}/build/bin:${PATH}"
 export PATH="${BUILD_DIR}/bin:${PATH}"
 
 export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
-export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
+export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/tools/mlir/tools/polymer/pluto/lib:${LD_LIBRARY_PATH:-""}"
 
 # -----------------------------  Compile  -------------------------------------
 
@@ -56,6 +56,7 @@ function polymer_opt() {
   local mode="${2:-"seq"}"
   local split_mode="${3:-"nosplit"}"
   local dst_file="${src_file%.mlir}.${split_mode}.polymer.${mode}.mlir"
+  local log_file="${dst_file%.mlir}.log"
 
   local polymer_options=()
   if [ "${split_mode}" = "heuristic" ]; then
@@ -68,9 +69,9 @@ function polymer_opt() {
   else
     polymer_options+=(-pluto-opt="parallelize=1" -inline)
   fi
-  polymer_options+=(-canonicalize)
+  polymer_options+=(-canonicalize -pass-statistics -pass-timing)
 
-  polymer-opt "${polymer_options[@]}" "${src_file}" 2>/dev/null | tee "${dst_file}" &>/dev/null
+  polymer-opt "${polymer_options[@]}" "${src_file}" 2>"${log_file}" | tee "${dst_file}" &>/dev/null
 }
 
 function compile() {
@@ -113,7 +114,7 @@ function run() {
 
 # Update build if necessary
 function try_rebuild() {
-  cd "${PWD}/../../../build" && cmake --build . --target all >/dev/null 2>&1  && cd - &>/dev/null
+  cd "${PWD}/../../../build" && cmake --build . --target check-polymer >/dev/null 2>&1  && cd - &>/dev/null
 }
 
 ALL_ARGS=("$@")

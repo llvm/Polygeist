@@ -7,6 +7,13 @@
 #map6 = affine_map<(d0) -> (82, d0 + 1)>
 #map7 = affine_map<(d0, d1) -> (d0 * 32 - d1 * 32)>
 #map8 = affine_map<(d0, d1) -> (3000, d0 * 32 - d1 * 32 + 32)>
+#map9 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map10 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map11 = affine_map<()[s0, s1] -> ((s0 + s1 - 2) floordiv 32 + 1)>
+#map12 = affine_map<(d0)[s0] -> (0, (d0 * 32 - s0 + 1) ceildiv 32)>
+#map13 = affine_map<(d0)[s0] -> ((s0 - 1) floordiv 32 + 1, d0 + 1)>
+#map14 = affine_map<(d0, d1)[s0] -> (s0, d0 * 32 - d1 * 32 + 32)>
+#set = affine_set<()[s0] : (s0 - 1 >= 0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str6("\0Aend   dump: %s\0A\00")
@@ -163,61 +170,94 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   func private @polybench_timer_start()
   func private @polybench_timer_stop()
   func private @polybench_timer_print()
-  func private @S0(%arg0: memref<?xf64>, %arg1: index) attributes {scop.stmt} {
+  func @kernel_covariance(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<?x2600xf64>, %arg4: memref<?x2600xf64>, %arg5: memref<?xf64>, %arg6: memref<?xf64>) {
     %cst = constant 0.000000e+00 : f64
-    affine.store %cst, %arg0[symbol(%arg1)] : memref<?xf64>
-    return
-  }
-  func private @S1(%arg0: memref<?xf64>, %arg1: index, %arg2: memref<?x2600xf64>, %arg3: index) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1)] : memref<?xf64>
-    %1 = affine.load %arg2[symbol(%arg3), symbol(%arg1)] : memref<?x2600xf64>
-    %2 = addf %0, %1 : f64
-    affine.store %2, %arg0[symbol(%arg1)] : memref<?xf64>
-    return
-  }
-  func private @S2(%arg0: memref<?xf64>, %arg1: index, %arg2: f64) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1)] : memref<?xf64>
-    %1 = divf %0, %arg2 : f64
-    affine.store %1, %arg0[symbol(%arg1)] : memref<?xf64>
-    return
-  }
-  func private @S3(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index, %arg3: memref<?xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    %1 = affine.load %arg3[symbol(%arg2)] : memref<?xf64>
-    %2 = subf %0, %1 : f64
-    affine.store %2, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    return
-  }
-  func private @S4(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
-    %cst = constant 0.000000e+00 : f64
-    affine.store %cst, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    return
-  }
-  func private @S5(%arg0: memref<?xf64>, %arg1: index, %arg2: memref<?x2600xf64>, %arg3: index, %arg4: index) attributes {scop.stmt} {
-    %0 = affine.load %arg2[symbol(%arg1), symbol(%arg4)] : memref<?x2600xf64>
-    %1 = affine.load %arg2[symbol(%arg1), symbol(%arg3)] : memref<?x2600xf64>
-    %2 = mulf %0, %1 {scop.splittable = 0 : index} : f64
-    affine.store %2, %arg0[symbol(%arg1)] : memref<?xf64>
-    return
-  }
-  func private @S6(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index, %arg3: memref<?xf64>, %arg4: index) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    %1 = affine.load %arg3[symbol(%arg4)] : memref<?xf64>
-    %2 = addf %0, %1 : f64
-    affine.store %2, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    return
-  }
-  func private @S7(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index, %arg3: f64) attributes {scop.stmt} {
-    %cst = constant 1.000000e+00 : f64
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    %1 = subf %arg3, %cst : f64
-    %2 = divf %0, %1 : f64
-    affine.store %2, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
-    return
-  }
-  func private @S8(%arg0: memref<?x2600xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg2), symbol(%arg1)] : memref<?x2600xf64>
-    affine.store %0, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2600xf64>
+    %cst_0 = constant 1.000000e+00 : f64
+    %0 = index_cast %arg0 : i32 to index
+    %1 = index_cast %arg1 : i32 to index
+    affine.if #set()[%0] {
+      affine.for %arg7 = 0 to #map9()[%0] {
+        affine.for %arg8 = #map0(%arg7) to #map9()[%0] {
+          affine.for %arg9 = #map1(%arg7) to min #map10(%arg7)[%0] {
+            affine.for %arg10 = max #map3(%arg8, %arg9) to min #map10(%arg8)[%0] {
+              affine.store %cst, %arg4[%arg9, %arg10] : memref<?x2600xf64>
+            }
+          }
+        }
+      } {scop.parallelizable}
+      affine.for %arg7 = 0 to #map9()[%0] {
+        affine.for %arg8 = #map1(%arg7) to min #map10(%arg7)[%0] {
+          affine.store %cst, %arg5[%arg8] : memref<?xf64>
+        }
+      } {scop.parallelizable}
+      affine.if #set()[%1] {
+        affine.for %arg7 = 0 to #map9()[%0] {
+          affine.for %arg8 = 0 to #map9()[%1] {
+            affine.for %arg9 = #map1(%arg8) to min #map10(%arg8)[%1] {
+              affine.for %arg10 = #map1(%arg7) to min #map10(%arg7)[%0] {
+                %2 = affine.load %arg5[%arg10] : memref<?xf64>
+                %3 = affine.load %arg3[%arg9, %arg10] : memref<?x2600xf64>
+                %4 = addf %2, %3 : f64
+                affine.store %4, %arg5[%arg10] : memref<?xf64>
+              }
+            }
+          }
+        } {scop.parallelizable}
+      }
+      affine.for %arg7 = 0 to #map9()[%0] {
+        affine.for %arg8 = #map1(%arg7) to min #map10(%arg7)[%0] {
+          %2 = affine.load %arg5[%arg8] : memref<?xf64>
+          %3 = divf %2, %arg2 : f64
+          affine.store %3, %arg5[%arg8] : memref<?xf64>
+        }
+      } {scop.parallelizable}
+      affine.for %arg7 = 0 to #map9()[%1] {
+        affine.for %arg8 = 0 to #map9()[%0] {
+          affine.for %arg9 = #map1(%arg7) to min #map10(%arg7)[%1] {
+            affine.for %arg10 = #map1(%arg8) to min #map10(%arg8)[%0] {
+              %2 = affine.load %arg3[%arg9, %arg10] : memref<?x2600xf64>
+              %3 = affine.load %arg5[%arg10] : memref<?xf64>
+              %4 = subf %2, %3 : f64
+              affine.store %4, %arg3[%arg9, %arg10] : memref<?x2600xf64>
+            }
+          }
+        }
+      } {scop.parallelizable}
+      affine.if #set()[%1] {
+        affine.for %arg7 = 0 to #map11()[%0, %1] {
+          affine.for %arg8 = max #map12(%arg7)[%1] to min #map13(%arg7)[%0] {
+            affine.for %arg9 = #map7(%arg7, %arg8) to min #map14(%arg7, %arg8)[%1] {
+              affine.for %arg10 = #map1(%arg8) to min #map10(%arg8)[%0] {
+                affine.for %arg11 = #map0(%arg10) to %0 {
+                  %2 = affine.load %arg3[%arg9, %arg10] : memref<?x2600xf64>
+                  %3 = affine.load %arg3[%arg9, %arg11] : memref<?x2600xf64>
+                  %4 = mulf %2, %3 {scop.splittable = 0 : index} : f64
+                  affine.store %4, %arg6[%arg9] : memref<?xf64>
+                  %5 = affine.load %arg4[%arg10, %arg11] : memref<?x2600xf64>
+                  %6 = affine.load %arg6[%arg9] : memref<?xf64>
+                  %7 = addf %5, %6 : f64
+                  affine.store %7, %arg4[%arg10, %arg11] : memref<?x2600xf64>
+                }
+              }
+            }
+          } {scop.parallelizable}
+        }
+      }
+      affine.for %arg7 = 0 to #map9()[%0] {
+        affine.for %arg8 = #map0(%arg7) to #map9()[%0] {
+          affine.for %arg9 = #map1(%arg7) to min #map10(%arg7)[%0] {
+            affine.for %arg10 = max #map3(%arg8, %arg9) to min #map10(%arg8)[%0] {
+              %2 = affine.load %arg4[%arg9, %arg10] : memref<?x2600xf64>
+              %3 = subf %arg2, %cst_0 : f64
+              %4 = divf %2, %3 : f64
+              affine.store %4, %arg4[%arg9, %arg10] : memref<?x2600xf64>
+              %5 = affine.load %arg4[%arg9, %arg10] : memref<?x2600xf64>
+              affine.store %5, %arg4[%arg10, %arg9] : memref<?x2600xf64>
+            }
+          }
+        }
+      } {scop.parallelizable}
+    }
     return
   }
   func private @print_array(%arg0: i32, %arg1: memref<?x2600xf64>) {

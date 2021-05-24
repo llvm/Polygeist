@@ -1,12 +1,7 @@
 #!/usr/bin/env bash
 
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
-./eval-split-mlir-heuristic
+./eval-split-mlir-heuristic 2mm/2mm.c
+./eval-split-mlir-heuristic 3mm/3mm.c
+./eval-split-mlir-heuristic correlation/correlation.c
+./eval-split-mlir-heuristic covariance/covariance.c
+./eval-split-mlir-heuristic trmm/trmm.c

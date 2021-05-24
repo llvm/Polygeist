@@ -7,6 +7,15 @@
 #map6 = affine_map<(d0) -> (1600, d0 * 32 + 32)>
 #map7 = affine_map<(d0) -> (2400, d0 * 32 + 32)>
 #map8 = affine_map<(d0) -> (2000, d0 * 32 + 32)>
+#map9 = affine_map<()[s0, s1] -> ((s0 + s1 - 1) floordiv 32 + 1)>
+#map10 = affine_map<()[s0] -> ((s0 - 1) floordiv 32 + 1)>
+#map11 = affine_map<(d0)[s0, s1] -> (s0, s1, d0 * 32 + 32)>
+#map12 = affine_map<(d0)[s0] -> (s0, d0 * 32 + 32)>
+#map13 = affine_map<(d0)[s0] -> (s0, d0 * 32)>
+#set0 = affine_set<()[s0, s1, s2] : (s0 >= 0, s1 >= 0, s2 - 1 >= 0)>
+#set1 = affine_set<()[s0, s1] : (-s0 - 1 >= 0, s1 - 1 >= 0)>
+#set2 = affine_set<()[s0, s1] : (s0 - 1 >= 0, s1 - 1 >= 0)>
+#set3 = affine_set<()[s0] : (s0 - 1 >= 0)>
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"}  {
   llvm.mlir.global internal constant @str7("==END   DUMP_ARRAYS==\0A\00")
   llvm.mlir.global internal constant @str6("\0Aend   dump: %s\0A\00")
@@ -256,46 +265,126 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   func private @polybench_timer_start()
   func private @polybench_timer_stop()
   func private @polybench_timer_print()
-  func private @S0(%arg0: memref<?x1800xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
+  func @kernel_3mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: memref<?x1800xf64>, %arg6: memref<?x2000xf64>, %arg7: memref<?x1800xf64>, %arg8: memref<?x2200xf64>, %arg9: memref<?x2400xf64>, %arg10: memref<?x2200xf64>, %arg11: memref<?x2200xf64>) {
     %cst = constant 0.000000e+00 : f64
-    affine.store %cst, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x1800xf64>
-    return
-  }
-  func private @S1(%arg0: memref<?x1800xf64>, %arg1: index, %arg2: index, %arg3: memref<?x1800xf64>, %arg4: index, %arg5: memref<?x2000xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x1800xf64>
-    %1 = affine.load %arg5[symbol(%arg1), symbol(%arg4)] : memref<?x2000xf64>
-    %2 = affine.load %arg3[symbol(%arg4), symbol(%arg2)] : memref<?x1800xf64>
-    %3 = mulf %1, %2 : f64
-    %4 = addf %0, %3 : f64
-    affine.store %4, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x1800xf64>
-    return
-  }
-  func private @S2(%arg0: memref<?x2200xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
-    %cst = constant 0.000000e+00 : f64
-    affine.store %cst, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
-    return
-  }
-  func private @S3(%arg0: memref<?x2200xf64>, %arg1: index, %arg2: index, %arg3: memref<?x2200xf64>, %arg4: index, %arg5: memref<?x2400xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
-    %1 = affine.load %arg5[symbol(%arg1), symbol(%arg4)] : memref<?x2400xf64>
-    %2 = affine.load %arg3[symbol(%arg4), symbol(%arg2)] : memref<?x2200xf64>
-    %3 = mulf %1, %2 : f64
-    %4 = addf %0, %3 : f64
-    affine.store %4, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
-    return
-  }
-  func private @S4(%arg0: memref<?x2200xf64>, %arg1: index, %arg2: index) attributes {scop.stmt} {
-    %cst = constant 0.000000e+00 : f64
-    affine.store %cst, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
-    return
-  }
-  func private @S5(%arg0: memref<?x2200xf64>, %arg1: index, %arg2: index, %arg3: memref<?x2200xf64>, %arg4: index, %arg5: memref<?x1800xf64>) attributes {scop.stmt} {
-    %0 = affine.load %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
-    %1 = affine.load %arg5[symbol(%arg1), symbol(%arg4)] : memref<?x1800xf64>
-    %2 = affine.load %arg3[symbol(%arg4), symbol(%arg2)] : memref<?x2200xf64>
-    %3 = mulf %1, %2 : f64
-    %4 = addf %0, %3 : f64
-    affine.store %4, %arg0[symbol(%arg1), symbol(%arg2)] : memref<?x2200xf64>
+    %0 = index_cast %arg0 : i32 to index
+    %1 = index_cast %arg1 : i32 to index
+    %2 = index_cast %arg2 : i32 to index
+    %3 = index_cast %arg3 : i32 to index
+    %4 = index_cast %arg4 : i32 to index
+    affine.if #set0()[%0, %1, %3] {
+      affine.for %arg12 = 0 to #map9()[%0, %1] {
+        affine.for %arg13 = 0 to #map10()[%3] {
+          affine.for %arg14 = #map0(%arg12) to min #map11(%arg12)[%0, %1] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%3] {
+              affine.store %cst, %arg8[%arg14, %arg15] : memref<?x2200xf64>
+              affine.store %cst, %arg11[%arg14, %arg15] : memref<?x2200xf64>
+            }
+          }
+          affine.for %arg14 = max #map13(%arg12)[%0] to min #map12(%arg12)[%1] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%3] {
+              affine.store %cst, %arg8[%arg14, %arg15] : memref<?x2200xf64>
+            }
+          }
+          affine.for %arg14 = max #map13(%arg12)[%1] to min #map12(%arg12)[%0] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%3] {
+              affine.store %cst, %arg11[%arg14, %arg15] : memref<?x2200xf64>
+            }
+          }
+        }
+      }
+    }
+    affine.if #set1()[%1, %3] {
+      affine.for %arg12 = 0 to #map10()[%0] {
+        affine.for %arg13 = 0 to #map10()[%3] {
+          affine.for %arg14 = #map0(%arg12) to min #map12(%arg12)[%0] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%3] {
+              affine.store %cst, %arg11[%arg14, %arg15] : memref<?x2200xf64>
+            }
+          }
+        }
+      }
+    }
+    affine.if #set1()[%0, %3] {
+      affine.for %arg12 = 0 to #map10()[%1] {
+        affine.for %arg13 = 0 to #map10()[%3] {
+          affine.for %arg14 = #map0(%arg12) to min #map12(%arg12)[%1] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%3] {
+              affine.store %cst, %arg8[%arg14, %arg15] : memref<?x2200xf64>
+            }
+          }
+        }
+      }
+    }
+    affine.if #set2()[%3, %4] {
+      affine.for %arg12 = 0 to #map10()[%1] {
+        affine.for %arg13 = 0 to #map10()[%3] {
+          affine.for %arg14 = 0 to #map10()[%4] {
+            affine.for %arg15 = #map0(%arg12) to min #map12(%arg12)[%1] {
+              affine.for %arg16 = #map0(%arg14) to min #map12(%arg14)[%4] {
+                affine.for %arg17 = #map0(%arg13) to min #map12(%arg13)[%3] {
+                  %5 = affine.load %arg8[%arg15, %arg17] : memref<?x2200xf64>
+                  %6 = affine.load %arg9[%arg15, %arg16] : memref<?x2400xf64>
+                  %7 = affine.load %arg10[%arg16, %arg17] : memref<?x2200xf64>
+                  %8 = mulf %6, %7 : f64
+                  %9 = addf %5, %8 : f64
+                  affine.store %9, %arg8[%arg15, %arg17] : memref<?x2200xf64>
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    affine.if #set3()[%1] {
+      affine.for %arg12 = 0 to #map10()[%0] {
+        affine.for %arg13 = 0 to #map10()[%1] {
+          affine.for %arg14 = #map0(%arg12) to min #map12(%arg12)[%0] {
+            affine.for %arg15 = #map0(%arg13) to min #map12(%arg13)[%1] {
+              affine.store %cst, %arg5[%arg14, %arg15] : memref<?x1800xf64>
+            }
+          }
+        }
+      }
+    }
+    affine.if #set3()[%1] {
+      affine.for %arg12 = 0 to #map10()[%0] {
+        affine.for %arg13 = 0 to #map10()[%1] {
+          affine.if #set3()[%2] {
+            affine.for %arg14 = 0 to #map10()[%2] {
+              affine.for %arg15 = #map0(%arg12) to min #map12(%arg12)[%0] {
+                affine.for %arg16 = #map0(%arg14) to min #map12(%arg14)[%2] {
+                  affine.for %arg17 = #map0(%arg13) to min #map12(%arg13)[%1] {
+                    %5 = affine.load %arg5[%arg15, %arg17] : memref<?x1800xf64>
+                    %6 = affine.load %arg6[%arg15, %arg16] : memref<?x2000xf64>
+                    %7 = affine.load %arg7[%arg16, %arg17] : memref<?x1800xf64>
+                    %8 = mulf %6, %7 : f64
+                    %9 = addf %5, %8 : f64
+                    affine.store %9, %arg5[%arg15, %arg17] : memref<?x1800xf64>
+                  }
+                }
+              }
+            }
+          }
+          affine.if #set3()[%3] {
+            affine.for %arg14 = 0 to #map10()[%3] {
+              affine.for %arg15 = #map0(%arg12) to min #map12(%arg12)[%0] {
+                affine.for %arg16 = #map0(%arg13) to min #map12(%arg13)[%1] {
+                  affine.for %arg17 = #map0(%arg14) to min #map12(%arg14)[%3] {
+                    %5 = affine.load %arg11[%arg15, %arg17] : memref<?x2200xf64>
+                    %6 = affine.load %arg5[%arg15, %arg16] : memref<?x1800xf64>
+                    %7 = affine.load %arg8[%arg16, %arg17] : memref<?x2200xf64>
+                    %8 = mulf %6, %7 : f64
+                    %9 = addf %5, %8 : f64
+                    affine.store %9, %arg11[%arg15, %arg17] : memref<?x2200xf64>
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     return
   }
   func private @print_array(%arg0: i32, %arg1: i32, %arg2: memref<?x2200xf64>) {
