@@ -58,6 +58,7 @@ else
 fi
 
 # Build
+cmake --build . --target check-mlir-clang
 LD_LIBRARY_PATH="${POLYGEIST_DIR}/build/tools/mlir/tools/polymer/pluto/lib:${LD_LIBRARY_PATH}" cmake --build . --target check-polymer
 
 echo ">>> Done!"
