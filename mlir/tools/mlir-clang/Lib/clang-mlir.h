@@ -317,7 +317,7 @@ private:
 
   void setValue(std::string name, ValueWithOffsets &&val);
 
-  ValueWithOffsets getValue(std::string name);
+  //ValueWithOffsets getValue(std::string name);
 
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
@@ -388,8 +388,10 @@ public:
               const FunctionDecl *fd, mlir::ModuleOp &module)
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()) {
-    // llvm::errs() << *fd << "\n";
-    // fd->dump();
+    
+    if (ShowAST) {
+      llvm::errs() << *fd << "\n";
+    }
 
     scopes.emplace_back();
 
@@ -408,7 +410,9 @@ public:
     scopes.emplace_back();
 
     Stmt *stmt = fd->getBody();
-    // stmt->dump();
+    if (ShowAST) {
+      stmt->dump();
+    }
     Visit(stmt);
 
     auto endBlock = builder.getInsertionBlock();
@@ -488,6 +492,8 @@ public:
   ValueWithOffsets VisitContinueStmt(clang::ContinueStmt *stmt);
 
   ValueWithOffsets VisitReturnStmt(clang::ReturnStmt *stmt);
+
+  ValueWithOffsets VisitStmtExpr(clang::StmtExpr *stmt);
 };
 
 #endif

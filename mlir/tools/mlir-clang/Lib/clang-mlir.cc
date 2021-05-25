@@ -42,42 +42,6 @@ void MLIRScanner::setValue(std::string name, ValueWithOffsets &&val) {
   // assert(val.offsets.size() == z.first->second.offsets.size());
 }
 
-ValueWithOffsets MLIRScanner::getValue(std::string name) {
-  for (int i = scopes.size() - 1; i >= 0; i--) {
-    auto found = scopes[i].find(name);
-    if (found != scopes[i].end()) {
-      return found->second;
-    }
-  }
-  if (Glob.globalVariables.find(name) != Glob.globalVariables.end()) {
-    if (name == "stderr" || name == "stdout" || name == "stdin") {
-      return ValueWithOffsets(
-          builder.create<mlir::LLVM::AddressOfOp>(
-              loc, Glob.GetOrCreateLLVMGlobal(Glob.globalVariables[name])),
-          /*isReference*/ true);
-    }
-
-    auto gv = Glob.GetOrCreateGlobal(Glob.globalVariables[name]);
-    auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
-                                                   gv.first.getName());
-    bool isArray = gv.second;
-    // TODO check reference
-    if (isArray)
-      return ValueWithOffsets(gv2, /*isReference*/ true);
-    else
-      return ValueWithOffsets(gv2, /*isReference*/ true);
-    // return gv2;
-  }
-  if (Glob.globalFunctions.find(name) != Glob.globalFunctions.end()) {
-    auto gv = Glob.GetOrCreateMLIRFunction(Glob.globalFunctions[name]);
-    // TODO, how to represent?
-    // return ValueWithOffsets(gv, std::vector<mlir::Value>());
-  }
-  llvm::errs() << "couldn't find " << name << "\n";
-  assert(0 && "couldnt find value");
-  return nullptr;
-}
-
 mlir::Type MLIRScanner::getLLVMTypeFromMLIRType(mlir::Type t) {
   if (auto it = t.dyn_cast<mlir::IntegerType>()) {
     return mlir::IntegerType::get(t.getContext(), it.getWidth());
@@ -182,7 +146,7 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (decl->hasAttr<CUDASharedAttr>()) {
     memtype = 5;
   }
-
+  decl->dump();
   mlir::Type subType = getMLIRType(decl->getType());
   mlir::Value inite = nullptr;
   if (auto init = decl->getInit()) {
@@ -215,6 +179,12 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (isa<llvm::StructType>(getLLVMType(decl->getType()))) {
     isArray = true;
   }
+  decl->dump();
+  llvm::errs() << " - ";
+  decl->getType()->dump();
+  llvm::errs() << " st: ";
+  subType.dump();
+  llvm::errs() << "\n";
   auto op = createAllocOp(subType, decl->getName().str(), memtype, isArray);
   mlir::Value zeroIndex = getConstantIndex(0);
   if (inite) {
@@ -253,7 +223,11 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
         }
       } else {
         cons->dump();
-        assert(0 && "unknown init construct");
+        cons->getConstructor()->dump();
+        auto tocall = Glob.GetOrCreateMLIRFunction(cons->getConstructor());
+        tocall.dump();
+        mlir::Value args[1] = { op };
+        auto op = builder.create<mlir::CallOp>(loc, tocall, args);
       }
     } else
       assert(0 && "unknown init list");
@@ -854,7 +828,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "__syncthreads") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "__syncthreads") {
         builder.create<mlir::NVVM::Barrier0Op>(loc);
         return nullptr;
       }
@@ -862,7 +836,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "__shfl_up_sync") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "__shfl_up_sync") {
         assert(0 && "__shfl_up_sync unhandled");
         return nullptr;
       }
@@ -870,7 +844,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "__log2f") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "__log2f") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
@@ -882,8 +856,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "sqrtf" ||
-          sr->getDecl()->getName() == "sqrt") {
+      if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "sqrtf" ||
+          sr->getDecl()->getName() == "sqrt")) {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
@@ -895,8 +869,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "expf" ||
-          sr->getDecl()->getName() == "exp") {
+      if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "expf" ||
+          sr->getDecl()->getName() == "exp")) {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
@@ -907,7 +881,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "sin") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
@@ -918,7 +892,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "cos") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "cos") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
@@ -929,7 +903,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "atomicAdd") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "atomicAdd") {
         std::vector<ValueWithOffsets> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a));
@@ -953,7 +927,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "atomicOr") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "atomicOr") {
 #if 1
         llvm_unreachable("atomicOr unhandled");
         assert(0 && "atomicOr unhandled");
@@ -992,9 +966,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       // TODO add pow to standard dialect
-      if (sr->getDecl()->getName() == "__powf" ||
+      if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "__powf" ||
           sr->getDecl()->getName() == "pow" ||
-          sr->getDecl()->getName() == "powf") {
+          sr->getDecl()->getName() == "powf")) {
         auto mlirType = getMLIRType(expr->getType());
         mlir::Type llvmType =
             mlir::LLVM::TypeFromLLVMIRTranslator(*mlirType.getContext())
@@ -1010,8 +984,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "fprintf" ||
-          sr->getDecl()->getName() == "printf") {
+      if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "fprintf" ||
+          sr->getDecl()->getName() == "printf")) {
 
         auto tocall = EmitCallee(expr->getCallee());
         auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
@@ -1031,7 +1005,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "free") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "free") {
 
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
@@ -1045,8 +1019,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "fscanf" ||
-          sr->getDecl()->getName() == "scanf") {
+      if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "fscanf" ||
+          sr->getDecl()->getName() == "scanf")) {
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1078,7 +1052,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                  "close",  "fclose", "atoi"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (funcs.count(sr->getDecl()->getName().str())) {
+      if (sr->getDecl()->getIdentifier() && funcs.count(sr->getDecl()->getName().str())) {
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1094,7 +1068,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getName() == "gettimeofday") {
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "gettimeofday") {
         auto tocall = EmitCallee(expr->getCallee());
         auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1170,6 +1144,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       expr->dump();
       tocall.dump();
       fnType.dump();
+      for (auto a : expr->arguments()) {
+        a->dump();
+      }
       assert(0 && "too many arguments in calls");
     }
     /*
@@ -1222,7 +1199,12 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     return sub;
   }
   case clang::UnaryOperator::Opcode::UO_LNot: {
+    assert(sub.val);
     mlir::Value val = sub.getValue(builder);
+    if (!val.getType().isa<mlir::IntegerType>()) {
+      U->dump();
+      val.dump();
+    }
     auto ty = val.getType().cast<mlir::IntegerType>();
     if (ty.getWidth() != 1) {
       ty = builder.getIntegerType(1);
@@ -1944,11 +1926,43 @@ ValueWithOffsets MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
 }
 
 ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
-  auto val = getValue(E->getDecl()->getName().str());
-  // E->dump();
-  // llvm::errs() << "DeclRefExpr: " << val.val << " - isReference: " <<
-  // val.isReference << "\n";
-  return val;
+  if (!E->hasQualifier()) {
+    auto name = E->getDecl()->getName().str();
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+      auto found = scopes[i].find(name);
+      if (found != scopes[i].end()) {
+        return found->second;
+      }
+    }
+  }
+  if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
+    if (name == "stderr" || name == "stdout" || name == "stdin" || (
+      E->hasQualifier())) {
+      return ValueWithOffsets(
+          builder.create<mlir::LLVM::AddressOfOp>(
+              loc, Glob.GetOrCreateLLVMGlobal(VD)),
+          /*isReference*/ true);
+    }
+
+    auto gv = Glob.GetOrCreateGlobal(VD);
+    auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
+                                                   gv.first.getName());
+    bool isArray = gv.second;
+    // TODO check reference
+    if (isArray)
+      return ValueWithOffsets(gv2, /*isReference*/ true);
+    else
+      return ValueWithOffsets(gv2, /*isReference*/ true);
+    // return gv2;
+  }
+  if (Glob.globalFunctions.find(name) != Glob.globalFunctions.end()) {
+    auto gv = Glob.GetOrCreateMLIRFunction(Glob.globalFunctions[name]);
+    // TODO, how to represent?
+    // return ValueWithOffsets(gv, std::vector<mlir::Value>());
+  }
+  llvm::errs() << "couldn't find " << name << "\n";
+  assert(0 && "couldnt find value");
+  return nullptr;
 }
 
 ValueWithOffsets MLIRScanner::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
@@ -2087,7 +2101,21 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
             return ValueWithOffsets(alloc, /*isReference*/ false);
           }
         }
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto se = Visit(E->getSubExpr());
+    if (!se.val) {
+      E->dump();
+    }
+    auto scalar = se.getValue(builder);
+    if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+      auto pt = Glob.typeTranslator.translateType(getLLVMType(E->getType()));
+      auto nval = builder.create<mlir::LLVM::BitcastOp>(loc, pt, scalar);
+      return ValueWithOffsets(nval, /*isReference*/ false);
+    }
+    if (!scalar.getType().isa<mlir::MemRefType>()) {
+      E->dump();
+      E->getType()->dump();
+      llvm::errs() << scalar << "\n";
+    }
     auto ut = scalar.getType().cast<mlir::MemRefType>();
     auto mt = getMLIRType(E->getType()).cast<mlir::MemRefType>();
 
@@ -2248,12 +2276,18 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
   }
   case clang::CastKind::CK_ArrayToPointerDecay: {
+    if (auto SR = dyn_cast<clang::StringLiteral>(E->getSubExpr())) {
+      return ValueWithOffsets(Glob.GetOrCreateGlobalLLVMString(loc, builder,
+                                              SR->getString()), /*isReference*/false);
+    }
     auto scalar = Visit(E->getSubExpr());
     if (!scalar.val) {
       E->dump();
     }
-    // if (!scalar.isReference) {
-    //}
+    if (!scalar.isReference) {
+      E->dump();
+      llvm::errs() << scalar.val << "\n";
+    }
     assert(scalar.isReference);
 
     auto mt = scalar.val.getType().cast<MemRefType>();
@@ -2422,6 +2456,16 @@ ValueWithOffsets MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *stmt) {
   return nullptr;
 }
 
+
+ValueWithOffsets MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
+  ValueWithOffsets off = nullptr;
+  for (auto a : stmt->getSubStmt()->children()) {
+    IfScope scope(*this);
+    off = Visit(a);
+  }
+  return off;
+}
+
 ValueWithOffsets MLIRScanner::VisitBreakStmt(clang::BreakStmt *stmt) {
   IfScope scope(*this);
   assert(loops.size());
@@ -2565,13 +2609,28 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
-  std::string name = CGM.getMangledName(FD).str();
+  std::string name;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+  else
+    name = CGM.getMangledName(FD).str();
+
   if (functions.find(name) != functions.end()) {
     return functions[name];
   }
 
   std::vector<mlir::Type> types;
   std::vector<std::string> names;
+
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD)) {
+    auto mt = getMLIRType(CC->getThisType()).cast<MemRefType>();
+    auto shape = std::vector<int64_t>(mt.getShape());
+    shape[0] = 1;
+    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                     mt.getAffineMaps(), mt.getMemorySpace());
+    types.push_back(mt0);
+    names.push_back("this");
+  }
   for (auto parm : FD->parameters()) {
     bool llvmType = name == "main" && types.size() == 1;
     if (auto ava = parm->getAttr<AlignValueAttr>()) {
@@ -2616,7 +2675,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   module.push_back(function);
   if (FD->isDefined())
     functionsToEmit.push_back(FD);
-  else
+  else if (FD->getIdentifier())
     emitIfFound.insert(FD->getName().str());
   return function;
 }
@@ -2718,9 +2777,13 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   if (auto IT = dyn_cast<llvm::IntegerType>(t)) {
     return builder.getIntegerType(IT->getBitWidth());
   }
+  t->dump();
   if (auto pt = dyn_cast<llvm::PointerType>(t)) {
+    if (isa<llvm::FunctionType>(pt->getElementType())) {
+      return typeTranslator.translateType(t);
+    }
     if (auto ST = dyn_cast<llvm::StructType>(pt->getElementType())) {
-      if (ST->getName() == "struct._IO_FILE") {
+      if (ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream") {
         return typeTranslator.translateType(t);
       }
       bool notAllSame = false;
@@ -2769,7 +2832,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       return mlir::MemRefType::get(ST->getNumElements(),
                                    getMLIRType(ST->getTypeAtIndex(0U)));
     }
-    if (ST->getName() == "struct._IO_FILE") {
+    if (ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream") {
       return typeTranslator.translateType(t);
     }
     SmallVector<mlir::Type> types;

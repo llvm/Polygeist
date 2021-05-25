@@ -20,6 +20,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
+static cl::opt<bool> ShowAST("show-ast", cl::init(false),
+                              cl::desc("Show AST"));
+
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
                                    cl::desc("Emit immediate mlir"));
 
