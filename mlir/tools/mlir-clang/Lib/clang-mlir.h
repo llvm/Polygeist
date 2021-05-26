@@ -275,8 +275,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
 
-  std::map<const VarDecl *, mlir::LLVM::GlobalOp> llvmGlobals;
-  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const VarDecl *VD);
+  std::map<const ValueDecl *, mlir::LLVM::GlobalOp> llvmGlobals;
+  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD);
 
   /// Return a value representing an access into a global string with the given
   /// name, creating the string if necessary.
@@ -284,9 +284,8 @@ struct MLIRASTConsumer : public ASTConsumer {
                                           mlir::OpBuilder &builder,
                                           StringRef value);
 
-  std::map<std::string, clang::VarDecl *> globalVariables;
   std::map<std::string, clang::FunctionDecl *> globalFunctions;
-  std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const VarDecl *VD);
+  std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const ValueDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
   std::set<const FunctionDecl *> done;
@@ -348,7 +347,7 @@ private:
   size_t getTypeSize(clang::QualType t);
 
   mlir::Value createAllocOp(mlir::Type t, std::string name, uint64_t memspace,
-                            bool isArray);
+                            bool isArray, bool LLVMABI);
 
   mlir::Value createAndSetAllocOp(std::string name, mlir::Value v,
                                   uint64_t memspace);
@@ -494,6 +493,12 @@ public:
   ValueWithOffsets VisitReturnStmt(clang::ReturnStmt *stmt);
 
   ValueWithOffsets VisitStmtExpr(clang::StmtExpr *stmt);
+
+  ValueWithOffsets VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *expr);
+  
+  ValueWithOffsets VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
+
+  ValueWithOffsets VisitCXXNewExpr(clang::CXXNewExpr *expr);
 };
 
 #endif
