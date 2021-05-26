@@ -1592,22 +1592,16 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     }
 
     bool isArray = false;
-    auto LLTy = getLLVMType(U->getType());
+    auto LLTy = getLLVMType(U->getSubExpr()->getType());
     if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
       isArray = true;
     }
     auto mt = sub.val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
-    if (isArray)
-      shape.insert(shape.begin(), -1);
-    else
+    if (!isArray)
       shape[0] = -1;
     auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                      mt.getAffineMaps(), mt.getMemorySpace());
-
-    if (isArray)
-      return ValueWithOffsets(builder.create<memref::SubIndexOp>(loc, mt0, sub.val, getConstantIndex(-1)),
-                            /*isReference*/ false);
     return ValueWithOffsets(builder.create<memref::CastOp>(loc, sub.val, mt0),
                             /*isReference*/ false);
   }
