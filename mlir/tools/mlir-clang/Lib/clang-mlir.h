@@ -383,10 +383,11 @@ public:
   void popLoopIf();
 
 public:
+  const FunctionDecl *EmittingFunctionDecl;
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module)
       : Glob(Glob), function(function), module(module),
-        builder(module.getContext()), loc(builder.getUnknownLoc()) {
+        builder(module.getContext()), loc(builder.getUnknownLoc()), EmittingFunctionDecl(fd) {
     
     if (ShowAST) {
       llvm::errs() << *fd << "\n";
@@ -399,6 +400,11 @@ public:
     builder.setInsertionPointToStart(entryBlock);
 
     unsigned i = 0;
+    if (auto CC = dyn_cast<CXXMethodDecl>(fd)) {
+      setValue("this", ValueWithOffsets(function.getArgument(i), /*isReference*/ true));
+      i++;
+    }
+
     for (auto parm : fd->parameters()) {
       assert(i != function.getNumArguments());
       auto name = parm->getName().str();
@@ -407,6 +413,34 @@ public:
       i++;
     }
     scopes.emplace_back();
+
+    if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
+
+      auto found = scopes[0].find("this");
+      assert (found != scopes[0].end());
+      ValueWithOffsets thisV = found->second;
+
+      for(auto expr : CC->inits()) {
+        assert(thisV.val);
+        mlir::Value toset = Visit(expr->getInit()).getValue(builder);
+        assert(thisV.isReference);
+
+        auto rd = expr->getMember()->getParent();
+        auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
+
+        FieldDecl *field = expr->getMember();
+        if (auto PT = thisV.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+          auto iTy = builder.getIntegerType(32);
+          mlir::Value vec[3] = {thisV.val, builder.create<mlir::ConstantOp>(
+            loc, iTy, builder.getIntegerAttr(iTy, 0)), builder.create<mlir::ConstantOp>(
+            loc, iTy, builder.getIntegerAttr(iTy, layout.getLLVMFieldNo(field)))};
+          builder.create<mlir::LLVM::StoreOp>(loc, toset, builder.create<mlir::LLVM::GEPOp>(loc, mlir::LLVM::LLVMPointerType::get(getMLIRType(expr->getInit()->getType()), PT.getAddressSpace()), vec));
+        }
+
+        mlir::Value offs[2] = {getConstantIndex(0), getConstantIndex(layout.getLLVMFieldNo(field))};
+        builder.create<mlir::memref::StoreOp>(loc, toset, thisV.val, offs);
+      }
+    }
 
     Stmt *stmt = fd->getBody();
     if (ShowAST) {
@@ -499,6 +533,8 @@ public:
   ValueWithOffsets VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
 
   ValueWithOffsets VisitCXXNewExpr(clang::CXXNewExpr *expr);
+
+  ValueWithOffsets VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
 };
 
 #endif
