@@ -302,6 +302,13 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
 
 static void replaceStore(memref::StoreOp store,
                          const SmallVector<Value, 2> &newIndexes) {
+  auto memrefType = store.getMemRef().getType().cast<MemRefType>();
+  int64_t rank = memrefType.getRank();
+  if (rank != newIndexes.size()) {
+    llvm::errs() << store << "\n";
+  }
+  assert(rank == newIndexes.size());
+
   OpBuilder builder(store);
   Location loc = store.getLoc();
   builder.create<AffineStoreOp>(loc, store.getValueToStore(), store.getMemRef(),
@@ -312,6 +319,14 @@ static void replaceStore(memref::StoreOp store,
 static void replaceLoad(memref::LoadOp load, const SmallVector<Value, 2> &newIndexes) {
   OpBuilder builder(load);
   Location loc = load.getLoc();
+
+  auto memrefType = load.getMemRef().getType().cast<MemRefType>();
+  int64_t rank = memrefType.getRank();
+  if (rank != newIndexes.size()) {
+    llvm::errs() << load << "\n";
+  }
+  assert(rank == newIndexes.size());
+
   AffineLoadOp affineLoad =
       builder.create<AffineLoadOp>(loc, load.getMemRef(), newIndexes);
   load.getResult().replaceAllUsesWith(affineLoad.getResult());

@@ -401,7 +401,22 @@ public:
 
     unsigned i = 0;
     if (auto CC = dyn_cast<CXXMethodDecl>(fd)) {
-      setValue("this", ValueWithOffsets(function.getArgument(i), /*isReference*/ true));
+      auto t = getMLIRType(CC->getThisType());
+
+      bool isArray = isa<clang::ArrayType>(CC->getThisType());
+      auto LLTy = cast<llvm::PointerType>(getLLVMType(CC->getThisType()))->getElementType();
+      bool LLVMABI = false;
+      if (Glob.getMLIRType(LLTy).isa<mlir::LLVM::LLVMPointerType>())
+        LLVMABI = true;
+      else if (isa<llvm::StructType>(LLTy)) {
+        isArray = true;
+      }
+      mlir::Value val = function.getArgument(i);
+      if (isArray) {
+        auto mt = t.cast<MemRefType>();
+        val = builder.create<memref::SubIndexOp>(loc, mt, val, getConstantIndex(-1));
+      }
+      setValue("this", ValueWithOffsets(val, /*isReference*/ true));
       i++;
     }
 
@@ -409,7 +424,25 @@ public:
       assert(i != function.getNumArguments());
       auto name = parm->getName().str();
       // function.getArgument(i).setName(name);
-      createAndSetAllocOp(name, function.getArgument(i), 0);
+
+      auto t = getMLIRType(parm->getType());
+
+      bool isArray = false;
+      auto LLTy = getLLVMType(parm->getType());
+      if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+        isArray = true;
+      }
+      mlir::Value val = function.getArgument(i);
+      if (isArray) {
+        auto mt = t.cast<MemRefType>();
+    auto shape = std::vector<int64_t>(mt.getShape());
+    shape.insert(shape.begin(), -1);
+    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                     mt.getAffineMaps(), mt.getMemorySpace());
+        //val = builder.create<memref::SubIndexOp>(loc, mt0, val, getConstantIndex(-1));
+        setValue(name, ValueWithOffsets(val, /*isReference*/ true));
+      } else
+        createAndSetAllocOp(name, val, 0);
       i++;
     }
     scopes.emplace_back();
@@ -468,8 +501,10 @@ public:
   VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
   ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral *expr);
+  ValueWithOffsets VisitCharacterLiteral(clang::CharacterLiteral *expr);
 
   ValueWithOffsets VisitFloatingLiteral(clang::FloatingLiteral *expr);
+  ValueWithOffsets VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueWithOffsets VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
 
