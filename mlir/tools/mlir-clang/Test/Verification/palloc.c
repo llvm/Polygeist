@@ -12,6 +12,7 @@ void use(double A[20]);
 
 void init_array (int n)
 {
+  int x;
   double (*B)[20] = (double(*)[20])polybench_alloc_data (20, sizeof(double)) ;
   (*B)[2] = 3.0;
   use(*B);

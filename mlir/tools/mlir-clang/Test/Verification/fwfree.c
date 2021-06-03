@@ -20,7 +20,6 @@ void init_array (int path[N])
 int main(int argc, char** argv)
 {
   /* Retrieve problem size. */
-
   /* Variable declaration/allocation. */
   //POLYBENCH_1D_ARRAY_DECL(path, int, N, n);
   int (*path)[N];

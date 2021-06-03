@@ -107,28 +107,34 @@ struct ValueWithOffsets {
 
   ValueWithOffsets dereference(OpBuilder &builder) const {
     assert(val);
-    if (!isReference)
-      return ValueWithOffsets(val, /*isReference*/ true);
+
     auto loc = builder.getUnknownLoc();
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
     if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
-      return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val),
-                              /*isReference*/ true);
+      if (!isReference)
+        return ValueWithOffsets(val, /*isReference*/ true);
+      else
+        return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val),
+                                /*isReference*/ true);
     }
+
+    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
     auto mt = val.getType().cast<mlir::MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
-    if (shape.size() > 1) {
-      shape.erase(shape.begin());
-    } else {
-      shape[0] = -1;
-      // builder.create<LoadOp>(loc, val, std::vector<mlir::Value>({c0}))
-    }
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
-    auto post = builder.create<memref::SubIndexOp>(loc, mt0, val, c0);
 
-    return ValueWithOffsets(post,
-                            /*isReference*/ true);
+    if (isReference) {
+      if (shape.size() > 1) {
+        shape.erase(shape.begin());
+        auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                        mt.getAffineMaps(), mt.getMemorySpace());
+        return ValueWithOffsets(builder.create<memref::SubIndexOp>(loc, mt0, val, c0), /*isReference*/true);
+      } else {
+        //shape[0] = -1;
+        return ValueWithOffsets(builder.create<memref::LoadOp>(loc, val, std::vector<mlir::Value>({c0})), /*isReference*/true);
+      }
+    }
+    //return ValueWithOffsets(val, /*isReference*/true);
+    //assert(shape.size() == 1);
+    return ValueWithOffsets(val, /*isReference*/true);
   }
 };
 
