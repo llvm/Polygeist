@@ -384,12 +384,14 @@ public:
 
 public:
   const FunctionDecl *EmittingFunctionDecl;
+  std::vector<ValueWithOffsets> params;
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module)
       : Glob(Glob), function(function), module(module),
         builder(module.getContext()), loc(builder.getUnknownLoc()), EmittingFunctionDecl(fd) {
     
     if (ShowAST) {
+      llvm::errs() << "Emitting fn: " << function.getName() << "\n";
       llvm::errs() << *fd << "\n";
     }
 
@@ -412,10 +414,10 @@ public:
         isArray = true;
       }
       mlir::Value val = function.getArgument(i);
-      if (isArray) {
-        auto mt = t.cast<MemRefType>();
-        val = builder.create<memref::SubIndexOp>(loc, mt, val, getConstantIndex(-1));
-      }
+      //if (isArray) {
+      //  auto mt = t.cast<MemRefType>();
+      //  val = builder.create<memref::SubIndexOp>(loc, mt, val, getConstantIndex(-1));
+      //}
       setValue("this", ValueWithOffsets(val, /*isReference*/ true));
       i++;
     }
@@ -431,7 +433,8 @@ public:
       auto LLTy = getLLVMType(parm->getType());
       if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
         isArray = true;
-      }
+      } else if (isa<clang::RValueReferenceType>(parm->getType()) || isa<clang::LValueReferenceType>(parm->getType()))
+        isArray = true;
       mlir::Value val = function.getArgument(i);
       if (isArray) {
         auto mt = t.cast<MemRefType>();
@@ -440,15 +443,14 @@ public:
     auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                      mt.getAffineMaps(), mt.getMemorySpace());
         //val = builder.create<memref::SubIndexOp>(loc, mt0, val, getConstantIndex(-1));
-        setValue(name, ValueWithOffsets(val, /*isReference*/ true));
+        params.emplace_back(val, /*isReference*/ true);
       } else
-        createAndSetAllocOp(name, val, 0);
+        params.emplace_back(createAndSetAllocOp(name, val, 0), /*isReference*/true);
       i++;
     }
     scopes.emplace_back();
 
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
-
       auto found = scopes[0].find("this");
       assert (found != scopes[0].end());
       ValueWithOffsets thisV = found->second;
@@ -523,6 +525,7 @@ public:
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
 
   ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
+  ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr, StringRef name, unsigned space);
 
   ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
 
@@ -570,6 +573,8 @@ public:
   ValueWithOffsets VisitCXXNewExpr(clang::CXXNewExpr *expr);
 
   ValueWithOffsets VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
+
+  ValueWithOffsets VisitCXXThisExpr(clang::CXXThisExpr *expr);
 };
 
 #endif

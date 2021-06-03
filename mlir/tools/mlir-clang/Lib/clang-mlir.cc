@@ -68,9 +68,18 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, std::string name,
     }
   } else {
     auto mt = t.cast<mlir::MemRefType>();
-    mr = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
+    auto shape = std::vector<int64_t>(mt.getShape());
+    auto pshape = shape[0];
+    if (pshape == -1)
+      shape[0] = 1;
+
+    mr = mlir::MemRefType::get(shape, mt.getElementType(),
                                mt.getAffineMaps(), memspace);
     alloc = builder.create<mlir::memref::AllocaOp>(loc, mr);
+
+    shape[0] = pshape;
+    alloc = builder.create<mlir::memref::CastOp>(loc, alloc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                    mt.getAffineMaps(), memspace));
   }
   assert(alloc);
   // NamedAttribute attrs[] = {NamedAttribute("name", name)};
@@ -169,6 +178,14 @@ ValueWithOffsets MLIRScanner::VisitParenExpr(clang::ParenExpr *expr) {
 
 ValueWithOffsets
 MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
+  auto Mty = getMLIRType(decl->getType());
+
+  if (Mty.isa<mlir::FloatType>())
+    return ValueWithOffsets(
+        builder.create<mlir::ConstantOp>(
+            loc, Mty, builder.getFloatAttr(Mty, 0.0)),
+        /*isReference*/ false);
+      ;
   for (auto child : decl->children()) {
     child->dump();
   }
@@ -186,18 +203,39 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   }
   mlir::Type subType = getMLIRType(decl->getType());
   mlir::Value inite = nullptr;
+  bool LLVMABI = false;
+
+  bool isArray = isa<clang::ArrayType>(decl->getType());
+  auto LLTy = getLLVMType(decl->getType());
+
+  if (Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>())
+    LLVMABI = true;
+
+  if (!LLVMABI && isa<llvm::StructType>(LLTy)) {
+    subType = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy));
+    isArray = true;
+  }
+
   if (auto init = decl->getInit()) {
-    if (!isa<InitListExpr>(init) && !isa<CXXConstructExpr>(init)) {
+    if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
+      return VisitConstructCommon(CE, decl->getName(), memtype);
+    }
+    if (!isa<InitListExpr>(init)) {
       auto visit = Visit(init);
       if (!visit.val) {
         decl->dump();
       }
-      inite = visit.getValue(builder);
-      if (!inite) {
-        init->dump();
-        assert(0 && inite);
+      if (isArray) {
+        assert(visit.isReference);
+        inite = visit.val;
+      } else {
+        inite = visit.getValue(builder);
+        if (!inite) {
+          init->dump();
+          assert(0 && inite);
+        }
+        subType = inite.getType();
       }
-      subType = inite.getType();
     }
   } else if (auto ava = decl->getAttr<AlignValueAttr>()) {
     if (auto algn = dyn_cast<clang::ConstantExpr>(ava->getAlignment())) {
@@ -206,31 +244,34 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
           if (IL->getValue() == 8192) {
             llvm::Type *T = Glob.CGM.getTypes().ConvertType(decl->getType());
             subType = Glob.typeTranslator.translateType(T);
+            LLVMABI = true;
             break;
           }
         }
       }
     }
   }
-  bool isArray = isa<clang::ArrayType>(decl->getType());
-  auto LLTy = getLLVMType(decl->getType());
-  bool LLVMABI = false;
-  if (Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>())
-    LLVMABI = true;
-  else if (isa<llvm::StructType>(LLTy)) {
-    isArray = true;
-  }
-  
-  decl->dump();
-  decl->getType()->dump();
-Glob.CGM.getTypes().ConvertType(decl->getType())->dump();
-  llvm::errs() << " subType: " << subType << " ia: " << (int)isArray << " labi: " << (int)LLVMABI << "\n";
-  
+
   auto op = createAllocOp(subType, decl->getName().str(), memtype, isArray, LLVMABI);
   mlir::Value zeroIndex = getConstantIndex(0);
   if (inite) {
-    assert(inite.getType() == op.getType().cast<MemRefType>().getElementType());
-    builder.create<mlir::memref::StoreOp>(loc, inite, op, zeroIndex);
+    if (isArray) {
+      assert(inite.getType().cast<MemRefType>().getElementType() == op.getType().cast<MemRefType>().getElementType());
+      assert(op.getType().cast<MemRefType>().getShape().size() == 2);
+      assert(inite.getType().cast<MemRefType>().getShape().size() == 2);
+      assert(inite.getType().cast<MemRefType>().getShape()[1] == op.getType().cast<MemRefType>().getShape()[1]);
+
+      for (size_t i = 0; i < subType.cast<MemRefType>().getShape()[1]; i++) {
+        std::vector<mlir::Value> idx = {zeroIndex, getConstantIndex(i)};
+        builder.create<mlir::memref::StoreOp>(loc, 
+          builder.create<mlir::memref::LoadOp>(loc, inite, idx), op, idx);
+      }
+
+    } else {
+      assert(inite.getType() == op.getType().cast<MemRefType>().getElementType());
+      assert(op.getType().cast<MemRefType>().getShape().size() == 1);
+      builder.create<mlir::memref::StoreOp>(loc, inite, op, zeroIndex);
+    }
   } else if (auto init = decl->getInit()) {
     if (auto il = dyn_cast<InitListExpr>(init)) {
       if (il->hasArrayFiller()) {
@@ -242,113 +283,14 @@ Glob.CGM.getTypes().ConvertType(decl->getType())->dump();
         }
         assert(subType.cast<MemRefType>().getShape().size() == 1);
         for (size_t i = 0; i < subType.cast<MemRefType>().getShape()[0]; i++) {
+          assert(inite.getType() == op.getType().cast<MemRefType>().getElementType());
+          assert(op.getType().cast<MemRefType>().getShape().size() == 1);
           builder.create<mlir::memref::StoreOp>(loc, inite, op,
                                                 getConstantIndex(i));
         }
       } else {
         init->dump();
         assert(0 && "init list expr unhandled");
-      }
-    } else if (auto cons = dyn_cast<CXXConstructExpr>(init)) {
-      llvm::errs() << " constructing " << decl->getName() << " LLVMABI: " << (int)LLVMABI << " - ";
-
-      auto RT =
-          cast<RecordType>(cons->getType()->getUnqualifiedDesugaredType());
-      if (RT->getDecl()->getName() == "double3") {
-        assert(cons->getNumArgs() == 0);
-        assert(subType.cast<MemRefType>().getShape().size() == 1);
-        auto ty = subType.cast<MemRefType>().getElementType();
-        auto cop = builder.create<mlir::ConstantOp>(
-            loc, ty, builder.getFloatAttr(ty, 0.0));
-        for (size_t i = 0; i < subType.cast<MemRefType>().getShape()[0]; i++) {
-          builder.create<mlir::memref::StoreOp>(loc, cop, op,
-                                                getConstantIndex(i));
-        }
-      } else {
-        SmallVector<mlir::Value> args;
-        args.push_back(op);
-        auto getLLVM = [&](Expr *E) -> mlir::Value {
-          if (auto IC1 = dyn_cast<ImplicitCastExpr>(E)) {
-            if (auto IC2 = dyn_cast<ImplicitCastExpr>(IC1->getSubExpr())) {
-              if (auto slit = dyn_cast<clang::StringLiteral>(IC2->getSubExpr())) {
-                return Glob.GetOrCreateGlobalLLVMString(loc, builder,
-                                                        slit->getString());
-              }
-            }
-            if (auto slit = dyn_cast<clang::StringLiteral>(IC1->getSubExpr())) {
-              return Glob.GetOrCreateGlobalLLVMString(loc, builder,
-                                                      slit->getString());
-            }
-          }
-          return Visit(E).getValue(builder);
-        };
-        for (auto a : cons->arguments()) {
-          if (LLVMABI)
-            args.push_back(getLLVM(a));
-          else {
-            auto arg = Visit(a);
-            if (!arg.val) {
-              decl->dump();
-              a->dump();
-            }
-            assert(arg.val);
-            bool isReference = a->isLValue();
-
-            bool isArray = false;
-            auto LLTy = getLLVMType(a->getType());
-            if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
-              isArray = true;
-            }
-
-        llvm::errs() << " const parm: "; a->dump(); llvm::errs() << " "; a->getType()->dump(); llvm::errs() << "\n";
-        llvm::errs() << " const LLVMABI: " << (int)LLVMABI << " isArray: " << (int)isArray << " LLTy " << *LLTy << " t: " << Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)) << "\n";
-
-            mlir::Value val;
-            if (!isReference) {
-              if (isArray) {
-                assert(arg.isReference);
-
-                auto mt = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
-
-                auto shape = std::vector<int64_t>(mt.getShape());
-                shape.erase(shape.begin());
-                assert(shape.size() == 1);
-
-                auto alloc = builder.create<mlir::memref::AllocaOp>(loc, mlir::MemRefType::get(shape, mt.getElementType(),
-                                                mt.getAffineMaps(), mt.getMemorySpace()));
-                for (size_t i = 0; i < shape[0]; i++) {
-                  builder.create<mlir::memref::StoreOp>(loc, builder.create<mlir::memref::LoadOp>(loc, arg.val, getConstantIndex(i)), alloc,
-                                                        getConstantIndex(i));
-                }
-                val = alloc;
-              } else
-                val = arg.getValue(builder);
-            } else {
-              assert(arg.isReference);
-
-              val = arg.val;
-
-
-
-              if (!isArray)
-              if (auto mt = val.getType().dyn_cast<MemRefType>()) {
-                auto shape = std::vector<int64_t>(mt.getShape());
-                shape[0] = 1;
-                val = builder.create<memref::CastOp>(loc, val, mlir::MemRefType::get(shape, mt.getElementType(),
-                                                mt.getAffineMaps(), mt.getMemorySpace()));
-              }
-              
-            }
-            llvm::errs() << " isReference: " << (int)isReference << " val: " << val << "\n";
-          }
-        }
-        if (LLVMABI) {
-          auto tocall = Glob.GetOrCreateLLVMFunction(cons->getConstructor());
-          builder.create<mlir::LLVM::CallOp>(loc, tocall, args);
-        } else {
-          auto tocall = Glob.GetOrCreateMLIRFunction(cons->getConstructor());
-          builder.create<mlir::CallOp>(loc, tocall, args);
-        }
       }
     } else
       assert(0 && "unknown init list");
@@ -360,10 +302,22 @@ ValueWithOffsets MLIRScanner::VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *e
   return Visit(expr->getExpr());
 }
 
+ValueWithOffsets MLIRScanner::VisitCXXThisExpr(clang::CXXThisExpr *expr) {
+  return scopes[0].find("this")->second;
+}
+
 // TODO actually deallocate
 ValueWithOffsets MLIRScanner::VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr) {
   auto v = Visit(expr->getSubExpr());
   assert(v.val);
+
+  bool isArray = isa<clang::ArrayType>(expr->getSubExpr()->getType());
+  auto LLTy = getLLVMType(expr->getSubExpr()->getType());
+
+  if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+    isArray = true;
+  }
+  if (isArray) return v;
 
   llvm::errs() << "cleanup of materialized not handled";
   auto op = createAllocOp(mlir::MemRefType::get(std::vector<int64_t>({1}), getMLIRType(expr->getSubExpr()->getType())), "", 0, /*isArray*/true, /*LLVMABI*/false);
@@ -373,7 +327,6 @@ ValueWithOffsets MLIRScanner::VisitMaterializeTemporaryExpr(clang::MaterializeTe
 }
 
 ValueWithOffsets MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
-  expr->dump();
   assert(!expr->getConstructExpr());
   assert(expr->isArray());
   //assert(expr->isGlobalNew());
@@ -750,6 +703,11 @@ mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
 
 ValueWithOffsets
 MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
+  return VisitConstructCommon(cons, /*name*/"", /*space*/0);
+}
+
+ValueWithOffsets
+MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons, StringRef name, unsigned memtype) {
   assert(cons->getConstructionKind() ==
          clang::CXXConstructExpr::ConstructionKind::CK_Complete);
 
@@ -760,9 +718,10 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
   if (Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else if (isa<llvm::StructType>(LLTy)) {
+    subType = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy));
     isArray = true;
   }
-  auto op = createAllocOp(subType, "", /*memtype*/0, isArray, LLVMABI);
+  auto op = createAllocOp(subType, name.str(), memtype, isArray, LLVMABI);
 
   SmallVector<mlir::Value> args;
   args.push_back(op);
@@ -782,65 +741,70 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
     return Visit(E).getValue(builder);
   };
   for (auto a : cons->arguments()) {
-          if (LLVMABI)
-            args.push_back(getLLVM(a));
-          else {
-            auto arg = Visit(a);
-            if (!arg.val) {
-              cons->dump();
-              a->dump();
-            }
-            assert(arg.val);
-            bool isReference = a->isLValue();
+    if (LLVMABI)
+      args.push_back(getLLVM(a));
+    else {
+      auto arg = Visit(a);
+      if (!arg.val) {
+        cons->dump();
+        a->dump();
+      }
+      assert(arg.val);
+      bool isReference = a->isLValue();
 
-            bool isArray = false;
-            auto LLTy = getLLVMType(a->getType());
-            if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
-              isArray = true;
-            }
+      bool isArray = false;
+      auto LLTy = getLLVMType(a->getType());
+      if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+        isArray = true;
+      }
 
-        llvm::errs() << " const parm: "; a->dump(); llvm::errs() << " "; a->getType()->dump(); llvm::errs() << "\n";
-        llvm::errs() << " const LLVMABI: " << (int)LLVMABI << " isArray: " << (int)isArray << " LLTy " << *LLTy << " t: " << Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)) << "\n";
+      mlir::Value val;
+      if (!isReference) {
+        if (isArray) {
+          assert(arg.isReference);
 
-            mlir::Value val;
-            if (!isReference) {
-              if (isArray) {
-                assert(arg.isReference);
+          auto mt = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
 
-                auto mt = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
+          auto shape = std::vector<int64_t>(mt.getShape());
+          auto pshape = shape[0];
+          if (pshape == -1)
+            shape[0] = 1;
+          assert(shape.size() == 2);
 
-                auto shape = std::vector<int64_t>(mt.getShape());
-                shape.erase(shape.begin());
-                assert(shape.size() == 1);
+          auto alloc = builder.create<mlir::memref::AllocaOp>(loc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                          mt.getAffineMaps(), mt.getMemorySpace()));
 
-                auto alloc = builder.create<mlir::memref::AllocaOp>(loc, mlir::MemRefType::get(shape, mt.getElementType(),
-                                                mt.getAffineMaps(), mt.getMemorySpace()));
-                for (size_t i = 0; i < shape[0]; i++) {
-                  builder.create<mlir::memref::StoreOp>(loc, builder.create<mlir::memref::LoadOp>(loc, arg.val, getConstantIndex(i)), alloc,
-                                                        getConstantIndex(i));
-                }
-                val = alloc;
-              } else
-                val = arg.getValue(builder);
-            } else {
-              assert(arg.isReference);
-
-              val = arg.val;
-
-
-
-              if (!isArray)
-              if (auto mt = val.getType().dyn_cast<MemRefType>()) {
-                auto shape = std::vector<int64_t>(mt.getShape());
-                shape[0] = 1;
-                val = builder.create<memref::CastOp>(loc, val, mlir::MemRefType::get(shape, mt.getElementType(),
-                                                mt.getAffineMaps(), mt.getMemorySpace()));
-              }
-              
-            }
-            llvm::errs() << " isReference: " << (int)isReference << " val: " << val << "\n";
-            args.push_back(val);
+          assert(arg.val.getType().cast<MemRefType>().getShape().size() == 2);
+          assert(alloc.getType().cast<MemRefType>().getShape().size() == 2);
+          assert(arg.val.getType().cast<MemRefType>().getShape()[1] == alloc.getType().cast<MemRefType>().getShape()[1]);
+          for (size_t i = 0; i < shape[1]; i++) {
+            std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
+            builder.create<mlir::memref::StoreOp>(loc, builder.create<mlir::memref::LoadOp>(loc, arg.val, idx), alloc,
+                                                  idx);
           }
+          shape[0] = pshape;
+          val = builder.create<mlir::memref::CastOp>(loc, alloc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                          mt.getAffineMaps(), mt.getMemorySpace()));
+        } else
+          val = arg.getValue(builder);
+      } else {
+        assert(arg.isReference);
+
+        val = arg.val;
+
+
+
+        if (!isArray)
+        if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+          auto shape = std::vector<int64_t>(mt.getShape());
+          shape[0] = 1;
+          val = builder.create<memref::CastOp>(loc, val, mlir::MemRefType::get(shape, mt.getElementType(),
+                                          mt.getAffineMaps(), mt.getMemorySpace()));
+        }
+        
+      }
+      args.push_back(val);
+    }
   }
   if (LLVMABI) {
     auto tocall = Glob.GetOrCreateMLIRFunction(cons->getConstructor());
@@ -854,7 +818,6 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
 
 ValueWithOffsets
 MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
-  expr->dump();
   auto moo = Visit(expr->getLHS());
 
   auto lhs = moo.getValue(builder);
@@ -892,11 +855,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   {
     auto mt = val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
-    // if (shape.size() > 1) {
-    //  shape.erase(shape.begin());
-    //} else {
     shape[0] = -1;
-    //}
     auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                      mt.getAffineMaps(), mt.getMemorySpace());
     auto post = builder.create<memref::SubIndexOp>(loc, mt0, val, idx);
@@ -1219,6 +1178,12 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       E->dump();
     }
     assert(sub.val);
+
+    bool isReference = E->isLValue();
+    if (isReference) {
+      assert(sub.isReference);
+      return sub.val;
+    }
     return sub.getValue(builder);
   };
 
@@ -1312,7 +1277,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() && funcs.count(sr->getDecl()->getName().str()) ||
-          (isa<CXXOperatorCallExpr>(expr))) {
+          (isa<CXXOperatorCallExpr>(expr) && Glob.getMLIRType(llvm::PointerType::getUnqual(getLLVMType(expr->getArg(0)->getType()))).isa<mlir::LLVM::LLVMPointerType>())) {
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1322,7 +1287,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
         auto called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
 
-        return ValueWithOffsets(called.getResult(0), /*isReference*/ false);
+        return ValueWithOffsets(called.getResult(0), /*isReference*/ expr->isLValue());
       }
     }
 
@@ -1410,6 +1375,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     args.push_back(arg.val);
     i++;
   }
+
   for (auto a : expr->arguments()) {
     auto arg = Visit(a);
     if (!arg.val) {
@@ -1450,16 +1416,25 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto mt = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
 
         auto shape = std::vector<int64_t>(mt.getShape());
-        shape.erase(shape.begin());
-        assert(shape.size() == 1);
+        assert(shape.size() == 2);
+
+        auto pshape = shape[0];
+        if (pshape == -1)
+          shape[0] = 1;
 
         auto alloc = builder.create<mlir::memref::AllocaOp>(loc, mlir::MemRefType::get(shape, mt.getElementType(),
                                         mt.getAffineMaps(), mt.getMemorySpace()));
-        for (size_t i = 0; i < shape[0]; i++) {
-          builder.create<mlir::memref::StoreOp>(loc, builder.create<mlir::memref::LoadOp>(loc, arg.val, getConstantIndex(i)), alloc,
-                                                getConstantIndex(i));
+        assert(arg.val.getType().cast<MemRefType>().getShape().size() == 2);
+        assert(alloc.getType().cast<MemRefType>().getShape().size() == 2);
+        assert(alloc.getType().cast<MemRefType>().getShape()[1] == arg.val.getType().cast<MemRefType>().getShape()[1]);
+        for (size_t i = 0; i < shape[1]; i++) {
+          std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
+          builder.create<mlir::memref::StoreOp>(loc, builder.create<mlir::memref::LoadOp>(loc, arg.val, idx), alloc,
+                                                idx);
         }
-        val = alloc;
+        shape[0] = pshape;
+        val = builder.create<mlir::memref::CastOp>(loc, alloc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                        mt.getAffineMaps(), mt.getMemorySpace()));
       } else
         val = arg.getValue(builder);
     } else {
@@ -1488,14 +1463,43 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
     */
 
-    llvm::errs() << " isReference: " << (int)isReference << " val: " << val << "\n";
     args.push_back(val);
     i++;
   }
+
+  auto LLTy = getLLVMType(expr->getType());
+
+  bool isArrayReturn = isa<clang::ArrayType>(expr->getType());
+  if (!LLTy->isVoidTy() && !Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+    isArrayReturn = true;
+  }
+
+    mlir::Value alloc;
+  if (isArrayReturn) {
+    auto mt = Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
+
+    auto shape = std::vector<int64_t>(mt.getShape());
+    assert(shape.size() == 2);
+
+    auto pshape = shape[0];
+    if (pshape == -1)
+      shape[0] = 1;
+
+    alloc = builder.create<mlir::memref::AllocaOp>(loc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                    mt.getAffineMaps(), mt.getMemorySpace()));          shape[0] = pshape;
+    alloc = builder.create<mlir::memref::CastOp>(loc, alloc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                          mt.getAffineMaps(), mt.getMemorySpace()));
+    args.push_back(alloc);
+  }
+
   auto op = builder.create<mlir::CallOp>(loc, tocall, args);
-  if (op.getNumResults())
+  if (isArrayReturn) {
+    // TODO remedy return
+    assert(!expr->isLValue());
+    return ValueWithOffsets(alloc, /*isReference*/ true);
+  } else if (op.getNumResults()) {
     return ValueWithOffsets(op.getResult(0), /*isReference*/ expr->isLValue());
-  else
+  } else
     return nullptr;
   llvm::errs() << "do not support indirecto call of " << tocall << "\n";
   assert(0 && "no indirect");
@@ -2135,9 +2139,11 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     if (auto PT = lhs.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>())
       builder.create<mlir::LLVM::StoreOp>(
           loc, tostore, lhs.val);
-    else
+    else {
+      assert(lhs.val.getType().cast<MemRefType>().getShape().size() == 1);
       builder.create<mlir::memref::StoreOp>(
           loc, tostore, lhs.val, std::vector<mlir::Value>({getConstantIndex(0)}));
+    }
     return lhs;
   }
 
@@ -2277,7 +2283,7 @@ ValueWithOffsets MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
   auto ret = Visit(E->getSubExpr());
   for (auto &child : E->children()) {
     child->dump();
-    llvm::errs() << "cleanup not handled";
+    llvm::errs() << "cleanup not handled\n";
   }
   return ret;
 }
@@ -2294,12 +2300,10 @@ ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     }
   }
 
+  if (auto PD = dyn_cast<ParmVarDecl>(E->getDecl())) {
+    return params[PD->getFunctionScopeIndex()];
+  }
   if (auto VD = dyn_cast<ValueDecl>(E->getDecl())) {
-    if (auto PD = dyn_cast<ParmVarDecl>(VD)) {
-      if (PD->getFunctionScopeIndex() == 0 && isa<CXXMethodDecl>(EmittingFunctionDecl)) {
-        return scopes[0].find("this")->second;
-      }
-    }
     if (name == "stderr" || name == "stdout" || name == "stdin" || (
       E->hasQualifier())) {
       return ValueWithOffsets(
@@ -2374,6 +2378,7 @@ ValueWithOffsets MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr 
   }
 
   mlir::Value offs[2] = {getConstantIndex(0), getConstantIndex(layout.getLLVMFieldNo(field))};
+  assert(thisV.val.getType().cast<MemRefType>().getShape().size() == 2);
   builder.create<mlir::memref::StoreOp>(loc, toset, thisV.val, offs);
   return nullptr;
 }
@@ -2401,6 +2406,9 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
   auto base = Visit(ME->getBase());
   QualType ty = ME->getBase()->getType();
   if (ME->isArrow()) {
+    if (!base.val) {
+      ME->dump();
+    }
     base = base.dereference(builder);
     ty = cast<clang::PointerType>(ty.getDesugaredType(Glob.astContext))
              ->getPointeeType();
@@ -2953,7 +2961,29 @@ ValueWithOffsets MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
 
 ValueWithOffsets MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   IfScope scope(*this);
-  if (stmt->getRetValue()) {
+  bool isArrayReturn = false;
+  auto LLTy = getLLVMType(EmittingFunctionDecl->getReturnType());
+  if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+    isArrayReturn = true;
+  }
+  
+  if (isArrayReturn) {
+    auto rv = Visit(stmt->getRetValue());
+    assert(rv.val);
+    assert(rv.isReference);
+    auto op = function.getArgument(function.getNumArguments()-1);
+      assert(rv.val.getType().cast<MemRefType>().getElementType() == op.getType().cast<MemRefType>().getElementType());
+      assert(op.getType().cast<MemRefType>().getShape().size() == 2);
+      assert(rv.val.getType().cast<MemRefType>().getShape().size() == 2);
+      assert(rv.val.getType().cast<MemRefType>().getShape()[1] == op.getType().cast<MemRefType>().getShape()[1]);
+
+      for (size_t i = 0; i < op.getType().cast<MemRefType>().getShape()[1]; i++) {
+        std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
+        builder.create<mlir::memref::StoreOp>(loc, 
+          builder.create<mlir::memref::LoadOp>(loc, rv.val, idx), op, idx);
+      }
+    builder.create<mlir::ReturnOp>(loc);
+  } else if (stmt->getRetValue()) {
     auto rv = Visit(stmt->getRetValue()).getValue(builder);
     assert(rv);
     builder.create<mlir::ReturnOp>(loc, rv);
@@ -2976,8 +3006,8 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
 
   std::vector<mlir::Type> types;
   if (auto CC = dyn_cast<CXXMethodDecl>(FD)) {
-    types.push_back(mlir::LLVM::LLVMPointerType::get(
-        typeTranslator.translateType(getLLVMType(CC->getThisType())), 0));
+    types.push_back(
+        typeTranslator.translateType(getLLVMType(CC->getThisType())));
   }
   for (auto parm : FD->parameters()) {
     types.push_back(
@@ -3017,7 +3047,6 @@ mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD)
 
 std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD) {
-  FD->dump();
   std::string name = CGM.getMangledName(FD).str();
 
   if (globals.find(name) != globals.end()) {
@@ -3098,16 +3127,12 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     bool isArray = isa<clang::ArrayType>(CC->getThisType());
     auto LLTy = cast<llvm::PointerType>(getLLVMType(CC->getThisType()))->getElementType();
     bool LLVMABI = false;
-    if (getMLIRType(LLTy).isa<mlir::LLVM::LLVMPointerType>())
-      LLVMABI = true;
-    else if (isa<llvm::StructType>(LLTy)) {
+    if (!getMLIRType(LLTy).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
       isArray = true;
     }
     if (auto mt = t.dyn_cast<MemRefType>()) {
       auto shape = std::vector<int64_t>(mt.getShape());
-      if (isArray)
-        shape.erase(shape.begin());
-      else
+      if (!isArray)
         shape[0] = 1;
       t = mlir::MemRefType::get(shape, mt.getElementType(),
                                       mt.getAffineMaps(), mt.getMemorySpace());
@@ -3136,36 +3161,46 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       auto t = getMLIRType(parm->getType());
 
       bool isArray = isa<clang::ArrayType>(parm->getType());
-      if (auto PT = dyn_cast<llvm::PointerType>(getLLVMType(parm->getType()))) {
-        auto LLTy = PT->getElementType();
-        bool LLVMABI = false;
-        if (getMLIRType(PT).isa<mlir::LLVM::LLVMPointerType>())
-          LLVMABI = true;
-        else if (isa<llvm::StructType>(LLTy)) {
+        auto LLTy =  getLLVMType(parm->getType());
+        if (!getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
           isArray = true;
         }
-        llvm::errs() << " parm: "; parm->dump(); llvm::errs() << " "; parm->getType()->dump(); llvm::errs() << "\n";
-        llvm::errs() << " LLVMABI: " << (int)LLVMABI << " isArray: " << (int)isArray << " LLTy " << *LLTy << " t: " << t << "\n";
-        if (auto mt = t.dyn_cast<MemRefType>()) {
+        if (isArray) {
+          auto mt = getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
           auto shape = std::vector<int64_t>(mt.getShape());
-          if (isArray)
-            shape.erase(shape.begin());
-          else if (parm->getType()->isReferenceType())
+          if (!isArray && parm->getType()->isReferenceType())
             shape[0] = 1;
           t = mlir::MemRefType::get(shape, mt.getElementType(),
                                           mt.getAffineMaps(), mt.getMemorySpace());
         }
-      }
 
       types.push_back(t);
     }
     names.push_back(parm->getName().str());
   }
 
-  auto rt = getMLIRType(FD->getReturnType());
+  auto LLTy = getLLVMType(FD->getReturnType());
+
+  bool isArrayReturn = isa<clang::ArrayType>(FD->getReturnType());
+  if (!LLTy->isVoidTy() && !getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
+    isArrayReturn = true;
+  }
+
   std::vector<mlir::Type> rettypes;
-  if (!rt.isa<mlir::NoneType>()) {
-    rettypes.push_back(rt);
+
+  if (isArrayReturn) {
+    auto mt = getMLIRType(llvm::PointerType::getUnqual(LLTy)).cast<MemRefType>();
+
+    auto shape = std::vector<int64_t>(mt.getShape());
+    assert(shape.size() == 2);
+
+    types.push_back( mlir::MemRefType::get(shape, mt.getElementType(),
+                                    mt.getAffineMaps(), mt.getMemorySpace()));
+  } else {
+    auto rt = getMLIRType(FD->getReturnType());
+    if (!rt.isa<mlir::NoneType>()) {
+      rettypes.push_back(rt);
+    }
   }
   mlir::OpBuilder builder(module.getContext());
   auto funcType = builder.getFunctionType(types, rettypes);
@@ -3320,11 +3355,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       if (recursive || notAllSame) {
         return typeTranslator.translateType(t);
       }
-      if (!notAllSame) {
-        return mlir::MemRefType::get({-1, ST->getNumElements()},
-                                     getMLIRType(ST->getTypeAtIndex(0U)), {},
-                                     pt->getAddressSpace());
-      }
+      assert(!notAllSame);
+      return mlir::MemRefType::get({-1, ST->getNumElements()},
+                                    getMLIRType(ST->getTypeAtIndex(0U)), {},
+                                    pt->getAddressSpace());
     }
     if (auto AT = dyn_cast<llvm::ArrayType>(pt->getElementType())) {
       auto under = getMLIRType(AT);
