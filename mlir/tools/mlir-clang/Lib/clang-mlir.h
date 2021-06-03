@@ -110,6 +110,7 @@ struct ValueWithOffsets {
     assert(val);
     auto loc = builder.getUnknownLoc();
     if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      assert(toStore.getType() == PT.getElementType());
       builder.create<mlir::LLVM::StoreOp>(
           loc, toStore, val);
     } else {
@@ -257,6 +258,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
+  std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   std::map<std::string, mlir::FuncOp> &functions;
   Preprocessor &PP;
   ASTContext &astContext;
@@ -277,10 +279,13 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::set<std::string> &emitIfFound,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
-      std::map<std::string, mlir::FuncOp> &functions, Preprocessor &PP,
+      std::map<std::string, mlir::FuncOp> &functions,
+      std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
+      Preprocessor &PP,
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
-        globals(globals), functions(functions), PP(PP), astContext(astContext),
+        globals(globals), functions(functions), llvmFunctions(llvmFunctions),
+        PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
         codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
@@ -295,7 +300,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
-  std::map<const FunctionDecl *, mlir::LLVM::LLVMFuncOp> llvmFunctions;
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
 
   std::map<const ValueDecl *, mlir::LLVM::GlobalOp> llvmGlobals;
@@ -425,9 +429,8 @@ public:
     builder.setInsertionPointToStart(entryBlock);
 
     unsigned i = 0;
-    if (auto CC = dyn_cast<CXXMethodDecl>(fd)) {
-      auto t = getMLIRType(CC->getThisType());
-
+    if (isa<CXXMethodDecl>(fd)) {
+      /*
       bool isArray = isa<clang::ArrayType>(CC->getThisType());
       auto LLTy = cast<llvm::PointerType>(getLLVMType(CC->getThisType()))->getElementType();
       bool LLVMABI = false;
@@ -436,6 +439,7 @@ public:
       else if (isa<llvm::StructType>(LLTy)) {
         isArray = true;
       }
+      */
       mlir::Value val = function.getArgument(i);
       //if (isArray) {
       //  auto mt = t.cast<MemRefType>();
@@ -450,8 +454,6 @@ public:
       auto name = parm->getName().str();
       // function.getArgument(i).setName(name);
 
-      auto t = getMLIRType(parm->getType());
-
       bool isArray = false;
       auto LLTy = getLLVMType(parm->getType());
       if (!Glob.getMLIRType(llvm::PointerType::getUnqual(LLTy)).isa<mlir::LLVM::LLVMPointerType>() && isa<llvm::StructType>(LLTy)) {
@@ -460,12 +462,6 @@ public:
         isArray = true;
       mlir::Value val = function.getArgument(i);
       if (isArray) {
-        auto mt = t.cast<MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
-    shape.insert(shape.begin(), -1);
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
-        //val = builder.create<memref::SubIndexOp>(loc, mt0, val, getConstantIndex(-1));
         params.emplace_back(val, /*isReference*/ true);
       } else
         params.emplace_back(createAndSetAllocOp(name, val, 0), /*isReference*/true);
@@ -598,6 +594,8 @@ public:
   ValueWithOffsets VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
 
   ValueWithOffsets VisitCXXThisExpr(clang::CXXThisExpr *expr);
+
+  ValueWithOffsets VisitPredefinedExpr(clang::PredefinedExpr *expr);
 };
 
 #endif

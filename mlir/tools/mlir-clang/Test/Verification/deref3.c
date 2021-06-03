@@ -17,6 +17,6 @@ void kernel_deriche(long* __attribute__((align_value(8192))) in) {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// CHECK:  func @deref(%arg0: i32) -> i32 {
-// CHECK-NEXT:    return %arg0 : i32
+// CHECK:  func @deref(%arg0: i64) -> i64 {
+// CHECK-NEXT:    return %arg0 : i64
 // CHECK-NEXT:  }
