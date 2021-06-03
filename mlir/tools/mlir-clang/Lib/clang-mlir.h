@@ -105,6 +105,23 @@ struct ValueWithOffsets {
                                           std::vector<mlir::Value>({c0}));
   }
 
+  void store(OpBuilder &builder, mlir::Value toStore) const {
+    assert(isReference);
+    assert(val);
+    auto loc = builder.getUnknownLoc();
+    if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      builder.create<mlir::LLVM::StoreOp>(
+          loc, toStore, val);
+    } else {
+      assert(val.getType().cast<MemRefType>().getShape().size() == 1);
+      assert(toStore.getType() ==
+            val.getType().cast<MemRefType>().getElementType());
+      auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+      builder.create<mlir::memref::StoreOp>(
+          loc, toStore, val, std::vector<mlir::Value>({c0}));
+    }
+  }
+
   ValueWithOffsets dereference(OpBuilder &builder) const {
     assert(val);
 

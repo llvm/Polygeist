@@ -1648,10 +1648,7 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
                                               ty.cast<mlir::IntegerType>()));
     }
     llvm::errs() << "N: " << next << " - V: " << sub.val << " \n";
-    assert(next.getType() ==
-           sub.val.getType().cast<MemRefType>().getElementType());
-    builder.create<mlir::memref::StoreOp>(
-        loc, next, sub.val, std::vector<mlir::Value>({getConstantIndex(0)}));
+    sub.store(builder, next);
     return ValueWithOffsets(
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
                                                                      : next,
@@ -1676,8 +1673,7 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     }
     assert(next.getType() ==
            sub.val.getType().cast<MemRefType>().getElementType());
-    builder.create<mlir::memref::StoreOp>(
-        loc, next, sub.val, std::vector<mlir::Value>({getConstantIndex(0)}));
+    sub.store(builder, next);
     return ValueWithOffsets(
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
                                                                      : next,
