@@ -256,6 +256,7 @@ struct PragmaEndScopHandler : public PragmaHandler {
 
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
+  std::set<std::string> &done;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
@@ -277,13 +278,14 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   MLIRASTConsumer(
       std::set<std::string> &emitIfFound,
+      std::set<std::string> &done,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP,
       ASTContext &astContext, mlir::ModuleOp &module, clang::SourceManager &SM)
-      : emitIfFound(emitIfFound), llvmStringGlobals(llvmStringGlobals),
+      : emitIfFound(emitIfFound), done(done), llvmStringGlobals(llvmStringGlobals),
         globals(globals), functions(functions), llvmFunctions(llvmFunctions),
         PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
@@ -315,7 +317,6 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const ValueDecl *VD);
 
   std::deque<const FunctionDecl *> functionsToEmit;
-  std::set<const FunctionDecl *> done;
 
   void run();
 
@@ -521,6 +522,7 @@ public:
   ValueWithOffsets
   VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
+  ValueWithOffsets VisitConstantExpr(clang::ConstantExpr *expr);
   ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral *expr);
   ValueWithOffsets VisitCharacterLiteral(clang::CharacterLiteral *expr);
 
