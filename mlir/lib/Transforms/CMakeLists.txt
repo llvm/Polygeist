@@ -16,6 +16,7 @@ add_mlir_library(MLIRTransforms
   LoopRestructure.cpp
   Mem2Reg.cpp
   MemRefDataFlowOpt.cpp
+  MemRefDataFlowOptPolygeist.cpp
   NormalizeMemRefs.cpp
   OpStats.cpp
   ParallelLower.cpp
