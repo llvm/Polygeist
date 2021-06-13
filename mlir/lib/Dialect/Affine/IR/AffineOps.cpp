@@ -2624,10 +2624,10 @@ struct SimplifyKnownCondition : public OpRewritePattern<AffineIfOp> {
     return success();
   }
 };
-*/
+
 
 } // end namespace
-
+*/
 void AffineIfOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   results.add<SimplifyDeadElse, AlwaysTrueOrFalseIf>(context);
