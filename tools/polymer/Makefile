@@ -8,7 +8,7 @@ build-docker: test-docker
 	echo "Polymer has been installed successfully!"
 
 test-docker:
-	(cd docker; docker build --build-arg UID=$(user) --build-arg GID=$(group) . --tag polymer20)
+	(cd Docker; docker build --build-arg UID=$(user) --build-arg GID=$(group) . --tag polymer20)
 
 shell:
 	docker run -it -v $(shell pwd):/workspace polymer20:latest /bin/bash
