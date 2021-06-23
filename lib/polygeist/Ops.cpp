@@ -160,13 +160,11 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
 
   LogicalResult matchAndRewrite(SubIndexOp subindex,
                                 PatternRewriter &rewriter) const override {
-
-    llvm::errs() << "subindex: " << subindex << "\n";
     bool changed = false;
  
     for (OpOperand &use :
         llvm::make_early_inc_range(subindex->getUses())) {
-            llvm::errs() << " + use: " << use.getOwner() << "\n";
+        rewriter.setInsertionPoint(use.getOwner());
         if (auto dealloc = dyn_cast<memref::DeallocOp>(use.getOwner())) {
             changed = true;
             rewriter.replaceOpWithNewOp<memref::DeallocOp>(dealloc, subindex.source());
