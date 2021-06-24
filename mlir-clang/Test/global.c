@@ -13,8 +13,8 @@ int main() {
 
 // CHECK:  memref.global "private" @A : memref<64x32xf32>
 // CHECK-NEXT:  func @main() -> i32 {
-// CHECK-NEXT:    %c0_i32 = constant 0 : i32
 // CHECK-NEXT:    %cst = constant 3.000000e+00 : f64
+// CHECK-NEXT:    %c0_i32 = constant 0 : i32
 // CHECK-NEXT:    affine.for %arg0 = 0 to 64 {
 // CHECK-NEXT:      affine.for %arg1 = 0 to 32 {
 // CHECK-NEXT:    %0 = memref.get_global @A : memref<64x32xf32>

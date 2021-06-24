@@ -169,42 +169,60 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
             changed = true;
             rewriter.replaceOpWithNewOp<memref::DeallocOp>(dealloc, subindex.source());
         } else if (auto loadOp = dyn_cast<memref::LoadOp>(use.getOwner())) {
+          if (loadOp.memref() == subindex) {
             SmallVector<Value, 4> indices = loadOp.indices();
             if (subindex.getType().cast<MemRefType>().getShape().size()
                 == 
                 subindex.source().getType().cast<MemRefType>().getShape().size()
             ) {
+              assert(indices.size() > 0);
                 indices[0] = rewriter.create<AddIOp>(subindex.getLoc(), indices[0], subindex.index());
             } else {
             if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
                 subindex.source().getType().cast<MemRefType>().getShape().size())
                 indices.insert(indices.begin(), subindex.index());
-            else
+            else {
+              assert(indices.size() > 0);
                 indices.erase(indices.begin());
             }
+            }
 
+            assert(subindex.source().getType().cast<MemRefType>().getShape().size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp,
                                                 subindex.source(), indices);
             changed = true;
+        }
         } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
+          if (storeOp.memref() == subindex) {
             SmallVector<Value, 4> indices = storeOp.indices();
             if (subindex.getType().cast<MemRefType>().getShape().size()
                 == 
                 subindex.source().getType().cast<MemRefType>().getShape().size()
             ) {
+              assert(indices.size() > 0);
                 indices[0] = rewriter.create<AddIOp>(subindex.getLoc(), indices[0], subindex.index());
             } else {
             if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
                 subindex.source().getType().cast<MemRefType>().getShape().size())
                 indices.insert(indices.begin(), subindex.index());
-            else
+            else {            
+                if (indices.size() == 0) {
+                  llvm::errs() << " storeOp: " << storeOp << " - subidx: " << subindex << "\n";
+                }
+                assert(indices.size() > 0);
                 indices.erase(indices.begin());
             }
+            }
 
+            if (subindex.source().getType().cast<MemRefType>().getShape().size() != indices.size()) {
+              llvm::errs() << " storeOp: " << storeOp << " - subidx: " << subindex << "\n";
+            }
+            assert(subindex.source().getType().cast<MemRefType>().getShape().size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::StoreOp>(storeOp,
                                                 storeOp.value(),
                                                 subindex.source(), indices);
             changed = true;
+          }
         }
     }
 

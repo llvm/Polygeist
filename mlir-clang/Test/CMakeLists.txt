@@ -1,6 +1,6 @@
 set(MLIR_CLANG_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(MLIR_CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(CLANG_HEADER_DIR ${LLVM_MAIN_SRC_DIR}/../clang/lib/Headers)
+set(CLANG_HEADER_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/../clang/lib/Headers)
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in

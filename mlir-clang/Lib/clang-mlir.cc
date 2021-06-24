@@ -414,6 +414,10 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
   builder.setInsertionPointToEnd(&reg.front());
 
+  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  er.region().push_back(new Block());
+  builder.setInsertionPointToStart(&er.region().back());
+
   if (!descr.getForwardMode()) {
     val = builder.create<mlir::SubIOp>(loc, val, lb);
     val = builder.create<mlir::SubIOp>(
@@ -424,6 +428,9 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
   // TODO: set loop context.
   Visit(fors->getBody());
+  builder.create<scf::YieldOp>(loc);
+
+  builder.setInsertionPointToEnd(&reg.front());
   builder.create<AffineYieldOp>(loc);
 
   // TODO: set the value of the iteration value to the final bound at the
@@ -2793,6 +2800,10 @@ void MLIRScanner::pushLoopIf() {
     prevIterator.push_back(builder.getInsertionPoint());
     ifOp.thenRegion().back().clear();
     builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+    builder.create<scf::YieldOp>(loc);
+    er.region().push_back(new Block());
+    builder.setInsertionPointToStart(&er.region().back());
   }
 }
 
@@ -2910,6 +2921,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
+  if (ResourceDir != "") {
+    Argv.push_back("-resource-dir");
+    char *chars = (char *)malloc(ResourceDir.length() + 1);
+    memcpy(chars, ResourceDir.data(), ResourceDir.length());
+    chars[ResourceDir.length()] = 0;
+    Argv.push_back(chars);
+  }
   for (auto a : includeDirs) {
     Argv.push_back("-I");
     char *chars = (char *)malloc(a.length() + 1);
@@ -2956,6 +2974,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
       Clang->getHeaderSearchOpts().ResourceDir =
           CompilerInvocation::GetResourcesPath(Argv0, GetExecutablePathVP);
 
+    llvm::errs() << " resourcedir: " << Clang->getHeaderSearchOpts().ResourceDir << "\n";
     //}
     Clang->getInvocation().getFrontendOpts().DisableFree = false;
 

@@ -424,6 +424,13 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   }
   return false;
 }
+bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
+  for(size_t i=0; i<map->getNumInputs(); ++i) {
+    auto v = (*operands)[i];
+    if (legalCondition(v, true, i < map->getNumDims())) return true;
+  }
+  return false;
+}
 
 void fully2ComposeAffineMapAndOperands(AffineMap *map,
                                             SmallVectorImpl<Value> *operands) {
@@ -436,6 +443,42 @@ void fully2ComposeAffineMapAndOperands(AffineMap *map,
     composeAffineMapAndOperands(map, operands);
     assert(map->getNumInputs() == operands->size());
     //llvm::errs() << "post: " << *map << "\n";
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+  }
+}
+
+static void composeIntegerSetAndOperands(IntegerSet *set,
+                                        SmallVectorImpl<Value> *operands) {
+  auto amap = AffineMap::get(set->getNumDims(), set->getNumSymbols(), set->getConstraints(), set->getContext());
+  AffineApplyNormalizer normalizer(amap, *operands);
+  auto normalizedMap = normalizer.getAffineMap();
+  auto normalizedOperands = normalizer.getOperands();
+  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  *set = IntegerSet::get(normalizedMap.getNumDims(), normalizedMap.getNumSymbols(), normalizedMap.getResults(), set->getEqFlags());
+  *operands = normalizedOperands;
+}
+
+void fully2ComposeIntegerSetAndOperands(IntegerSet *set,
+                                            SmallVectorImpl<Value> *operands) {
+
+    //llvm::errs() << "tpre: ";
+    //set->dump(); llvm::errs() << "\n";
+
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+  while (need(set, operands)) {
+    //llvm::errs() << "pre: ";
+    //set->dump(); llvm::errs() << "\n";
+
+    //for(auto op : *operands) {
+    //  llvm::errs() << " -- operands: " << op << "\n";
+    //}
+    composeIntegerSetAndOperands(set, operands);
+    //llvm::errs() << "post: ";
+    //set->dump(); llvm::errs() << "\n";
     //for(auto op : *operands) {
     //  llvm::errs() << " -- operands: " << op << "\n";
     //}
@@ -970,6 +1013,32 @@ struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
   }
 };
 
+struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op, PatternRewriter &rewriter) const override {
+    SmallVector<Value, 4> operands(op.getOperands());
+    SmallVector<Value, 4> origOperands(operands);
+    
+    auto map = op.getIntegerSet();
+    auto prevMap = map;
+
+    //llvm::errs() << "*********\n";
+    //ubMap.dump();
+
+    fully2ComposeIntegerSetAndOperands(&map, &operands);
+    canonicalizeSetAndOperands(&map, &operands);
+
+    // map(s).
+    if (map == prevMap && !areChanged(operands, origOperands))
+      return failure();
+
+    op.setConditional(map, operands);
+
+    return success();
+  }
+};
+
 void AffineCFGPass::runOnFunction() {
   getFunction().walk([&](scf::IfOp ifOp) {
     if (inAffine(ifOp)) {
@@ -1085,11 +1154,13 @@ void AffineCFGPass::runOnFunction() {
     rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply, 
             CanonicalizeIndexCast, IndexCastMovement,
             AffineFixup<AffineLoadOp>, AffineFixup<AffineStoreOp>,
+            CanonicalizIfBounds,
             MoveStoreToAffine, MoveLoadToAffine, CanonicalieForBounds>(getFunction().getContext());
     GreedyRewriteConfig config;
     applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
                                  config);
   }
+  getFunction().dump();
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {

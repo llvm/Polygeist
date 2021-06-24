@@ -53,6 +53,9 @@ static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
 static cl::opt<std::string> MArch("march", cl::init(""),
                                   cl::desc("Architecture"));
 
+static cl::opt<std::string> ResourceDir("resource-dir", cl::init(""),
+                                  cl::desc("Resource-dir"));
+
 static cl::opt<bool>
     showDialects("show-dialects",
                  llvm::cl::desc("Print the list of registered dialects"),
@@ -144,7 +147,7 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createLoopRestructurePass());
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createAffineScalarReplacementPass());
+    //optPM.addPass(mlir::createAffineScalarReplacementPass());
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     if (RaiseToAffine) {
