@@ -16,6 +16,6 @@
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 #define GET_OP_CLASSES
-#include "Polygeist/PolygeistOps.h.inc"
+#include "polygeist/PolygeistOps.h.inc"
 
 #endif // BFV_BFVOPS_H
