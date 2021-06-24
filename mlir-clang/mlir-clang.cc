@@ -157,8 +157,6 @@ int main(int argc, char **argv) {
       optPM.addPass(polygeist::createRaiseSCFToAffinePass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
     }
-    if (DetectReduction)
-      optPM.addPass(polygeist::detectReductionPass());
     if (mlir::failed(pm.run(module))) {
       module.dump();
       return 4;
@@ -167,11 +165,14 @@ int main(int argc, char **argv) {
       module.dump();
       return 5;
     }
-
+  module.dump();
 #define optPM optPM2
 #define pm pm2
     mlir::PassManager pm(&context);
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+
+    if (DetectReduction)
+      optPM.addPass(polygeist::detectReductionPass());
 
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());

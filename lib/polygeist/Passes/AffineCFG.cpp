@@ -1160,7 +1160,6 @@ void AffineCFGPass::runOnFunction() {
     applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
                                  config);
   }
-  getFunction().dump();
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {

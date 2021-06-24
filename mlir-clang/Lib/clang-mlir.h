@@ -19,7 +19,8 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "mlir/Target/LLVMIR/TypeTranslation.h"
+#include "mlir/Target/LLVMIR/TypeFromLLVM.h"
+#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/IR/DerivedTypes.h"
 
 #include "polygeist/Ops.h"

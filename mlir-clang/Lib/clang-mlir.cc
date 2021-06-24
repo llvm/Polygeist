@@ -2973,8 +2973,6 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
         Clang->getHeaderSearchOpts().ResourceDir.size() == 0)
       Clang->getHeaderSearchOpts().ResourceDir =
           CompilerInvocation::GetResourcesPath(Argv0, GetExecutablePathVP);
-
-    llvm::errs() << " resourcedir: " << Clang->getHeaderSearchOpts().ResourceDir << "\n";
     //}
     Clang->getInvocation().getFrontendOpts().DisableFree = false;
 

@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s | FileCheck %s
+// RUN: mlir-clang %s %stdinclude | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>
