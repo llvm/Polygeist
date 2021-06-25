@@ -128,13 +128,13 @@ llvm::raw_ostream& operator<<(llvm::raw_ostream& os, Wrapper& w) {
 template<typename T>
 struct Iter : public std::iterator<
                         std::input_iterator_tag,   // iterator_category
+                        Wrapper*,
+                        std::ptrdiff_t,
+                        Wrapper**,
                         Wrapper* > {
  T it;
  Iter(T it) : it(it) {}
- Wrapper* operator*() const {
-   Block* B = *it;
-   return (Wrapper*)B;
- }
+ Wrapper* operator*() const;
  bool operator!=(Iter I) const {
    return it != I.it;
  }
@@ -144,6 +144,9 @@ struct Iter : public std::iterator<
  void operator++() {
    ++it;
  }
+ Iter<T> operator--() {
+   return --it;
+ }
  Iter<T> operator++(int) {
    auto prev = *this;
    it++;
@@ -151,7 +154,46 @@ struct Iter : public std::iterator<
  }
 };
 
+template<>
+ Wrapper* Iter<Region::iterator>::operator*() const {
+   Block& B = *it;
+   return (Wrapper*)&B;
+ }
+template<>
+ Wrapper* Iter<Region::reverse_iterator>::operator*() const {
+   Block& B = *it;
+   return (Wrapper*)&B;
+ }
+
+template<typename T>
+ Wrapper* Iter<T>::operator*() const {
+   Block* B = *it;
+   return (Wrapper*)B;
+ }
+
 namespace llvm {
+template <>
+struct GraphTraits<RWrapper *> {
+  using nodes_iterator = Iter<Region::iterator>;
+  static Wrapper* getEntryNode(RWrapper* bb) { return (Wrapper*)&((Region*)bb)->front(); }
+  static nodes_iterator nodes_begin(RWrapper* bb) {
+    return ((Region*)bb)->begin();
+  }
+  static nodes_iterator nodes_end(RWrapper* bb) {
+    return ((Region*)bb)->end();
+  }
+};
+template <>
+struct GraphTraits<Inverse<RWrapper *>> {
+  using nodes_iterator = Iter<Region::reverse_iterator>;
+  static Wrapper* getEntryNode(RWrapper* bb) { return (Wrapper*)&((Region*)bb)->front(); }
+  static nodes_iterator nodes_begin(RWrapper* bb) {
+    return ((Region*)bb)->rbegin();
+  }
+  static nodes_iterator nodes_end(RWrapper* bb) {
+    return ((Region*)bb)->rend();
+  }
+};
 template <>
 struct GraphTraits<const Wrapper *> {
   using ChildIteratorType = Iter<Block::succ_iterator>;
@@ -231,9 +273,11 @@ struct LoopRestructure : public mlir::LoopRestructureBase<LoopRestructure> {
 // Instantiate a variant of LLVM LoopInfo that works on mlir::Block
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopInfoImpl.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
 
 template class llvm::DominatorTreeBase<Wrapper, false>;
 template class llvm::DomTreeNodeBase<Wrapper>;
+//template void llvm::DomTreeBuilder::ApplyUpdates<llvm::DominatorTreeBase<Wrapper, false>>;
 
 namespace mlir {
 class Loop : public llvm::LoopBase<Wrapper, mlir::Loop> {
