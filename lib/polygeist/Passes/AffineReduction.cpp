@@ -142,12 +142,14 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     // llvm::errs() << "#candidateOpsInFor: " << candidateOpsInFor.size() <<
     // "\n";
 
-    // llvm::errs() << "candidateOpsInFor\n";
-    // for (auto pair : candidateOpsInFor) {
-    //   std::get<0>(pair)->dump();
-    //   std::get<1>(pair)->dump();
-    // }
-    // llvm::errs() << "-for-\n";
+    /*
+     llvm::errs() << "candidateOpsInFor\n";
+     for (auto pair : candidateOpsInFor) {
+       std::get<0>(pair)->dump();
+       std::get<1>(pair)->dump();
+     }
+     llvm::errs() << "-for-\n";
+     */
     // forOp.dump();
     // llvm::errs() << "------------\n";
 
@@ -170,10 +172,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 
     // remove load operation inside the for.
     size_t i = 0;
+    size_t origNumRegionArgs = forOp.getNumRegionIterArgs();
     for (auto pair : candidateOpsInFor) {
       std::get<0>(pair)->getResult(0).replaceAllUsesWith(
           newForOp.getBody()
-              ->getArguments()[i + forOp.getNumRegionIterArgs() + 1]);
+              ->getArguments()[i + origNumRegionArgs + 1]);
       rewriter.eraseOp(std::get<0>(pair));
       ++i;
     }
@@ -182,7 +185,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     Block *oldBlock = forOp.getBody();
     SmallVector<Value, 4> newBlockTransferArgs;
     newBlockTransferArgs.push_back(newForOp.getInductionVar());
-    for (size_t i = 0; i < forOp.getNumRegionIterArgs(); i++)
+    for (size_t i = 0; i < origNumRegionArgs; i++)
       newBlockTransferArgs.push_back(newForOp.getRegionIterArgs()[i]);
     assert(oldBlock->getNumArguments() == newBlockTransferArgs.size() &&
            "unexpected argument size mismatch");
@@ -196,14 +199,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         newOperands.push_back(std::get<1>(pair)->getOperand(0));
         // rewriter.eraseOp(std::get<1>(pair));
       }
-      OpBuilder::InsertionGuard g(rewriter);
-      rewriter.setInsertionPoint(mergedTerminator);
-      rewriter.create<AffineYieldOp>(mergedTerminator.getLoc(), newOperands);
+      mergedTerminator.operandsMutable().assign(newOperands);
     };
 
     auto mergedYieldOp = cast<AffineYieldOp>(newBlock->getTerminator());
     cloneFilteredTerminator(mergedYieldOp);
-    rewriter.eraseOp(mergedYieldOp);
 
     // prepare for new yielded value for 'replaceOp'.
     SmallVector<Value, 4> newYieldedRes;
@@ -218,12 +218,24 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     // element is the result of the for.
     assert(candidateOpsInFor.size() == loadsInFor.size());
     i = 0;
+
+    DominanceInfo DT;
+    PostDominanceInfo PDT;
     for (auto pair : candidateOpsInFor) {
       auto store = cast<AffineStoreOp>(std::get<1>(pair));
 
       auto loads = loadsInFor[i];
-      for (auto load : loads)
-        load->getResult(0).replaceAllUsesWith(store.getOperand(0));
+      for (auto load : loads) {
+        if (PDT.postDominates(store, load)) {
+          load->getResult(0).replaceAllUsesWith(newForOp.getBody()
+              ->getArguments()[i + origNumRegionArgs + 1]);
+        } else if (DT.dominates(store, load)) {
+          load->getResult(0).replaceAllUsesWith(store.getOperand(0));
+        } else {
+
+          assert(0 && "illegal behavior");
+        }
+      }
 
       rewriter.setInsertionPointAfter(newForOp);
       rewriter.create<AffineStoreOp>(
@@ -242,15 +254,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 } // end namespace.
 
 void AffineReductionPass::runOnFunction() {
-  // getFunction().dump();
-  {
-    mlir::RewritePatternSet rpl(getFunction().getContext());
-    rpl.add<AffineForReductionIter>(getFunction().getContext());
-    GreedyRewriteConfig config;
-    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                 config);
-  }
-  // getFunction().dump();
+  mlir::RewritePatternSet rpl(getFunction().getContext());
+  rpl.add<AffineForReductionIter>(getFunction().getContext());
+  GreedyRewriteConfig config;
+  applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
+                                config);
 }
 
 namespace mlir {

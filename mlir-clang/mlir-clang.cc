@@ -165,7 +165,6 @@ int main(int argc, char **argv) {
       module.dump();
       return 5;
     }
-  module.dump();
 #define optPM optPM2
 #define pm pm2
     mlir::PassManager pm(&context);

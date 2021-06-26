@@ -348,7 +348,65 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         }
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
-            if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
+            if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
+              valueAtStartOfBlock[&*exOp.region().begin()] = lastVal;
+              Value thenVal;// = handleBlock(exOp.region().front(), lastVal);
+              lastVal = nullptr;
+              continue;
+
+              bool needsAfter = false;
+              {
+                for(auto n = exOp->getNextNode(); n != nullptr; n = n->getNextNode()) {
+                  if (loadOps.count(n))
+                    needsAfter = true;
+                  else
+                    n->walk([&](Operation* a) {
+                      if (loadOps.count(a))
+                        needsAfter = true;
+                    });
+                }
+              }
+              if (!needsAfter) continue;
+
+              Block &then = exOp.region().back();
+              OpBuilder B(exOp.getContext());
+              auto yieldOp = cast<mlir::scf::YieldOp>(then.back());
+              B.setInsertionPoint(yieldOp);
+              
+              SmallVector<mlir::Value, 4> nidx;
+              for (auto i : idx) {
+                nidx.push_back(
+                    B.create<mlir::ConstantIndexOp>(exOp.getLoc(), i));
+              }
+              auto newLoad =
+                  B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+              loadOps.insert(newLoad);
+              thenVal = newLoad;
+
+              B.setInsertionPoint(exOp);
+              SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
+                                            exOp.getResultTypes().end());
+              tys.push_back(thenVal.getType());
+              auto nextIf = B.create<mlir::scf::ExecuteRegionOp>(
+                  exOp.getLoc(), tys);
+
+              SmallVector<mlir::Value, 4> thenVals = yieldOp.results();
+              thenVals.push_back(thenVal);
+              yieldOp->setOperands(thenVals);
+              nextIf.region().getBlocks().clear();
+              nextIf.region().getBlocks().splice(
+                  nextIf.region().getBlocks().begin(),
+                  exOp.region().getBlocks());
+
+              SmallVector<mlir::Value, 3> resvals = (nextIf.getResults());
+              lastVal = resvals.back();
+              resvals.pop_back();
+              exOp.replaceAllUsesWith(resvals);
+
+              StoringOperations.erase(exOp);
+              StoringOperations.insert(nextIf);
+              exOp.erase();
+            } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
               if (!lastVal) {
                 lastVal = nullptr;
                 continue;

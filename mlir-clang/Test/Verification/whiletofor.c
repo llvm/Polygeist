@@ -1,5 +1,7 @@
 // RUN: mlir-clang %s --function=whiletofor | FileCheck %s
 
+void use(int a[100][100]);
+
 void whiletofor() {
   int a[100][100];
   int t = 7;
@@ -9,9 +11,12 @@ void whiletofor() {
     for (j = 0; j < 100; j++) {
       if (t % 20 == 0)
         a[i][j] = 2;
-      a[i][j] = 3;
+      else
+        a[i][j] = 3;
       t++;
     }
+
+  use(a);
 }
 
 
@@ -32,12 +37,15 @@ void whiletofor() {
 // CHECK-NEXT:        %4 = cmpi eq, %3, %c0_i32 : i32
 // CHECK-NEXT:        scf.if %4 {
 // CHECK-NEXT:          memref.store %c2_i32, %0[%arg0, %arg2] : memref<100x100xi32>
+// CHECK-NEXT:        } else {
+// CHECK-NEXT:          memref.store %c3_i32, %0[%arg0, %arg2] : memref<100x100xi32>
 // CHECK-NEXT:        }
-// CHECK-NEXT:        memref.store %c3_i32, %0[%arg0, %arg2] : memref<100x100xi32>
 // CHECK-NEXT:        %5 = addi %arg3, %c1_i32 : i32
 // CHECK-NEXT:        scf.yield %5 : i32
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.yield %2 : i32
 // CHECK-NEXT:    }
+// CHECK-NEXT:    %2 = memref.cast %0 : memref<100x100xi32> to memref<?x100xi32>
+// CHECK-NEXT:    call @use(%2) : (memref<?x100xi32>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }

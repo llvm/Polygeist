@@ -20,55 +20,45 @@ void init_array (int path[10][10])
 }
 
 // CHECK:   func @init_array(%arg0: memref<?x10xi32>) {
-// CHECK-DAG:     %c0_i32 = constant 0 : i32
-// CHECK-DAG:     %true = constant true
-// CHECK-DAG:     %c10_i32 = constant 10 : i32
-// CHECK-DAG:     %c13_i32 = constant 13 : i32
-// CHECK-DAG:     %c7_i32 = constant 7 : i32
-// CHECK-DAG:     %c11_i32 = constant 11 : i32
-// CHECK-DAG:     %c999_i32 = constant 999 : i32
-// CHECK-DAG:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %0 = scf.while (%arg1 = %c0_i32) : (i32) -> i32 {
-// CHECK-NEXT:       %1 = cmpi slt, %arg1, %c10_i32 : i32
-// CHECK-NEXT:       scf.condition(%1) %arg1 : i32
-// CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg1: i32):  // no predecessors
-// CHECK-NEXT:       %1 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:       %2 = scf.while (%arg2 = %c0_i32) : (i32) -> i32 {
-// CHECK-NEXT:         %4 = cmpi slt, %arg2, %c10_i32 : i32
-// CHECK-NEXT:         scf.condition(%4) %arg2 : i32
-// CHECK-NEXT:       } do {
-// CHECK-NEXT:       ^bb0(%arg2: i32):  // no predecessors
-// CHECK-NEXT:         %4 = index_cast %arg2 : i32 to index
-// CHECK-NEXT:         %5 = muli %arg1, %arg2 : i32
-// CHECK-NEXT:         %6 = remi_signed %5, %c7_i32 : i32
-// CHECK-NEXT:         %7 = addi %6, %c1_i32 : i32
-// CHECK-NEXT:         memref.store %7, %arg0[%1, %4] : memref<?x10xi32>
-// CHECK-NEXT:         %8 = addi %arg1, %arg2 : i32
-// CHECK-NEXT:         %9 = remi_signed %8, %c13_i32 : i32
-// CHECK-NEXT:         %10 = cmpi eq, %9, %c0_i32 : i32
-// CHECK-NEXT:         %11 = scf.if %10 -> (i1) {
+// CHECK-NEXT:     %c1 = constant 1 : index
+// CHECK-NEXT:     %c0 = constant 0 : index
+// CHECK-NEXT:     %c10 = constant 10 : index
+// CHECK-NEXT:     %c999_i32 = constant 999 : i32
+// CHECK-NEXT:     %c11_i32 = constant 11 : i32
+// CHECK-NEXT:     %c13_i32 = constant 13 : i32
+// CHECK-NEXT:     %c1_i32 = constant 1 : i32
+// CHECK-NEXT:     %c7_i32 = constant 7 : i32
+// CHECK-NEXT:     %c0_i32 = constant 0 : i32
+// CHECK-NEXT:     %true = constant true
+// CHECK-NEXT:     scf.for %arg1 = %c0 to %c10 step %c1 {
+// CHECK-NEXT:       %0 = index_cast %arg1 : index to i32
+// CHECK-NEXT:       scf.for %arg2 = %c0 to %c10 step %c1 {
+// CHECK-NEXT:         %1 = index_cast %arg2 : index to i32
+// CHECK-NEXT:         %2 = muli %0, %1 : i32
+// CHECK-NEXT:         %3 = remi_signed %2, %c7_i32 : i32
+// CHECK-NEXT:         %4 = addi %3, %c1_i32 : i32
+// CHECK-NEXT:         memref.store %4, %arg0[%arg1, %arg2] : memref<?x10xi32>
+// CHECK-NEXT:         %5 = addi %0, %1 : i32
+// CHECK-NEXT:         %6 = remi_signed %5, %c13_i32 : i32
+// CHECK-NEXT:         %7 = cmpi eq, %6, %c0_i32 : i32
+// CHECK-NEXT:         %8 = scf.if %7 -> (i1) {
 // CHECK-NEXT:           scf.yield %true : i1
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           %14 = remi_signed %8, %c7_i32 : i32
-// CHECK-NEXT:           %15 = cmpi eq, %14, %c0_i32 : i32
-// CHECK-NEXT:           scf.yield %15 : i1
+// CHECK-NEXT:           %10 = remi_signed %5, %c7_i32 : i32
+// CHECK-NEXT:           %11 = cmpi eq, %10, %c0_i32 : i32
+// CHECK-NEXT:           scf.yield %11 : i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         %12 = scf.if %11 -> (i1) {
+// CHECK-NEXT:         %9 = scf.if %8 -> (i1) {
 // CHECK-NEXT:           scf.yield %true : i1
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           %14 = remi_signed %8, %c11_i32 : i32
-// CHECK-NEXT:           %15 = cmpi eq, %14, %c0_i32 : i32
-// CHECK-NEXT:           scf.yield %15 : i1
+// CHECK-NEXT:           %10 = remi_signed %5, %c11_i32 : i32
+// CHECK-NEXT:           %11 = cmpi eq, %10, %c0_i32 : i32
+// CHECK-NEXT:           scf.yield %11 : i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.if %12 {
-// CHECK-NEXT:           memref.store %c999_i32, %arg0[%1, %4] : memref<?x10xi32>
+// CHECK-NEXT:         scf.if %9 {
+// CHECK-NEXT:           memref.store %c999_i32, %arg0[%arg1, %arg2] : memref<?x10xi32>
 // CHECK-NEXT:         }
-// CHECK-NEXT:         %13 = addi %arg2, %c1_i32 : i32
-// CHECK-NEXT:         scf.yield %13 : i32
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %3 = addi %arg1, %c1_i32 : i32
-// CHECK-NEXT:       scf.yield %3 : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

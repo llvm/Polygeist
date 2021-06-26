@@ -306,6 +306,7 @@ void LoopRestructure::runOnFunction() {
   if (auto region = getOperation().getCallableRegion()) {
     runOnRegion(domInfo, *region);
   }
+
 }
 
 bool attemptToFoldIntoPredecessor(Block *target) {

@@ -21,11 +21,11 @@ void set (int path[20])
 
 // TODO consider making into for
 // CHECK:       func @set(%arg0: memref<?xi32>) {
-// CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %c3_i32 = constant 3 : i32
-// CHECK-NEXT:     %c20_i32 = constant 20 : i32
-// CHECK-NEXT:     %true = constant true
+// CHECK-DAG:     %c0_i32 = constant 0 : i32
+// CHECK-DAG:     %c1_i32 = constant 1 : i32
+// CHECK-DAG:     %c3_i32 = constant 3 : i32
+// CHECK-DAG:     %c20_i32 = constant 20 : i32
+// CHECK-DAG:     %true = constant true
 // CHECK-NEXT:     %0 = scf.while (%arg1 = %true, %arg2 = %c0_i32) : (i1, i32) -> i32 {
 // CHECK-NEXT:       scf.condition(%arg1) %arg2 : i32
 // CHECK-NEXT:     } do {
