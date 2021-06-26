@@ -26,6 +26,7 @@ jobs:
       with:
         fetch-depth: 1
         path: src
+        submodules: 'recursive'
 
     - name: Cache MLIR
       id: cache-mlir
