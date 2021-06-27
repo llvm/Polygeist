@@ -3003,7 +3003,7 @@ ValueWithOffsets MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr 
   auto cfl = CommonFieldLookup(cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), expr->getField(), ThisVal.val);
   assert(cfl.val);
   cfl.store(builder, toset, isArray);
-  return nullptr;
+  return cfl;
 }
 
 ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {

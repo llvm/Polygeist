@@ -589,7 +589,17 @@ public:
             VisitArrayInitLoop(AILE, CommonFieldLookup(CC->getThisObjectType(), field, ThisVal.val));
             continue;
         }
-        Visit(expr->getInit());
+        auto initexpr = Visit(expr->getInit());
+        if (!initexpr.val) {
+          expr->getInit()->dump();
+          assert(initexpr.val);
+        }
+        bool isArray = false;
+        Glob.getMLIRType(expr->getInit()->getType(), &isArray);
+
+        auto cfl = CommonFieldLookup(CC->getThisObjectType(), field, ThisVal.val);
+        assert(cfl.val);
+        cfl.store(builder, initexpr, isArray);
       }
     }
 
