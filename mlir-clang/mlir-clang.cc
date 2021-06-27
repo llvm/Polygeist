@@ -24,6 +24,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
+static cl::opt<bool> ShowAST("show-ast", cl::init(false),
+                              cl::desc("Show AST"));
+
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
                                    cl::desc("Emit immediate mlir"));
 
@@ -36,6 +39,9 @@ static cl::opt<bool>
 
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
+
+static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
+                                     cl::desc("CUDA GPU arch"));
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
