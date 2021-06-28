@@ -437,7 +437,7 @@ ValueWithOffsets MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
     assert(CaptureKinds.find(pair.first) != CaptureKinds.end());
 
     bool isArray = false;
-    auto at = Glob.getMLIRType(pair.second->getType(), &isArray);
+    Glob.getMLIRType(pair.second->getType(), &isArray);
 
     if (CaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByCopy)
       CommonFieldLookup(expr->getCallOperator()->getThisObjectType(), pair.second, op).store(builder, params[pair.first], isArray);
@@ -1010,7 +1010,7 @@ MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons, VarDecl* name, 
 
       bool isArray = false;
       
-      auto ty = Glob.getMLIRType(a->getType(), &isArray);
+      Glob.getMLIRType(a->getType(), &isArray);
 
       mlir::Value val;
       if (!isReference) {
@@ -2846,7 +2846,7 @@ ValueWithOffsets MLIRScanner::CommonFieldLookup(clang::QualType CT, const FieldD
 
   size_t fnum = 0;
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
-  if (CXRD && CXRD->getNumBases() > 0 || rd->isUnion()) {
+  if ((CXRD && CXRD->getNumBases() > 0) || rd->isUnion()) {
     auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else { 
@@ -3623,14 +3623,64 @@ mlir::LLVM::GlobalOp MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD)
   }
 
   std::string name = CGM.getMangledName(FD).str();
+  LLVM::Linkage lnk;
+  FD->dump();
+  switch (CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD), /*isConstant*/false)) {
+    case llvm::GlobalValue::LinkageTypes::InternalLinkage:
+      lnk = LLVM::Linkage::Internal;
+      llvm::errs() << " FD name:" << name << " lnk: " << "internal" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::ExternalLinkage:
+      lnk = LLVM::Linkage::External;
+      llvm::errs() << " FD name:" << name << " lnk: " << "extern" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
+      lnk = LLVM::Linkage::AvailableExternally;
+      llvm::errs() << " FD name:" << name << " lnk: " << "availableextern" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage:
+      lnk = LLVM::Linkage::Linkonce;
+      llvm::errs() << " FD name:" << name << " lnk: " << "linkonce" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::WeakAnyLinkage:
+      lnk = LLVM::Linkage::Weak;
+      llvm::errs() << " FD name:" << name << " lnk: " << "weak" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::NoLinkage:
+      lnk = LLVM::Linkage::NoLinkage;
+      llvm::errs() << " FD name:" << name << " lnk: " << "none" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::WeakODRLinkage:
+      lnk = LLVM::Linkage::WeakODR;
+      llvm::errs() << " FD name:" << name << " lnk: " << "weakodr" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::CommonLinkage:
+      lnk = LLVM::Linkage::Common;
+      llvm::errs() << " FD name:" << name << " lnk: " << "common" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::AppendingLinkage:
+      lnk = LLVM::Linkage::Appending;
+      llvm::errs() << " FD name:" << name << " lnk: " << "appending" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage:
+      lnk = LLVM::Linkage::ExternWeak;
+      llvm::errs() << " FD name:" << name << " lnk: " << "externweak" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage:
+      lnk = LLVM::Linkage::LinkonceODR;
+      llvm::errs() << " FD name:" << name << " lnk: " << "linkonceodr" << "\n";
+      break;
+    case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
+      lnk = LLVM::Linkage::Private;
+      llvm::errs() << " FD name:" << name << " lnk: " << "private" << "\n";
+      break;
+  }
 
   auto rt = typeTranslator.translateType(anonymize(getLLVMType(FD->getType())));
 
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPointToStart(module.getBody());
-  // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
-  // TODO handle proper global linkage
-  auto lnk = LLVM::Linkage::External;
+  
   return llvmGlobals[FD] = builder.create<LLVM::GlobalOp>(
              module.getLoc(), rt, /*constant*/ false, lnk, name,
              mlir::Attribute());
@@ -3953,7 +4003,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef, b
     }
     
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if ( RT->getDecl()->isUnion() || (CXRD && CXRD->getNumBases() > 0)  || ST->getNumElements() == 0 || recursive || !ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream")) {
+    if ( RT->getDecl()->isUnion() || (CXRD && CXRD->getNumBases() > 0)  || ST->getNumElements() == 0 || recursive || (!ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream"))) {
       return typeTranslator.translateType(anonymize(ST));
     }
     
@@ -4097,7 +4147,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       return typeTranslator.translateType(t);
     }
     if (auto ST = dyn_cast<llvm::StructType>(pt->getElementType())) {
-      if (ST->getNumElements() == 0 || !ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream")) {
+      if (ST->getNumElements() == 0 || (!ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream"))) {
         return typeTranslator.translateType(t);
       }
       bool notAllSame = false;
@@ -4162,7 +4212,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       }
     }
     if (!recursive && ST->getNumElements() == 1) return getMLIRType(ST->getTypeAtIndex(0U));
-    if (ST->getNumElements() == 0 || recursive || !ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream")) {
+    if (ST->getNumElements() == 0 || recursive || (!ST->isLiteral() && (ST->getName().contains("SmallVector") || ST->getName() == "struct._IO_FILE" || ST->getName() == "class.std::basic_ifstream" || ST->getName() == "class.std::basic_ostream" || ST->getName() == "class.std::basic_ofstream"))) {
       return typeTranslator.translateType(t);
     }
 

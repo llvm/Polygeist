@@ -145,7 +145,7 @@ struct ValueWithOffsets {
             } else {
                 auto st = pt.getElementType().dyn_cast<LLVM::LLVMStructType>();
                 elty = st.getBody()[0];
-                assert(smt.getShape().back() == st.getBody().size());
+                assert(smt.getShape().back() == (ssize_t)st.getBody().size());
             }
             assert(elty == smt.getElementType());
             elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
@@ -174,7 +174,7 @@ struct ValueWithOffsets {
             } else {
                 auto st = pt.getElementType().dyn_cast<LLVM::LLVMStructType>();
                 elty = st.getBody()[0];
-                assert(smt.getShape().back() == st.getBody().size());
+                assert(smt.getShape().back() == (ssize_t)st.getBody().size());
             }
             assert(elty == smt.getElementType());
             elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
@@ -332,8 +332,8 @@ struct PragmaScopHandler : public PragmaHandler {
 
   PragmaScopHandler(ScopLocList &scops) : PragmaHandler("scop"), scops(scops) {}
 
-  virtual void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                            Token &scopTok) {
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                            Token &scopTok) override {
     auto &SM = PP.getSourceManager();
     auto loc = scopTok.getLocation();
     scops.addStart(SM, loc);
@@ -346,8 +346,8 @@ struct PragmaEndScopHandler : public PragmaHandler {
   PragmaEndScopHandler(ScopLocList &scops)
       : PragmaHandler("endscop"), scops(scops) {}
 
-  virtual void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
-                            Token &endScopTok) {
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
+                            Token &endScopTok) override {
     auto &SM = PP.getSourceManager();
     auto loc = endScopTok.getLocation();
     scops.addEnd(SM, loc);
@@ -419,7 +419,7 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   void run();
 
-  virtual bool HandleTopLevelDecl(DeclGroupRef dg);
+  bool HandleTopLevelDecl(DeclGroupRef dg) override;
 
   void HandleDeclContext(DeclContext* DC);
 
