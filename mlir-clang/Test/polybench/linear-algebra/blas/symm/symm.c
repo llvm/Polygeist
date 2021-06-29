@@ -105,6 +105,7 @@ void kernel_symm(int m, int n,
 // B is MxN
 // C is MxN
 //note that due to Fortran array layout, the code below more closely resembles upper triangular case in BLAS
+#pragma scop
    for (i = 0; i < _PB_M; i++)
       for (j = 0; j < _PB_N; j++ )
       {
@@ -115,6 +116,7 @@ void kernel_symm(int m, int n,
         }
         C[i][j] = beta * C[i][j] + alpha*B[i][j] * A[i][i] + alpha * temp2;
      }
+#pragma endscop
 
 }
 

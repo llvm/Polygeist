@@ -131,17 +131,20 @@ struct DetectTrivialIndVarInArgs : public OpRewritePattern<scf::ForOp> {
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
 
     bool matched = false;
-    for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
-                            yieldOp.getOperands())) {
-      if (isIndVar(std::get<0>(it), std::get<1>(it), std::get<2>(it), forOp)) {
-        OpBuilder builder(forOp);
-        builder.setInsertionPointToStart(forOp.getBody());
-        auto indexCast = builder.create<IndexCastOp>(
-            forOp.getLoc(), forOp.getInductionVar(), builder.getI32Type());
-        std::get<1>(it).replaceAllUsesWith(indexCast);
-        matched = true;
+    
+      for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
+                              yieldOp.getOperands())) {
+        if (isIndVar(std::get<0>(it), std::get<1>(it), std::get<2>(it), forOp)) {
+          OpBuilder builder(forOp);
+          builder.setInsertionPointToStart(forOp.getBody());
+          auto indexCast = builder.create<IndexCastOp>(
+              forOp.getLoc(), forOp.getInductionVar(), builder.getI32Type());
+          rewriter.updateRootInPlace(forOp, [&] {
+            std::get<1>(it).replaceAllUsesWith(indexCast);
+          });
+          matched = true;
+        }
       }
-    }
     return success(matched);
   }
 };
@@ -261,10 +264,14 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
       rewriter.eraseOp(newForOp.getBody()->getTerminator());
   
     newForOp.getBody()->getOperations().splice(newForOp.getBody()->getOperations().begin(), op.getBody()->getOperations());
-    op.getInductionVar().replaceAllUsesWith(newForOp.getInductionVar());
-    for (auto pair : llvm::zip(usedBlockArgs, newForOp.getRegionIterArgs())) {
-      std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
-    }
+
+
+    rewriter.updateRootInPlace(op, [&] {
+      op.getInductionVar().replaceAllUsesWith(newForOp.getInductionVar());
+      for (auto pair : llvm::zip(usedBlockArgs, newForOp.getRegionIterArgs())) {
+        std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
+      }
+    });
 
     // adjust return.
     auto yieldOp = cast<scf::YieldOp>(newForOp.getBody()->getTerminator());
@@ -664,9 +671,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
     auto oldYield = cast<scf::YieldOp>(loop.after().front().getTerminator());
 
-    for (auto pair : llvm::zip(loop.after().getArguments(), condOp.args())) {
-      std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
-    }
+    rewriter.updateRootInPlace(loop, [&] {
+      for (auto pair : llvm::zip(loop.after().getArguments(), condOp.args())) {
+        std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
+      }
+    });
     loop.after().front().eraseArguments([](BlockArgument){ return true; });
     
     SmallVector<Value, 2> yieldOperands;
@@ -682,9 +691,12 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     rewriter.replaceOpWithNewOp<scf::YieldOp>(oldYield, yieldOperands);
 
     size_t pos = loop.inits().size();
-    for (auto pair : llvm::zip(loop.before().getArguments(), forloop.getRegionIterArgs().drop_back(pos))) {
-      std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
-    }
+    
+    rewriter.updateRootInPlace(loop, [&] {
+      for (auto pair : llvm::zip(loop.before().getArguments(), forloop.getRegionIterArgs().drop_back(pos))) {
+        std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
+      }
+    });
 
     forloop.getBody()->getOperations().splice(forloop.getBody()->getOperations().begin(), loop.after().front().getOperations());
 
@@ -731,12 +743,16 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
       op.after().front().getOperations().splice(
           op.after().front().begin(),
           ifOp.thenRegion().front().getOperations());
-      term.conditionMutable().assign(ifOp.condition());
+      rewriter.updateRootInPlace(term, [&] {
+        term.conditionMutable().assign(ifOp.condition());
+      });
       SmallVector<Value, 2> args;
       for (size_t i = 1; i < yield2.getNumOperands(); ++i) {
         args.push_back(yield2.getOperand(i));
       }
-      term.argsMutable().assign(args);
+      rewriter.updateRootInPlace(term, [&] {
+        term.argsMutable().assign(args);
+      });
       rewriter.eraseOp(yield2);
       rewriter.eraseOp(ifOp);
 
@@ -753,14 +769,20 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
           todo.push_back(res);
         }
       }
-      for (auto val : todo) {
-        auto na = op.after().front().addArgument(val.getType());
-        val.replaceUsesWithIf(na, [&](OpOperand &u) -> bool {
-          return op.after().isAncestor(u.getOwner()->getParentRegion());
-        });
-        args.push_back(val);
-      }
-      term.argsMutable().assign(args);
+      
+      rewriter.updateRootInPlace(op, [&] {
+        for (auto val : todo) {
+          auto na = op.after().front().addArgument(val.getType());
+          val.replaceUsesWithIf(na, [&](OpOperand &u) -> bool {
+            return op.after().isAncestor(u.getOwner()->getParentRegion());
+          });
+          args.push_back(val);
+        }
+      });
+      
+      rewriter.updateRootInPlace(term, [&] {
+        term.argsMutable().assign(args);
+      });
 
       SmallVector<Type, 4> tys;
       for (auto a : args)
@@ -873,7 +895,10 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       for (auto pair : afterYieldRewrites) {
         yieldArgs[pair.first] = pair.second;
       }
-      afterYield.resultsMutable().assign(yieldArgs);
+      
+      rewriter.updateRootInPlace(afterYield, [&] {
+        afterYield.resultsMutable().assign(yieldArgs);
+      });
 
       llvm::SetVector<Value> sv;
       findValuesUsedBelow(ifOp, sv);
@@ -917,9 +942,12 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       nop.before().takeBody(op.before());
       nop.after().takeBody(op.after());
       
-      for(auto pair : llvm::enumerate(prevArgs)) {
-        pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
-      }
+      
+      rewriter.updateRootInPlace(op, [&] {
+        for(auto pair : llvm::enumerate(prevArgs)) {
+          pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
+        }
+      });
 
       rewriter.eraseOp(op);
       return success();
@@ -952,14 +980,56 @@ struct MoveWhileInvariantIfResult : public OpRewritePattern<WhileOp> {
             }
             assert(idx != -1);
             Value returnWith = ifOp.elseYield().results()[idx];
-            if (!op.before().isAncestor(returnWith.getParentRegion())) {
-              std::get<0>(pair).replaceAllUsesWith(returnWith);
+            if (!op.before().isAncestor(returnWith.getParentRegion())) {            
+              rewriter.updateRootInPlace(op, [&] {
+                std::get<0>(pair).replaceAllUsesWith(returnWith);
+              });
               changed = true;
             }
           }
         }
       }
     }
+
+    return success(changed);
+  }
+};
+
+struct WhileLogicalNegation : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(), op.getAfterArguments().end());
+    bool changed = false;
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    assert(origAfterArgs.size() == op.getResults().size());
+    assert(origAfterArgs.size() == term.args().size());
+
+    if (auto condCmp = term.condition().getDefiningOp<CmpIOp>()) {
+      for (auto pair : llvm::zip(op.getResults(), term.args(), origAfterArgs)) {
+        if (!std::get<0>(pair).use_empty()) {
+          if (auto termCmp = std::get<1>(pair).getDefiningOp<CmpIOp>()) {
+            if (termCmp.lhs() == condCmp.lhs() && termCmp.rhs() == condCmp.rhs()) {
+              // TODO generalize to logical negation of
+              if (condCmp.getPredicate()  == CmpIPredicate::slt &&
+                  termCmp.getPredicate() == CmpIPredicate::sge) {
+            
+                  auto i1Ty = rewriter.getIntegerType(1);
+                    rewriter.updateRootInPlace(op, [&] {
+                      rewriter.setInsertionPoint(op);
+                      auto truev = rewriter.create<mlir::ConstantOp>(
+                          termCmp.getLoc(), i1Ty, rewriter.getIntegerAttr(i1Ty, 1));
+                      std::get<0>(pair).replaceAllUsesWith(truev);
+                    });
+                    changed = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
 
     return success(changed);
   }
@@ -979,18 +1049,21 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     assert(origAfterArgs.size() == op.getResults().size());
     assert(origAfterArgs.size() == term.args().size());
     for (auto pair : llvm::zip(op.getResults(), term.args(),origAfterArgs)) {
-      std::get<2>(pair);
       if (std::get<0>(pair).use_empty() && std::get<1>(pair).hasOneUse()) {
-        // todo generalize to any non memory
-        if (auto idx = std::get<1>(pair).getDefiningOp<IndexCastOp>()) {
-          std::get<2>(pair).replaceAllUsesWith(idx);
-          idx->moveBefore(&op.after().front().front());
-          toErase.push_back(std::get<2>(pair).getArgNumber());
-          for(auto& o : llvm::make_early_inc_range(idx->getOpOperands())) {
-            newOps.push_back(o.get());
-            o.set(op.after().front().addArgument(o.get().getType()));
+        // TODO generalize to any non memory effecting op
+        if (auto idx = std::get<1>(pair).getDefiningOp<MemoryEffectOpInterface>()) {
+          if (idx.hasNoEffect()) {
+            std::get<2>(pair).replaceAllUsesWith(std::get<1>(pair));
+            rewriter.updateRootInPlace(idx, [&] {
+              idx->moveBefore(&op.after().front().front());
+            });
+            toErase.push_back(std::get<2>(pair).getArgNumber());
+            for(auto& o : llvm::make_early_inc_range(idx->getOpOperands())) {
+              newOps.push_back(o.get());
+              o.set(op.after().front().addArgument(o.get().getType()));
+            }
+            continue;
           }
-          continue;
         }
       }
       condOps.push_back(std::get<1>(pair));
@@ -1013,9 +1086,11 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     nop.before().takeBody(op.before());
     nop.after().takeBody(op.after());
       
-    for(auto pair : llvm::enumerate(returns)) {
-      pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
-    }
+    rewriter.updateRootInPlace(op, [&]{
+      for(auto pair : llvm::enumerate(returns)) {      
+        pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
+      }
+    });
 
     assert(resultTypes.size() == nop.after().front().getNumArguments());
     assert(resultTypes.size() == condOps.size());
@@ -1091,8 +1166,10 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
      }
    }
  
-    for (auto *moveOp : opsToMove)
-      moveOp->moveBefore(op);
+    for (auto *moveOp : opsToMove)      
+      rewriter.updateRootInPlace(moveOp, [&]{
+        moveOp->moveBefore(op);
+      });
 
     return success(opsToMove.size() > 0);
   }
@@ -1208,9 +1285,11 @@ void CanonicalizeFor::runOnFunction() {
   mlir::RewritePatternSet rpl(getFunction().getContext());
   rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs, ForOpInductionReplacement, RemoveUnusedArgs,
   MoveWhileToFor, MoveWhileDown, MoveWhileDown2, MoveWhileDown3, MoveWhileInvariantIfResult,
+  WhileLogicalNegation,
   WhileLICM,
   RemoveUnusedCondVar, MoveSideEffectFreeWhile>(getFunction().getContext());
   GreedyRewriteConfig config;
+  config.maxIterations = 47;
   applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
                                 config);
 }
