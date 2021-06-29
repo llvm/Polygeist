@@ -1035,6 +1035,62 @@ struct WhileLogicalNegation : public OpRewritePattern<WhileOp> {
   }
 };
 
+/// TODO move the addi down and repalce below with a subi
+struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(), op.getAfterArguments().end());
+    bool changed = false;
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    assert(origAfterArgs.size() == op.getResults().size());
+    assert(origAfterArgs.size() == term.args().size());
+
+    if (auto condCmp = term.condition().getDefiningOp<CmpIOp>()) {
+      if (auto addI = condCmp.lhs().getDefiningOp<AddIOp>()) {
+        if (addI.getOperand(1).getDefiningOp() && !op.before().isAncestor(
+            addI.getOperand(1).getDefiningOp()->getParentRegion()))
+        if (auto blockArg = addI.getOperand(0).dyn_cast<BlockArgument>()) {
+          if (blockArg.getOwner() == &op.before().front()) {
+            auto rng = llvm::make_early_inc_range(blockArg.getUses());
+
+            {
+            rewriter.setInsertionPoint(op);
+            SmallVector<Value> oldInits = op.inits();
+            oldInits[blockArg.getArgNumber()] = rewriter.create<AddIOp>(addI.getLoc(), oldInits[blockArg.getArgNumber()], addI.getOperand(1));
+            op.initsMutable().assign(oldInits);
+            rewriter.updateRootInPlace(addI, [&] {
+              addI.replaceAllUsesWith(blockArg);
+            });
+
+            }
+
+            YieldOp afterYield = cast<YieldOp>(op.after().front().back());    
+            rewriter.setInsertionPoint(afterYield);        
+            SmallVector<Value> oldYields = afterYield.results();
+            oldYields[blockArg.getArgNumber()] = rewriter.create<AddIOp>(addI.getLoc(), oldYields[blockArg.getArgNumber()], addI.getOperand(1));
+            rewriter.updateRootInPlace(afterYield, [&] {
+              afterYield.resultsMutable().assign(oldYields);
+            });
+
+            rewriter.setInsertionPointToStart(&op.before().front());
+            auto sub = rewriter.create<SubIOp>(addI.getLoc(), blockArg, addI.getOperand(1));
+            for(OpOperand &use : rng) {
+              rewriter.updateRootInPlace(use.getOwner(),
+                                     [&]() { use.set(sub); });
+            }
+            rewriter.eraseOp(addI);
+            return success();
+          }
+        }
+      }
+    }
+
+    return failure();
+  }
+};
+
 struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -1301,6 +1357,7 @@ void CanonicalizeFor::runOnFunction() {
   rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs, ForOpInductionReplacement, RemoveUnusedArgs,
   MoveWhileToFor, MoveWhileDown, MoveWhileDown2, MoveWhileDown3, MoveWhileInvariantIfResult,
   WhileLogicalNegation,
+  WhileCmpOffset,
   WhileLICM,
   RemoveUnusedCondVar, MoveSideEffectFreeWhile>(getFunction().getContext());
   GreedyRewriteConfig config;
