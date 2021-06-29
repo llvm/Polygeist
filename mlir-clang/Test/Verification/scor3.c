@@ -20,10 +20,10 @@ void kernel_correlation(int m, double corr[28][28])
 }
 
 // CHECK:   func @kernel_correlation(%arg0: i32, %arg1: memref<?x28xf64>) {
-// CHECK-NEXT:     %cst = constant 0.000000e+00 : f64
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %c2_i32 = constant 2 : i32
-// CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
+// CHECK-DAG:     %cst = constant 0.000000e+00 : f64
+// CHECK-DAG:     %c1_i32 = constant 1 : i32
+// CHECK-DAG:     %c2_i32 = constant 2 : i32
+// CHECK-DAG:     %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg2 = 0 to 28 {
 // CHECK-NEXT:       %1 = index_cast %arg2 : index to i32
 // CHECK-NEXT:       %2 = addi %1, %c1_i32 : i32

@@ -681,13 +681,21 @@ bool isValidIndex(Value val) {
     return true;
 
   if (auto ba = val.dyn_cast<BlockArgument>()) {
-    if (isa<AffineForOp>(ba.getOwner()->getParentOp()))
+    auto owner = ba.getOwner();
+    assert(owner);
+    auto parentOp = owner->getParentOp();
+
+    if (auto af = dyn_cast<AffineForOp>(parentOp))
+      return af.getInductionVar() == ba;
+
+    // TODO ensure not a reduced var
+    if (isa<AffineParallelOp>(parentOp))
       return true;
 
-    if (isa<AffineParallelOp>(ba.getOwner()->getParentOp()))
+    if (isa<AffineParallelOp>(parentOp))
       return true;
 
-    if (isa<FuncOp>(ba.getOwner()->getParentOp()))
+    if (isa<FuncOp>(parentOp))
       return true;
   }
 

@@ -76,38 +76,33 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
 
       canonicalizeLoopBounds(affineLoop);
 
-      SmallVector<Value, 4> newBlockTransferArgs;
-      newBlockTransferArgs.reserve(1 + loop.getNumIterOperands());
-      Value iv = affineLoop.getInductionVar();
-      loop.getInductionVar().replaceAllUsesWith(iv);
-      newBlockTransferArgs.push_back(iv);
-      llvm::append_range(newBlockTransferArgs, affineLoop.getIterOperands());
+      auto mergedYieldOp = cast<scf::YieldOp>(loop.region().front().getTerminator());
 
       Block &newBlock = affineLoop.region().front();
 
       // The terminator is added if the iterator args are not provided.
       // see the ::build method.
       if (affineLoop.getNumIterOperands() == 0) {
-        auto affineYiledOp = newBlock.getTerminator();
-        rewriter.eraseOp(affineYiledOp);
+        auto affineYieldOp = newBlock.getTerminator();
+        rewriter.eraseOp(affineYieldOp);
       }
+      
+      rewriter.updateRootInPlace(loop, [&] {        
+        affineLoop.region().front().getOperations().splice(
+          affineLoop.region().front().getOperations().begin(),
+          loop.region().front().getOperations());
 
-      Block &oldBlock = loop.region().front();
-      assert(oldBlock.getNumArguments() == newBlockTransferArgs.size() &&
-             "unexpected argument size mismatch");
+        for (auto pair : llvm::zip(affineLoop.region().front().getArguments(), loop.region().front().getArguments())) {
+          std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
+        }
+      });
 
-      auto fixYield = [&](scf::YieldOp mergedTerminator) {
-        OpBuilder::InsertionGuard g(rewriter);
-        rewriter.setInsertionPoint(mergedTerminator);
-        rewriter.create<AffineYieldOp>(mergedTerminator.getLoc(),
-                                       mergedTerminator.getOperands());
-      };
-
-      rewriter.mergeBlocks(&oldBlock, &newBlock, newBlockTransferArgs);
-      auto mergedYieldOp = cast<scf::YieldOp>(newBlock.getTerminator());
-      fixYield(mergedYieldOp);
+      rewriter.setInsertionPoint(mergedYieldOp);
+      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(), mergedYieldOp.getOperands());
       rewriter.eraseOp(mergedYieldOp);
+      
       rewriter.replaceOp(loop, affineLoop.getResults());
+      
       return success();
     }
     return failure();
