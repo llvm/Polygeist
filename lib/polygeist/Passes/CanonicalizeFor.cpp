@@ -1049,18 +1049,30 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     assert(origAfterArgs.size() == op.getResults().size());
     assert(origAfterArgs.size() == term.args().size());
     for (auto pair : llvm::zip(op.getResults(), term.args(),origAfterArgs)) {
-      if (std::get<0>(pair).use_empty() && std::get<1>(pair).hasOneUse()) {
+      if (std::get<0>(pair).use_empty()) {
+        if (std::get<2>(pair).use_empty()) {
+          toErase.push_back(std::get<2>(pair).getArgNumber());
+          continue;
+        }
         // TODO generalize to any non memory effecting op
         if (auto idx = std::get<1>(pair).getDefiningOp<MemoryEffectOpInterface>()) {
           if (idx.hasNoEffect()) {
-            std::get<2>(pair).replaceAllUsesWith(std::get<1>(pair));
-            rewriter.updateRootInPlace(idx, [&] {
-              idx->moveBefore(&op.after().front().front());
+            Operation* cloned = std::get<1>(pair).getDefiningOp();
+            if (!std::get<1>(pair).hasOneUse()) {
+              cloned = std::get<1>(pair).getDefiningOp()->clone();
+              op.after().front().push_front(cloned);
+            } else {
+              cloned->moveBefore(&op.after().front().front());
+            }
+            rewriter.updateRootInPlace(std::get<1>(pair).getDefiningOp(), [&] {
+              std::get<2>(pair).replaceAllUsesWith(cloned->getResult(0));
             });
             toErase.push_back(std::get<2>(pair).getArgNumber());
-            for(auto& o : llvm::make_early_inc_range(idx->getOpOperands())) {
-              newOps.push_back(o.get());
-              o.set(op.after().front().addArgument(o.get().getType()));
+            for(auto& o : llvm::make_early_inc_range(cloned->getOpOperands())) {
+             {
+                newOps.push_back(o.get());
+                o.set(op.after().front().addArgument(o.get().getType()));
+              }
             }
             continue;
           }
@@ -1072,7 +1084,10 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     if (toErase.size() == 0) return failure();
         
     condOps.append(newOps.begin(), newOps.end());
-    op.after().front().eraseArguments(toErase);
+    
+    rewriter.updateRootInPlace(term, [&] {
+      op.after().front().eraseArguments(toErase);
+    });
     rewriter.setInsertionPoint(term);
     rewriter.replaceOpWithNewOp<ConditionOp>(term, term.condition(), condOps);
     
