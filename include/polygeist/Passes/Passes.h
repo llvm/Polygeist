@@ -12,6 +12,11 @@ namespace mlir {
     }
 }
 
+
+void fully2ComposeAffineMapAndOperands(mlir::AffineMap *map,
+                                       llvm::SmallVectorImpl<mlir::Value> *operands);
+bool isValidIndex(mlir::Value val);
+
 namespace mlir {
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>

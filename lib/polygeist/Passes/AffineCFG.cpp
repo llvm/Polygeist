@@ -658,7 +658,7 @@ struct CanonicalizeAffineIf : public OpRewritePattern<AffineIfOp> {
 };
 */
 
-static bool isValidIndex(Value val) {
+bool isValidIndex(Value val) {
   if (mlir::isValidSymbol(val))
     return true;
 
@@ -805,13 +805,7 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
 
   LogicalResult matchAndRewrite(memref::LoadOp load,
                                 PatternRewriter &rewriter) const override {
-    if (!inAffine(load) && !llvm::all_of(load.getIndices(), [](mlir::Value V) {
-      return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
-      return failure();
-
-    if (!llvm::all_of(load.getIndices(),
-                      [&](Value index) { return isValidIndex(index); }))
+    if (!llvm::all_of(load.getIndices(), isValidIndex))
       return failure();
 
     auto memrefType = load.getMemRef().getType().cast<MemRefType>();
@@ -845,13 +839,7 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
 
   LogicalResult matchAndRewrite(memref::StoreOp store,
                                 PatternRewriter &rewriter) const override {
-    if (!inAffine(store) && !llvm::all_of(store.getIndices(), [](mlir::Value V) {
-      return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
-      return failure();
-
-    if (!llvm::all_of(store.getIndices(),
-                      [&](Value index) { return isValidIndex(index); }))
+    if (!llvm::all_of(store.getIndices(), isValidIndex))
       return failure();
 
     auto memrefType = store.getMemRef().getType().cast<MemRefType>();

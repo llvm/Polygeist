@@ -178,7 +178,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       Value init = std::get<0>(it);
       if (auto iter_init = forOp.lowerBound().getDefiningOp<ConstantIndexOp>()) {
         if (auto op = init.getDefiningOp<ConstantOp>()) {
-          if (op.getValue().cast<IntegerAttr>().getValue() != iter_init.getValue()) {
+          if (op.getValue().isa<IntegerAttr>() && op.getValue().cast<IntegerAttr>().getValue() != iter_init.getValue()) {
             forwarded = false;
           }
         } else forwarded = false;
@@ -571,6 +571,15 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
     Value indVar = maybeIndVar;
 
+    bool negativeStep = false;
+    if (auto cop = loopInfo.step.getDefiningOp<ConstantOp>()) {
+      if (cop.getValue().cast<IntegerAttr>().getInt() < 0)
+        negativeStep = true;
+    } else if (auto cop = loopInfo.step.getDefiningOp<ConstantIndexOp>()) {
+       if (cop.getValue() < 0)
+        negativeStep = true;
+    }
+
     if (isBlockArg(cmpIOp.rhs()) || dominateWhile(cmpIOp.rhs(), loop)) {
       switch (cmpIOp.getPredicate()) {
       case CmpIPredicate::slt:
@@ -588,8 +597,10 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         loopInfo.ub = addIOp.getResult();
         break;
       }
+      case CmpIPredicate::sge:{
+        return failure();
+      }
       case CmpIPredicate::eq:
-      case CmpIPredicate::sge:
       case CmpIPredicate::sgt:
       case CmpIPredicate::ne:
       case CmpIPredicate::ule:
@@ -820,25 +831,49 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       SmallVector<std::pair<BlockArgument, Value>, 2> m;
       SmallVector<Value, 2> condArgs;
       SmallVector<Value, 2> prevArgs;
+
+      SmallVector<std::pair<size_t, Value>, 2> afterYieldRewrites;
+      auto afterYield = cast<YieldOp>(op.after().front().back());
       for (auto pair : llvm::zip(op.getResults(), term.args(), op.getAfterArguments()) ) {
         if (std::get<1>(pair).getDefiningOp() == ifOp) {
-          if (!std::get<0>(pair).use_empty())
-            return failure();
-          Value yielded;
-          for(auto p : llvm::zip(ifOp.thenYield().results(), ifOp.results())) {
+          
+          Value thenYielded, elseYielded;
+          for(auto p : llvm::zip(ifOp.thenYield().results(), ifOp.results(), ifOp.elseYield().results())) {
             if (std::get<1>(pair) == std::get<1>(p)) {
-              yielded = std::get<0>(p);
+              thenYielded = std::get<0>(p);
+              elseYielded = std::get<2>(p);
               break;
             }
           }
-          assert(yielded);
-          m.emplace_back(std::get<2>(pair), yielded);
+          assert(thenYielded);
+          assert(elseYielded);
+
+          if (!std::get<0>(pair).use_empty()) {
+            if (auto blockArg = elseYielded.dyn_cast<BlockArgument>()) 
+              if (blockArg.getOwner() == &op.before().front()) {
+              if (afterYield.results()[blockArg.getArgNumber()] == std::get<2>(pair) &&
+                  op.getResults()[blockArg.getArgNumber()]  == std::get<0>(pair)) {
+                prevArgs.push_back(std::get<0>(pair));
+                condArgs.push_back(blockArg);
+                afterYieldRewrites.emplace_back(blockArg.getArgNumber(), thenYielded);
+                continue;
+              }
+            }
+            return failure();
+          }
+          m.emplace_back(std::get<2>(pair), thenYielded);
         } else {
           assert(prevArgs.size() == condArgs.size());
           prevArgs.push_back(std::get<0>(pair));
           condArgs.push_back(std::get<1>(pair));
         }
       }
+
+      SmallVector<Value> yieldArgs = afterYield.results();
+      for (auto pair : afterYieldRewrites) {
+        yieldArgs[pair.first] = pair.second;
+      }
+      afterYield.resultsMutable().assign(yieldArgs);
 
       llvm::SetVector<Value> sv;
       findValuesUsedBelow(ifOp, sv);
@@ -893,17 +928,56 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
   }
 };
 
+struct MoveWhileInvariantIfResult : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(), op.getAfterArguments().end());
+    bool changed = false;
+    auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
+    assert(origAfterArgs.size() == op.getResults().size());
+    assert(origAfterArgs.size() == term.args().size());
+
+    for (auto pair : llvm::zip(op.getResults(), term.args(),origAfterArgs)) {
+      if (!std::get<0>(pair).use_empty()) {
+        if (auto ifOp = std::get<1>(pair).getDefiningOp<scf::IfOp>()) {
+          if (ifOp.condition() == term.condition()) {
+            ssize_t idx = -1;
+            for(auto tup : llvm::enumerate(ifOp.results())) {
+              if (tup.value() == std::get<1>(pair)) {
+                idx = tup.index();
+                break;
+              }
+            }
+            assert(idx != -1);
+            Value returnWith = ifOp.elseYield().results()[idx];
+            if (!op.before().isAncestor(returnWith.getParentRegion())) {
+              std::get<0>(pair).replaceAllUsesWith(returnWith);
+              changed = true;
+            }
+          }
+        }
+      }
+    }
+
+    return success(changed);
+  }
+};
+
 struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(WhileOp op,
                                 PatternRewriter &rewriter) const override {
     auto term = cast<scf::ConditionOp>(op.before().front().getTerminator());
-    SmallVector<BlockArgument, 2> toErase;
+    SmallVector<unsigned, 2> toErase;
     SmallVector<Value, 2> newOps;
     SmallVector<Value, 2> condOps;
     SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(), op.getAfterArguments().end());
     SmallVector<Value, 2> returns;
+    assert(origAfterArgs.size() == op.getResults().size());
+    assert(origAfterArgs.size() == term.args().size());
     for (auto pair : llvm::zip(op.getResults(), term.args(),origAfterArgs)) {
       std::get<2>(pair);
       if (std::get<0>(pair).use_empty() && std::get<1>(pair).hasOneUse()) {
@@ -911,7 +985,7 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
         if (auto idx = std::get<1>(pair).getDefiningOp<IndexCastOp>()) {
           std::get<2>(pair).replaceAllUsesWith(idx);
           idx->moveBefore(&op.after().front().front());
-          toErase.push_back(std::get<2>(pair));
+          toErase.push_back(std::get<2>(pair).getArgNumber());
           for(auto& o : llvm::make_early_inc_range(idx->getOpOperands())) {
             newOps.push_back(o.get());
             o.set(op.after().front().addArgument(o.get().getType()));
@@ -925,9 +999,7 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     if (toErase.size() == 0) return failure();
         
     condOps.append(newOps.begin(), newOps.end());
-    for (int i=toErase.size()-1; i>=0; i--) {
-      op.after().front().eraseArgument(i);
-    }
+    op.after().front().eraseArguments(toErase);
     rewriter.setInsertionPoint(term);
     rewriter.replaceOpWithNewOp<ConditionOp>(term, term.condition(), condOps);
     
@@ -944,9 +1016,85 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
     for(auto pair : llvm::enumerate(returns)) {
       pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
     }
+
+    assert(resultTypes.size() == nop.after().front().getNumArguments());
+    assert(resultTypes.size() == condOps.size());
     
     rewriter.eraseOp(op);
     return success();
+  }
+};
+
+// Rewritten from LoopInvariantCodeMotion.cpp
+struct WhileLICM : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+ static bool canBeHoisted(Operation *op,
+                          function_ref<bool(Value)> definedOutside) {
+   // Check that dependencies are defined outside of loop.
+   if (!llvm::all_of(op->getOperands(), definedOutside))
+     return false;
+   // Check whether this op is side-effect free. If we already know that there
+   // can be no side-effects because the surrounding op has claimed so, we can
+   // (and have to) skip this step.
+   if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
+     if (!memInterface.hasNoEffect())
+       return false;
+     // If the operation doesn't have side effects and it doesn't recursively
+     // have side effects, it can always be hoisted.
+     if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+       return true;
+ 
+     // Otherwise, if the operation doesn't provide the memory effect interface
+     // and it doesn't have recursive side effects we treat it conservatively as
+     // side-effecting.
+   } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+     return false;
+   }
+ 
+   // Recurse into the regions for this op and check whether the contained ops
+   // can be hoisted.
+   for (auto &region : op->getRegions()) {
+     for (auto &block : region) {
+       for (auto &innerOp : block.without_terminator())
+         if (!canBeHoisted(&innerOp, definedOutside))
+           return false;
+     }
+   }
+   return true;
+ }
+
+  LogicalResult matchAndRewrite(WhileOp op,
+                                PatternRewriter &rewriter) const override {
+   // We use two collections here as we need to preserve the order for insertion
+   // and this is easiest.
+   SmallPtrSet<Operation *, 8> willBeMovedSet;
+   SmallVector<Operation *, 8> opsToMove;
+
+   // Helper to check whether an operation is loop invariant wrt. SSA properties.
+   auto isDefinedOutsideOfBody = [&](Value value) {
+     auto definingOp = value.getDefiningOp();
+     bool definedOutside = (definingOp && !!willBeMovedSet.count(definingOp)) ||
+            !op.before().isAncestor(value.getParentRegion());
+      return definedOutside;
+   };
+ 
+   // Do not use walk here, as we do not want to go into nested regions and hoist
+   // operations from there. These regions might have semantics unknown to this
+   // rewriting. If the nested regions are loops, they will have been processed.
+   for (auto &block : op.before()) {
+     for (auto &op : block.without_terminator()) {
+       bool legal = canBeHoisted(&op, isDefinedOutsideOfBody);
+       if (legal) {
+         opsToMove.push_back(&op);
+         willBeMovedSet.insert(&op);
+       }
+     }
+   }
+ 
+    for (auto *moveOp : opsToMove)
+      moveOp->moveBefore(op);
+
+    return success(opsToMove.size() > 0);
   }
 };
 
@@ -1059,7 +1207,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
 void CanonicalizeFor::runOnFunction() {    
   mlir::RewritePatternSet rpl(getFunction().getContext());
   rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs, ForOpInductionReplacement, RemoveUnusedArgs,
-  MoveWhileToFor, MoveWhileDown, MoveWhileDown2, MoveWhileDown3,
+  MoveWhileToFor, MoveWhileDown, MoveWhileDown2, MoveWhileDown3, MoveWhileInvariantIfResult,
+  WhileLICM,
   RemoveUnusedCondVar, MoveSideEffectFreeWhile>(getFunction().getContext());
   GreedyRewriteConfig config;
   applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),

@@ -27,7 +27,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     return isa_and_nonnull<ConstantIndexOp>(loop.step().getDefiningOp());
   }
 
-  bool canonicalizeLoopBounds(AffineForOp forOp) const {
+  void canonicalizeLoopBounds(AffineForOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
 
@@ -36,24 +36,18 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     auto prevLbMap = lbMap;
     auto prevUbMap = ubMap;
 
-    fullyComposeAffineMapAndOperands(&lbMap, &lbOperands);
+    fully2ComposeAffineMapAndOperands(&lbMap, &lbOperands);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
     lbMap = removeDuplicateExprs(lbMap);
 
-    fullyComposeAffineMapAndOperands(&ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(&ubMap, &ubOperands);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
     ubMap = removeDuplicateExprs(ubMap);
-
-    // Any canonicalization change always leads to updated map(s).
-    if (lbMap == prevLbMap && ubMap == prevUbMap)
-      return false;
 
     if (lbMap != prevLbMap)
       forOp.setLowerBound(lbOperands, lbMap);
     if (ubMap != prevUbMap)
       forOp.setUpperBound(ubOperands, ubMap);
-
-    return true;
   }
 
   int64_t getStep(mlir::Value value) const {
@@ -62,36 +56,25 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     return cstOp.getValue();
   }
 
-  bool isConstantLike(Value val) const {
-    Operation *op = val.getDefiningOp();
-    if (!op)
-      return false;
-    return op->getNumOperands() == 0 && op->getNumResults() == 1 &&
-           op->hasTrait<OpTrait::ConstantLike>();
-  }
-
   LogicalResult matchAndRewrite(scf::ForOp loop,
                                 PatternRewriter &rewriter) const final {
     if (isAffine(loop)) {
       OpBuilder builder(loop);
+
+      if (!isValidIndex(loop.lowerBound())) {
+        return failure();
+      }
+
+      if (!isValidIndex(loop.upperBound())) {
+        return failure();
+      }
 
       AffineForOp affineLoop = rewriter.create<AffineForOp>(
           loop.getLoc(), loop.lowerBound(), builder.getSymbolIdentityMap(),
           loop.upperBound(), builder.getSymbolIdentityMap(),
           getStep(loop.step()), loop.getIterOperands());
 
-      if (!canonicalizeLoopBounds(affineLoop))
-        return failure();
-
-      // constant should be ok too.
-      if (!llvm::all_of(affineLoop.getLowerBoundOperands(), [this](Value operand) {
-            return isValidDim(operand) || isConstantLike(operand);
-          }))
-        return failure();
-      if (!llvm::all_of(affineLoop.getUpperBoundOperands(), [this](Value operand) {
-            return isValidDim(operand) || isConstantLike(operand);
-          }))
-        return failure();
+      canonicalizeLoopBounds(affineLoop);
 
       SmallVector<Value, 4> newBlockTransferArgs;
       newBlockTransferArgs.reserve(1 + loop.getNumIterOperands());

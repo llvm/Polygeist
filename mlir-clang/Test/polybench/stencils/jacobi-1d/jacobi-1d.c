@@ -76,7 +76,7 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
-static
+//static
 void kernel_jacobi_1d(int tsteps,
 			    int n,
 			    DATA_TYPE POLYBENCH_1D(A,N,n),
@@ -133,7 +133,7 @@ int main(int argc, char** argv)
 }
 
 // CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
-// CHECK: func private @kernel_jacobi_1d(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<?xf64>) {
+// CHECK: func @kernel_jacobi_1d(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<?xf64>) {
 // CHECK-NEXT:      %cst = constant 3.333300e-01 : f64
 // CHECK-NEXT:      %0 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:      %1 = index_cast %arg0 : i32 to index

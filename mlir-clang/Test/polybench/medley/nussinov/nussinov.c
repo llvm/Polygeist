@@ -92,7 +92,7 @@ void print_array(int n,
   with help from Allison Lake, Ting Zhou, and Tian Jin,
   based on algorithm by Nussinov, described in Allison Lake's senior thesis.
 */
-static
+// static
 void kernel_nussinov(int n, base POLYBENCH_1D(seq,N,n),
 			   DATA_TYPE POLYBENCH_2D(table,N,N,n,n))
 {

@@ -301,12 +301,11 @@ template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
 
 
 void LoopRestructure::runOnFunction() {
-  //FuncOp f = getFunction();
+  // FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
   if (auto region = getOperation().getCallableRegion()) {
     runOnRegion(domInfo, *region);
   }
-
 }
 
 bool attemptToFoldIntoPredecessor(Block *target) {

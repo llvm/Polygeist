@@ -20,17 +20,17 @@ void init_array (int path[10][10])
 }
 
 // CHECK:   func @init_array(%arg0: memref<?x10xi32>) {
-// CHECK-NEXT:     %c1 = constant 1 : index
-// CHECK-NEXT:     %c0 = constant 0 : index
-// CHECK-NEXT:     %c10 = constant 10 : index
-// CHECK-NEXT:     %c999_i32 = constant 999 : i32
-// CHECK-NEXT:     %c11_i32 = constant 11 : i32
-// CHECK-NEXT:     %c13_i32 = constant 13 : i32
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %c7_i32 = constant 7 : i32
-// CHECK-NEXT:     %c0_i32 = constant 0 : i32
-// CHECK-NEXT:     %true = constant true
-// CHECK-NEXT:     scf.for %arg1 = %c0 to %c10 step %c1 {
+// CHECK-DAG:     %c1 = constant 1 : index
+// CHECK-DAG:     %c0 = constant 0 : index
+// CHECK-DAG:     %c10 = constant 10 : index
+// CHECK-DAG:     %c999_i32 = constant 999 : i32
+// CHECK-DAG:     %c11_i32 = constant 11 : i32
+// CHECK-DAG:     %c13_i32 = constant 13 : i32
+// CHECK-DAG:     %c1_i32 = constant 1 : i32
+// CHECK-DAG:     %c7_i32 = constant 7 : i32
+// CHECK-DAG:     %c0_i32 = constant 0 : i32
+// CHECK-DAG:     %true = constant true
+// CHECK-DAG:     scf.for %arg1 = %c0 to %c10 step %c1 {
 // CHECK-NEXT:       %0 = index_cast %arg1 : index to i32
 // CHECK-NEXT:       scf.for %arg2 = %c0 to %c10 step %c1 {
 // CHECK-NEXT:         %1 = index_cast %arg2 : index to i32

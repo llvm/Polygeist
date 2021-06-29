@@ -101,7 +101,6 @@ void kernel_gramschmidt(int m, int n,
 
   DATA_TYPE nrm;
 
-#pragma scop
   for (k = 0; k < _PB_N; k++)
     {
       nrm = SCALAR_VAL(0.0);
@@ -119,7 +118,6 @@ void kernel_gramschmidt(int m, int n,
 	    A[i][j] = A[i][j] - Q[i][k] * R[k][j];
 	}
     }
-#pragma endscop
 
 }
 

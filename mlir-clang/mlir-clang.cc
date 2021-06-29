@@ -153,7 +153,9 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createLoopRestructurePass());
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
-    //optPM.addPass(mlir::createAffineScalarReplacementPass());
+    optPM.addPass(mlir::createAffineScalarReplacementPass());
+    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     if (RaiseToAffine) {
@@ -162,6 +164,7 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(polygeist::createRaiseSCFToAffinePass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
+      optPM.addPass(mlir::createAffineScalarReplacementPass());
     }
     if (mlir::failed(pm.run(module))) {
       module.dump();
