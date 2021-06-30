@@ -20,7 +20,7 @@ set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
 message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
 find_package(MLIR REQUIRED CONFIG)
 
-find_package(CLANG REQUIRED CONFIG)
+find_package(Clang REQUIRED CONFIG)
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 message(STATUS "Using ClangConfig.cmake in: ${CLANG_DIR}")
