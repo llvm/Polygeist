@@ -1,5 +1,4 @@
 // Counters must be delimited with ',' including the last one.
 // C/C++ comments are allowed.
 // Both native and standard PAPI events are supported.
-"PAPI_TOT_CYC",
-"L1D:REPL",
+"PAPI_TOT_CYC", "L1D:REPL",

@@ -1,7 +1,7 @@
 // RUN: mlir-opt --detect-reduction %s | FileCheck %s
 // XFAIL: *
 
-module  {
+module {
   func @reduce_with_iter_args(%arg0: memref<?xf32>) -> f32 {
     %c0 = constant 0 : index
     %0 = memref.dim %arg0, %c0 : memref<?xf32>

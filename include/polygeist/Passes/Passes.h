@@ -1,20 +1,19 @@
-#include <memory>
 #include "mlir/Pass/Pass.h"
+#include <memory>
 namespace mlir {
-    namespace polygeist {
-        std::unique_ptr<OperationPass<FuncOp>> createMem2RegPass();
-        std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass();
-        std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
-        std::unique_ptr<Pass> createCanonicalizeForPass();
-        std::unique_ptr<Pass> createRaiseSCFToAffinePass();
-        std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
-        std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
-    }
-}
+namespace polygeist {
+std::unique_ptr<OperationPass<FuncOp>> createMem2RegPass();
+std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass();
+std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
+std::unique_ptr<Pass> createCanonicalizeForPass();
+std::unique_ptr<Pass> createRaiseSCFToAffinePass();
+std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
+std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+} // namespace polygeist
+} // namespace mlir
 
-
-void fully2ComposeAffineMapAndOperands(mlir::AffineMap *map,
-                                       llvm::SmallVectorImpl<mlir::Value> *operands);
+void fully2ComposeAffineMapAndOperands(
+    mlir::AffineMap *map, llvm::SmallVectorImpl<mlir::Value> *operands);
 bool isValidIndex(mlir::Value val);
 
 namespace mlir {
@@ -33,7 +32,7 @@ class MemRefDialect;
 class AffineDialect;
 class StandardOpsDialect;
 namespace LLVM {
-    class LLVMDialect;
+class LLVMDialect;
 }
 
 #define GEN_PASS_CLASSES

@@ -1,4 +1,5 @@
-// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine |
+// FileCheck %s
 
 #define DATA_TYPE double
 
@@ -6,32 +7,26 @@
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
-void kernel_correlation(int n, double alpha, double beta,
-                    double A[28][28],
-                    double B[28][28],
-                    double tmp[28],
-                    double x[28],
-                    double y[28])
-{
+void kernel_correlation(int n, double alpha, double beta, double A[28][28],
+                        double B[28][28], double tmp[28], double x[28],
+                        double y[28]) {
   int i, j;
 
-  for (i = 0; i < n; i++)
-    {
-      tmp[i] = SCALAR_VAL(0.0);
-      y[i] = SCALAR_VAL(0.0);
-      for (j = 0; j < n; j++)
-	{
-	  tmp[i] = A[i][j] * x[j] + tmp[i];
-	  y[i] = B[i][j] * x[j] + y[i];
-	}
-      y[i] = alpha * tmp[i] + beta * y[i];
+  for (i = 0; i < n; i++) {
+    tmp[i] = SCALAR_VAL(0.0);
+    y[i] = SCALAR_VAL(0.0);
+    for (j = 0; j < n; j++) {
+      tmp[i] = A[i][j] * x[j] + tmp[i];
+      y[i] = B[i][j] * x[j] + y[i];
     }
-
+    y[i] = alpha * tmp[i] + beta * y[i];
+  }
 }
 
-// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<?x28xf64>, %arg4: memref<?x28xf64>, %arg5: memref<?xf64>, %arg6: memref<?xf64>, %arg7: memref<?xf64>) {
-// CHECK-NEXT:     %cst = constant 0.000000e+00 : f64
-// CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
+// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: f64, %arg2: f64, %arg3:
+// memref<?x28xf64>, %arg4: memref<?x28xf64>, %arg5: memref<?xf64>, %arg6:
+// memref<?xf64>, %arg7: memref<?xf64>) { CHECK-NEXT:     %cst = constant
+// 0.000000e+00 : f64 CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg8 = 0 to %0 {
 // CHECK-NEXT:       affine.store %cst, %arg5[%arg8] : memref<?xf64>
 // CHECK-NEXT:       affine.store %cst, %arg7[%arg8] : memref<?xf64>

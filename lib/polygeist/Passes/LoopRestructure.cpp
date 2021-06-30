@@ -70,16 +70,15 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
 #include "mlir/IR/Dominance.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/IR/Dominators.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Transforms/Passes.h"
-
 
 using namespace mlir;
 
@@ -88,114 +87,93 @@ using namespace mlir;
 struct Wrapper;
 
 struct RWrapper {
-  RWrapper(int x) {};
-  Wrapper& front();
+  RWrapper(int x){};
+  Wrapper &front();
 };
 
 struct Wrapper {
   mlir::Block blk;
   Wrapper() = delete;
-  Wrapper(Wrapper& w) = delete;
-  bool isLegalToHoistInto() const {
-    return true;
+  Wrapper(Wrapper &w) = delete;
+  bool isLegalToHoistInto() const { return true; }
+  void print(llvm::raw_ostream &OS) const {
+    // B->print(OS);
   }
-  void print(llvm::raw_ostream& OS) const {
-    //B->print(OS);
+  void printAsOperand(llvm::raw_ostream &OS, bool b) const {
+    // B->print(OS, b);
   }
-  void printAsOperand(llvm::raw_ostream& OS, bool b) const {
-    //B->print(OS, b);
+  RWrapper *getParent() const {
+    Region *R = ((Block *)(this))->getParent();
+    return (RWrapper *)R;
   }
-  RWrapper* getParent() const {
-    Region* R = ((Block*)(this))->getParent();
-    return (RWrapper*)R;
-  }
-  mlir::Block& operator*() const {
-    return *(Block*)(this);
-  }
-  mlir::Block* operator->() const {
-      return (Block*)(this);
-  }
+  mlir::Block &operator*() const { return *(Block *)(this); }
+  mlir::Block *operator->() const { return (Block *)(this); }
 };
 
-Wrapper& RWrapper::front() {
-  return *(Wrapper*)&((Region*)this)->front();
-}
+Wrapper &RWrapper::front() { return *(Wrapper *)&((Region *)this)->front(); }
 
-llvm::raw_ostream& operator<<(llvm::raw_ostream& os, Wrapper& w) {
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, Wrapper &w) {
   return os << "<cannot print wrapper>";
 }
 
-template<typename T>
-struct Iter : public std::iterator<
-                        std::input_iterator_tag,   // iterator_category
-                        Wrapper*,
-                        std::ptrdiff_t,
-                        Wrapper**,
-                        Wrapper* > {
- T it;
- Iter(T it) : it(it) {}
- Wrapper* operator*() const;
- bool operator!=(Iter I) const {
-   return it != I.it;
- }
- bool operator==(Iter I) const {
-   return it == I.it;
- }
- void operator++() {
-   ++it;
- }
- Iter<T> operator--() {
-   return --it;
- }
- Iter<T> operator++(int) {
-   auto prev = *this;
-   it++;
-   return prev;
- }
+template <typename T>
+struct Iter
+    : public std::iterator<std::input_iterator_tag, // iterator_category
+                           Wrapper *, std::ptrdiff_t, Wrapper **, Wrapper *> {
+  T it;
+  Iter(T it) : it(it) {}
+  Wrapper *operator*() const;
+  bool operator!=(Iter I) const { return it != I.it; }
+  bool operator==(Iter I) const { return it == I.it; }
+  void operator++() { ++it; }
+  Iter<T> operator--() { return --it; }
+  Iter<T> operator++(int) {
+    auto prev = *this;
+    it++;
+    return prev;
+  }
 };
 
-template<>
- Wrapper* Iter<Region::iterator>::operator*() const {
-   Block& B = *it;
-   return (Wrapper*)&B;
- }
-template<>
- Wrapper* Iter<Region::reverse_iterator>::operator*() const {
-   Block& B = *it;
-   return (Wrapper*)&B;
- }
+template <> Wrapper *Iter<Region::iterator>::operator*() const {
+  Block &B = *it;
+  return (Wrapper *)&B;
+}
+template <> Wrapper *Iter<Region::reverse_iterator>::operator*() const {
+  Block &B = *it;
+  return (Wrapper *)&B;
+}
 
-template<typename T>
- Wrapper* Iter<T>::operator*() const {
-   Block* B = *it;
-   return (Wrapper*)B;
- }
+template <typename T> Wrapper *Iter<T>::operator*() const {
+  Block *B = *it;
+  return (Wrapper *)B;
+}
 
 namespace llvm {
-template <>
-struct GraphTraits<RWrapper *> {
+template <> struct GraphTraits<RWrapper *> {
   using nodes_iterator = Iter<Region::iterator>;
-  static Wrapper* getEntryNode(RWrapper* bb) { return (Wrapper*)&((Region*)bb)->front(); }
-  static nodes_iterator nodes_begin(RWrapper* bb) {
-    return ((Region*)bb)->begin();
+  static Wrapper *getEntryNode(RWrapper *bb) {
+    return (Wrapper *)&((Region *)bb)->front();
   }
-  static nodes_iterator nodes_end(RWrapper* bb) {
-    return ((Region*)bb)->end();
+  static nodes_iterator nodes_begin(RWrapper *bb) {
+    return ((Region *)bb)->begin();
+  }
+  static nodes_iterator nodes_end(RWrapper *bb) {
+    return ((Region *)bb)->end();
   }
 };
-template <>
-struct GraphTraits<Inverse<RWrapper *>> {
+template <> struct GraphTraits<Inverse<RWrapper *>> {
   using nodes_iterator = Iter<Region::reverse_iterator>;
-  static Wrapper* getEntryNode(RWrapper* bb) { return (Wrapper*)&((Region*)bb)->front(); }
-  static nodes_iterator nodes_begin(RWrapper* bb) {
-    return ((Region*)bb)->rbegin();
+  static Wrapper *getEntryNode(RWrapper *bb) {
+    return (Wrapper *)&((Region *)bb)->front();
   }
-  static nodes_iterator nodes_end(RWrapper* bb) {
-    return ((Region*)bb)->rend();
+  static nodes_iterator nodes_begin(RWrapper *bb) {
+    return ((Region *)bb)->rbegin();
+  }
+  static nodes_iterator nodes_end(RWrapper *bb) {
+    return ((Region *)bb)->rend();
   }
 };
-template <>
-struct GraphTraits<const Wrapper *> {
+template <> struct GraphTraits<const Wrapper *> {
   using ChildIteratorType = Iter<Block::succ_iterator>;
   using Node = const Wrapper;
   using NodeRef = Node *;
@@ -209,8 +187,7 @@ struct GraphTraits<const Wrapper *> {
     return (*node)->succ_end();
   }
 };
-template <>
-struct GraphTraits<Wrapper *> {
+template <> struct GraphTraits<Wrapper *> {
   using ChildIteratorType = Iter<Block::succ_iterator>;
   using Node = Wrapper;
   using NodeRef = Node *;
@@ -225,8 +202,7 @@ struct GraphTraits<Wrapper *> {
   }
 };
 
-template <>
-struct GraphTraits<Inverse<Wrapper *>> {
+template <> struct GraphTraits<Inverse<Wrapper *>> {
   using ChildIteratorType = Iter<Block::pred_iterator>;
   using Node = Wrapper;
   using NodeRef = Node *;
@@ -238,8 +214,7 @@ struct GraphTraits<Inverse<Wrapper *>> {
     return (*node)->pred_end();
   }
 };
-template <>
-struct GraphTraits<Inverse<const Wrapper *>> {
+template <> struct GraphTraits<Inverse<const Wrapper *>> {
   using ChildIteratorType = Iter<Block::pred_iterator>;
   using Node = const Wrapper;
   using NodeRef = Node *;
@@ -252,12 +227,13 @@ struct GraphTraits<Inverse<const Wrapper *>> {
   }
 };
 
- template <>
- struct GraphTraits<const DomTreeNodeBase<Wrapper> *>
-     : public DomTreeGraphTraitsBase<const DomTreeNodeBase<Wrapper>,
-                                      DomTreeNodeBase<Wrapper>::const_iterator> {};
+template <>
+struct GraphTraits<const DomTreeNodeBase<Wrapper> *>
+    : public DomTreeGraphTraitsBase<const DomTreeNodeBase<Wrapper>,
+                                    DomTreeNodeBase<Wrapper>::const_iterator> {
+};
 
-}
+} // namespace llvm
 
 namespace {
 
@@ -277,7 +253,8 @@ struct LoopRestructure : public mlir::LoopRestructureBase<LoopRestructure> {
 
 template class llvm::DominatorTreeBase<Wrapper, false>;
 template class llvm::DomTreeNodeBase<Wrapper>;
-//template void llvm::DomTreeBuilder::ApplyUpdates<llvm::DominatorTreeBase<Wrapper, false>>;
+// template void
+// llvm::DomTreeBuilder::ApplyUpdates<llvm::DominatorTreeBase<Wrapper, false>>;
 
 namespace mlir {
 class Loop : public llvm::LoopBase<Wrapper, mlir::Loop> {
@@ -298,7 +275,6 @@ public:
 
 template class llvm::LoopBase<Wrapper, ::mlir::Loop>;
 template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
-
 
 void LoopRestructure::runOnFunction() {
   // FuncOp f = getFunction();
@@ -329,12 +305,14 @@ bool attemptToFoldIntoPredecessor(Block *target) {
 
       mlir::OpBuilder builder(op);
       SmallVector<mlir::Type> types;
-      for(auto T : op.getTrueOperands()) {
+      for (auto T : op.getTrueOperands()) {
         types.push_back(T.getType());
       }
-      
+
       for (size_t i = 0; i < target->getNumArguments(); ++i) {
-        auto sel = builder.create<mlir::SelectOp>(op.getLoc(), op.getCondition(), op.getTrueOperand(i), op.getFalseOperand(i));
+        auto sel = builder.create<mlir::SelectOp>(
+            op.getLoc(), op.getCondition(), op.getTrueOperand(i),
+            op.getFalseOperand(i));
         target->getArgument(i).replaceAllUsesWith(sel);
       }
       P[0]->getOperations().splice(P[0]->getOperations().end(),
@@ -437,14 +415,16 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
 
 void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
   if (region.getBlocks().size() > 1) {
-    const llvm::DominatorTreeBase<Block, false>* DT = &domInfo.getDomTree(&region);
-    mlir::LoopInfo LI(*(const llvm::DominatorTreeBase<Wrapper, false>*)DT);
+    const llvm::DominatorTreeBase<Block, false> *DT =
+        &domInfo.getDomTree(&region);
+    mlir::LoopInfo LI(*(const llvm::DominatorTreeBase<Wrapper, false> *)DT);
     for (auto L : LI.getTopLevelLoops()) {
-      Block *header = (Block*)L->getHeader();
-      Block *target = (Block*)L->getUniqueExitBlock();
+      Block *header = (Block *)L->getHeader();
+      Block *target = (Block *)L->getUniqueExitBlock();
       if (!target) {
         // Only support one exit block
-        llvm::errs() << " found mlir loop with more than one exit, skipping. \n";
+        llvm::errs()
+            << " found mlir loop with more than one exit, skipping. \n";
         continue;
       }
 
@@ -471,7 +451,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       wrapper->addArguments(headerArgumentTypes);
 
       SmallVector<Type, 4> combinedTypes(headerArgumentTypes.begin(),
-                                        headerArgumentTypes.end());
+                                         headerArgumentTypes.end());
       SmallVector<Type, 4> returns;
       for (auto arg : target->getArguments()) {
         returns.push_back(arg.getType());
@@ -491,20 +471,19 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       SmallVector<Block *, 4> Preds;
 
       for (auto block : header->getPredecessors()) {
-        if (!L->contains((Wrapper*)block))
+        if (!L->contains((Wrapper *)block))
           Preds.push_back(block);
       }
 
       loop.before().getBlocks().splice(loop.before().getBlocks().begin(),
-                                      region.getBlocks(), header);
+                                       region.getBlocks(), header);
       for (auto *w : L->getBlocks()) {
         Block *b = &**w;
         if (b != header) {
           loop.before().getBlocks().splice(loop.before().getBlocks().end(),
-                                          region.getBlocks(), b);
+                                           region.getBlocks(), b);
         }
       }
-
 
       Block *pseudoExit = new Block();
       auto i1Ty = builder.getI1Type();
@@ -517,7 +496,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         OpBuilder builder(pseudoExit, pseudoExit->begin());
         tys.clear();
         builder.create<scf::ConditionOp>(builder.getUnknownLoc(), tys,
-                                        pseudoExit->getArguments());
+                                         pseudoExit->getArguments());
       }
 
       for (auto *w : exitingBlocks) {
@@ -545,7 +524,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               std::vector<Value> trueargs(op.getTrueOperands().begin(),
                                           op.getTrueOperands().end());
               std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                          op.getFalseOperands().end());
+                                           op.getFalseOperands().end());
               if (op.getTrueDest() == target) {
                 trueargs.insert(trueargs.begin(), args.begin(), args.end());
               }
@@ -569,8 +548,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       // in that new block call loop.natural.next
       SmallVector<Wrapper *, 4> loopLatches;
       L->getLoopLatches(loopLatches);
-      for (auto* w : loopLatches) {
-        Block* block = &**w;
+      for (auto *w : loopLatches) {
+        Block *block = &**w;
         Operation *terminator = block->getTerminator();
         for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
           Block *successor = terminator->getSuccessor(i);
@@ -588,7 +567,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 // args.push_back(builder.create<mlir::LLVM::UndefOp>(builder.getUnknownLoc(),
                 // ty));
                 args.push_back(builder.create<mlir::ConstantOp>(
-                    builder.getUnknownLoc(), ty, builder.getIntegerAttr(ty, 0)));
+                    builder.getUnknownLoc(), ty,
+                    builder.getIntegerAttr(ty, 0)));
               }
               builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
               op.erase();
@@ -597,7 +577,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               std::vector<Value> trueargs(op.getTrueOperands().begin(),
                                           op.getTrueOperands().end());
               std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                          op.getFalseOperands().end());
+                                           op.getFalseOperands().end());
               if (op.getTrueDest() == header) {
                 trueargs.insert(trueargs.begin(), vtrue);
                 for (auto ty : returns) {
@@ -668,7 +648,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
   }
 
   for (auto &blk : region) {
-    for (auto &op : blk ) {
+    for (auto &op : blk) {
       for (auto &reg : op.getRegions()) {
         domInfo.invalidate(&reg);
         runOnRegion(domInfo, reg);
@@ -678,9 +658,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 }
 
 namespace mlir {
-  namespace polygeist {
-    std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass() {
-      return std::make_unique<LoopRestructure>();
-    }
-  }
+namespace polygeist {
+std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass() {
+  return std::make_unique<LoopRestructure>();
 }
+} // namespace polygeist
+} // namespace mlir

@@ -19,8 +19,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "polygeist/Passes/Passes.h"
 #include "polygeist/Ops.h"
+#include "polygeist/Passes/Passes.h"
 
 #define DEBUG_TYPE "cpuify"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
@@ -55,13 +55,13 @@ static void findValuesUsedBelow(Operation *op,
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
 /// one of its regions.
-static bool hasNestedBarrier(Operation *op, Operation* direct=nullptr) {
-  auto result =
-      op->walk([=](polygeist::BarrierOp op) { 
-        if (!direct || op->getParentOp() == direct)
-         return WalkResult::interrupt();
-        else return WalkResult::skip();
-      });
+static bool hasNestedBarrier(Operation *op, Operation *direct = nullptr) {
+  auto result = op->walk([=](polygeist::BarrierOp op) {
+    if (!direct || op->getParentOp() == direct)
+      return WalkResult::interrupt();
+    else
+      return WalkResult::skip();
+  });
   return result.wasInterrupted();
 }
 
@@ -105,8 +105,10 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
     auto zero = rewriter.create<ConstantIndexOp>(loc, 0);
     auto one = rewriter.create<ConstantIndexOp>(loc, 1);
 
-    auto cond = rewriter.create<IndexCastOp>(loc, rewriter.getIndexType(),
-                                             rewriter.create<ZeroExtendIOp>(loc, op.condition(), mlir::IntegerType::get(one.getContext(), 64)));
+    auto cond = rewriter.create<IndexCastOp>(
+        loc, rewriter.getIndexType(),
+        rewriter.create<ZeroExtendIOp>(
+            loc, op.condition(), mlir::IntegerType::get(one.getContext(), 64)));
     auto thenLoop = rewriter.create<scf::ForOp>(loc, zero, cond, one);
     rewriter.mergeBlockBefore(op.getBody(0), &thenLoop.getBody()->back());
     rewriter.eraseOp(&thenLoop.getBody()->back());
@@ -280,7 +282,8 @@ static LogicalResult wrapWithBarriers(
     llvm::function_ref<bool(Operation *)> extraPrevCheck = nullptr) {
   Operation *prevOp = op->getPrevNode();
   Operation *nextOp = op->getNextNode();
-  bool hasPrevBarrierLike = prevOp == nullptr || isa<polygeist::BarrierOp>(prevOp);
+  bool hasPrevBarrierLike =
+      prevOp == nullptr || isa<polygeist::BarrierOp>(prevOp);
   if (extraPrevCheck && !hasPrevBarrierLike)
     hasPrevBarrierLike = extraPrevCheck(prevOp);
   bool hasNextBarrierLike =
@@ -798,7 +801,7 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     if (!op.hasIterOperands() || !hasNestedBarrier(op))
       return failure();
 
-    //Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
+    // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
     //    op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     SmallVector<Value> allocated;
@@ -835,7 +838,7 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     for (Value alloc : allocated) {
       rewriter.create<mlir::memref::DeallocOp>(op.getLoc(), alloc);
     }
-    //rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
+    // rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
     rewriter.replaceOp(op, loaded);
     return success();
   }
@@ -935,16 +938,15 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (failed(applyPatternsAndFoldGreedily(getFunction(), std::move(patterns),
                                             config)))
       signalPassFailure();
-
   }
 };
 
 } // end namespace
 
 namespace mlir {
-  namespace polygeist {
+namespace polygeist {
 std::unique_ptr<Pass> createCPUifyPass() {
   return std::make_unique<CPUifyPass>();
 }
-  }
-}
+} // namespace polygeist
+} // namespace mlir

@@ -1,9 +1,9 @@
-#include "polygeist/Passes/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 
 using namespace mlir;
@@ -45,8 +45,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
                       storeOrLoadIndices.begin());
   }
 
-  template <typename T>
-  bool areCompatible(AffineLoadOp load, T store) const {
+  template <typename T> bool areCompatible(AffineLoadOp load, T store) const {
     static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
                   "applies to only AffineLoadOp or AffineStoreOp");
     if (load.getMemRef() != store.getMemRef()) {
@@ -175,8 +174,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     size_t origNumRegionArgs = forOp.getNumRegionIterArgs();
     for (auto pair : candidateOpsInFor) {
       std::get<0>(pair)->getResult(0).replaceAllUsesWith(
-          newForOp.getBody()
-              ->getArguments()[i + origNumRegionArgs + 1]);
+          newForOp.getBody()->getArguments()[i + origNumRegionArgs + 1]);
       rewriter.eraseOp(std::get<0>(pair));
       ++i;
     }
@@ -227,8 +225,8 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       auto loads = loadsInFor[i];
       for (auto load : loads) {
         if (PDT.postDominates(store, load)) {
-          load->getResult(0).replaceAllUsesWith(newForOp.getBody()
-              ->getArguments()[i + origNumRegionArgs + 1]);
+          load->getResult(0).replaceAllUsesWith(
+              newForOp.getBody()->getArguments()[i + origNumRegionArgs + 1]);
         } else if (DT.dominates(store, load)) {
           load->getResult(0).replaceAllUsesWith(store.getOperand(0));
         } else {
@@ -258,13 +256,13 @@ void AffineReductionPass::runOnFunction() {
   rpl.add<AffineForReductionIter>(getFunction().getContext());
   GreedyRewriteConfig config;
   applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                config);
+                               config);
 }
 
 namespace mlir {
-    namespace polygeist {
-        std::unique_ptr<OperationPass<FuncOp>> detectReductionPass() {
-            return std::make_unique<AffineReductionPass>();
-        }
-    }
+namespace polygeist {
+std::unique_ptr<OperationPass<FuncOp>> detectReductionPass() {
+  return std::make_unique<AffineReductionPass>();
 }
+} // namespace polygeist
+} // namespace mlir

@@ -13,5 +13,4 @@
 
 #include "polygeist/PolygeistOpsDialect.h.inc"
 
-
 #endif // BFV_BFVDIALECT_H

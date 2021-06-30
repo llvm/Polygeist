@@ -13,7 +13,6 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 
-#include "polygeist/Passes/Passes.h"
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -22,6 +21,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/Passes.h"
+#include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
@@ -350,45 +350,46 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           if (StoringOperations.count(a)) {
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
               valueAtStartOfBlock[&*exOp.region().begin()] = lastVal;
-              Value thenVal;// = handleBlock(exOp.region().front(), lastVal);
+              Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
               lastVal = nullptr;
               continue;
 
               bool needsAfter = false;
               {
-                for(auto n = exOp->getNextNode(); n != nullptr; n = n->getNextNode()) {
+                for (auto n = exOp->getNextNode(); n != nullptr;
+                     n = n->getNextNode()) {
                   if (loadOps.count(n))
                     needsAfter = true;
                   else
-                    n->walk([&](Operation* a) {
+                    n->walk([&](Operation *a) {
                       if (loadOps.count(a))
                         needsAfter = true;
                     });
                 }
               }
-              if (!needsAfter) continue;
+              if (!needsAfter)
+                continue;
 
               Block &then = exOp.region().back();
               OpBuilder B(exOp.getContext());
               auto yieldOp = cast<mlir::scf::YieldOp>(then.back());
               B.setInsertionPoint(yieldOp);
-              
+
               SmallVector<mlir::Value, 4> nidx;
               for (auto i : idx) {
                 nidx.push_back(
                     B.create<mlir::ConstantIndexOp>(exOp.getLoc(), i));
               }
-              auto newLoad =
-                  B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+              auto newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
               loadOps.insert(newLoad);
               thenVal = newLoad;
 
               B.setInsertionPoint(exOp);
               SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
-                                            exOp.getResultTypes().end());
+                                             exOp.getResultTypes().end());
               tys.push_back(thenVal.getType());
-              auto nextIf = B.create<mlir::scf::ExecuteRegionOp>(
-                  exOp.getLoc(), tys);
+              auto nextIf =
+                  B.create<mlir::scf::ExecuteRegionOp>(exOp.getLoc(), tys);
 
               SmallVector<mlir::Value, 4> thenVals = yieldOp.results();
               thenVals.push_back(thenVal);
@@ -777,9 +778,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (op.getFalseDest() == block) {
           falseargs.push_back(pval);
         }
-        subbuilder.create<CondBranchOp>(
-            op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
-            op.getFalseDest(), falseargs);
+        subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                        op.getTrueDest(), trueargs,
+                                        op.getFalseDest(), falseargs);
         // op.replaceAllUsesWith(op2);
         op.erase();
       } else {
@@ -969,9 +970,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             }
             assert(trueargs.size() < op.getTrueOperands().size() ||
                    falseargs.size() < op.getFalseOperands().size());
-            subbuilder.create<CondBranchOp>(
-                op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
-                op.getFalseDest(), falseargs);
+            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest(), trueargs,
+                                            op.getFalseDest(), falseargs);
             op.erase();
           }
         }
@@ -1034,7 +1035,8 @@ bool isPromotable(mlir::Value AI) {
       } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
         continue;
       } else if (isa<CallOp>(U)) {
-        // TODO check "no capture", currently assume as a fallback always nocapture
+        // TODO check "no capture", currently assume as a fallback always
+        // nocapture
         continue;
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
@@ -1079,7 +1081,7 @@ StoreMap getLastStored(mlir::Value AI) {
           }
         }
         lastStored.insert(vec);
-      } 
+      }
       if (auto SO = dyn_cast<memref::LoadOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {

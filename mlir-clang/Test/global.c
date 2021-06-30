@@ -3,12 +3,12 @@
 float A[64][32];
 
 int main() {
-    #pragma scop
-    for (int i = 0; i < 64; i++)
+#pragma scop
+  for (int i = 0; i < 64; i++)
     for (int j = 0; j < 32; j++)
-        A[i][j] = 3.0;
-    #pragma endscop
-    return 0;
+      A[i][j] = 3.0;
+#pragma endscop
+  return 0;
 }
 
 // CHECK:  memref.global "private" @A : memref<64x32xf32>

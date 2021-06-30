@@ -13,10 +13,10 @@ include "Dialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
-
 // HasParent<"ParallelOp">,
-def BarrierOp : Polygeist_Op<"barrier",
-    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+def BarrierOp
+    : Polygeist_Op<"barrier",
+                   [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let summary = "barrier for parallel loops";
   let description = [{}];
 }
@@ -25,15 +25,13 @@ def BarrierOp : Polygeist_Op<"barrier",
 // SubIndexOp
 //===----------------------------------------------------------------------===//
 
-def SubIndexOp : Polygeist_Op<
-    "subindex", [DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect] >  {
+def SubIndexOp : Polygeist_Op<"subindex", [
+  DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect
+]> {
   let summary = "memref subview operation";
 
-  let arguments = (ins
-    AnyMemRef:$source,
-    Index:$index
-  );
-  let results = (outs AnyMemRef:$result);
+  let arguments = (ins AnyMemRef : $source, Index : $index);
+  let results = (outs AnyMemRef : $result);
 
   let hasCanonicalizer = 1;
   let hasFolder = 0;

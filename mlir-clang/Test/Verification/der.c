@@ -1,9 +1,9 @@
 // RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
 
 float kernel_deriche() {
-    float a2, a6;
-    a2 = a6 = 2.0;//EXP_FUN(-alpha);
-    return a2;
+  float a2, a6;
+  a2 = a6 = 2.0; // EXP_FUN(-alpha);
+  return a2;
 }
 
 // CHECK:  func @kernel_deriche() -> f32 {

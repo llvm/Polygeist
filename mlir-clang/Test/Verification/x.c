@@ -1,10 +1,10 @@
 // RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
 
 int kernel_deriche(int x) {
-    x++;
-    x+=3;
-    x*=2;
-    return x;
+  x++;
+  x += 3;
+  x *= 2;
+  return x;
 }
 
 // CHECK:  func @kernel_deriche(%arg0: i32) -> i32 {

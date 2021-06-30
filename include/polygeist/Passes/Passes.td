@@ -26,14 +26,14 @@ def AffineReduction : FunctionPass<"detect-reduction"> {
 def SCFCPUify : FunctionPass<"cpuify"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::createCPUifyPass()";
-  let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect",
-                           "LLVM::LLVMDialect"];
+  let dependentDialects =
+      ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
 }
 
 def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
-	let summary = "Raise SCF to affine";
-	let constructor = "mlir::createRaiseSCFToAffinePass()";
-	let dependentDialects = ["AffineDialect"];
+  let summary = "Raise SCF to affine";
+  let constructor = "mlir::createRaiseSCFToAffinePass()";
+  let dependentDialects = ["AffineDialect"];
 }
 
 def SCFCanonicalizeFor : FunctionPass<"canonicalize-scf-for"> {

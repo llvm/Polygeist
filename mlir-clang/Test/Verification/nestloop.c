@@ -1,21 +1,18 @@
 // RUN: mlir-clang %s %stdinclude --function=init_array | FileCheck %s
 
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
-
-
-void init_array (int path[10][10])
-{
+void init_array(int path[10][10]) {
   int i, j;
 
   for (i = 0; i < 10; i++)
     for (j = 0; j < 10; j++) {
-      path[i][j] = i*j%7+1;
-      if ((i+j)%13 == 0 || (i+j)%7==0 || (i+j)%11 == 0)
-         path[i][j] = 999;
+      path[i][j] = i * j % 7 + 1;
+      if ((i + j) % 13 == 0 || (i + j) % 7 == 0 || (i + j) % 11 == 0)
+        path[i][j] = 999;
     }
 }
 
@@ -56,10 +53,8 @@ void init_array (int path[10][10])
 // CHECK-NEXT:           scf.yield %11 : i1
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.if %9 {
-// CHECK-NEXT:           memref.store %c999_i32, %arg0[%arg1, %arg2] : memref<?x10xi32>
-// CHECK-NEXT:         }
-// CHECK-NEXT:       }
-// CHECK-NEXT:     }
+// CHECK-NEXT:           memref.store %c999_i32, %arg0[%arg1, %arg2] :
+// memref<?x10xi32> CHECK-NEXT:         } CHECK-NEXT:       } CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT: }

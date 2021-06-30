@@ -1,22 +1,20 @@
 // RUN: mlir-clang %s %stdinclude --function=set | FileCheck %s
 
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
 #include <math.h>
-
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 /* Array initialization. */
 
-int set (int b)
-{
-    int res;
-    if (b)
-        res = 1;
-    else
-        res = 2;
-    return res;
-  //path[0][1] = 2;
+int set(int b) {
+  int res;
+  if (b)
+    res = 1;
+  else
+    res = 2;
+  return res;
+  // path[0][1] = 2;
 }
 
 // CHECK:  func @set(%arg0: i32) -> i32 {

@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "polygeist/Dialect.h"
-#include "polygeist/Ops.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "polygeist/Ops.h"
 
 using namespace mlir;
 using namespace mlir::polygeist;
@@ -18,11 +18,10 @@ using namespace mlir::polygeist;
 //===----------------------------------------------------------------------===//
 
 void PolygeistDialect::initialize() {
-    addOperations<
+  addOperations<
 #define GET_OP_LIST
 #include "polygeist/PolygeistOps.cpp.inc"
-            >();
+      >();
 }
-
 
 #include "polygeist/PolygeistOpsDialect.cpp.inc"

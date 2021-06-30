@@ -1,8 +1,8 @@
 // RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
 
 int kernel_deriche(int *a) {
-    a[3]++;
-    return a[1];
+  a[3]++;
+  return a[1];
 }
 
 // CHECK:  func @kernel_deriche(%arg0: memref<?xi32>) -> i32 {

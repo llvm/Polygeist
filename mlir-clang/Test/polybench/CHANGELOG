@@ -94,9 +94,8 @@ in both PolyBench/C 3.2 and 4.0 may differ.
     triangular region in the multiplication.
   - reduced the size of 'sum' array in doitgen from 3D to 1D to avoid obvious
     waste in memory.
-  - removed A from print_arrays in gramschmidt; A is updated, but is
-    not an output.
-  - removed dynprog; replaced by nussinov in medley.
+  - removed A from print_arrays in gramschmidt;
+A is updated, but is not an output.- removed dynprog; replaced by nussinov in medley.
   - moved BLAS kernels (including updated BLAS) to its own sub-category.
   - BLAS kernels are now commented with the parameters in original BLAS
     which corresponds to the implementation in PolyBench.
@@ -119,29 +118,35 @@ in both PolyBench/C 3.2 and 4.0 may differ.
 
 = Medley
   - changed default datatype of floyd_warshall from double to int.
-  - removed reg_detect; replaced by deriche.
-  - added nussinov; a dynamic programming algorithm for sequence alignment.
+  - removed reg_detect;
+replaced by deriche.- added nussinov; a dynamic programming algorithm for sequence alignment.
      (Code by Dave Wonnacott and his students)
-  - added deriche; edge detector filter.
-     (Code by Gael Deest)
+  - added deriche;
+edge detector filter.(Code by Gael Deest)
 
-= Stencils
-   - re-implemented adi based on a figure in "Automatic Data and
-     Computation Decomposition on Distributed Memory Parallel
-     Computers" by Peizong Lee and Zvi Meir Kedem, TOPLAS, 2002
-  - removed fdtd-apml; replaced by heat-3d
-  - added heat-3d; Heat equation over 3D data domain (4D iteration space)
-    (Original specification from Pochoir compiler test case)
-  - changed jacobi-1d-imper and jacobi-2d-imper to jacobi-1d and
-    jacobi-2d, respectively.
-  - jacobi-1d, jacobi-2d, and heat-3d performs two time steps using
-    alternating arrays per an iteration of the outermost loop. This is
-    to avoid the copy loop in the old xxx-imper versions. The number
-    of stencil iterations are now restricted to be even numbers (2x of
-    the parameter TSTEPS).
+    = Stencils - re -
+      implemented adi based on a figure in
+      "Automatic Data and
+      Computation Decomposition on Distributed Memory Parallel Computers
+      " by Peizong Lee and Zvi Meir Kedem, TOPLAS, 2002
+      - removed fdtd - apml;
+replaced by heat - 3d - added heat - 3d;
+Heat equation over 3D data domain(4D iteration space)(
+    Original specification from Pochoir compiler test case) -
+        changed jacobi - 1d - imper and jacobi - 2d - imper to jacobi - 1d and
+    jacobi - 2d,
+    respectively.- jacobi - 1d, jacobi - 2d,
+    and heat -
+        3d performs two time steps using alternating arrays per an iteration of
+        the outermost loop.This is to avoid the copy loop in the old xxx
+        -
+        imper versions
+            .The number of stencil iterations are now restricted to be even
+        numbers(2x of the parameter TSTEPS)
+            .
 
-= Known Issues
-  - output of correlation will always be mostly 1.0 due to how the input
-    is generated.  It is difficult to avoid this case when the input
-    is some function of the indices, and will be addressed with more
-    fundamental update in the future.
+    = Known Issues
+      - output of correlation will always be mostly
+        1.0 due to how the input is generated.It is difficult to avoid
+        this case when the input is some function of the indices,
+    and will be addressed with more fundamental update in the future.

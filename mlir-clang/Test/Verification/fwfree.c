@@ -1,34 +1,31 @@
 // RUN: mlir-clang %s %stdinclude | FileCheck %s
 
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
 
-#   define N 2800
+#define N 2800
 
 /* Array initialization. */
-static
-void init_array (int path[N])
-{
-  //path[0][1] = 2;
+static void init_array(int path[N]) {
+  // path[0][1] = 2;
 }
 
-int main()
-{
+int main() {
   /* Retrieve problem size. */
 
   /* Variable declaration/allocation. */
-  //POLYBENCH_1D_ARRAY_DECL(path, int, N, n);
-  int (*path)[N];
-  //int path[POLYBENCH_C99_SELECT(N,n) + POLYBENCH_PADDING_FACTOR];
-  path = (int(*)[N])polybench_alloc_data (N, sizeof(int)) ;
+  // POLYBENCH_1D_ARRAY_DECL(path, int, N, n);
+  int(*path)[N];
+  // int path[POLYBENCH_C99_SELECT(N,n) + POLYBENCH_PADDING_FACTOR];
+  path = (int(*)[N])polybench_alloc_data(N, sizeof(int));
 
   /* Initialize array(s). */
-  init_array (*path);
+  init_array(*path);
 
   POLYBENCH_FREE_ARRAY(path);
   return 0;

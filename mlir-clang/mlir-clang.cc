@@ -1,18 +1,18 @@
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
 
-#include "polygeist/Passes/Passes.h"
 #include "polygeist/Dialect.h"
+#include "polygeist/Passes/Passes.h"
 
 using namespace llvm;
 
@@ -24,8 +24,7 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
-static cl::opt<bool> ShowAST("show-ast", cl::init(false),
-                              cl::desc("Show AST"));
+static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
                                    cl::desc("Emit immediate mlir"));
@@ -41,7 +40,7 @@ static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
 static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
-                                     cl::desc("CUDA GPU arch"));
+                                        cl::desc("CUDA GPU arch"));
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
@@ -60,7 +59,7 @@ static cl::opt<std::string> MArch("march", cl::init(""),
                                   cl::desc("Architecture"));
 
 static cl::opt<std::string> ResourceDir("resource-dir", cl::init(""),
-                                  cl::desc("Resource-dir"));
+                                        cl::desc("Resource-dir"));
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -73,9 +72,8 @@ static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
 static cl::list<std::string> defines("D", cl::desc("defines"),
                                      cl::cat(toolOptions));
 
-class MemRefInsider : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {
-
-};
+class MemRefInsider
+    : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
 
 #include "Lib/clang-mlir.cc"
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"

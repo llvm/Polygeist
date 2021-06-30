@@ -1,44 +1,28 @@
-add_clang_tool(mlir-clang
-  mlir-clang.cc
-)
+add_clang_tool(mlir - clang mlir - clang.cc)
 
-target_include_directories(mlir-clang PRIVATE
-  "${LLVM_SOURCE_DIR}/../clang/include"
-  "${CMAKE_BINARY_DIR}/tools/clang/include"
-)
-# MLIRTransformsPassIncGen
+    target_include_directories(mlir - clang PRIVATE
+                               "${LLVM_SOURCE_DIR}/../clang/include"
+                               "${CMAKE_BINARY_DIR}/tools/clang/include")
+#MLIRTransformsPassIncGen
 
-target_compile_definitions(mlir-clang PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")
-target_link_libraries(mlir-clang PRIVATE
-  LLVMCore
-  LLVMOption
-  LLVMSupport
+        target_compile_definitions(mlir - clang PUBLIC -
+                                       DLLVM_OBJ_ROOT = "${LLVM_BINARY_DIR}")
+            target_link_libraries(
+                mlir -
+                clang PRIVATE LLVMCore LLVMOption LLVMSupport
 
-  MLIRSCFTransforms
-  MLIRPolygeist
+                    MLIRSCFTransforms MLIRPolygeist
 
-  MLIRSupport
-  MLIRIR
-  MLIRAnalysis
-  MLIRLLVMIR
-  MLIRNVVMIR
-  MLIRGPU
-  MLIRTransforms
-  MLIRSCFToStandard
-  MLIRStandardToLLVM
-  MLIRAffineTransforms
-  MLIRAffineToStandard
-  MLIRTargetLLVMIRImport
-  MLIRPolygeistTransforms
+                        MLIRSupport MLIRIR MLIRAnalysis MLIRLLVMIR MLIRNVVMIR
+                            MLIRGPU MLIRTransforms MLIRSCFToStandard
+                                MLIRStandardToLLVM MLIRAffineTransforms
+                                    MLIRAffineToStandard MLIRTargetLLVMIRImport
+                                        MLIRPolygeistTransforms
 
-  clangAST
-  clangBasic
-  clangCodeGen
-  clangDriver
-  clangFrontend
-  clangFrontendTool
-  clangLex
-  clangSerialization
-)
-add_dependencies(mlir-clang MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
-add_subdirectory(Test)
+                                            clangAST clangBasic clangCodeGen
+                                                clangDriver clangFrontend
+                                                    clangFrontendTool clangLex
+                                                        clangSerialization)
+                add_dependencies(
+                    mlir - clang MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
+                    add_subdirectory(Test)

@@ -1,8 +1,8 @@
 // RUN: mlir-clang %s %stdinclude --function=init_array | FileCheck %s
 
 #include <stdio.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -10,13 +10,11 @@
 void use(double A[20]);
 /* Array initialization. */
 
-void init_array (int n)
-{
-  double (*B)[20] = (double(*)[20])polybench_alloc_data (20, sizeof(double)) ;
+void init_array(int n) {
+  double(*B)[20] = (double(*)[20])polybench_alloc_data(20, sizeof(double));
   (*B)[2] = 3.0;
   use(*B);
 }
-
 
 // CHECK:  func @init_array(%arg0: i32)
 // CHECK-NEXT:    %cst = constant 3.000000e+00 : f64

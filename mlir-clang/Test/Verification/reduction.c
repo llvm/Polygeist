@@ -43,4 +43,3 @@ void reduction_sum() {
     sum += A[i];
 #pragma endscop
 }
-

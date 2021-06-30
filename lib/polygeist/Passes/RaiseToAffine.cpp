@@ -4,8 +4,8 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "llvm/Support/Debug.h"
 #include "polygeist/Passes/Passes.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "raise-to-affine"
 
@@ -76,7 +76,8 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
 
       canonicalizeLoopBounds(affineLoop);
 
-      auto mergedYieldOp = cast<scf::YieldOp>(loop.region().front().getTerminator());
+      auto mergedYieldOp =
+          cast<scf::YieldOp>(loop.region().front().getTerminator());
 
       Block &newBlock = affineLoop.region().front();
 
@@ -86,23 +87,25 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         auto affineYieldOp = newBlock.getTerminator();
         rewriter.eraseOp(affineYieldOp);
       }
-      
-      rewriter.updateRootInPlace(loop, [&] {        
-        affineLoop.region().front().getOperations().splice(
-          affineLoop.region().front().getOperations().begin(),
-          loop.region().front().getOperations());
 
-        for (auto pair : llvm::zip(affineLoop.region().front().getArguments(), loop.region().front().getArguments())) {
+      rewriter.updateRootInPlace(loop, [&] {
+        affineLoop.region().front().getOperations().splice(
+            affineLoop.region().front().getOperations().begin(),
+            loop.region().front().getOperations());
+
+        for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
+                                   loop.region().front().getArguments())) {
           std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
         }
       });
 
       rewriter.setInsertionPoint(mergedYieldOp);
-      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(), mergedYieldOp.getOperands());
+      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
+                                     mergedYieldOp.getOperands());
       rewriter.eraseOp(mergedYieldOp);
-      
+
       rewriter.replaceOp(loop, affineLoop.getResults());
-      
+
       return success();
     }
     return failure();
@@ -123,9 +126,9 @@ void RaiseSCFToAffine::runOnFunction() {
 }
 
 namespace mlir {
-  namespace polygeist {
-    std::unique_ptr<Pass> createRaiseSCFToAffinePass() {
-      return std::make_unique<RaiseSCFToAffine>();
-    }
-  }
+namespace polygeist {
+std::unique_ptr<Pass> createRaiseSCFToAffinePass() {
+  return std::make_unique<RaiseSCFToAffine>();
 }
+} // namespace polygeist
+} // namespace mlir

@@ -16,17 +16,16 @@ include "mlir/IR/OpBase.td"
 //===----------------------------------------------------------------------===//
 
 def Polygeist_Dialect : Dialect {
-    let name = "polygeist";
-    let description = [{
-    }];
-    let cppNamespace = "::mlir::polygeist";
+  let name = "polygeist";
+  let description = [{}];
+  let cppNamespace = "::mlir::polygeist";
 }
 
 //===----------------------------------------------------------------------===//
 // Base BFV operation definition.
 //===----------------------------------------------------------------------===//
 
-class Polygeist_Op<string mnemonic, list<OpTrait> traits = []> :
-        Op<Polygeist_Dialect, mnemonic, traits>;
+class Polygeist_Op<string mnemonic, list<OpTrait> traits = []>
+    : Op<Polygeist_Dialect, mnemonic, traits>;
 
 #endif // POLYGEIST_DIALECT

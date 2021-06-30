@@ -1,14 +1,10 @@
-add_mlir_dialect_library(MLIRPolygeist
-        Dialect.cpp
-        Ops.cpp
+add_mlir_dialect_library(MLIRPolygeist Dialect.cpp Ops.cpp
 
-        ADDITIONAL_HEADER_DIRS
-        ${PROJECT_SOURCE_DIR}/include/polygeist
+                             ADDITIONAL_HEADER_DIRS ${PROJECT_SOURCE_DIR} /
+                         include /
+                         polygeist
 
-        DEPENDS
-        MLIRPolygeistOpsIncGen
+                             DEPENDS MLIRPolygeistOpsIncGen
 
-	LINK_LIBS PUBLIC
-	MLIRIR
-	)
-add_subdirectory(Passes)
+                                 LINK_LIBS PUBLIC MLIRIR)
+    add_subdirectory(Passes)
