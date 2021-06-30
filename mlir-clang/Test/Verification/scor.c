@@ -31,10 +31,8 @@ void kernel_correlation(double out[28], double stddev[28], _Bool cmp)
 // CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1) {
 // CHECK-DAG:     %[[cst:.+]] = constant 1.000000e+00 : f64
 // CHECK-DAG:     %[[cst_0:.+]] = constant 3.140000e+00 : f64
-// CHECK-DAG:     %[[cst_1:.+]] = constant 0.000000e+00 : f64
 // CHECK:     %0 = select %arg2, %[[cst]], %[[cst_0]] : f64
 // CHECK-NEXT:     affine.for %arg3 = 0 to 28 {
-// CHECK-NEXT:       affine.store %[[cst_1]], %arg1[%arg3] : memref<?xf64>
 // CHECK-NEXT:       affine.store %[[cst_0]], %arg1[%arg3] : memref<?xf64>
 // CHECK-NEXT:       affine.store %0, %arg0[%arg3] : memref<?xf64>
 // CHECK-NEXT:     }

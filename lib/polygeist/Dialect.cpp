@@ -23,3 +23,6 @@ void PolygeistDialect::initialize() {
 #include "polygeist/PolygeistOps.cpp.inc"
             >();
 }
+
+
+#include "polygeist/PolygeistOpsDialect.cpp.inc"

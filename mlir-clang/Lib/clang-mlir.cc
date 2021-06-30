@@ -4454,7 +4454,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     //
     // FIXME: We shouldn't need to do this, the target should be immutable once
     // created. This complexity should be lifted elsewhere.
-    Clang->getTarget().adjust(Clang->getLangOpts());
+    Clang->getTarget().adjust(Clang->getDiagnostics(), Clang->getLangOpts());
 
     // Adjust target options based on codegen options.
     Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),

@@ -18,7 +18,7 @@ void kernel_correlation(int start, int end) {
 // CHECK:   func @kernel_correlation(%arg0: i32, %arg1: i32) {
 // CHECK-NEXT:     %0 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %1 = index_cast %arg0 : i32 to index
-// CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] iter_args(%arg3 = %arg1) {
+// CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] {
 // CHECK-NEXT:       %2 = index_cast %arg2 : index to i32
 // CHECK-NEXT:       %3 = subi %2, %arg0 : i32
 // CHECK-NEXT:       %4 = subi %arg1, %3 : i32

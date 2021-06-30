@@ -19,13 +19,13 @@ void kernel_correlation(int table[N][N]) {
 
 // CHECK:   func @kernel_correlation(%arg0: memref<?x10xi32>) {
 // CHECK-NEXT:     %c9_i32 = constant 9 : i32
-// CHECK-NEXT:     affine.for %arg1 = 0 to 10 iter_args(%arg2 = %c9_i32) {
-// CHECK-NEXT:       %0 = index_cast %arg1 : i32 to index
+// CHECK-NEXT:     affine.for %arg1 = 0 to 10 {
+// CHECK-NEXT:       %0 = index_cast %arg1 : index to i32
 // CHECK-NEXT:       %1 = subi %c9_i32, %0 : i32
-// CHECK-NEXT:       affine.for %arg3 = 0 to 10 {
-// CHECK-NEXT:         %3 = index_cast %arg3 : index to i32
-// CHECK-NEXT:         %4 = addi %arg2, %3 : i32
-// CHECK-NEXT:         memref.store %4, %arg0[%1, %arg3] : memref<?x10xi32>
+// CHECK-NEXT:       affine.for %arg2 = 0 to 10 {
+// CHECK-NEXT:         %2 = index_cast %arg2 : index to i32
+// CHECK-NEXT:         %3 = addi %1, %2 : i32
+// CHECK-NEXT:         affine.store %3, %arg0[-%arg1 + 9, %arg2] : memref<?x10xi32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
