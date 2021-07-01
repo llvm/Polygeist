@@ -1760,9 +1760,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             mlir::Value size = builder.create<mlir::IndexCastOp>(
                 loc, Visit(expr->getArg(2)).getValue(builder),
                 mlir::IndexType::get(builder.getContext()));
-            size = {builder.create<mlir::UnsignedDivIOp>(
+            size = builder.create<mlir::UnsignedDivIOp>(
                 loc, size,
-                builder.create<mlir::ConstantIndexOp>(loc, elemSize))};
+                builder.create<mlir::ConstantIndexOp>(loc, elemSize));
 
             std::vector<mlir::Value> start = {getConstantIndex(0)};
             std::vector<mlir::Value> sizes = {size};
@@ -1840,6 +1840,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if ((sr->getDecl()->getIdentifier() &&
            funcs.count(sr->getDecl()->getName().str()))) {
+
 
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
