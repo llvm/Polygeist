@@ -1,14 +1,28 @@
-add_mlir_dialect_library(MLIRPolygeist
-        Dialect.cpp
-        Ops.cpp
+add_mlir_dialect_library(MLIRPolygeistTransforms
+  AffineCFG.cpp
+  AffineReduction.cpp
+  CanonicalizeFor.cpp
+  LoopRestructure.cpp
+  Mem2Reg.cpp
+  ParallelLoopDistribute.cpp
+  RaiseToAffine.cpp
+  ParallelLower.cpp
 
-        ADDITIONAL_HEADER_DIRS
-        ${PROJECT_SOURCE_DIR}/include/polygeist
 
-        DEPENDS
-        MLIRPolygeistOpsIncGen
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
 
-	LINK_LIBS PUBLIC
-	MLIRIR
-	)
-add_subdirectory(Passes)
+  DEPENDS
+  MLIRPolygeistOpsIncGen
+  MLIRPolygeistPassIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRAffine
+  MLIRAffineUtils
+  MLIRIR
+  MLIRMemRef
+  MLIRPass
+  MLIRSideEffectInterfaces
+  MLIRStandard
+  MLIRTransformUtils
+  )
