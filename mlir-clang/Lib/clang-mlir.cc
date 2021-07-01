@@ -1841,7 +1841,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if ((sr->getDecl()->getIdentifier() &&
            funcs.count(sr->getDecl()->getName().str()))) {
 
-
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
           args.push_back(getLLVM(a));
