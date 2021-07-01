@@ -1,5 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine |
-// FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine | FileCheck %s
 
 #define DATA_TYPE double
 

@@ -1,13 +1,15 @@
 // RUN: mlir-clang %s --function=okernel_2mm | FileCheck %s
 
-void okernel_2mm(unsigned int ni, double *tmp) {
+void okernel_2mm(unsigned int ni,
+                 double *tmp) {
   int i, j, k;
 
 #pragma scop
   /* D := alpha*A*B*C + beta*D */
-  for (i = 0; i < ni; i++) {
-    tmp[i] = 0.0;
-  }
+  for (i = 0; i < ni; i++)
+    {
+      tmp[i] = 0.0;
+    }
 #pragma endscop
 }
 

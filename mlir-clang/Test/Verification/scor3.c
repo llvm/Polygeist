@@ -1,5 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine |
-// FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine | FileCheck %s
 
 #define DATA_TYPE double
 
@@ -7,14 +6,17 @@
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
-void kernel_correlation(int m, double corr[28][28]) {
-  int i, j, k;
-  // i = 0;
-  for (i = 0; i < 28; i++) {
-    for (j = i + 1; j < m; j++) {
-      corr[i][j] = SCALAR_VAL(0.0);
+void kernel_correlation(int m, double corr[28][28])
+{
+    int i, j, k;
+    //i = 0;
+    for (i = 0; i < 28; i++)
+    {
+      for (j = i+1; j < m; j++)
+        {
+          corr[i][j] = SCALAR_VAL(0.0);
+        }
     }
-  }
 }
 
 // CHECK:   func @kernel_correlation(%arg0: i32, %arg1: memref<?x28xf64>) {

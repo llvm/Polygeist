@@ -1,10 +1,12 @@
 // RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
 
-void sub(int a[2]) { a[2]++; }
+void sub(int a[2]) {
+    a[2]++;
+}
 
 void kernel_deriche() {
-  int a[2];
-  sub(a);
+    int a[2];
+    sub(a);
 }
 
 // CHECK:  func @kernel_deriche() {

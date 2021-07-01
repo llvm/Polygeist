@@ -15,14 +15,17 @@
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
-void kernel_nussinov(int n, int table[N]) {
+void kernel_nussinov(int n, int table[N])
+{
   int j;
 
 #pragma scop
-  for (j = 1; j < N; j++) {
+  for (j=1; j<N; j++) {
 
-    if (j - 1 >= 0)
-      table[j] = max_score(table[j], table[j - 1]);
-  }
+   if (j-1>=0)
+      table[j] = max_score(table[j], table[j-1]);
+
+ }
 #pragma endscop
+
 }

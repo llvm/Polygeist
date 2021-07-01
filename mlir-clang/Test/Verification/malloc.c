@@ -5,9 +5,9 @@
 void sum(double *result);
 
 void caller(int size) {
-  double *array = (double *)malloc(sizeof(double) * size);
-  sum(array);
-  free(array);
+    double* array = (double*)malloc(sizeof(double) * size);
+    sum(array);
+    free(array);
 }
 
 // CHECK:  func @caller(%arg0: i32) {

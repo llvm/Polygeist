@@ -1,17 +1,16 @@
-// RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov | FileCheck
-// %s
+// RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov | FileCheck %s
 
 #define max_score(s1, s2) ((s1 >= s2) ? s1 : s2)
 
 void set(double table[20]);
 
-void kernel_nussinov(double *out, int n) {
+void kernel_nussinov(double* out, int n)  {
   double table[20];
   set(table);
 #pragma scop
-  for (int k = 0; k < 10; k++) {
-    out[n] = max_score(out[n], table[k]);
-  }
+   for (int k=0; k<10; k++) {
+      out[n] = max_score(out[n], table[k]);
+   }
   //}
 #pragma endscop
 }
@@ -22,8 +21,8 @@ void kernel_nussinov(double *out, int n) {
 // CHECK-NEXT:     %2 = memref.cast %0 : memref<20xf64> to memref<?xf64>
 // CHECK-NEXT:     call @set(%2) : (memref<?xf64>) -> ()
 // CHECK-NEXT:     %3 = affine.load %arg0[symbol(%1)] : memref<?xf64>
-// CHECK-NEXT:     %4 = affine.for %arg2 = 0 to 10 iter_args(%arg3 = %3) ->
-// (f64) { CHECK-NEXT:       %5 = affine.load %0[%arg2] : memref<20xf64>
+// CHECK-NEXT:     %4 = affine.for %arg2 = 0 to 10 iter_args(%arg3 = %3) -> (f64) {
+// CHECK-NEXT:       %5 = affine.load %0[%arg2] : memref<20xf64>
 // CHECK-NEXT:       %6 = cmpf uge, %arg3, %5 : f64
 // CHECK-NEXT:       %7 = select %6, %arg3, %5 : f64
 // CHECK-NEXT:       affine.yield %7 : f64

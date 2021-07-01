@@ -1,8 +1,12 @@
 // RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
 
-int deref(int a) { return a; }
+int deref(int a) {
+    return a;
+}
 
-void kernel_deriche(int *a) { deref(*a); }
+void kernel_deriche(int *a) {
+    deref(*a);
+}
 
 // CHECK:    func @kernel_deriche(%arg0: memref<?xi32>) {
 // CHECK-NEXT:    %0 = affine.load %arg0[0] : memref<?xi32>
