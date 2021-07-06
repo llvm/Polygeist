@@ -1,17 +1,18 @@
 // TODO: mlir-clang %s %stdinclude | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o
-// %s.execm && %s.execm &> %s.out2 RUN: rm -f %s.exec1 %s.execm RUN: diff
-// %s.out1 %s.out2 RUN: rm -f %s.out1 %s.out2 RUN: mlir-clang %s %polyexec
-// %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm >
-// %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC RUN: clang
-// %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat
-// %s.clang.time | FileCheck %s --check-prefix EXEC RUN: rm -f %s.exec2 %s.execm
+// RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: rm -f %s.exec1 %s.execm
+// RUN: diff %s.out1 %s.out2
+// RUN: rm -f %s.out1 %s.out2
+// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
+// RUN: rm -f %s.exec2 %s.execm
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: mlir-clang %s %polyverify %stdinclude -detect-reduction -emit-llvm |
-// clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2 RUN: rm -f %s.exec1
-// %s.execm RUN: diff %s.out1 %s.out2 RUN: rm -f %s.out1 %s.out2
+// RUN: mlir-clang %s %polyverify %stdinclude -detect-reduction -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: rm -f %s.exec1 %s.execm
+// RUN: diff %s.out1 %s.out2
+// RUN: rm -f %s.out1 %s.out2
 
 /**
  * This version is stamped on May 10, 2016
@@ -24,10 +25,10 @@
  */
 /* atax.c: this file is part of PolyBench/C */
 
-#include <math.h>
 #include <stdio.h>
-#include <string.h>
 #include <unistd.h>
+#include <string.h>
+#include <math.h>
 
 /* Include polybench common header. */
 #include <polybench.h>
@@ -35,23 +36,30 @@
 /* Include benchmark-specific header. */
 #include "atax.h"
 
+
 /* Array initialization. */
-static void init_array(int m, int n, DATA_TYPE POLYBENCH_2D(A, M, N, m, n),
-                       DATA_TYPE POLYBENCH_1D(x, N, n)) {
+static
+void init_array (int m, int n,
+		 DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
+		 DATA_TYPE POLYBENCH_1D(x,N,n))
+{
   int i, j;
   DATA_TYPE fn;
   fn = (DATA_TYPE)n;
 
   for (i = 0; i < n; i++)
-    x[i] = 1 + (i / fn);
+      x[i] = 1 + (i / fn);
   for (i = 0; i < m; i++)
     for (j = 0; j < n; j++)
-      A[i][j] = (DATA_TYPE)((i + j) % n) / (5 * m);
+      A[i][j] = (DATA_TYPE) ((i+j) % n) / (5*m);
 }
+
 
 /* DCE code. Must scan the entire live-out data.
    Can be used also to check the correctness of the output. */
-static void print_array(int n, DATA_TYPE POLYBENCH_1D(y, N, n))
+static
+void print_array(int n,
+		 DATA_TYPE POLYBENCH_1D(y,N,n))
 
 {
   int i;
@@ -59,36 +67,43 @@ static void print_array(int n, DATA_TYPE POLYBENCH_1D(y, N, n))
   POLYBENCH_DUMP_START;
   POLYBENCH_DUMP_BEGIN("y");
   for (i = 0; i < n; i++) {
-    if (i % 20 == 0)
-      fprintf(POLYBENCH_DUMP_TARGET, "\n");
-    fprintf(POLYBENCH_DUMP_TARGET, DATA_PRINTF_MODIFIER, y[i]);
+    if (i % 20 == 0) fprintf (POLYBENCH_DUMP_TARGET, "\n");
+    fprintf (POLYBENCH_DUMP_TARGET, DATA_PRINTF_MODIFIER, y[i]);
   }
   POLYBENCH_DUMP_END("y");
   POLYBENCH_DUMP_FINISH;
 }
 
+
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
-static void kernel_atax(int m, int n, DATA_TYPE POLYBENCH_2D(A, M, N, m, n),
-                        DATA_TYPE POLYBENCH_1D(x, N, n),
-                        DATA_TYPE POLYBENCH_1D(y, N, n),
-                        DATA_TYPE POLYBENCH_1D(tmp, M, m)) {
+static
+void kernel_atax(int m, int n,
+		 DATA_TYPE POLYBENCH_2D(A,M,N,m,n),
+		 DATA_TYPE POLYBENCH_1D(x,N,n),
+		 DATA_TYPE POLYBENCH_1D(y,N,n),
+		 DATA_TYPE POLYBENCH_1D(tmp,M,m))
+{
   int i, j;
 
 #pragma scop
   for (i = 0; i < _PB_N; i++)
     y[i] = 0;
-  for (i = 0; i < _PB_M; i++) {
-    tmp[i] = SCALAR_VAL(0.0);
-    for (j = 0; j < _PB_N; j++)
-      tmp[i] = tmp[i] + A[i][j] * x[j];
-    for (j = 0; j < _PB_N; j++)
-      y[j] = y[j] + A[i][j] * tmp[i];
-  }
+  for (i = 0; i < _PB_M; i++)
+    {
+      tmp[i] = SCALAR_VAL(0.0);
+      for (j = 0; j < _PB_N; j++)
+	tmp[i] = tmp[i] + A[i][j] * x[j];
+      for (j = 0; j < _PB_N; j++)
+	y[j] = y[j] + A[i][j] * tmp[i];
+    }
 #pragma endscop
+
 }
 
-int main(int argc, char **argv) {
+
+int main(int argc, char** argv)
+{
   /* Retrieve problem size. */
   int m = M;
   int n = N;
@@ -100,14 +115,17 @@ int main(int argc, char **argv) {
   POLYBENCH_1D_ARRAY_DECL(tmp, DATA_TYPE, M, m);
 
   /* Initialize array(s). */
-  init_array(m, n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(x));
+  init_array (m, n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(x));
 
   /* Start timer. */
   polybench_start_instruments;
 
   /* Run kernel. */
-  kernel_atax(m, n, POLYBENCH_ARRAY(A), POLYBENCH_ARRAY(x), POLYBENCH_ARRAY(y),
-              POLYBENCH_ARRAY(tmp));
+  kernel_atax (m, n,
+	       POLYBENCH_ARRAY(A),
+	       POLYBENCH_ARRAY(x),
+	       POLYBENCH_ARRAY(y),
+	       POLYBENCH_ARRAY(tmp));
 
   /* Stop and print timer. */
   polybench_stop_instruments;
@@ -126,9 +144,8 @@ int main(int argc, char **argv) {
   return 0;
 }
 
-// CHECK:   func @kernel_atax(%arg0: i32, %arg1: i32, %arg2:
-// memref<1900x2100xf64>, %arg3: memref<2100xf64>, %arg4: memref<2100xf64>,
-// %arg5: memref<1900xf64>) { CHECK-NEXT:  %c0_i32 = constant 0 : i32
+// CHECK:   func @kernel_atax(%arg0: i32, %arg1: i32, %arg2: memref<1900x2100xf64>, %arg3: memref<2100xf64>, %arg4: memref<2100xf64>, %arg5: memref<1900xf64>) {
+// CHECK-NEXT:  %c0_i32 = constant 0 : i32
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:  %1 = sitofp %c0_i32 : i32 to f64
