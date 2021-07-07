@@ -3856,7 +3856,6 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   bool inCase = false;
 
   for(auto cse : stmt->getBody()->children()) {
-    cse->dump();
     if (auto cses = dyn_cast<CaseStmt>(cse)) {
     auto &condB = *(new Block());
     
@@ -4037,26 +4036,31 @@ ValueWithOffsets MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       builder.create<mlir::memref::StoreOp>(
           loc, builder.create<mlir::memref::LoadOp>(loc, rv.val, idx), op, idx);
     }
-    builder.create<mlir::ReturnOp>(loc);
   } else if (stmt->getRetValue()) {
     auto rv = Visit(stmt->getRetValue());
-    if (stmt->getRetValue()->getType()->isVoidType()) {
-        builder.create<mlir::ReturnOp>(loc);
-        return nullptr;
-    }
+    if (!stmt->getRetValue()->getType()->isVoidType()) {
     if (!rv.val) {
         stmt->dump();
     }
     assert(rv.val);
     if (stmt->getRetValue()->isLValue() || stmt->getRetValue()->isXValue()) {
       assert(rv.isReference);
-      builder.create<mlir::ReturnOp>(loc, rv.val);
+      builder.create<mlir::memref::StoreOp>(loc, rv.val, returnVal);
     } else {
-      builder.create<mlir::ReturnOp>(loc, rv.getValue(builder));
+      builder.create<mlir::memref::StoreOp>(loc, rv.getValue(builder), returnVal);
     }
-  } else {
-    builder.create<mlir::ReturnOp>(loc);
+    }
   }
+
+  assert(loops.size());
+  auto i1Ty = builder.getI1Type();
+  auto vfalse = builder.create<mlir::ConstantOp>(
+      builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
+  for (auto l : loops) {
+    builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().keepRunning);
+    builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().noBreak);
+  }
+  
   return nullptr;
 }
 

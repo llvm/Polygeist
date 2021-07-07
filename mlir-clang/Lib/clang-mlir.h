@@ -549,6 +549,7 @@ public:
   FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
   ValueWithOffsets ThisVal;
+  mlir::Value returnVal;
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::ModuleOp &module)
       : Glob(Glob), function(function), module(module),
@@ -655,25 +656,27 @@ public:
     if (ShowAST) {
       stmt->dump();
     }
+
+    auto i1Ty = builder.getIntegerType(1);
+    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+    auto truev = builder.create<mlir::ConstantIntOp>(loc, true, 1);
+    loops.push_back(
+        (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
+                      builder.create<mlir::memref::AllocaOp>(loc, type)});
+    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
+    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
+    if (function.getType().getResults().size()) {
+        auto type = mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
+        returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
+    }
     Visit(stmt);
 
-    auto endBlock = builder.getInsertionBlock();
-    if (endBlock->empty() ||
-        !endBlock->back().mightHaveTrait<OpTrait::IsTerminator>()) {
       if (function.getType().getResults().size()) {
-        if (auto ty = function.getType().getResults()[0].dyn_cast<mlir::IntegerType>()) {
-        auto val = (mlir::Value)builder.create<mlir::ConstantOp>(
-            loc, ty, builder.getIntegerAttr(ty, 0));
-        builder.create<mlir::ReturnOp>(loc, val);
-        }
-        if (auto ty = function.getType().getResults()[0].dyn_cast<mlir::FloatType>()) {
-        auto val = (mlir::Value)builder.create<mlir::ConstantOp>(
-            loc, ty, builder.getFloatAttr(ty, 0));
-        builder.create<mlir::ReturnOp>(loc, val);
-        }
-      } else
+        mlir::Value vals[1] = {builder.create<mlir::memref::LoadOp>(loc, returnVal)};
+        builder.create<mlir::ReturnOp>(loc,vals);
+      }
+      else
         builder.create<mlir::ReturnOp>(loc);
-    }
     // function.dump();
   }
 
