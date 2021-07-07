@@ -528,7 +528,7 @@ struct IndexCastMovement : public OpRewritePattern<IndexCastOp> {
     mlir::Value val = op.getOperand();
     if (auto bop = val.dyn_cast<mlir::BlockArgument>()) {
       if (op.getOperation()->getBlock() != bop.getOwner()) {
-        op.getOperation()->moveAfter(bop.getOwner(), bop.getOwner()->begin());
+        op.getOperation()->moveBefore(bop.getOwner(), bop.getOwner()->begin());
         return success();
       }
       return failure();
@@ -537,7 +537,6 @@ struct IndexCastMovement : public OpRewritePattern<IndexCastOp> {
     if (val.getDefiningOp()) {
       if (op.getOperation()->getBlock() != val.getDefiningOp()->getBlock()) {
         auto it = val.getDefiningOp()->getIterator();
-        it++;
         op.getOperation()->moveAfter(val.getDefiningOp()->getBlock(), it);
       }
       return failure();

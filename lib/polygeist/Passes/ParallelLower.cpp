@@ -149,6 +149,11 @@ void ParallelLower::runOnFunction() {
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(symbolTableOp);
 
+  getFunction().walk([&](mlir::CallOp bidx) {
+      if (bidx.callee() == "cudaThreadSynchronize")
+        bidx.erase();
+    });
+
   // Only supports single block functions at the moment.
   getFunction().walk([&](gpu::LaunchOp launchOp) {
     launchOp.walk([&](CallOp caller) {
@@ -321,7 +326,6 @@ void ParallelLower::runOnFunction() {
     launchOp.erase();
   });
 
-  getFunction().dump();
   // Fold the copy memtype cast
   {
     mlir::RewritePatternSet rpl(getFunction().getContext());

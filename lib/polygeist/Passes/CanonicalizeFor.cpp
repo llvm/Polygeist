@@ -1441,13 +1441,21 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
 };
 void CanonicalizeFor::runOnFunction() {
   mlir::RewritePatternSet rpl(getFunction().getContext());
-  rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs,
-          ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
-          MoveWhileDown, MoveWhileDown2, MoveWhileDown3,
-          MoveWhileInvariantIfResult, WhileLogicalNegation, SubToAdd,
+  rpl.add<
+        PropagateInLoopBody, DetectTrivialIndVarInArgs,
+        ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
+          
+          MoveWhileDown, 
+          MoveWhileDown2
+          
+          , MoveWhileDown3
+          ,
+          MoveWhileInvariantIfResult, WhileLogicalNegation, SubToAdd
+          ,
           WhileCmpOffset, WhileLICM, RemoveUnusedCondVar,
           ReturnSq,
-          MoveSideEffectFreeWhile>(getFunction().getContext());
+          MoveSideEffectFreeWhile
+              >(getFunction().getContext());
   GreedyRewriteConfig config;
   config.maxIterations = 47;
   applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),

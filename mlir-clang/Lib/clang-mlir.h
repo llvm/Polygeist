@@ -479,6 +479,7 @@ private:
   mlir::Location loc;
   mlir::Block *entryBlock;
   std::vector<LoopContext> loops;
+  mlir::Block *allocationScope;
 
   // ValueWithOffsets getValue(std::string name);
 
@@ -489,7 +490,7 @@ private:
       return vec[i];
 
     mlir::OpBuilder subbuilder(builder.getContext());
-    subbuilder.setInsertionPointToStart(entryBlock);
+    subbuilder.setInsertionPointToStart(allocationScope);
 
     auto indexType = subbuilder.getIntegerType(64);
     auto one = subbuilder.create<mlir::ConstantOp>(
@@ -559,7 +560,7 @@ public:
       llvm::errs() << *fd << "\n";
     }
 
-    entryBlock = function.addEntryBlock();
+    allocationScope = entryBlock = function.addEntryBlock();
 
     builder.setInsertionPointToStart(entryBlock);
 
@@ -736,6 +737,8 @@ public:
   ValueWithOffsets VisitCastExpr(CastExpr *E);
 
   ValueWithOffsets VisitIfStmt(clang::IfStmt *stmt);
+
+  ValueWithOffsets VisitSwitchStmt(clang::SwitchStmt *stmt);
 
   ValueWithOffsets VisitConditionalOperator(clang::ConditionalOperator *E);
 
