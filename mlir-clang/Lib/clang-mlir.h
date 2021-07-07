@@ -387,6 +387,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
   std::map<std::string, mlir::FuncOp> &functions;
+  std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
   ASTContext &astContext;
@@ -408,12 +409,13 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
       std::map<std::string, mlir::FuncOp> &functions,
+      std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP, ASTContext &astContext, mlir::ModuleOp &module,
       clang::SourceManager &SM)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmFunctions(llvmFunctions), PP(PP),
+        functions(functions), llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), PP(PP),
         astContext(astContext), module(module), SM(SM), lcontext(),
         llvmMod("tmp", lcontext), codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
@@ -430,7 +432,6 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
 
-  std::map<const ValueDecl *, mlir::LLVM::GlobalOp> llvmGlobals;
   mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD);
 
   /// Return a value representing an access into a global string with the given
@@ -691,7 +692,8 @@ public:
 
   ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
   ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr,
-                                        VarDecl *name, unsigned space);
+                                        VarDecl *name, unsigned space,
+                                        mlir::Value mem=nullptr);
 
   ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
 
