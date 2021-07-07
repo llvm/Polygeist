@@ -72,6 +72,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         auto len = Visit(var->getSizeExpr()).getValue(builder);
         len = builder.create<IndexCastOp>(loc, len, builder.getIndexType());
         alloc = builder.create<mlir::memref::AllocaOp>(loc, mr, len);
+        builder.create<polygeist::TrivialUseOp>(loc, alloc);
     }
 
     if (!alloc) {
@@ -740,6 +741,8 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
   auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
   er.region().push_back(new Block());
   builder.setInsertionPointToStart(&er.region().back());
+  builder.create<scf::YieldOp>(loc);
+  builder.setInsertionPointToStart(&er.region().back());
 
   if (!descr.getForwardMode()) {
     val = builder.create<mlir::SubIOp>(loc, val, lb);
@@ -752,7 +755,6 @@ void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
 
   // TODO: set loop context.
   Visit(fors->getBody());
-  builder.create<scf::YieldOp>(loc);
 
   builder.setInsertionPointToEnd(&reg.front());
   builder.create<AffineYieldOp>(loc);
@@ -3843,14 +3845,10 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   er.region().push_back(new Block());
   auto oldpoint2 = builder.getInsertionPoint();
   auto oldblock2 = builder.getInsertionBlock();
-
-  builder.setInsertionPointToStart(&er.region().back());
-
-  auto oldpoint = builder.getInsertionPoint();
-  auto oldblock = builder.getInsertionBlock();
-  
-  auto toadd = builder.getInsertionBlock()->getParent();
+ 
   auto &exitB = *(new Block());
+  builder.setInsertionPointToStart(&exitB);
+  builder.create<scf::YieldOp>(loc);
 
   SmallVector<Block*> blocks;
   bool inCase = false;
@@ -3869,7 +3867,7 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     }
     
     inCase = true;
-    toadd->getBlocks().push_back(&condB);
+    er.region().getBlocks().push_back(&condB);
     blocks.push_back(&condB);
     builder.setInsertionPointToStart(&condB);
 
@@ -3890,17 +3888,15 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   if (inCase) loops.pop_back();
   builder.create<mlir::BranchOp>(loc, &exitB);
   
-  toadd->getBlocks().push_back(&exitB);
+  er.region().getBlocks().push_back(&exitB);
    
   DenseIntElementsAttr caseValuesAttr;
      ShapedType caseValueType = mlir::VectorType::get(
          static_cast<int64_t>(caseVals.size()), cond.getType());
      caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals);
 
-  builder.setInsertionPoint(oldblock, oldpoint);
+  builder.setInsertionPointToStart(&er.region().front());
   auto swtch = builder.create<mlir::SwitchOp>(loc, cond, &exitB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks, SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));
-  builder.setInsertionPointToStart(&exitB);
-  builder.create<scf::YieldOp>(loc);
   builder.setInsertionPoint(oldblock2, oldpoint2);
   return nullptr;
 }

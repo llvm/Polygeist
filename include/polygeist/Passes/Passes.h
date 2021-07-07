@@ -9,6 +9,7 @@ std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createCPUifyPass();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
+std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
 } // namespace polygeist
 } // namespace mlir

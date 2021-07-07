@@ -21,16 +21,16 @@ void whiletofor() {
 
 // TODO redundant for elim
 // CHECK: func @whiletofor() {
-// CHECK-NEXT:      %c1 = constant 1 : index
-// CHECK-NEXT:      %c0 = constant 0 : index
-// CHECK-NEXT:      %c100 = constant 100 : index
-// CHECK-NEXT:      %c7_i32 = constant 7 : i32
-// CHECK-NEXT:      %c0_i32 = constant 0 : i32
-// CHECK-NEXT:      %c20_i32 = constant 20 : i32
-// CHECK-NEXT:      %c2_i32 = constant 2 : i32
-// CHECK-NEXT:      %c3_i32 = constant 3 : i32
-// CHECK-NEXT:      %c1_i32 = constant 1 : i32
-// CHECK-NEXT:      %0 = memref.alloca() : memref<100x100xi32>
+// CHECK-DAG:      %c1 = constant 1 : index
+// CHECK-DAG:      %c0 = constant 0 : index
+// CHECK-DAG:      %c100 = constant 100 : index
+// CHECK-DAG:      %c7_i32 = constant 7 : i32
+// CHECK-DAG:      %c0_i32 = constant 0 : i32
+// CHECK-DAG:      %c20_i32 = constant 20 : i32
+// CHECK-DAG:      %c2_i32 = constant 2 : i32
+// CHECK-DAG:      %c3_i32 = constant 3 : i32
+// CHECK-DAG:      %c1_i32 = constant 1 : i32
+// CHECK-DAG:      %0 = memref.alloca() : memref<100x100xi32>
 // CHECK-NEXT:      %1 = scf.for %arg0 = %c0 to %c100 step %c1 iter_args(%arg1 = %c7_i32) -> (i32) {
 // CHECK-NEXT:        %3 = scf.for %arg2 = %c0 to %c100 step %c1 iter_args(%arg3 = %arg1) -> (i32) {
 // CHECK-NEXT:          %4 = index_cast %arg2 : index to i32

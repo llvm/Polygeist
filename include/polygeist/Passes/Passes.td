@@ -46,4 +46,8 @@ def LoopRestructure : FunctionPass<"loop-restructure"> {
   let dependentDialects = ["::mlir::scf::SCFDialect"];
 }
 
+def RemoveTrivialUse : FunctionPass<"trivialuse"> {
+  let constructor = "mlir::createRemoveTrivialUse()";
+}
+
 #endif // POLYGEIST_PASSES

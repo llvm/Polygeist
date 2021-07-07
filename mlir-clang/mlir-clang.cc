@@ -157,6 +157,9 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass());
+    optPM.addPass(polygeist::createRemoveTrivialUsePass());
+    optPM.addPass(polygeist::createMem2RegPass());
+    optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createLoopRestructurePass());
     if (!CudaLower)
     optPM.addPass(polygeist::replaceAffineCFGPass());
