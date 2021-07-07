@@ -222,7 +222,16 @@ struct ValueWithOffsets {
     auto loc = builder.getUnknownLoc();
     if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       if (toStore.getType() != PT.getElementType()) {
-        llvm::errs() << " toStore: " << toStore << " PT: " << PT
+        if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
+          if (auto spt = PT.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+            if (mt.getElementType() == spt.getElementType()) {
+                toStore = builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
+            }
+        }
+        }
+      }
+      if (toStore.getType() != PT.getElementType()) {
+            llvm::errs() << " toStore: " << toStore << " PT: " << PT
                      << " val: " << val << "\n";
       }
       assert(toStore.getType() == PT.getElementType());
@@ -651,10 +660,16 @@ public:
     if (endBlock->empty() ||
         !endBlock->back().mightHaveTrait<OpTrait::IsTerminator>()) {
       if (function.getType().getResults().size()) {
-        auto ty = function.getType().getResults()[0].cast<mlir::IntegerType>();
+        if (auto ty = function.getType().getResults()[0].dyn_cast<mlir::IntegerType>()) {
         auto val = (mlir::Value)builder.create<mlir::ConstantOp>(
             loc, ty, builder.getIntegerAttr(ty, 0));
         builder.create<mlir::ReturnOp>(loc, val);
+        }
+        if (auto ty = function.getType().getResults()[0].dyn_cast<mlir::FloatType>()) {
+        auto val = (mlir::Value)builder.create<mlir::ConstantOp>(
+            loc, ty, builder.getFloatAttr(ty, 0));
+        builder.create<mlir::ReturnOp>(loc, val);
+        }
       } else
         builder.create<mlir::ReturnOp>(loc);
     }

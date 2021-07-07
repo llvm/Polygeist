@@ -1905,25 +1905,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   auto callee = EmitCallee(expr->getCallee());
 
-  if (!callee || callee->isVariadic()) {
-    std::vector<mlir::Value> args;
-    for (auto a : expr->arguments()) {
-      args.push_back(getLLVM(a));
-    }
-    mlir::Value called;
-    args.insert(args.begin(), getLLVM(expr->getCallee()));
-    called = builder
-                 .create<mlir::LLVM::CallOp>(
-                     loc,
-                     std::vector<mlir::Type>({Glob.typeTranslator.translateType(
-                         anonymize(getLLVMType(expr->getType())))}),
-                     args)
-                 .getResult(0);
-    return ValueWithOffsets(called, /*isReference*/ expr->isLValue() ||
-                                        expr->isXValue());
-  }
-
-  std::set<std::string> funcs = {"strcmp",
+  std::set<std::string> funcs = {"strcmp", "sprintf", "fputs", "puts",
                                  "memcpy", "cudaMalloc",
                                  "open",
                                  "fopen",
@@ -1969,6 +1951,25 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                             expr->isXValue());
       }
     }
+
+  if (!callee || callee->isVariadic()) {
+    std::vector<mlir::Value> args;
+    for (auto a : expr->arguments()) {
+      args.push_back(getLLVM(a));
+    }
+    mlir::Value called;
+    args.insert(args.begin(), getLLVM(expr->getCallee()));
+    called = builder
+                 .create<mlir::LLVM::CallOp>(
+                     loc,
+                     std::vector<mlir::Type>({Glob.typeTranslator.translateType(
+                         anonymize(getLLVMType(expr->getType())))}),
+                     args)
+                 .getResult(0);
+    return ValueWithOffsets(called, /*isReference*/ expr->isLValue() ||
+                                        expr->isXValue());
+  }
+
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
@@ -2386,10 +2387,14 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     auto ty = getMLIRType(U->getType());
     assert(sub.isReference);
     auto prev = sub.getValue(builder);
-    assert(prev.getType() == ty);
 
     mlir::Value next;
     if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
+        if (prev.getType() != ty) {
+            U->dump();
+            llvm::errs() << " ty: " << ty << "prev: " << prev << "\n";
+        }
+        assert(prev.getType() == ty);
       next = builder.create<mlir::AddFOp>(
           loc, prev,
           builder.create<mlir::ConstantFloatOp>(
@@ -2413,6 +2418,11 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
         llvm::errs() << ty << " - " << prev << "\n";
         U->dump();
       }
+        if (prev.getType() != ty) {
+            U->dump();
+            llvm::errs() << " ty: " << ty << "prev: " << prev << "\n";
+        }
+        assert(prev.getType() == ty);
       next = builder.create<mlir::AddIOp>(
           loc, prev,
           builder.create<mlir::ConstantIntOp>(loc, 1,
@@ -3152,7 +3162,7 @@ ValueWithOffsets MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   size_t fnum = 0;
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
-  if ((CXRD && (CXRD->isPolymorphic() || !CXRD->hasDefinition() || CXRD->getNumBases() > 0)) || rd->isUnion()) {
+  if ((CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() || CXRD->getNumBases() > 0)) || rd->isUnion()) {
     auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else {
@@ -3356,7 +3366,7 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
       ME->dump();
     }
     base = base.dereference(builder);
-    OT = cast<clang::PointerType>(OT)->getPointeeType();
+    OT = cast<clang::PointerType>(OT->getUnqualifiedDesugaredType())->getPointeeType();
   }
   if (!base.isReference) {
     EmittingFunctionDecl->dump();
@@ -3599,6 +3609,9 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
           builder.create<mlir::LLVM::PtrToIntOp>(loc, postTy, scalar),
           /*isReference*/ false);
     }
+    if (scalar.getType().isa<mlir::IndexType>() || postTy.isa<mlir::IndexType>()) {
+        return ValueWithOffsets(builder.create<IndexCastOp>(loc, scalar, postTy), false);
+    }
     if (!scalar.getType().isa<mlir::IntegerType>()) {
       E->dump();
       llvm::errs() << " scalar: " << scalar << "\n";
@@ -3694,6 +3707,9 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_PointerToBoolean: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    if (auto mt = scalar.getType().dyn_cast<mlir::MemRefType>()) {
+        scalar = builder.create<polygeist::Memref2PointerOp>(loc, LLVM::LLVMPointerType::get(mt.getElementType()), scalar);
+    }
     if (auto LT = scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
       auto ne = builder.create<mlir::LLVM::ICmpOp>(
@@ -3710,6 +3726,9 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_PointerToIntegral: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    if (auto mt = scalar.getType().dyn_cast<mlir::MemRefType>()) {
+        scalar = builder.create<polygeist::Memref2PointerOp>(loc, LLVM::LLVMPointerType::get(mt.getElementType()), scalar);
+    }
     if (auto LT = scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto mlirType = getMLIRType(E->getType());
       auto val = builder.create<mlir::LLVM::BitcastOp>(loc, mlirType, scalar);
@@ -3805,13 +3824,19 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
 
   auto trueExpr = Visit(E->getTrueExpr());
 
+  bool isReference = E->isLValue() || E->isXValue();
+
   std::vector<mlir::Value> truearray;
   if (!E->getType()->isVoidType()) {
     if (!trueExpr.val) {
       E->dump();
     }
     assert(trueExpr.val);
-    auto truev = trueExpr.getValue(builder);
+    mlir::Value truev;
+    if (isReference) {
+        assert(trueExpr.isReference);
+        truev = trueExpr.val;
+    } else truev = trueExpr.getValue(builder);
     assert(truev != nullptr);
     truearray.push_back(truev);
   }
@@ -3822,7 +3847,11 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   auto falseExpr = Visit(E->getFalseExpr());
   std::vector<mlir::Value> falsearray;
   if (!E->getType()->isVoidType()) {
-    auto falsev = falseExpr.getValue(builder);
+    mlir::Value falsev;
+    if (isReference) {
+        assert(falseExpr.isReference);
+        falsev = falseExpr.val;
+    } else falsev = falseExpr.getValue(builder);
     assert(falsev != nullptr);
     falsearray.push_back(falsev);
   }
@@ -3836,7 +3865,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
                                                  /*hasElseRegion*/ true);
   newIfOp.thenRegion().takeBody(ifOp.thenRegion());
   newIfOp.elseRegion().takeBody(ifOp.elseRegion());
-  return ValueWithOffsets(newIfOp.getResult(0), /*isReference*/ false);
+  return ValueWithOffsets(newIfOp.getResult(0), /*isReference*/ isReference);
   // return ifOp;
 }
 
@@ -4362,7 +4391,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if (RT->getDecl()->isUnion() || (CXRD && (CXRD->isPolymorphic() || !CXRD->hasDefinition() || CXRD->getDefinition()->getNumBases() > 0)) ||
+    if (RT->getDecl()->isUnion() || (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() || CXRD->getDefinition()->getNumBases() > 0)) ||
         ST->getNumElements() == 0 || recursive ||
         (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                               ST->getName() == "struct._IO_FILE" ||
