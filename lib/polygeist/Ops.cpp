@@ -10,6 +10,9 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "polygeist/Dialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.cpp.inc"
 
@@ -262,4 +265,25 @@ void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
   results
       .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
           context);
+}
+
+Value Memref2PointerOp::getViewSource() { return source(); }
+
+class MemRef2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
+public:
+  using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Memref2PointerOp op,
+                                PatternRewriter &rewriter) const override {
+      auto src = op.source().getDefiningOp<memref::CastOp>();
+      if (!src)
+        return failure();
+
+      rewriter.replaceOpWithNewOp<polygeist::Memref2PointerOp>(op, op.getType(), src.source());
+      return success();
+  }
+};
+void Memref2PointerOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  results.insert<MemRef2PointerCast>(context);
 }

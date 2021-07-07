@@ -32,6 +32,9 @@ static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
 static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
                                    cl::desc("Raise SCF to Affine"));
 
+static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
+                                   cl::desc("Raise SCF to Affine"));
+
 static cl::opt<bool>
     DetectReduction("detect-reduction", cl::init(false),
                     cl::desc("Detect reduction in inner most loop"));
@@ -60,6 +63,8 @@ static cl::opt<std::string> MArch("march", cl::init(""),
 
 static cl::opt<std::string> ResourceDir("resource-dir", cl::init(""),
                                         cl::desc("Resource-dir"));
+
+static cl::opt<bool> Verbose("v", cl::init(false), cl::desc("Verbose"));
 
 static cl::opt<bool>
     showDialects("show-dialects",
@@ -151,6 +156,7 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createLoopRestructurePass());
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
+    if (ScalarReplacement)
     optPM.addPass(mlir::createAffineScalarReplacementPass());
     optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     optPM.addPass(mlir::createCanonicalizerPass());

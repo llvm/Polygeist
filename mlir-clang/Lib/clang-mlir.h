@@ -107,6 +107,9 @@ struct ValueWithOffsets {
     assert(val.getType().isa<mlir::MemRefType>());
     // return ValueWithOffsets(builder.create<memref::SubIndexOp>(loc, mt0, val,
     // c0), /*isReference*/true);
+    if (val.getType().cast<mlir::MemRefType>().getShape().size() != 1) {
+        llvm::errs() << " val: " << val << " ty: " << val.getType() << "\n";
+    }
     assert(val.getType().cast<mlir::MemRefType>().getShape().size() == 1);
     return builder.create<memref::LoadOp>(loc, val,
                                           std::vector<mlir::Value>({c0}));
