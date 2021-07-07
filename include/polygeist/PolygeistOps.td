@@ -56,4 +56,10 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
   let hasFolder = 0;
 }
 
+def TrivialUseOp : Polygeist_Op<"trivialuse"> {
+  let summary = "memref subview operation";
+
+  let arguments = (ins AnyMemRef : $source);
+
+}
 #endif // POLYGEIST_OPS
