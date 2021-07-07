@@ -13,6 +13,9 @@ include "Dialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
+include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+
 // HasParent<"ParallelOp">,
 def BarrierOp
     : Polygeist_Op<"barrier",
@@ -32,6 +35,22 @@ def SubIndexOp : Polygeist_Op<"subindex", [
 
   let arguments = (ins AnyMemRef : $source, Index : $index);
   let results = (outs AnyMemRef : $result);
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 0;
+}
+
+//===----------------------------------------------------------------------===//
+// Memref2PointerOp
+//===----------------------------------------------------------------------===//
+
+def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
+  DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect
+]> {
+  let summary = "memref subview operation";
+
+  let arguments = (ins AnyMemRef : $source);
+  let results = (outs LLVM_AnyPointer : $result);
 
   let hasCanonicalizer = 1;
   let hasFolder = 0;
