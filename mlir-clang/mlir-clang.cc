@@ -58,6 +58,9 @@ static cl::opt<std::string> cfunction("function",
 static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
 
+static cl::opt<bool> ToCPU("cpuify", cl::init(false),
+                             cl::desc("Convert to cpu"));
+
 static cl::opt<std::string> MArch("march", cl::init(""),
                                   cl::desc("Architecture"));
 
@@ -193,10 +196,17 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass());
     pm.addPass(mlir::createSymbolDCEPass());
 
+    
     if (CudaLower) {
       optPM.addPass(polygeist::createParallelLowerPass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
       optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(polygeist::createMem2RegPass());
+      optPM.addPass(mlir::createCSEPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(polygeist::createCanonicalizeForPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      
     if (RaiseToAffine) {
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass());
@@ -206,7 +216,11 @@ int main(int argc, char **argv) {
       if (ScalarReplacement)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
     }
+      if (ToCPU)
+        optPM.addPass(polygeist::createCPUifyPass());
+    
     }
+    
 
     if (EmitLLVM) {
       pm.addPass(mlir::createLowerAffinePass());
