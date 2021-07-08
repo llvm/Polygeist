@@ -904,6 +904,103 @@ ValueWithOffsets MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   return nullptr;
 }
 
+ValueWithOffsets MLIRScanner::VisitOMPParallelForDirective(clang::OMPParallelForDirective* fors) {
+  IfScope scope(*this);
+  fors->dump();
+  
+  Visit(fors->getPreInits());
+
+  SmallVector<mlir::Value> inits;
+  for (auto f : fors->inits()) {
+    llvm::errs() << " init: ";  f->dump(); llvm::errs() << "\n";
+    inits.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder), builder.getIndexType()));
+  }
+  inits.clear();
+  inits.push_back(getConstantIndex(0));
+
+  SmallVector<mlir::Value> finals;
+  for (auto f : fors->finals()) {
+    llvm::errs() << " final: "; f->dump(); llvm::errs() << "\n";
+    finals.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder), builder.getIndexType()));
+  }
+  finals.clear();
+  finals.push_back(builder.create<IndexCastOp>(loc, Visit(fors->getNumIterations()).getValue(builder), builder.getIndexType()));
+  
+  SmallVector<mlir::Value> counters;
+  mlir::Value incs[] = {getConstantIndex(1)};
+
+  for (auto m : fors->getInnermostCapturedStmt()->captures()) {
+    llvm::errs() << " cap: "; m.getCapturedVar()->dump(); llvm::errs() << "\n";
+    /*
+    if (m->getCaptureKind() == LambdaCaptureKind::LCK_ByCopy)
+      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
+                        pair.second, op)
+          .store(builder, params[pair.first], isArray);
+    else {
+      assert(m->getCaptureKind() == LambdaCaptureKind::LCK_ByRef);
+      assert(params[pair.first].isReference);
+      auto mt = params[pair.first].val.getType().cast<MemRefType>();
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape[0] = -1;
+    }
+    */
+  }
+
+  for (auto f : fors->counters()) {
+    llvm::errs() << " counter: "; f->dump(); llvm::errs() << "\n";
+    cast<DeclRefExpr>(f)->getDecl()->dump();
+    //counters.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder), builder.getIndexType()));
+  }
+
+  llvm::errs() << " assoc:"; fors->getAssociatedStmt()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " sblock:"; fors->getStructuredBlock()->dump(); llvm::errs() << "\n";
+
+  llvm::errs() << " preinit: "; fors->getPreInits()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " init: "; fors->getInit()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " lb: "; fors->getLowerBoundVariable()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " ub: "; fors->getUpperBoundVariable()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " precond: "; fors->getPreCond()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " cond: "; fors->getCond()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " inc: "; fors->getInc()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " last: "; fors->getLastIteration()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " stride: "; fors->getStrideVariable()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " iters: "; fors->getNumIterations()->dump(); llvm::errs() << "\n";
+  llvm::errs() << " body: "; fors->getBody()->dump(); llvm::errs() << "\n";
+
+  auto affineOp = builder.create<scf::ParallelOp>(
+      loc, inits, finals, incs);
+  
+  fors->getIterationVariable()->dump();
+
+  auto inds = affineOp.getInductionVars();
+
+  auto oldpoint = builder.getInsertionPoint();
+  auto oldblock = builder.getInsertionBlock();
+
+  builder.setInsertionPointToStart(&affineOp.region().front());
+
+  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  er.region().push_back(new Block());
+  builder.setInsertionPointToStart(&er.region().back());
+  builder.create<scf::YieldOp>(loc);
+  builder.setInsertionPointToStart(&er.region().back());
+
+  auto idx = builder.create<mlir::IndexCastOp>(loc, inds[0], getMLIRType(fors->getIterationVariable()->getType()));
+  VarDecl* name = cast<VarDecl>(cast<DeclRefExpr>(fors->counters()[0])->getDecl());
+  assert(params.find(name) == params.end());
+  params[name] = ValueWithOffsets(idx, false);
+
+  // TODO: set loop context.
+  Visit(fors->getBody());
+
+  builder.create<scf::YieldOp>(loc);
+
+  // TODO: set the value of the iteration value to the final bound at the
+  // end of the loop.
+  builder.setInsertionPoint(oldblock, oldpoint);
+  return nullptr;
+}
+
 ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   IfScope scope(*this);
 
@@ -3896,7 +3993,7 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
      caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals);
 
   builder.setInsertionPointToStart(&er.region().front());
-  auto swtch = builder.create<mlir::SwitchOp>(loc, cond, &exitB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks, SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));
+  builder.create<mlir::SwitchOp>(loc, cond, &exitB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks, SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));
   builder.setInsertionPoint(oldblock2, oldpoint2);
   return nullptr;
 }
@@ -4053,8 +4150,8 @@ ValueWithOffsets MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   auto vfalse = builder.create<mlir::ConstantOp>(
       builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
   for (auto l : loops) {
-    builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().keepRunning);
-    builder.create<mlir::memref::StoreOp>(loc, vfalse, loops.back().noBreak);
+    builder.create<mlir::memref::StoreOp>(loc, vfalse, l.keepRunning);
+    builder.create<mlir::memref::StoreOp>(loc, vfalse, l.noBreak);
   }
   
   return nullptr;
@@ -5056,3 +5153,4 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   return true;
 }
+

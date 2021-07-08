@@ -1,13 +1,17 @@
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
+#include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include <fstream>
@@ -108,6 +112,7 @@ int main(int argc, char **argv) {
   // registerDialect<AffineDialect>();
   // registerDialect<StandardOpsDialect>();
   mlir::DialectRegistry registry;
+  mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
   MLIRContext context(registry);
 
@@ -118,6 +123,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
+  context.getOrLoadDialect<mlir::omp::OpenMPDialect>();
   context.getOrLoadDialect<mlir::math::MathDialect>();
   context.getOrLoadDialect<mlir::memref::MemRefDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
@@ -228,17 +234,36 @@ int main(int argc, char **argv) {
 
     if (EmitLLVM) {
       pm.addPass(mlir::createLowerAffinePass());
-      pm.addPass(mlir::createLowerToCFGPass());
+      if (mlir::failed(pm.run(module))) {
+        module.dump();
+        return 4;
+      }
+      mlir::PassManager pm2(&context);
+      pm2.nest<mlir::FuncOp>().addPass(createConvertSCFToOpenMPPass());
+      if (mlir::failed(pm2.run(module))) {
+        module.dump();
+        return 4;
+      }
+      llvm::errs() << module << "\n";
+      mlir::PassManager pm3(&context);
+      pm3.addPass(mlir::createLowerToCFGPass());
+      pm3.addPass(createConvertOpenMPToLLVMPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
-      pm.addPass(mlir::createLowerToLLVMPass(options));
-    }
+      pm3.addPass(mlir::createLowerToLLVMPass(options));
+      if (mlir::failed(pm3.run(module))) {
+        module.dump();
+        return 4;
+      }
+    } else {
 
     if (mlir::failed(pm.run(module))) {
       module.dump();
       return 4;
+    }
+
     }
     // module.dump();
     if (mlir::failed(mlir::verify(module))) {

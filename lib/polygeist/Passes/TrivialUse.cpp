@@ -85,4 +85,5 @@ void RemoveTrivialUse::runOnFunction() {
   getFunction().walk([&](polygeist::TrivialUseOp bidx) {
     bidx.erase();
   });
+  getFunction().dump();
 }

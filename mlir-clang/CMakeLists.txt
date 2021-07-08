@@ -22,6 +22,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRAnalysis
   MLIRLLVMIR
   MLIRNVVMIR
+  MLIROpenMP
   MLIRGPUOps
   MLIRTransforms
   MLIRSCFToStandard
@@ -31,6 +32,9 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRTargetLLVMIRImport
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
+  MLIRSCFToOpenMP
+  MLIROpenMPToLLVM
+  MLIROpenMPToLLVMIRTranslation
 
   clangAST
   clangBasic
