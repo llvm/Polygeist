@@ -29,6 +29,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
+static cl::opt<bool> SCFOpenMP("scf-openmp", cl::init(false),
+                              cl::desc("Emit llvm"));
+
 static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
@@ -239,7 +242,8 @@ int main(int argc, char **argv) {
         return 4;
       }
       mlir::PassManager pm2(&context);
-      pm2.nest<mlir::FuncOp>().addPass(createConvertSCFToOpenMPPass());
+      if (SCFOpenMP)
+        pm2.nest<mlir::FuncOp>().addPass(createConvertSCFToOpenMPPass());
       if (mlir::failed(pm2.run(module))) {
         module.dump();
         return 4;
