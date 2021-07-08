@@ -701,6 +701,7 @@ public:
   ValueWithOffsets VisitVarDecl(clang::VarDecl *decl);
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
+  ValueWithOffsets VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
 
   ValueWithOffsets VisitWhileStmt(clang::WhileStmt *fors);
   ValueWithOffsets VisitDoStmt(clang::DoStmt *fors);
