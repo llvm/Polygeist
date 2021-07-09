@@ -2485,11 +2485,20 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     Glob.getMLIRType(U->getSubExpr()->getType(), &isArray);
     auto mt = sub.val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
-    if (!isArray)
+    mlir::Value res;
+    if (!isArray) {
       shape[0] = -1;
+    } else {
+      shape.insert(shape.begin(), -1);
+
+    }
     auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                      mt.getAffineMaps(), mt.getMemorySpace());
-    return ValueWithOffsets(builder.create<memref::CastOp>(loc, sub.val, mt0),
+    if (!isArray)
+        res = builder.create<memref::CastOp>(loc, sub.val, mt0);
+    else
+        res = builder.create<polygeist::SubIndexOp>(loc, mt0, sub.val, getConstantIndex(-1));
+    return ValueWithOffsets(res,
                             /*isReference*/ false);
   }
   case clang::UnaryOperator::Opcode::UO_Plus: {
