@@ -150,9 +150,9 @@ void ParallelLower::runOnFunction() {
   symbolTable.getSymbolTable(symbolTableOp);
 
   getFunction().walk([&](mlir::CallOp bidx) {
-      if (bidx.callee() == "cudaThreadSynchronize")
-        bidx.erase();
-    });
+    if (bidx.callee() == "cudaThreadSynchronize")
+      bidx.erase();
+  });
 
   // Only supports single block functions at the moment.
   getFunction().walk([&](gpu::LaunchOp launchOp) {
@@ -250,19 +250,20 @@ void ParallelLower::runOnFunction() {
     });
 
     container.walk([&](mlir::memref::AllocaOp alop) {
-      if (auto ia = alop.getType().getMemorySpace().dyn_cast_or_null<IntegerAttr>())
-      if (ia.getValue() == 5) {
-        mlir::OpBuilder bz(launchOp.getContext());
-        bz.setInsertionPointToStart(blockB);
-        auto newAlloca = bz.create<memref::AllocaOp>(
-            alop.getLoc(),
-            MemRefType::get(alop.getType().getShape(),
-                            alop.getType().getElementType(),
-                            alop.getType().getAffineMaps(), (uint64_t)0));
-        alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
-            alop.getLoc(), newAlloca, alop.getType()));
-        alop.erase();
-      }
+      if (auto ia =
+              alop.getType().getMemorySpace().dyn_cast_or_null<IntegerAttr>())
+        if (ia.getValue() == 5) {
+          mlir::OpBuilder bz(launchOp.getContext());
+          bz.setInsertionPointToStart(blockB);
+          auto newAlloca = bz.create<memref::AllocaOp>(
+              alop.getLoc(),
+              MemRefType::get(alop.getType().getShape(),
+                              alop.getType().getElementType(),
+                              alop.getType().getAffineMaps(), (uint64_t)0));
+          alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
+              alop.getLoc(), newAlloca, alop.getType()));
+          alop.erase();
+        }
     });
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {

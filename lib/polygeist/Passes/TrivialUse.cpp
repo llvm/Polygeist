@@ -32,9 +32,6 @@ std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass() {
 } // namespace polygeist
 } // namespace mlir
 
-
 void RemoveTrivialUse::runOnFunction() {
-  getFunction().walk([&](polygeist::TrivialUseOp bidx) {
-    bidx.erase();
-  });
+  getFunction().walk([&](polygeist::TrivialUseOp bidx) { bidx.erase(); });
 }
