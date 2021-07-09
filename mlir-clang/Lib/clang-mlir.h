@@ -108,7 +108,7 @@ struct ValueWithOffsets {
     // return ValueWithOffsets(builder.create<memref::SubIndexOp>(loc, mt0, val,
     // c0), /*isReference*/true);
     if (val.getType().cast<mlir::MemRefType>().getShape().size() != 1) {
-        llvm::errs() << " val: " << val << " ty: " << val.getType() << "\n";
+      llvm::errs() << " val: " << val << " ty: " << val.getType() << "\n";
     }
     assert(val.getType().cast<mlir::MemRefType>().getShape().size() == 1);
     return builder.create<memref::LoadOp>(loc, val,
@@ -223,15 +223,17 @@ struct ValueWithOffsets {
     if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       if (toStore.getType() != PT.getElementType()) {
         if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
-          if (auto spt = PT.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+          if (auto spt =
+                  PT.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
             if (mt.getElementType() == spt.getElementType()) {
-                toStore = builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
+              toStore = builder.create<polygeist::Memref2PointerOp>(loc, spt,
+                                                                    toStore);
             }
-        }
+          }
         }
       }
       if (toStore.getType() != PT.getElementType()) {
-            llvm::errs() << " toStore: " << toStore << " PT: " << PT
+        llvm::errs() << " toStore: " << toStore << " PT: " << PT
                      << " val: " << val << "\n";
       }
       assert(toStore.getType() == PT.getElementType());
@@ -424,9 +426,10 @@ struct MLIRASTConsumer : public ASTConsumer {
       clang::SourceManager &SM)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmGlobals(llvmGlobals), llvmFunctions(llvmFunctions), PP(PP),
-        astContext(astContext), module(module), SM(SM), lcontext(),
-        llvmMod("tmp", lcontext), codegenops(),
+        functions(functions), llvmGlobals(llvmGlobals),
+        llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
+        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
+        codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
@@ -666,17 +669,18 @@ public:
     builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
     builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
     if (function.getType().getResults().size()) {
-        auto type = mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
-        returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
+      auto type =
+          mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
+      returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
     }
     Visit(stmt);
 
-      if (function.getType().getResults().size()) {
-        mlir::Value vals[1] = {builder.create<mlir::memref::LoadOp>(loc, returnVal)};
-        builder.create<mlir::ReturnOp>(loc,vals);
-      }
-      else
-        builder.create<mlir::ReturnOp>(loc);
+    if (function.getType().getResults().size()) {
+      mlir::Value vals[1] = {
+          builder.create<mlir::memref::LoadOp>(loc, returnVal)};
+      builder.create<mlir::ReturnOp>(loc, vals);
+    } else
+      builder.create<mlir::ReturnOp>(loc);
     // function.dump();
   }
 
@@ -701,7 +705,8 @@ public:
   ValueWithOffsets VisitVarDecl(clang::VarDecl *decl);
 
   ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
-  ValueWithOffsets VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
+  ValueWithOffsets
+  VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
 
   ValueWithOffsets VisitWhileStmt(clang::WhileStmt *fors);
   ValueWithOffsets VisitDoStmt(clang::DoStmt *fors);
@@ -713,7 +718,7 @@ public:
   ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
   ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr,
                                         VarDecl *name, unsigned space,
-                                        mlir::Value mem=nullptr);
+                                        mlir::Value mem = nullptr);
 
   ValueWithOffsets VisitMSPropertyRefExpr(MSPropertyRefExpr *expr);
 

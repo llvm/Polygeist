@@ -1428,34 +1428,29 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
   LogicalResult matchAndRewrite(ReturnOp op,
                                 PatternRewriter &rewriter) const override {
     bool changed = false;
-    SmallVector<Operation*> toErase;
-    for (auto iter = op->getBlock()->rbegin(); iter != op->getBlock()->rend() && &*iter != op; iter++) {
-        changed = true;
-        toErase.push_back(&*iter);
+    SmallVector<Operation *> toErase;
+    for (auto iter = op->getBlock()->rbegin();
+         iter != op->getBlock()->rend() && &*iter != op; iter++) {
+      changed = true;
+      toErase.push_back(&*iter);
     }
-    for(auto op : toErase) {
-        rewriter.eraseOp(op);
+    for (auto op : toErase) {
+      rewriter.eraseOp(op);
     }
     return success(changed);
   }
 };
 void CanonicalizeFor::runOnFunction() {
   mlir::RewritePatternSet rpl(getFunction().getContext());
-  rpl.add<
-        PropagateInLoopBody, DetectTrivialIndVarInArgs,
-        ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
-          
-          MoveWhileDown, 
-          MoveWhileDown2
-          
-          , MoveWhileDown3
+  rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs,
+          ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
+
+          MoveWhileDown, MoveWhileDown2
+
           ,
-          MoveWhileInvariantIfResult, WhileLogicalNegation, SubToAdd
-          ,
-          WhileCmpOffset, WhileLICM, RemoveUnusedCondVar,
-          ReturnSq,
-          MoveSideEffectFreeWhile
-              >(getFunction().getContext());
+          MoveWhileDown3, MoveWhileInvariantIfResult, WhileLogicalNegation,
+          SubToAdd, WhileCmpOffset, WhileLICM, RemoveUnusedCondVar, ReturnSq,
+          MoveSideEffectFreeWhile>(getFunction().getContext());
   GreedyRewriteConfig config;
   config.maxIterations = 47;
   applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
