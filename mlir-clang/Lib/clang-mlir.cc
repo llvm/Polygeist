@@ -1398,7 +1398,7 @@ ValueWithOffsets MLIRScanner::CommonArrayLookup(ValueWithOffsets array,
     EmittingFunctionDecl->dump();
     builder.getInsertionBlock()->dump();
     function.dump();
-    llvm::errs() << val << "\n";
+    llvm::errs() << "value: " << val << "\n";
   }
 
   ValueWithOffsets dref;
@@ -2841,7 +2841,7 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     if (!cond.getType().isa<mlir::IntegerType>()) {
       BO->dump();
       BO->getType()->dump();
-      llvm::errs() << cond << "\n";
+      llvm::errs() << "cond: " << cond << "\n";
     }
     auto prevTy = cond.getType().cast<mlir::IntegerType>();
     if (!prevTy.isInteger(1)) {
@@ -3406,7 +3406,7 @@ ValueWithOffsets MLIRScanner::CommonFieldLookup(clang::QualType CT,
                               loc, iTy, builder.getIntegerAttr(iTy, fnum))};
     if (!PT.getElementType()
              .isa<mlir::LLVM::LLVMStructType, mlir::LLVM::LLVMArrayType>()) {
-      llvm::errs() << function << "\n";
+      llvm::errs() << "function: " << function << "\n";
       // rd->dump();
       FD->dump();
       FD->getType()->dump();
@@ -3580,7 +3580,7 @@ ValueWithOffsets MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     EmittingFunctionDecl->dump();
     function.dump();
     ME->dump();
-    llvm::errs() << base.val << "\n";
+    llvm::errs() << "base value: " << base.val << "\n";
   }
   assert(base.isReference);
   const FieldDecl *field = cast<FieldDecl>(ME->getMemberDecl());
@@ -3707,7 +3707,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (!scalar.getType().isa<mlir::MemRefType>()) {
       E->dump();
       E->getType()->dump();
-      llvm::errs() << scalar << "\n";
+      llvm::errs() << "scalar: " << scalar << "\n";
     }
     auto ut = scalar.getType().cast<mlir::MemRefType>();
     auto mlirty = getMLIRType(E->getType());
@@ -3857,7 +3857,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
     if (!scalar.getType().isa<mlir::FloatType>()) {
       E->dump();
-      llvm::errs() << scalar << "\n";
+      llvm::errs() << "scalar: " << scalar << "\n";
     }
     auto prevTy = scalar.getType().cast<mlir::FloatType>();
     auto postTy = getMLIRType(E->getType()).cast<mlir::FloatType>();
@@ -3931,7 +3931,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueWithOffsets(val, /*isReference*/ false);
     }
     function.dump();
-    llvm::errs() << scalar << "\n";
+    llvm::errs() << "scalar: " << scalar << "\n";
     E->dump();
     assert(0 && "unhandled ptrtobool cast");
   }
@@ -3947,7 +3947,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueWithOffsets(val, /*isReference*/ false);
     }
     function.dump();
-    llvm::errs() << scalar << "\n";
+    llvm::errs() << "scalar: " << scalar << "\n";
     E->dump();
     assert(0 && "unhandled ptrtoint cast");
   }

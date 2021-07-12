@@ -11,7 +11,6 @@ struct LowerToInfo {
   llvm::StringMap<std::string> SymbolTable;
 };
 
-void addPragmaLowerToHandlers(clang::Preprocessor &PP, clang::Sema &Actions,
-                              LowerToInfo &LTInfo);
+void addPragmaLowerToHandlers(clang::Preprocessor &PP, LowerToInfo &LTInfo);
 
 #endif

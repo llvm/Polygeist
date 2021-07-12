@@ -437,8 +437,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         reverseTypeTranslator(lcontext) {
     PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
     PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
-    Sema Actions(PP, astContext, *this);
-    addPragmaLowerToHandlers(PP, Actions, LTInfo);
+    addPragmaLowerToHandlers(PP, LTInfo);
   }
 
   ~MLIRASTConsumer() {}
