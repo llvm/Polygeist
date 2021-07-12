@@ -726,6 +726,10 @@ public:
 
   ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
 
+  std::pair<ValueWithOffsets, bool> EmitGPUCallExpr(clang::CallExpr *expr);
+
+  std::pair<ValueWithOffsets, bool> EmitBuiltinOps(clang::CallExpr *expr);
+
   ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr,
