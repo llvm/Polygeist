@@ -1,10 +1,10 @@
 #include "pragmaLowerToHandler.h"
-
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Attr.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "clang/Lex/LexDiagnostic.h"
+#include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Sema/Sema.h"
 
@@ -20,13 +20,11 @@ namespace {
 /// Handles the #pragma lower_to(<identifier>, "<mlir function target>")
 /// directive.
 class PragmaLowerToHandler : public PragmaHandler {
-  Sema &Actions;
-
   LowerToInfo &Info;
 
 public:
-  PragmaLowerToHandler(Sema &Actions, LowerToInfo &Info)
-      : PragmaHandler("lower_to"), Actions(Actions), Info(Info) {}
+  PragmaLowerToHandler(LowerToInfo &Info)
+      : PragmaHandler("lower_to"), Info(Info) {}
 
   /// The pragma handler will extract the single argument to the lower_to(...)
   /// pragma definition, which is the target MLIR function symbol, and relate
@@ -58,14 +56,12 @@ public:
     assert(SymbolTok.is(tok::string_literal) &&
            "The second argument of lower_to should be a string literal.");
     SymbolToks.push_back(SymbolTok);
-    clang::StringLiteral *SymbolName = cast<clang::StringLiteral>(
-        Actions.ActOnStringLiteral(SymbolToks).get());
-
+    StringRef SymbolName = StringLiteralParser(SymbolToks, PP).GetString();
     PP.Lex(Tok); // rparen
     assert(Tok.is(tok::r_paren) && "lower_to should end with '('.");
 
     // Link SymbolName with the function.
-    auto result = Info.SymbolTable.try_emplace(FuncId, SymbolName->getString());
+    auto result = Info.SymbolTable.try_emplace(FuncId, SymbolName);
     assert(result.second &&
            "Shouldn't define lower_to over the same func id more than once.");
   }
@@ -75,7 +71,6 @@ private:
 
 } // namespace
 
-void addPragmaLowerToHandlers(Preprocessor &PP, Sema &Actions,
-                              LowerToInfo &LTInfo) {
-  PP.AddPragmaHandler(new PragmaLowerToHandler(Actions, LTInfo));
+void addPragmaLowerToHandlers(Preprocessor &PP, LowerToInfo &LTInfo) {
+  PP.AddPragmaHandler(new PragmaLowerToHandler(LTInfo));
 }
