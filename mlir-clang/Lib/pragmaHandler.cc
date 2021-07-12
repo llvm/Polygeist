@@ -1,4 +1,4 @@
-#include "pragmaLowerToHandler.h"
+#include "pragmaHandler.h"
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Attr.h"
@@ -69,8 +69,43 @@ public:
 private:
 };
 
+struct PragmaScopHandler : public PragmaHandler {
+  ScopLocList &scops;
+
+  PragmaScopHandler(ScopLocList &scops) : PragmaHandler("scop"), scops(scops) {}
+
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &scopTok) override {
+    auto &SM = PP.getSourceManager();
+    auto loc = scopTok.getLocation();
+    scops.addStart(SM, loc);
+  }
+};
+
+struct PragmaEndScopHandler : public PragmaHandler {
+  ScopLocList &scops;
+
+  PragmaEndScopHandler(ScopLocList &scops)
+      : PragmaHandler("endscop"), scops(scops) {}
+
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
+                    Token &endScopTok) override {
+    auto &SM = PP.getSourceManager();
+    auto loc = endScopTok.getLocation();
+    scops.addEnd(SM, loc);
+  }
+};
+
 } // namespace
 
 void addPragmaLowerToHandlers(Preprocessor &PP, LowerToInfo &LTInfo) {
   PP.AddPragmaHandler(new PragmaLowerToHandler(LTInfo));
+}
+
+void addPragmaScopHandlers(Preprocessor &PP, ScopLocList &scopLocList) {
+  PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
+}
+
+void addPragmaEndScopHandlers(Preprocessor &PP, ScopLocList &scopLocList) {
+  PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
 }

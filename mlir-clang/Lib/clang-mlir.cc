@@ -17,7 +17,6 @@
 #include <clang/Frontend/FrontendOptions.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
-#include <clang/Lex/Pragma.h>
 #include <clang/Parse/ParseAST.h>
 #include <clang/Parse/Parser.h>
 #include <clang/Sema/Sema.h>
@@ -2709,16 +2708,6 @@ MLIRScanner::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop) {
     Uop->dump();
     assert(0 && "unhandled VisitUnaryExprOrTypeTraitExpr");
   }
-}
-
-bool isInAffineScope(Operation *op) {
-  auto *curOp = op;
-  while (auto *parentOp = curOp->getParentOp()) {
-    if (isa<mlir::AffineForOp>(parentOp))
-      return true;
-    curOp = parentOp;
-  }
-  return false;
 }
 
 bool hasAffineArith(Operation *op, AffineExpr &expr,
