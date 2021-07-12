@@ -1530,8 +1530,190 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
   return nullptr;
 }
 
-ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+std::pair<ValueWithOffsets, bool>
+MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee())) {
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__log2f") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::Log2Op>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "log") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::LogOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "sqrtf" ||
+           sr->getDecl()->getName() == "sqrt")) {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::SqrtOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "expf" ||
+           sr->getDecl()->getName() == "exp")) {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::ExpOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::SinOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+
+      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "cos") {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::math::CosOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+    }
+  }
+
+  return make_pair(ValueWithOffsets(), false);
+}
+
+std::pair<ValueWithOffsets, bool>
+MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee())) {
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__syncthreads") {
+        builder.create<mlir::NVVM::Barrier0Op>(loc);
+        return make_pair(ValueWithOffsets(), true);
+      }
+      // TODO move free out.
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "free" ||
+           sr->getDecl()->getName() == "cudaFree" ||
+           sr->getDecl()->getName() == "cudaFreeHost")) {
+
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+
+        builder.create<mlir::memref::DeallocOp>(loc, args[0]);
+        if (sr->getDecl()->getName() == "cudaFree" ||
+            sr->getDecl()->getName() == "cudaFreeHost") {
+          auto ty = getMLIRType(expr->getType());
+          auto op = builder.create<mlir::ConstantOp>(
+              loc, ty, builder.getIntegerAttr(ty, /*cudaSuccess*/ 0));
+          return make_pair(ValueWithOffsets(op, /*isReference*/ false), true);
+        }
+        // TODO remove me when the free is removed.
+        return make_pair(ValueWithOffsets(), true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "cudaMalloc" ||
+           sr->getDecl()->getName() == "cudaMallocHost")) {
+        if (auto BC = dyn_cast<clang::CastExpr>(expr->getArg(0))) {
+          auto dst = Visit(BC->getSubExpr()).getValue(builder);
+          if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
+            auto mt = omt.getElementType().dyn_cast<MemRefType>();
+            auto shape = std::vector<int64_t>(mt.getShape());
+
+            auto elemSize =
+                getTypeSize(cast<clang::PointerType>(
+                                cast<clang::PointerType>(
+                                    BC->getSubExpr()
+                                        ->getType()
+                                        ->getUnqualifiedDesugaredType())
+                                    ->getPointeeType())
+                                ->getPointeeType());
+            mlir::Value allocSize = builder.create<mlir::IndexCastOp>(
+                loc, Visit(expr->getArg(1)).getValue(builder),
+                mlir::IndexType::get(builder.getContext()));
+            mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
+                loc, allocSize,
+                builder.create<mlir::ConstantOp>(
+                    loc, allocSize.getType(),
+                    builder.getIntegerAttr(allocSize.getType(), elemSize)))};
+            auto alloc = builder.create<mlir::memref::AllocOp>(
+                loc,
+                (sr->getDecl()->getName() == "cudaMalloc" && !CudaLower)
+                    ? mlir::MemRefType::get(shape, mt.getElementType(),
+                                            mt.getAffineMaps(), 1)
+                    : mt,
+                args);
+            ValueWithOffsets(dst, /*isReference*/ true)
+                .store(builder,
+                       builder.create<mlir::memref::CastOp>(loc, alloc, mt));
+            return make_pair(
+                ValueWithOffsets(getConstantIndex(0), /*isReference*/ false),
+                true);
+          }
+        }
+      }
+    }
+
+    auto createBlockIdOp = [&](string str, mlir::Type mlirType) -> mlir::Value {
+      return builder.create<mlir::IndexCastOp>(
+          loc,
+          builder.create<mlir::gpu::BlockIdOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str),
+          mlirType);
+    };
+
+    auto createBlockDimOp = [&](string str,
+                                mlir::Type mlirType) -> mlir::Value {
+      return builder.create<mlir::IndexCastOp>(
+          loc,
+          builder.create<mlir::gpu::BlockDimOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str),
+          mlirType);
+    };
+
+    auto createThreadIdOp = [&](string str,
+                                mlir::Type mlirType) -> mlir::Value {
+      return builder.create<mlir::IndexCastOp>(
+          loc,
+          builder.create<mlir::gpu::ThreadIdOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str),
+          mlirType);
+    };
+
+    auto createGridDimOp = [&](string str, mlir::Type mlirType) -> mlir::Value {
+      return builder.create<mlir::IndexCastOp>(
+          loc,
+          builder.create<mlir::gpu::GridDimOp>(
+              loc, mlir::IndexType::get(builder.getContext()), str),
+          mlirType);
+    };
+
     if (auto ME = dyn_cast<MemberExpr>(ic->getSubExpr())) {
       auto memberName = ME->getMemberDecl()->getName();
 
@@ -1540,135 +1722,83 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "x"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockIdOp("x", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "y"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockIdOp("y", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "z"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockIdOp("z", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
           }
           if (sr->getDecl()->getName() == "blockDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "x"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockIdOp("z", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "y"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockDimOp("y", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::BlockDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "z"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createBlockDimOp("z", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
           }
           if (sr->getDecl()->getName() == "threadIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::ThreadIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "x"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createThreadIdOp("x", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::ThreadIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "y"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createThreadIdOp("y", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::ThreadIdOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "z"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createThreadIdOp("z", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
           }
           if (sr->getDecl()->getName() == "gridDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::GridDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "x"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createGridDimOp("x", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::GridDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "y"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createGridDimOp("x", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return ValueWithOffsets(
-                  builder.create<mlir::IndexCastOp>(
-                      loc,
-                      builder.create<mlir::gpu::GridDimOp>(
-                          loc, mlir::IndexType::get(builder.getContext()), "z"),
-                      mlirType),
-                  /*isReference*/ false);
+              return make_pair(ValueWithOffsets(createGridDimOp("z", mlirType),
+                                                /*isReference*/ false),
+                               true);
             }
           }
         }
       }
     }
+  }
+  return make_pair(ValueWithOffsets(), false);
+}
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__syncthreads") {
-        builder.create<mlir::NVVM::Barrier0Op>(loc);
-        return nullptr;
-      }
-    }
+ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   /*
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
@@ -1686,79 +1816,14 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   */
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__log2f") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(
-            builder.create<mlir::math::Log2Op>(loc, args[0]),
-            /*isReference*/ false);
-      }
-    }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "log") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(builder.create<mlir::math::LogOp>(loc, args[0]),
-                                /*isReference*/ false);
-      }
-    }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "sqrtf" ||
-           sr->getDecl()->getName() == "sqrt")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(
-            builder.create<mlir::math::SqrtOp>(loc, args[0]),
-            /*isReference*/ false);
-      }
-    }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "expf" ||
-           sr->getDecl()->getName() == "exp")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(builder.create<mlir::math::ExpOp>(loc, args[0]),
-                                /*isReference*/ false);
-      }
-    }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(builder.create<mlir::math::SinOp>(loc, args[0]),
-                                /*isReference*/ false);
-      }
-    }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "cos") {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-        return ValueWithOffsets(builder.create<mlir::math::CosOp>(loc, args[0]),
-                                /*isReference*/ false);
-      }
-    }
+  auto valEmitted = EmitGPUCallExpr(expr);
+  if (valEmitted.second)
+    return valEmitted.first;
+
+  valEmitted = EmitBuiltinOps(expr);
+  if (valEmitted.second)
+    return valEmitted.first;
+
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -1901,30 +1966,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "free" ||
-           sr->getDecl()->getName() == "cudaFree" ||
-           sr->getDecl()->getName() == "cudaFreeHost")) {
-
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
-        }
-
-        builder.create<mlir::memref::DeallocOp>(loc, args[0]);
-        if (sr->getDecl()->getName() == "cudaFree" ||
-            sr->getDecl()->getName() == "cudaFreeHost") {
-          auto ty = getMLIRType(expr->getType());
-          auto op = builder.create<mlir::ConstantOp>(
-              loc, ty, builder.getIntegerAttr(ty, /*cudaSuccess*/ 0));
-          return ValueWithOffsets(op, /*isReference*/ false);
-        }
-        return nullptr;
-      }
-    }
-
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "fscanf" ||
            sr->getDecl()->getName() == "scanf" ||
            sr->getDecl()->getName() == "__isoc99_sscanf" ||
@@ -1956,47 +1997,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueWithOffsets(called.getResult(0), /*isReference*/ false);
       }
     }
-
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr()))
-      if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "cudaMalloc" ||
-           sr->getDecl()->getName() == "cudaMallocHost"))
-        if (auto BC = dyn_cast<clang::CastExpr>(expr->getArg(0))) {
-          auto dst = Visit(BC->getSubExpr()).getValue(builder);
-          if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
-            auto mt = omt.getElementType().dyn_cast<MemRefType>();
-            auto shape = std::vector<int64_t>(mt.getShape());
-
-            auto elemSize =
-                getTypeSize(cast<clang::PointerType>(
-                                cast<clang::PointerType>(
-                                    BC->getSubExpr()
-                                        ->getType()
-                                        ->getUnqualifiedDesugaredType())
-                                    ->getPointeeType())
-                                ->getPointeeType());
-            mlir::Value allocSize = builder.create<mlir::IndexCastOp>(
-                loc, Visit(expr->getArg(1)).getValue(builder),
-                mlir::IndexType::get(builder.getContext()));
-            mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
-                loc, allocSize,
-                builder.create<mlir::ConstantOp>(
-                    loc, allocSize.getType(),
-                    builder.getIntegerAttr(allocSize.getType(), elemSize)))};
-            auto alloc = builder.create<mlir::memref::AllocOp>(
-                loc,
-                (sr->getDecl()->getName() == "cudaMalloc" && !CudaLower)
-                    ? mlir::MemRefType::get(shape, mt.getElementType(),
-                                            mt.getAffineMaps(), 1)
-                    : mt,
-                args);
-            ValueWithOffsets(dst, /*isReference*/ true)
-                .store(builder,
-                       builder.create<mlir::memref::CastOp>(loc, alloc, mt));
-            return ValueWithOffsets(getConstantIndex(0), /*isReference*/ false);
-          }
-        }
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr()))
