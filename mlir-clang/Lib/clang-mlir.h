@@ -22,7 +22,7 @@
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
-#include "pragmaLowerToHandler.h"
+#include "pragmaHandler.h"
 #include "llvm/IR/DerivedTypes.h"
 
 #include "../../llvm-project/clang/lib/CodeGen/CGRecordLayout.h"
@@ -294,104 +294,6 @@ struct ValueWithOffsets {
   }
 };
 
-/// The location of the scop, as delimited by scop and endscop
-/// pragmas by the user.
-/// "scop" and "endscop" are the source locations of the scop and
-/// endscop pragmas.
-/// "start_line" is the line number of the start position.
-struct ScopLoc {
-  ScopLoc() : end(0) {}
-
-  clang::SourceLocation scop;
-  clang::SourceLocation endscop;
-  unsigned startLine;
-  unsigned start;
-  unsigned end;
-};
-
-/// Taken from pet.cc
-/// List of pairs of #pragma scop and #pragma endscop locations.
-struct ScopLocList {
-  std::vector<ScopLoc> list;
-
-  // Add a new start (#pragma scop) location to the list.
-  // If the last #pragma scop did not have a matching
-  // #pragma endscop then overwrite it.
-  // "start" points to the location of the scop pragma.
-
-  void addStart(SourceManager &SM, SourceLocation start) {
-    ScopLoc loc;
-
-    loc.scop = start;
-    int line = SM.getExpansionLineNumber(start);
-    start = SM.translateLineCol(SM.getFileID(start), line, 1);
-    loc.startLine = line;
-    loc.start = SM.getFileOffset(start);
-    if (list.size() == 0 || list[list.size() - 1].end != 0)
-      list.push_back(loc);
-    else
-      list[list.size() - 1] = loc;
-  }
-
-  // Set the end location (#pragma endscop) of the last pair
-  // in the list.
-  // If there is no such pair of if the end of that pair
-  // is already set, then ignore the spurious #pragma endscop.
-  // "end" points to the location of the endscop pragma.
-
-  void addEnd(SourceManager &SM, SourceLocation end) {
-    if (list.size() == 0 || list[list.size() - 1].end != 0)
-      return;
-    list[list.size() - 1].endscop = end;
-    int line = SM.getExpansionLineNumber(end);
-    end = SM.translateLineCol(SM.getFileID(end), line + 1, 1);
-    list[list.size() - 1].end = SM.getFileOffset(end);
-  }
-
-  // Check if the current location is in the scop.
-  bool isInScop(SourceLocation target) {
-    // If the user selects the raise-scf-to-affine we ignore pragmas and try to
-    // raise all we can. Similar behavior to pet --autodetect. This allow us to
-    // test the raising.
-    if (RaiseToAffine)
-      return false;
-
-    if (!list.size())
-      return false;
-    for (auto &scopLoc : list)
-      if ((target >= scopLoc.scop) && (target <= scopLoc.endscop))
-        return true;
-    return false;
-  }
-};
-
-struct PragmaScopHandler : public PragmaHandler {
-  ScopLocList &scops;
-
-  PragmaScopHandler(ScopLocList &scops) : PragmaHandler("scop"), scops(scops) {}
-
-  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                    Token &scopTok) override {
-    auto &SM = PP.getSourceManager();
-    auto loc = scopTok.getLocation();
-    scops.addStart(SM, loc);
-  }
-};
-
-struct PragmaEndScopHandler : public PragmaHandler {
-  ScopLocList &scops;
-
-  PragmaEndScopHandler(ScopLocList &scops)
-      : PragmaHandler("endscop"), scops(scops) {}
-
-  void HandlePragma(Preprocessor &PP, PragmaIntroducer introducer,
-                    Token &endScopTok) override {
-    auto &SM = PP.getSourceManager();
-    auto loc = endScopTok.getLocation();
-    scops.addEnd(SM, loc);
-  }
-};
-
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
   std::set<std::string> &done;
@@ -435,8 +337,8 @@ struct MLIRASTConsumer : public ASTConsumer {
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module.getContext()),
         reverseTypeTranslator(lcontext) {
-    PP.AddPragmaHandler(new PragmaScopHandler(scopLocList));
-    PP.AddPragmaHandler(new PragmaEndScopHandler(scopLocList));
+    addPragmaScopHandlers(PP, scopLocList);
+    addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 

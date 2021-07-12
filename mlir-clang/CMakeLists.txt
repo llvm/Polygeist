@@ -1,7 +1,7 @@
 add_clang_tool(mlir-clang
   mlir-clang.cc
   Lib/utils.cc
-  Lib/pragmaLowerToHandler.cc
+  Lib/pragmaHandler.cc
 )
 
 target_include_directories(mlir-clang PRIVATE
