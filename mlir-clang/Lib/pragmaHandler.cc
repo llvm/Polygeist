@@ -6,6 +6,7 @@
 #include "clang/Lex/LexDiagnostic.h"
 #include "clang/Lex/LiteralSupport.h"
 #include "clang/Lex/Preprocessor.h"
+#include "clang/Parse/ParseDiagnostic.h"
 #include "clang/Sema/Sema.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -31,34 +32,70 @@ public:
   /// the function decl that lower_to is attached to with that MLIR function
   /// symbol in the class-referenced dictionary.
   ///
-  /// TODO: Handle assertions properly.
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &PragmaTok) {
     Token Tok;
     PP.Lex(Tok); // lparen
-    assert(Tok.is(tok::l_paren) && "lower_to should start with '('.");
+    if (Tok.isNot(tok::l_paren)) {
+      PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_lparen)
+          << "lower_to";
+      return;
+    }
 
-    Token FuncIdTok; // function identifier
-    PP.Lex(FuncIdTok);
-    assert(FuncIdTok.is(tok::identifier) &&
-           "The first argument of lower_to should be an identifier.");
+    Token PrevTok = Tok;
+    llvm::StringRef FuncId = llvm::StringRef();
+    llvm::StringRef SymbolName = llvm::StringRef();
+    while (Tok.isNot(tok::eod)) {
+      Token CurrentTok;
+      PP.Lex(CurrentTok);
 
-    llvm::StringRef FuncId = FuncIdTok.getIdentifierInfo()->getName();
+      // rparen.
+      if (PrevTok.is(tok::string_literal)) {
+        if (CurrentTok.isNot(tok::r_paren)) {
+          PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_rparen)
+              << "lower_to";
+          return;
+        } else {
+          break;
+        }
+      }
 
-    PP.Lex(Tok); // comma
-    assert(Tok.is(tok::comma) && "The first and second argument of lower_to "
-                                 "should be separated by a comma.");
+      // function identifier.
+      if (PrevTok.is(tok::l_paren)) {
+        if (CurrentTok.isNot(tok::identifier)) {
+          PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_identifier)
+              << "lower_to";
+          return;
+        } else {
+          FuncId = CurrentTok.getIdentifierInfo()->getName();
+        }
+      }
 
-    // Parse the string literal argument, which is the MLIR function symbol.
-    SmallVector<Token, 1> SymbolToks;
-    Token SymbolTok;
-    PP.Lex(SymbolTok);
-    assert(SymbolTok.is(tok::string_literal) &&
-           "The second argument of lower_to should be a string literal.");
-    SymbolToks.push_back(SymbolTok);
-    StringRef SymbolName = StringLiteralParser(SymbolToks, PP).GetString();
-    PP.Lex(Tok); // rparen
-    assert(Tok.is(tok::r_paren) && "lower_to should end with '('.");
+      // comma.
+      if (PrevTok.is(tok::identifier)) {
+        if (CurrentTok.isNot(tok::comma)) {
+          PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_punc)
+              << "lower_to";
+          return;
+        }
+      }
+
+      // string literal, which is the MLIR function symbol.
+      if (PrevTok.is(tok::comma)) {
+        if (CurrentTok.isNot(tok::string_literal)) {
+          PP.Diag(CurrentTok.getLocation(),
+                  diag::warn_pragma_expected_section_name)
+              << "lower to";
+          return;
+        } else {
+          SmallVector<Token, 1> SymbolToks;
+          SymbolToks.push_back(CurrentTok);
+          SymbolName = StringLiteralParser(SymbolToks, PP).GetString();
+        }
+      }
+
+      PrevTok = CurrentTok;
+    }
 
     // Link SymbolName with the function.
     auto result = Info.SymbolTable.try_emplace(FuncId, SymbolName);
