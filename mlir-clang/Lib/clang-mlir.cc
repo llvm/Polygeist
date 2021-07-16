@@ -2222,7 +2222,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 
   auto tocall = EmitDirectCallee(callee);
-  std::vector<mlir::Value> args;
+  SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getType();
   size_t i = 0;
   if (auto CC = dyn_cast<CXXMemberCallExpr>(expr)) {
@@ -2248,13 +2248,21 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   std::vector<std::pair<ValueWithOffsets, ValueWithOffsets>> toRestore;
 
-  for (auto a : expr->arguments()) {
-    auto arg = Visit(a);
+  // map from declaration name to mlir::value
+  std::map<std::string, mlir::Value> mapFuncOperands;
+
+  for (clang::Expr *a : expr->arguments()) {
+    ValueWithOffsets arg = Visit(a);
     if (!arg.val) {
       expr->dump();
       a->dump();
     }
-    assert(arg.val);
+    assert(arg.val && "expect not null");
+    if (auto ice = dyn_cast<ImplicitCastExpr>(a))
+      if (auto dre = dyn_cast<DeclRefExpr>(ice->getSubExpr()))
+        mapFuncOperands.insert(
+            make_pair(dre->getDecl()->getName().str(), arg.val));
+
     if (i >= fnType.getInputs().size()) {
       expr->dump();
       tocall.dump();
@@ -2374,11 +2382,23 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   // handle lowerto pragma.
   if (LTInfo.SymbolTable.count(tocall.getName())) {
-    return ValueWithOffsets(
-        mlirclang::replaceFuncByOperation(
-            tocall, LTInfo.SymbolTable[tocall.getName()], args, builder)
-            ->getResult(0),
-        /*isReference=*/false);
+    SmallVector<mlir::Value> inputOperands;
+    SmallVector<mlir::Value> outputOperands;
+    for (StringRef input : LTInfo.InputSymbol)
+      if (mapFuncOperands.find(input.str()) != mapFuncOperands.end())
+        inputOperands.push_back(mapFuncOperands[input.str()]);
+    for (StringRef output : LTInfo.OutputSymbol)
+      if (mapFuncOperands.find(output.str()) != mapFuncOperands.end())
+        outputOperands.push_back(mapFuncOperands[output.str()]);
+
+    if (inputOperands.size() == 0)
+      inputOperands.append(args);
+
+    return ValueWithOffsets(mlirclang::replaceFuncByOperation(
+                                tocall, LTInfo.SymbolTable[tocall.getName()],
+                                builder, inputOperands, outputOperands)
+                                ->getResult(0),
+                            /*isReference=*/false);
   }
 
   bool isArrayReturn = false;

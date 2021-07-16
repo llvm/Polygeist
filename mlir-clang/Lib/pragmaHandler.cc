@@ -27,15 +27,103 @@ public:
   PragmaLowerToHandler(LowerToInfo &Info)
       : PragmaHandler("lower_to"), Info(Info) {}
 
+  /// Handle (x,y,z) segment.
+  bool ReadInputOrOutput(Preprocessor &PP, Token &CurrentTok,
+                         SmallVectorImpl<StringRef> &Ids) {
+    PP.Lex(CurrentTok);
+    if (CurrentTok.isNot(tok::l_paren)) {
+      PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_expected_lparen)
+          << "lower_to";
+      return false;
+    }
+    PP.Lex(CurrentTok);
+    while (CurrentTok.isNot(tok::r_paren) && CurrentTok.isNot(tok::eod)) {
+      if (CurrentTok.isNot(tok::identifier)) {
+        PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_expected_identifier)
+            << "lower_to";
+        return false;
+      } else {
+        StringRef Id = CurrentTok.getIdentifierInfo()->getName();
+        Ids.push_back(Id);
+      }
+      PP.Lex(CurrentTok);
+      if (CurrentTok.is(tok::r_paren))
+        break;
+      if (CurrentTok.isNot(tok::comma)) {
+        PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_expected_comma)
+            << "lower_to";
+        return false;
+      }
+      PP.Lex(CurrentTok);
+    }
+    // move to the next Token after l_paren.
+    PP.Lex(CurrentTok);
+    return true;
+  }
+
+  /// Handle input(a,b,c), output(x, y, z) optional segment.
+  bool HandleOptionalInputAndOutput(Preprocessor &PP, Token &PragmaTok,
+                                    SmallVectorImpl<StringRef> &Inputs,
+                                    SmallVectorImpl<StringRef> &Outputs) {
+    Token CurrentTok;
+    PP.Lex(CurrentTok);
+
+    // early exit.
+    if (CurrentTok.is(tok::eod))
+      return true;
+
+    if (CurrentTok.isNot(tok::string_literal) ||
+        (StringRef(CurrentTok.getLiteralData(), CurrentTok.getLength())
+             .compare("input") == 0)) {
+      PP.Diag(CurrentTok.getLocation(),
+              diag::warn_pragma_expected_section_label_or_name)
+          << "";
+      return false;
+    } else {
+      if (!ReadInputOrOutput(PP, CurrentTok, Inputs))
+        return false;
+    }
+
+    // comma.
+    if (CurrentTok.isNot(tok::comma)) {
+      PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_expected_comma)
+          << "lower_to";
+      return false;
+    }
+    // move to the next Token after comma.
+    PP.Lex(CurrentTok);
+
+    if (CurrentTok.isNot(tok::string_literal) ||
+        (StringRef(CurrentTok.getLiteralData(), CurrentTok.getLength())
+             .compare("output") == 0)) {
+      PP.Diag(CurrentTok.getLocation(),
+              diag::warn_pragma_expected_section_label_or_name)
+          << "expect 'output' for lower to";
+      return false;
+    } else {
+      if (!ReadInputOrOutput(PP, CurrentTok, Outputs))
+        return false;
+    }
+
+    if (CurrentTok.isNot(tok::eod)) {
+      PP.Diag(CurrentTok.getLocation(), diag::warn_pragma_extra_tokens_at_eol)
+          << "lower_to";
+      return false;
+    }
+
+    return true;
+  }
+
   /// The pragma handler will extract the single argument to the lower_to(...)
   /// pragma definition, which is the target MLIR function symbol, and relate
   /// the function decl that lower_to is attached to with that MLIR function
   /// symbol in the class-referenced dictionary.
   ///
+  // #pragma lower_to(copy_op, "linalg.copy") input(a), output(b)
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &PragmaTok) {
     Token Tok;
-    PP.Lex(Tok); // lparen
+    PP.Lex(Tok); // pragma lparen
     if (Tok.isNot(tok::l_paren)) {
       PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_lparen)
           << "lower_to";
@@ -49,14 +137,18 @@ public:
       Token CurrentTok;
       PP.Lex(CurrentTok);
 
-      // rparen.
+      // pragma rparen.
       if (PrevTok.is(tok::string_literal)) {
         if (CurrentTok.isNot(tok::r_paren)) {
           PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_rparen)
               << "lower_to";
           return;
         } else {
-          break;
+          if (!HandleOptionalInputAndOutput(PP, CurrentTok, Info.InputSymbol,
+                                            Info.OutputSymbol))
+            return;
+          else
+            break;
         }
       }
 
@@ -74,7 +166,7 @@ public:
       // comma.
       if (PrevTok.is(tok::identifier)) {
         if (CurrentTok.isNot(tok::comma)) {
-          PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_punc)
+          PP.Diag(Tok.getLocation(), diag::warn_pragma_expected_comma)
               << "lower_to";
           return;
         }
