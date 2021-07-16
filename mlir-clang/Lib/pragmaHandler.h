@@ -11,6 +11,8 @@
 /// POD holds information processed from the lower_to pragma.
 struct LowerToInfo {
   llvm::StringMap<std::string> SymbolTable;
+  llvm::SmallVector<llvm::StringRef, 2> InputSymbol;
+  llvm::SmallVector<llvm::StringRef, 2> OutputSymbol;
 };
 
 /// The location of the scop, as delimited by scop and endscop

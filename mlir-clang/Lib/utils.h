@@ -25,13 +25,16 @@ namespace mlirclang {
 /// is "bar.baz", we will create an operator baz of the bar dialect, with
 /// operands %a and %b. The new op will be inserted at where the insertion point
 /// of the provided OpBuilder is.
-mlir::Operation *replaceFuncByOperation(mlir::FuncOp f, llvm::StringRef opName,
-                                        llvm::ArrayRef<mlir::Value> operands,
-                                        mlir::OpBuilder &b);
+mlir::Operation *
+replaceFuncByOperation(mlir::FuncOp f, llvm::StringRef opName,
+                       mlir::OpBuilder &b,
+                       llvm::SmallVectorImpl<mlir::Value> &input,
+                       llvm::SmallVectorImpl<mlir::Value> &output);
+
 mlir::Operation *buildLinalgOp(const mlir::AbstractOperation *op,
-                               llvm::ArrayRef<mlir::Value> operands,
-                               llvm::ArrayRef<mlir::Type> results,
-                               mlir::OpBuilder &b);
+                               mlir::OpBuilder &b,
+                               llvm::SmallVectorImpl<mlir::Value> &input,
+                               llvm::SmallVectorImpl<mlir::Value> &output);
 
 } // namespace mlirclang
 
