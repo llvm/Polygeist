@@ -2523,10 +2523,7 @@ ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
       auto ne = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::eq, val, nullptr_llvm);
-      auto mlirType = getMLIRType(U->getType());
-      mlir::Value val =
-          builder.create<mlir::LLVM::DialectCastOp>(loc, mlirType, ne);
-      return ValueWithOffsets(val, /*isReference*/ false);
+      return ValueWithOffsets(ne, /*isReference*/ false);
     }
 
     if (!val.getType().isa<mlir::IntegerType>()) {
@@ -3934,10 +3931,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
       auto ne = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, scalar, nullptr_llvm);
-      auto mlirType = getMLIRType(E->getType());
-      mlir::Value val =
-          builder.create<mlir::LLVM::DialectCastOp>(loc, mlirType, ne);
-      return ValueWithOffsets(val, /*isReference*/ false);
+      return ValueWithOffsets(ne, /*isReference*/ false);
     }
     function.dump();
     llvm::errs() << "scalar: " << scalar << "\n";
