@@ -30,6 +30,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRStandardToLLVM
   MLIRAffineTransforms
   MLIRAffineToStandard
+  MLIRMathToLLVM
   MLIRTargetLLVMIRImport
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation

@@ -95,6 +95,7 @@ class MemRefInsider
 #include "Lib/clang-mlir.cc"
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 int main(int argc, char **argv) {
@@ -236,6 +237,7 @@ int main(int argc, char **argv) {
 
     if (EmitLLVM) {
       pm.addPass(mlir::createLowerAffinePass());
+      pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module))) {
         module.dump();
         return 4;
