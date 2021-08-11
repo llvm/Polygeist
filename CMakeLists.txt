@@ -21,7 +21,7 @@ message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
 find_package(MLIR REQUIRED CONFIG)
 
 set(Clang_DIR ${CLANG_DIR})
-message(STATUS "Searching for MLIRConfig.cmake in: ${Clang_DIR}")
+message(STATUS "Searching for ClangConfig.cmake in: ${Clang_DIR}")
 find_package(Clang REQUIRED CONFIG)
 
 message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
