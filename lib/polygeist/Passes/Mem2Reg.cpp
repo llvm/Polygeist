@@ -25,13 +25,14 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
+#include <deque>
+#include <set>
 
 #include "polygeist/Ops.h"
 
 #define DEBUG_TYPE "mem2reg"
 
 using namespace mlir;
-#include <set>
 
 typedef std::set<std::vector<ssize_t>> StoreMap;
 
