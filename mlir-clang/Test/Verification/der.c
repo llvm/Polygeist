@@ -6,8 +6,7 @@ float kernel_deriche() {
     return a2;
 }
 
-// CHECK:  func @kernel_deriche() -> f32 {
-// CHECK-NEXT:    %cst = constant 2.000000e+00 : f64
-// CHECK-NEXT:    %0 = fptrunc %cst : f64 to f32
-// CHECK-NEXT:    return %0 : f32
+// CHECK:  builtin.func @kernel_deriche() -> f32 {
+// CHECK-NEXT:    %cst = constant 2.000000e+00 : f32
+// CHECK-NEXT:    return %cst : f32
 // CHECK-NEXT:  }
