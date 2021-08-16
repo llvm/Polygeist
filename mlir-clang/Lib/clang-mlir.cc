@@ -231,12 +231,6 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   else
     Glob.getMLIRType(decl->getType(), &isArray);
 
-  if (!LLVMABI && isArray) {
-    subType =
-        Glob.getMLIRType(Glob.CGM.getContext().getPointerType(decl->getType()));
-    isArray = true;
-  }
-
   if (auto init = decl->getInit()) {
     if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
       return VisitConstructCommon(CE, decl, memtype);
@@ -2154,7 +2148,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           sr->getDecl()->getName() == "gettimeofday") {
         auto tocall = EmitCallee(expr->getCallee());
         auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
-
         std::vector<mlir::Value> args;
         size_t i = 0;
         mlir::Value tostore = nullptr;
@@ -2200,23 +2193,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         //   loc, getMLIRType(expr->getType()), co);
         auto ret = co;
 
-        auto loaded = builder.create<mlir::LLVM::LoadOp>(loc, alloc);
-
-        auto st = loaded.getType().dyn_cast<LLVM::LLVMStructType>();
-        for (size_t i = 0; i < st.getBody().size(); i++) {
-          mlir::Value ev = builder.create<mlir::LLVM::ExtractValueOp>(
-              loc, st.getBody()[i], loaded, builder.getI64ArrayAttr(i));
-          // ev = builder.create<mlir::LLVM::DialectCastOp>(
-          // loc,
-          // Glob.getMLIRType(Glob.reverseTypeTranslator.translateType(
-          //  ev.getType(),
-          //    ev);
-          builder.create<mlir::memref::StoreOp>(
-              loc, ev, tostore,
-              std::vector<mlir::Value>(
-                  {getConstantIndex(0), getConstantIndex(i)}));
-        }
-
+        auto allV = ValueWithOffsets(alloc, /*isReference*/ true);
+        ValueWithOffsets(tostore, /*isReference*/ true)
+            .store(builder, allV, /*isArray*/ true);
         return ValueWithOffsets(ret, /*isReference*/ false);
       }
     }
