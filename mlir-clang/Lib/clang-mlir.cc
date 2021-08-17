@@ -4328,7 +4328,9 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
       module.getLoc(), rt, /*constant*/ false, lnk, name, mlir::Attribute());
 
   if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
-      VarDecl::Definition) {
+          VarDecl::Definition ||
+      cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
+          VarDecl::TentativeDefinition) {
     Block *blk = new Block();
     glob.getInitializerRegion().push_back(blk);
     builder.setInsertionPointToStart(blk);
@@ -4361,16 +4363,63 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD) {
                                mt.getAffineMaps(), memspace);
   }
 
+  mlir::SymbolTable::Visibility lnk;
+  mlir::Attribute initial_value;
+
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPointToStart(module.getBody());
-  // auto lnk = CGM.getLLVMLinkageVarDefinition(FD, /*isConstant*/false);
-  // TODO handle proper global linkage
-  // builder.getStringAttr("public")
+
+  if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
+      VarDecl::Definition) {
+    initial_value = builder.getUnitAttr();
+  } else if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
+             VarDecl::TentativeDefinition) {
+    initial_value = builder.getUnitAttr();
+  }
+
+  switch (CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD),
+                                          /*isConstant*/ false)) {
+  case llvm::GlobalValue::LinkageTypes::InternalLinkage:
+    lnk = mlir::SymbolTable::Visibility::Private;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakAnyLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakODRLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::CommonLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AppendingLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage:
+    lnk = mlir::SymbolTable::Visibility::Public;
+    break;
+  case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
+    lnk = mlir::SymbolTable::Visibility::Private;
+    break;
+  }
+
   auto globalOp = builder.create<mlir::memref::GlobalOp>(
-      module.getLoc(), builder.getStringAttr(FD->getName()), mlir::StringAttr(),
-      mlir::TypeAttr::get(mr), mlir::Attribute(), mlir::UnitAttr());
-  // Private == internal, Public == External [in lowering]
-  SymbolTable::setSymbolVisibility(globalOp, SymbolTable::Visibility::Private);
+      module.getLoc(), builder.getStringAttr(FD->getName()),
+      /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
+      initial_value, mlir::UnitAttr());
+  SymbolTable::setSymbolVisibility(globalOp, lnk);
+
   return globals[name] = std::make_pair(globalOp, isArray);
 }
 

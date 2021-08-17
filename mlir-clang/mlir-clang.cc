@@ -89,8 +89,15 @@ static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
 static cl::list<std::string> defines("D", cl::desc("defines"),
                                      cl::cat(toolOptions));
 
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
+
+template<typename T>
+struct PtrElementModel
+    : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<PtrElementModel<T>,
+                                                              T> {};
 
 #include "Lib/clang-mlir.cc"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
@@ -137,6 +144,7 @@ int main(int argc, char **argv) {
 
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
+  MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
 
   if (showDialects) {
     outs() << "Registered Dialects:\n";
