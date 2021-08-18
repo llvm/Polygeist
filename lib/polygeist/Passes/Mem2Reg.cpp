@@ -880,9 +880,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           for (auto pair : llvm::enumerate(op.caseDestinations())) {
             if (pair.value() == block) {
-              llvm::errs() << " pred: " << *block->getParentOp() << "\n";
-              llvm::errs() << " op: " << op << "\n";
-              llvm::errs() << "ba: " << blockArg << " idx: " << pair.index() << "\n";
               pval = op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
               if (pval == blockArg)
                 pval = nullptr;
