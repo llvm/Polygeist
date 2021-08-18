@@ -257,7 +257,6 @@ int main(int argc, char **argv) {
         module.dump();
         return 4;
       }
-      llvm::errs() << module << "\n";
       mlir::PassManager pm3(&context);
       pm3.addPass(mlir::createLowerToCFGPass());
       pm3.addPass(createConvertOpenMPToLLVMPass());
@@ -270,6 +269,7 @@ int main(int argc, char **argv) {
         module.dump();
         return 4;
       }
+      module.dump();
     } else {
 
       if (mlir::failed(pm.run(module))) {

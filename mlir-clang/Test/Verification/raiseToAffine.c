@@ -1,9 +1,9 @@
 // RUN: split-file %s %t
 
-// RUN: mlir-clang %t/matmul_signed_cmp.cpp --function=matmul --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMSIGNED
-// RUN: mlir-clang %t/matmul_unsigned_cmp.cpp --function=matmul_unsigned_cmp --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMUNSIGNED
+// RUN: mlir-clang %t/matmul_signed_cmp.c --function=matmul --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMSIGNED
+// RUN: mlir-clang %t/matmul_unsigned_cmp.c --function=matmul_unsigned_cmp --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMUNSIGNED
 
-//--- matmul_signed_cmp.cpp
+//--- matmul_signed_cmp.c
 #define N 200
 #define M 300
 #define K 400
@@ -26,7 +26,7 @@ void matmul(DATA_TYPE A[N][K], DATA_TYPE B[K][M], DATA_TYPE C[N][M]) {
         C[i][j] += A[i][k] * B[k][j];
 }
 
-//--- matmul_unsigned_cmp.cpp
+//--- matmul_unsigned_cmp.c
 void matmul_unsigned_cmp(float A[100][200], float B[200][300], float C[100][300]) {
   int i, j, k;
 

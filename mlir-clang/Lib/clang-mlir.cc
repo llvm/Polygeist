@@ -108,7 +108,7 @@ ValueWithOffsets MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
   for (auto sub : decl->decls()) {
     if (auto vd = dyn_cast<VarDecl>(sub)) {
       VisitVarDecl(vd);
-    } else if (isa<TypeAliasDecl, RecordDecl, StaticAssertDecl, TypedefDecl>(
+    } else if (isa<TypeAliasDecl, RecordDecl, StaticAssertDecl, TypedefDecl, UsingDecl>(
                    sub)) {
     } else {
       llvm::errs() << " + visiting unknonwn sub decl stmt\n";
@@ -230,6 +230,12 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     LLVMABI = true;
   else
     Glob.getMLIRType(decl->getType(), &isArray);
+  
+  if (!LLVMABI && isArray) {
+    subType =
+        Glob.getMLIRType(Glob.CGM.getContext().getPointerType(decl->getType()));
+    isArray = true;
+  }
 
   if (auto init = decl->getInit()) {
     if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
@@ -2025,11 +2031,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                     loc, size,
                     builder.create<mlir::ConstantIndexOp>(loc, elemSize));
 
-                std::vector<mlir::Value> start = {getConstantIndex(0)};
-                std::vector<mlir::Value> sizes = {size};
-                AffineMap map = builder.getSymbolIdentityMap();
                 auto affineOp =
-                    builder.create<AffineForOp>(loc, start, map, sizes, map);
+                    builder.create<scf::ForOp>(loc, getConstantIndex(0), size, getConstantIndex(1));
 
                 auto oldpoint = builder.getInsertionPoint();
                 auto oldblock = builder.getInsertionBlock();
@@ -2045,17 +2048,15 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                     Glob.CGM.getContext().getPointerType(elem))
                                 .cast<MemRefType>();
                   auto shape = std::vector<int64_t>(mt.getShape());
-                  std::vector<mlir::Value> sizes = {getConstantIndex(shape[1])};
-                  AffineMap map = builder.getSymbolIdentityMap();
                   auto affineOp =
-                      builder.create<AffineForOp>(loc, start, map, sizes, map);
+                      builder.create<scf::ForOp>(loc, getConstantIndex(0), getConstantIndex(shape[1]), getConstantIndex(1));
                   args.push_back(affineOp.getInductionVar());
                   builder.setInsertionPointToStart(
                       &affineOp.getLoopBody().front());
                 }
 
-                builder.create<AffineStoreOp>(
-                    loc, builder.create<AffineLoadOp>(loc, src, args), dst,
+                builder.create<memref::StoreOp>(
+                    loc, builder.create<memref::LoadOp>(loc, src, args), dst,
                     args);
 
                 // TODO: set the value of the iteration value to the final bound
@@ -2156,6 +2157,14 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
           if (i == 0) {
             tostore = Visit(a).getValue(builder);
+            auto mt = tostore.getType().cast<MemRefType>();
+            auto shape = std::vector<int64_t>(mt.getShape());
+            mlir::Value res;
+            shape.erase(shape.begin());
+            auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                             mt.getAffineMaps(), mt.getMemorySpace());
+            tostore = builder.create<polygeist::SubIndexOp>(loc, mt0, tostore,
+                                                  getConstantIndex(0));
             i++;
             auto indexType = mlir::IntegerType::get(module.getContext(), 64);
             auto one = builder.create<mlir::ConstantOp>(
@@ -3438,6 +3447,7 @@ ValueWithOffsets MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
 ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   auto name = E->getDecl()->getName().str();
+  assert(!isa<FunctionDecl>(E->getDecl()));
 
   if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
@@ -3584,6 +3594,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
   }
+  case clang::CastKind::CK_BaseToDerived:
   case clang::CastKind::CK_DerivedToBase:
   case clang::CastKind::CK_UncheckedDerivedToBase: {
     auto se = Visit(E->getSubExpr());
@@ -3956,6 +3967,7 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
     return ValueWithOffsets(res, /*isReference*/ false);
   }
   default:
+    EmittingFunctionDecl->dump();
     E->dump();
     assert(0 && "unhandled cast");
   }
@@ -4452,6 +4464,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
 }
 
 mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
+  assert(FD->getTemplatedKind() != FunctionDecl::TemplatedKind::TK_FunctionTemplate);
+  assert(FD->getTemplatedKind() != FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
   std::string name;
   if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
@@ -4559,11 +4573,12 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   functions[name] = function;
   module.push_back(function);
   const FunctionDecl *Def = nullptr;
-  if (FD->isDefined(Def, /*checkforfriend*/ true) &&
-      Def->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate)
+  if (FD->isDefined(Def, /*checkforfriend*/ true) && Def->getBody()) {
+    assert(Def->getTemplatedKind() != FunctionDecl::TemplatedKind::TK_FunctionTemplate);
+    assert(Def->getTemplatedKind() != FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
     functionsToEmit.push_back(Def);
-  else if (FD->getIdentifier())
-    emitIfFound.insert(FD->getName().str());
+  } else if (FD->getIdentifier())
+    emitIfFound.insert(name);
   /*else {
     for (const FunctionDecl *s_FD : FD->redecls()) {
         s_FD->dump();
@@ -4577,9 +4592,10 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
+    assert(FD->getBody());
     functionsToEmit.pop_front();
     assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
-
+    assert(FD->getTemplatedKind() != FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
       name =
@@ -4608,11 +4624,19 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       continue;
     if (fd->getIdentifier() == nullptr)
       continue;
+
+    std::string name;
+    if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
+      name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    else
+      name = CGM.getMangledName(fd).str();
+
     if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
          !fd->isStatic()) ||
-        emitIfFound.count(fd->getName().str())) {
-      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate)
+        emitIfFound.count(name)) {
+      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
         functionsToEmit.push_back(fd);
+      }
     } else {
     }
   }
@@ -4636,11 +4660,19 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     if (fd->getIdentifier() == nullptr)
       continue;
+    
+    std::string name;
+    if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
+      name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    else
+      name = CGM.getMangledName(fd).str();
+
     if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
          !fd->isStatic()) ||
-        emitIfFound.count(fd->getName().str())) {
-      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate)
+        emitIfFound.count(name)) {
+      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
         functionsToEmit.push_back(fd);
+      }
     } else {
     }
   }
