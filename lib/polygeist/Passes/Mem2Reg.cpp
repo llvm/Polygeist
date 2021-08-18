@@ -784,6 +784,25 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                         op.getFalseDest(), falseargs);
         // op.replaceAllUsesWith(op2);
         op.erase();
+      } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+        mlir::OpBuilder builder(op.getOperation());
+        SmallVector<Value> defaultOps(op.defaultOperands().begin(), op.defaultOperands().end());
+
+        if (op.defaultDestination() == block)
+          defaultOps.push_back(pval);
+        
+        SmallVector<SmallVector<Value>> cases;
+        SmallVector<ValueRange> vrange;
+        for (auto pair : llvm::enumerate(op.caseDestinations())) {
+            cases.emplace_back(op.getCaseOperands(pair.index()).begin(), op.getCaseOperands(pair.index()).end());
+            if (pair.value() == block) {
+                cases.back().push_back(pval);
+            }
+            vrange.push_back(cases.back());
+        }
+        builder.create<mlir::SwitchOp>(op.getLoc(), op.flag(), op.defaultDestination(), defaultOps, op.case_valuesAttr(), op.caseDestinations(),
+            vrange);
+        op.erase();
       } else {
         llvm_unreachable("unknown pred branch");
       }
@@ -850,6 +869,24 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             }
             if (pval == blockArg)
               pval = nullptr;
+          }
+        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+          mlir::OpBuilder subbuilder(op.getOperation());
+            
+          if (op.defaultDestination() == block) {
+            pval = op.defaultOperands()[blockArg.getArgNumber()];
+            if (pval == blockArg)
+              pval = nullptr;
+          }
+          for (auto pair : llvm::enumerate(op.caseDestinations())) {
+            if (pair.value() == block) {
+              llvm::errs() << " pred: " << *block->getParentOp() << "\n";
+              llvm::errs() << " op: " << op << "\n";
+              llvm::errs() << "ba: " << blockArg << " idx: " << pair.index() << "\n";
+              pval = op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
+              if (pval == blockArg)
+                pval = nullptr;
+            }
           }
         } else {
           llvm::errs() << *pred->getParent()->getParentOp() << "\n";
@@ -955,8 +992,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             assert(args.size() == op.getOperands().size() - 1);
             subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
             op.erase();
-          }
-          if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+          } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
 
             mlir::OpBuilder subbuilder(op.getOperation());
             std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -974,6 +1010,25 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
                                             op.getTrueDest(), trueargs,
                                             op.getFalseDest(), falseargs);
+            op.erase();
+          } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+            mlir::OpBuilder builder(op.getOperation());
+            SmallVector<Value> defaultOps(op.defaultOperands().begin(), op.defaultOperands().end());
+
+            if (op.defaultDestination() == block)
+              defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
+            
+            SmallVector<SmallVector<Value>> cases;
+            SmallVector<ValueRange> vrange;
+            for (auto pair : llvm::enumerate(op.caseDestinations())) {
+                cases.emplace_back(op.getCaseOperands(pair.index()).begin(), op.getCaseOperands(pair.index()).end());
+                if (pair.value() == block) {
+                    cases.back().erase(cases.back().begin() + blockArg.getArgNumber());
+                }
+                vrange.push_back(cases.back());
+            }
+            builder.create<mlir::SwitchOp>(op.getLoc(), op.flag(), op.defaultDestination(), defaultOps, op.case_valuesAttr(), op.caseDestinations(),
+                vrange);
             op.erase();
           }
         }
