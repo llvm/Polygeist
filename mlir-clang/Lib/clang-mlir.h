@@ -131,6 +131,10 @@ struct ValueWithOffsets {
 
         if (auto mt = val.getType().dyn_cast<MemRefType>()) {
           assert(smt.getElementType() == mt.getElementType());
+          if (mt.getShape().size() != smt.getShape().size()) {
+              llvm::errs() << " val: " << val << " tsv: " << toStore.val << "\n";
+              llvm::errs() << " mt: " << mt << " smt: " << smt << "\n";
+          }
           assert(mt.getShape().size() == smt.getShape().size());
           assert(smt.getShape().back() == mt.getShape().back());
 
@@ -563,6 +567,7 @@ public:
     }
 
     Stmt *stmt = fd->getBody();
+    assert(stmt);
     if (ShowAST) {
       stmt->dump();
     }
