@@ -57,7 +57,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mr);
       alloc = abuilder.create<mlir::memref::CastOp>(
-        loc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
+          loc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
     }
   } else {
     auto mt = t.cast<mlir::MemRefType>();
@@ -84,9 +84,9 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mr);
       shape[0] = pshape;
       alloc = abuilder.create<mlir::memref::CastOp>(
-        loc, alloc,
-        mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
-                              memspace));
+          loc, alloc,
+          mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
+                                memspace));
     }
   }
   assert(alloc);
@@ -1283,7 +1283,7 @@ MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons, VarDecl *name,
 
           ValueWithOffsets(alloc, /*isRef*/ true)
               .store(builder, arg, /*isArray*/ isArray);
-                  shape[0] = pshape;
+          shape[0] = pshape;
           val = builder.create<mlir::memref::CastOp>(
               loc, alloc,
               mlir::MemRefType::get(shape, mt.getElementType(),
@@ -1303,7 +1303,7 @@ MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons, VarDecl *name,
           if (pshape == -1)
             shape[0] = 1;
           assert(shape.size() == 2);
-          
+
           OpBuilder abuilder(builder.getContext());
           abuilder.setInsertionPointToStart(allocationScope);
           auto alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mt);
@@ -2459,7 +2459,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             loc,
             mlir::MemRefType::get(shape, mt.getElementType(),
                                   mt.getAffineMaps(), mt.getMemorySpace()));
-        
+
         ValueWithOffsets(alloc, /*isRef*/ true)
             .store(builder, arg, /*isArray*/ isArray);
         toRestore.emplace_back(ValueWithOffsets(alloc, /*isRef*/ true), arg);
@@ -4588,7 +4588,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       getMLIRType(CC->getThisObjectType(), &isArray);
       if (auto mt = t.dyn_cast<MemRefType>()) {
         auto shape = std::vector<int64_t>(mt.getShape());
-        //shape[0] = 1;
+        // shape[0] = 1;
         t = mlir::MemRefType::get(shape, mt.getElementType(),
                                   mt.getAffineMaps(), mt.getMemorySpace());
       }
@@ -4886,6 +4886,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                               ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
+                              ST->getName() == "class.std::basic_istream" ||
                               ST->getName() == "class.std::basic_ostream" ||
                               ST->getName() == "class.std::basic_ofstream"))) {
       return typeTranslator.translateType(anonymize(ST));
@@ -5085,6 +5086,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
            (ST->getName().contains("SmallVector") ||
             ST->getName() == "struct._IO_FILE" ||
             ST->getName() == "class.std::basic_ifstream" ||
+            ST->getName() == "class.std::basic_istream" ||
             ST->getName() == "class.std::basic_ostream" ||
             ST->getName() == "class.std::basic_ofstream"))) {
         return typeTranslator.translateType(t);
@@ -5158,6 +5160,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
         (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                               ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
+                              ST->getName() == "class.std::basic_istream" ||
                               ST->getName() == "class.std::basic_ostream" ||
                               ST->getName() == "class.std::basic_ofstream"))) {
       return typeTranslator.translateType(t);

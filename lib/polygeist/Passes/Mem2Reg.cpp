@@ -786,22 +786,25 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         op.erase();
       } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder builder(op.getOperation());
-        SmallVector<Value> defaultOps(op.defaultOperands().begin(), op.defaultOperands().end());
+        SmallVector<Value> defaultOps(op.defaultOperands().begin(),
+                                      op.defaultOperands().end());
 
         if (op.defaultDestination() == block)
           defaultOps.push_back(pval);
-        
+
         SmallVector<SmallVector<Value>> cases;
         SmallVector<ValueRange> vrange;
         for (auto pair : llvm::enumerate(op.caseDestinations())) {
-            cases.emplace_back(op.getCaseOperands(pair.index()).begin(), op.getCaseOperands(pair.index()).end());
-            if (pair.value() == block) {
-                cases.back().push_back(pval);
-            }
-            vrange.push_back(cases.back());
+          cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
+                             op.getCaseOperands(pair.index()).end());
+          if (pair.value() == block) {
+            cases.back().push_back(pval);
+          }
+          vrange.push_back(cases.back());
         }
-        builder.create<mlir::SwitchOp>(op.getLoc(), op.flag(), op.defaultDestination(), defaultOps, op.case_valuesAttr(), op.caseDestinations(),
-            vrange);
+        builder.create<mlir::SwitchOp>(
+            op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
+            op.case_valuesAttr(), op.caseDestinations(), vrange);
         op.erase();
       } else {
         llvm_unreachable("unknown pred branch");
@@ -872,7 +875,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
         } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
-            
+
           if (op.defaultDestination() == block) {
             pval = op.defaultOperands()[blockArg.getArgNumber()];
             if (pval == blockArg)
@@ -1010,22 +1013,26 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             op.erase();
           } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
             mlir::OpBuilder builder(op.getOperation());
-            SmallVector<Value> defaultOps(op.defaultOperands().begin(), op.defaultOperands().end());
+            SmallVector<Value> defaultOps(op.defaultOperands().begin(),
+                                          op.defaultOperands().end());
 
             if (op.defaultDestination() == block)
               defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
-            
+
             SmallVector<SmallVector<Value>> cases;
             SmallVector<ValueRange> vrange;
             for (auto pair : llvm::enumerate(op.caseDestinations())) {
-                cases.emplace_back(op.getCaseOperands(pair.index()).begin(), op.getCaseOperands(pair.index()).end());
-                if (pair.value() == block) {
-                    cases.back().erase(cases.back().begin() + blockArg.getArgNumber());
-                }
-                vrange.push_back(cases.back());
+              cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
+                                 op.getCaseOperands(pair.index()).end());
+              if (pair.value() == block) {
+                cases.back().erase(cases.back().begin() +
+                                   blockArg.getArgNumber());
+              }
+              vrange.push_back(cases.back());
             }
-            builder.create<mlir::SwitchOp>(op.getLoc(), op.flag(), op.defaultDestination(), defaultOps, op.case_valuesAttr(), op.caseDestinations(),
-                vrange);
+            builder.create<mlir::SwitchOp>(
+                op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
+                op.case_valuesAttr(), op.caseDestinations(), vrange);
             op.erase();
           }
         }
