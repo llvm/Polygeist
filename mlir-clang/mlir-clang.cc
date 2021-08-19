@@ -94,10 +94,10 @@ static cl::list<std::string> defines("D", cl::desc("defines"),
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
 
-template<typename T>
+template <typename T>
 struct PtrElementModel
-    : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<PtrElementModel<T>,
-                                                              T> {};
+    : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
+          PtrElementModel<T>, T> {};
 
 #include "Lib/clang-mlir.cc"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
