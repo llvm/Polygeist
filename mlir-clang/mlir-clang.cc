@@ -269,7 +269,6 @@ int main(int argc, char **argv) {
         module.dump();
         return 4;
       }
-      module.dump();
     } else {
 
       if (mlir::failed(pm.run(module))) {
