@@ -1560,6 +1560,17 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
             true);
       }
       if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "ceil")) {
+        std::vector<mlir::Value> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a).getValue(builder));
+        }
+        return make_pair(
+            ValueWithOffsets(builder.create<mlir::CeilFOp>(loc, args[0]),
+                             /*isReference*/ false),
+            true);
+      }
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "sqrtf" ||
            sr->getDecl()->getName() == "sqrt")) {
         std::vector<mlir::Value> args;
@@ -1644,8 +1655,11 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMalloc" ||
            sr->getDecl()->getName() == "cudaMallocHost")) {
-        if (auto BC = dyn_cast<clang::CastExpr>(expr->getArg(0))) {
-          auto dst = Visit(BC->getSubExpr()).getValue(builder);
+        auto sub = expr->getArg(0);
+        while (auto BC = dyn_cast<clang::CastExpr>(sub))
+          sub = BC->getSubExpr();
+        {
+          auto dst = Visit(sub).getValue(builder);
           if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
             auto mt = omt.getElementType().dyn_cast<MemRefType>();
             auto shape = std::vector<int64_t>(mt.getShape());
@@ -1653,8 +1667,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
             auto elemSize =
                 getTypeSize(cast<clang::PointerType>(
                                 cast<clang::PointerType>(
-                                    BC->getSubExpr()
-                                        ->getType()
+                                    sub->getType()
                                         ->getUnqualifiedDesugaredType())
                                     ->getPointeeType())
                                 ->getPointeeType());
@@ -1748,7 +1761,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(ValueWithOffsets(createBlockIdOp("z", mlirType),
+              return make_pair(ValueWithOffsets(createBlockDimOp("x", mlirType),
                                                 /*isReference*/ false),
                                true);
             }
@@ -2023,13 +2036,17 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto elem = isa<clang::PointerType>(dstst)
                         ? cast<clang::PointerType>(dstst)->getPointeeType()
                         : cast<clang::ArrayType>(dstst)->getElementType();
+        auto melem = elem;
+        if (auto BC = dyn_cast<clang::ArrayType>(melem)) melem = BC->getElementType();
 
         auto srcst = srcSub->getType()->getUnqualifiedDesugaredType();
         auto selem = isa<clang::PointerType>(srcst)
                          ? cast<clang::PointerType>(srcst)->getPointeeType()
                          : cast<clang::ArrayType>(srcst)->getElementType();
+        auto mselem = selem;
+        if (auto BC = dyn_cast<clang::ArrayType>(mselem)) mselem = BC->getElementType();
 
-        if (elem == selem) {
+        if (melem == mselem) {
           mlir::Value dst;
           ValueWithOffsets vdst = Visit(dstSub);
           if (isa<clang::PointerType>(dstst)) {
@@ -2050,7 +2067,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
             bool dstArray = false;
             Glob.getMLIRType(elem, &dstArray);
+            bool srcArray = false;
+            Glob.getMLIRType(selem, &srcArray);
             auto elemSize = getTypeSize(elem);
+            if (srcArray && !dstArray)
+                elemSize = getTypeSize(selem);
             mlir::Value size = builder.create<mlir::IndexCastOp>(
                 loc,
                 Visit(
@@ -2085,7 +2106,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             auto oldpoint = builder.getInsertionPoint();
             auto oldblock = builder.getInsertionBlock();
 
-            std::vector<mlir::Value> args = {affineOp.getInductionVar()};
+            std::vector<mlir::Value> dstargs = {affineOp.getInductionVar()};
+            std::vector<mlir::Value> srcargs = {affineOp.getInductionVar()};
 
             builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
 
@@ -2095,15 +2117,41 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   Glob.getMLIRType(Glob.CGM.getContext().getPointerType(elem))
                       .cast<MemRefType>();
               auto shape = std::vector<int64_t>(mt.getShape());
+              assert(shape.size() > 0 && shape[0] != -1);
               auto affineOp = builder.create<scf::ForOp>(
-                  loc, getConstantIndex(0), getConstantIndex(shape[1]),
+                  loc, getConstantIndex(0), getConstantIndex(shape[0]),
                   getConstantIndex(1));
-              args.push_back(affineOp.getInductionVar());
+              dstargs.push_back(affineOp.getInductionVar());
               builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
+              if (srcArray) {
+                auto smt =
+                  Glob.getMLIRType(Glob.CGM.getContext().getPointerType(elem))
+                      .cast<MemRefType>();
+                auto sshape = std::vector<int64_t>(smt.getShape());
+                assert(sshape.size() > 0 && sshape[0] != -1);
+                assert(sshape[0] == shape[0]);
+                srcargs.push_back(affineOp.getInductionVar());
+              } else {
+                srcargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, srcargs[0], getConstantIndex(shape[0])), affineOp.getInductionVar());
+              }
+            } else {
+                if (srcArray) {
+                    auto smt =
+                      Glob.getMLIRType(Glob.CGM.getContext().getPointerType(selem))
+                          .cast<MemRefType>();
+                    auto sshape = std::vector<int64_t>(smt.getShape());
+                    assert(sshape.size() > 0 && sshape[0] != -1);
+                  auto affineOp = builder.create<scf::ForOp>(
+                      loc, getConstantIndex(0), getConstantIndex(sshape[0]),
+                      getConstantIndex(1));
+                  srcargs.push_back(affineOp.getInductionVar());
+                  builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
+                  dstargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, dstargs[0], getConstantIndex(sshape[0])), affineOp.getInductionVar());
+                }
             }
 
-            auto loaded = builder.create<memref::LoadOp>(loc, src, args);
-            builder.create<memref::StoreOp>(loc, loaded, dst, args);
+            auto loaded = builder.create<memref::LoadOp>(loc, src, srcargs);
+            builder.create<memref::StoreOp>(loc, loaded, dst, dstargs);
 
             // TODO: set the value of the iteration value to the final bound
             // at the end of the loop.
@@ -2123,7 +2171,6 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemset")) {
-        expr->dump();
         if (auto IL = dyn_cast<clang::IntegerLiteral>(expr->getArg(1)))
           if (IL->getValue() == 0) {
             auto dstSub = expr->getArg(0);
@@ -3379,7 +3426,16 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     mlir::Value result;
     if (prev.getType().isa<mlir::FloatType>()) {
-      result = builder.create<mlir::DivFOp>(loc, prev, rhs.getValue(builder));
+      mlir::Value val = rhs.getValue(builder);
+        auto prevTy = val.getType().cast<mlir::FloatType>();
+        auto postTy = prev.getType().cast<mlir::FloatType>();
+
+        if (prevTy.getWidth() < postTy.getWidth()) {
+          val = builder.create<mlir::FPExtOp>(loc, val, postTy);
+        } else if (prevTy.getWidth() > postTy.getWidth()) {
+          val = builder.create<mlir::FPTruncOp>(loc, val, postTy);
+        }
+      result = builder.create<mlir::DivFOp>(loc, prev, val);
     } else {
       if (signedType)
         result = builder.create<mlir::SignedDivIOp>(loc, prev,
@@ -3783,9 +3839,8 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
                 allocSize = builder.create<mlir::MulIOp>(
                     loc, allocSize,
                     builder.create<mlir::IndexCastOp>(
-                        loc, Visit(CI->getArg(0)).getValue(builder),
+                        loc, Visit(CI->getArg(1)).getValue(builder),
                         mlir::IndexType::get(builder.getContext())));
-                llvm::errs() << " warning never zeroing calloc\n";
               }
               mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
                   loc, allocSize,
@@ -3793,6 +3848,28 @@ ValueWithOffsets MLIRScanner::VisitCastExpr(CastExpr *E) {
                       loc, allocSize.getType(),
                       builder.getIntegerAttr(allocSize.getType(), elemSize)))};
               auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+              if (sr->getDecl()->getName() == "calloc") {
+                  mlir::Value toStore;
+                  auto melem = mt.getElementType();
+                  if (melem.isa<mlir::IntegerType>())
+                    toStore = builder.create<mlir::ConstantOp>(
+                        loc, melem, builder.getIntegerAttr(melem, 0));
+                  else
+                    toStore = builder.create<mlir::ConstantOp>(
+                        loc, melem, builder.getFloatAttr(melem, 0));
+                  auto affineOp = builder.create<scf::ForOp>(
+                      loc, getConstantIndex(0), args[0], getConstantIndex(1));
+
+                  auto oldpoint = builder.getInsertionPoint();
+                  auto oldblock = builder.getInsertionBlock();
+
+                  std::vector<mlir::Value> stargs = {affineOp.getInductionVar()};
+
+                  builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
+                  builder.create<memref::StoreOp>(loc, toStore, alloc, stargs);
+
+                  builder.setInsertionPoint(oldblock, oldpoint);
+              }
               return ValueWithOffsets(alloc, /*isReference*/ false);
             }
         }
@@ -4218,8 +4295,8 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
       truev = trueExpr.getValue(builder);
     assert(truev != nullptr);
     truearray.push_back(truev);
+    builder.create<mlir::scf::YieldOp>(loc, truearray);
   }
-  builder.create<mlir::scf::YieldOp>(loc, truearray);
 
   builder.setInsertionPointToStart(&ifOp.elseRegion().back());
 
@@ -4234,8 +4311,8 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
       falsev = falseExpr.getValue(builder);
     assert(falsev != nullptr);
     falsearray.push_back(falsev);
+    builder.create<mlir::scf::YieldOp>(loc, falsearray);
   }
-  builder.create<mlir::scf::YieldOp>(loc, falsearray);
 
   builder.setInsertionPoint(oldblock, oldpoint);
 
