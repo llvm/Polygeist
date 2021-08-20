@@ -1935,7 +1935,12 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     bool isReference = E->isLValue() || E->isXValue();
     if (isReference) {
       assert(sub.isReference);
-      return sub.val;
+      mlir::Value val = sub.val;
+      if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+        val = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), val);
+      }
+      return val;
     }
     auto val = sub.getValue(builder);
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
@@ -1990,7 +1995,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           (sr->getDecl()->getName() == "fscanf" ||
            sr->getDecl()->getName() == "scanf" ||
            sr->getDecl()->getName() == "__isoc99_sscanf" ||
-           sr->getDecl()->getName() == "sscanf")) {
+           sr->getDecl()->getName() == "sscanf"
+           ) || (isa<CXXOperatorCallExpr>(expr) && cast<CXXOperatorCallExpr>(expr)->getOperator() == OO_GreaterGreater)) {
         auto tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -2117,9 +2123,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   Glob.getMLIRType(Glob.CGM.getContext().getPointerType(elem))
                       .cast<MemRefType>();
               auto shape = std::vector<int64_t>(mt.getShape());
-              assert(shape.size() > 0 && shape[0] != -1);
+              assert(shape.size() > 0 && shape.back() != -1);
               auto affineOp = builder.create<scf::ForOp>(
-                  loc, getConstantIndex(0), getConstantIndex(shape[0]),
+                  loc, getConstantIndex(0), getConstantIndex(shape.back()),
                   getConstantIndex(1));
               dstargs.push_back(affineOp.getInductionVar());
               builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
@@ -2128,11 +2134,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   Glob.getMLIRType(Glob.CGM.getContext().getPointerType(elem))
                       .cast<MemRefType>();
                 auto sshape = std::vector<int64_t>(smt.getShape());
-                assert(sshape.size() > 0 && sshape[0] != -1);
-                assert(sshape[0] == shape[0]);
+                assert(sshape.size() > 0 && sshape.back() != -1);
+                assert(sshape.back() == shape.back());
                 srcargs.push_back(affineOp.getInductionVar());
               } else {
-                srcargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, srcargs[0], getConstantIndex(shape[0])), affineOp.getInductionVar());
+                srcargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, srcargs[0], getConstantIndex(shape.back())), affineOp.getInductionVar());
               }
             } else {
                 if (srcArray) {
@@ -2140,13 +2146,13 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                       Glob.getMLIRType(Glob.CGM.getContext().getPointerType(selem))
                           .cast<MemRefType>();
                     auto sshape = std::vector<int64_t>(smt.getShape());
-                    assert(sshape.size() > 0 && sshape[0] != -1);
+                    assert(sshape.size() > 0 && sshape.back() != -1);
                   auto affineOp = builder.create<scf::ForOp>(
-                      loc, getConstantIndex(0), getConstantIndex(sshape[0]),
+                      loc, getConstantIndex(0), getConstantIndex(sshape.back()),
                       getConstantIndex(1));
                   srcargs.push_back(affineOp.getInductionVar());
                   builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
-                  dstargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, dstargs[0], getConstantIndex(sshape[0])), affineOp.getInductionVar());
+                  dstargs[0] = builder.create<AddIOp>(loc, builder.create<MulIOp>(loc, dstargs[0], getConstantIndex(sshape.back())), affineOp.getInductionVar());
                 }
             }
 
