@@ -260,10 +260,42 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
   }
 };
 
+class SubToView final : public OpRewritePattern<SubIndexOp> {
+public:
+  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIndexOp subViewOp,
+                                PatternRewriter &rewriter) const override {
+    auto prev = subViewOp.source().getType().cast<MemRefType>();
+    auto post = subViewOp.getType().cast<MemRefType>();
+    if (prev.getShape().size() != post.getShape().size()) return failure();
+    for (auto s : prev.getShape()) if (s == -1) return failure();
+    return failure();
+    auto c0 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 0);
+    auto c1 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 1);
+    std::vector<mlir::Value> offsets;
+    std::vector<mlir::Value> strides;
+    offsets.push_back(subViewOp.index());
+    std::vector<mlir::Value> sizes;
+    for (size_t i=1; i<prev.getShape().size(); i++) {
+        offsets.push_back(c0);
+    }
+    for (size_t i=0; i<prev.getShape().size(); i++) {
+        mlir::Value idx = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), prev.getShape()[i]);
+        if (i == 0)
+            idx = rewriter.create<SubIOp>(subViewOp.getLoc(), idx, subViewOp.index());
+        sizes.push_back(idx);
+        strides.push_back(c1);
+    }
+    rewriter.replaceOpWithNewOp<memref::SubViewOp>(subViewOp, subViewOp.source(), offsets, sizes, strides);
+    return success();
+  }
+};
+
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
   results
-      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
+      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView, SubToView>(
           context);
 }
 
