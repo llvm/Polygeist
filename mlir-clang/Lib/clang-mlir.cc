@@ -5341,23 +5341,6 @@ size_t MLIRScanner::getTypeSize(clang::QualType t) {
   return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
 }
 
-std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
-  if (!CanonicalPrefixes) {
-    SmallString<128> ExecutablePath(Argv0);
-    // Do a PATH lookup if Argv0 isn't a valid path.
-    if (!llvm::sys::fs::exists(ExecutablePath))
-      if (llvm::ErrorOr<std::string> P =
-              llvm::sys::findProgramByName(ExecutablePath))
-        ExecutablePath = *P;
-    return std::string(ExecutablePath.str());
-  }
-
-  // This just needs to be some symbol in the binary; C++ doesn't
-  // allow taking the address of ::main however.
-  void *P = (void *)(intptr_t)GetExecutablePath;
-  return llvm::sys::fs::getMainExecutable(Argv0, P);
-}
-
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
@@ -5384,8 +5367,6 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  if (CudaLower)
-    Argv.push_back("--cuda-gpu-arch=sm_35");
   if (FOpenMP)
     Argv.push_back("-fopenmp");
   if (Standard != "") {
