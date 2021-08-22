@@ -8,7 +8,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   RaiseToAffine.cpp
   ParallelLower.cpp
   TrivialUse.cpp
-
+  ConvertPolygeistToLLVM.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
@@ -25,5 +25,6 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRPass
   MLIRSideEffectInterfaces
   MLIRStandard
+  MLIRStandardOpsTransforms
   MLIRTransformUtils
   )

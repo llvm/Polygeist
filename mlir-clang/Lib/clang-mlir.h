@@ -541,7 +541,9 @@ public:
 
       for (auto expr : CC->inits()) {
         if (ShowAST) {
+          if (expr->getMember())
           expr->getMember()->dump();
+          if (expr->getInit())
           expr->getInit()->dump();
         }
         assert(ThisVal.val);

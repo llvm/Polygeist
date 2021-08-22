@@ -127,6 +127,12 @@ public:
                                               subViewOp.index());
       return success();
     }
+    if (mt0.getShape().size() == mt2.getShape().size() &&
+        mt1.getShape().size() == mt0.getShape().size()) {
+      rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2, prevOp.source(),
+                                              rewriter.create<AddIOp>(prevOp.getLoc(), subViewOp.index(), prevOp.index()));
+      return success();
+    }
     return failure();
   }
 };
@@ -266,10 +272,35 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp subViewOp,
                                 PatternRewriter &rewriter) const override {
+    return failure();
     auto prev = subViewOp.source().getType().cast<MemRefType>();
     auto post = subViewOp.getType().cast<MemRefType>();
     if (prev.getShape().size() != post.getShape().size()) return failure();
     for (auto s : prev.getShape()) if (s == -1) return failure();
+    bool hasHandledUse = false;
+    for (auto u : subViewOp.getResult().getUsers()) {
+        if (isa<mlir::memref::CastOp>(u)) {
+            hasHandledUse = true;
+            break;
+        }
+        if (isa<mlir::memref::DeallocOp>(u)) {
+            hasHandledUse = true;
+            break;
+        }
+        if (isa<mlir::memref::LoadOp>(u)) {
+            hasHandledUse = true;
+            break;
+        }
+        if (isa<mlir::memref::StoreOp>(u)) {
+            hasHandledUse = true;
+            break;
+        }
+        if (isa<SubIndexOp>(u)) {
+            hasHandledUse = true;
+            break;
+        }
+    }
+    if (hasHandledUse)
     return failure();
     auto c0 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 0);
     auto c1 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 1);
