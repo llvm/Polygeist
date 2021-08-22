@@ -614,6 +614,7 @@ public:
   ValueWithOffsets VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueWithOffsets VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+  ValueWithOffsets VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
   ValueWithOffsets VisitStringLiteral(clang::StringLiteral *expr);
 

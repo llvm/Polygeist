@@ -2329,7 +2329,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             assert(vdst.isReference);
             dst = vdst.val;
           }
-          if (dst.getType().isa<MemRefType>()) {
+          //if (dst.getType().isa<MemRefType>())
+          {
             mlir::Value src;
             ValueWithOffsets vsrc = Visit(srcSub);
             if (isa<clang::PointerType>(srcst)) {
@@ -2364,14 +2365,19 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   loc, offset,
                   builder.create<mlir::ConstantIndexOp>(loc, elemSize));
               // assert(!dstArray);
-              auto mt = dst.getType().cast<MemRefType>();
-              auto shape = std::vector<int64_t>(mt.getShape());
-              shape[0] = -1;
-              auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                               mt.getAffineMaps(),
-                                               mt.getMemorySpace());
-              dst =
-                  builder.create<polygeist::SubIndexOp>(loc, mt0, dst, offset);
+              if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
+                  auto shape = std::vector<int64_t>(mt.getShape());
+                  shape[0] = -1;
+                  auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                                   mt.getAffineMaps(),
+                                                   mt.getMemorySpace());
+                  dst =
+                      builder.create<polygeist::SubIndexOp>(loc, mt0, dst, offset);
+              } else {
+                  auto elty = dst.getType().cast<LLVM::LLVMPointerType>().getElementType();
+                  mlir::Value idxs[] = {offset};
+                  dst = builder.create<LLVM::GEPOp>(loc, elty, dst, idxs);
+              }
             }
 
             auto affineOp = builder.create<scf::ForOp>(
@@ -2424,8 +2430,19 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 }
             }
 
-            auto loaded = builder.create<memref::LoadOp>(loc, src, srcargs);
-            builder.create<memref::StoreOp>(loc, loaded, dst, dstargs);
+            mlir::Value loaded;
+            if (src.getType().isa<MemRefType>())
+              loaded = builder.create<memref::LoadOp>(loc, src, srcargs);
+            else {
+              auto elty = src.getType().cast<LLVM::LLVMPointerType>().getElementType();
+              loaded = builder.create<LLVM::LoadOp>(loc, builder.create<LLVM::GEPOp>(loc, elty, src, srcargs));
+            }
+            if (dst.getType().isa<MemRefType>()) {
+              builder.create<memref::StoreOp>(loc, loaded, dst, dstargs);
+            } else {
+              auto elty = dst.getType().cast<LLVM::LLVMPointerType>().getElementType();
+              builder.create<LLVM::StoreOp>(loc, loaded, builder.create<LLVM::GEPOp>(loc, elty, dst, dstargs));
+            }
 
             // TODO: set the value of the iteration value to the final bound
             // at the end of the loop.
@@ -3995,6 +4012,38 @@ ValueWithOffsets MLIRScanner::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
   return res;
 }
 
+ValueWithOffsets MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr) {
+  assert(0 && "typeid expr unhandled");
+  llvm_unreachable("typeid expr unhandled");
+  /*
+  llvm::Type *StdTypeInfoPtrTy =
+    ConvertType(E->getType())->getPointerTo();
+
+  if (E->isTypeOperand()) {
+    llvm::Constant *TypeInfo =
+        CGM.GetAddrOfRTTIDescriptor(E->getTypeOperand(getContext()));
+    return Builder.CreateBitCast(TypeInfo, StdTypeInfoPtrTy);
+  }
+
+  // C++ [expr.typeid]p2:
+  //   When typeid is applied to a glvalue expression whose type is a
+  //   polymorphic class type, the result refers to a std::type_info object
+  //   representing the type of the most derived object (that is, the dynamic
+  //   type) to which the glvalue refers.
+  // If the operand is already most derived object, no need to look up vtable.
+  if (E->isPotentiallyEvaluated() && !E->isMostDerived(getContext())) {
+      assert(0 && "unhandled");
+    //return EmitTypeidFromVTable(*this, E->getExprOperand(),
+    //                            StdTypeInfoPtrTy);
+  }
+
+  QualType OperandTy = E->getExprOperand()->getType();
+  return Builder.CreateBitCast(CGM.GetAddrOfRTTIDescriptor(OperandTy),
+                               StdTypeInfoPtrTy);
+                               */
+  
+}
+
 ValueWithOffsets
 MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr) {
   assert(ThisVal.val);
@@ -4752,11 +4801,47 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   auto llvmFnType = LLVM::LLVMFunctionType::get(rt, types,
                                                 /*isVarArg=*/FD->isVariadic());
 
+  LLVM::Linkage lnk;
+  switch (CGM.getFunctionLinkage(FD)) {
+  case llvm::GlobalValue::LinkageTypes::InternalLinkage:
+    lnk = LLVM::Linkage::Internal;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalLinkage:
+    lnk = LLVM::Linkage::External;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
+    lnk = LLVM::Linkage::AvailableExternally;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage:
+    lnk = LLVM::Linkage::Linkonce;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakAnyLinkage:
+    lnk = LLVM::Linkage::Weak;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakODRLinkage:
+    lnk = LLVM::Linkage::WeakODR;
+    break;
+  case llvm::GlobalValue::LinkageTypes::CommonLinkage:
+    lnk = LLVM::Linkage::Common;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AppendingLinkage:
+    lnk = LLVM::Linkage::Appending;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage:
+    lnk = LLVM::Linkage::ExternWeak;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage:
+    lnk = LLVM::Linkage::LinkonceODR;
+    break;
+  case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
+    lnk = LLVM::Linkage::Private;
+    break;
+  }
   // Insert the function into the body of the parent module.
   mlir::OpBuilder builder(module.getContext());
   builder.setInsertionPointToStart(module.getBody());
   return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
-             module.getLoc(), name, llvmFnType);
+             module.getLoc(), name, llvmFnType, lnk);
 }
 
 mlir::LLVM::GlobalOp
@@ -5045,7 +5130,12 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   auto funcType = builder.getFunctionType(types, rettypes);
   mlir::FuncOp function = mlir::FuncOp(
       mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
-  if (FD->getLinkageInternal() == clang::Linkage::InternalLinkage ||
+  llvm::GlobalValue::LinkageTypes LV;
+  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+  else
+    LV = CGM.getFunctionLinkage(FD);
+  if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage ||
       !FD->isDefined() || FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
     SymbolTable::setSymbolVisibility(function,
                                      SymbolTable::Visibility::Private);
@@ -5128,11 +5218,16 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
 
     if (fd->isTemplated()) continue;
     
+    
     bool externLinkage = true;
-    LinkageInfo LV = fd->getLinkageAndVisibility();
-    if (LV.getLinkage() == clang::Linkage::NoLinkage || LV.getLinkage() == clang::Linkage::InternalLinkage)
+    /*
+    auto LV = CGM.getFunctionLinkage(fd);
+    if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage)
         externLinkage = false;
     if (fd->isInlineSpecified()) externLinkage = false;
+    */
+    if (!CGM.getContext().DeclMustBeEmitted(fd)) 
+        externLinkage = false;
     
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
@@ -5193,10 +5288,14 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (fd->isTemplated()) continue;
 
     bool externLinkage = true;
-    LinkageInfo LV = fd->getLinkageAndVisibility();
-    if (LV.getLinkage() == clang::Linkage::NoLinkage || LV.getLinkage() == clang::Linkage::InternalLinkage)
+    /*
+    auto LV = CGM.getFunctionLinkage(fd);
+    if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage)
         externLinkage = false;
     if (fd->isInlineSpecified()) externLinkage = false;
+    */
+    if (!CGM.getContext().DeclMustBeEmitted(fd)) 
+        externLinkage = false;
     
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
