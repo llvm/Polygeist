@@ -180,7 +180,7 @@ void ParallelLower::runOnFunction() {
         caller.erase();
         if (callableOp->use_empty()) {
           callableOp.erase();
-        }
+        } 
       }
     });
 

@@ -422,7 +422,6 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
     optPM.addPass(mlir::createCanonicalizerPass());
-    pm.addPass(mlir::createSymbolDCEPass());
 
     if (CudaLower) {
       optPM.addPass(polygeist::createParallelLowerPass());
@@ -446,6 +445,7 @@ int main(int argc, char **argv) {
       if (ToCPU)
         optPM.addPass(polygeist::createCPUifyPass());
     }
+    pm.addPass(mlir::createSymbolDCEPass());
 
     if (EmitLLVM || !EmitAssembly) {
       pm.addPass(mlir::createLowerAffinePass());
@@ -463,9 +463,10 @@ int main(int argc, char **argv) {
       }
       mlir::PassManager pm3(&context);
       pm3.addPass(mlir::createLowerToCFGPass());
-      pm3.addPass(createConvertOpenMPToLLVMPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
+      pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
+      pm3.addPass(createConvertOpenMPToLLVMPass());
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
       pm3.addPass(mlir::createLowerToLLVMPass(options));
