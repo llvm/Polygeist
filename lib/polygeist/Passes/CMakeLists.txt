@@ -20,9 +20,12 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LINK_LIBS PUBLIC
   MLIRAffine
   MLIRAffineUtils
+  MLIRGPUOps
   MLIRIR
+  MLIRLLVMIR
   MLIRMemRef
   MLIRPass
+  MLIRPolygeist
   MLIRSideEffectInterfaces
   MLIRStandard
   MLIRTransformUtils
