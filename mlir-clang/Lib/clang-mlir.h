@@ -308,7 +308,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
   ASTContext &astContext;
-  mlir::ModuleOp &module;
+  mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
   LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -329,8 +329,8 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
-      Preprocessor &PP, ASTContext &astContext, mlir::ModuleOp &module,
-      clang::SourceManager &SM)
+      Preprocessor &PP, ASTContext &astContext,
+      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), llvmGlobals(llvmGlobals),
@@ -339,7 +339,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module.getContext()),
+        error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
@@ -385,7 +385,7 @@ struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
 private:
   MLIRASTConsumer &Glob;
   mlir::FuncOp function;
-  mlir::ModuleOp &module;
+  mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -464,10 +464,10 @@ public:
   LowerToInfo &LTInfo;
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-              const FunctionDecl *fd, mlir::ModuleOp &module,
+              const FunctionDecl *fd, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo)
       : Glob(Glob), function(function), module(module),
-        builder(module.getContext()), loc(builder.getUnknownLoc()),
+        builder(module->getContext()), loc(builder.getUnknownLoc()),
         EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
 
     if (ShowAST) {
