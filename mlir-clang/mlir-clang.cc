@@ -153,8 +153,8 @@ int main(int argc, char **argv) {
     }
     return 0;
   }
-  auto module =
-      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc());
+  mlir::OwningOpRef<mlir::ModuleOp> module(
+      mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc()));
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
@@ -164,7 +164,7 @@ int main(int argc, char **argv) {
 
   if (ImmediateMLIR) {
     llvm::errs() << "<immediate: mlir>\n";
-    module.dump();
+    module->dump();
     llvm::errs() << "</immediate: mlir>\n";
   }
   pm.enableVerifier(false);
@@ -199,12 +199,12 @@ int main(int argc, char **argv) {
       if (ScalarReplacement)
         optPM.addPass(mlir::createAffineScalarReplacementPass());
     }
-    if (mlir::failed(pm.run(module))) {
-      module.dump();
+    if (mlir::failed(pm.run(module.get()))) {
+      module->dump();
       return 4;
     }
-    if (mlir::failed(mlir::verify(module))) {
-      module.dump();
+    if (mlir::failed(mlir::verify(module.get()))) {
+      module->dump();
       return 5;
     }
 #define optPM optPM2
@@ -246,15 +246,15 @@ int main(int argc, char **argv) {
     if (EmitLLVM) {
       pm.addPass(mlir::createLowerAffinePass());
       pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
-      if (mlir::failed(pm.run(module))) {
-        module.dump();
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
         return 4;
       }
       mlir::PassManager pm2(&context);
       if (SCFOpenMP)
         pm2.nest<mlir::FuncOp>().addPass(createConvertSCFToOpenMPPass());
-      if (mlir::failed(pm2.run(module))) {
-        module.dump();
+      if (mlir::failed(pm2.run(module.get()))) {
+        module->dump();
         return 4;
       }
       mlir::PassManager pm3(&context);
@@ -265,29 +265,28 @@ int main(int argc, char **argv) {
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
       pm3.addPass(mlir::createLowerToLLVMPass(options));
-      if (mlir::failed(pm3.run(module))) {
-        module.dump();
+      if (mlir::failed(pm3.run(module.get()))) {
+        module->dump();
         return 4;
       }
     } else {
 
-      if (mlir::failed(pm.run(module))) {
-        module.dump();
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
         return 4;
       }
     }
-    // module.dump();
-    if (mlir::failed(mlir::verify(module))) {
-      module.dump();
+    if (mlir::failed(mlir::verify(module.get()))) {
+      module->dump();
       return 5;
     }
   }
 
   if (EmitLLVM) {
     llvm::LLVMContext llvmContext;
-    auto llvmModule = mlir::translateModuleToLLVMIR(module, llvmContext);
+    auto llvmModule = mlir::translateModuleToLLVMIR(module.get(), llvmContext);
     if (!llvmModule) {
-      module.dump();
+      module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
     }
@@ -303,11 +302,11 @@ int main(int argc, char **argv) {
 
   } else {
     if (Output == "-")
-      module.print(outs());
+      module->print(outs());
     else {
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
-      module.print(out);
+      module->print(out);
     }
   }
   return 0;
