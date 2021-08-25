@@ -1628,6 +1628,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
 
 std::pair<ValueWithOffsets, bool>
 MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee())) {
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -2650,6 +2651,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
            (funcs.count(sr->getDecl()->getName().str()) || 
             sr->getDecl()->getName().startswith("mkl_") ||
+            sr->getDecl()->getName().startswith("MKL_") ||
             sr->getDecl()->getName().startswith("cblas_"))) {
 
         std::vector<mlir::Value> args;
@@ -4140,7 +4142,6 @@ ValueWithOffsets MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr) {
 
 ValueWithOffsets
 MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr) {
-  auto loc = getMLIRLocation(expr->getExprLoc());
   assert(ThisVal.val);
   auto toset = Visit(expr->getExpr());
   assert(!ThisVal.isReference);
