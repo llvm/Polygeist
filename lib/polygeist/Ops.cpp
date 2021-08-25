@@ -17,6 +17,7 @@
 #include "polygeist/PolygeistOps.cpp.inc"
 
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
 
@@ -259,6 +260,52 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
               storeOp, storeOp.value(), subindex.source(), indices);
           changed = true;
         }
+      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+        if (storeOp.memref() == subindex) {
+            if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
+                subindex.source()
+                    .getType()
+                    .cast<MemRefType>()
+                    .getShape()
+                    .size()) {
+
+              auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), storeOp.getAffineMap(), storeOp.getMapOperands());
+              std::vector<Value> indices(apply->getResults().begin(), apply->getResults().end());
+              indices.insert(indices.begin(), subindex.index());
+          
+              assert(subindex.source()
+                     .getType()
+                     .cast<MemRefType>()
+                     .getShape()
+                     .size() == indices.size());
+              rewriter.replaceOpWithNewOp<memref::StoreOp>(
+                  storeOp, storeOp.value(), subindex.source(), indices);
+              changed = true;
+            }
+        }
+      } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+        if (storeOp.memref() == subindex) {
+            if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
+                subindex.source()
+                    .getType()
+                    .cast<MemRefType>()
+                    .getShape()
+                    .size()) {
+
+              auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), storeOp.getAffineMap(), storeOp.getMapOperands());
+              std::vector<Value> indices(apply->getResults().begin(), apply->getResults().end());
+              indices.insert(indices.begin(), subindex.index());
+          
+              assert(subindex.source()
+                     .getType()
+                     .cast<MemRefType>()
+                     .getShape()
+                     .size() == indices.size());
+              rewriter.replaceOpWithNewOp<memref::LoadOp>(
+                  storeOp, subindex.source(), indices);
+              changed = true;
+            }
+        }
       }
     }
 
@@ -266,67 +313,10 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
   }
 };
 
-class SubToView final : public OpRewritePattern<SubIndexOp> {
-public:
-  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(SubIndexOp subViewOp,
-                                PatternRewriter &rewriter) const override {
-    return failure();
-    auto prev = subViewOp.source().getType().cast<MemRefType>();
-    auto post = subViewOp.getType().cast<MemRefType>();
-    if (prev.getShape().size() != post.getShape().size()) return failure();
-    for (auto s : prev.getShape()) if (s == -1) return failure();
-    bool hasHandledUse = false;
-    for (auto u : subViewOp.getResult().getUsers()) {
-        if (isa<mlir::memref::CastOp>(u)) {
-            hasHandledUse = true;
-            break;
-        }
-        if (isa<mlir::memref::DeallocOp>(u)) {
-            hasHandledUse = true;
-            break;
-        }
-        if (isa<mlir::memref::LoadOp>(u)) {
-            hasHandledUse = true;
-            break;
-        }
-        if (isa<mlir::memref::StoreOp>(u)) {
-            hasHandledUse = true;
-            break;
-        }
-        if (isa<SubIndexOp>(u)) {
-            hasHandledUse = true;
-            break;
-        }
-    }
-    if (hasHandledUse)
-    return failure();
-    auto c0 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 0);
-    auto c1 = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), 1);
-    std::vector<mlir::Value> offsets;
-    std::vector<mlir::Value> strides;
-    offsets.push_back(subViewOp.index());
-    std::vector<mlir::Value> sizes;
-    for (size_t i=1; i<prev.getShape().size(); i++) {
-        offsets.push_back(c0);
-    }
-    for (size_t i=0; i<prev.getShape().size(); i++) {
-        mlir::Value idx = rewriter.create<mlir::ConstantIndexOp>(subViewOp.getLoc(), prev.getShape()[i]);
-        if (i == 0)
-            idx = rewriter.create<SubIOp>(subViewOp.getLoc(), idx, subViewOp.index());
-        sizes.push_back(idx);
-        strides.push_back(c1);
-    }
-    rewriter.replaceOpWithNewOp<memref::SubViewOp>(subViewOp, subViewOp.source(), offsets, sizes, strides);
-    return success();
-  }
-};
-
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
   results
-      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView, SubToView>(
+      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
           context);
 }
 

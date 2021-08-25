@@ -681,7 +681,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       // llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
       // block->dump();
       // llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
-      if (isa<BranchOp, CondBranchOp>(block->getTerminator())) {
+      if (isa<BranchOp, CondBranchOp, SwitchOp>(block->getTerminator())) {
         for (auto succ : block->getSuccessors()) {
           todo.push_back(succ);
         }
@@ -802,7 +802,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           vrange.push_back(cases.back());
         }
-        builder.create<mlir::SwitchOp>(
+        auto newSwitch = builder.create<mlir::SwitchOp>(
             op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
             op.case_valuesAttr(), op.caseDestinations(), vrange);
         op.erase();
@@ -875,7 +875,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
         } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
-
           if (op.defaultDestination() == block) {
             pval = op.defaultOperands()[blockArg.getArgNumber()];
             if (pval == blockArg)
@@ -883,11 +882,18 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           for (auto pair : llvm::enumerate(op.caseDestinations())) {
             if (pair.value() == block) {
-              pval = op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
-              if (pval == blockArg)
-                pval = nullptr;
+              auto pval2 = op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
+              if (pval2 != blockArg) {
+                  if (pval == nullptr)
+                    pval = pval2;
+                  else if (pval != pval2) {
+                    legal = false;
+                    break;
+                  }
+              }
             }
           }
+          if (legal == false) break;
         } else {
           llvm::errs() << *pred->getParent()->getParentOp() << "\n";
           pred->dump();
@@ -1015,7 +1021,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             mlir::OpBuilder builder(op.getOperation());
             SmallVector<Value> defaultOps(op.defaultOperands().begin(),
                                           op.defaultOperands().end());
-
             if (op.defaultDestination() == block)
               defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
 
@@ -1175,6 +1180,7 @@ StoreMap getLastStored(mlir::Value AI) {
 void Mem2Reg::runOnFunction() {
   // Only supports single block functions at the moment.
   FuncOp f = getFunction();
+
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
   // memrefs etc, we may need to do multiple passes (first
