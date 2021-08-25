@@ -45,19 +45,20 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
   mlir::Value alloc = nullptr;
   OpBuilder abuilder(builder.getContext());
   abuilder.setInsertionPointToStart(allocationScope);
+  auto varLoc = name ? getMLIRLocation(name->getBeginLoc()) : loc;
   if (!isArray) {
     if (LLVMABI) {
       auto iTy = builder.getIntegerType(64);
       alloc = abuilder.create<mlir::LLVM::AllocaOp>(
-          loc, mlir::LLVM::LLVMPointerType::get(t, memspace),
-          builder.create<mlir::ConstantOp>(loc, iTy,
+          varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
+          builder.create<mlir::ConstantOp>(varLoc, iTy,
                                            builder.getIntegerAttr(iTy, 1)),
           0);
     } else {
       mr = mlir::MemRefType::get(1, t, {}, memspace);
-      alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mr);
+      alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       alloc = abuilder.create<mlir::memref::CastOp>(
-          loc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
+          varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
     }
   } else {
     auto mt = t.cast<mlir::MemRefType>();
@@ -71,9 +72,9 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         mr = mlir::MemRefType::get(shape, mt.getElementType(),
                                    mt.getAffineMaps(), memspace);
         auto len = Visit(var->getSizeExpr()).getValue(builder);
-        len = builder.create<IndexCastOp>(loc, len, builder.getIndexType());
-        alloc = builder.create<mlir::memref::AllocaOp>(loc, mr, len);
-        builder.create<polygeist::TrivialUseOp>(loc, alloc);
+        len = builder.create<IndexCastOp>(varLoc, len, builder.getIndexType());
+        alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
+        builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
       }
 
     if (!alloc) {
@@ -81,10 +82,10 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         shape[0] = 1;
       mr = mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
                                  memspace);
-      alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mr);
+      alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       shape[0] = pshape;
       alloc = abuilder.create<mlir::memref::CastOp>(
-          loc, alloc,
+          varLoc, alloc,
           mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
                                 memspace));
     }
@@ -124,7 +125,7 @@ ValueWithOffsets MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
     auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
     return ValueWithOffsets(
         builder.create<mlir::ConstantOp>(
-            loc, ty,
+            getMLIRLocation(expr->getExprLoc()), ty,
             builder.getIntegerAttr(ty, expr->getAPValueResult().getInt())),
         /*isReference*/ false);
   }
@@ -134,15 +135,15 @@ ValueWithOffsets MLIRScanner::VisitIntegerLiteral(clang::IntegerLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueWithOffsets(
       builder.create<mlir::ConstantOp>(
-          loc, ty, builder.getIntegerAttr(ty, expr->getValue())),
+          getMLIRLocation(expr->getExprLoc()), ty, builder.getIntegerAttr(ty, expr->getValue())),
       /*isReference*/ false);
 }
 ValueWithOffsets
 MLIRScanner::VisitCharacterLiteral(clang::CharacterLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueWithOffsets(
-      builder.create<mlir::ConstantOp>(
-          loc, ty, builder.getIntegerAttr(ty, expr->getValue())),
+      builder.create<mlir::ConstantOp>(getMLIRLocation(expr->getExprLoc()), 
+          ty, builder.getIntegerAttr(ty, expr->getValue())),
       /*isReference*/ false);
 }
 
@@ -150,8 +151,8 @@ ValueWithOffsets
 MLIRScanner::VisitFloatingLiteral(clang::FloatingLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::FloatType>();
   return ValueWithOffsets(
-      builder.create<mlir::ConstantOp>(
-          loc, ty, builder.getFloatAttr(ty, expr->getValue())),
+      builder.create<mlir::ConstantOp>(getMLIRLocation(expr->getExprLoc()), 
+          ty, builder.getFloatAttr(ty, expr->getValue())),
       /*isReference*/ false);
 }
 
@@ -162,13 +163,14 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
 
   OpBuilder abuilder(builder.getContext());
   abuilder.setInsertionPointToStart(allocationScope);
-  auto alloc = abuilder.create<mlir::memref::AllocaOp>(loc, mt);
+  auto iloc = getMLIRLocation(expr->getExprLoc());  
+  auto alloc = abuilder.create<mlir::memref::AllocaOp>(iloc, mt);
   builder.create<mlir::memref::StoreOp>(
-      loc,
-      builder.create<mlir::ConstantOp>(loc, ty, builder.getFloatAttr(ty, 0.0)),
+      iloc,
+      builder.create<mlir::ConstantOp>(iloc, ty, builder.getFloatAttr(ty, 0.0)),
       alloc, getConstantIndex(0));
   builder.create<mlir::memref::StoreOp>(
-      loc, Visit(expr->getSubExpr()).getValue(builder), alloc,
+      iloc, Visit(expr->getSubExpr()).getValue(builder), alloc,
       getConstantIndex(1));
   return ValueWithOffsets(alloc,
                           /*isReference*/ true);
@@ -179,14 +181,14 @@ MLIRScanner::VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueWithOffsets(
       builder.create<mlir::ConstantOp>(
-          loc, ty, builder.getIntegerAttr(ty, expr->getValue())),
+          getMLIRLocation(expr->getExprLoc()), ty, builder.getIntegerAttr(ty, expr->getValue())),
       /*isReference*/ false);
 }
 
 ValueWithOffsets MLIRScanner::VisitStringLiteral(clang::StringLiteral *expr) {
   auto ty = getMLIRType(expr->getType());
   return ValueWithOffsets(builder.create<mlir::ConstantOp>(
-                              loc, ty, builder.getStringAttr(expr->getBytes())),
+                              getMLIRLocation(expr->getExprLoc()), ty, builder.getStringAttr(expr->getBytes())),
                           /*isReference*/ true);
 }
 
@@ -579,6 +581,7 @@ ValueWithOffsets MLIRScanner::VisitMaterializeTemporaryExpr(
 }
 
 ValueWithOffsets MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
   assert(!expr->getConstructExpr());
   assert(expr->isArray());
   // assert(expr->isGlobalNew());
@@ -1175,6 +1178,7 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
 ValueWithOffsets
 MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons, VarDecl *name,
                                   unsigned memtype, mlir::Value op) {
+  auto loc = getMLIRLocation(cons->getExprLoc());
   if (cons->getConstructionKind() !=
       clang::CXXConstructExpr::ConstructionKind::CK_Complete) {
     cons->dump();
@@ -1842,6 +1846,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
 
 ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
+  auto loc = getMLIRLocation(expr->getExprLoc());
   /*
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
@@ -3037,6 +3042,7 @@ MLIRScanner::VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr) {
 }
 
 ValueWithOffsets MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
+  auto loc = getMLIRLocation(U->getExprLoc());
   auto sub = Visit(U->getSubExpr());
 
   switch (U->getOpcode()) {
@@ -3329,6 +3335,7 @@ bool hasAffineArith(Operation *op, AffineExpr &expr,
 }
 
 ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
+  auto loc = getMLIRLocation(BO->getExprLoc());
   auto lhs = Visit(BO->getLHS());
   if (!lhs.val && BO->getOpcode() != clang::BinaryOperator::Opcode::BO_Comma) {
     BO->dump();
@@ -4133,6 +4140,7 @@ ValueWithOffsets MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr) {
 
 ValueWithOffsets
 MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
   assert(ThisVal.val);
   auto toset = Visit(expr->getExpr());
   assert(!ThisVal.isReference);
@@ -5277,7 +5285,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   mlir::OpBuilder builder(module.getContext());
   auto funcType = builder.getFunctionType(types, rettypes);
   mlir::FuncOp function = mlir::FuncOp(
-      mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+      mlir::FuncOp::create(getMLIRLocation(FD->getLocation()), name, funcType));
 
   if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage ||
       !FD->isDefined() || FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
@@ -5478,7 +5486,6 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
   auto fileId = SM.getFilename(spellingLoc);
 
   auto ctx = module.getContext();
-  auto mlirIdentifier = Identifier::get(fileId, ctx);
   return FileLineColLoc::get(ctx, fileId, lineNumber, colNumber);
 }
 
