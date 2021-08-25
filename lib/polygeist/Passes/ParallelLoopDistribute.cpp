@@ -413,7 +413,7 @@ struct InterchangeForPFor : public OpRewritePattern<scf::ParallelOp> {
       LLVM_DEBUG(DBGS() << "[interchange] no nested barrier\n";);
       return failure();
     }
-
+    
     auto newForLoop =
         rewriter.create<scf::ForOp>(forLoop.getLoc(), forLoop.lowerBound(),
                                     forLoop.upperBound(), forLoop.step());
@@ -558,10 +558,6 @@ static Value allocateTemporaryBuffer(PatternRewriter &rewriter, Value value,
           ty = mt.getElementType();
       }
   }
-  if (ty.isa<MemRefType>()) {
-      llvm::errs() << "value: " << value << " ty: " << ty << "\n";
-  }
-  assert(!ty.isa<MemRefType>());
   auto type = MemRefType::get(bufferSize, ty);
   Value alloc =
       rewriter.create<memref::AllocaOp>(value.getLoc(), type, iterationCounts);
@@ -641,6 +637,7 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
 
     rewriter.eraseOp(whileOp);
     rewriter.eraseOp(op);
+    
     return success();
   }
 };
@@ -732,7 +729,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
     }
     barrier = &*it;
     }
-
+    
     llvm::SetVector<Value> crossing;
     findValuesUsedBelow(barrier, crossing);
     std::pair<Block *, Block::iterator> insertPoint =
@@ -754,7 +751,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
       Value alloc = std::get<1>(pair);
       rewriter.setInsertionPointAfter(v.getDefiningOp());
       if (auto ao = v.getDefiningOp<memref::AllocaOp>()) {
-          for (auto& u : ao.getResult().getUses()) {
+          for (auto& u : llvm::make_early_inc_range(ao.getResult().getUses())) {
             rewriter.setInsertionPoint(u.getOwner());
               auto buf = alloc;
               for (auto idx : op.getInductionVars()) {
@@ -813,25 +810,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
         size_t pos = std::distance(crossing.begin(), it);
         rewriter.setInsertionPoint(nested);
 
-        Value reloaded;
-
-        if (operand.get().getDefiningOp<memref::AllocaOp>()) {
-          auto buf = allocations[pos];
-          for (auto idx : newLoop.getInductionVars()) {
-                  auto mt0 = buf.getType().cast<MemRefType>();
-                  std::vector<int64_t> shape(mt0.getShape());
-                  shape.erase(shape.begin());
-                  auto mt = MemRefType::get(shape, mt0.getElementType(),
-                                         mt0.getAffineMaps(), mt0.getMemorySpace());
-                  auto subidx = rewriter.create<polygeist::SubIndexOp>(buf.getLoc(), mt, buf, idx);
-                  buf = subidx;
-          }
-          reloaded = buf;
-        } else {
-          reloaded = rewriter.create<memref::LoadOp>(
+        Value reloaded = rewriter.create<memref::LoadOp>(
               operand.getOwner()->getLoc(), allocations[pos],
               newLoop.getInductionVars());
-        }
         rewriter.startRootUpdate(nested);
         operand.set(reloaded);
         rewriter.finalizeRootUpdate(nested);
