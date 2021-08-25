@@ -2652,6 +2652,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            (funcs.count(sr->getDecl()->getName().str()) || 
             sr->getDecl()->getName().startswith("mkl_") ||
             sr->getDecl()->getName().startswith("MKL_") ||
+            sr->getDecl()->getName().startswith("cublas") ||
             sr->getDecl()->getName().startswith("cblas_"))) {
 
         std::vector<mlir::Value> args;
@@ -4648,9 +4649,12 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   auto &exitB = *(new Block());
   builder.setInsertionPointToStart(&exitB);
   builder.create<scf::YieldOp>(loc);
+  builder.setInsertionPointToStart(&exitB);
 
   SmallVector<Block *> blocks;
   bool inCase = false;
+
+  Block* defaultB = &exitB;
 
   for (auto cse : stmt->getBody()->children()) {
     if (auto cses = dyn_cast<CaseStmt>(cse)) {
@@ -4683,6 +4687,31 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       builder.create<mlir::memref::StoreOp>(loc, truev,
                                             loops.back().keepRunning);
       Visit(cses->getSubStmt());
+    } else if (auto cses = dyn_cast<DefaultStmt>(cse)) {
+      auto &condB = *(new Block());
+
+      if (inCase) {
+        auto noBreak =
+            builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak);
+        builder.create<mlir::CondBranchOp>(loc, noBreak, &condB, &exitB);
+        loops.pop_back();
+      }
+
+      inCase = true;
+      er.region().getBlocks().push_back(&condB);
+      builder.setInsertionPointToStart(&condB);
+
+      auto i1Ty = builder.getIntegerType(1);
+      auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+      auto truev = builder.create<mlir::ConstantIntOp>(loc, true, 1);
+      loops.push_back(
+          (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
+                        builder.create<mlir::memref::AllocaOp>(loc, type)});
+      builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
+      builder.create<mlir::memref::StoreOp>(loc, truev,
+                                            loops.back().keepRunning);
+      defaultB = &condB;
+      Visit(cses->getSubStmt());
     } else {
       Visit(cse);
     }
@@ -4701,7 +4730,7 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 
   builder.setInsertionPointToStart(&er.region().front());
   builder.create<mlir::SwitchOp>(
-      loc, cond, &exitB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks,
+      loc, cond, defaultB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks,
       SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));
   builder.setInsertionPoint(oldblock2, oldpoint2);
   return nullptr;
