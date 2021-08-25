@@ -931,8 +931,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     if (!hasNestedBarrier(op))
       return failure();
 
-    Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
-        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
+    //Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
+    //    op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     SmallVector<Value> beforeAllocated, afterAllocated;
     allocaValues(op.getLoc(), op.getOperands(), zero, rewriter,
@@ -976,7 +976,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> results;
     loadValues(op.getLoc(), afterAllocated, zero, rewriter, results);
-    rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
+    //rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
     rewriter.replaceOp(op, results);
     return success();
   }
