@@ -1662,7 +1662,8 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMalloc" ||
-           sr->getDecl()->getName() == "cudaMallocHost")) {
+           sr->getDecl()->getName() == "cudaMallocHost" ||
+           sr->getDecl()->getName() == "cudaMallocPitch")) {
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
           sub = BC->getSubExpr();
@@ -1679,7 +1680,19 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                                         ->getUnqualifiedDesugaredType())
                                     ->getPointeeType())
                                 ->getPointeeType());
-            mlir::Value allocSize = builder.create<mlir::IndexCastOp>(
+            mlir::Value allocSize;
+            if (sr->getDecl()->getName() == "cudaMallocPitch") {
+                mlir::Value width = Visit(expr->getArg(2)).getValue(builder);
+                mlir::Value height = Visit(expr->getArg(3)).getValue(builder);
+                // Not changing pitch from provided width here
+                // TODO can consider addition alignment considerations
+                Visit(expr->getArg(1)).dereference(builder).store(builder, width);
+                auto idxType = mlir::IndexType::get(builder.getContext());
+                allocSize = builder.create<mlir::MulIOp>(loc,
+                        builder.create<mlir::IndexCastOp>(loc, width, idxType),
+                        builder.create<mlir::IndexCastOp>(loc, height, idxType));
+            } else 
+                allocSize = builder.create<mlir::IndexCastOp>(
                 loc, Visit(expr->getArg(1)).getValue(builder),
                 mlir::IndexType::get(builder.getContext()));
             mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
@@ -1689,7 +1702,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                     builder.getIntegerAttr(allocSize.getType(), elemSize)))};
             auto alloc = builder.create<mlir::memref::AllocOp>(
                 loc,
-                (sr->getDecl()->getName() == "cudaMalloc" && !CudaLower)
+                (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
                     ? mlir::MemRefType::get(shape, mt.getElementType(),
                                             mt.getAffineMaps(), 1)
                     : mt,
@@ -1950,6 +1963,31 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
       return val;
     }
+
+    bool isArray = false;
+    Glob.getMLIRType(E->getType(), &isArray);
+
+    if (isArray) {
+      assert(sub.isReference);
+      auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+                                       E->getType()))
+                      .cast<MemRefType>();
+      auto shape = std::vector<int64_t>(mt.getShape());
+      assert(shape.size() == 2);
+
+        OpBuilder abuilder(builder.getContext());
+        abuilder.setInsertionPointToStart(allocationScope);
+            auto one = abuilder.create<mlir::ConstantOp>(
+                loc, abuilder.getIntegerType(64),
+                builder.getIntegerAttr(builder.getIntegerType(64), 1));
+        auto alloc = abuilder.create<mlir::LLVM::AllocaOp>(
+            loc, 
+            LLVM::LLVMPointerType::get(Glob.typeTranslator.translateType(
+                   anonymize(getLLVMType(E->getType()))), 0), one, 0);
+        ValueWithOffsets(alloc, /*isRef*/ true)
+            .store(builder, sub, /*isArray*/ isArray);
+        sub = ValueWithOffsets(alloc, /*isRef*/true);
+      }
     auto val = sub.getValue(builder);
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
       val = builder.create<polygeist::Memref2PointerOp>(
@@ -1958,6 +1996,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return val;
   };
 
+#if 0
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       // TODO add pow to standard dialect
@@ -1975,6 +2014,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             /*isReference*/ false);
       }
     }
+#endif
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -2024,6 +2064,15 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
         mlir::Value res = builder.create<mlir::ZeroExtendIOp>(loc, FCmp, postTy);
         return ValueWithOffsets(res, /*isRef*/false);
+      }
+      if (sr->getDecl()->getIdentifier() && (
+                  sr->getDecl()->getName() == "__builtin_isnan"
+                  )) {
+          mlir::Value V = getLLVM(expr->getArg(0));
+          mlir::Value Eq = builder.create<CmpFOp>(loc, mlir::CmpFPredicate::UNO, V, V);
+          auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+          mlir::Value res = builder.create<mlir::ZeroExtendIOp>(loc, Eq, postTy);
+          return ValueWithOffsets(res, /*isRef*/false);
       }
       if (sr->getDecl()->getIdentifier() && (
                   sr->getDecl()->getName() == "__builtin_isnormal"
@@ -2102,6 +2151,16 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
           mlir::Value res = builder.create<mlir::ZeroExtendIOp>(loc, V, postTy);
           return ValueWithOffsets(res, /*isRef*/false); 
+      }
+      if (sr->getDecl()->getIdentifier() && (
+                  sr->getDecl()->getName() == "__builtin_pow" ||
+                  sr->getDecl()->getName() == "__builtin_powf" ||
+                  sr->getDecl()->getName() == "__builtin_powl"
+                  )) {
+          mlir::Value V = getLLVM(expr->getArg(0));
+          mlir::Value V2 = getLLVM(expr->getArg(1));
+          V = builder.create<math::PowFOp>(loc, V, V2);
+          return ValueWithOffsets(V, /*isRef*/false); 
       }
       if (sr->getDecl()->getIdentifier() && (
                   sr->getDecl()->getName() == "__builtin_atanh" ||
@@ -2295,7 +2354,8 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
-           sr->getDecl()->getName() == "memcpy")) {
+           sr->getDecl()->getName() == "memcpy" ||
+           sr->getDecl()->getName() == "__builtin_memcpy")) {
         auto dstSub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(dstSub))
           dstSub = BC->getSubExpr();
@@ -2349,9 +2409,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 elemSize = getTypeSize(QualType(selem, 0));
             mlir::Value size = builder.create<mlir::IndexCastOp>(
                 loc,
-                Visit(
-                    expr->getArg(sr->getDecl()->getName() == "memcpy" ? 1 : 2))
-                    .getValue(builder),
+                Visit(expr->getArg(2)).getValue(builder),
                 mlir::IndexType::get(builder.getContext()));
             size = builder.create<mlir::UnsignedDivIOp>(
                 loc, size,
@@ -2434,13 +2492,21 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             if (src.getType().isa<MemRefType>())
               loaded = builder.create<memref::LoadOp>(loc, src, srcargs);
             else {
-              auto elty = src.getType().cast<LLVM::LLVMPointerType>().getElementType();
+              auto opt = src.getType().cast<LLVM::LLVMPointerType>();
+              auto elty = LLVM::LLVMPointerType::get(opt.getElementType(), opt.getAddressSpace());
+              for (auto &val : srcargs) {
+                  val = builder.create<IndexCastOp>(val.getLoc(), val, builder.getI32Type());
+              }
               loaded = builder.create<LLVM::LoadOp>(loc, builder.create<LLVM::GEPOp>(loc, elty, src, srcargs));
             }
             if (dst.getType().isa<MemRefType>()) {
               builder.create<memref::StoreOp>(loc, loaded, dst, dstargs);
             } else {
-              auto elty = dst.getType().cast<LLVM::LLVMPointerType>().getElementType();
+              auto opt = dst.getType().cast<LLVM::LLVMPointerType>();
+              auto elty = LLVM::LLVMPointerType::get(opt.getElementType(), opt.getAddressSpace());
+              for (auto &val : dstargs) {
+                  val = builder.create<IndexCastOp>(val.getLoc(), val, builder.getI32Type());
+              }
               builder.create<LLVM::StoreOp>(loc, loaded, builder.create<LLVM::GEPOp>(loc, elty, dst, dstargs));
             }
 
@@ -2449,10 +2515,13 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             builder.setInsertionPoint(oldblock, oldpoint);
 
             auto retTy = getMLIRType(expr->getType());
-            return ValueWithOffsets(
-                builder.create<mlir::ConstantOp>(
-                    loc, retTy, builder.getIntegerAttr(retTy, 0)),
-                /*isReference*/ false);
+            if (sr->getDecl()->getName() == "__builtin_memcpy")
+                return ValueWithOffsets(dst, /*isReference*/false);
+            else
+                return ValueWithOffsets(
+                    builder.create<mlir::ConstantOp>(
+                        loc, retTy, builder.getIntegerAttr(retTy, 0)),
+                    /*isReference*/ false);
           }
         }
         function.dump();
@@ -2554,6 +2623,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                  "fputs",
                                  "puts",
                                  "memcpy",
+                                 "__builtin_memcpy",
                                  "cudaMalloc",
                                  "open",
                                  "fopen",
@@ -2572,8 +2642,10 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                  "cudaEventRecord"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if ((sr->getDecl()->getIdentifier() &&
-           funcs.count(sr->getDecl()->getName().str()))) {
+      if (sr->getDecl()->getIdentifier() &&
+           (funcs.count(sr->getDecl()->getName().str()) || 
+            sr->getDecl()->getName().startswith("mkl_") ||
+            sr->getDecl()->getName().startswith("cblas_"))) {
 
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
@@ -2644,11 +2716,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 loc, mt0, tostore, getConstantIndex(0));
             i++;
             auto indexType = mlir::IntegerType::get(module.getContext(), 64);
-            auto one = builder.create<mlir::ConstantOp>(
-                loc, indexType,
-                builder.getIntegerAttr(builder.getIntegerType(64), 1));
             OpBuilder abuilder(builder.getContext());
             abuilder.setInsertionPointToStart(allocationScope);
+            auto one = abuilder.create<mlir::ConstantOp>(
+                loc, indexType,
+                builder.getIntegerAttr(builder.getIntegerType(64), 1));
             alloc = abuilder.create<mlir::LLVM::AllocaOp>(
                 loc,
                 Glob.typeTranslator.translateType(
@@ -3382,21 +3454,36 @@ ValueWithOffsets MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   switch (BO->getOpcode()) {
   case clang::BinaryOperator::Opcode::BO_Shr: {
+    auto lhsv = lhs.getValue(builder);
+    auto rhsv = rhs.getValue(builder);
+    auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
+    auto postTy = lhsv.getType().cast<mlir::IntegerType>();
+    if (prevTy.getWidth() < postTy.getWidth())
+      rhsv = builder.create<mlir::ZeroExtendIOp>(loc, rhsv, postTy);
+    if (prevTy.getWidth() > postTy.getWidth())
+      rhsv = builder.create<mlir::TruncateIOp>(loc, rhsv, postTy);
+    assert(lhsv.getType() == rhsv.getType());
     if (signedType)
       return ValueWithOffsets(
-          builder.create<mlir::SignedShiftRightOp>(loc, lhs.getValue(builder),
-                                                   rhs.getValue(builder)),
+          builder.create<mlir::SignedShiftRightOp>(loc, lhsv, rhsv),
           /*isReference*/ false);
     else
       return ValueWithOffsets(
-          builder.create<mlir::UnsignedShiftRightOp>(loc, lhs.getValue(builder),
-                                                     rhs.getValue(builder)),
+          builder.create<mlir::UnsignedShiftRightOp>(loc, lhsv, rhsv),
           /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_Shl: {
+    auto lhsv = lhs.getValue(builder);
+    auto rhsv = rhs.getValue(builder);
+    auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
+    auto postTy = lhsv.getType().cast<mlir::IntegerType>();
+    if (prevTy.getWidth() < postTy.getWidth())
+      rhsv = builder.create<mlir::ZeroExtendIOp>(loc, rhsv, postTy);
+    if (prevTy.getWidth() > postTy.getWidth())
+      rhsv = builder.create<mlir::TruncateIOp>(loc, rhsv, postTy);
+    assert(lhsv.getType() == rhsv.getType());
     return ValueWithOffsets(
-        builder.create<mlir::ShiftLeftOp>(loc, lhs.getValue(builder),
-                                          rhs.getValue(builder)),
+        builder.create<mlir::ShiftLeftOp>(loc, lhsv, rhsv),
         /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_And: {
@@ -5039,8 +5126,69 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   else
     name = CGM.getMangledName(FD).str();
 
+  llvm::GlobalValue::LinkageTypes LV;
+  if (!FD->hasBody())
+    LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
+  else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+  else
+    LV = CGM.getFunctionLinkage(FD);
+  
+  LLVM::Linkage lnk;
+  switch (LV) {
+  case llvm::GlobalValue::LinkageTypes::InternalLinkage:
+    lnk = LLVM::Linkage::Internal;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalLinkage:
+    lnk = LLVM::Linkage::External;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
+    lnk = LLVM::Linkage::AvailableExternally;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage:
+    lnk = LLVM::Linkage::Linkonce;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakAnyLinkage:
+    lnk = LLVM::Linkage::Weak;
+    break;
+  case llvm::GlobalValue::LinkageTypes::WeakODRLinkage:
+    lnk = LLVM::Linkage::WeakODR;
+    break;
+  case llvm::GlobalValue::LinkageTypes::CommonLinkage:
+    lnk = LLVM::Linkage::Common;
+    break;
+  case llvm::GlobalValue::LinkageTypes::AppendingLinkage:
+    lnk = LLVM::Linkage::Appending;
+    break;
+  case llvm::GlobalValue::LinkageTypes::ExternalWeakLinkage:
+    lnk = LLVM::Linkage::ExternWeak;
+    break;
+  case llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage:
+    lnk = LLVM::Linkage::LinkonceODR;
+    break;
+  case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
+    lnk = LLVM::Linkage::Private;
+    break;
+  }
+
   if (functions.find(name) != functions.end()) {
-    return functions[name];
+    auto function = functions[name];
+
+    if (FD->hasBody()) {
+      if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage ||
+          !FD->isDefined() || FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
+        SymbolTable::setSymbolVisibility(function,
+                                         SymbolTable::Visibility::Private);
+      } else {
+        SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
+      }
+      mlir::OpBuilder builder(module.getContext());
+      NamedAttrList attrs(function->getAttrDictionary());
+      attrs.set("linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
+      function->setAttrs(attrs.getDictionary(builder.getContext()));
+    }
+
+    return function;
   }
 
   std::vector<mlir::Type> types;
@@ -5130,11 +5278,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   auto funcType = builder.getFunctionType(types, rettypes);
   mlir::FuncOp function = mlir::FuncOp(
       mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
-  llvm::GlobalValue::LinkageTypes LV;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
-  else
-    LV = CGM.getFunctionLinkage(FD);
+
   if (LV == llvm::GlobalValue::InternalLinkage || LV == llvm::GlobalValue::PrivateLinkage ||
       !FD->isDefined() || FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
     SymbolTable::setSymbolVisibility(function,
@@ -5142,6 +5286,9 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   } else {
     SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
   }
+  NamedAttrList attrs(function->getAttrDictionary());
+  attrs.append("linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
+  function->setAttrs(attrs.getDictionary(builder.getContext()));
 
   functions[name] = function;
   module.push_back(function);
@@ -5243,7 +5390,6 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if (StringRef(name).startswith("_ZN9__gnu")) continue;
 
     if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
-         fd->getName() != "isnan" &&
          !fd->isStatic() && externLinkage) ||
         emitIfFound.count(name)) {
       if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
@@ -5311,7 +5457,6 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (StringRef(name).startswith("_ZN9__gnu")) continue;
 
     if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
-         fd->getName() != "isnan" &&
          !fd->isStatic() && externLinkage) ||
         emitIfFound.count(name)) {
       if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
@@ -5334,9 +5479,7 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
 
   auto ctx = module.getContext();
   auto mlirIdentifier = Identifier::get(fileId, ctx);
-  mlir::OpBuilder builder(ctx);
-  return builder.getUnknownLoc();
-  // return builder.getFileLineColLoc(mlirIdentifier, lineNumber, colNumber);
+  return FileLineColLoc::get(ctx, fileId, lineNumber, colNumber);
 }
 
 mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,

@@ -121,12 +121,6 @@ static cl::opt<bool>
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 
-static cl::list<std::string> linkDirs("L", cl::desc("include search path"),
-                                         cl::cat(toolOptions));
-
-static cl::list<std::string> libs("l", cl::desc("include search path"),
-                                         cl::cat(toolOptions));
-
 static cl::list<std::string> defines("D", cl::desc("defines"),
                                      cl::cat(toolOptions));
 
@@ -189,7 +183,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-int emitBinary(char* Argv0, const char* filename) {
+int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkArgs) {
 
   using namespace clang;
   using namespace clang::driver;
@@ -209,8 +203,8 @@ int emitBinary(char* Argv0, const char* filename) {
     driver->CC1Main = &ExecuteCC1Tool;
   std::vector<const char *> Argv;
   Argv.push_back(Argv0);
-  Argv.push_back("-x");
-  Argv.push_back("ir");
+  //Argv.push_back("-x");
+  //Argv.push_back("ir");
   Argv.push_back(filename);
   if (FOpenMP || SCFOpenMP)
     Argv.push_back("-fopenmp");
@@ -235,20 +229,6 @@ int emitBinary(char* Argv0, const char* filename) {
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  for (auto a : linkDirs) {
-    Argv.push_back("-L");
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  for (auto a : libs) {
-    Argv.push_back("-l");
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
   if (Opt0) {
     Argv.push_back("-O0");
   }
@@ -268,6 +248,8 @@ int emitBinary(char* Argv0, const char* filename) {
     chars[Output.length()] = 0;
     Argv.push_back(chars);
   }
+  for (auto arg : LinkArgs)
+    Argv.push_back(arg);
 
   const unique_ptr<Compilation> compilation(
       driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
@@ -311,11 +293,47 @@ int main(int argc, char **argv) {
         return ExecuteCC1Tool(Argv);
     }
   }
+  SmallVector<char*> LinkageArgs;
+  SmallVector<char*> MLIRArgs;
+  {
+      bool linkOnly = false;
+      for (int i=0; i<argc; i++) {
+        StringRef ref(argv[i]);
+        if (ref == "-Wl,--start-group")
+          linkOnly = true;
+        if (!linkOnly) {
+          if (ref == "-L" || ref == "-l") {
+            LinkageArgs.push_back(argv[i]);
+            i++;
+            LinkageArgs.push_back(argv[i]);
+          } else if (ref.startswith("-L") || ref.startswith("-l") || ref.startswith("-Wl")) {
+            LinkageArgs.push_back(argv[i]);
+          } else if (ref == "-D" || ref == "-I") {
+            MLIRArgs.push_back(argv[i]);
+            i++;
+            MLIRArgs.push_back(argv[i]);
+          } else if (ref.startswith("-D")) {
+            MLIRArgs.push_back("-D");
+            MLIRArgs.push_back(&argv[i][2]);
+          } else if (ref.startswith("-I")) {
+            MLIRArgs.push_back("-I");
+            MLIRArgs.push_back(&argv[i][2]);
+          } else {
+            MLIRArgs.push_back(argv[i]);
+          }
+        } else {
+          LinkageArgs.push_back(argv[i]);
+        }
+        if (ref == "-Wl,--end-group")
+          linkOnly = false;
+      }
+  }
   using namespace mlir;
 
-  InitLLVM y(argc, argv);
-
-  cl::ParseCommandLineOptions(argc, argv);
+  int size = MLIRArgs.size();
+  char** data = MLIRArgs.data();
+  InitLLVM y(size, data);
+  cl::ParseCommandLineOptions(size, data);
   assert(inputFileName.size());
   for (auto inp : inputFileName) {
     std::ifstream inputFile(inp);
@@ -411,8 +429,10 @@ int main(int argc, char **argv) {
       module.dump();
       return 5;
     }
+
 #define optPM optPM2
 #define pm pm2
+    {
     mlir::PassManager pm(&context);
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
 
@@ -421,11 +441,33 @@ int main(int argc, char **argv) {
 
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(mlir::createCSEPass());
-    optPM.addPass(mlir::createCanonicalizerPass());
+
+    pm.addPass(mlir::createInlinerPass());
+    if (mlir::failed(pm.run(module))) {
+      module.dump();
+      return 4;
+    }
+    }
+
 
     if (CudaLower) {
+      mlir::PassManager pm(&context);
+      mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+      optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(polygeist::createParallelLowerPass());
+      optPM.addPass(polygeist::createMem2RegPass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(mlir::createInlinerPass());
+      if (mlir::failed(pm.run(module))) {
+        module.dump();
+        return 4;
+      }
+    }
+
+    mlir::PassManager pm(&context);
+    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    if (CudaLower) {
       optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(polygeist::createMem2RegPass());
       optPM.addPass(mlir::createCSEPass());
@@ -444,6 +486,7 @@ int main(int argc, char **argv) {
       }
       if (ToCPU)
         optPM.addPass(polygeist::createCPUifyPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
@@ -510,7 +553,7 @@ int main(int argc, char **argv) {
         out << *llvmModule << "\n";
         out.flush();
         }
-        int res = emitBinary(argv[0], tmpFile->TmpName.c_str());
+        int res = emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs);
         if (tmpFile->discard()) {
             llvm::errs() << "Failed to erase temp file\n";
             return -1;
