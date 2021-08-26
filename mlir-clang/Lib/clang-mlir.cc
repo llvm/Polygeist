@@ -5297,18 +5297,17 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   const char *binary = Argv0; // CudaLower ? "clang++" : "clang";
   const unique_ptr<Driver> driver(
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
-  std::vector<const char *> Argv;
-  Argv.push_back(binary);
-  for (auto a : filenames) {
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
+  std::vector<const char *> Argv = {binary};
+
+  for (const auto &a : filenames)
+    Argv.push_back(a.c_str());
+
   if (CudaLower)
     Argv.push_back("--cuda-gpu-arch=sm_35");
+
   if (FOpenMP)
     Argv.push_back("-fopenmp");
+
   if (Standard != "") {
     auto a = "-std=" + Standard;
     char *chars = (char *)malloc(a.length() + 1);
@@ -5316,6 +5315,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
+
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
     char *chars = (char *)malloc(ResourceDir.length() + 1);
@@ -5323,9 +5323,10 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[ResourceDir.length()] = 0;
     Argv.push_back(chars);
   }
-  if (Verbose) {
+
+  if (Verbose)
     Argv.push_back("-v");
-  }
+
   if (CUDAGPUArch != "") {
     auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
     char *chars = (char *)malloc(a.length() + 1);
@@ -5333,6 +5334,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
+
   if (MArch != "") {
     auto a = "-march=" + MArch;
     char *chars = (char *)malloc(a.length() + 1);
@@ -5340,26 +5342,20 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  for (auto a : includeDirs) {
+
+  for (const auto &a : includeDirs) {
     Argv.push_back("-I");
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
+    Argv.push_back(a.c_str());
   }
-  for (auto a : defines) {
-    char *chars = (char *)malloc(a.length() + 3);
-    chars[0] = '-';
-    chars[1] = 'D';
-    memcpy(chars + 2, a.data(), a.length());
-    chars[2 + a.length()] = 0;
-    Argv.push_back(chars);
+
+  for (const auto &a : defines) {
+    Argv.push_back("-D");
+    Argv.push_back(a.c_str());
   }
 
   Argv.push_back("-emit-ast");
 
-  const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
+  const unique_ptr<Compilation> compilation(driver->BuildCompilation(Argv));
   JobList &Jobs = compilation->getJobs();
   if (Jobs.size() < 1)
     return false;
