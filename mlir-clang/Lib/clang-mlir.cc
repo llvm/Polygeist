@@ -5222,7 +5222,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       }
       mlir::OpBuilder builder(module.getContext());
       NamedAttrList attrs(function->getAttrDictionary());
-      attrs.set("linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
+      attrs.set("llvm.linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
     }
 
@@ -5325,7 +5325,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     SymbolTable::setSymbolVisibility(function, SymbolTable::Visibility::Public);
   }
   NamedAttrList attrs(function->getAttrDictionary());
-  attrs.append("linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
+  attrs.append("llvm.linkage", builder.getI64IntegerAttr(static_cast<int64_t>(lnk)));
   function->setAttrs(attrs.getDictionary(builder.getContext()));
 
   functions[name] = function;
