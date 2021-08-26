@@ -54,13 +54,21 @@ static void findValuesUsedBelow(Operation *op,
 }
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
-/// one of its regions.
-static bool hasNestedBarrier(Operation *direct) {
-  auto result = direct->walk([=](polygeist::BarrierOp op) {
-    if (op->getParentOp() == direct)
+/// one of its regions, but not within any nested ParallelOp.
+static bool hasNestedBarrier(Operation *op, Operation *direct = nullptr) {
+  auto result = op->walk([=](polygeist::BarrierOp barrier) {
+    if (!direct || barrier->getParentOp() == direct) {
+      // If there is a `parallel` op nested inside the given op (alternatively,
+      // the `parallel` op is not an ancestor of `op` or `op` itself), the
+      // barrier is considered nested in that `parallel` op and _not_ in `op`.
+      auto parallel = barrier->getParentOfType<scf::ParallelOp>();
+      if (!parallel->isAncestor(op))
+        return WalkResult::skip();
+
       return WalkResult::interrupt();
-    else
+    } else {
       return WalkResult::skip();
+    }
   });
   return result.wasInterrupted();
 }
