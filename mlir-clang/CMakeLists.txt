@@ -1,7 +1,7 @@
 add_clang_tool(mlir-clang
-  ../llvm-project/clang/tools/driver/cc1_main.cpp
-  ../llvm-project/clang/tools/driver/cc1as_main.cpp
-  ../llvm-project/clang/tools/driver/cc1gen_reproducer_main.cpp
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
   mlir-clang.cc
   Lib/utils.cc
   Lib/pragmaHandler.cc
