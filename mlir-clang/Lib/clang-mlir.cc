@@ -534,18 +534,22 @@ ValueWithOffsets MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
     else {
       assert(CaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByRef);
       assert(params[pair.first].isReference);
-      auto mt = params[pair.first].val.getType().cast<MemRefType>();
-      auto shape = std::vector<int64_t>(mt.getShape());
-      shape[0] = -1;
 
-      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
-                        pair.second, op)
-          .store(builder,
-                 builder.create<memref::CastOp>(
+      auto val = params[pair.first].val;
+
+      if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+          auto shape = std::vector<int64_t>(mt.getShape());
+          shape[0] = -1;
+          val = builder.create<memref::CastOp>(
                      loc,
                      MemRefType::get(shape, mt.getElementType(),
                                      mt.getAffineMaps(), mt.getMemorySpace()),
-                     params[pair.first].val));
+                     val);
+      }
+
+      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
+                        pair.second, op)
+          .store(builder, val);
     }
   }
   return ValueWithOffsets(op, /*isReference*/ true);
