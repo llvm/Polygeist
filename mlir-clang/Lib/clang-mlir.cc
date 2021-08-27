@@ -2563,6 +2563,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                     /*isReference*/ false);
           }
         }
+        /*
         function.dump();
         expr->dump();
         dstSub->dump();
@@ -2570,6 +2571,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         srcSub->dump();
         mselem->dump();
         assert(0 && "unhandled cudaMemcpy");
+        */
       }
     }
 
@@ -4863,7 +4865,6 @@ ValueWithOffsets MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *stmt) {
 ValueWithOffsets MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
   ValueWithOffsets off = nullptr;
   for (auto a : stmt->getSubStmt()->children()) {
-    IfScope scope(*this);
     off = Visit(a);
   }
   return off;

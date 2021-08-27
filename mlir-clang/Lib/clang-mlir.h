@@ -180,8 +180,7 @@ struct ValueWithOffsets {
                 builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx));
           }
         }
-      } else {
-        smt = val.getType().cast<MemRefType>();
+      } else if (auto smt = val.getType().dyn_cast<MemRefType>()) {
         assert(smt.getShape().size() <= 2);
 
         auto pt = toStore.val.getType().cast<LLVM::LLVMPointerType>();
@@ -214,7 +213,8 @@ struct ValueWithOffsets {
                   loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx)),
               val, idx);
         }
-      }
+      } else
+        store(builder, toStore.getValue(builder));
     } else {
       store(builder, toStore.getValue(builder));
     }
