@@ -346,6 +346,24 @@ void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
       .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
           context);
 }
+  
+  LogicalResult selectOfSubIndexHack(SelectOp op, PatternRewriter &rewriter) {
+    auto cst1 = op.getTrueValue().getDefiningOp<SubIndexOp>();
+    if (!cst1)
+      return failure();
+
+    auto cst2 = op.getFalseValue().getDefiningOp<SubIndexOp>();
+    if (!cst2)
+      return failure();
+    
+    if (cst1.source().getType() != cst2.source().getType())
+      return failure();
+
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(), cst1.source(), cst2.source());
+    auto newIdx = rewriter.create<SelectOp>(op.getLoc(), op.condition(), cst1.index(), cst2.index());
+    rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.getType(), newSel, newIdx);
+    return success();
+  }
 
 Value Memref2PointerOp::getViewSource() { return source(); }
 
