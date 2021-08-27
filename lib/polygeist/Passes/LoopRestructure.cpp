@@ -350,7 +350,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
             auto ifOp = builder.create<scf::IfOp>(
                 builder.getUnknownLoc(), condTys, condBr.getCondition(),
                 /*hasElse*/ true);
-            Succs[j] = new Block();
+            // Succs[j] = new Block();
             if (j == 0) {
               ifOp.elseRegion().getBlocks().splice(
                   ifOp.elseRegion().getBlocks().end(), region.getBlocks(),
@@ -437,7 +437,6 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       //  - Easy case all exit blocks have the same argument set
 
       // Create a caller block that will contain the loop op
-
       Block *wrapper = new Block();
       region.push_back(wrapper);
       mlir::OpBuilder builder(wrapper, wrapper->begin());
@@ -651,7 +650,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
   for (auto &blk : region) {
     for (auto &op : blk) {
       for (auto &reg : op.getRegions()) {
-        domInfo.invalidate(&reg);
+        // domInfo.invalidate(&reg);
         runOnRegion(domInfo, reg);
       }
     }
