@@ -109,6 +109,26 @@ public:
   }
 };
 
+class CastOfSubIndex final : public OpRewritePattern<memref::CastOp> {
+public:
+  using OpRewritePattern<memref::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CastOp castOp,
+                                PatternRewriter &rewriter) const override {
+    auto subindexOp = castOp.source().getDefiningOp<SubIndexOp>();
+    if (!subindexOp)
+      return failure();
+
+    if (castOp.getType().cast<MemRefType>().getShape().size() != subindexOp.getType().cast<MemRefType>().getShape().size())
+      return failure();
+
+    rewriter.replaceOpWithNewOp<SubIndexOp>(
+        castOp, castOp.getType(),
+        subindexOp.source(), subindexOp.index());
+    return success();
+  }
+};
+
 class SubIndex2 final : public OpRewritePattern<SubIndexOp> {
 public:
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
@@ -323,7 +343,7 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
   results
-      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
+      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
           context);
 }
 
