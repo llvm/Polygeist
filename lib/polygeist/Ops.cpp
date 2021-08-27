@@ -269,9 +269,13 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
                     .getShape()
                     .size()) {
 
-              auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), storeOp.getAffineMap(), storeOp.getMapOperands());
-              std::vector<Value> indices(apply->getResults().begin(), apply->getResults().end());
-              indices.insert(indices.begin(), subindex.index());
+              std::vector<Value> indices;
+              auto map = storeOp.getAffineMap();
+              indices.push_back(subindex.index());
+              for (size_t i=0; i<map.getNumResults(); i++) {
+                auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
+                indices.push_back(apply->getResult(0));
+              }
           
               assert(subindex.source()
                      .getType()
@@ -292,10 +296,13 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
                     .getShape()
                     .size()) {
 
-              auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), storeOp.getAffineMap(), storeOp.getMapOperands());
-              std::vector<Value> indices(apply->getResults().begin(), apply->getResults().end());
-              indices.insert(indices.begin(), subindex.index());
-          
+              std::vector<Value> indices;
+              auto map = storeOp.getAffineMap();
+              indices.push_back(subindex.index());
+              for (size_t i=0; i<map.getNumResults(); i++) {
+                auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
+                indices.push_back(apply->getResult(0));
+              }
               assert(subindex.source()
                      .getType()
                      .cast<MemRefType>()

@@ -5389,6 +5389,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     functionsToEmit.push_back(Def);
   } else if (FD->getIdentifier())
     emitIfFound.insert(name);
+
   /*else {
     for (const FunctionDecl *s_FD : FD->redecls()) {
         s_FD->dump();
@@ -5446,8 +5447,6 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
         continue;
     }
     if (!fd->hasBody())
-      continue;
-    if (fd->getIdentifier() == nullptr)
       continue;
 
     if (fd->isTemplated()) continue;
@@ -5515,8 +5514,6 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
         continue;
     }
     if (!fd->hasBody())
-      continue;
-    if (fd->getIdentifier() == nullptr)
       continue;
     if (fd->isTemplated()) continue;
 
