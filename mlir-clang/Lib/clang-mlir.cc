@@ -364,15 +364,18 @@ ValueWithOffsets MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
     return ValueWithOffsets(op, true);
   }
   if (expr->getNumInits()) {
-    assert(op.getType().cast<MemRefType>().getShape().size() == 1);
-    assert(op.getType().cast<MemRefType>().getShape()[0] ==
+    assert(op.getType().cast<MemRefType>().getShape().size() <= 2);
+    assert(op.getType().cast<MemRefType>().getShape().back() ==
            expr->getNumInits());
     for (size_t i = 0; i < expr->getNumInits(); ++i) {
       auto inite = Visit(expr->getInit(i)).getValue(builder);
       assert(inite.getType() ==
              op.getType().cast<MemRefType>().getElementType());
-      builder.create<mlir::memref::StoreOp>(loc, inite, op,
-                                            getConstantIndex(i));
+      SmallVector<mlir::Value> idxs;
+      if (op.getType().cast<MemRefType>().getShape().size() == 2)
+        idxs.push_back(getConstantIndex(0));
+      idxs.push_back(getConstantIndex(i));
+      builder.create<mlir::memref::StoreOp>(loc, inite, op, idxs);
     }
   }
   return ValueWithOffsets(op, true);
@@ -488,10 +491,10 @@ MLIRScanner::VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr) {
 
 ValueWithOffsets MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
 
-  llvm::DenseMap<const VarDecl *, FieldDecl *> Captures;
+  llvm::DenseMap<const VarDecl *, FieldDecl *> InnerCaptures;
   FieldDecl *ThisCapture = nullptr;
 
-  expr->getLambdaClass()->getCaptureFields(Captures, ThisCapture);
+  expr->getLambdaClass()->getCaptureFields(InnerCaptures, ThisCapture);
 
   bool LLVMABI = false;
   mlir::Type t = Glob.getMLIRType(expr->getCallOperator()->getThisType());
@@ -513,29 +516,55 @@ ValueWithOffsets MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
   }
   auto op = createAllocOp(t, nullptr, /*memtype*/ 0, isArray, LLVMABI);
 
-  llvm::DenseMap<const VarDecl *, LambdaCaptureKind> CaptureKinds;
+  llvm::DenseMap<const VarDecl *, LambdaCaptureKind> InnerCaptureKinds;
   for (auto C : expr->getLambdaClass()->captures()) {
     if (C.capturesVariable()) {
-      CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
+      InnerCaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
     }
   }
 
-  for (auto pair : Captures) {
-    assert(params.find(pair.first) != params.end());
-    assert(CaptureKinds.find(pair.first) != CaptureKinds.end());
+  for (auto pair : InnerCaptures) {
+    ValueWithOffsets result;
+
+    if (params.find(pair.first) != params.end()) {
+        result = params[pair.first];
+    } else {
+      if (auto VD = dyn_cast<VarDecl>(pair.first)) {
+        if (Captures.find(VD) != Captures.end()) {
+          FieldDecl *field = Captures[VD];
+          result = CommonFieldLookup(
+              cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), field,
+              ThisVal.val);
+          assert(CaptureKinds.find(VD) != CaptureKinds.end());
+          if (CaptureKinds[VD] == LambdaCaptureKind::LCK_ByRef)
+            result = result.dereference(builder);
+          goto endp;
+        }
+      }
+        EmittingFunctionDecl->dump();
+        expr->dump();
+        function.dump();
+        llvm::errs() << "<pairs>\n";
+        for(auto p : params)
+            p.first->dump();
+        llvm::errs() << "</pairs>";
+        pair.first->dump();
+    }
+endp:
+    assert(InnerCaptureKinds.find(pair.first) != InnerCaptureKinds.end());
 
     bool isArray = false;
     Glob.getMLIRType(pair.second->getType(), &isArray);
 
-    if (CaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByCopy)
+    if (InnerCaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByCopy)
       CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
                         pair.second, op)
-          .store(builder, params[pair.first], isArray);
+          .store(builder, result, isArray);
     else {
-      assert(CaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByRef);
-      assert(params[pair.first].isReference);
+      assert(InnerCaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByRef);
+      assert(result.isReference);
 
-      auto val = params[pair.first].val;
+      auto val = result.val;
 
       if (auto mt = val.getType().dyn_cast<MemRefType>()) {
           auto shape = std::vector<int64_t>(mt.getShape());
@@ -4643,7 +4672,7 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   IfScope scope(*this);
   auto cond = Visit(stmt->getCond()).getValue(builder);
   assert(cond != nullptr);
-  SmallVector<int32_t> caseVals;
+  SmallVector<int64_t> caseVals;
 
   auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
   er.region().push_back(new Block());
@@ -4664,10 +4693,9 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     if (auto cses = dyn_cast<CaseStmt>(cse)) {
       auto &condB = *(new Block());
 
-      caseVals.push_back((int32_t)Visit(cses->getLHS())
+      caseVals.push_back(Visit(cses->getLHS())
                              .getValue(builder)
-                             .getDefiningOp<ConstantIntOp>()
-                             .getValue());
+                             .getDefiningOp<ConstantIntOp>().getValue());
 
       if (inCase) {
         auto noBreak =
@@ -4730,7 +4758,23 @@ ValueWithOffsets MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   DenseIntElementsAttr caseValuesAttr;
   ShapedType caseValueType = mlir::VectorType::get(
       static_cast<int64_t>(caseVals.size()), cond.getType());
-  caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals);
+  auto ity = cond.getType().cast<mlir::IntegerType>();
+  if (ity.getWidth() == 64)
+    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals);
+  else if (ity.getWidth() == 32) {
+    SmallVector<int32_t> caseVals32;
+    for(auto v : caseVals) caseVals32.push_back((int32_t)v);
+    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals32);
+  } else if (ity.getWidth() == 16) {
+    SmallVector<int16_t> caseVals16;
+    for(auto v : caseVals) caseVals16.push_back((int16_t)v);
+    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals16);
+  } else {
+    assert (ity.getWidth() == 8);
+    SmallVector<int8_t> caseVals8;
+    for(auto v : caseVals) caseVals8.push_back((int8_t)v);
+    caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals8);
+  }
 
   builder.setInsertionPointToStart(&er.region().front());
   builder.create<mlir::SwitchOp>(
@@ -5558,6 +5602,18 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
     return mlirty;
   }
+  if (auto CT = dyn_cast<clang::ComplexType>(qt)) {
+    bool assumeRef = false;
+    auto subType = getMLIRType(CT->getElementType(), &assumeRef, /*allowMerge*/false);
+    if (allowMerge) {
+        assert(!assumeRef);
+        if (implicitRef)
+          *implicitRef = true;
+        return mlir::MemRefType::get(2, subType);
+    }
+    mlir::Type types[2] = { subType, subType };
+    return mlir::LLVM::LLVMStructType::getLiteral(module.getContext(), types);
+  }
   if (auto RT = dyn_cast<clang::RecordType>(qt)) {
     llvm::StructType *ST =
         cast<llvm::StructType>(CGM.getTypes().ConvertType(qt));
@@ -5722,7 +5778,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         return LLVM::LLVMPointerType::get(subType);
     }
 
-    if (isa<clang::VectorType>(PTT)) {
+    if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
       if (subType.isa<MemRefType>()) {
         assert(subRef);
         auto mt = subType.cast<MemRefType>();
