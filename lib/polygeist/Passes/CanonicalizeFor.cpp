@@ -542,9 +542,6 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
 
   LogicalResult matchAndRewrite(WhileOp loop,
                                 PatternRewriter &rewriter) const override {
-    if (!isWhile(loop))
-      return failure();
-
     Value step = nullptr;
 
     struct LoopInfo {
@@ -625,6 +622,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         loopInfo.ub = cmpIOp.rhs();
         break;
       }
+      case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
         // TODO: f32 likely not always true.
         auto one = rewriter.create<ConstantOp>(
@@ -634,6 +632,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         loopInfo.ub = addIOp.getResult();
         break;
       }
+      case CmpIPredicate::uge:
       case CmpIPredicate::sge: {
         loopInfo.lb = cmpIOp.rhs();
         break;
@@ -641,9 +640,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::eq:
       case CmpIPredicate::sgt:
       case CmpIPredicate::ne:
-      case CmpIPredicate::ule:
       case CmpIPredicate::ugt:
-      case CmpIPredicate::uge: {
+                               {
         return failure();
       }
       }

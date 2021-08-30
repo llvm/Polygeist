@@ -1105,10 +1105,10 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
     auto truev = builder.create<mlir::ConstantOp>(
         loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
-    loops.push_back(
-        (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                      builder.create<mlir::memref::AllocaOp>(loc, type)});
-    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
+
+    LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
+                      builder.create<mlir::memref::AllocaOp>(loc, type)};
+    builder.create<mlir::memref::StoreOp>(loc, truev, lctx.noBreak);
 
     auto toadd = builder.getInsertionBlock()->getParent();
     auto &condB = *(new Block());
@@ -1136,7 +1136,7 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
         cond = builder.create<mlir::TruncateIOp>(loc, cond, ty);
       }
       auto nb = builder.create<mlir::memref::LoadOp>(
-          loc, loops.back().noBreak, std::vector<mlir::Value>());
+          loc, lctx.noBreak, std::vector<mlir::Value>());
       cond = builder.create<mlir::AndOp>(loc, cond, nb);
       builder.create<mlir::CondBranchOp>(loc, cond, &bodyB, &exitB);
     }
@@ -1144,10 +1144,11 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     builder.setInsertionPointToStart(&bodyB);
     builder.create<mlir::memref::StoreOp>(
         loc,
-        builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
+        builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
                                              std::vector<mlir::Value>()),
-        loops.back().keepRunning, std::vector<mlir::Value>());
+        lctx.keepRunning, std::vector<mlir::Value>());
 
+    loops.push_back(lctx);
     Visit(fors->getBody());
     if (auto s = fors->getInc()) {
       Visit(s);
@@ -5475,7 +5476,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if (StringRef(name).startswith("_ZNSt")) continue;
     if (StringRef(name).startswith("_ZN9__gnu")) continue;
 
-    if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
+    if ((emitIfFound.count("*") && name != "fpclassify" &&
          !fd->isStatic() && externLinkage) ||
         emitIfFound.count(name)) {
       if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
@@ -5540,7 +5541,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (StringRef(name).startswith("_ZNSt")) continue;
     if (StringRef(name).startswith("_ZN9__gnu")) continue;
 
-    if ((emitIfFound.count("*") && fd->getName() != "fpclassify" &&
+    if ((emitIfFound.count("*") && name != "fpclassify" &&
          !fd->isStatic() && externLinkage) ||
         emitIfFound.count(name)) {
       if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {

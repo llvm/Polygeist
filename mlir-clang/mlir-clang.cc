@@ -102,7 +102,7 @@ static cl::opt<std::string> cfunction("function",
 static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
 
-static cl::opt<bool> ToCPU("cpuify", cl::init(false),
+static cl::opt<std::string> ToCPU("cpuify", cl::init(""),
                            cl::desc("Convert to cpu"));
 
 static cl::opt<std::string> MArch("march", cl::init(""),
@@ -485,8 +485,11 @@ int main(int argc, char **argv) {
         if (ScalarReplacement)
           optPM.addPass(mlir::createAffineScalarReplacementPass());
       }
-      if (ToCPU)
-        optPM.addPass(polygeist::createCPUifyPass());
+      if (ToCPU == "continuation")
+        pm.addPass(polygeist::createBarrierRemovalContinuation());
+      else if (ToCPU.size() != 0)
+        optPM.addPass(polygeist::createCPUifyPass(ToCPU));
+      
       optPM.addPass(mlir::createCanonicalizerPass());
     }
     pm.addPass(mlir::createSymbolDCEPass());
