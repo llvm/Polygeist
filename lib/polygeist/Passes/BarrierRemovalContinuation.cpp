@@ -537,6 +537,8 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
 }
 
 static void createContinuations(FuncOp func) {
+  if (func->getNumRegions() == 0 || func.body().empty()) return;
+
   OpBuilder allocaBuilder(&func.body().front(), func.body().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
     Value storage = allocaBuilder.create<memref::AllocaOp>(
