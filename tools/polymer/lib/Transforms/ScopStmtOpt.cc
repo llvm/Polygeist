@@ -77,6 +77,7 @@ static Value findLastDefined(ValueRange values) {
   }
 
   assert(false);
+  return nullptr; // To make the compiler happy.
 }
 
 static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
@@ -114,7 +115,9 @@ static void projectAllOutExcept(FlatAffineConstraints &cst,
 }
 
 /// Calculate the lower bound and upper bound through affine apply, before the
-/// function is being called.
+/// memref.alloc function is being called.
+/// The memref will have the same iteration domain as the `numDims` innermost
+/// forOps. `numDims` specifies the dimensions of the target memref.
 static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
                           CallOp call, int numDims,
                           SmallVectorImpl<Value> &dims, OpBuilder &b) {
@@ -122,18 +125,22 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
 
   assert(static_cast<int>(forOps.size()) >= numDims);
 
+  // Get the indices of the target memref, which are the last `numDims` from the
+  // given `forOps` list.
   SetVector<mlir::Value> indices;
   for (size_t i = forOps.size() - numDims; i < forOps.size(); i++)
     indices.insert(forOps[i].getInductionVar());
 
-  SmallVector<Operation *, 4> enclosingOps{forOps.begin(), forOps.end()};
-
+  // Get the constraints imposed by the whole set of nested loops.
   FlatAffineConstraints cst;
+  SmallVector<Operation *, 4> enclosingOps{forOps.begin(), forOps.end()};
   assert(succeeded(getIndexSet(enclosingOps, &cst)));
 
   // Project out indices other than the innermost.
   projectAllOutExcept(cst, indices);
 
+  f.dump();
+  call.dump();
   BlockAndValueMapping mapping;
   mapping.map(f.getArguments(), call.getOperands());
 
@@ -191,15 +198,15 @@ static Value appendArgument(Value arg, FuncOp func, CallOp call, OpBuilder &b) {
 
 static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
                           Operation *op) {
-  // op->dump();
+  LLVM_DEBUG(op->dump());
 
   SmallVector<mlir::AffineForOp, 4> forOps;
   getLoopIVs(*op, &forOps);
 
-  assert(
-      forOps.size() >= 3 &&
-      "The given op to split should be enclosed in at least three affine.for");
-  int numDims = forOps.size() - 2;
+  // If the target operation is very deeply nested (level >= 3), we build a
+  // scratchpad of dims (total levels - 2), i.e., the scratchpad will be reused
+  // by the two outermost loops. Otherwise, its size is constantly 1.
+  int numDims = forOps.size() >= 3 ? forOps.size() - 2 : 1;
 
   // For now we focus on the innermost for loop.
   mlir::AffineForOp forOp = forOps.back();
@@ -207,6 +214,10 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
 
   SmallVector<mlir::Value, 4> memSizes;
   getMemRefSize(forOps, f, call, numDims, memSizes, b);
+
+  for (auto memSize : memSizes)
+    memSize.dump();
+
   // Since there is only one loop depth.
   MemRefType memType = MemRefType::get(SmallVector<int64_t>(numDims, -1),
                                        op->getResult(0).getType());
@@ -245,12 +256,12 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
                                 addrs);
 }
 
-static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
-  FuncOp func;
-  CallOp call;
+/// Find the target function and the op to split within it.
+/// The operation to be returned is the matched one for splitting. `parentFunc`
+/// will be set as the parent of the returned operation as well.
+static Operation *findToSplitStmt(ModuleOp m, FuncOp &parentFunc, int toSplit) {
   Operation *opToSplit;
 
-  // Find the target function and the op to split within it.
   bool found = false;
   m.walk([&](FuncOp f) {
     if (found)
@@ -262,20 +273,40 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
       if (op->hasAttr("scop.splittable") &&
           op->getAttrOfType<mlir::IntegerAttr>("scop.splittable").getInt() ==
               toSplit) {
-        func = f;
+        parentFunc = f;
         opToSplit = op;
         found = true;
       }
     });
   });
 
-  assert(found && "Given split ID cannot be found");
+  return opToSplit;
+}
+
+static CallOp findCallOpForFunc(ModuleOp m, FuncOp func) {
+  CallOp call;
 
   // Find the corresponding call op.
   m.walk([&](CallOp callOp) {
-    if (callOp.callee() == func.getName())
+    if (callOp.callee() == func.getName()) {
+      // TODO: implement the support for multiple calls.
+      assert(!call && "There should be only one call to the target function.");
       call = callOp;
+    }
   });
+
+  return call;
+}
+
+static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
+  FuncOp func; // where the statement to split is located in.
+  CallOp call; // the corresponding call to `func`.
+  Operation *opToSplit;
+
+  assert((opToSplit = findToSplitStmt(m, func, toSplit)) &&
+         "Given split ID cannot be found");
+  assert((call = findCallOpForFunc(m, func)) &&
+         "The call op for the target function should be found.");
 
   scopStmtSplit(m, b, func, call, opToSplit);
 }
@@ -295,6 +326,7 @@ struct ScopStmtSplitPass
     ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
+    // If to-split is empty, all the splittable statements will be split.
     if (toSplit.empty()) {
       m.walk([&](Operation *op) {
         if (op->hasAttr("scop.splittable")) {
@@ -306,6 +338,101 @@ struct ScopStmtSplitPass
 
     for (auto id : toSplit)
       scopStmtSplit(m, b, id);
+  }
+};
+} // namespace
+
+namespace {
+/// Finds the pattern of casting memref from static shape to dynamic shape,
+/// which will later be consumed by a function call, and rewrites that function
+/// as a new one that directly consumes the statically-shaped memref type.
+///
+/// Example:
+///    %0 = memref.alloca() : memref<10xf64>
+///    %1 = memref.cast %0 : memref<10xf64> to memref<?xf64>
+///    call @foo(%1) : (memref<?xf64>) -> ()
+///
+/// will be converted to:
+///
+///    %0 = memref.alloca() : memref<10xf64>
+///    call @foo(%0) : (memref<10xf64>) -> ()
+///
+struct RewriteScratchpadTypePass
+    : public mlir::PassWrapper<RewriteScratchpadTypePass,
+                               OperationPass<ModuleOp>> {
+
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    OpBuilder b(m.getContext());
+
+    SmallVector<std::pair<mlir::CallOp, BlockAndValueMapping>> worklist;
+
+    // Find the pattern.
+    m.walk([&](mlir::CallOp caller) {
+      // All the operands that are unranked memrefs.
+      SmallVector<Value> unranked;
+      for (auto operand : caller.getArgOperands())
+        if (MemRefType type = operand.getType().dyn_cast<MemRefType>())
+          if (!type.hasStaticShape())
+            unranked.push_back(operand);
+      if (unranked.empty())
+        return;
+
+      // Are they ALL cast from ranked memrefs?
+      if (!all_of(make_range(unranked.begin(), unranked.end()), [](Value val) {
+            return isa<memref::CastOp>(val.getDefiningOp());
+          }))
+        return;
+
+      // Get all the source, statically-shaped memrefs.
+      SmallVector<Value> sources;
+      transform(make_range(unranked.begin(), unranked.end()),
+                std::back_inserter(sources), [](Value val) {
+                  return cast<memref::CastOp>(val.getDefiningOp()).getOperand();
+                });
+
+      // Are ALL of the sources have static shapes?
+      if (!all_of(make_range(sources.begin(), sources.end()), [](Value val) {
+            return val.getType().cast<MemRefType>().hasStaticShape();
+          }))
+        return;
+
+      // Map from unranked operands to the ranked sources.
+      BlockAndValueMapping vmap;
+      vmap.map(unranked, sources);
+
+      worklist.push_back({caller, vmap});
+    });
+
+    // Process each work item.
+    for (auto item : worklist) {
+      CallOp caller;
+      BlockAndValueMapping vmap;
+      std::tie(caller, vmap) = item;
+
+      // Get the source, statically-shaped values and types for argument
+      // positions.
+      SmallDenseMap<int, Type> typeMap;
+      SmallDenseMap<int, Value> valueMap;
+      for (auto elem : enumerate(caller.getArgOperands()))
+        if (Value source = vmap.lookupOrNull(elem.value())) {
+          typeMap[elem.index()] = source.getType();
+          valueMap[elem.index()] = source;
+        }
+
+      FuncOp callee = cast<FuncOp>(m.lookupSymbol(caller.getCallee()));
+      Block &entryBlock = callee.getBlocks().front();
+
+      // Update entry block argument types.
+      for (auto &it : typeMap)
+        entryBlock.getArgument(it.first).setType(it.second);
+      // Update function type.
+      callee.setType(b.getFunctionType(entryBlock.getArgumentTypes(),
+                                       callee->getResultTypes()));
+      // Update caller operands.
+      for (auto &it : valueMap)
+        caller.setOperand(it.first, it.second);
+    }
   }
 };
 } // namespace
@@ -724,11 +851,17 @@ void polymer::registerScopStmtOptPasses() {
   PassRegistration<AnnotateHeuristicPass>(
       "annotate-heuristic",
       "Using the split heuristic to find split statements.");
-  PassRegistration<ScopStmtSplitPass>(
-      "scop-stmt-split", "Split a given set of splittable operations.");
   PassRegistration<UnifyScratchpadPass>(
       "unify-scratchpad", "Unify multiple scratchpads into a single one.");
 
+  PassPipelineRegistration<>(
+      "scop-stmt-split", "Split a given set of splittable operations.",
+      [](OpPassManager &pm) {
+        pm.addPass(std::make_unique<ScopStmtSplitPass>());
+        pm.addPass(createCanonicalizerPass());
+        pm.addPass(std::make_unique<RewriteScratchpadTypePass>());
+        pm.addPass(createCanonicalizerPass());
+      });
   PassPipelineRegistration<>(
       "heuristic-split", "Split by heuristics", [](OpPassManager &pm) {
         pm.addPass(std::make_unique<AnnotateHeuristicPass>());
