@@ -192,7 +192,11 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
   SmallVector<mlir::Value, 8> operands;
   for (mlir::Value operand : aMap.getOperands()) {
     mlir::Value origArg = findBlockArg(argMap.lookupOrDefault(operand));
-    assert(origArg != operand);
+    assert(origArg && "The original value cannot be found as a block argument "
+                      "of the top function. Try -canonicalize.");
+    assert(origArg != operand &&
+           "The found original value shouldn't be the same as the operand.");
+
     operands.push_back(origArg);
   }
 
