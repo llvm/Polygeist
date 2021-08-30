@@ -32,10 +32,8 @@ using namespace polygeist;
 /// Returns true if the given parallel op has a nested barrier op that is not
 /// nested in some other parallel op.
 static bool hasImmediateBarriers(scf::ParallelOp op) {
-  WalkResult result = op.walk([](Operation *nested) {
-    if (isa<scf::ParallelOp>(nested))
-      return WalkResult::skip();
-    if (isa<polygeist::BarrierOp>(nested))
+  WalkResult result = op.walk([op](polygeist::BarrierOp barrier) {
+    if (barrier->getParentOfType<scf::ParallelOp>() == op)
       return WalkResult::interrupt();
     return WalkResult::advance();
   });
@@ -110,9 +108,16 @@ static void splitBlocksWithBarrier(Region &region) {
 /// function.
 static LogicalResult splitBlocksWithBarrier(FuncOp function) {
   WalkResult result = function.walk([](scf::ParallelOp op) -> WalkResult {
-    if (op->getParentOfType<scf::ParallelOp>())
+    if (!hasImmediateBarriers(op))
+      return success();
+
+    if (op->walk([op](scf::ParallelOp nested) {
+            return op == nested ? WalkResult::advance()
+                                : WalkResult::interrupt();
+          }).wasInterrupted()) {
       return op->emitError() << "nested parallel ops with barriers not "
                                 "supported (consider outlining)";
+    }
 
     splitBlocksWithBarrier(
         cast<scf::ExecuteRegionOp>(&op.getBody()->front()).region());
@@ -367,6 +372,19 @@ findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
 /// iteration writing a different element.
 static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
                     scf::ParallelOp parallel) {
+  // Check if a block exists in another subgraph than the given subgraph (there
+  // may be duplicates).
+  auto otherSubgraphContains = [&](const llvm::SetVector<Block *> &subgraph,
+                                   Block *block) {
+    for (const llvm::SetVector<Block *> &other : subgraphs) {
+      if (&other == &subgraph)
+        continue;
+      if (other.contains(block))
+        return true;
+    }
+    return false;
+  };
+
   // Find all values that are defined in one subgraph and used in another
   // subgraph. These will have to be communicated through memory.
   SmallVector<Value> valuesToStore;
@@ -374,7 +392,7 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
                          const llvm::SetVector<Block *> &subgraph) {
     for (Value value : values) {
       for (Operation *user : value.getUsers()) {
-        if (!subgraph.contains(user->getBlock())) {
+        if (otherSubgraphContains(subgraph, user->getBlock())) {
           valuesToStore.push_back(value);
           return;
         }
@@ -457,9 +475,9 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
 ///           // ^bb1
 ///           ^bb0:
 ///             br ^bb1
-///           // only the original entry block, which remains the entry block,
-///           // will have block arguments that correspond to old loop IVs
-///           // replace all uses of those with new IVs and drop them
+///           // only the original entry block will have block arguments that
+///           // correspond to old loop IVs replace all uses of those with new
+///           // IVs and drop them
 ///           ^bb1:
 ///             condbr .. ^bb2, ^bb3
 ///           ^bb2:
@@ -541,6 +559,9 @@ static void createContinuations(FuncOp func) {
 
   OpBuilder allocaBuilder(&func.body().front(), func.body().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
+    // Ignore parallel ops with no barriers.
+    if (!hasImmediateBarriers(parallel))
+      return;
     Value storage = allocaBuilder.create<memref::AllocaOp>(
         parallel.getLoc(), MemRefType::get({}, allocaBuilder.getIndexType()));
     createContinuations(parallel, storage);
