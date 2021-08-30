@@ -1,4 +1,5 @@
 add_mlir_dialect_library(MLIRPolygeist
+BarrierUtils.cpp
 Dialect.cpp
 Ops.cpp
 

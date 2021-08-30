@@ -32,7 +32,7 @@ def SCFCPUify : FunctionPass<"cpuify"> {
 
 def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation"> {
   let summary = "Remove scf.barrier using continuations";
-  let constructor = "mlir::createBarrierRemovalContinuation()";
+  let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect"];
 }
 
