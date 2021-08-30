@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LoopRestructure.cpp
   Mem2Reg.cpp
   ParallelLoopDistribute.cpp
+  BarrierRemovalContinuation.cpp
   RaiseToAffine.cpp
   ParallelLower.cpp
   TrivialUse.cpp
