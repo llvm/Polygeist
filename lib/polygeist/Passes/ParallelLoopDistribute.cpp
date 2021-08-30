@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -20,6 +21,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "polygeist/Ops.h"
+#include "polygeist/BarrierUtils.h"
 #include "polygeist/Passes/Passes.h"
 
 #define DEBUG_TYPE "cpuify"
@@ -182,22 +184,6 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
     return success();
   }
 };
-
-/// Emits the IR  computing the total number of iterations in the loop. We don't
-/// need to linearize them since we can allocate an nD array instead.
-static llvm::SmallVector<Value> emitIterationCounts(PatternRewriter &rewriter,
-                                                    scf::ParallelOp op) {
-  SmallVector<Value> iterationCounts;
-  for (auto bounds : llvm::zip(op.lowerBound(), op.upperBound(), op.step())) {
-    Value lowerBound = std::get<0>(bounds);
-    Value upperBound = std::get<1>(bounds);
-    Value step = std::get<2>(bounds);
-    Value diff = rewriter.create<SubIOp>(op.getLoc(), upperBound, lowerBound);
-    Value count = rewriter.create<SignedCeilDivIOp>(op.getLoc(), diff, step);
-    iterationCounts.push_back(count);
-  }
-  return iterationCounts;
-}
 
 /// Returns `true` if the loop has a form expected by interchange patterns.
 static bool isNormalized(scf::ParallelOp op) {
@@ -543,32 +529,6 @@ findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
   llvm::append_range(operands, op.upperBound());
   llvm::append_range(operands, op.step());
   return findNearestPostDominatingInsertionPoint(operands, postDominanceInfo);
-}
-
-template<typename T>
-static T allocateTemporaryBuffer(PatternRewriter &rewriter, Value value,
-                                     ValueRange iterationCounts) {
-  SmallVector<int64_t> bufferSize(iterationCounts.size(),
-                                  ShapedType::kDynamicSize);
-  mlir::Type ty = value.getType();
-  if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
-      auto mt = allocaOp.getType();
-      bool hasDynamicSize = false;
-      for(auto s : mt.getShape()) {
-          if (s == ShapedType::kDynamicSize) {
-              hasDynamicSize = true;
-              break;
-          }
-      }
-      if (!hasDynamicSize) {
-          for(auto s : mt.getShape()) {
-              bufferSize.push_back(s);
-          }
-          ty = mt.getElementType();
-      }
-  }
-  auto type = MemRefType::get(bufferSize, ty);
-  return rewriter.create<T>(value.getLoc(), type, iterationCounts);
 }
 
 /// Interchanges a parallel for loop with a while loop it contains. The while
@@ -974,19 +934,36 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 };
 
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
+  std::string method;
+  CPUifyPass(std::string method) : method(method) {}
   void runOnFunction() override {
-    OwningRewritePatternList patterns(&getContext());
-    patterns
-        .insert<Reg2MemFor, Reg2MemWhile, ReplaceIfWithFors, WrapForWithBarrier,
-                WrapWhileWithBarrier, InterchangeForPFor,
-                InterchangeForPForLoad, InterchangeWhilePFor, NormalizeLoop,
-                NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
-            &getContext());
-    GreedyRewriteConfig config;
-    config.maxIterations = 142;
-    if (failed(applyPatternsAndFoldGreedily(getFunction(), std::move(patterns),
-                                            config)))
-      signalPassFailure();
+    if (method == "distribute") {
+        OwningRewritePatternList patterns(&getContext());
+        patterns
+            .insert<Reg2MemFor, Reg2MemWhile, ReplaceIfWithFors, WrapForWithBarrier,
+                    WrapWhileWithBarrier, InterchangeForPFor,
+                    InterchangeForPForLoad, InterchangeWhilePFor, NormalizeLoop,
+                    NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
+                &getContext());
+        GreedyRewriteConfig config;
+        config.maxIterations = 142;
+        if (failed(applyPatternsAndFoldGreedily(getFunction(), std::move(patterns),
+                                                config)))
+          signalPassFailure();
+    } else if (method == "omp") {
+        SmallVector<polygeist::BarrierOp> toReplace;
+        getFunction().walk([&](polygeist::BarrierOp b) {
+            toReplace.push_back(b);
+        });
+        for (auto b : toReplace) {
+            OpBuilder Builder(b);
+            Builder.create<omp::BarrierOp>(b.getLoc());
+            b->erase();
+        }
+    } else {
+        llvm::errs() << "unknown cpuify type: " << method << "\n";
+        llvm_unreachable("unknown cpuify type");
+    }
   }
 };
 
@@ -994,8 +971,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createCPUifyPass() {
-  return std::make_unique<CPUifyPass>();
+std::unique_ptr<Pass> createCPUifyPass(std::string str) {
+  return std::make_unique<CPUifyPass>(str);
 }
 } // namespace polygeist
 } // namespace mlir
