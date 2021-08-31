@@ -2677,6 +2677,7 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                  "atoi",
                                  "malloc",
                                  "calloc",
+                                 "free",
                                  "fgets",
                                  "__assert_fail",
                                  "cudaEventElapsedTime",
