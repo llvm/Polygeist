@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include <queue>
+#include <unordered_set>
 #include <utility>
 
 #define DEBUG_TYPE "scop-stmt-opt"
@@ -435,6 +436,70 @@ struct RewriteScratchpadTypePass
     }
   }
 };
+} // namespace
+
+namespace {
+struct SinkScratchpadPass
+    : public mlir::PassWrapper<SinkScratchpadPass, OperationPass<ModuleOp>> {
+
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    OpBuilder b(m.getContext());
+
+    std::vector<std::pair<CallOp, std::unordered_set<unsigned>>> worklist;
+
+    m.walk([&](CallOp caller) {
+      FuncOp callee =
+          dyn_cast_or_null<FuncOp>(m.lookupSymbol(caller.getCallee()));
+      if (!callee)
+        return;
+
+      Block &entryBlock = callee.getBlocks().front();
+
+      OpBuilder::InsertionGuard g(b);
+      std::unordered_set<unsigned> argsToRemove;
+      b.setInsertionPointToStart(&entryBlock);
+      for (auto arg : enumerate(callee.getArguments())) {
+        if (auto allocaOp = dyn_cast<memref::AllocaOp>(
+                caller.getOperand(arg.index()).getDefiningOp())) {
+          // Replace internal use of the scratchpads by the new alloca results.
+          Operation *internalAllocaOp = b.clone(*allocaOp.getOperation());
+          arg.value().replaceAllUsesWith(internalAllocaOp->getResult(0));
+
+          // For later update.
+          argsToRemove.insert(arg.index());
+        }
+      }
+
+      worklist.push_back({caller, argsToRemove});
+    });
+
+    for (auto &item : worklist) {
+      CallOp caller;
+      std::unordered_set<unsigned> indices;
+      std::tie(caller, indices) = item;
+
+      FuncOp callee =
+          dyn_cast_or_null<FuncOp>(m.lookupSymbol(caller.getCallee()));
+      assert(callee);
+
+      // Remove the arguments.
+      for (int ind : indices)
+        callee.eraseArgument(ind);
+      b.setInsertionPointAfter(caller.getOperation());
+
+      SmallVector<Value> newArgs;
+      for (unsigned i = 0; i < (unsigned)caller.getNumOperands(); i++)
+        if (indices.find(i) == indices.end())
+          newArgs.push_back(caller.getOperand(i));
+
+      b.create<CallOp>(caller->getLoc(), callee, newArgs);
+
+      caller.erase();
+    }
+  }
+};
+
 } // namespace
 
 static bool isSplittable(Operation *op) {
@@ -860,6 +925,8 @@ void polymer::registerScopStmtOptPasses() {
         pm.addPass(std::make_unique<ScopStmtSplitPass>());
         pm.addPass(createCanonicalizerPass());
         pm.addPass(std::make_unique<RewriteScratchpadTypePass>());
+        pm.addPass(createCanonicalizerPass());
+        pm.addPass(std::make_unique<SinkScratchpadPass>());
         pm.addPass(createCanonicalizerPass());
       });
   PassPipelineRegistration<>(
