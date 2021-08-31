@@ -456,6 +456,7 @@ int main(int argc, char **argv) {
       mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
       optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(polygeist::createParallelLowerPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(polygeist::createMem2RegPass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
       optPM.addPass(mlir::createCanonicalizerPass());
@@ -485,11 +486,12 @@ int main(int argc, char **argv) {
         if (ScalarReplacement)
           optPM.addPass(mlir::createAffineScalarReplacementPass());
       }
-      if (ToCPU == "continuation")
-        pm.addPass(polygeist::createBarrierRemovalContinuation());
-      else if (ToCPU.size() != 0)
+      if (ToCPU == "continuation") {
+        optPM.addPass(polygeist::createBarrierRemovalContinuation());
+        //pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
+      } else if (ToCPU.size() != 0) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
-      
+      }
       optPM.addPass(mlir::createCanonicalizerPass());
     }
     pm.addPass(mlir::createSymbolDCEPass());
