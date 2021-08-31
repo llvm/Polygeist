@@ -1683,9 +1683,9 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
 
         if (arg.getType().isa<mlir::LLVM::LLVMPointerType>()) {
            auto callee = EmitCallee(expr->getCallee());
-           auto tocall = EmitDirectCallee(callee);
+           auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
            mlir::Value args[] = { arg };
-           builder.create<mlir::CallOp>(loc, tocall, args);
+           builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
         } else { 
           builder.create<mlir::memref::DeallocOp>(loc, arg);
         }
@@ -5214,6 +5214,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
   else
     name = CGM.getMangledName(FD).str();
+
+  assert(name != "free");
 
   llvm::GlobalValue::LinkageTypes LV;
   if (!FD->hasBody())
