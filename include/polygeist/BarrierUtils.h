@@ -41,27 +41,28 @@ static llvm::SmallVector<mlir::Value> emitIterationCounts(mlir::OpBuilder &rewri
 
 template<typename T>
 static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
-                                     mlir::ValueRange iterationCounts) {
+                                     mlir::ValueRange iterationCounts, bool alloca=true) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
                                   ShapedType::kDynamicSize);
   mlir::Type ty = value.getType();
-  if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
-      auto mt = allocaOp.getType();
-      bool hasDynamicSize = false;
-      for(auto s : mt.getShape()) {
-          if (s == ShapedType::kDynamicSize) {
-              hasDynamicSize = true;
-              break;
-          }
-      }
-      if (!hasDynamicSize) {
+  if (alloca)
+      if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
+          auto mt = allocaOp.getType();
+          bool hasDynamicSize = false;
           for(auto s : mt.getShape()) {
-              bufferSize.push_back(s);
+              if (s == ShapedType::kDynamicSize) {
+                  hasDynamicSize = true;
+                  break;
+              }
           }
-          ty = mt.getElementType();
+          if (!hasDynamicSize) {
+              for(auto s : mt.getShape()) {
+                  bufferSize.push_back(s);
+              }
+              ty = mt.getElementType();
+          }
       }
-  }
   auto type = MemRefType::get(bufferSize, ty);
   return rewriter.create<T>(value.getLoc(), type, iterationCounts);
 }

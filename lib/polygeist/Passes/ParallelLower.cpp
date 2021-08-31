@@ -324,6 +324,32 @@ void ParallelLower::runOnFunction() {
       bidx.erase();
     });
 
+    container.walk([&](AffineStoreOp storeOp) {
+          OpBuilder bz(storeOp);
+          auto map = storeOp.getAffineMap();
+          std::vector<Value> indices;
+          for (size_t i=0; i<map.getNumResults(); i++) {
+            auto apply = bz.create<AffineApplyOp>(storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
+            indices.push_back(apply->getResult(0));
+          }
+          bz.create<memref::StoreOp>(storeOp.getLoc(),
+                  storeOp.value(), storeOp.memref(), indices);
+          storeOp.erase();
+    });
+    
+    container.walk([&](AffineLoadOp storeOp) {
+          OpBuilder bz(storeOp);
+          auto map = storeOp.getAffineMap();
+          std::vector<Value> indices;
+          for (size_t i=0; i<map.getNumResults(); i++) {
+            auto apply = bz.create<AffineApplyOp>(storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
+            indices.push_back(apply->getResult(0));
+          }
+          storeOp.replaceAllUsesWith((mlir::Value)bz.create<memref::LoadOp>(
+                  storeOp.getLoc(), storeOp.memref(), indices));
+          storeOp.erase();
+    });
+
     launchOp.erase();
   });
 

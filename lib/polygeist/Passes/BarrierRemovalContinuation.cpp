@@ -76,7 +76,7 @@ static LogicalResult applyCFGConversion(FuncOp function) {
   target.addLegalDialect<StandardOpsDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addIllegalOp<scf::ForOp, scf::IfOp, scf::WhileOp>();
-  target.addLegalOp<scf::ExecuteRegionOp>();
+  target.addLegalOp<scf::ExecuteRegionOp, FuncOp, ModuleOp>();
   target.addDynamicallyLegalOp<scf::ParallelOp>(
       [](scf::ParallelOp op) { return hasImmediateBarriers(op); });
 
@@ -371,7 +371,8 @@ findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
 /// elements as the surrounding `parallel` loop has iterations, with each
 /// iteration writing a different element.
 static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
-                    scf::ParallelOp parallel) {
+                    scf::ParallelOp parallel, OpBuilder& allocaBuilder,
+                    OpBuilder &freeBuilder) {
   // Check if a block exists in another subgraph than the given subgraph (there
   // may be duplicates).
   auto otherSubgraphContains = [&](const llvm::SetVector<Block *> &subgraph,
@@ -414,30 +415,53 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
   // mem2reg is expected to clean up the cases where a value is stored and
   // loaded back in the same block or subsequent blocks because there is no
   // guarantee that the block was not copied in another subgraph.
-  std::pair<Block *, Block::iterator> insertPoint =
-      findInsertionPointAfterLoopOperands(parallel);
-  OpBuilder allocaBuilder(insertPoint.first, insertPoint.second);
+
   OpBuilder accessBuilder(parallel.getContext());
   SmallVector<Value> iterationCounts =
       emitIterationCounts(allocaBuilder, parallel);
   for (Value value : valuesToStore) {
+    assert(!value.getDefiningOp<polygeist::SubIndexOp>());
     Value allocation =
-        allocateTemporaryBuffer<mlir::memref::AllocaOp>(allocaBuilder, value, iterationCounts);
+        allocateTemporaryBuffer<mlir::memref::AllocOp>(allocaBuilder, value, iterationCounts, /*alloca*/true);
+    /*
+    if (allocation.getType().cast<MemRefType>().getElementType().isa<MemRefType>()) {
+        llvm::errs() << " value: " << value << " alloc: " << allocation << "\n";
+        llvm_unreachable("bad allocation\n");
+    }
+    */
+    freeBuilder.create<memref::DeallocOp>(allocation.getLoc(), allocation);
     accessBuilder.setInsertionPointAfterValue(value);
-    auto store = accessBuilder.create<memref::StoreOp>(
-        value.getLoc(), value, allocation, parallel.getInductionVars());
+    Operation* store = nullptr;
+    if (!value.getDefiningOp<memref::AllocaOp>())
+      store = accessBuilder.create<memref::StoreOp>(
+          value.getLoc(), value, allocation, parallel.getInductionVars());
     llvm::SmallDenseMap<Operation *, Value, 4> reloadedCache;
     for (OpOperand &use : llvm::make_early_inc_range(value.getUses())) {
       if (use.getOwner() == store)
         continue;
 
-      Value &reloaded = reloadedCache[use.getOwner()];
-      if (!reloaded) {
-        accessBuilder.setInsertionPoint(use.getOwner());
-        reloaded = accessBuilder.create<memref::LoadOp>(
-            value.getLoc(), allocation, parallel.getInductionVars());
+      if (!value.getDefiningOp<memref::AllocaOp>()) {
+          Value &reloaded = reloadedCache[use.getOwner()];
+          if (!reloaded) {
+            accessBuilder.setInsertionPoint(use.getOwner());
+            reloaded = accessBuilder.create<memref::LoadOp>(
+                value.getLoc(), allocation, parallel.getInductionVars());
+          }
+          use.set(reloaded);
+      } else {
+            accessBuilder.setInsertionPoint(use.getOwner());
+              auto buf = allocation;
+              for (auto idx : parallel.getInductionVars()) {
+                  auto mt0 = buf.getType().cast<MemRefType>();
+                  std::vector<int64_t> shape(mt0.getShape());
+                  shape.erase(shape.begin());
+                  auto mt = MemRefType::get(shape, mt0.getElementType(),
+                                         mt0.getAffineMaps(), mt0.getMemorySpace());
+                  auto subidx = accessBuilder.create<polygeist::SubIndexOp>(allocation.getLoc(), mt, buf, idx);
+                  buf = subidx;
+              }
+              use.set(buf);
       }
-      use.set(reloaded);
     }
   }
 }
@@ -522,6 +546,13 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
   auto negOne = builder.create<ConstantIndexOp>(-1);
   builder.create<memref::StoreOp>(zero, storage);
   auto loop = builder.create<scf::WhileOp>(TypeRange(), ValueRange());
+  
+  SmallVector<llvm::SetVector<Block *>> subgraphs;
+  for (Block *block : startBlocks) {
+    traverseUntilBarrier(block, subgraphs.emplace_back());
+  }
+  OpBuilder allocBuilder(loop);
+  reg2mem(subgraphs, parallel, allocBuilder, builder);
 
   builder.createBlock(&loop.before(), loop.before().end());
   Value next = builder.create<memref::LoadOp>(storage);
@@ -538,12 +569,6 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
         builder.create<CmpIOp>(CmpIPredicate::eq, idValue, next);
   }
 
-  SmallVector<llvm::SetVector<Block *>> subgraphs;
-  for (Block *block : startBlocks) {
-    traverseUntilBarrier(block, subgraphs.emplace_back());
-  }
-
-  reg2mem(subgraphs, parallel);
 
   for (auto en : llvm::enumerate(subgraphs)) {
     emitContinuationCase(caseConditions[en.index()], storage, parallel,
@@ -568,29 +593,16 @@ static void createContinuations(FuncOp func) {
   });
 }
 
-static LogicalResult removeBarriers(ModuleOp module) {
-  for (FuncOp f : module.getOps<FuncOp>()) {
-    if (failed(convertToCFG(f)))
-      return failure();
-    if (failed(splitBlocksWithBarrier(f)))
-      return failure();
-    createContinuations(f);
-  }
-  return success();
-}
-
 namespace {
 struct BarrierRemoval
     : public SCFBarrierRemovalContinuationBase<BarrierRemoval> {
-  void runOnOperation() override {
-    ModuleOp module = dyn_cast<ModuleOp>(getOperation());
-    if (!module) {
-      getOperation()->emitError() << "expected a module";
-      signalPassFailure();
+  void runOnFunction() override {
+    auto f = getFunction();
+    if (failed(convertToCFG(f)))
       return;
-    }
-    if (failed(removeBarriers(module)))
-      signalPassFailure();
+    if (failed(splitBlocksWithBarrier(f)))
+      return;
+    createContinuations(f);
   }
 };
 } // namespace
