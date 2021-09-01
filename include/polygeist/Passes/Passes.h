@@ -14,6 +14,8 @@ std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
+std::unique_ptr<OperationPass<FuncOp>> createHoistAllocasPass();
+std::unique_ptr<OperationPass<FuncOp>> createAllocaToAllocPass();
 } // namespace polygeist
 } // namespace mlir
 

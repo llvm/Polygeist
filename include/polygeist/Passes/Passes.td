@@ -36,6 +36,16 @@ def SCFBarrierRemovalContinuation : FunctionPass<"barrier-removal-continuation">
   let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect"];
 }
 
+def AllocaToAlloc : FunctionPass<"alloca-to-alloc"> {
+  let summary = "Replace memref.alloca with memref.alloc";
+  let constructor = "mlir::polygeist::createAllocaToAlloc()";
+}
+
+def HoistAllocas : FunctionPass<"hoist-allocas"> {
+  let summary = "Hoist allocas out of regions";
+  let constructor = "mlir::polygeist::hoistAllocas()";
+}
+
 def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::createRaiseSCFToAffinePass()";

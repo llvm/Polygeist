@@ -488,6 +488,7 @@ int main(int argc, char **argv) {
       }
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
+        optPM.addPass(polygeist::createAllocaToAllocPass());
         //pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
       } else if (ToCPU.size() != 0) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
