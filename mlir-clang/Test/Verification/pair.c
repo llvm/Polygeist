@@ -17,7 +17,7 @@ int create() {
   return p2.a;
 }
 
-// CHECK:   builtin.func @create() -> i32 {
+// CHECK:   func @create() -> i32 {
 // CHECK-NEXT:     %c2_i32 = constant 2 : i32
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
@@ -31,7 +31,7 @@ int create() {
 // CHECK-NEXT:     %4 = affine.load %0[0, 0] : memref<1x2xi32>
 // CHECK-NEXT:     return %4 : i32
 // CHECK-NEXT:   }
-// CHECK:   builtin.func @byval(%arg0: memref<?x2xi32>, %arg1: i32, %arg2: memref<?x2xi32>) {
+// CHECK:   func @byval(%arg0: memref<?x2xi32>, %arg1: i32, %arg2: memref<?x2xi32>) {
 // CHECK-NEXT:     affine.store %arg1, %arg0[0, 1] : memref<?x2xi32>
 // CHECK-NEXT:     %0 = affine.load %arg0[0, 0] : memref<?x2xi32>
 // CHECK-NEXT:     affine.store %0, %arg2[0, 0] : memref<?x2xi32>
