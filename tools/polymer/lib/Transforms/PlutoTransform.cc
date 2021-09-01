@@ -101,9 +101,13 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
     dumpClastAfterPlutoStr = dumpClastAfterPluto.c_str();
 
   mlir::ModuleOp m = dyn_cast<mlir::ModuleOp>(f->getParentOp());
+  SmallVector<DictionaryAttr> argAttrs;
+  f.getAllArgAttrs(argAttrs);
+
   mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
       std::move(scop), m, dstTable, rewriter.getContext(), prog,
       dumpClastAfterPlutoStr));
+  g.setAllArgAttrs(argAttrs);
 
   pluto_context_free(context);
   return g;
