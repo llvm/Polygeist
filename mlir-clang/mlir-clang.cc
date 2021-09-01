@@ -489,12 +489,22 @@ int main(int argc, char **argv) {
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
         optPM.addPass(polygeist::createAllocaToAllocPass());
+        optPM.addPass(mlir::createCSEPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(polygeist::createMem2RegPass());
         //pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
       } else if (ToCPU.size() != 0) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
       }
       optPM.addPass(mlir::createCanonicalizerPass());
     }
+    pm.addPass(mlir::createCSEPass());
+    auto canonicalize = mlir::createCanonicalizerPass();
+    mlir::Pass *pass = canonicalize.get();
+    pm.addPass(std::move(canonicalize));
+    pm.enableIRPrinting(
+        [](mlir::Pass *, mlir::Operation *) { return false; },
+        [pass](mlir::Pass *p, mlir::Operation *) { return p == pass; });
     pm.addPass(mlir::createSymbolDCEPass());
 
     if (EmitLLVM || !EmitAssembly) {
