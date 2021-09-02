@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=caller %stdinclude | FileCheck %s
+// RUN: mlir-clang %s --function=caller %stdinclude -S | FileCheck %s
 
 #include <stdlib.h>
 
@@ -10,7 +10,7 @@ void caller(int size) {
     free(array);
 }
 
-// CHECK:  func @caller(%arg0: i32) {
+// CHECK:  func @caller(%arg0: i32)
 // CHECK-NEXT:    %c8 = constant 8 : index
 // CHECK-NEXT:    %0 = zexti %arg0 : i32 to i64
 // CHECK-NEXT:    %1 = index_cast %0 : i64 to index

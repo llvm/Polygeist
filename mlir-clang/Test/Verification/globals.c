@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_deriche -S | FileCheck %s
 
 int local;
 int local_init = 4;
@@ -16,7 +16,7 @@ void kernel_deriche() {
 // CHECK-DAG:   memref.global "private" @internal : memref<1xi32> = uninitialized
 // CHECK-DAG:   memref.global @local_init : memref<1xi32> = uninitialized
 // CHECK-DAG:   memref.global @local : memref<1xi32> = uninitialized
-// CHECK:   func @kernel_deriche() {
+// CHECK:   builtin.func @kernel_deriche()
 // CHECK-NEXT:     %0 = memref.get_global @local : memref<1xi32>
 // CHECK-NEXT:     %1 = memref.cast %0 : memref<1xi32> to memref<?xi32>
 // CHECK-NEXT:     %2 = memref.get_global @local_init : memref<1xi32>

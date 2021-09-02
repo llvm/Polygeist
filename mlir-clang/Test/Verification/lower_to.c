@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=foo | FileCheck %s
+// RUN: mlir-clang %s --function=foo -S | FileCheck %s
 
 #pragma lower_to(bar, "std.addf")
 extern float bar(float a, float b);

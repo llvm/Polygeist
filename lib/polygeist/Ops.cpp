@@ -340,14 +340,34 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
   }
 };
 
-void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                             MLIRContext *context) {
-  results
-      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
-          context);
-}
-  
-  LogicalResult selectOfSubIndexHack(SelectOp op, PatternRewriter &rewriter) {
+struct SelectOfCast : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cst1 = op.getTrueValue().getDefiningOp<memref::CastOp>();
+    if (!cst1)
+      return failure();
+
+    auto cst2 = op.getFalseValue().getDefiningOp<memref::CastOp>();
+    if (!cst2)
+      return failure();
+    
+    if (cst1.source().getType() != cst2.source().getType())
+      return failure();
+
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(), cst1.source(), cst2.source());
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), newSel);
+    return success();
+  }
+};
+
+struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
     auto cst1 = op.getTrueValue().getDefiningOp<SubIndexOp>();
     if (!cst1)
       return failure();
@@ -364,6 +384,14 @@ void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
     rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.getType(), newSel, newIdx);
     return success();
   }
+};
+
+void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  results
+      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView,
+              SelectOfCast, SelectOfSubIndex>(context);
+}
 
 Value Memref2PointerOp::getViewSource() { return source(); }
 

@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %stdinclude -S | FileCheck %s
 
 #include <stdio.h>
 #include <unistd.h>
@@ -11,11 +11,7 @@
 #   define N 2800
 
 /* Array initialization. */
-static
 void init_array (int path[N])
-{
-  //path[0][1] = 2;
-}
 
 int main()
 {
@@ -34,14 +30,11 @@ int main()
   return 0;
 }
 
-// CHECK:     func @main() -> i32 {
+// CHECK:     func @main() -> i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
 // CHECK-NEXT:     %0 = memref.alloc() : memref<2800xi32>
 // CHECK-NEXT:     %1 = memref.cast %0 : memref<2800xi32> to memref<?xi32>
 // CHECK-NEXT:     call @init_array(%1) : (memref<?xi32>) -> ()
 // CHECK-NEXT:     memref.dealloc %0 : memref<2800xi32>
 // CHECK-NEXT:     return %c0_i32 : i32
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func private @init_array(%arg0: memref<?xi32>) {
-// CHECK-NEXT:     return
 // CHECK-NEXT:   }
