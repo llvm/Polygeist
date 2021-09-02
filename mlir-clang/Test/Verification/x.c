@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_deriche | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_deriche -S | FileCheck %s
 
 int kernel_deriche(int x) {
     x++;
@@ -7,7 +7,7 @@ int kernel_deriche(int x) {
     return x;
 }
 
-// CHECK:  func @kernel_deriche(%arg0: i32) -> i32 {
+// CHECK:  func @kernel_deriche(%arg0: i32) -> i32
 // CHECK-DAG:     %c2_i32 = constant 2 : i32
 // CHECK-DAG:     %c4_i32 = constant 4 : i32
 // CHECK:     %0 = addi %arg0, %c4_i32 : i32

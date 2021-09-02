@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s polybench_alloc_data %stdinclude | FileCheck %s
+// RUN: mlir-clang %s polybench_alloc_data %stdinclude -S | FileCheck %s
 // XFAIL: *
 /**
  * This version is stamped on May 10, 2016

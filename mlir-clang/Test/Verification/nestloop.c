@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=init_array | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=init_array -S | FileCheck %s
 
 #include <stdio.h>
 #include <unistd.h>
@@ -19,7 +19,7 @@ void init_array (int path[10][10])
     }
 }
 
-// CHECK:   func @init_array(%arg0: memref<?x10xi32>) {
+// CHECK:   func @init_array(%arg0: memref<?x10xi32>)
 // CHECK-DAG:     %c1 = constant 1 : index
 // CHECK-DAG:     %c0 = constant 0 : index
 // CHECK-DAG:     %c10 = constant 10 : index

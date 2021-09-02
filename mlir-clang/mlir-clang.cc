@@ -45,17 +45,12 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
-static cl::opt<bool> NoFinalLink("c", cl::init(false),
-                              cl::desc("Emit llvm"));
-
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
 static cl::opt<bool> EmitAssembly("S", cl::init(false),
                               cl::desc("Emit Assembly"));
 
-static cl::opt<bool> fPIC("fPIC", cl::init(false),
-                              cl::desc("fPIC"));
 static cl::opt<bool> Opt0("O0", cl::init(false),
                               cl::desc("Opt level 0"));
 static cl::opt<bool> Opt1("O1", cl::init(false),
@@ -183,7 +178,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkArgs) {
+int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkArgs, bool LinkOMP) {
 
   using namespace clang;
   using namespace clang::driver;
@@ -206,7 +201,7 @@ int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkAr
   //Argv.push_back("-x");
   //Argv.push_back("ir");
   Argv.push_back(filename);
-  if (FOpenMP || SCFOpenMP)
+  if (LinkOMP)
     Argv.push_back("-fopenmp");
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
@@ -218,10 +213,6 @@ int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkAr
   if (Verbose) {
     Argv.push_back("-v");
   }
-  if (NoFinalLink)
-    Argv.push_back("-c");
-  if (fPIC)
-    Argv.push_back("-fPIC");
   if (CUDAGPUArch != "") {
     auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
     char *chars = (char *)malloc(a.length() + 1);
@@ -302,7 +293,9 @@ int main(int argc, char **argv) {
         if (ref == "-Wl,--start-group")
           linkOnly = true;
         if (!linkOnly) {
-          if (ref == "-L" || ref == "-l") {
+          if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize")) {
+            LinkageArgs.push_back(argv[i]);
+          } else if (ref == "-L" || ref == "-l") {
             LinkageArgs.push_back(argv[i]);
             i++;
             LinkageArgs.push_back(argv[i]);
@@ -390,6 +383,7 @@ int main(int argc, char **argv) {
     llvm::errs() << "</immediate: mlir>\n";
   }
 
+  bool LinkOMP = false;
   pm.enableVerifier(false);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
@@ -510,6 +504,9 @@ int main(int argc, char **argv) {
         module->dump();
         return 4;
       }
+      module.walk([&](mlir::omp::ParallelOp) {
+        LinkOMP = true;
+      });
       mlir::PassManager pm3(&context);
       pm3.addPass(mlir::createLowerToCFGPass());
       LowerToLLVMOptions options(&context);
@@ -558,7 +555,7 @@ int main(int argc, char **argv) {
         out << *llvmModule << "\n";
         out.flush();
         }
-        int res = emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs);
+        int res = emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs, LinkOMP);
         if (tmpFile->discard()) {
             llvm::errs() << "Failed to erase temp file\n";
             return -1;

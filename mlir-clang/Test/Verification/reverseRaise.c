@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine -S | FileCheck %s
 
 #define DATA_TYPE double
 
@@ -15,7 +15,7 @@ void kernel_correlation(int start, int end) {
 }
 
 // CHECK:   #map = affine_map<()[s0] -> (s0 + 1)>
-// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: i32) {
+// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: i32)
 // CHECK-NEXT:     %0 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %1 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] {

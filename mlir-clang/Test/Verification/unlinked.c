@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine -S | FileCheck %s
 
 #define DATA_TYPE double
 
@@ -17,7 +17,7 @@ void kernel_correlation(int table[N][N]) {
   }
 }
 
-// CHECK:   func @kernel_correlation(%arg0: memref<?x10xi32>) {
+// CHECK:   func @kernel_correlation(%arg0: memref<?x10xi32>)
 // CHECK-NEXT:     %c9_i32 = constant 9 : i32
 // CHECK-NEXT:     affine.for %arg1 = 0 to 10 {
 // CHECK-NEXT:       %0 = index_cast %arg1 : index to i32

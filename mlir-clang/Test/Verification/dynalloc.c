@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=create_matrix | FileCheck %s
+// RUN: mlir-clang %s --function=create_matrix -S | FileCheck %s
 
 void create_matrix(float *m, int size){
   float coe[2*size-1];
@@ -8,7 +8,7 @@ void create_matrix(float *m, int size){
 
 }
 
-// CHECK:   func @create_matrix(%arg0: memref<?xf32>, %arg1: i32) {
+// CHECK:   func @create_matrix(%arg0: memref<?xf32>, %arg1: i32)
 // CHECK-NEXT:     %c-1 = constant -1 : index
 // CHECK-NEXT:     %c2 = constant 2 : index
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32

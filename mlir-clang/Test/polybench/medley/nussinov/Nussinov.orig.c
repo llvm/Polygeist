@@ -1,6 +1,6 @@
-// RUN: mlir-clang %s %stdinclude | FileCheck %s
-// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm | FileCheck %s --check-prefix EXEC
-// This test will fail until global variables are working
+// RUN: mlir-clang %s %stdinclude -S | FileCheck %s
+// RUN: mlir-clang %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm | FileCheck %s --check-prefix EXEC
+// requires loop restructure use after while fix
 // XFAIL: *
 /**
  * This version is stamped on May 10, 2016

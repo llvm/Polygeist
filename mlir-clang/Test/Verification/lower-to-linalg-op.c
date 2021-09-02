@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s | FileCheck %s
+// RUN: mlir-clang %s -S | FileCheck %s
 
 #pragma lower_to(copy_op, "linalg.copy") "input"(a), "output"(b)
 void copy_op(int b[3][3], int a[3][3]) {

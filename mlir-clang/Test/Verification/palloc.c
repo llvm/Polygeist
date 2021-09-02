@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=init_array | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=init_array -S | FileCheck %s
 
 #include <stdio.h>
 #include <unistd.h>
@@ -26,5 +26,3 @@ void init_array (int n)
 // CHECK-NEXT:    call @use(%1) : (memref<?xf64>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-
-// EXEC: {{[0-9]\.[0-9]+}}
