@@ -245,6 +245,8 @@ int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkAr
   const unique_ptr<Compilation> compilation(
       driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
 
+  if (ResourceDir != "")
+    driver->ResourceDir = ResourceDir;
   SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
   int Res = 0;
 
