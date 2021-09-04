@@ -12,7 +12,7 @@ int main() {
 }
 
 // CHECK:  memref.global @A : memref<64x32xf32>
-// CHECK:  builtin.func @main() -> i32
+// CHECK:  func @main() -> i32
 // CHECK-DAG:    %cst = constant 3.000000e+00 : f32
 // CHECK-DAG:    %c0_i32 = constant 0 : i32
 // CHECK-DAG:    %0 = memref.get_global @A : memref<64x32xf32>
