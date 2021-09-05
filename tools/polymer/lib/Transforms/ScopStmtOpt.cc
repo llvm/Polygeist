@@ -140,8 +140,6 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
   // Project out indices other than the innermost.
   projectAllOutExcept(cst, indices);
 
-  f.dump();
-  call.dump();
   BlockAndValueMapping mapping;
   mapping.map(f.getArguments(), call.getOperands());
 
@@ -216,9 +214,6 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
   SmallVector<mlir::Value, 4> memSizes;
   getMemRefSize(forOps, f, call, numDims, memSizes, b);
 
-  for (auto memSize : memSizes)
-    memSize.dump();
-
   // Since there is only one loop depth.
   MemRefType memType = MemRefType::get(SmallVector<int64_t>(numDims, -1),
                                        op->getResult(0).getType());
@@ -231,7 +226,6 @@ static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
 
   // Pass it into the target function.
   Value scrInFunc = appendArgument(scrAlloc->getResult(0), f, call, b);
-  // scrInFunc.dump();
 
   // Insert scratchpad read and write.
   b.setInsertionPointAfter(op);
@@ -446,7 +440,7 @@ struct SinkScratchpadPass
     ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
-    std::vector<std::pair<CallOp, std::unordered_set<unsigned>>> worklist;
+    std::vector<std::pair<CallOp, std::set<unsigned>>> worklist;
 
     m.walk([&](CallOp caller) {
       FuncOp callee =
@@ -457,11 +451,14 @@ struct SinkScratchpadPass
       Block &entryBlock = callee.getBlocks().front();
 
       OpBuilder::InsertionGuard g(b);
-      std::unordered_set<unsigned> argsToRemove;
+      std::set<unsigned> argsToRemove;
+
+      SmallVector<Value> argOperands = caller.getArgOperands();
+
       b.setInsertionPointToStart(&entryBlock);
       for (auto arg : enumerate(callee.getArguments())) {
         if (auto allocaOp = dyn_cast<memref::AllocaOp>(
-                caller.getOperand(arg.index()).getDefiningOp())) {
+                argOperands[arg.index()].getDefiningOp())) {
           // Replace internal use of the scratchpads by the new alloca results.
           Operation *internalAllocaOp = b.clone(*allocaOp.getOperation());
           arg.value().replaceAllUsesWith(internalAllocaOp->getResult(0));
@@ -476,15 +473,16 @@ struct SinkScratchpadPass
 
     for (auto &item : worklist) {
       CallOp caller;
-      std::unordered_set<unsigned> indices;
+      std::set<unsigned> indices;
       std::tie(caller, indices) = item;
 
       FuncOp callee =
           dyn_cast_or_null<FuncOp>(m.lookupSymbol(caller.getCallee()));
       assert(callee);
 
-      // Remove the arguments.
-      for (int ind : indices)
+      // Remove the arguments from back to the front.
+      SmallVector<unsigned> inds{indices.rbegin(), indices.rend()};
+      for (unsigned ind : inds)
         callee.eraseArgument(ind);
       b.setInsertionPointAfter(caller.getOperation());
 
