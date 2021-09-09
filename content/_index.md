@@ -38,9 +38,7 @@ Polygeist is composed of three pieces:
 
 For more information on Polygeist, please see:
 
-*   The Enzyme [getting started guide](/getting_started/)
-*   The Enzyme [mailing list](https://groups.google.com/d/forum/enzyme-dev) for any questions.
-*   Previous [talks](/talks/).
+*   The Polygeist [installation guide](/Installation/)
 
 ## Citing Polygeist
 
