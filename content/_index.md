@@ -30,8 +30,8 @@ By differentiating code after optimization, Enzyme is able to create substantial
 
 Polygeist is composed of three pieces:
 
-*   A C and C++ frontend enables entering the MLIR compilation pipeline from a broad range of existing code.
-*   A set of compilation passes to raise low-level C or C++ code to the Affine dialect in MLIR.
+*   A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.
+*   A set of compilation passes to raise SCF constructs to the Affine dialect.
 *   A set of compilation passes to have a bi-directional conversion between MLIR and OpenScop exchange format.
 
 ## More resources
