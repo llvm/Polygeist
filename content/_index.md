@@ -8,7 +8,6 @@ publishdate: 2018-11-23T15:26:15Z
 
 TODO
 
-The Enzyme project is a tool for performing reverse-mode automatic differentiation (AD) of statically-analyzable LLVM IR. This allows developers to use Enzyme to automatically create gradients of their source code without much additional work.
 
 ```c
 double foo(double);
@@ -45,12 +44,16 @@ For more information on Enzyme, please see:
 
 To cite Enzyme, please cite the following:
 ```
-@incollection{enzymeNeurips,
-title = {Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients},
-author = {Moses, William S. and Churavy, Valentin},
-booktitle = {Advances in Neural Information Processing Systems 33},
-year = {2020},
+@inproceedings{polygeistPACT,
+  title = {Polygeist: Raising C to Polyhedral MLIR},
+  author = {Moses, William S. and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
+  booktitle = {Proceedings of the ACM International Conference on Parallel Architectures and Compilation Techniques},
+  numpages = {12},
+  location = {Virtual Event},
+  series = {PACT '21},
+  publisher = {Association for Computing Machinery},
+  year = {2021},
+  address = {New York, NY, USA},
+  keywords = {Polygeist, MLIR, Polyhedral, LLVM, Compiler, C++, Pluto, Polly, OpenScop, Parallel, OpenMP, Affine, Raising, Transformation, Splitting, Automatic-Parallelization, Reduction, Polybench},
 }
 ```
-
-The original Enzyme is also avaiable as a preprint on [arXiv](https://arxiv.org/pdf/2010.01709.pdf).
