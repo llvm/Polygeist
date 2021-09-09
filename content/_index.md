@@ -6,7 +6,10 @@ publishdate: 2018-11-23T15:26:15Z
 
 # Polygeist Overview
 
-TODO
+Polygeist is a new compilation flow that connects the MLIR compiler
+infrastructure to cutting edge polyhedral optimization tools. Our goal with
+Polygeist is to connect decades of research in the polyhedral model to the new
+MLIR compiler infrastructure. 
 
 
 ```c
@@ -25,24 +28,23 @@ By differentiating code after optimization, Enzyme is able to create substantial
 
 ## Components
 
-Enzyme is composed of four pieces:
+Polygeist is composed of three pieces:
 
-*   An optional preprocessing phase which performs minor transformations that tend to be helpful for AD.
-*   A new interprocedural type analysis that deduces the underlying types of memory locations
-*   An activity analaysis that determines what instructions or values can impact the derivative computation (common in existing AD systems).
-*   An optimization pass which creates any required derivative functions, replacing calls to `__enzyme_autodiff` with the generated functions.
+*   A C and C++ frontend enables entering the MLIR compilation pipeline from a broad range of existing code.
+*   A set of compilation passes to raise low-level C or C++ code to the Affine dialect in MLIR.
+*   A set of compilation passes to have a bi-directional conversion between MLIR and OpenScop exchange format.
 
 ## More resources
 
-For more information on Enzyme, please see:
+For more information on Polygeist, please see:
 
 *   The Enzyme [getting started guide](/getting_started/)
 *   The Enzyme [mailing list](https://groups.google.com/d/forum/enzyme-dev) for any questions.
 *   Previous [talks](/talks/).
 
-## Citing Enzyme
+## Citing Polygeist
 
-To cite Enzyme, please cite the following:
+To cite Polygeist, please cite the following:
 ```
 @inproceedings{polygeistPACT,
   title = {Polygeist: Raising C to Polyhedral MLIR},
