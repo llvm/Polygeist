@@ -4,7 +4,7 @@ Enzyme AD</a></div></h1><p class=description>Polygeist MLIR Polyhedral Compiler 
 <a href=https://github.com/wsmoses/Polygeist>Github</a>
 .</p><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>git https://github.com/wsmoses/Polygeist.git
 <span class=nb>cd</span> Polygeist
-</code></pre></div><h2 id=building-enzyme>Building Enzyme</h2><p>Below two options to build Polygesit.</p><h3 id=option-1>Option 1</h3><ol><li>Build LLVM, MLIR and Clang</li></ol><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>mkdir llvm-project/build
+</code></pre></div><h2 id=building-polygeist>Building Polygeist</h2><p>Below two options to build Polygesit.</p><h3 id=option-1>Option 1</h3><ol><li>Build LLVM, MLIR and Clang</li></ol><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>mkdir llvm-project/build
 <span class=nb>cd</span> llvm-project/build
 cmake -G Ninja ../llvm <span class=se>\
 </span><span class=se></span>  -DLLVM_ENABLE_PROJECTS<span class=o>=</span><span class=s2>&#34;mlir;clang&#34;</span> <span class=se>\
