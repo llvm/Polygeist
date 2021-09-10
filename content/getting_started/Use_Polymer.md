@@ -13,7 +13,7 @@ Once you have the Polymer submodule cloned and installed, you would be able to f
 
 Then you could take the following code, which is a simple matrix multiplication implementation:
 
-```
+```mlir
 // File name: matmul.mlir
 func @matmul() {
   %A = alloc() : memref<64x64xf32>
@@ -46,7 +46,7 @@ And use the following command to schedule it -
 
 The internal Pluto scheduler will transform the code above and turn it into a tiled (by a factor of 32) version -
 
-```sh
+```mlir
 #map0 = affine_map<(d0) -> (d0 * 32)>
 #map1 = affine_map<(d0) -> (d0 * 32 + 31)>
 module  {
