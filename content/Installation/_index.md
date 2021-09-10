@@ -76,3 +76,24 @@ We can run Polygeist's unit tests by running the following command.
 ```sh
 ninja check-mlir-clang
 ```
+
+
+## Building Polygeist with Polymer
+
+[Polymer](https://github.com/kumasento/polymer) applies polyhedral scheduling on MLIR Affine code and transforms them automatically for better locality and parallelism.
+
+Polymer is a submodule to Polygeist, and you can build Polymer together with Polygeist.
+
+In order to do that, please make sure you have already sync-ed up the submodules by -
+
+```
+git submodule init
+git submodule update --recursive
+```
+
+And you should find Polymer under `mlir/tools/polymer`.
+
+Next, make sure you have the Polymer option `ON` when calling `cmake` `-DBUILD_POLYMER=ON`.
+
+
+
