@@ -18,7 +18,7 @@ git https://github.com/wsmoses/Polygeist.git
 cd Polygeist
 ```
 
-## Building Enzyme
+## Building Polygeist
 
 Below two options to build Polygesit.
 
