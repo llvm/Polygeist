@@ -5,23 +5,14 @@ draft: false
 weight: 100
 ---
 
-## Tech talks
 
-## Upcoming talks or presentations
-LAFI 2021 (colocated with POPL), [Enzyme: High-Performance Automatic Differentiation of LLVM](https://popl21.sigplan.org/details/lafi-2021-papers/4/Enzyme-High-Performance-Automatic-Differentiation-of-LLVM); William S. Moses, Valentin Churavy
+# Talks
 
-### About Enzyme
+* MLIR Open Dsign Meeting (11/02/2021) on Polygeist. [[slides](https://drive.google.com/file/d/1YJhPBpW77WX53Rxxt2TLbEhdbrOFwDy4/view?usp=sharing)] [[recording](https://drive.google.com/file/d/1P14UrXMlR6WbHR_YrSJVsb7h3cLdr5-h/view?usp=sharing)]
+* [LATTE '21](https://capra.cs.cornell.edu/latte21/) on Phism. [[recording](https://youtu.be/50UjVlDF1Us)]
 
-* NeurIPS 2020, [Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients](https://neurips.cc/virtual/2020/public/poster_9332c513ef44b682e9347822c2e457ac.html) ; William S. Moses, Valentin Churavy; [*SpotLight Presentation*](http://c.wsmoses.com/presentations/enzyme-neurips-10min.pdf); [Poster](http://c.wsmoses.com/posters/enzyme-neurips-poster.pdf)
+# Papers
 
-* LLVM Oct Dev Meeting 2020 [Enzyme: High-Performance Automatic Differentiation of LLVM](https://llvm.org/devmtg/2020-09/program/); William S. Moses, Valentin Churavy; [video](https://www.youtube.com/watch?v=auQNFDlaXdM); [poster](https://c.wsmoses.com/posters/Enzyme-llvmdev.pdf)
+* [Polygeist: Affine C in MLIR](https://acohen.gitlabpages.inria.fr/impact/impact2021/papers/IMPACT_2021_paper_1.pdf) at _IMPACT 2021_.
+* [Phism: Polyhedral HLS in MLIR](https://capra.cs.cornell.edu/latte21/paper/1.pdf) at _LATTE 2021 workshop_. This paper demonstrates an interesting way to leverage Polygeist for polyhedral HLS within the MLIR ecosystem.
 
-* arXiv Preprint [Instead of Rewriting Foreign Code for Machine Learning, Automatically Synthesize Fast Gradients](https://arxiv.org/pdf/2010.01709.pdf) ; William S. Moses, Valentin Churavy
-
-* EuroAD 2020 [Post-Optimization Automatic
-Differentiation by Synthesizing LLVM](http://www.autodiff.org/Docs/euroad/23rd%20EuroAd%20Workshop%20-%20William%20Moses%20-%20Post-Optimization%20Automatic%20Differentiation%20by%20Synthesizing%20LLVM.pdf) ; William S. Moses, Valentin Churavy
-
-* LANS Semniar at Argonne National Labs [Post-Optimization Automatic
-Differentiation by Synthesizing LLVM](https://www.anl.gov/event/postoptimization-automatic-differentiation-by-synthesizing-llvm) ; William S. Moses
-
-* EuroAD 2019 [Keynote: Efficient Cross-Platform AD by Synthesizing LLVM](http://www.autodiff.org/?module=Workshops&submenu=EuroAD%2F22%2Fprogramme) ; William S. Moses
