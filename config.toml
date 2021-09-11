@@ -1,6 +1,6 @@
 baseURL = "https://polygeist.mit.edu/"
 languageCode = "en-us"
-title = "Enzyme AD"
+title = "Polygeist"
 theme = "mlir"
 
 hasCJKLanguage = true
