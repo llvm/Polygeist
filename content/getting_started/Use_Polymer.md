@@ -5,8 +5,6 @@ draft: false
 weight: 10
 ---
 
-# How to use Polymer
-
 Once you have the Polymer submodule cloned and installed, you would be able to find `polymer-opt` under the `build/bin` directory (suppose your build directory is `build`).
 
 ## Simple matrix multiplication 
