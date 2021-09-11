@@ -9,7 +9,13 @@ publishdate: 2018-11-23T15:26:15Z
 Polygeist is a new compilation flow that connects the MLIR compiler
 infrastructure to cutting edge polyhedral optimization tools. Our goal with
 Polygeist is to connect decades of research in the polyhedral model to the new
-MLIR compiler infrastructure. 
+MLIR compiler infrastructure.
+
+Figure below shows Polygeist's pipeline
+
+<div style="padding:2em">
+<img src="/horizontal-1.png" width="500" align=center>
+</div> 
 
 The following shows a simple example where we use Polygesit to enter
 the MLIR lowering pipeline and raise the C code to the Affine dialect.
