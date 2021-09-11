@@ -3,7 +3,7 @@ gtag('js',new Date());gtag('config','G-SBS5VNKHC1');</script><style>:root{}</sty
 Enzyme AD</a></div></h1><p class=description>Polygeist MLIR Polyhedral Compiler for C/C++</p></header><div class=global-menu><nav><ul><li><a href>Community</a></li><li><a href=https://github.com/wsmoses/Polygeist>Source</a></li><li><a href=https://github.com/wsmoses/Polygeist/issues>Bugs</a></li><li><a href=/getting_started/Faq/>FAQ</a></li></ul></nav></div><div class=content-container><main><h1 id=polygeist-overview>Polygeist Overview</h1><p>Polygeist is a new compilation flow that connects the MLIR compiler
 infrastructure to cutting edge polyhedral optimization tools. Our goal with
 Polygeist is to connect decades of research in the polyhedral model to the new
-MLIR compiler infrastructure.</p><p>The following show a simple example where we use Polygesit to enter
+MLIR compiler infrastructure.</p><p>The following shows a simple example where we use Polygesit to enter
 the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>mlir-clang gemm.c --function<span class=o>=</span>matmul --raise-scf-to-affine
 
 <span class=sb>```</span>c
