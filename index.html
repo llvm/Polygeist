@@ -5,23 +5,21 @@ infrastructure to cutting edge polyhedral optimization tools. Our goal with
 Polygeist is to connect decades of research in the polyhedral model to the new
 MLIR compiler infrastructure.</p><p>The following shows a simple example where we use Polygesit to enter
 the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>mlir-clang gemm.c --function<span class=o>=</span>matmul --raise-scf-to-affine
-
-<span class=sb>```</span>c
-<span class=c1>#define N 200;</span>
-<span class=c1>#define M 300</span>
-<span class=c1>#define K 400</span>
-<span class=c1>#define DATA_TYPE float</span>
-
-void matmul<span class=o>(</span>DATA_TYPE A<span class=o>[</span>N<span class=o>][</span>K<span class=o>]</span>, DATA_TYPE B<span class=o>[</span>K<span class=o>][</span>M<span class=o>]</span>, DATA_TYPE C<span class=o>[</span>N<span class=o>][</span>M<span class=o>])</span> <span class=o>{</span>
-  int i, j, k<span class=p>;</span>
-  <span class=k>for</span> <span class=o>(</span>int <span class=nv>i</span> <span class=o>=</span> 0<span class=p>;</span> i &lt; N<span class=p>;</span> i++<span class=o>)</span> <span class=o>{</span>
-    <span class=k>for</span> <span class=o>(</span>int <span class=nv>j</span> <span class=o>=</span> 0<span class=p>;</span> j &lt; M<span class=p>;</span> j++<span class=o>)</span> <span class=o>{</span>
-      <span class=k>for</span> <span class=o>(</span>int <span class=nv>k</span> <span class=o>=</span> 0<span class=p>;</span> k &lt; K<span class=p>;</span> k++<span class=o>)</span> <span class=o>{</span>
-        C<span class=o>[</span>i<span class=o>][</span>j<span class=o>]</span> +<span class=o>=</span> A<span class=o>[</span>i<span class=o>][</span>k<span class=o>]</span> * B<span class=o>[</span>k<span class=o>][</span>j<span class=o>]</span><span class=p>;</span>
-      <span class=o>}</span>
-    <span class=o>}</span>
-  <span class=o>}</span>
-<span class=o>}</span>
+</code></pre></div><div class=highlight><pre class=chroma><code class=language-c data-lang=c><span class=cp>#define N 200;
+</span><span class=cp>#define M 300
+</span><span class=cp>#define K 400
+</span><span class=cp>#define DATA_TYPE float
+</span><span class=cp></span>
+<span class=kt>void</span> <span class=nf>matmul</span><span class=p>(</span><span class=n>DATA_TYPE</span> <span class=n>A</span><span class=p>[</span><span class=n>N</span><span class=p>][</span><span class=n>K</span><span class=p>],</span> <span class=n>DATA_TYPE</span> <span class=n>B</span><span class=p>[</span><span class=n>K</span><span class=p>][</span><span class=n>M</span><span class=p>],</span> <span class=n>DATA_TYPE</span> <span class=n>C</span><span class=p>[</span><span class=n>N</span><span class=p>][</span><span class=n>M</span><span class=p>])</span> <span class=p>{</span>
+  <span class=kt>int</span> <span class=n>i</span><span class=p>,</span> <span class=n>j</span><span class=p>,</span> <span class=n>k</span><span class=p>;</span>
+  <span class=k>for</span> <span class=p>(</span><span class=kt>int</span> <span class=n>i</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span> <span class=n>i</span> <span class=o>&lt;</span> <span class=n>N</span><span class=p>;</span> <span class=n>i</span><span class=o>++</span><span class=p>)</span> <span class=p>{</span>
+    <span class=k>for</span> <span class=p>(</span><span class=kt>int</span> <span class=n>j</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span> <span class=n>j</span> <span class=o>&lt;</span> <span class=n>M</span><span class=p>;</span> <span class=n>j</span><span class=o>++</span><span class=p>)</span> <span class=p>{</span>
+      <span class=k>for</span> <span class=p>(</span><span class=kt>int</span> <span class=n>k</span> <span class=o>=</span> <span class=mi>0</span><span class=p>;</span> <span class=n>k</span> <span class=o>&lt;</span> <span class=n>K</span><span class=p>;</span> <span class=n>k</span><span class=o>++</span><span class=p>)</span> <span class=p>{</span>
+        <span class=n>C</span><span class=p>[</span><span class=n>i</span><span class=p>][</span><span class=n>j</span><span class=p>]</span> <span class=o>+=</span> <span class=n>A</span><span class=p>[</span><span class=n>i</span><span class=p>][</span><span class=n>k</span><span class=p>]</span> <span class=o>*</span> <span class=n>B</span><span class=p>[</span><span class=n>k</span><span class=p>][</span><span class=n>j</span><span class=p>];</span>
+      <span class=p>}</span>
+    <span class=p>}</span>
+  <span class=p>}</span>
+<span class=p>}</span>
 </code></pre></div><div class=highlight><pre class=chroma><code class=language-mlir data-lang=mlir><span class=kt>func</span> <span class=nf>@matmul</span><span class=p>(</span><span class=nv>%arg0</span><span class=p>:</span> <span class=kt>memref</span><span class=p>&lt;</span><span class=m>?x400x</span><span class=k>f32</span><span class=p>&gt;,</span> <span class=nv>%arg1</span><span class=p>:</span> <span class=kt>memref</span><span class=p>&lt;</span><span class=m>?x300x</span><span class=k>f32</span><span class=p>&gt;,</span> <span class=nv>%arg2</span><span class=p>:</span> <span class=kt>memref</span><span class=p>&lt;</span><span class=m>?x300x</span><span class=k>f32</span><span class=p>&gt;)</span> <span class=p>{</span>
   affine<span class=p>.</span>for <span class=nv>%arg3</span> <span class=p>=</span> <span class=m>0</span> to <span class=m>200</span> <span class=p>{</span>
     affine<span class=p>.</span>for <span class=nv>%arg4</span> <span class=p>=</span> <span class=m>0</span> to <span class=m>300</span> <span class=p>{</span>
