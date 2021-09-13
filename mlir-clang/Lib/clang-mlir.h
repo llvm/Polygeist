@@ -25,8 +25,8 @@
 #include "pragmaHandler.h"
 #include "llvm/IR/DerivedTypes.h"
 
-#include "../../llvm-project/clang/lib/CodeGen/CGRecordLayout.h"
-#include "../../llvm-project/clang/lib/CodeGen/CodeGenModule.h"
+#include "clang/../../lib/CodeGen/CGRecordLayout.h"
+#include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
 using namespace clang;
