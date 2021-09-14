@@ -14,7 +14,7 @@ weight: 5
 To start you should download Polygeist's code [Github](https://github.com/wsmoses/Polygeist).
 
 ```sh
-git clone https://github.com/wsmoses/Polygeist.git
+git clone --recursive https://github.com/wsmoses/Polygeist.git
 cd Polygeist
 ```
 
