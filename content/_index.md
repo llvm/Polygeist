@@ -14,7 +14,7 @@ MLIR compiler infrastructure.
 Figure below shows Polygeist's pipeline
 
 <div style="padding:2em">
-<img src="/horizontal-1.png" width="500" align=center>
+<img src="/horizontal-1.svg" width="500" align=center>
 </div> 
 
 The following shows a simple example where we use Polygesit to enter
