@@ -640,8 +640,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::eq:
       case CmpIPredicate::sgt:
       case CmpIPredicate::ne:
-      case CmpIPredicate::ugt:
-                               {
+      case CmpIPredicate::ugt: {
         return failure();
       }
       }

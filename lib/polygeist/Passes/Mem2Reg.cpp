@@ -882,18 +882,20 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           for (auto pair : llvm::enumerate(op.caseDestinations())) {
             if (pair.value() == block) {
-              auto pval2 = op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
+              auto pval2 =
+                  op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
               if (pval2 != blockArg) {
-                  if (pval == nullptr)
-                    pval = pval2;
-                  else if (pval != pval2) {
-                    legal = false;
-                    break;
-                  }
+                if (pval == nullptr)
+                  pval = pval2;
+                else if (pval != pval2) {
+                  legal = false;
+                  break;
+                }
               }
             }
           }
-          if (legal == false) break;
+          if (legal == false)
+            break;
         } else {
           llvm::errs() << *pred->getParent()->getParentOp() << "\n";
           pred->dump();

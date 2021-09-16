@@ -9,12 +9,12 @@
 #ifndef MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
 #define MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
 
-#include "mlir/IR/Block.h"
-#include "llvm/ADT/SetVector.h"
-#include "polygeist/Ops.h"
-#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/Block.h"
+#include "polygeist/Ops.h"
+#include "llvm/ADT/SetVector.h"
 
 void findValuesUsedBelow(mlir::polygeist::BarrierOp barrier,
                          llvm::SetVector<mlir::Value> &crossing);
@@ -24,8 +24,8 @@ findInsertionPointAfterLoopOperands(mlir::scf::ParallelOp op);
 
 /// Emits the IR  computing the total number of iterations in the loop. We don't
 /// need to linearize them since we can allocate an nD array instead.
-static llvm::SmallVector<mlir::Value> emitIterationCounts(mlir::OpBuilder &rewriter,
-                                                    mlir::scf::ParallelOp op) {
+static llvm::SmallVector<mlir::Value>
+emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   using namespace mlir;
   SmallVector<Value> iterationCounts;
   for (auto bounds : llvm::zip(op.lowerBound(), op.upperBound(), op.step())) {
@@ -39,32 +39,32 @@ static llvm::SmallVector<mlir::Value> emitIterationCounts(mlir::OpBuilder &rewri
   return iterationCounts;
 }
 
-template<typename T>
+template <typename T>
 static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
-                                     mlir::ValueRange iterationCounts, bool alloca=true) {
+                                 mlir::ValueRange iterationCounts,
+                                 bool alloca = true) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
                                   ShapedType::kDynamicSize);
   mlir::Type ty = value.getType();
   if (alloca)
-      if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
-          auto mt = allocaOp.getType();
-          bool hasDynamicSize = false;
-          for(auto s : mt.getShape()) {
-              if (s == ShapedType::kDynamicSize) {
-                  hasDynamicSize = true;
-                  break;
-              }
-          }
-          if (!hasDynamicSize) {
-              for(auto s : mt.getShape()) {
-                  bufferSize.push_back(s);
-              }
-              ty = mt.getElementType();
-          }
+    if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
+      auto mt = allocaOp.getType();
+      bool hasDynamicSize = false;
+      for (auto s : mt.getShape()) {
+        if (s == ShapedType::kDynamicSize) {
+          hasDynamicSize = true;
+          break;
+        }
       }
+      if (!hasDynamicSize) {
+        for (auto s : mt.getShape()) {
+          bufferSize.push_back(s);
+        }
+        ty = mt.getElementType();
+      }
+    }
   auto type = MemRefType::get(bufferSize, ty);
   return rewriter.create<T>(value.getLoc(), type, iterationCounts);
 }
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
-

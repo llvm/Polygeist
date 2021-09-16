@@ -9,8 +9,11 @@
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
+#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
@@ -20,12 +23,9 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
-#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
-#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/Support/CommandLine.h"
@@ -49,16 +49,12 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
 static cl::opt<bool> EmitAssembly("S", cl::init(false),
-                              cl::desc("Emit Assembly"));
+                                  cl::desc("Emit Assembly"));
 
-static cl::opt<bool> Opt0("O0", cl::init(false),
-                              cl::desc("Opt level 0"));
-static cl::opt<bool> Opt1("O1", cl::init(false),
-                              cl::desc("Opt level 1"));
-static cl::opt<bool> Opt2("O2", cl::init(false),
-                              cl::desc("Opt level 2"));
-static cl::opt<bool> Opt3("O3", cl::init(false),
-                              cl::desc("Opt level 3"));
+static cl::opt<bool> Opt0("O0", cl::init(false), cl::desc("Opt level 0"));
+static cl::opt<bool> Opt1("O1", cl::init(false), cl::desc("Opt level 1"));
+static cl::opt<bool> Opt2("O2", cl::init(false), cl::desc("Opt level 2"));
+static cl::opt<bool> Opt3("O3", cl::init(false), cl::desc("Opt level 3"));
 
 static cl::opt<bool> SCFOpenMP("scf-openmp", cl::init(true),
                                cl::desc("Emit llvm"));
@@ -98,7 +94,7 @@ static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
 
 static cl::opt<std::string> ToCPU("cpuify", cl::init(""),
-                           cl::desc("Convert to cpu"));
+                                  cl::desc("Convert to cpu"));
 
 static cl::opt<std::string> MArch("march", cl::init(""),
                                   cl::desc("Architecture"));
@@ -148,7 +144,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
 
   // This just needs to be some symbol in the binary; C++ doesn't
   // allow taking the address of ::main however.
-  void *P = (void*) (intptr_t) GetExecutablePath;
+  void *P = (void *)(intptr_t)GetExecutablePath;
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
 static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
@@ -178,7 +174,8 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   return 1;
 }
 
-int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkArgs, bool LinkOMP) {
+int emitBinary(char *Argv0, const char *filename,
+               SmallVectorImpl<char *> &LinkArgs, bool LinkOMP) {
 
   using namespace clang;
   using namespace clang::driver;
@@ -187,19 +184,19 @@ int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkAr
   // Buffer diagnostics from argument parsing so that we can output them using a
   // well formed diagnostic object.
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-    TextDiagnosticPrinter *DiagBuffer
-    = new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+  TextDiagnosticPrinter *DiagBuffer =
+      new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
 
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
 
   const char *binary = Argv0;
   const unique_ptr<Driver> driver(
-     new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
-    driver->CC1Main = &ExecuteCC1Tool;
+      new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
+  driver->CC1Main = &ExecuteCC1Tool;
   std::vector<const char *> Argv;
   Argv.push_back(Argv0);
-  //Argv.push_back("-x");
-  //Argv.push_back("ir");
+  // Argv.push_back("-x");
+  // Argv.push_back("ir");
   Argv.push_back(filename);
   if (LinkOMP)
     Argv.push_back("-fopenmp");
@@ -251,29 +248,28 @@ int emitBinary(char* Argv0, const char* filename, SmallVectorImpl<char*> &LinkAr
   int Res = 0;
 
   driver->ExecuteCompilation(*compilation, FailingCommands);
-      for (const auto &P : FailingCommands) {
-      int CommandRes = P.first;
-      const Command *FailingCommand = P.second;
-      if (!Res)
-        Res = CommandRes;
+  for (const auto &P : FailingCommands) {
+    int CommandRes = P.first;
+    const Command *FailingCommand = P.second;
+    if (!Res)
+      Res = CommandRes;
 
-      // If result status is < 0, then the driver command signalled an error.
-      // If result status is 70, then the driver command reported a fatal error.
-      // On Windows, abort will return an exit code of 3.  In these cases,
-      // generate additional diagnostic information if possible.
-      bool IsCrash = CommandRes < 0 || CommandRes == 70;
+    // If result status is < 0, then the driver command signalled an error.
+    // If result status is 70, then the driver command reported a fatal error.
+    // On Windows, abort will return an exit code of 3.  In these cases,
+    // generate additional diagnostic information if possible.
+    bool IsCrash = CommandRes < 0 || CommandRes == 70;
 #ifdef _WIN32
-      IsCrash |= CommandRes == 3;
+    IsCrash |= CommandRes == 3;
 #endif
-      if (IsCrash) {
-        driver->generateCompilationDiagnostics(*compilation, *FailingCommand);
-        break;
-      }
+    if (IsCrash) {
+      driver->generateCompilationDiagnostics(*compilation, *FailingCommand);
+      break;
     }
-        Diags.getClient()->finish();
+  }
+  Diags.getClient()->finish();
 
-    return Res;
-
+  return Res;
 }
 
 #include "Lib/clang-mlir.cc"
@@ -281,52 +277,54 @@ int main(int argc, char **argv) {
 
   if (argc >= 1) {
     if (std::string(argv[1]) == "-cc1") {
-        SmallVector<const char*> Argv;
-        for(int i=0; i<argc; i++) Argv.push_back(argv[i]);
-        return ExecuteCC1Tool(Argv);
+      SmallVector<const char *> Argv;
+      for (int i = 0; i < argc; i++)
+        Argv.push_back(argv[i]);
+      return ExecuteCC1Tool(Argv);
     }
   }
-  SmallVector<char*> LinkageArgs;
-  SmallVector<char*> MLIRArgs;
+  SmallVector<char *> LinkageArgs;
+  SmallVector<char *> MLIRArgs;
   {
-      bool linkOnly = false;
-      for (int i=0; i<argc; i++) {
-        StringRef ref(argv[i]);
-        if (ref == "-Wl,--start-group")
-          linkOnly = true;
-        if (!linkOnly) {
-          if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize")) {
-            LinkageArgs.push_back(argv[i]);
-          } else if (ref == "-L" || ref == "-l") {
-            LinkageArgs.push_back(argv[i]);
-            i++;
-            LinkageArgs.push_back(argv[i]);
-          } else if (ref.startswith("-L") || ref.startswith("-l") || ref.startswith("-Wl")) {
-            LinkageArgs.push_back(argv[i]);
-          } else if (ref == "-D" || ref == "-I") {
-            MLIRArgs.push_back(argv[i]);
-            i++;
-            MLIRArgs.push_back(argv[i]);
-          } else if (ref.startswith("-D")) {
-            MLIRArgs.push_back("-D");
-            MLIRArgs.push_back(&argv[i][2]);
-          } else if (ref.startswith("-I")) {
-            MLIRArgs.push_back("-I");
-            MLIRArgs.push_back(&argv[i][2]);
-          } else {
-            MLIRArgs.push_back(argv[i]);
-          }
-        } else {
+    bool linkOnly = false;
+    for (int i = 0; i < argc; i++) {
+      StringRef ref(argv[i]);
+      if (ref == "-Wl,--start-group")
+        linkOnly = true;
+      if (!linkOnly) {
+        if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize")) {
           LinkageArgs.push_back(argv[i]);
+        } else if (ref == "-L" || ref == "-l") {
+          LinkageArgs.push_back(argv[i]);
+          i++;
+          LinkageArgs.push_back(argv[i]);
+        } else if (ref.startswith("-L") || ref.startswith("-l") ||
+                   ref.startswith("-Wl")) {
+          LinkageArgs.push_back(argv[i]);
+        } else if (ref == "-D" || ref == "-I") {
+          MLIRArgs.push_back(argv[i]);
+          i++;
+          MLIRArgs.push_back(argv[i]);
+        } else if (ref.startswith("-D")) {
+          MLIRArgs.push_back("-D");
+          MLIRArgs.push_back(&argv[i][2]);
+        } else if (ref.startswith("-I")) {
+          MLIRArgs.push_back("-I");
+          MLIRArgs.push_back(&argv[i][2]);
+        } else {
+          MLIRArgs.push_back(argv[i]);
         }
-        if (ref == "-Wl,--end-group")
-          linkOnly = false;
+      } else {
+        LinkageArgs.push_back(argv[i]);
       }
+      if (ref == "-Wl,--end-group")
+        linkOnly = false;
+    }
   }
   using namespace mlir;
 
   int size = MLIRArgs.size();
-  char** data = MLIRArgs.data();
+  char **data = MLIRArgs.data();
   InitLLVM y(size, data);
   cl::ParseCommandLineOptions(size, data);
   assert(inputFileName.size());
@@ -430,22 +428,21 @@ int main(int argc, char **argv) {
 #define optPM optPM2
 #define pm pm2
     {
-    mlir::PassManager pm(&context);
-    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+      mlir::PassManager pm(&context);
+      mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
 
-    if (DetectReduction)
-      optPM.addPass(polygeist::detectReductionPass());
+      if (DetectReduction)
+        optPM.addPass(polygeist::detectReductionPass());
 
-    optPM.addPass(mlir::createCanonicalizerPass());
-    optPM.addPass(mlir::createCSEPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
 
-    pm.addPass(mlir::createInlinerPass());
-    if (mlir::failed(pm.run(module))) {
-      module.dump();
-      return 4;
+      pm.addPass(mlir::createInlinerPass());
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 4;
+      }
     }
-    }
-
 
     if (CudaLower) {
       mlir::PassManager pm(&context);
@@ -457,8 +454,8 @@ int main(int argc, char **argv) {
       optPM.addPass(polygeist::replaceAffineCFGPass());
       optPM.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createInlinerPass());
-      if (mlir::failed(pm.run(module))) {
-        module.dump();
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
         return 4;
       }
     }
@@ -484,7 +481,7 @@ int main(int argc, char **argv) {
       }
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
-        //pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
+        // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
       } else if (ToCPU.size() != 0) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
       }
@@ -506,9 +503,7 @@ int main(int argc, char **argv) {
         module->dump();
         return 4;
       }
-      module.walk([&](mlir::omp::ParallelOp) {
-        LinkOMP = true;
-      });
+      module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
       pm3.addPass(mlir::createLowerToCFGPass());
       LowerToLLVMOptions options(&context);
@@ -546,23 +541,25 @@ int main(int argc, char **argv) {
     llvmModule->setDataLayout(DL);
     llvmModule->setTargetTriple(triple.getTriple());
     if (!EmitAssembly) {
-        auto tmpFile = llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
-        if (!tmpFile) {
-            llvm::errs() << "Failed to create temp file\n";
-            return -1;
-        }
-        std::error_code EC;
-        {
-        llvm::raw_fd_ostream out(tmpFile->FD, /*shouldClose*/false);
+      auto tmpFile =
+          llvm::sys::fs::TempFile::create("/tmp/intermediate%%%%%%%.ll");
+      if (!tmpFile) {
+        llvm::errs() << "Failed to create temp file\n";
+        return -1;
+      }
+      std::error_code EC;
+      {
+        llvm::raw_fd_ostream out(tmpFile->FD, /*shouldClose*/ false);
         out << *llvmModule << "\n";
         out.flush();
-        }
-        int res = emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs, LinkOMP);
-        if (tmpFile->discard()) {
-            llvm::errs() << "Failed to erase temp file\n";
-            return -1;
-        }
-        return res;
+      }
+      int res =
+          emitBinary(argv[0], tmpFile->TmpName.c_str(), LinkageArgs, LinkOMP);
+      if (tmpFile->discard()) {
+        llvm::errs() << "Failed to erase temp file\n";
+        return -1;
+      }
+      return res;
     } else if (Output == "-") {
       llvm::outs() << *llvmModule << "\n";
     } else {

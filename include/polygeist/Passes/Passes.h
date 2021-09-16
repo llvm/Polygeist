@@ -1,5 +1,5 @@
-#include "mlir/Pass/Pass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
+#include "mlir/Pass/Pass.h"
 #include <memory>
 namespace mlir {
 namespace polygeist {
@@ -13,7 +13,8 @@ std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
-std::unique_ptr<Pass> createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
+std::unique_ptr<Pass>
+createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 } // namespace polygeist
 } // namespace mlir
 
