@@ -13,14 +13,14 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 
-#include "mlir/Conversion/LLVMCommon/Pattern.h"
-#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Analysis/DataLayoutAnalysis.h"
-#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
-#include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
+#include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
@@ -50,27 +50,30 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
     if (sourceMemRefType.getShape().size() != viewMemRefType.getShape().size())
-        return failure();
+      return failure();
 
-    
-    //MemRefDescriptor sourceMemRef(operands.front());
+    // MemRefDescriptor sourceMemRef(operands.front());
     SubIndexOp::Adaptor transformed(operands);
-    MemRefDescriptor targetMemRef(transformed.source());//MemRefDescriptor::undef(rewriter, loc, targetDescTy);
+    MemRefDescriptor targetMemRef(
+        transformed
+            .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
 
     // Offset.
     auto llvmIndexType = typeConverter->convertType(rewriter.getIndexType());
-    
+
     if (false) {
       Value baseOffset = targetMemRef.offset(rewriter, loc);
       Value stride = targetMemRef.stride(rewriter, loc, 0);
-      Value offset = transformed.index(); //rewriter.create<mlir::IndexCastOp>(loc, operands.back(), stride.getType());
+      Value offset = transformed.index();
       Value mul = rewriter.create<LLVM::MulOp>(loc, offset, stride);
       baseOffset = rewriter.create<LLVM::AddOp>(loc, baseOffset, mul);
       targetMemRef.setOffset(rewriter, loc, baseOffset);
     } else {
       Value prev = targetMemRef.alignedPtr(rewriter, loc);
       Value idxs[] = {transformed.index()};
-      targetMemRef.setAlignedPtr(rewriter, loc, rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs));
+      targetMemRef.setAlignedPtr(
+          rewriter, loc,
+          rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs));
     }
 
     rewriter.replaceOp(subViewOp, {targetMemRef});
@@ -78,7 +81,8 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   }
 };
 
-struct Memref2PointerOpLowering : public ConvertOpToLLVMPattern<Memref2PointerOp> {
+struct Memref2PointerOpLowering
+    : public ConvertOpToLLVMPattern<Memref2PointerOp> {
   using ConvertOpToLLVMPattern<Memref2PointerOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
@@ -86,13 +90,15 @@ struct Memref2PointerOpLowering : public ConvertOpToLLVMPattern<Memref2PointerOp
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
-    //MemRefDescriptor sourceMemRef(operands.front());
+    // MemRefDescriptor sourceMemRef(operands.front());
     SubIndexOp::Adaptor transformed(operands);
-    MemRefDescriptor targetMemRef(transformed.source());//MemRefDescriptor::undef(rewriter, loc, targetDescTy);
+    MemRefDescriptor targetMemRef(
+        transformed
+            .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
 
     // Offset.
     auto llvmIndexType = typeConverter->convertType(rewriter.getIndexType());
-    
+
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
@@ -104,7 +110,7 @@ struct Memref2PointerOpLowering : public ConvertOpToLLVMPattern<Memref2PointerOp
 };
 
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
-                                                  RewritePatternSet &patterns) {
+                                               RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<SubIndexOpLowering>(converter);
   patterns.add<Memref2PointerOpLowering>(converter);
