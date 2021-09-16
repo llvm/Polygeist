@@ -5219,23 +5219,18 @@ void MLIRScanner::popLoopIf() {
 class MLIRAction : public clang::ASTFrontendAction {
 public:
   std::set<std::string> emitIfFound;
-  std::set<std::string> done;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
-  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
-  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
-  std::map<std::string, mlir::FuncOp> functions;
-  std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
-  std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
+
   MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module)
       : module(module) {
     emitIfFound.insert(fn);
   }
+
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override {
-    return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
-        emitIfFound, done, llvmStringGlobals, globals, functions, llvmGlobals,
-        llvmFunctions, CI.getPreprocessor(), CI.getASTContext(), module,
-        CI.getSourceManager()));
+    return std::unique_ptr<clang::ASTConsumer>(
+        new MLIRASTConsumer(emitIfFound, CI.getPreprocessor(),
+                            CI.getASTContext(), module, CI.getSourceManager()));
   }
 };
 

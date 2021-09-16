@@ -300,12 +300,14 @@ struct ValueWithOffsets {
 
 struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &emitIfFound;
-  std::set<std::string> &done;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
-  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
-  std::map<std::string, mlir::FuncOp> &functions;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
-  std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
+
+  std::set<std::string> done;
+  std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
+  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
+  std::map<std::string, mlir::FuncOp> functions;
+  std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
+  std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
+
   Preprocessor &PP;
   ASTContext &astContext;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
@@ -322,19 +324,11 @@ struct MLIRASTConsumer : public ASTConsumer {
   LLVM::TypeFromLLVMIRTranslator typeTranslator;
   LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
 
-  MLIRASTConsumer(
-      std::set<std::string> &emitIfFound, std::set<std::string> &done,
-      std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
-      std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
-      std::map<std::string, mlir::FuncOp> &functions,
-      std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
-      std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
-      Preprocessor &PP, ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM)
-      : emitIfFound(emitIfFound), done(done),
-        llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmGlobals(llvmGlobals),
-        llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
+  MLIRASTConsumer(std::set<std::string> &emitIfFound, Preprocessor &PP,
+                  ASTContext &astContext,
+                  mlir::OwningOpRef<mlir::ModuleOp> &module,
+                  clang::SourceManager &SM)
+      : emitIfFound(emitIfFound), PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
         codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
