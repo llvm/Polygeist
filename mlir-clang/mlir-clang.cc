@@ -99,7 +99,7 @@ struct PtrElementModel
     : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
           PtrElementModel<T>, T> {};
 
-#include "Lib/clang-mlir.cc"
+#include "lib/clang-mlir.cc"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"

@@ -1,7 +1,7 @@
 add_clang_tool(mlir-clang
   mlir-clang.cc
-  Lib/utils.cc
-  Lib/pragmaHandler.cc
+  lib/utils.cc
+  lib/pragmaHandler.cc
 )
 
 target_include_directories(mlir-clang PRIVATE
@@ -48,4 +48,4 @@ target_link_libraries(mlir-clang PRIVATE
   clangSerialization
 )
 add_dependencies(mlir-clang MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
-add_subdirectory(Test)
+add_subdirectory(test)
