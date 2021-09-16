@@ -6,7 +6,7 @@ publishdate: 2018-11-23T15:26:15Z
 
 # Polygeist Overview
 
-Polygeist is a new compilation flow that connects the MLIR compiler
+Polygeist is a new C and C++ frontend and compilation flow that connects the MLIR compiler
 infrastructure to cutting edge polyhedral optimization tools. Our goal with
 Polygeist is to connect decades of research in the polyhedral model to the new
 MLIR compiler infrastructure.
@@ -14,14 +14,14 @@ MLIR compiler infrastructure.
 Figure below shows Polygeist's pipeline
 
 <div style="padding:2em">
-<img src="/horizontal-1.svg" width="500" align=center>
+<img src="/horizontal.svg" width="500" align=center>
 </div> 
 
 The following shows a simple example where we use Polygesit to enter
 the MLIR lowering pipeline and raise the C code to the Affine dialect.
 
 ```sh
-mlir-clang gemm.c --function=matmul --raise-scf-to-affine
+mlir-clang gemm.c --function=matmul --raise-scf-to-affine -S
 ```
 
 ```c
