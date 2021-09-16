@@ -96,6 +96,7 @@ struct Memref2PointerOpLowering
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
+    ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(), ptr);
 
     rewriter.replaceOp(op, {ptr});
     return success();
