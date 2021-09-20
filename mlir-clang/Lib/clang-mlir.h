@@ -16,6 +16,7 @@
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/PreprocessorOptions.h>
 
+#include "affineUtils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -43,41 +44,6 @@ using namespace mlir;
 struct LoopContext {
   mlir::Value keepRunning;
   mlir::Value noBreak;
-};
-
-struct AffineLoopDescriptor {
-private:
-  mlir::Value upperBound;
-  mlir::Value lowerBound;
-  int64_t step;
-  mlir::Type indVarType;
-  VarDecl *indVar;
-  bool forwardMode;
-
-public:
-  AffineLoopDescriptor()
-      : upperBound(nullptr), lowerBound(nullptr),
-        step(std::numeric_limits<int64_t>::max()), indVarType(nullptr),
-        indVar(nullptr), forwardMode(true){};
-  AffineLoopDescriptor(const AffineLoopDescriptor &) = delete;
-
-  void setLowerBound(mlir::Value value) { lowerBound = value; }
-  void setUpperBound(mlir::Value value) { upperBound = value; }
-
-  void setStep(int value) { step = value; };
-  void setType(mlir::Type type) { indVarType = type; }
-  void setName(VarDecl *value) { indVar = value; }
-
-  VarDecl *getName() const { return indVar; }
-  mlir::Type getType() const { return indVarType; }
-  int getStep() const { return step; }
-
-  auto getLowerBound() const { return lowerBound; }
-
-  auto getUpperBound() const { return upperBound; }
-
-  void setForwardMode(bool value) { forwardMode = value; };
-  bool getForwardMode() const { return forwardMode; }
 };
 
 struct ValueWithOffsets {
@@ -439,20 +405,24 @@ private:
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
-  bool isTrivialAffineLoop(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool isTrivialAffineLoop(clang::ForStmt *fors,
+                           mlirclang::AffineLoopDescriptor &descr);
 
-  bool getUpperBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getUpperBound(clang::ForStmt *fors,
+                     mlirclang::AffineLoopDescriptor &descr);
 
-  bool getLowerBound(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getLowerBound(clang::ForStmt *fors,
+                     mlirclang::AffineLoopDescriptor &descr);
 
-  bool getConstantStep(clang::ForStmt *fors, AffineLoopDescriptor &descr);
+  bool getConstantStep(clang::ForStmt *fors,
+                       mlirclang::AffineLoopDescriptor &descr);
 
   void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
-                       const AffineLoopDescriptor &descr);
+                       const mlirclang::AffineLoopDescriptor &descr);
 
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
-                           const AffineLoopDescriptor &descr);
+                           const mlirclang::AffineLoopDescriptor &descr);
   std::vector<Block *> prevBlock;
   std::vector<Block::iterator> prevIterator;
 

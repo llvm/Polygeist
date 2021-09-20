@@ -641,7 +641,7 @@ ValueWithOffsets MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
 }
 
 bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
-                                AffineLoopDescriptor &descr) {
+                                mlirclang::AffineLoopDescriptor &descr) {
   auto init = fors->getInit();
   if (auto declStmt = dyn_cast<DeclStmt>(init))
     if (declStmt->isSingleDecl()) {
@@ -701,7 +701,7 @@ bool matchIndvar(const Expr *expr, VarDecl *indVar) {
 }
 
 bool MLIRScanner::getUpperBound(clang::ForStmt *fors,
-                                AffineLoopDescriptor &descr) {
+                                mlirclang::AffineLoopDescriptor &descr) {
   auto cond = fors->getCond();
   if (auto binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
     auto lhs = binaryOp->getLHS();
@@ -740,7 +740,7 @@ bool MLIRScanner::getUpperBound(clang::ForStmt *fors,
 }
 
 bool MLIRScanner::getConstantStep(clang::ForStmt *fors,
-                                  AffineLoopDescriptor &descr) {
+                                  mlirclang::AffineLoopDescriptor &descr) {
   auto inc = fors->getInc();
   if (auto unaryOp = dyn_cast<clang::UnaryOperator>(inc))
     if (unaryOp->isPrefix() || unaryOp->isPostfix()) {
@@ -755,7 +755,7 @@ bool MLIRScanner::getConstantStep(clang::ForStmt *fors,
 }
 
 bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
-                                      AffineLoopDescriptor &descr) {
+                                      mlirclang::AffineLoopDescriptor &descr) {
   if (!getConstantStep(fors, descr)) {
     LLVM_DEBUG(dbgs() << "getConstantStep -> false\n");
     return false;
@@ -772,9 +772,9 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
   return true;
 }
 
-void MLIRScanner::buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
-                                      mlir::Value lb, mlir::Value ub,
-                                      const AffineLoopDescriptor &descr) {
+void MLIRScanner::buildAffineLoopImpl(
+    clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
+    const mlirclang::AffineLoopDescriptor &descr) {
   auto affineOp = builder.create<AffineForOp>(
       loc, lb, builder.getSymbolIdentityMap(), ub,
       builder.getSymbolIdentityMap(), descr.getStep(),
@@ -821,8 +821,9 @@ static bool isTerminator(Operation *op) {
   return op->mightHaveTrait<OpTrait::IsTerminator>();
 }
 
-void MLIRScanner::buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
-                                  const AffineLoopDescriptor &descr) {
+void MLIRScanner::buildAffineLoop(
+    clang::ForStmt *fors, mlir::Location loc,
+    const mlirclang::AffineLoopDescriptor &descr) {
   mlir::Value lb = descr.getLowerBound();
   mlir::Value ub = descr.getUpperBound();
   buildAffineLoopImpl(fors, loc, lb, ub, descr);
@@ -1100,7 +1101,7 @@ ValueWithOffsets MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
 
   auto loc = getMLIRLocation(fors->getForLoc());
 
-  AffineLoopDescriptor affineLoopDescr;
+  mlirclang::AffineLoopDescriptor affineLoopDescr;
   if (Glob.scopLocList.isInScop(fors->getForLoc()) &&
       isTrivialAffineLoop(fors, affineLoopDescr)) {
     buildAffineLoop(fors, loc, affineLoopDescr);
