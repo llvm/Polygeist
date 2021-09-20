@@ -16,6 +16,7 @@
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.cpp.inc"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
@@ -108,6 +109,26 @@ public:
   }
 };
 
+class CastOfSubIndex final : public OpRewritePattern<memref::CastOp> {
+public:
+  using OpRewritePattern<memref::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CastOp castOp,
+                                PatternRewriter &rewriter) const override {
+    auto subindexOp = castOp.source().getDefiningOp<SubIndexOp>();
+    if (!subindexOp)
+      return failure();
+
+    if (castOp.getType().cast<MemRefType>().getShape().size() !=
+        subindexOp.getType().cast<MemRefType>().getShape().size())
+      return failure();
+
+    rewriter.replaceOpWithNewOp<SubIndexOp>(
+        castOp, castOp.getType(), subindexOp.source(), subindexOp.index());
+    return success();
+  }
+};
+
 class SubIndex2 final : public OpRewritePattern<SubIndexOp> {
 public:
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
@@ -125,6 +146,14 @@ public:
         mt1.getShape().size() == mt0.getShape().size() + 1) {
       rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2, prevOp.source(),
                                               subViewOp.index());
+      return success();
+    }
+    if (mt0.getShape().size() == mt2.getShape().size() &&
+        mt1.getShape().size() == mt0.getShape().size()) {
+      rewriter.replaceOpWithNewOp<SubIndexOp>(
+          subViewOp, mt2, prevOp.source(),
+          rewriter.create<AddIOp>(prevOp.getLoc(), subViewOp.index(),
+                                  prevOp.index()));
       return success();
     }
     return failure();
@@ -253,6 +282,63 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
               storeOp, storeOp.value(), subindex.source(), indices);
           changed = true;
         }
+      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+        if (storeOp.memref() == subindex) {
+          if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
+              subindex.source()
+                  .getType()
+                  .cast<MemRefType>()
+                  .getShape()
+                  .size()) {
+
+            std::vector<Value> indices;
+            auto map = storeOp.getAffineMap();
+            indices.push_back(subindex.index());
+            for (size_t i = 0; i < map.getNumResults(); i++) {
+              auto apply = rewriter.create<AffineApplyOp>(
+                  storeOp.getLoc(), map.getSliceMap(i, 1),
+                  storeOp.getMapOperands());
+              indices.push_back(apply->getResult(0));
+            }
+
+            assert(subindex.source()
+                       .getType()
+                       .cast<MemRefType>()
+                       .getShape()
+                       .size() == indices.size());
+            rewriter.replaceOpWithNewOp<memref::StoreOp>(
+                storeOp, storeOp.value(), subindex.source(), indices);
+            changed = true;
+          }
+        }
+      } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+        if (storeOp.memref() == subindex) {
+          if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
+              subindex.source()
+                  .getType()
+                  .cast<MemRefType>()
+                  .getShape()
+                  .size()) {
+
+            std::vector<Value> indices;
+            auto map = storeOp.getAffineMap();
+            indices.push_back(subindex.index());
+            for (size_t i = 0; i < map.getNumResults(); i++) {
+              auto apply = rewriter.create<AffineApplyOp>(
+                  storeOp.getLoc(), map.getSliceMap(i, 1),
+                  storeOp.getMapOperands());
+              indices.push_back(apply->getResult(0));
+            }
+            assert(subindex.source()
+                       .getType()
+                       .cast<MemRefType>()
+                       .getShape()
+                       .size() == indices.size());
+            rewriter.replaceOpWithNewOp<memref::LoadOp>(
+                storeOp, subindex.source(), indices);
+            changed = true;
+          }
+        }
       }
     }
 
@@ -260,11 +346,60 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
   }
 };
 
+struct SelectOfCast : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cst1 = op.getTrueValue().getDefiningOp<memref::CastOp>();
+    if (!cst1)
+      return failure();
+
+    auto cst2 = op.getFalseValue().getDefiningOp<memref::CastOp>();
+    if (!cst2)
+      return failure();
+
+    if (cst1.source().getType() != cst2.source().getType())
+      return failure();
+
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+                                            cst1.source(), cst2.source());
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), newSel);
+    return success();
+  }
+};
+
+struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
+  using OpRewritePattern<SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    auto cst1 = op.getTrueValue().getDefiningOp<SubIndexOp>();
+    if (!cst1)
+      return failure();
+
+    auto cst2 = op.getFalseValue().getDefiningOp<SubIndexOp>();
+    if (!cst2)
+      return failure();
+
+    if (cst1.source().getType() != cst2.source().getType())
+      return failure();
+
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+                                            cst1.source(), cst2.source());
+    auto newIdx = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+                                            cst1.index(), cst2.index());
+    rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.getType(), newSel, newIdx);
+    return success();
+  }
+};
+
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
-  results
-      .insert<SubIndexOpMemRefCastFolder, SubIndex2, SubToCast, DeallocSubView>(
-          context);
+  results.insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2,
+                 SubToCast, DeallocSubView, SelectOfCast, SelectOfSubIndex>(
+      context);
 }
 
 Value Memref2PointerOp::getViewSource() { return source(); }

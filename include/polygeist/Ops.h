@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POLYGEISOPS_H
-#define BFV_BFVOPS_H
+#ifndef POLYGEISTOPS_H
+#define POLYGEISTOPS_H
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"

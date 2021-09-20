@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=alloc | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=alloc -S | FileCheck %s
 
 #include <time.h>
 #include <sys/time.h>
@@ -8,7 +8,7 @@ double alloc() {
   return Tp.tv_sec + Tp.tv_usec * 1.0e-6;
 }
 
-// CHECK:   func @alloc() -> f64 {
+// CHECK:   func @alloc() -> f64
 // CHECK-NEXT:     %cst = constant 9.9999999999999995E-7 : f64
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32

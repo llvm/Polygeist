@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -19,6 +20,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "polygeist/BarrierUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 
@@ -54,13 +56,21 @@ static void findValuesUsedBelow(Operation *op,
 }
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
-/// one of its regions.
+/// one of its regions, but not within any nested ParallelOp.
 static bool hasNestedBarrier(Operation *op, Operation *direct = nullptr) {
-  auto result = op->walk([=](polygeist::BarrierOp op) {
-    if (!direct || op->getParentOp() == direct)
+  auto result = op->walk([=](polygeist::BarrierOp barrier) {
+    if (!direct || barrier->getParentOp() == direct) {
+      // If there is a `parallel` op nested inside the given op (alternatively,
+      // the `parallel` op is not an ancestor of `op` or `op` itself), the
+      // barrier is considered nested in that `parallel` op and _not_ in `op`.
+      auto parallel = barrier->getParentOfType<scf::ParallelOp>();
+      if (!parallel->isAncestor(op))
+        return WalkResult::skip();
+
       return WalkResult::interrupt();
-    else
+    } else {
       return WalkResult::skip();
+    }
   });
   return result.wasInterrupted();
 }
@@ -96,7 +106,7 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
       return failure();
     }
 
-    if (!hasNestedBarrier(op, op)) {
+    if (!hasNestedBarrier(op)) {
       LLVM_DEBUG(DBGS() << "[if-to-for] no nested barrier\n");
       return failure();
     }
@@ -175,22 +185,6 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
   }
 };
 
-/// Emits the IR  computing the total number of iterations in the loop. We don't
-/// need to linearize them since we can allocate an nD array instead.
-static llvm::SmallVector<Value> emitIterationCounts(PatternRewriter &rewriter,
-                                                    scf::ParallelOp op) {
-  SmallVector<Value> iterationCounts;
-  for (auto bounds : llvm::zip(op.lowerBound(), op.upperBound(), op.step())) {
-    Value lowerBound = std::get<0>(bounds);
-    Value upperBound = std::get<1>(bounds);
-    Value step = std::get<2>(bounds);
-    Value diff = rewriter.create<SubIOp>(op.getLoc(), upperBound, lowerBound);
-    Value count = rewriter.create<SignedCeilDivIOp>(op.getLoc(), diff, step);
-    iterationCounts.push_back(count);
-  }
-  return iterationCounts;
-}
-
 /// Returns `true` if the loop has a form expected by interchange patterns.
 static bool isNormalized(scf::ParallelOp op) {
   auto isZero = [](Value v) {
@@ -255,7 +249,7 @@ struct NormalizeParallel : public OpRewritePattern<scf::ParallelOp> {
 /// Checks if `op` may need to be wrapped in a pair of barriers. This is a
 /// necessary but insufficient condition.
 static LogicalResult canWrapWithBarriers(Operation *op) {
-  if (!isa<scf::ParallelOp>(op->getParentOp())) {
+  if (!op->getParentOfType<scf::ParallelOp>()) {
     LLVM_DEBUG(DBGS() << "[wrap] not nested in a pfor\n");
     return failure();
   }
@@ -515,7 +509,7 @@ findNearestPostDominatingInsertionPoint(
 
 /// Returns the insertion point that post-dominates all `values`.
 static std::pair<Block *, Block::iterator>
-findNesrestPostDominatingInsertionPoint(
+findNearestPostDominatingInsertionPoint(
     ArrayRef<Value> values, const PostDominanceInfo &postDominanceInfo) {
   assert(!values.empty());
   std::pair<Block *, Block::iterator> insertPoint =
@@ -534,17 +528,7 @@ findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
   llvm::append_range(operands, op.lowerBound());
   llvm::append_range(operands, op.upperBound());
   llvm::append_range(operands, op.step());
-  return findNesrestPostDominatingInsertionPoint(operands, postDominanceInfo);
-}
-
-static Value allocateTemporaryBuffer(PatternRewriter &rewriter, Value value,
-                                     ValueRange iterationCounts) {
-  SmallVector<int64_t> bufferSize(iterationCounts.size(),
-                                  ShapedType::kDynamicSize);
-  auto type = MemRefType::get(bufferSize, value.getType());
-  Value alloc =
-      rewriter.create<memref::AllocaOp>(value.getLoc(), type, iterationCounts);
-  return alloc;
+  return findNearestPostDominatingInsertionPoint(operands, postDominanceInfo);
 }
 
 /// Interchanges a parallel for loop with a while loop it contains. The while
@@ -600,7 +584,7 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
           findInsertionPointAfterLoopOperands(op);
       rewriter.setInsertionPoint(insertionPoint.first, insertionPoint.second);
       SmallVector<Value> iterationCounts = emitIterationCounts(rewriter, op);
-      Value allocated = allocateTemporaryBuffer(
+      Value allocated = allocateTemporaryBuffer<memref::AllocaOp>(
           rewriter, conditionOp.condition(), iterationCounts);
       Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
 
@@ -620,6 +604,7 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
 
     rewriter.eraseOp(whileOp);
     rewriter.eraseOp(op);
+
     return success();
   }
 };
@@ -699,29 +684,33 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
       return failure();
     }
 
-    auto it =
-        llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
-          return isa<polygeist::BarrierOp>(nested);
-        });
-    if (it == op.getBody()->end()) {
-      LLVM_DEBUG(DBGS() << "[distribute] no barrier in the loop\n");
-      return failure();
+    Operation *barrier;
+    {
+      auto it =
+          llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
+            return isa<polygeist::BarrierOp>(nested);
+          });
+      if (it == op.getBody()->end()) {
+        LLVM_DEBUG(DBGS() << "[distribute] no barrier in the loop\n");
+        return failure();
+      }
+      barrier = &*it;
     }
 
     llvm::SetVector<Value> crossing;
-    findValuesUsedBelow(&*it, crossing);
-    std::pair<Block *, Block::iterator> insertPoint =
-        findInsertionPointAfterLoopOperands(op);
-
-    rewriter.setInsertionPoint(insertPoint.first, insertPoint.second);
+    findValuesUsedBelow(barrier, crossing);
+    // std::pair<Block *, Block::iterator> insertPoint =
+    //     findInsertionPointAfterLoopOperands(op);
+    // rewriter.setInsertionPoint(insertPoint.first, insertPoint.second);
+    rewriter.setInsertionPoint(op);
     SmallVector<Value> iterationCounts = emitIterationCounts(rewriter, op);
 
     // Allocate space for values crossing the barrier.
-    SmallVector<Value> allocations;
+    SmallVector<memref::AllocOp> allocations;
     allocations.reserve(crossing.size());
     for (Value v : crossing) {
-      allocations.push_back(
-          allocateTemporaryBuffer(rewriter, v, iterationCounts));
+      allocations.push_back(allocateTemporaryBuffer<memref::AllocOp>(
+          rewriter, v, iterationCounts));
     }
 
     // Store values crossing the barrier in caches immediately when ready.
@@ -729,12 +718,30 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
       Value v = std::get<0>(pair);
       Value alloc = std::get<1>(pair);
       rewriter.setInsertionPointAfter(v.getDefiningOp());
-      rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
-                                       op.getInductionVars());
+      if (auto ao = v.getDefiningOp<memref::AllocaOp>()) {
+        for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
+          rewriter.setInsertionPoint(u.getOwner());
+          auto buf = alloc;
+          for (auto idx : op.getInductionVars()) {
+            auto mt0 = buf.getType().cast<MemRefType>();
+            std::vector<int64_t> shape(mt0.getShape());
+            shape.erase(shape.begin());
+            auto mt =
+                MemRefType::get(shape, mt0.getElementType(),
+                                mt0.getAffineMaps(), mt0.getMemorySpace());
+            auto subidx = rewriter.create<polygeist::SubIndexOp>(alloc.getLoc(),
+                                                                 mt, buf, idx);
+            buf = subidx;
+          }
+          u.set(buf);
+        }
+      } else
+        rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
+                                         op.getInductionVars());
     }
 
     // Insert the terminator for the new loop immediately before the barrier.
-    rewriter.setInsertionPoint(&*it);
+    rewriter.setInsertionPoint(barrier);
     rewriter.create<scf::YieldOp>(op.getBody()->back().getLoc());
 
     // Create the second loop.
@@ -743,13 +750,17 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
         op.getLoc(), op.lowerBound(), op.upperBound(), op.step());
     rewriter.eraseOp(&newLoop.getBody()->back());
 
+    for (auto alloc : allocations)
+      rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
+
     // Recreate the operations in the new loop with new values.
     rewriter.setInsertionPointToStart(newLoop.getBody());
     BlockAndValueMapping mapping;
     mapping.map(op.getInductionVars(), newLoop.getInductionVars());
     SmallVector<Operation *> toDelete;
-    toDelete.push_back(&*it);
-    for (Operation *o = it->getNextNode(); o != nullptr; o = o->getNextNode()) {
+    toDelete.push_back(barrier);
+    for (Operation *o = barrier->getNextNode(); o != nullptr;
+         o = o->getNextNode()) {
       rewriter.clone(*o, mapping);
       toDelete.push_back(o);
     }
@@ -771,6 +782,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
 
         size_t pos = std::distance(crossing.begin(), it);
         rewriter.setInsertionPoint(nested);
+
         Value reloaded = rewriter.create<memref::LoadOp>(
             operand.getOwner()->getLoc(), allocations[pos],
             newLoop.getInductionVars());
@@ -873,8 +885,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     if (!hasNestedBarrier(op))
       return failure();
 
-    Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
-        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
+    // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
+    //     op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     SmallVector<Value> beforeAllocated, afterAllocated;
     allocaValues(op.getLoc(), op.getOperands(), zero, rewriter,
@@ -918,26 +930,42 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> results;
     loadValues(op.getLoc(), afterAllocated, zero, rewriter, results);
-    rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
+    // rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
     rewriter.replaceOp(op, results);
     return success();
   }
 };
 
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
+  std::string method;
+  CPUifyPass(std::string method) : method(method) {}
   void runOnFunction() override {
-    OwningRewritePatternList patterns(&getContext());
-    patterns
-        .insert<Reg2MemFor, Reg2MemWhile, ReplaceIfWithFors, WrapForWithBarrier,
-                WrapWhileWithBarrier, InterchangeForPFor,
-                InterchangeForPForLoad, InterchangeWhilePFor, NormalizeLoop,
-                NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
-            &getContext());
-    GreedyRewriteConfig config;
-    config.maxIterations = 42;
-    if (failed(applyPatternsAndFoldGreedily(getFunction(), std::move(patterns),
-                                            config)))
-      signalPassFailure();
+    if (method == "distribute") {
+      OwningRewritePatternList patterns(&getContext());
+      patterns
+          .insert<Reg2MemFor, Reg2MemWhile, ReplaceIfWithFors,
+                  WrapForWithBarrier, WrapWhileWithBarrier, InterchangeForPFor,
+                  InterchangeForPForLoad, InterchangeWhilePFor, NormalizeLoop,
+                  NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
+              &getContext());
+      GreedyRewriteConfig config;
+      config.maxIterations = 142;
+      if (failed(applyPatternsAndFoldGreedily(getFunction(),
+                                              std::move(patterns), config)))
+        signalPassFailure();
+    } else if (method == "omp") {
+      SmallVector<polygeist::BarrierOp> toReplace;
+      getFunction().walk(
+          [&](polygeist::BarrierOp b) { toReplace.push_back(b); });
+      for (auto b : toReplace) {
+        OpBuilder Builder(b);
+        Builder.create<omp::BarrierOp>(b.getLoc());
+        b->erase();
+      }
+    } else {
+      llvm::errs() << "unknown cpuify type: " << method << "\n";
+      llvm_unreachable("unknown cpuify type");
+    }
   }
 };
 
@@ -945,8 +973,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createCPUifyPass() {
-  return std::make_unique<CPUifyPass>();
+std::unique_ptr<Pass> createCPUifyPass(std::string str) {
+  return std::make_unique<CPUifyPass>(str);
 }
 } // namespace polygeist
 } // namespace mlir

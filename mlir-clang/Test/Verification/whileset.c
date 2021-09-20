@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=set | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=set -S | FileCheck %s
 
 #include <stdio.h>
 #include <unistd.h>
@@ -20,7 +20,7 @@ void set (int path[20])
 }
 
 // TODO consider making into for
-// CHECK:       func @set(%arg0: memref<?xi32>) {
+// CHECK:       func @set(%arg0: memref<?xi32>)
 // CHECK-DAG:     %c0_i32 = constant 0 : i32
 // CHECK-DAG:     %c1_i32 = constant 1 : i32
 // CHECK-DAG:     %c3_i32 = constant 3 : i32

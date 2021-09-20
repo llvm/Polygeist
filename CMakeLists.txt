@@ -13,11 +13,13 @@ if(POLICY CMP0077)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
+
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(polygeist LANGUAGES CXX C)
 
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
 
+  set(LLVM_SOURCE_DIR ${CMAKE_SOURCE_DIR}/llvm-project/llvm)
   message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
   find_package(MLIR REQUIRED CONFIG)
 
@@ -29,6 +31,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
   message(STATUS "Using ClangConfig.cmake in: ${CLANG_DIR}")
 else ()
+  set(LLVM_SOURCE_DIR ${LLVM_MAIN_SRC_DIR})
   set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
   set(MLIR_INCLUDE_DIRS ${MLIR_MAIN_SRC_DIR}/include)
   set(MLIR_CMAKE_DIR ${MLIR_MAIN_SRC_DIR}/cmake/modules)
@@ -62,6 +65,7 @@ add_definitions(${LLVM_DEFINITIONS})
 
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
+include(sanitizers)
 
 add_subdirectory(include)
 add_subdirectory(mlir-clang)

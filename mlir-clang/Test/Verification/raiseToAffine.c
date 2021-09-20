@@ -1,7 +1,7 @@
 // RUN: split-file %s %t
 
-// RUN: mlir-clang %t/matmul_signed_cmp.c --function=matmul --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMSIGNED
-// RUN: mlir-clang %t/matmul_unsigned_cmp.c --function=matmul_unsigned_cmp --raise-scf-to-affine | FileCheck %s -check-prefix=GEMMUNSIGNED
+// RUN: mlir-clang %t/matmul_signed_cmp.c --function=matmul --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMSIGNED
+// RUN: mlir-clang %t/matmul_unsigned_cmp.c --function=matmul_unsigned_cmp --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMUNSIGNED
 
 //--- matmul_signed_cmp.c
 #define N 200

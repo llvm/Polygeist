@@ -188,8 +188,7 @@ struct ValueWithOffsets {
                 builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx));
           }
         }
-      } else {
-        smt = val.getType().cast<MemRefType>();
+      } else if (auto smt = val.getType().dyn_cast<MemRefType>()) {
         assert(smt.getShape().size() <= 2);
 
         auto pt = toStore.val.getType().cast<LLVM::LLVMPointerType>();
@@ -222,7 +221,8 @@ struct ValueWithOffsets {
                   loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx)),
               val, idx);
         }
-      }
+      } else
+        store(builder, toStore.getValue(builder));
     } else {
       store(builder, toStore.getValue(builder));
     }
@@ -316,7 +316,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
   ASTContext &astContext;
-  mlir::ModuleOp &module;
+  mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
   LLVMContext lcontext;
   llvm::Module llvmMod;
@@ -337,8 +337,8 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
-      Preprocessor &PP, ASTContext &astContext, mlir::ModuleOp &module,
-      clang::SourceManager &SM)
+      Preprocessor &PP, ASTContext &astContext,
+      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), llvmGlobals(llvmGlobals),
@@ -347,7 +347,7 @@ struct MLIRASTConsumer : public ASTConsumer {
         codegenops(),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module.getContext()),
+        error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
@@ -393,7 +393,7 @@ struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
 private:
   MLIRASTConsumer &Glob;
   mlir::FuncOp function;
-  mlir::ModuleOp &module;
+  mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OpBuilder builder;
   mlir::Location loc;
   mlir::Block *entryBlock;
@@ -472,10 +472,10 @@ public:
   LowerToInfo &LTInfo;
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-              const FunctionDecl *fd, mlir::ModuleOp &module,
+              const FunctionDecl *fd, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo)
       : Glob(Glob), function(function), module(module),
-        builder(module.getContext()), loc(builder.getUnknownLoc()),
+        builder(module->getContext()), loc(builder.getUnknownLoc()),
         EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
 
     if (ShowAST) {
@@ -549,8 +549,10 @@ public:
 
       for (auto expr : CC->inits()) {
         if (ShowAST) {
-          expr->getMember()->dump();
-          expr->getInit()->dump();
+          if (expr->getMember())
+            expr->getMember()->dump();
+          if (expr->getInit())
+            expr->getInit()->dump();
         }
         assert(ThisVal.val);
         FieldDecl *field = expr->getMember();
@@ -620,6 +622,7 @@ public:
   ValueWithOffsets VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueWithOffsets VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+  ValueWithOffsets VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
   ValueWithOffsets VisitStringLiteral(clang::StringLiteral *expr);
 

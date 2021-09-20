@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=whiletofor | FileCheck %s
+// RUN: mlir-clang %s --function=whiletofor -S | FileCheck %s
 
 void use(int a[100][100]);
 
@@ -20,7 +20,7 @@ void whiletofor() {
 }
 
 // TODO redundant for elim
-// CHECK: func @whiletofor() {
+// CHECK: func @whiletofor()
 // CHECK-DAG:      %c1 = constant 1 : index
 // CHECK-DAG:      %c0 = constant 0 : index
 // CHECK-DAG:      %c100 = constant 100 : index

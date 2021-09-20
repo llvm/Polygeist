@@ -1,6 +1,4 @@
-// RUN: mlir-clang %s --function=caller --detect-reduction | FileCheck %s
-
-extern int print(double);
+// RUN: mlir-clang %s --function=* --detect-reduction -S | FileCheck %s
 
 void sum(double *result, double* array) {
     result[0] = 0;
@@ -11,22 +9,7 @@ void sum(double *result, double* array) {
     #pragma endscop
 }
 
-void caller(double* array) {
-    double result;
-    sum(&result, array);
-    print(result);
-}
-
-// CHECK:  func @caller(%arg0: memref<?xf64>) {
-// CHECK-NEXT:    %0 = memref.alloca() : memref<1xf64>
-// CHECK-NEXT:    %1 = memref.cast %0 : memref<1xf64> to memref<?xf64>
-// CHECK-NEXT:    call @sum(%1, %arg0) : (memref<?xf64>, memref<?xf64>) -> ()
-// CHECK-NEXT:    %2 = affine.load %0[0] : memref<1xf64>
-// CHECK-NEXT:    %3 = call @print(%2) : (f64) -> i32
-// CHECK-NEXT:    return
-// CHECK-NEXT:  }
-
-// CHECK:  func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>) {
+// CHECK:  func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>)
 // CHECK-NEXT:    %c0_i32 = constant 0 : i32
 // CHECK-NEXT:    %0 = sitofp %c0_i32 : i32 to f64
 // CHECK-NEXT:    affine.store %0, %arg0[0] : memref<?xf64>

@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=alloc | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=alloc -S | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +22,7 @@ int* alloc() {
 // CHECK: llvm.mlir.global internal constant @str1("%d\0A\00")
 // CHECK-NEXT: llvm.mlir.global internal constant @str0("%d\00")
 // CHECK-NEXT: llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
-// CHECK-NEXT:  func @alloc() -> memref<?xi32> {
+// CHECK-NEXT:  func @alloc() -> memref<?xi32>
 // CHECK-DAG:    %c1_i64 = constant 1 : i64
 // CHECK-DAG:    %c0_i64 = constant 0 : i64
 // CHECK-DAG:    %c4 = constant 4 : index

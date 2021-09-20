@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=kernel_correlation | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation -S | FileCheck %s
 
 #define DATA_TYPE double
 
@@ -28,7 +28,7 @@ void kernel_correlation(double out[28], double stddev[28], _Bool cmp)
 
 }
 
-// CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1) {
+// CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i1)
 // CHECK-DAG:     %[[cst:.+]] = constant 1.000000e+00 : f64
 // CHECK-DAG:     %[[cst_0:.+]] = constant 3.140000e+00 : f64
 // CHECK:     %0 = select %arg2, %[[cst]], %[[cst_0]] : f64

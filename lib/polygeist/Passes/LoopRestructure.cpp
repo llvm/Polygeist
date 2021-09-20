@@ -552,6 +552,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       for (auto *w : loopLatches) {
         Block *block = &**w;
         Operation *terminator = block->getTerminator();
+        // Note: the terminator may be reassigned in the loop body so not
+        // caching numSuccessors here.
         for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
           Block *successor = terminator->getSuccessor(i);
           if (successor == header) {
@@ -571,10 +573,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                     builder.getUnknownLoc(), ty,
                     builder.getIntegerAttr(ty, 0)));
               }
-              builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
+              terminator =
+                  builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
               op.erase();
-            }
-            if (auto op = dyn_cast<CondBranchOp>(terminator)) {
+            } else if (auto op = dyn_cast<CondBranchOp>(terminator)) {
               std::vector<Value> trueargs(op.getTrueOperands().begin(),
                                           op.getTrueOperands().end());
               std::vector<Value> falseargs(op.getFalseOperands().begin(),
@@ -593,7 +595,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                       builder.getUnknownLoc(), ty));
                 }
               }
-              builder.create<CondBranchOp>(
+              // Recreate the terminator and store it so that its other
+              // successor is visited on the next iteration of the loop.
+              terminator = builder.create<CondBranchOp>(
                   op.getLoc(), op.getCondition(),
                   op.getTrueDest() == header ? pseudoExit : op.getTrueDest(),
                   trueargs,

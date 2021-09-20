@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s --function=matmul --raise-scf-to-affine | FileCheck %s
+// RUN: mlir-clang %s --function=matmul --raise-scf-to-affine -S | FileCheck %s
 
 void matmul(float A[100][200], float B[200][300], float C[100][300]) {
   int i, j, k;

@@ -1,3 +1,4 @@
+#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Pass/Pass.h"
 #include <memory>
 namespace mlir {
@@ -7,10 +8,13 @@ std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass();
 std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
 std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
-std::unique_ptr<Pass> createCPUifyPass();
+std::unique_ptr<Pass> createCPUifyPass(std::string);
+std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+std::unique_ptr<Pass>
+createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 } // namespace polygeist
 } // namespace mlir
 

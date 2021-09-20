@@ -1,15 +1,15 @@
-// RUN: mlir-clang %s %stdinclude | FileCheck %s
+// RUN: mlir-clang %s %stdinclude -S | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: mlir-clang %s %polyverify %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: mlir-clang %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
-// RUN: mlir-clang %s %polyexec %stdinclude -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: mlir-clang %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
 // RUN: rm -f %s.exec2 %s.execm
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: mlir-clang %s %polyverify %stdinclude -detect-reduction -emit-llvm | clang -x ir - -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: mlir-clang %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
@@ -76,7 +76,6 @@ void print_array(int n,
 
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
-static
 void kernel_floyd_warshall(int n,
 			   DATA_TYPE POLYBENCH_2D(path,N,N,n,n))
 {
@@ -127,7 +126,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:   func private @kernel_floyd_warshall(%arg0: i32, %arg1: memref<?x2800xi32>) {
+// CHECK:   func @kernel_floyd_warshall(%arg0: i32, %arg1: memref<?x2800xi32>)
 // CHECK-NEXT:     %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg2 = 0 to %0 {
 // CHECK-NEXT:       affine.for %arg3 = 0 to %0 {

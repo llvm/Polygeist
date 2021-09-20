@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov | FileCheck %s
+// RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov -S | FileCheck %s
 
 #define max_score(s1, s2) ((s1 >= s2) ? s1 : s2)
 
@@ -15,7 +15,7 @@ void kernel_nussinov(double* out, int n)  {
 #pragma endscop
 }
 
-// CHECK:   func @kernel_nussinov(%arg0: memref<?xf64>, %arg1: i32) {
+// CHECK:   func @kernel_nussinov(%arg0: memref<?xf64>, %arg1: i32)
 // CHECK-DAG:     %[[i0:.+]] = memref.alloca() : memref<20xf64>
 // CHECK-DAG:     %[[i1:.+]] = index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %2 = memref.cast %[[i0]] : memref<20xf64> to memref<?xf64>

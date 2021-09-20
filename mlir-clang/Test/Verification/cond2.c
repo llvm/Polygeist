@@ -1,4 +1,4 @@
-// RUN: mlir-clang %s %stdinclude --function=set | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=set -S | FileCheck %s
 
 #include <stdio.h>
 #include <unistd.h>
@@ -17,7 +17,7 @@ int set (int b)
   //path[0][1] = 2;
 }
 
-// CHECK:  func @set(%arg0: i32) -> i32 {
+// CHECK:  func @set(%arg0: i32) -> i32
 // CHCEK-NEXT:     %c1_i32 = constant 1 : i32
 // CHCEK-NEXT:     %c2_i32 = constant 2 : i32
 // CHCEK-NEXT:     %0 = trunci %arg0 : i32 to i1
