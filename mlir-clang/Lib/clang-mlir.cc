@@ -2363,11 +2363,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-              (sr->getDecl()->getName() == "fscanf" ||
-               sr->getDecl()->getName() == "scanf" ||
-               sr->getDecl()->getName() == "__isoc99_sscanf" ||
-               sr->getDecl()->getName() == "sscanf") ||
+      if ((sr->getDecl()->getIdentifier() &&
+           (sr->getDecl()->getName() == "fscanf" ||
+            sr->getDecl()->getName() == "scanf" ||
+            sr->getDecl()->getName() == "__isoc99_sscanf" ||
+            sr->getDecl()->getName() == "sscanf")) ||
           (isa<CXXOperatorCallExpr>(expr) &&
            cast<CXXOperatorCallExpr>(expr)->getOperator() ==
                OO_GreaterGreater)) {

@@ -777,7 +777,7 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   }
   return true;
 }
-
+/*
 static void replaceStore(memref::StoreOp store,
                          const SmallVector<Value, 2> &newIndexes) {
   auto memrefType = store.getMemRef().getType().cast<MemRefType>();
@@ -811,7 +811,7 @@ static void replaceLoad(memref::LoadOp load,
   load.getResult().replaceAllUsesWith(affineLoad.getResult());
   load.erase();
 }
-
+*/
 struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
   using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
 
@@ -1154,8 +1154,8 @@ void AffineCFGPass::runOnFunction() {
             AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
             MoveLoadToAffine, CanonicalieForBounds>(getFunction().getContext());
     GreedyRewriteConfig config;
-    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                 config);
+    (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
+                                       std::move(rpl), config);
   }
 }
 
