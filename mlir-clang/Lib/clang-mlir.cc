@@ -5003,6 +5003,8 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   std::string name;
   if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
     name = CGM.getMangledName(FD).str();
 
@@ -5261,6 +5263,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   std::string name;
   if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
     name = CGM.getMangledName(FD).str();
 
@@ -5271,6 +5275,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
   else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
   else
     LV = CGM.getFunctionLinkage(FD);
 
@@ -5471,6 +5477,9 @@ void MLIRASTConsumer::run() {
     if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
       name =
           CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+      name =
+          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
       name = CGM.getMangledName(FD).str();
 
@@ -5524,6 +5533,9 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
       name =
           CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
+      name =
+          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
       name = CGM.getMangledName(fd).str();
 
@@ -5594,6 +5606,9 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
       name =
           CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
+      name =
+          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
       name = CGM.getMangledName(fd).str();
 
