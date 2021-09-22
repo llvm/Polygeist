@@ -173,6 +173,7 @@ void ParallelLower::runOnFunction() {
         return;
       }
       Region *targetRegion = callableOp.getCallableRegion();
+      if (targetRegion->empty()) return;
       if (inlineCall(interface, caller, callableOp, targetRegion,
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {
