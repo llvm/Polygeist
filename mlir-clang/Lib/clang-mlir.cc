@@ -1718,7 +1718,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         {
           auto dst = Visit(sub).getValue(builder);
           if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
-            auto mt = omt.getElementType().dyn_cast<MemRefType>();
+            if (auto mt = omt.getElementType().dyn_cast<MemRefType>()) {
             auto shape = std::vector<int64_t>(mt.getShape());
 
             auto elemSize = getTypeSize(
@@ -1764,6 +1764,11 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                         loc, retTy, builder.getIntegerAttr(retTy, 0)),
                     /*isReference*/ false),
                 true);
+            } else {
+              expr->dump();
+              sub->dump();
+              llvm::errs() << "dst: " << dst << "\n";
+            }
           }
         }
       }
