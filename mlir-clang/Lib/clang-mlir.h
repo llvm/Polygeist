@@ -575,6 +575,10 @@ public:
         cfl.store(builder, initexpr, isArray);
       }
     }
+    if (auto CC = dyn_cast<CXXDestructorDecl>(fd)) {
+        CC->dump();
+        llvm::errs() << " warning, destructor not fully handled yet\n";
+    }
 
     Stmt *stmt = fd->getBody();
     assert(stmt);

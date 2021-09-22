@@ -5477,7 +5477,7 @@ void MLIRASTConsumer::run() {
     if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
       name =
           CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
-    if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
+    else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
       name =
           CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
