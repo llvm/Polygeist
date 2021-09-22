@@ -64,15 +64,11 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
 */
 #include "polygeist/Passes/Passes.h"
 
-#include "mlir/Transforms/Passes.h"
-
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -81,8 +77,6 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
 #include "mlir/Transforms/Passes.h"
 
 using namespace mlir;
-
-#define DEBUG_TYPE "LoopRestructure"
 
 struct Wrapper;
 

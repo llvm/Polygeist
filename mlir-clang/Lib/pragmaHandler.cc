@@ -129,7 +129,7 @@ public:
   ///
   // #pragma lower_to(copy_op, "linalg.copy") input(a), output(b)
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
-                    Token &PragmaTok) {
+                    Token &PragmaTok) override {
     Token Tok;
     PP.Lex(Tok); // pragma lparen
     if (Tok.isNot(tok::l_paren)) {

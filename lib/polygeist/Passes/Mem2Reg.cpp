@@ -802,7 +802,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           vrange.push_back(cases.back());
         }
-        auto newSwitch = builder.create<mlir::SwitchOp>(
+        builder.create<mlir::SwitchOp>(
             op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
             op.case_valuesAttr(), op.caseDestinations(), vrange);
         op.erase();

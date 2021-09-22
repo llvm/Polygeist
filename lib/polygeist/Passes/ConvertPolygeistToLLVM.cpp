@@ -44,8 +44,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     auto loc = subViewOp.getLoc();
 
     auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
-    auto sourceElementTy =
-        typeConverter->convertType(sourceMemRefType.getElementType());
 
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
@@ -57,9 +55,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     MemRefDescriptor targetMemRef(
         transformed
             .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
-
-    // Offset.
-    auto llvmIndexType = typeConverter->convertType(rewriter.getIndexType());
 
     if (false) {
       Value baseOffset = targetMemRef.offset(rewriter, loc);
@@ -97,8 +92,6 @@ struct Memref2PointerOpLowering
             .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
 
     // Offset.
-    auto llvmIndexType = typeConverter->convertType(rewriter.getIndexType());
-
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
