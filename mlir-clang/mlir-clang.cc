@@ -92,6 +92,9 @@ static cl::opt<std::string> Standard("std", cl::init(""),
 static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
                                         cl::desc("CUDA GPU arch"));
 
+static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
+                                        cl::desc("CUDA Path"));
+
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
 static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
@@ -224,6 +227,13 @@ int emitBinary(char *Argv0, const char *filename,
   }
   if (CUDAGPUArch != "") {
     auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
+  if (CUDAPath != "") {
+    auto a = "--cuda-path=" + CUDAPath;
     char *chars = (char *)malloc(a.length() + 1);
     memcpy(chars, a.data(), a.length());
     chars[a.length()] = 0;
