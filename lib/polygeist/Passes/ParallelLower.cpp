@@ -145,7 +145,6 @@ void ParallelLower::runOnFunction() {
   Operation *symbolTableOp =
       getFunction()->getParentWithTrait<OpTrait::SymbolTable>();
 
-  CallGraph &cg = getAnalysis<CallGraph>();
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(symbolTableOp);
 
@@ -359,7 +358,7 @@ void ParallelLower::runOnFunction() {
   {
     mlir::RewritePatternSet rpl(getFunction().getContext());
     GreedyRewriteConfig config;
-    applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                                 config);
+    (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
+                                       std::move(rpl), config);
   }
 }

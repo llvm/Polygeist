@@ -555,9 +555,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     if (!cmpIOp) {
       return failure();
     }
-    size_t size = 0;
-    for (auto &m : loop.before().front())
-      size++;
+    size_t size = loop.before().front().getOperations().size();
     if (size != 2) {
       return failure();
     }
@@ -1450,8 +1448,8 @@ void CanonicalizeFor::runOnFunction() {
           MoveSideEffectFreeWhile>(getFunction().getContext());
   GreedyRewriteConfig config;
   config.maxIterations = 47;
-  applyPatternsAndFoldGreedily(getFunction().getOperation(), std::move(rpl),
-                               config);
+  (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
+                                     std::move(rpl), config);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createCanonicalizeForPass() {
