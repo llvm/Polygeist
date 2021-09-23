@@ -62,19 +62,23 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
   return
 }
 */
-#include "polygeist/Passes/Passes.h"
-
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/Dominance.h"
-#include "mlir/Pass/Pass.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/IR/Dominators.h"
-
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/RegionGraphTraits.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
+#include "polygeist/Passes/Passes.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Analysis/LoopInfoImpl.h"
+#include "llvm/IR/Dominators.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+
+#include "llvm/Support/Debug.h"
+#define DEBUG_TYPE "LoopRestructure"
 
 using namespace mlir;
 
@@ -241,9 +245,6 @@ struct LoopRestructure : public mlir::LoopRestructureBase<LoopRestructure> {
 } // end anonymous namespace
 
 // Instantiate a variant of LLVM LoopInfo that works on mlir::Block
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopInfoImpl.h"
-#include "llvm/Support/GenericDomTreeConstruction.h"
 
 template class llvm::DominatorTreeBase<Wrapper, false>;
 template class llvm::DomTreeNodeBase<Wrapper>;
