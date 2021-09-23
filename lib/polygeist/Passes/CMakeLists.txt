@@ -25,6 +25,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRIR
   MLIRLLVMIR
   MLIRMemRef
+  MLIRNVVMIR
   MLIRPass
   MLIRPolygeist
   MLIRSideEffectInterfaces
