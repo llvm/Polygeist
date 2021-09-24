@@ -2728,6 +2728,11 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                  "__assert_fail",
                                  "cudaEventElapsedTime",
                                  "cudaEventSynchronize",
+                                 "cudaDeviceGetAttribute",
+                                 "cudaFuncGetAttributes",
+                                 "cudaGetDevice",
+                                 "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
+                                 "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
                                  "cudaEventRecord"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
