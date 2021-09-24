@@ -12,7 +12,7 @@ std::unique_ptr<Pass> createCPUifyPass(std::string);
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
-std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass();
+std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 } // namespace polygeist

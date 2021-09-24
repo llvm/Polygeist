@@ -2092,7 +2092,9 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__nv_fabsf" ||
-           sr->getDecl()->getName() == "__nv_fabs")) {
+           sr->getDecl()->getName() == "__nv_fabs" ||
+           sr->getDecl()->getName() == "__builtin_fabs" ||
+           sr->getDecl()->getName() == "__builtin_fabsf")) {
         // isinf(x)    --> fabs(x) == infinity
         // isfinite(x) --> fabs(x) != infinity
         // x != NaN via the ordered compare in either case.
@@ -5336,7 +5338,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
                 mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
     }
-
+    assert(function->getParentOp() == module.get());
     return function;
   }
 
@@ -5451,16 +5453,10 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
            FunctionDecl::TemplatedKind::
                TK_DependentFunctionTemplateSpecialization);
     functionsToEmit.push_back(Def);
-  } else if (FD->getIdentifier())
+  } else if (FD->getIdentifier()) {
     emitIfFound.insert(name);
-
-  /*else {
-    for (const FunctionDecl *s_FD : FD->redecls()) {
-        s_FD->dump();
-    }
-    FD->dump();
-    assert(0 && "unlinkable instruction");
-  }*/
+  }
+  assert(function->getParentOp() == module.get());
   return function;
 }
 
@@ -5510,14 +5506,16 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       continue;
     }
     if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition())
+      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
         continue;
+      }
     }
     if (!fd->hasBody())
       continue;
 
-    if (fd->isTemplated())
+    if (fd->isTemplated()) {
       continue;
+    }
 
     bool externLinkage = true;
     /*
@@ -5552,9 +5550,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
         emitIfFound.count(name)) {
-      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
-        functionsToEmit.push_back(fd);
-      }
+      functionsToEmit.push_back(fd);
     } else {
     }
   }
@@ -5584,13 +5580,15 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     }
     if (!fd->doesThisDeclarationHaveABody()) {
-      if (!fd->doesDeclarationForceExternallyVisibleDefinition())
+      if (!fd->doesDeclarationForceExternallyVisibleDefinition()) {
         continue;
+      }
     }
     if (!fd->hasBody())
       continue;
-    if (fd->isTemplated())
+    if (fd->isTemplated()) {
       continue;
+    }
 
     bool externLinkage = true;
     /*
@@ -5621,13 +5619,11 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     if (StringRef(name).startswith("_ZN9__gnu"))
       continue;
-
+    
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
         emitIfFound.count(name)) {
-      if (fd->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate) {
-        functionsToEmit.push_back(fd);
-      }
+      functionsToEmit.push_back(fd);
     } else {
     }
   }

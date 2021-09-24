@@ -13,7 +13,7 @@ def Mem2Reg : FunctionPass<"mem2reg"> {
   let constructor = "mlir::replaceAffineCFGPass()";
 }
 
-def ParallelLower : FunctionPass<"parallel-lower"> {
+def ParallelLower : Pass<"parallel-lower", "ModuleOp"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::createParallelLowerPass()";
 }
