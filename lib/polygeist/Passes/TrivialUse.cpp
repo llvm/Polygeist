@@ -18,7 +18,7 @@
 using namespace mlir;
 
 namespace {
-struct RemoveTrivialUse : public ParallelLowerBase<RemoveTrivialUse> {
+struct RemoveTrivialUse : public RemoveTrivialUseBase<RemoveTrivialUse> {
   void runOnFunction() override;
 };
 
@@ -33,5 +33,5 @@ std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass() {
 } // namespace mlir
 
 void RemoveTrivialUse::runOnFunction() {
-  getFunction().walk([&](polygeist::TrivialUseOp bidx) { bidx.erase(); });
+  getOperation()->walk([&](polygeist::TrivialUseOp bidx) { bidx.erase(); });
 }

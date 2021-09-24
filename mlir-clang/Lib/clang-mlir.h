@@ -607,7 +607,8 @@ public:
       builder.create<mlir::ReturnOp>(loc, vals);
     } else
       builder.create<mlir::ReturnOp>(loc);
-    // function.dump();
+
+    assert(function->getParentOp() == Glob.module.get());
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);

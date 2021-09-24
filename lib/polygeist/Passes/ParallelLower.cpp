@@ -65,7 +65,7 @@ namespace {
 // than dealloc) remain.
 //
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 } // end anonymous namespace
@@ -74,7 +74,7 @@ struct ParallelLower : public ParallelLowerBase<ParallelLower> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<OperationPass<FuncOp>> createParallelLowerPass() {
+std::unique_ptr<Pass> createParallelLowerPass() {
   return std::make_unique<ParallelLower>();
 }
 } // namespace polygeist
@@ -139,22 +139,22 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   }
 };
 
-void ParallelLower::runOnFunction() {
+void ParallelLower::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
   // as the callgraph will need to resolve references.
-  Operation *symbolTableOp =
-      getFunction()->getParentWithTrait<OpTrait::SymbolTable>();
 
   SymbolTableCollection symbolTable;
-  symbolTable.getSymbolTable(symbolTableOp);
+  symbolTable.getSymbolTable(getOperation());
 
-  getFunction().walk([&](mlir::CallOp bidx) {
+  getOperation()->walk([&](mlir::CallOp bidx) {
     if (bidx.callee() == "cudaThreadSynchronize")
       bidx.erase();
   });
 
+  SmallPtrSet<Operation*, 2> toErase;
+
   // Only supports single block functions at the moment.
-  getFunction().walk([&](gpu::LaunchOp launchOp) {
+  getOperation().walk([&](gpu::LaunchOp launchOp) {
     launchOp.walk([&](CallOp caller) {
       // Build the inliner interface.
       AlwaysInlinerInterface interface(&getContext());
@@ -167,7 +167,7 @@ void ParallelLower::runOnFunction() {
         if (!symRef.isa<FlatSymbolRefAttr>())
           return;
         auto *symbolOp =
-            symbolTable.lookupNearestSymbolFrom(symbolTableOp, symRef);
+            symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
         callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
       } else {
         return;
@@ -179,9 +179,7 @@ void ParallelLower::runOnFunction() {
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {
         caller.erase();
-        if (callableOp->use_empty()) {
-          callableOp.erase();
-        }
+        toErase.insert(callableOp);
       }
     });
 
@@ -368,11 +366,15 @@ void ParallelLower::runOnFunction() {
     launchOp.erase();
   });
 
+  for (auto f : toErase)
+    if (f->use_empty())
+      f->erase();
+
   // Fold the copy memtype cast
   {
-    mlir::RewritePatternSet rpl(getFunction().getContext());
+    mlir::RewritePatternSet rpl(getOperation()->getContext());
     GreedyRewriteConfig config;
-    (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
+    (void)applyPatternsAndFoldGreedily(getOperation(),
                                        std::move(rpl), config);
   }
 }

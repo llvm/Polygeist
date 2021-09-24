@@ -470,11 +470,12 @@ int main(int argc, char **argv) {
       mlir::PassManager pm(&context);
       mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
       optPM.addPass(mlir::createCanonicalizerPass());
-      optPM.addPass(polygeist::createParallelLowerPass());
-      optPM.addPass(mlir::createCanonicalizerPass());
-      optPM.addPass(polygeist::createMem2RegPass());
-      optPM.addPass(polygeist::replaceAffineCFGPass());
-      optPM.addPass(mlir::createCanonicalizerPass());
+      pm.addPass(polygeist::createParallelLowerPass());
+      mlir::OpPassManager &noptPM = pm.nest<mlir::FuncOp>();
+      noptPM.addPass(mlir::createCanonicalizerPass());
+      noptPM.addPass(polygeist::createMem2RegPass());
+      noptPM.addPass(polygeist::replaceAffineCFGPass());
+      noptPM.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createInlinerPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
