@@ -93,7 +93,7 @@ static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
                                         cl::desc("CUDA GPU arch"));
 
 static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
-                                        cl::desc("CUDA Path"));
+                                     cl::desc("CUDA Path"));
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 

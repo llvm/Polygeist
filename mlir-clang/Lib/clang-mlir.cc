@@ -1719,55 +1719,53 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           auto dst = Visit(sub).getValue(builder);
           if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
             if (auto mt = omt.getElementType().dyn_cast<MemRefType>()) {
-            auto shape = std::vector<int64_t>(mt.getShape());
+              auto shape = std::vector<int64_t>(mt.getShape());
 
-            auto elemSize = getTypeSize(
-                cast<clang::PointerType>(
-                    cast<clang::PointerType>(
-                        sub->getType()->getUnqualifiedDesugaredType())
-                        ->getPointeeType())
-                    ->getPointeeType());
-            mlir::Value allocSize;
-            if (sr->getDecl()->getName() == "cudaMallocPitch") {
-              mlir::Value width = Visit(expr->getArg(2)).getValue(builder);
-              mlir::Value height = Visit(expr->getArg(3)).getValue(builder);
-              // Not changing pitch from provided width here
-              // TODO can consider addition alignment considerations
-              Visit(expr->getArg(1)).dereference(builder).store(builder, width);
-              auto idxType = mlir::IndexType::get(builder.getContext());
-              allocSize = builder.create<mlir::MulIOp>(
-                  loc, builder.create<mlir::IndexCastOp>(loc, width, idxType),
-                  builder.create<mlir::IndexCastOp>(loc, height, idxType));
-            } else
-              allocSize = builder.create<mlir::IndexCastOp>(
-                  loc, Visit(expr->getArg(1)).getValue(builder),
-                  mlir::IndexType::get(builder.getContext()));
-            mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
-                loc, allocSize,
-                builder.create<mlir::ConstantOp>(
-                    loc, allocSize.getType(),
-                    builder.getIntegerAttr(allocSize.getType(), elemSize)))};
-            auto alloc = builder.create<mlir::memref::AllocOp>(
-                loc,
-                (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
-                    ? mlir::MemRefType::get(shape, mt.getElementType(),
-                                            mt.getAffineMaps(), 1)
-                    : mt,
-                args);
-            ValueWithOffsets(dst, /*isReference*/ true)
-                .store(builder,
-                       builder.create<mlir::memref::CastOp>(loc, alloc, mt));
-            auto retTy = getMLIRType(expr->getType());
-            return make_pair(
-                ValueWithOffsets(
-                    builder.create<mlir::ConstantOp>(
-                        loc, retTy, builder.getIntegerAttr(retTy, 0)),
-                    /*isReference*/ false),
-                true);
-            } else {
-              expr->dump();
-              sub->dump();
-              llvm::errs() << "dst: " << dst << "\n";
+              auto elemSize = getTypeSize(
+                  cast<clang::PointerType>(
+                      cast<clang::PointerType>(
+                          sub->getType()->getUnqualifiedDesugaredType())
+                          ->getPointeeType())
+                      ->getPointeeType());
+              mlir::Value allocSize;
+              if (sr->getDecl()->getName() == "cudaMallocPitch") {
+                mlir::Value width = Visit(expr->getArg(2)).getValue(builder);
+                mlir::Value height = Visit(expr->getArg(3)).getValue(builder);
+                // Not changing pitch from provided width here
+                // TODO can consider addition alignment considerations
+                Visit(expr->getArg(1))
+                    .dereference(builder)
+                    .store(builder, width);
+                auto idxType = mlir::IndexType::get(builder.getContext());
+                allocSize = builder.create<mlir::MulIOp>(
+                    loc, builder.create<mlir::IndexCastOp>(loc, width, idxType),
+                    builder.create<mlir::IndexCastOp>(loc, height, idxType));
+              } else
+                allocSize = builder.create<mlir::IndexCastOp>(
+                    loc, Visit(expr->getArg(1)).getValue(builder),
+                    mlir::IndexType::get(builder.getContext()));
+              mlir::Value args[1] = {builder.create<mlir::UnsignedDivIOp>(
+                  loc, allocSize,
+                  builder.create<mlir::ConstantOp>(
+                      loc, allocSize.getType(),
+                      builder.getIntegerAttr(allocSize.getType(), elemSize)))};
+              auto alloc = builder.create<mlir::memref::AllocOp>(
+                  loc,
+                  (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
+                      ? mlir::MemRefType::get(shape, mt.getElementType(),
+                                              mt.getAffineMaps(), 1)
+                      : mt,
+                  args);
+              ValueWithOffsets(dst, /*isReference*/ true)
+                  .store(builder,
+                         builder.create<mlir::memref::CastOp>(loc, alloc, mt));
+              auto retTy = getMLIRType(expr->getType());
+              return make_pair(
+                  ValueWithOffsets(
+                      builder.create<mlir::ConstantOp>(
+                          loc, retTy, builder.getIntegerAttr(retTy, 0)),
+                      /*isReference*/ false),
+                  true);
             }
           }
         }
@@ -2705,35 +2703,36 @@ ValueWithOffsets MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   auto callee = EmitCallee(expr->getCallee());
 
-  std::set<std::string> funcs = {"strcmp",
-                                 "sprintf",
-                                 "fputs",
-                                 "puts",
-                                 "memcpy",
-                                 "__builtin_memcpy",
-                                 "cudaMemcpy",
-                                 "cudaMalloc",
-                                 "open",
-                                 "fopen",
-                                 "memset",
-                                 "cudaMemset",
-                                 "strcpy",
-                                 "close",
-                                 "fclose",
-                                 "atoi",
-                                 "malloc",
-                                 "calloc",
-                                 "free",
-                                 "fgets",
-                                 "__assert_fail",
-                                 "cudaEventElapsedTime",
-                                 "cudaEventSynchronize",
-                                 "cudaDeviceGetAttribute",
-                                 "cudaFuncGetAttributes",
-                                 "cudaGetDevice",
-                                 "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
-                                 "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
-                                 "cudaEventRecord"};
+  std::set<std::string> funcs = {
+      "strcmp",
+      "sprintf",
+      "fputs",
+      "puts",
+      "memcpy",
+      "__builtin_memcpy",
+      "cudaMemcpy",
+      "cudaMalloc",
+      "open",
+      "fopen",
+      "memset",
+      "cudaMemset",
+      "strcpy",
+      "close",
+      "fclose",
+      "atoi",
+      "malloc",
+      "calloc",
+      "free",
+      "fgets",
+      "__assert_fail",
+      "cudaEventElapsedTime",
+      "cudaEventSynchronize",
+      "cudaDeviceGetAttribute",
+      "cudaFuncGetAttributes",
+      "cudaGetDevice",
+      "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
+      "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
+      "cudaEventRecord"};
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -5624,7 +5623,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     if (StringRef(name).startswith("_ZN9__gnu"))
       continue;
-    
+
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
         emitIfFound.count(name)) {

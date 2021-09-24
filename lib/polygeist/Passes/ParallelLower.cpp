@@ -151,7 +151,7 @@ void ParallelLower::runOnOperation() {
       bidx.erase();
   });
 
-  SmallPtrSet<Operation*, 2> toErase;
+  SmallPtrSet<Operation *, 2> toErase;
 
   // Only supports single block functions at the moment.
   getOperation().walk([&](gpu::LaunchOp launchOp) {
@@ -173,8 +173,10 @@ void ParallelLower::runOnOperation() {
         return;
       }
       Region *targetRegion = callableOp.getCallableRegion();
-      if (!targetRegion) return;
-      if (targetRegion->empty()) return;
+      if (!targetRegion)
+        return;
+      if (targetRegion->empty())
+        return;
       if (inlineCall(interface, caller, callableOp, targetRegion,
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {
@@ -352,15 +354,19 @@ void ParallelLower::runOnOperation() {
     });
 
     container.walk([&](LLVM::CallOp call) {
-        if (call.callee().getValue() == "cudaMemcpy") {
-            OpBuilder bz(call);
-            auto i1 = bz.getI1Type();
-            auto falsev = bz.create<mlir::ConstantOp>(call.getLoc(), i1, builder.getIntegerAttr(i1, 0));
-            bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0), call.getOperand(1), call.getOperand(1), /*isVolatile*/falsev);
-            call.replaceAllUsesWith(bz.create<mlir::ConstantOp>(
-                      call.getLoc(), call.getType(0), builder.getIntegerAttr(call.getType(0), 0)));
-            call.erase();
-        }
+      if (call.callee().getValue() == "cudaMemcpy") {
+        OpBuilder bz(call);
+        auto i1 = bz.getI1Type();
+        auto falsev = bz.create<mlir::ConstantOp>(
+            call.getLoc(), i1, builder.getIntegerAttr(i1, 0));
+        bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
+                                  call.getOperand(1), call.getOperand(1),
+                                  /*isVolatile*/ falsev);
+        call.replaceAllUsesWith(bz.create<mlir::ConstantOp>(
+            call.getLoc(), call.getType(0),
+            builder.getIntegerAttr(call.getType(0), 0)));
+        call.erase();
+      }
     });
 
     launchOp.erase();
@@ -374,7 +380,6 @@ void ParallelLower::runOnOperation() {
   {
     mlir::RewritePatternSet rpl(getOperation()->getContext());
     GreedyRewriteConfig config;
-    (void)applyPatternsAndFoldGreedily(getOperation(),
-                                       std::move(rpl), config);
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
   }
 }
