@@ -608,7 +608,8 @@ public:
     } else
       builder.create<mlir::ReturnOp>(loc);
 
-    assert(function->getParentOp() == Glob.module.get());
+    assert(function->getParentOp() == Glob.module.get() &&
+           "New function must be inserted into global module");
   }
 
   ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
