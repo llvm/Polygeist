@@ -296,7 +296,22 @@ ValueWithOffsets MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
   }
 
-  auto op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
+  mlir::Value op;
+  if (decl->isStaticLocal()) {
+    auto gv =
+        Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str());
+    OpBuilder abuilder(builder.getContext());
+    abuilder.setInsertionPointToStart(allocationScope);
+    auto varLoc = getMLIRLocation(decl->getBeginLoc());
+    op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.type(),
+                                              gv.first.getName());
+    params[decl] = ValueWithOffsets(op, /*isReference*/ true);
+    if (decl->getInit()) {
+      llvm::errs() << "warning: one-time initialization of static variable, "
+                      "not implemented yet\n";
+    }
+  } else
+    op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
   if (inite.val) {
     ValueWithOffsets(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
@@ -4165,7 +4180,7 @@ ValueWithOffsets MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
                               /*isReference*/ true);
     }
 
-    auto gv = Glob.GetOrCreateGlobal(VD);
+    auto gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"");
     auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
                                                    gv.first.getName());
     bool isArray = gv.second;
@@ -5152,8 +5167,8 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
 }
 
 std::pair<mlir::memref::GlobalOp, bool>
-MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD) {
-  std::string name = CGM.getMangledName(FD).str();
+MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
+  std::string name = prefix + CGM.getMangledName(FD).str();
 
   if (globals.find(name) != globals.end()) {
     return globals[name];
@@ -5224,7 +5239,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD) {
   }
 
   auto globalOp = builder.create<mlir::memref::GlobalOp>(
-      module->getLoc(), builder.getStringAttr(FD->getName()),
+      module->getLoc(), builder.getStringAttr(name),
       /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
       initial_value, mlir::UnitAttr());
   SymbolTable::setSymbolVisibility(globalOp, lnk);
