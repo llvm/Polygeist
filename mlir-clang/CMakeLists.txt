@@ -23,7 +23,7 @@ add_clang_tool(mlir-clang
   mlir-clang.cc
   Lib/utils.cc
   Lib/pragmaHandler.cc
-  Lib/valueCategory.cc
+  Lib/ValueCategory.cc
 )
 
 target_include_directories(mlir-clang PRIVATE

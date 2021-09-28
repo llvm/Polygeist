@@ -1,4 +1,4 @@
-//===- valueCategory.cc ------------------------------------------*- C++-*-===//
+//===- ValueCategory.cc ------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "valueCategory.h"
+#include "ValueCategory.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -16,7 +16,7 @@
 
 using namespace mlir;
 
-mlir::Value ValueWithOffsets::getValue(mlir::OpBuilder &builder) const {
+mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   assert(val && "must be not-null");
   if (!isReference)
     return val;
@@ -33,8 +33,7 @@ mlir::Value ValueWithOffsets::getValue(mlir::OpBuilder &builder) const {
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
 
-void ValueWithOffsets::store(mlir::OpBuilder &builder,
-                             mlir::Value toStore) const {
+void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(isReference && "must be a reference");
   assert(val && "expect not-null");
   auto loc = builder.getUnknownLoc();
@@ -68,16 +67,16 @@ void ValueWithOffsets::store(mlir::OpBuilder &builder,
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
 
-ValueWithOffsets ValueWithOffsets::dereference(mlir::OpBuilder &builder) const {
+ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
   assert(val && "val must be not-null");
 
   auto loc = builder.getUnknownLoc();
   if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
     if (!isReference)
-      return ValueWithOffsets(val, /*isReference*/ true);
+      return ValueCategory(val, /*isReference*/ true);
     else
-      return ValueWithOffsets(builder.create<mlir::LLVM::LoadOp>(loc, val),
-                              /*isReference*/ true);
+      return ValueCategory(builder.create<mlir::LLVM::LoadOp>(loc, val),
+                           /*isReference*/ true);
   }
 
   if (auto mt = val.getType().cast<mlir::MemRefType>()) {
@@ -90,24 +89,24 @@ ValueWithOffsets ValueWithOffsets::dereference(mlir::OpBuilder &builder) const {
         auto mt0 =
             mlir::MemRefType::get(shape, mt.getElementType(),
                                   mt.getAffineMaps(), mt.getMemorySpace());
-        return ValueWithOffsets(
+        return ValueCategory(
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
             /*isReference*/ true);
       } else {
         // shape[0] = -1;
-        return ValueWithOffsets(builder.create<mlir::memref::LoadOp>(
-                                    loc, val, std::vector<mlir::Value>({c0})),
-                                /*isReference*/ true);
+        return ValueCategory(builder.create<mlir::memref::LoadOp>(
+                                 loc, val, std::vector<mlir::Value>({c0})),
+                             /*isReference*/ true);
       }
     }
-    return ValueWithOffsets(val, /*isReference*/ true);
+    return ValueCategory(val, /*isReference*/ true);
   }
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
 
 // TODO: too long and difficult to understand.
-void ValueWithOffsets::store(mlir::OpBuilder &builder, ValueWithOffsets toStore,
-                             bool isArray) const {
+void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
+                          bool isArray) const {
   assert(toStore.val);
   if (isArray) {
     if (!toStore.isReference) {
