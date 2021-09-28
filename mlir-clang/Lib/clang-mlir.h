@@ -46,47 +46,34 @@ struct LoopContext {
   mlir::Value noBreak;
 };
 
+// TODO: 1. split this in new file 'ValueWithOffset.h'?
+// 2. make this proper class with 'get' methods
+// 3. Add doc
 struct ValueWithOffsets {
   mlir::Value val;
   bool isReference;
   ValueWithOffsets() : val(nullptr), isReference(false){};
   ValueWithOffsets(std::nullptr_t) : val(nullptr), isReference(false){};
   ValueWithOffsets(mlir::Value val, bool isReference)
-      : val(val), isReference(isReference) {
-    if (isReference) {
-      if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
+      : val(val), isReference(isReference){};
 
-      } else if (val.getType().isa<mlir::MemRefType>()) {
-
-      } else {
-        val.getDefiningOp()->getParentOfType<FuncOp>().dump();
-        llvm::errs() << val << "\n";
-        assert(val.getType().isa<mlir::MemRefType>());
-      }
-    }
-  };
-
+  // 4. Move to .cpp file.
+  // 5. rename to 'loadVariable', getValue seems to generic.
   mlir::Value getValue(OpBuilder &builder) const {
-    assert(val);
+    assert(val && "must be not-null");
     if (!isReference)
       return val;
     auto loc = builder.getUnknownLoc();
     if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
       return builder.create<mlir::LLVM::LoadOp>(loc, val);
     }
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
-    if (!val.getType().isa<mlir::MemRefType>()) {
-      llvm::errs() << val << "\n";
+    if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
+      assert(mt.getShape().size() == 1 && "must have shape 1");
+      auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+      return builder.create<memref::LoadOp>(loc, val,
+                                            std::vector<mlir::Value>({c0}));
     }
-    assert(val.getType().isa<mlir::MemRefType>());
-    // return ValueWithOffsets(builder.create<memref::SubIndexOp>(loc, mt0, val,
-    // c0), /*isReference*/true);
-    if (val.getType().cast<mlir::MemRefType>().getShape().size() != 1) {
-      llvm::errs() << " val: " << val << " ty: " << val.getType() << "\n";
-    }
-    assert(val.getType().cast<mlir::MemRefType>().getShape().size() == 1);
-    return builder.create<memref::LoadOp>(loc, val,
-                                          std::vector<mlir::Value>({c0}));
+    llvm_unreachable("type must be LLVMPointer or MemRef");
   }
 
   void store(OpBuilder &builder, ValueWithOffsets toStore, bool isArray) const {
@@ -194,42 +181,39 @@ struct ValueWithOffsets {
     }
   }
 
+  // 6. rename to 'storeVariable'?
   void store(OpBuilder &builder, mlir::Value toStore) const {
-    assert(isReference);
-    assert(val);
+    assert(isReference && "must be a reference");
+    assert(val && "expect not-null");
     auto loc = builder.getUnknownLoc();
-    if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      if (toStore.getType() != PT.getElementType()) {
+    if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      if (toStore.getType() != pt.getElementType()) {
         if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
           if (auto spt =
-                  PT.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-            if (mt.getElementType() == spt.getElementType()) {
-              toStore = builder.create<polygeist::Memref2PointerOp>(loc, spt,
-                                                                    toStore);
-            }
+                  pt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+            assert(mt.getElementType() == spt.getElementType() &&
+                   "expect same type");
+            toStore =
+                builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
           }
         }
+      } else { // toStore.getType() == pt.getElementType()
+        assert(toStore.getType() == pt.getElementType() && "expect same type");
+        builder.create<mlir::LLVM::StoreOp>(loc, toStore, val);
       }
-      if (toStore.getType() != PT.getElementType()) {
-        llvm::errs() << " toStore: " << toStore << " PT: " << PT
-                     << " val: " << val << "\n";
-      }
-      assert(toStore.getType() == PT.getElementType());
-      builder.create<mlir::LLVM::StoreOp>(loc, toStore, val);
-    } else {
-      assert(val.getType().cast<MemRefType>().getShape().size() == 1);
-      if (toStore.getType() !=
-          val.getType().cast<MemRefType>().getElementType()) {
-        llvm::errs() << " toStore: " << toStore
-                     << " PT: " << val.getType().cast<MemRefType>()
-                     << " val: " << val << "\n";
-      }
+      return;
+    }
+    if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+      assert(mt.getShape().size() == 1 && "must have size 1");
       assert(toStore.getType() ==
-             val.getType().cast<MemRefType>().getElementType());
+                 val.getType().cast<MemRefType>().getElementType() &&
+             "expect same type");
       auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
       builder.create<mlir::memref::StoreOp>(loc, toStore, val,
                                             std::vector<mlir::Value>({c0}));
+      return;
     }
+    llvm_unreachable("type must be LLVMPointer or MemRef");
   }
 
   ValueWithOffsets dereference(OpBuilder &builder) const {
@@ -244,31 +228,29 @@ struct ValueWithOffsets {
                                 /*isReference*/ true);
     }
 
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
-    if (!val.getType().isa<mlir::MemRefType>())
-      llvm::errs() << val << "\n";
-    auto mt = val.getType().cast<mlir::MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
+    if (auto mt = val.getType().cast<mlir::MemRefType>()) {
+      auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+      auto shape = std::vector<int64_t>(mt.getShape());
 
-    if (isReference) {
-      if (shape.size() > 1) {
-        shape.erase(shape.begin());
-        auto mt0 =
-            mlir::MemRefType::get(shape, mt.getElementType(),
-                                  mt.getAffineMaps(), mt.getMemorySpace());
-        return ValueWithOffsets(
-            builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
-            /*isReference*/ true);
-      } else {
-        // shape[0] = -1;
-        return ValueWithOffsets(builder.create<memref::LoadOp>(
-                                    loc, val, std::vector<mlir::Value>({c0})),
-                                /*isReference*/ true);
+      if (isReference) {
+        if (shape.size() > 1) {
+          shape.erase(shape.begin());
+          auto mt0 =
+              mlir::MemRefType::get(shape, mt.getElementType(),
+                                    mt.getAffineMaps(), mt.getMemorySpace());
+          return ValueWithOffsets(
+              builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
+              /*isReference*/ true);
+        } else {
+          // shape[0] = -1;
+          return ValueWithOffsets(builder.create<memref::LoadOp>(
+                                      loc, val, std::vector<mlir::Value>({c0})),
+                                  /*isReference*/ true);
+        }
       }
+      return ValueWithOffsets(val, /*isReference*/ true);
     }
-    // return ValueWithOffsets(val, /*isReference*/true);
-    // assert(shape.size() == 1);
-    return ValueWithOffsets(val, /*isReference*/ true);
+    llvm_unreachable("type must be LLVMPointer or MemRef");
   }
 };
 
