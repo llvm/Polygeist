@@ -17,6 +17,7 @@
 #include <clang/Lex/PreprocessorOptions.h>
 
 #include "AffineUtils.h"
+#include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -32,7 +33,6 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
 #include "pragmaHandler.h"
-#include "valueCategory.h"
 #include "llvm/IR/DerivedTypes.h"
 
 #include "clang/../../lib/CodeGen/CGRecordLayout.h"
@@ -130,7 +130,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 };
 
-struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueWithOffsets> {
+struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
 private:
   MLIRASTConsumer &Glob;
   mlir::FuncOp function;
@@ -141,7 +141,7 @@ private:
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
 
-  // ValueWithOffsets getValue(std::string name);
+  // ValueCategory getValue(std::string name);
 
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
@@ -207,12 +207,12 @@ public:
 
 public:
   const FunctionDecl *EmittingFunctionDecl;
-  std::map<const VarDecl *, ValueWithOffsets> params;
+  std::map<const VarDecl *, ValueCategory> params;
   llvm::DenseMap<const VarDecl *, FieldDecl *> Captures;
   llvm::DenseMap<const VarDecl *, LambdaCaptureKind> CaptureKinds;
   FieldDecl *ThisCapture;
   std::vector<mlir::Value> arrayinit;
-  ValueWithOffsets ThisVal;
+  ValueCategory ThisVal;
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
 
@@ -249,7 +249,7 @@ public:
 
       if (CM->isInstance()) {
         mlir::Value val = function.getArgument(i);
-        ThisVal = ValueWithOffsets(val, /*isReference*/ false);
+        ThisVal = ValueCategory(val, /*isReference*/ false);
         i++;
       }
     }
@@ -281,11 +281,11 @@ public:
       mlir::Value val = function.getArgument(i);
       assert(val);
       if (isArray) {
-        params.emplace(parm, ValueWithOffsets(val, /*isReference*/ true));
+        params.emplace(parm, ValueCategory(val, /*isReference*/ true));
       } else {
         auto alloc = createAllocOp(val.getType(), parm, /*memspace*/ 0, isArray,
                                    /*LLVMABI*/ LLVMABI);
-        ValueWithOffsets(alloc, /*isReference*/ true).store(builder, val);
+        ValueCategory(alloc, /*isReference*/ true).store(builder, val);
       }
       i++;
     }
@@ -363,128 +363,126 @@ public:
            "New function must be inserted into global module");
   }
 
-  ValueWithOffsets VisitDeclStmt(clang::DeclStmt *decl);
+  ValueCategory VisitDeclStmt(clang::DeclStmt *decl);
 
-  ValueWithOffsets
-  VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
+  ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
-  ValueWithOffsets VisitConstantExpr(clang::ConstantExpr *expr);
+  ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
 
-  ValueWithOffsets VisitIntegerLiteral(clang::IntegerLiteral *expr);
+  ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
-  ValueWithOffsets VisitCharacterLiteral(clang::CharacterLiteral *expr);
+  ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);
 
-  ValueWithOffsets VisitFloatingLiteral(clang::FloatingLiteral *expr);
+  ValueCategory VisitFloatingLiteral(clang::FloatingLiteral *expr);
 
-  ValueWithOffsets VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
+  ValueCategory VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
-  ValueWithOffsets VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
-  ValueWithOffsets VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
+  ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+  ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
-  ValueWithOffsets VisitStringLiteral(clang::StringLiteral *expr);
+  ValueCategory VisitStringLiteral(clang::StringLiteral *expr);
 
-  ValueWithOffsets VisitParenExpr(clang::ParenExpr *expr);
+  ValueCategory VisitParenExpr(clang::ParenExpr *expr);
 
-  ValueWithOffsets VisitVarDecl(clang::VarDecl *decl);
+  ValueCategory VisitVarDecl(clang::VarDecl *decl);
 
-  ValueWithOffsets VisitForStmt(clang::ForStmt *fors);
+  ValueCategory VisitForStmt(clang::ForStmt *fors);
 
-  ValueWithOffsets
+  ValueCategory
   VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
 
-  ValueWithOffsets VisitWhileStmt(clang::WhileStmt *fors);
+  ValueCategory VisitWhileStmt(clang::WhileStmt *fors);
 
-  ValueWithOffsets VisitDoStmt(clang::DoStmt *fors);
+  ValueCategory VisitDoStmt(clang::DoStmt *fors);
 
-  ValueWithOffsets VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
+  ValueCategory VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
-  ValueWithOffsets VisitCallExpr(clang::CallExpr *expr);
+  ValueCategory VisitCallExpr(clang::CallExpr *expr);
 
-  std::pair<ValueWithOffsets, bool> EmitGPUCallExpr(clang::CallExpr *expr);
+  std::pair<ValueCategory, bool> EmitGPUCallExpr(clang::CallExpr *expr);
 
-  std::pair<ValueWithOffsets, bool> EmitBuiltinOps(clang::CallExpr *expr);
+  std::pair<ValueCategory, bool> EmitBuiltinOps(clang::CallExpr *expr);
 
-  ValueWithOffsets VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
+  ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
-  ValueWithOffsets VisitConstructCommon(clang::CXXConstructExpr *expr,
-                                        VarDecl *name, unsigned space,
-                                        mlir::Value mem = nullptr);
+  ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
+                                     VarDecl *name, unsigned space,
+                                     mlir::Value mem = nullptr);
 
-  ValueWithOffsets VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *expr);
+  ValueCategory VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *expr);
 
-  ValueWithOffsets VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr);
+  ValueCategory VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr);
 
-  ValueWithOffsets VisitUnaryOperator(clang::UnaryOperator *U);
+  ValueCategory VisitUnaryOperator(clang::UnaryOperator *U);
 
-  ValueWithOffsets
+  ValueCategory
   VisitSubstNonTypeTemplateParmExpr(clang::SubstNonTypeTemplateParmExpr *expr);
 
-  ValueWithOffsets
+  ValueCategory
   VisitUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *Uop);
 
-  ValueWithOffsets VisitBinaryOperator(clang::BinaryOperator *BO);
+  ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
 
-  ValueWithOffsets VisitAttributedStmt(clang::AttributedStmt *AS);
+  ValueCategory VisitAttributedStmt(clang::AttributedStmt *AS);
 
-  ValueWithOffsets VisitExprWithCleanups(clang::ExprWithCleanups *E);
+  ValueCategory VisitExprWithCleanups(clang::ExprWithCleanups *E);
 
-  ValueWithOffsets VisitDeclRefExpr(clang::DeclRefExpr *E);
+  ValueCategory VisitDeclRefExpr(clang::DeclRefExpr *E);
 
-  ValueWithOffsets VisitOpaqueValueExpr(clang::OpaqueValueExpr *E);
+  ValueCategory VisitOpaqueValueExpr(clang::OpaqueValueExpr *E);
 
-  ValueWithOffsets VisitMemberExpr(clang::MemberExpr *ME);
+  ValueCategory VisitMemberExpr(clang::MemberExpr *ME);
 
-  ValueWithOffsets VisitCastExpr(clang::CastExpr *E);
+  ValueCategory VisitCastExpr(clang::CastExpr *E);
 
-  ValueWithOffsets VisitIfStmt(clang::IfStmt *stmt);
+  ValueCategory VisitIfStmt(clang::IfStmt *stmt);
 
-  ValueWithOffsets VisitSwitchStmt(clang::SwitchStmt *stmt);
+  ValueCategory VisitSwitchStmt(clang::SwitchStmt *stmt);
 
-  ValueWithOffsets VisitConditionalOperator(clang::ConditionalOperator *E);
+  ValueCategory VisitConditionalOperator(clang::ConditionalOperator *E);
 
-  ValueWithOffsets VisitCompoundStmt(clang::CompoundStmt *stmt);
+  ValueCategory VisitCompoundStmt(clang::CompoundStmt *stmt);
 
-  ValueWithOffsets VisitBreakStmt(clang::BreakStmt *stmt);
+  ValueCategory VisitBreakStmt(clang::BreakStmt *stmt);
 
-  ValueWithOffsets VisitContinueStmt(clang::ContinueStmt *stmt);
+  ValueCategory VisitContinueStmt(clang::ContinueStmt *stmt);
 
-  ValueWithOffsets VisitReturnStmt(clang::ReturnStmt *stmt);
+  ValueCategory VisitReturnStmt(clang::ReturnStmt *stmt);
 
-  ValueWithOffsets VisitStmtExpr(clang::StmtExpr *stmt);
+  ValueCategory VisitStmtExpr(clang::StmtExpr *stmt);
 
-  ValueWithOffsets VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *expr);
+  ValueCategory VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *expr);
 
-  ValueWithOffsets
+  ValueCategory
   VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
 
-  ValueWithOffsets VisitCXXNewExpr(clang::CXXNewExpr *expr);
+  ValueCategory VisitCXXNewExpr(clang::CXXNewExpr *expr);
 
-  ValueWithOffsets VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
+  ValueCategory VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
 
-  ValueWithOffsets VisitCXXThisExpr(clang::CXXThisExpr *expr);
+  ValueCategory VisitCXXThisExpr(clang::CXXThisExpr *expr);
 
-  ValueWithOffsets VisitPredefinedExpr(clang::PredefinedExpr *expr);
+  ValueCategory VisitPredefinedExpr(clang::PredefinedExpr *expr);
 
-  ValueWithOffsets VisitLambdaExpr(clang::LambdaExpr *expr);
+  ValueCategory VisitLambdaExpr(clang::LambdaExpr *expr);
 
-  ValueWithOffsets VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr);
+  ValueCategory VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr);
 
-  ValueWithOffsets
-  VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr);
+  ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr);
 
-  ValueWithOffsets VisitInitListExpr(clang::InitListExpr *expr);
+  ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
 
-  ValueWithOffsets VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
-                                      ValueWithOffsets tostore);
+  ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
+                                   ValueCategory tostore);
 
-  ValueWithOffsets VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
+  ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
 
-  ValueWithOffsets CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
-                                     mlir::Value val);
+  ValueCategory CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
+                                  mlir::Value val);
 
-  ValueWithOffsets CommonArrayLookup(ValueWithOffsets val, mlir::Value idx);
+  ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx);
 
-  ValueWithOffsets CommonArrayToPointer(ValueWithOffsets val);
+  ValueCategory CommonArrayToPointer(ValueCategory val);
 };
 
 #endif

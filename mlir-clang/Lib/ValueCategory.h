@@ -1,5 +1,4 @@
-//===- valueCategory.h -------------------------------------------*- C++
-//-*-===//
+//===- ValueCategory.h -------------------------------------------*- C++-*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,24 +13,24 @@
 #include "mlir/IR/Value.h"
 
 // Represents a rhs or lhs value.
-class ValueWithOffsets {
+class ValueCategory {
 public:
   mlir::Value val;
   bool isReference;
 
 public:
-  ValueWithOffsets() : val(nullptr), isReference(false){};
-  ValueWithOffsets(std::nullptr_t) : val(nullptr), isReference(false){};
-  ValueWithOffsets(mlir::Value val, bool isReference)
+  ValueCategory() : val(nullptr), isReference(false){};
+  ValueCategory(std::nullptr_t) : val(nullptr), isReference(false){};
+  ValueCategory(mlir::Value val, bool isReference)
       : val(val), isReference(isReference){};
 
   // TODO: rename to 'loadVariable'? getValue seems to generic.
   mlir::Value getValue(mlir::OpBuilder &builder) const;
-  void store(mlir::OpBuilder &builder, ValueWithOffsets toStore,
+  void store(mlir::OpBuilder &builder, ValueCategory toStore,
              bool isArray) const;
   // TODO: rename to storeVariable?
   void store(mlir::OpBuilder &builder, mlir::Value toStore) const;
-  ValueWithOffsets dereference(mlir::OpBuilder &builder) const;
+  ValueCategory dereference(mlir::OpBuilder &builder) const;
 };
 
 #endif
