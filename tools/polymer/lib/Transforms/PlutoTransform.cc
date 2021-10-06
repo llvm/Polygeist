@@ -53,6 +53,11 @@ struct PlutoOptPipelineOptions
   Option<bool> generateParallel{
       *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
       llvm::cl::init(false)};
+
+  Option<int> cloogf{*this, "cloogf", cl::desc("-cloogf option."),
+                     cl::init(-1)};
+  Option<int> cloogl{*this, "cloogl", cl::desc("-cloogl option."),
+                     cl::init(-1)};
 };
 
 } // namespace
@@ -61,8 +66,8 @@ struct PlutoOptPipelineOptions
 /// TODO: transform options?
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto,
-                                   bool parallelize = false,
-                                   bool debug = false) {
+                                   bool parallelize = false, bool debug = false,
+                                   int cloogf = -1, int cloogl = -1) {
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -84,6 +89,11 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   context->options->parallel = parallelize;
   context->options->unrolljam = 0;
   context->options->prevector = 0;
+
+  if (cloogf != -1)
+    context->options->cloogf = cloogf;
+  if (cloogl != -1)
+    context->options->cloogl = cloogl;
 
   PlutoProg *prog = osl_scop_to_pluto_prog(scop->get(), context);
   pluto_schedule_prog(prog);
@@ -120,13 +130,16 @@ class PlutoTransformPass
   std::string dumpClastAfterPluto = "";
   bool parallelize = false;
   bool debug = false;
+  int cloogf = -1;
+  int cloogl = -1;
 
 public:
   PlutoTransformPass() = default;
   PlutoTransformPass(const PlutoTransformPass &pass) {}
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
-        parallelize(options.parallelize), debug(options.debug) {}
+        parallelize(options.parallelize), debug(options.debug),
+        cloogf(options.cloogf), cloogl(options.cloogl) {}
 
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
@@ -141,8 +154,8 @@ public:
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g =
-              plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug)) {
+      if (mlir::FuncOp g = plutoTransform(f, b, dumpClastAfterPluto,
+                                          parallelize, debug, cloogf, cloogl)) {
         funcMap[f] = g;
         g.setPublic();
       }
