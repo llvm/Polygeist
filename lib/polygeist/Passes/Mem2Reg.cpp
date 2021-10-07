@@ -679,6 +679,33 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 }
               }
             });
+            a->walk([&](LLVM::LoadOp loadOp) {
+              if (loadOps.count(loadOp)) {
+                if (lastVal) {
+                  changed = true;
+                  if (loadOp.getType() != lastVal.getType()) {
+                    llvm::errs() << loadOp << " - " << lastVal << "\n";
+                  }
+                  assert(loadOp.getType() == lastVal.getType());
+                  loadOp.replaceAllUsesWith(lastVal);
+                  for (auto &pair : lastStoreInBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  for (auto &pair : valueAtStartOfBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  // Record this to erase later.
+                  loadOpsToErase.push_back(loadOp);
+                  loadOps.erase(loadOp);
+                } else if (seenSubStore) {
+                  // llvm::errs() << "ano lastval found for: " << loadOp <<
+                  // "\n";
+                  loadOps.erase(loadOp);
+                }
+              }
+            });
             a->walk([&](AffineLoadOp loadOp) {
               if (loadOps.count(loadOp)) {
                 if (lastVal) {
