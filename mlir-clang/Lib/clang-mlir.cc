@@ -62,11 +62,21 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
           builder.create<mlir::ConstantOp>(varLoc, iTy,
                                            builder.getIntegerAttr(iTy, 1)),
           0);
+      if (t.isa<mlir::IntegerType>()) {
+        abuilder.create<LLVM::StoreOp>(
+            varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
+      }
     } else {
+      mlir::Value idxs[] = {getConstantIndex(0)};
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
+      if (t.isa<mlir::IntegerType>()) {
+        abuilder.create<mlir::memref::StoreOp>(
+            varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
+            idxs);
+      }
     }
   } else {
     auto mt = t.cast<mlir::MemRefType>();

@@ -598,6 +598,12 @@ public:
       auto type =
           mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
       returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
+      if (type.getElementType().isa<mlir::IntegerType>()) {
+        builder.create<mlir::memref::StoreOp>(
+            loc,
+            builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
+            returnVal, std::vector<mlir::Value>({}));
+      }
     }
     Visit(stmt);
 
