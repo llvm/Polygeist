@@ -20,8 +20,9 @@ Please read on to find [how to install](#install-polymer) and [use](#basic-usage
 
 Polymer is a essential component to the following two papers:
 
-* [Polygeist: Affine C in MLIR](https://acohen.gitlabpages.inria.fr/impact/impact2021/papers/IMPACT_2021_paper_1.pdf). This paper gives an overview of the whole Polygeist framework, in which Polymer does the polyhedral optimisation part of work.
-* [Phism: Polyhedral HLS in MLIR](https://capra.cs.cornell.edu/latte21/paper/1.pdf). This paper demonstrates an interesting way to leverage Polymer for polyhedral HLS within the MLIR ecosystem.
+* [Polygeist: Affine C in MLIR (IMPACT'21)](https://acohen.gitlabpages.inria.fr/impact/impact2021/papers/IMPACT_2021_paper_1.pdf). This paper gives an overview of the whole Polygeist framework, in which Polymer does the polyhedral optimisation part of work.
+* [Phism: Polyhedral HLS in MLIR (LATTE'21)](https://capra.cs.cornell.edu/latte21/paper/1.pdf). This paper demonstrates an interesting way to leverage Polymer for polyhedral HLS within the MLIR ecosystem.
+* [Polygeist: Raising C to Polyhedral MLIR (PACT'21)](https://c.wsmoses.com/papers/Polygeist_PACT.pdf). This is an updated version to the IMPACT'21 submission.
 
 ### Talks
 
