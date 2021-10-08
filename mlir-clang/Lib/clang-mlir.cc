@@ -984,37 +984,65 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
 ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     clang::OMPParallelForDirective *fors) {
   IfScope scope(*this);
-  fors->dump();
+  //fors->dump();
 
   Visit(fors->getPreInits());
 
   SmallVector<mlir::Value> inits;
   for (auto f : fors->inits()) {
-    llvm::errs() << " init: ";
-    f->dump();
-    llvm::errs() << "\n";
-    inits.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder),
+    //llvm::errs() << " init: ";
+    auto initV = cast<OMPCapturedExprDecl>(cast<DeclRefExpr>(
+            cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())->getSubExpr()
+    )->getDecl())->getInit();
+    //initV->dump();
+    //llvm::errs() << "\n";
+    inits.push_back(builder.create<IndexCastOp>(loc, Visit(initV).getValue(builder),
                                                 builder.getIndexType()));
   }
-  inits.clear();
-  inits.push_back(getConstantIndex(0));
 
   SmallVector<mlir::Value> finals;
   for (auto f : fors->finals()) {
-    llvm::errs() << " final: ";
-    f->dump();
-    llvm::errs() << "\n";
+    //llvm::errs() << " final: ";
+    //f->dump();
+    
+    auto bo = cast<clang::BinaryOperator>(cast<clang::BinaryOperator>(
+            cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())->getSubExpr()
+    )->getRHS());
+    //bo->dump();
+    auto bo2 = //cast<clang::BinaryOperator>(
+            cast<clang::BinaryOperator>(cast<clang::BinaryOperator>(cast<clang::BinaryOperator>(cast<ParenExpr>(cast<clang::BinaryOperator>(cast<ParenExpr>(bo->getLHS())->getSubExpr())->getLHS())->getSubExpr())->getLHS())->getLHS())
+                    //)->getLHS())
+            ;
+    //bo2->dump();
+    auto rhs = cast<OMPCapturedExprDecl>(cast<DeclRefExpr>(cast<clang::CastExpr>(cast<ParenExpr>(cast<clang::CastExpr>(bo2->getLHS())->getSubExpr())->getSubExpr())->getSubExpr())->getDecl());
+    //rhs->dump();
+    //llvm::errs() << "\n";
     finals.push_back(builder.create<IndexCastOp>(
-        loc, Visit(f).getValue(builder), builder.getIndexType()));
+        loc, Visit(rhs->getInit()).getValue(builder), builder.getIndexType()));
   }
-  finals.clear();
-  finals.push_back(builder.create<IndexCastOp>(
-      loc, Visit(fors->getNumIterations()).getValue(builder),
-      builder.getIndexType()));
 
+  SmallVector<mlir::Value> incs;
+  for (auto f : fors->updates()) {
+    //llvm::errs() << " update: ";
+    //f->dump();
+    
+    auto bo = cast<clang::BinaryOperator>(
+            cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())->getSubExpr()
+    );
+    //auto lhs = cast<DeclRefExpr>(cast<clang::CastExpr>(cast<clang::CastExpr>(bo->getLHS())->getSubExpr())->getSubExpr())->getDecl();
+    //lhs->dump();
+    
+    auto rhs = cast<OMPCapturedExprDecl>(cast<DeclRefExpr>(cast<clang::CastExpr>(cast<clang::CastExpr>(cast<clang::BinaryOperator>(bo->getRHS())->getRHS())->getSubExpr())->getSubExpr())->getDecl());
+    
+    incs.push_back(builder.create<IndexCastOp>(loc, Visit(rhs->getInit()).getValue(builder),
+                                                builder.getIndexType()));
+    //llvm::errs() << "\n";
+  }
+
+  
   SmallVector<mlir::Value> counters;
-  mlir::Value incs[] = {getConstantIndex(1)};
 
+#if 0
   for (auto m : fors->getInnermostCapturedStmt()->captures()) {
     llvm::errs() << " cap: ";
     m.getCapturedVar()->dump();
@@ -1033,7 +1061,9 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     }
     */
   }
+#endif
 
+  /*
   for (auto f : fors->counters()) {
     llvm::errs() << " counter: ";
     f->dump();
@@ -1083,6 +1113,7 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   llvm::errs() << " body: ";
   fors->getBody()->dump();
   llvm::errs() << "\n";
+  */
 
   auto affineOp = builder.create<scf::ParallelOp>(loc, inits, finals, incs);
 
@@ -1098,20 +1129,38 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
   er.region().push_back(new Block());
   builder.setInsertionPointToStart(&er.region().back());
-  builder.create<scf::YieldOp>(loc);
-  builder.setInsertionPointToStart(&er.region().back());
 
+
+  auto oldScope = allocationScope;
+  allocationScope = &er.region().back();
+  
+  for (auto zp : zip(inds, fors->counters())) {
   auto idx = builder.create<mlir::IndexCastOp>(
-      loc, inds[0], getMLIRType(fors->getIterationVariable()->getType()));
+      loc, std::get<0>(zp), getMLIRType(fors->getIterationVariable()->getType()));
   VarDecl *name =
-      cast<VarDecl>(cast<DeclRefExpr>(fors->counters()[0])->getDecl());
+      cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
   assert(params.find(name) == params.end());
-  params[name] = ValueCategory(idx, false);
+
+  bool LLVMABI = false;
+  bool isArray = false;
+  if (Glob.getMLIRType(
+              Glob.CGM.getContext().getLValueReferenceType(name->getType()))
+          .isa<mlir::LLVM::LLVMPointerType>())
+    LLVMABI = true;
+  else
+    Glob.getMLIRType(name->getType(), &isArray);
+
+  auto allocop = createAllocOp(idx.getType(), name, /*memtype*/0, /*isArray*/isArray, /*LLVMABI*/LLVMABI);
+  params[name] = ValueCategory(allocop, true);
+  params[name].store(builder, idx);
+  }
 
   // TODO: set loop context.
   Visit(fors->getBody());
 
   builder.create<scf::YieldOp>(loc);
+
+  allocationScope = oldScope;
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
