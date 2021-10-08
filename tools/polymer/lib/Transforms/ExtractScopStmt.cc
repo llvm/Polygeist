@@ -21,6 +21,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -102,7 +103,7 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 
   // Setup the operand for the caller as well.
   // llvm::errs() << "Updated callers:\n";
-  SetVector<mlir::Operation *> callerOpsToRemove;
+  llvm::SetVector<mlir::Operation *> callerOpsToRemove;
   for (mlir::Operation *callerOp : calleeToCallers[calleeOp]) {
     mlir::CallOp caller = cast<mlir::CallOp>(callerOp);
     SmallVector<mlir::Value, 8> newOperands;
@@ -165,8 +166,9 @@ static bool isUpdatedByDominatingStore(Operation *op, mlir::FuncOp f) {
 /// operation. The sequence of the operations in defOps will be reversed,
 /// depth-first, starting from op. Note that the initial op will be placed in
 /// the resulting ops as well.
-static void getScopStmtOps(Operation *writeOp, SetVector<Operation *> &ops,
-                           SetVector<mlir::Value> &args,
+static void getScopStmtOps(Operation *writeOp,
+                           llvm::SetVector<Operation *> &ops,
+                           llvm::SetVector<mlir::Value> &args,
                            OpToCalleeMap &opToCallee,
                            CalleeToCallersMap &calleeToCallers,
                            mlir::FuncOp topLevelFun, OpBuilder &b) {
@@ -250,8 +252,8 @@ static void getCalleeName(unsigned calleeId, CalleeName &calleeName,
 /// callee function has a single block in it, and it has no returned value. The
 /// callee will be inserted at the end of the whole module.
 static mlir::FuncOp createCallee(StringRef calleeName,
-                                 const SetVector<Operation *> &ops,
-                                 const SetVector<mlir::Value> &args,
+                                 const llvm::SetVector<Operation *> &ops,
+                                 const llvm::SetVector<mlir::Value> &args,
                                  mlir::ModuleOp m, Operation *writeOp,
                                  OpToCalleeMap &opToCallee, OpBuilder &b) {
   assert(ops.contains(writeOp) && "writeOp should be a member in ops.");
@@ -290,7 +292,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 
   // Clone the operations into the new callee function. In case they are not in
   // the correct order, we sort them topologically beforehand.
-  SetVector<Operation *> sortedOps = topologicalSort(ops);
+  llvm::SetVector<Operation *> sortedOps = topologicalSort(ops);
   SmallVector<Operation *, 8> clonedOps;
 
   // Ensures that the cloned operations have their uses updated to the
@@ -329,7 +331,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 /// Create a caller to the callee right after the writeOp, which will be removed
 /// later.
 static mlir::CallOp createCaller(mlir::FuncOp callee,
-                                 const SetVector<mlir::Value> &args,
+                                 const llvm::SetVector<mlir::Value> &args,
                                  Operation *writeOp, OpBuilder &b) {
   // llvm::errs() << "Create caller for: " << callee.getName() << "\n";
   OpBuilder::InsertionGuard guard(b);
@@ -343,7 +345,7 @@ static mlir::CallOp createCaller(mlir::FuncOp callee,
 /// Remove those ops that are already in the callee, and not have uses by other
 /// ops. We will first sort these ops topologically, and then remove them in a
 /// reversed order.
-static void removeExtractedOps(SetVector<Operation *> &opsToRemove) {
+static void removeExtractedOps(llvm::SetVector<Operation *> &opsToRemove) {
   opsToRemove = topologicalSort(opsToRemove);
   unsigned numOpsToRemove = opsToRemove.size();
 
@@ -364,7 +366,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   SmallVector<Operation *, 8> writeOps;
   discoverMemWriteOps(f, writeOps);
 
-  SetVector<Operation *> opsToRemove;
+  llvm::SetVector<Operation *> opsToRemove;
   // Map from an op in the original funcOp to which callee it would belong to.
   OpToCalleeMap opToCallee;
   CalleeToCallersMap calleeToCallers;
@@ -375,8 +377,8 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
   // A writeOp will result in a new caller/callee pair.
   for (unsigned i = 0; i < numWriteOps; i++) {
-    SetVector<Operation *> ops;
-    SetVector<mlir::Value> args;
+    llvm::SetVector<Operation *> ops;
+    llvm::SetVector<mlir::Value> args;
 
     // Get all the ops inside a statement that corresponds to the current write
     // operation.
@@ -480,6 +482,9 @@ class ExtractScopStmtPass
 } // namespace
 
 void polymer::registerExtractScopStmtPass() {
-  PassRegistration<ExtractScopStmtPass>(
-      "extract-scop-stmt", "Extract SCoP statements into functions.");
+  PassPipelineRegistration<>(
+      "extract-scop-stmt", "Extract SCoP statements into functions.",
+      [](OpPassManager &pm) {
+        pm.addPass(std::make_unique<ExtractScopStmtPass>());
+      });
 }

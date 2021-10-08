@@ -53,7 +53,7 @@ public:
   /// The scop.stmt callee.
   mlir::FuncOp callee;
   /// The domain of the caller.
-  FlatAffineConstraints domain;
+  FlatAffineValueConstraints domain;
   /// Enclosing for/if operations for the caller.
   EnclosingOpList enclosingOps;
 };
@@ -90,7 +90,7 @@ static BlockArgument findTopLevelBlockArgument(mlir::Value val) {
 }
 
 static void
-promoteSymbolToTopLevel(mlir::Value val, FlatAffineConstraints &domain,
+promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
                         llvm::DenseMap<mlir::Value, mlir::Value> &symMap) {
   BlockArgument arg = findTopLevelBlockArgument(val);
   assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
@@ -103,7 +103,7 @@ promoteSymbolToTopLevel(mlir::Value val, FlatAffineConstraints &domain,
   unsigned int pos;
   assert(domain.findId(val, &pos) &&
          "Provided value should be in the given domain");
-  domain.setIdValue(pos, arg);
+  domain.setValue(pos, arg);
 
   symMap[val] = arg;
 }
@@ -122,8 +122,8 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // should be a top-level BlockArgument.
   SmallVector<mlir::Value, 8> symValues;
   llvm::DenseMap<mlir::Value, mlir::Value> symMap;
-  domain.getIdValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
-                     &symValues);
+  domain.getValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+                   &symValues);
   for (mlir::Value val : symValues)
     promoteSymbolToTopLevel(val, domain, symMap);
 }
@@ -145,7 +145,9 @@ ScopStmt::~ScopStmt() = default;
 ScopStmt::ScopStmt(ScopStmt &&) = default;
 ScopStmt &ScopStmt::operator=(ScopStmt &&) = default;
 
-FlatAffineConstraints *ScopStmt::getDomain() const { return &(impl->domain); }
+FlatAffineValueConstraints *ScopStmt::getDomain() const {
+  return &(impl->domain);
+}
 
 void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                                bool forOnly) const {

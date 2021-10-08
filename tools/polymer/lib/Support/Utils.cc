@@ -18,7 +18,7 @@ using namespace polymer;
 using namespace mlir;
 using namespace llvm;
 
-void polymer::inferBlockArgs(Block *block, SetVector<Value> &args) {
+void polymer::inferBlockArgs(Block *block, llvm::SetVector<Value> &args) {
   // Any value being used will be added to the set first.
   block->walk([&](Operation *op) {
     for (mlir::Value operand : op->getOperands())

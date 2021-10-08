@@ -10,9 +10,7 @@ add_mlir_conversion_library(PolymerTransforms
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
 
   DEPENDS
-  MLIRAffineOpsIncGen
-  MLIRAffinePassIncGen
-  MLIRLoopLikeInterfaceIncGen
+  ${POLYMER_TRANSFORM_DEPENDS}
 
   LINK_LIBS PUBLIC
   MLIRAffine

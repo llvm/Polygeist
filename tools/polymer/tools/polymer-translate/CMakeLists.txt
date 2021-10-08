@@ -13,7 +13,6 @@ target_link_libraries(polymer-translate
   MLIRLoopAnalysis
   MLIRAnalysis
   MLIRDialect
-  MLIREDSC
   MLIROptLib
   MLIRParser
   MLIRPass

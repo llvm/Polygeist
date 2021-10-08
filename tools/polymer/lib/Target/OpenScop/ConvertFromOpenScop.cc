@@ -1294,7 +1294,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   Block *currBlock = prevBlock->splitBlock(forOp);
   Block *nextBlock = currBlock->splitBlock(forOp->getNextNode());
 
-  SetVector<mlir::Value> args;
+  llvm::SetVector<mlir::Value> args;
   inferBlockArgs(currBlock, args);
 
   // Create the function body

@@ -43,10 +43,10 @@ static bool isPointLoop(mlir::AffineForOp forOp) {
   return forOp->hasAttr("scop.point_loop");
 }
 
-static void getArgs(Operation *parentOp, SetVector<Value> &args) {
+static void getArgs(Operation *parentOp, llvm::SetVector<Value> &args) {
   args.clear();
 
-  SetVector<Operation *> internalOps;
+  llvm::SetVector<Operation *> internalOps;
   internalOps.insert(parentOp);
 
   parentOp->walk([&](Operation *op) { internalOps.insert(op); });
@@ -85,7 +85,7 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
   b.create<mlir::ReturnOp>(callee.getLoc());
   b.setInsertionPointToStart(entry);
 
-  SetVector<Value> args;
+  llvm::SetVector<Value> args;
   getArgs(forOp, args);
 
   BlockAndValueMapping mapping;
@@ -111,7 +111,7 @@ static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(m.getBody(), std::prev(m.getBody()->end()));
 
-  SetVector<Operation *> extracted;
+  llvm::SetVector<Operation *> extracted;
 
   for (Operation *caller : callers) {
     SmallVector<mlir::AffineForOp, 4> forOps;
@@ -161,6 +161,5 @@ struct ExtractPointLoopsPass
 } // namespace
 
 void polymer::registerLoopExtractPasses() {
-  PassRegistration<ExtractPointLoopsPass>(
-      "extract-point-loops", "Extract point loop bands into functions");
+  // PassRegistration<ExtractPointLoopsPass>();
 }
