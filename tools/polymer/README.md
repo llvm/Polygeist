@@ -2,6 +2,10 @@
 
 [![Build and Test](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml/badge.svg)](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml)
 [![wakatime](https://wakatime.com/badge/github/kumasento/polymer.svg)](https://wakatime.com/badge/github/kumasento/polymer)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/kumasento/polymer)
+![GitHub](https://img.shields.io/github/license/kumasento/polymer)
+![GitHub issues](https://img.shields.io/github/issues/kumasento/polymer)
+![GitHub pull requests](https://img.shields.io/github/issues-pr/kumasento/polymer)
 
 Bridging polyhedral analysis tools to the MLIR framework.
 
