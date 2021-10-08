@@ -1,4 +1,4 @@
-# Polymer
+# Polymer: bridging polyhedral tools to MLIR
 
 [![Build and Test](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml/badge.svg)](https://github.com/kumasento/polymer/actions/workflows/buildAndTest.yml)
 [![wakatime](https://wakatime.com/badge/github/kumasento/polymer.svg)](https://wakatime.com/badge/github/kumasento/polymer)
