@@ -1,4 +1,5 @@
 // RUN: mlir-clang -S -O0 %s | FileCheck %s
+// RUN: mlir-clang -S -O1 %s | FileCheck %s --check-prefix=OPT1
 
 void foo(int A[10]) {
 #pragma scop
@@ -9,6 +10,8 @@ void foo(int A[10]) {
 
 // CHECK-LABEL: func @main()
 // CHECK: call @foo
+// OPT1-LABEL: func @main()
+// OPT1-NOT: call @foo
 int main() {
   int A[10];
   foo(A);
