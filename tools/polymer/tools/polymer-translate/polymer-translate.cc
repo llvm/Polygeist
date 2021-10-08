@@ -7,6 +7,7 @@
 #include "polymer/Target/OpenScop.h"
 
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"

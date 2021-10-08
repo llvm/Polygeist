@@ -13,7 +13,7 @@
 
 namespace mlir {
 class Operation;
-class FlatAffineConstraints;
+class FlatAffineValueConstraints;
 class AffineValueMap;
 class FuncOp;
 class CallOp;
@@ -36,7 +36,7 @@ public:
   ScopStmt &operator=(ScopStmt &&);
   ScopStmt &operator=(const ScopStmt &&) = delete;
 
-  mlir::FlatAffineConstraints *getDomain() const;
+  mlir::FlatAffineValueConstraints *getDomain() const;
 
   /// Get a copy of the enclosing operations.
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,

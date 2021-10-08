@@ -64,14 +64,14 @@ private:
   /// Build the scop context. The domain of each scop stmt will be updated, by
   /// merging and aligning its IDs with the context as well.
   void buildScopContext(OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
-                        FlatAffineConstraints &ctx) const;
+                        FlatAffineValueConstraints &ctx) const;
 };
 
 } // namespace
 
 /// Sometimes the domain generated might be malformed. It is always better to
 /// inform this at an early stage.
-static void sanityCheckDomain(FlatAffineConstraints &dom) {
+static void sanityCheckDomain(FlatAffineValueConstraints &dom) {
   if (dom.isEmpty()) {
     llvm::errs() << "A domain is found to be empty!";
     dom.dump();
@@ -82,7 +82,7 @@ static void sanityCheckDomain(FlatAffineConstraints &dom) {
 std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 
   /// Context constraints.
-  FlatAffineConstraints ctx;
+  FlatAffineValueConstraints ctx;
 
   // Initialize a new Scop per FuncOp. The osl_scop object within it will be
   // created. It doesn't contain any fields, and this may incur some problems,
@@ -108,7 +108,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
 
     // Collet the domain
-    FlatAffineConstraints domain = *stmt.getDomain();
+    FlatAffineValueConstraints domain = *stmt.getDomain();
     sanityCheckDomain(domain);
 
     // Collect the enclosing ops.
@@ -178,7 +178,7 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
 
 void OslScopBuilder::buildScopContext(OslScop *scop,
                                       OslScop::ScopStmtMap *scopStmtMap,
-                                      FlatAffineConstraints &ctx) const {
+                                      FlatAffineValueConstraints &ctx) const {
   ctx.reset();
 
   // Union with the domains of all Scop statements. We first merge and align the
@@ -187,8 +187,8 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // mess up with the original domain at this point. Trivial redundant
   // constraints will be removed.
   for (const auto &it : *scopStmtMap) {
-    FlatAffineConstraints *domain = it.second.getDomain();
-    FlatAffineConstraints cst(*domain);
+    FlatAffineValueConstraints *domain = it.second.getDomain();
+    FlatAffineValueConstraints cst(*domain);
 
     ctx.mergeAndAlignIdsWithOther(0, &cst);
     ctx.append(cst);
@@ -202,10 +202,10 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // that each domain is aligned with them, i.e., every domain has the same
   // parameter columns (Values & order).
   SmallVector<mlir::Value, 8> symValues;
-  ctx.getIdValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+  ctx.getValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
 
   for (const auto &it : *scopStmtMap) {
-    FlatAffineConstraints *domain = it.second.getDomain();
+    FlatAffineValueConstraints *domain = it.second.getDomain();
 
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
       mlir::Value sym = symValues[i];
@@ -214,7 +214,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
         if (pos != i + domain->getNumDimIds())
           domain->swapId(i + domain->getNumDimIds(), pos);
       } else {
-        domain->addSymbolId(i, sym);
+        domain->insertSymbolId(i, sym);
       }
     }
   }

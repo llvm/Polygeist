@@ -105,10 +105,10 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   return b.create<mlir::AffineApplyOp>(call.getLoc(), affMap, newOperands);
 }
 
-static void projectAllOutExcept(FlatAffineConstraints &cst,
-                                SetVector<mlir::Value> ids) {
+static void projectAllOutExcept(FlatAffineValueConstraints &cst,
+                                llvm::SetVector<mlir::Value> ids) {
   SmallVector<Value, 4> dims;
-  cst.getIdValues(0, cst.getNumDimIds(), &dims);
+  cst.getValues(0, cst.getNumDimIds(), &dims);
 
   for (Value dim : dims)
     if (!ids.contains(dim))
@@ -128,12 +128,12 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
 
   // Get the indices of the target memref, which are the last `numDims` from the
   // given `forOps` list.
-  SetVector<mlir::Value> indices;
+  llvm::SetVector<mlir::Value> indices;
   for (size_t i = forOps.size() - numDims; i < forOps.size(); i++)
     indices.insert(forOps[i].getInductionVar());
 
   // Get the constraints imposed by the whole set of nested loops.
-  FlatAffineConstraints cst;
+  FlatAffineValueConstraints cst;
   SmallVector<Operation *, 4> enclosingOps{forOps.begin(), forOps.end()};
   assert(succeeded(getIndexSet(enclosingOps, &cst)));
 
@@ -144,8 +144,7 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
   mapping.map(f.getArguments(), call.getOperands());
 
   SmallVector<mlir::Value, 4> mapOperands;
-  cst.getIdValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(),
-                  &mapOperands);
+  cst.getValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(), &mapOperands);
 
   for (int dim = 0; dim < numDims; dim++) {
     mlir::AffineMap lbMap, ubMap;
@@ -908,14 +907,14 @@ struct AnnotateHeuristicPass
 } // namespace
 
 void polymer::registerScopStmtOptPasses() {
-  PassRegistration<AnnotateSplittablePass>(
-      "annotate-splittable",
-      "Give operations that are splittable in its expression tree.");
-  PassRegistration<AnnotateHeuristicPass>(
-      "annotate-heuristic",
-      "Using the split heuristic to find split statements.");
-  PassRegistration<UnifyScratchpadPass>(
-      "unify-scratchpad", "Unify multiple scratchpads into a single one.");
+  // PassRegistration<AnnotateSplittablePass>(
+  //     "annotate-splittable",
+  //     "Give operations that are splittable in its expression tree.");
+  // PassRegistration<AnnotateHeuristicPass>(
+  //     "annotate-heuristic",
+  //     "Using the split heuristic to find split statements.");
+  // PassRegistration<UnifyScratchpadPass>(
+  //     "unify-scratchpad", "Unify multiple scratchpads into a single one.");
 
   PassPipelineRegistration<>(
       "scop-stmt-split", "Split a given set of splittable operations.",

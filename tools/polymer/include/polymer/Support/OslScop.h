@@ -25,7 +25,7 @@ struct osl_generic;
 
 namespace mlir {
 class AffineValueMap;
-class FlatAffineConstraints;
+class FlatAffineValueConstraints;
 struct LogicalResult;
 class Operation;
 class Value;
@@ -79,16 +79,16 @@ public:
                    llvm::ArrayRef<int64_t> inEqs);
 
   /// Add the relation defined by cst to the context of the current scop.
-  void addContextRelation(mlir::FlatAffineConstraints cst);
+  void addContextRelation(mlir::FlatAffineValueConstraints cst);
   /// Add the domain relation.
-  void addDomainRelation(int stmtId, mlir::FlatAffineConstraints &cst);
+  void addDomainRelation(int stmtId, mlir::FlatAffineValueConstraints &cst);
   /// Add the scattering relation.
-  void addScatteringRelation(int stmtId, mlir::FlatAffineConstraints &cst,
+  void addScatteringRelation(int stmtId, mlir::FlatAffineValueConstraints &cst,
                              llvm::ArrayRef<mlir::Operation *> ops);
   /// Add the access relation.
   void addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
                          mlir::AffineValueMap &vMap,
-                         mlir::FlatAffineConstraints &cst);
+                         mlir::FlatAffineValueConstraints &cst);
 
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
@@ -106,7 +106,8 @@ public:
   osl_generic *getExtension(llvm::StringRef interface) const;
 
   /// Initialize the symbol table.
-  void initializeSymbolTable(mlir::FuncOp f, mlir::FlatAffineConstraints *cst);
+  void initializeSymbolTable(mlir::FuncOp f,
+                             mlir::FlatAffineValueConstraints *cst);
 
   bool isParameterSymbol(llvm::StringRef name) const;
   bool isDimSymbol(llvm::StringRef name) const;
@@ -130,14 +131,15 @@ public:
 private:
   /// Create a 1-d array that carries all the constraints in a relation,
   /// arranged in the row-major order.
-  void createConstraintRows(mlir::FlatAffineConstraints &cst,
+  void createConstraintRows(mlir::FlatAffineValueConstraints &cst,
                             llvm::SmallVectorImpl<int64_t> &eqs,
                             bool isEq = true);
 
   /// Create access relation constraints.
-  void createAccessRelationConstraints(mlir::AffineValueMap &vMap,
-                                       mlir::FlatAffineConstraints &cst,
-                                       mlir::FlatAffineConstraints &domain);
+  void
+  createAccessRelationConstraints(mlir::AffineValueMap &vMap,
+                                  mlir::FlatAffineValueConstraints &cst,
+                                  mlir::FlatAffineValueConstraints &domain);
 
   void addArraysExtension();
   void addScatnamesExtension();

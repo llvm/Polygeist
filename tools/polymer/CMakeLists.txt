@@ -46,6 +46,9 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   set(LLVM_LIBRARY_OUTPUT_INTDIR "${CMAKE_BINARY_DIR}/lib")
   set(MLIR_BINARY_DIR "${CMAKE_BINARY_DIR}")
 
+  link_directories(${LLVM_BUILD_LIBRARY_DIR})
+  add_definitions(${LLVM_DEFINITIONS})
+
   # ----------------------------- Testing with LIT
   # Define the default arguments to use with 'lit', and an option for the user to
   # override.
@@ -57,7 +60,19 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+
+  set(POLYMER_TRANSFORM_DEPENDS "")
+
+else()
+  # Build as an external project to MLIR.
+  # Need to wait until these targets are built.
+  set(POLYMER_TRANSFORM_DEPENDS
+    MLIRAffineOpsIncGen
+    MLIRAffinePassIncGen
+    MLIRLoopLikeInterfaceIncGen
+  )
+
 endif()
 
 set(POLYMER_MAIN_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}" )

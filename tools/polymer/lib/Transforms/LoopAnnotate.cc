@@ -87,6 +87,6 @@ struct AnnotatePointLoopsPass
 } // namespace
 
 void polymer::registerLoopAnnotatePasses() {
-  PassRegistration<AnnotatePointLoopsPass>(
-      "annotate-point-loops", "Annotate loops with point/tile info.");
+  // PassRegistration<AnnotatePointLoopsPass>();
+  // "annotate-point-loops", "Annotate loops with point/tile info.");
 }
