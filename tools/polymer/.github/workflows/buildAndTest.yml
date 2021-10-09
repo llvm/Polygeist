@@ -80,11 +80,13 @@ jobs:
             -G Ninja
           cmake --build . --target install
 
-      # Run Polygeist tests 
-      # - name: Test Polygeist
-      #   run: |
-      #     cd polygeist/llvm-project/build
-      #     cmake --build . --target check-mlir
+      # Run MLIR tests 
+      - name: Test MLIR
+        run: |
+          cd polygeist/llvm-project/build
+          cmake --build . --target check-mlir
+          # Clean up the test directory to avoid caching
+          rm -rf ./test 
 
       # --------------------- Build for Polymer
 
