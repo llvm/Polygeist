@@ -58,6 +58,9 @@ struct PlutoOptPipelineOptions
                      cl::init(-1)};
   Option<int> cloogl{*this, "cloogl", cl::desc("-cloogl option."),
                      cl::init(-1)};
+  Option<bool> diamondTiling{*this, "diamond-tiling",
+                             cl::desc("Enable diamond tiling"),
+                             cl::init(false)};
 };
 
 } // namespace
@@ -67,7 +70,8 @@ struct PlutoOptPipelineOptions
 static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto,
                                    bool parallelize = false, bool debug = false,
-                                   int cloogf = -1, int cloogl = -1) {
+                                   int cloogf = -1, int cloogl = -1,
+                                   bool diamondTiling = false) {
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -89,6 +93,7 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   context->options->parallel = parallelize;
   context->options->unrolljam = 0;
   context->options->prevector = 0;
+  context->options->diamondtile = diamondTiling;
 
   if (cloogf != -1)
     context->options->cloogf = cloogf;
@@ -132,6 +137,7 @@ class PlutoTransformPass
   bool debug = false;
   int cloogf = -1;
   int cloogl = -1;
+  bool diamondTiling = false;
 
 public:
   PlutoTransformPass() = default;
@@ -139,7 +145,8 @@ public:
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
         parallelize(options.parallelize), debug(options.debug),
-        cloogf(options.cloogf), cloogl(options.cloogl) {}
+        cloogf(options.cloogf), cloogl(options.cloogl),
+        diamondTiling(options.diamondTiling) {}
 
   void runOnOperation() override {
     mlir::ModuleOp m = getOperation();
