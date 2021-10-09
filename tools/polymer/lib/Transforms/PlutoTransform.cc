@@ -161,8 +161,9 @@ public:
     });
 
     for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g = plutoTransform(f, b, dumpClastAfterPluto,
-                                          parallelize, debug, cloogf, cloogl)) {
+      if (mlir::FuncOp g =
+              plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug,
+                             cloogf, cloogl, diamondTiling)) {
         funcMap[f] = g;
         g.setPublic();
       }
