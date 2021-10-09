@@ -19,19 +19,22 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Support/LogicalResult.h"
+
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
-
-#include "mlir/Support/LogicalResult.h"
 
 #include <vector>
 
 using namespace polymer;
 using namespace mlir;
 using namespace llvm;
+
+#define DEBUG_TYPE "oslscop"
 
 /// Create osl_vector from a STL vector. Since the input vector is of type
 /// int64_t, we can safely assume the osl_vector we will generate has 64 bits
@@ -136,6 +139,11 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
     // constraints.
     osl_relation_replace_vector(rel, vec, i);
   }
+
+  LLVM_DEBUG({
+    dbgs() << "Newly created relation: ";
+    osl_relation_dump(stderr, rel);
+  });
 
   // Append the newly created relation to a target linked list, or simply set it
   // to a relation pointer, which is indicated by the target argument.
@@ -259,12 +267,18 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
 
   SmallVector<int64_t, 8> eqs, inEqs;
   createConstraintRows(cst, eqs);
-  // createConstraintRows(cst, inEqs, /*isEq=*/false);
+  createConstraintRows(cst, inEqs, /*isEq=*/false);
   for (unsigned i = 0; i < eqs.size(); i++)
     eqs[i] = -eqs[i];
 
+  LLVM_DEBUG({
+    dbgs() << "Resolved access constraints: \n";
+    cst.dump();
+  });
+
   // Then put them into the scop as an ACCESS relation.
-  unsigned numOutputDims = cst.getNumConstraints();
+  // Number of access indices + 1 for the memref ID.
+  unsigned numOutputDims = vMap.getNumResults() + 1;
   unsigned numInputDims = cst.getNumDimIds() - numOutputDims;
   addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,

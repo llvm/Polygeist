@@ -44,7 +44,7 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
-#define DEBUG_TYPE "emit-openscop"
+#define DEBUG_TYPE "oslscop"
 
 namespace {
 
@@ -106,10 +106,19 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   unsigned stmtId = 0;
   for (const auto &scopStmtName : *scopStmtNames) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtName)->second;
+    LLVM_DEBUG({
+      dbgs() << "Adding relations to statement: \n";
+      stmt.getCaller().dump();
+    });
 
     // Collet the domain
     FlatAffineValueConstraints domain = *stmt.getDomain();
     sanityCheckDomain(domain);
+
+    LLVM_DEBUG({
+      dbgs() << "Domain:\n";
+      domain.dump();
+    });
 
     // Collect the enclosing ops.
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
@@ -117,12 +126,19 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     // Get the callee.
     mlir::FuncOp callee = stmt.getCallee();
 
+    LLVM_DEBUG({
+      dbgs() << "Callee:\n";
+      callee.dump();
+    });
+
     // Create a statement in OslScop and setup relations in it.
     scop->createStatement();
     scop->addDomainRelation(stmtId, domain);
     scop->addScatteringRelation(stmtId, domain, enclosingOps);
     callee.walk([&](mlir::Operation *op) {
       if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
+        LLVM_DEBUG(dbgs() << "Creating access relation for: " << *op << '\n');
+
         bool isRead = isa<mlir::AffineReadOpInterface>(op);
         AffineValueMap vMap;
         mlir::Value memref;
@@ -152,6 +168,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
   scop->addExtensionGeneric("comment", funcName);
 
   assert(scop->validate() && "The scop object created cannot be validated.");
+
   return scop;
 }
 
@@ -320,7 +337,7 @@ mlir::LogicalResult polymer::translateModuleToOpenScop(
     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops,
     llvm::raw_ostream &os) {
   OpenScopEmitterState state(os);
-  ModuleEmitter(state).emitMLIRModule(module, scops);
+  ::ModuleEmitter(state).emitMLIRModule(module, scops);
 
   return success();
 }
