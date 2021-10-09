@@ -90,11 +90,11 @@ jobs:
 
       # --------------------- Build for Polymer
 
-      # - name: Download submodules in Pluto
-      #   run: |
-      #     cd polymer
-      #     git submodule init
-      #     git submodule update --recursive --init
+      - name: Download submodules in Pluto
+        run: |
+          cd polymer
+          git submodule init
+          git submodule update --recursive --init
 
       # - name: Link Polymer into Polygeist
       #   run: |
