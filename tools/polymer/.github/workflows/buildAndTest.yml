@@ -103,21 +103,21 @@ jobs:
       #     ln -s "${GITHUB_WORKSPACE}/polymer" ./polymer
       #     ls -al polymer
 
-      # - name: Build and Test Polymer (Assert)
-      #   run: |
-      #     mkdir polymer/build
-      #     cd polymer/build
-      #     cmake -G Ninja \
-      #       .. \
-      #       -DCMAKE_C_COMPILER=clang \
-      #       -DCMAKE_CXX_COMPILER=clang++ \
-      #       -DLLVM_USE_LINKER=lld \
-      #       -DMLIR_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/mlir" \
-      #       -DLLVM_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/llvm" \
-      #       -DLLVM_EXTERNAL_LIT="${PWD}/../../polygeist/llvm-project/build/bin/llvm-lit" \
-      #       -DLLVM_ENABLE_ASSERTIONS=ON \
-      #       -DCMAKE_BUILD_TYPE=DEBUG
-      #     LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
+      - name: Build and Test Polymer (Assert)
+        run: |
+          mkdir polymer/build
+          cd polymer/build
+          cmake -G Ninja \
+            .. \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_USE_LINKER=lld \
+            -DMLIR_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/mlir" \
+            -DLLVM_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/llvm" \
+            -DLLVM_EXTERNAL_LIT="${PWD}/../../polygeist/llvm-project/build/bin/llvm-lit" \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=DEBUG
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
 
       # - name: Run Polybench Tests
       #  run: |
