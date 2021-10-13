@@ -56,6 +56,18 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
   let hasFolder = 0;
 }
 
+def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
+  DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect
+]> {
+  let summary = "memref subview operation";
+
+  let arguments = (ins LLVM_AnyPointer : $result);
+  let results = (outs AnyMemRef : $source);
+
+  let hasCanonicalizer = 1;
+  let hasFolder = 0;
+}
+
 def TrivialUseOp : Polygeist_Op<"trivialuse"> {
   let summary = "memref subview operation";
 

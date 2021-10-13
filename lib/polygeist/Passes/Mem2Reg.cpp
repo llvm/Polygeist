@@ -1228,8 +1228,11 @@ StoreMap getLastStored(mlir::Value AI) {
           }
         }
         lastStored.insert(vec);
-      }
-      if (auto SO = dyn_cast<memref::LoadOp>(U)) {
+      } else if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
+        lastStored.insert({});
+      } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
+        lastStored.insert({});
+      } else if (auto SO = dyn_cast<memref::LoadOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
           if (auto op = idx.getDefiningOp<ConstantOp>()) {
@@ -1329,7 +1332,8 @@ void Mem2Reg::runOnFunction() {
       // If the memref hasn't been alloc'ed in this function, skip.
       Operation *defOp = memref.getDefiningOp();
       if (!defOp ||
-          !(isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp)))
+          !(isa<memref::AllocOp>(defOp) || isa<memref::AllocaOp>(defOp) ||
+            isa<LLVM::AllocaOp>(defOp)))
         // TODO: if the memref was returned by a 'call' operation, we
         // could still erase it if the call had no side-effects.
         continue;

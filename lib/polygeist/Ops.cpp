@@ -404,7 +404,7 @@ void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 
 Value Memref2PointerOp::getViewSource() { return source(); }
 
-class MemRef2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
+class Memref2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
 public:
   using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
 
@@ -419,7 +419,144 @@ public:
     return success();
   }
 };
+
+class Memref2Pointer2MemrefCast final : public OpRewritePattern<Pointer2MemrefOp> {
+public:
+  using OpRewritePattern<Pointer2MemrefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Pointer2MemrefOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Memref2PointerOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(),
+                                                             src.source());
+    return success();
+  }
+};
 void Memref2PointerOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<MemRef2PointerCast>(context);
+  results.insert<Memref2PointerCast, Memref2Pointer2MemrefCast>(context);
+}
+
+Value Pointer2MemrefOp::getViewSource() { return source(); }
+
+class Pointer2MemrefCast final : public OpRewritePattern<memref::CastOp> {
+public:
+  using OpRewritePattern<memref::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<polygeist::Pointer2MemrefOp>(op, op.getType(),
+                                                             src.source());
+    return success();
+  }
+};
+
+class Pointer2Memref2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
+public:
+  using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Memref2PointerOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(),
+                                                             src.source());
+    return success();
+  }
+};
+
+class Pointer2MemrefLoad final : public OpRewritePattern<memref::LoadOp> {
+public:
+  using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::LoadOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    Value val = src.source();
+    Value idx = nullptr;
+    for (int i=0; i<op.indices().size(); i++) {
+        auto cur = rewriter.create<IndexCastOp>(
+                op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
+        if (idx == nullptr) {
+            idx = cur;
+        } else {
+            idx = rewriter.create<AddIOp>(op.getLoc(),
+                    rewriter.create<MulIOp>(op.getLoc(), idx, 
+                        rewriter.create<ConstantOp>(op.getLoc(),
+                            rewriter.getI32Type(), rewriter.getIntegerAttr(rewriter.getI32Type(), op.memref().getType().cast<MemRefType>().getShape()[i]))),
+                    cur);
+        }
+    }
+    Value idxs[] = {idx};
+    if (idx)
+        val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), val);
+    return success();
+  }
+};
+
+class Pointer2MemrefStore final : public OpRewritePattern<memref::StoreOp> {
+public:
+  using OpRewritePattern<memref::StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::StoreOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    Value val = src.source();
+    Value idx = nullptr;
+    for (int i=0; i<op.indices().size(); i++) {
+        auto cur = rewriter.create<IndexCastOp>(
+                op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
+        if (idx == nullptr) {
+            idx = cur;
+        } else {
+            idx = rewriter.create<AddIOp>(op.getLoc(),
+                    rewriter.create<MulIOp>(op.getLoc(), idx, 
+                        rewriter.create<ConstantOp>(op.getLoc(),
+                            rewriter.getI32Type(), rewriter.getIntegerAttr(rewriter.getI32Type(), op.memref().getType().cast<MemRefType>().getShape()[i]))),
+                    cur);
+        }
+    }
+    Value idxs[] = {idx};
+    if (idx)
+        val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), val);
+    return success();
+  }
+};
+
+class BCPointer2Memref final : public OpRewritePattern<Pointer2MemrefOp> {
+public:
+  using OpRewritePattern<Pointer2MemrefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Pointer2MemrefOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<LLVM::BitcastOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<Pointer2MemrefOp>(op, op.getType(),
+                                                             src.arg());
+    return success();
+  }
+};
+
+void Pointer2MemrefOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<Pointer2MemrefCast, Pointer2Memref2PointerCast, Pointer2MemrefLoad, Pointer2MemrefStore, BCPointer2Memref>(context);
 }
