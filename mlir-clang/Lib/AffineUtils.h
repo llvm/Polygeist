@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifndef MLIR_CLANG_AFFINE_UTILS_H
-#define MLIR_CLANG_AFFINE_UTISL_H
+#define MLIR_CLANG_AFFINE_UTILS_H
 
 namespace clang {
 class VarDecl;
