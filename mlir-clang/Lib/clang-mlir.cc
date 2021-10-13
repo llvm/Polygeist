@@ -8,7 +8,7 @@
 
 #include "clang-mlir.h"
 #include "utils.h"
-#include "llvm/Support/Debug.h"
+#include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/Basic/DiagnosticOptions.h>
 #include <clang/Basic/FileManager.h>
@@ -29,9 +29,13 @@
 #include <clang/Parse/Parser.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaDiagnostic.h>
+#include <llvm/Support/Debug.h>
+#include <llvm/Support/raw_ostream.h>
+#include <mlir/Dialect/SCF/SCF.h>
 
 using namespace std;
 using namespace clang;
+using namespace llvm;
 using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
@@ -231,18 +235,12 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   assert(0 && "bad");
 }
 
-#include "clang/AST/Attr.h"
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
-  unsigned memtype = 0;
-
-  if (decl->hasAttr<CUDASharedAttr>()) {
-    memtype = 5;
-  }
   mlir::Type subType = getMLIRType(decl->getType());
   ValueCategory inite = nullptr;
+  unsigned memtype = decl->hasAttr<CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false;
-
   bool isArray = false;
 
   if (Glob.getMLIRType(
@@ -342,6 +340,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
         }
       } else {
         init->dump();
+        errs() << il->inits().size() << '\n';
         assert(0 && "init list expr unhandled");
       }
     } else
