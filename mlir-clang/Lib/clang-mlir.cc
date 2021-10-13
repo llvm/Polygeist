@@ -1048,8 +1048,6 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
   auto affineOp = builder.create<scf::ParallelOp>(loc, inits, finals, incs);
 
-  fors->getIterationVariable()->dump();
-
   auto inds = affineOp.getInductionVars();
 
   auto oldpoint = builder.getInsertionPoint();
@@ -1057,12 +1055,13 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
   builder.setInsertionPointToStart(&affineOp.region().front());
 
-  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  er.region().push_back(new Block());
-  builder.setInsertionPointToStart(&er.region().back());
+  auto executeRegion =
+      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  executeRegion.region().push_back(new Block());
+  builder.setInsertionPointToStart(&executeRegion.region().back());
 
   auto oldScope = allocationScope;
-  allocationScope = &er.region().back();
+  allocationScope = &executeRegion.region().back();
 
   for (auto zp : zip(inds, fors->counters())) {
     auto idx = builder.create<mlir::IndexCastOp>(
@@ -1070,7 +1069,8 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
         getMLIRType(fors->getIterationVariable()->getType()));
     VarDecl *name =
         cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
-    assert(params.find(name) == params.end());
+    assert(params.find(name) == params.end() &&
+           "OpenMP induction variable is dual initialized");
 
     bool LLVMABI = false;
     bool isArray = false;
