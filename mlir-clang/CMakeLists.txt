@@ -22,6 +22,7 @@ add_clang_tool(mlir-clang
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
   mlir-clang.cc
   Lib/utils.cc
+  Lib/AffineUtils.cc
   Lib/pragmaHandler.cc
   Lib/ValueCategory.cc
 )
