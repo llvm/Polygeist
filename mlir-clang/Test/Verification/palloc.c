@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude --function=init_array -S | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=init_array -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>
@@ -26,3 +27,6 @@ void init_array (int n)
 // CHECK-NEXT:    call @use(%1) : (memref<?xf64>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
+// FULLRANK: %[[VAL0:.*]] = memref.alloc() : memref<20xf64>
+// FULLRANK: call @use(%[[VAL0]]) : (memref<20xf64>) -> ()

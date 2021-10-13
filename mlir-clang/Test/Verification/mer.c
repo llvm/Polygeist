@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s --function=kernel_deriche -S | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_deriche -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 int kernel_deriche(int a[30]) {
     a[0]++;
@@ -13,3 +14,5 @@ int kernel_deriche(int a[30]) {
 // CHECK-NEXT:    %2 = affine.load %arg0[1] : memref<?xi32>
 // CHECK-NEXT:    return %2 : i32
 // CHECK-NEXT:  }
+
+// FULLRANK:  func @kernel_deriche(%arg0: memref<30xi32>) -> i32

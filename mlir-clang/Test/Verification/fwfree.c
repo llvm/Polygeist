@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude -S | FileCheck %s
+// RUN: mlir-clang %s %stdinclude -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>
@@ -38,3 +39,6 @@ int main()
 // CHECK-NEXT:     memref.dealloc %0 : memref<2800xi32>
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
+
+// FULLRANK: %[[MEM:.*]] = memref.alloc() : memref<2800xi32>
+// FULLRANK: call @init_array(%[[MEM]]) : (memref<2800xi32>) -> ()

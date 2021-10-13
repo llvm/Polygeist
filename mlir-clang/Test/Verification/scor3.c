@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine -S | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation --raise-scf-to-affine -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
 
@@ -29,3 +30,5 @@ void kernel_correlation(int m, double corr[28][28])
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// FULLRANK:   func @kernel_correlation(%{{.*}}: i32, %{{.*}}: memref<28x28xf64>)

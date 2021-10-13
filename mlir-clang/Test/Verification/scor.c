@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s --function=kernel_correlation -S | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
 
@@ -38,3 +39,5 @@ void kernel_correlation(double out[28], double stddev[28], _Bool cmp)
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// FULLRANK: func @kernel_correlation(%{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: i1)
