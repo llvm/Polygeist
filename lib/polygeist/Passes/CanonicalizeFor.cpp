@@ -635,10 +635,19 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         loopInfo.lb = cmpIOp.rhs();
         break;
       }
+
+      case CmpIPredicate::ugt:
+      case CmpIPredicate::sgt: {
+        // TODO: f32 likely not always true.
+        auto one = rewriter.create<ConstantOp>(
+            loop.getLoc(), indVar.getType(),
+            rewriter.getIntegerAttr(indVar.getType(), 1));
+        auto addIOp = rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
+        loopInfo.lb = addIOp.getResult();
+        break;
+      }
       case CmpIPredicate::eq:
-      case CmpIPredicate::sgt:
-      case CmpIPredicate::ne:
-      case CmpIPredicate::ugt: {
+      case CmpIPredicate::ne: {
         return failure();
       }
       }

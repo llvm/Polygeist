@@ -185,7 +185,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
   }
 
   if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
-
+    const CXXRecordDecl *ClassDecl = CC->getParent();
     for (auto expr : CC->inits()) {
       if (ShowAST) {
         if (expr->getMember())
@@ -228,7 +228,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
           bool isArray = false;
           auto subType = LLVM::LLVMPointerType::get(Glob.getMLIRType(
               QualType(BaseType, 0), &isArray, /*allowMerge*/ false));
-          assert(!isArray);
+          assert(!isArray && "implicit reference not handled");
 
           V = builder.create<LLVM::BitcastOp>(loc, subType, V);
 
@@ -245,7 +245,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
           continue;
         }
       }
-      assert(field);
+      assert(field && "initialiation expression must apply to a field");
       if (auto AILE = dyn_cast<ArrayInitLoopExpr>(expr->getInit())) {
         VisitArrayInitLoop(AILE,
                            CommonFieldLookup(CC->getThisObjectType(), field,
@@ -1564,7 +1564,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     op = createAllocOp(subType, name, memtype, isArray, LLVMABI);
 
   auto decl = cons->getConstructor();
-  assert(!cons->requiresZeroInitialization());
+  assert(!cons->requiresZeroInitialization() &&
+         "Constructing with explicit zero initialization, not yet handled");
 
   if (decl->isTrivial() && decl->isDefaultConstructor())
     return ValueCategory(op, /*isReference*/ true);
@@ -4331,7 +4332,7 @@ ValueCategory MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const FieldDecl *FD,
                                              mlir::Value val, bool isLValue) {
-  assert(FD);
+  assert(FD && "Attempting to lookup field of nullptr");
   auto rd = FD->getParent();
 
   auto ST = cast<llvm::StructType>(getLLVMType(CT));
@@ -6041,8 +6042,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT->getDecl()->field_empty())
       if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
         return typeTranslator.translateType(anonymize(ST));
-    // return typeTranslator.translateType(
-    //     llvm::StructType::get(ST->getContext()));
 
     SmallPtrSet<llvm::Type *, 4> Seen;
     bool notAllSame = false;

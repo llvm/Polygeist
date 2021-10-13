@@ -226,6 +226,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   SmallPtrSet<Operation *, 4> AliasingStoreOperations;
 
+  LLVM_DEBUG(llvm::dbgs() << "Begin forwarding store of " << AI << " to load\n" << *AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n");
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
@@ -310,10 +311,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   SmallPtrSet<Block *, 4> StoringBlocks;
   {
     std::deque<Block *> todo;
-    for (auto &pair : allStoreOps)
+    for (auto &pair : allStoreOps) {
+      StoringOperations.insert(pair);
+      LLVM_DEBUG(llvm::errs() << " storing operation: " << *pair << "\n");
       todo.push_back(pair->getBlock());
+    }
     for (auto op : AliasingStoreOperations) {
       StoringOperations.insert(op);
+      LLVM_DEBUG(llvm::errs() << " aliasing storing operation: " << *op << "\n");
       todo.push_back(op->getBlock());
     }
     while (todo.size()) {
@@ -321,10 +326,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(block);
       todo.pop_front();
       StoringBlocks.insert(block);
+      LLVM_DEBUG(llvm::errs() << " initial storing block: " << block << "\n");
+      block->dump();
       if (auto op = block->getParentOp()) {
         StoringOperations.insert(op);
+        //LLVM_DEBUG(llvm::errs() << " derived storing operation: " << *op << "\n");
         if (auto next = op->getBlock()) {
           StoringBlocks.insert(next);
+          LLVM_DEBUG(llvm::errs() << " derived storing block: " << next << "\n");
+          next->dump();
           todo.push_back(next);
         }
       }
@@ -828,9 +838,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
     assert(blockArg && blockArg.getOwner() == block);
 
-    for (auto pred : llvm::make_early_inc_range(block->getPredecessors())) {
+    SmallVector<Block*> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+
+    for (auto pred : prepred) {
+      assert(pred && "Null predecessor");
       mlir::Value pval = lastStoreInBlock[pred];
-      assert(pval);
+      assert(pval && "Null last stored");
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
@@ -1124,6 +1137,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       }
     }
   }
+  LLVM_DEBUG(llvm::dbgs() << "End forwarding store of " << AI << " to load\n" << *AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n");
   return changed;
 }
 
