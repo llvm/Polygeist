@@ -59,7 +59,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   ASTContext &astContext;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
-  LLVMContext lcontext;
+  llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
   CodeGenOptions codegenops;
   CodeGen::CodeGenModule CGM;
@@ -176,7 +176,6 @@ private:
   mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
 
   std::map<int, mlir::Value> constants;
-  mlir::Value getConstantIndex(int x);
 
   mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
 
@@ -218,150 +217,11 @@ public:
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
               const FunctionDecl *fd, mlir::OwningOpRef<mlir::ModuleOp> &module,
-              LowerToInfo &LTInfo)
-      : Glob(Glob), function(function), module(module),
-        builder(module->getContext()), loc(builder.getUnknownLoc()),
-        EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
+              LowerToInfo &LTInfo);
 
-    if (ShowAST) {
-      llvm::errs() << "Emitting fn: " << function.getName() << "\n";
-      llvm::errs() << *fd << "\n";
-    }
+  mlir::OpBuilder &getBuilder();
 
-    allocationScope = entryBlock = function.addEntryBlock();
-
-    builder.setInsertionPointToStart(entryBlock);
-
-    unsigned i = 0;
-    if (auto CM = dyn_cast<CXXMethodDecl>(fd)) {
-      if (CM->getParent()->isLambda()) {
-        for (auto C : CM->getParent()->captures()) {
-          if (C.capturesVariable()) {
-            CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
-          }
-        }
-        CM->getParent()->getCaptureFields(Captures, ThisCapture);
-        if (ThisCapture) {
-          llvm::errs() << " thiscapture:\n";
-          ThisCapture->dump();
-        }
-      }
-
-      if (CM->isInstance()) {
-        mlir::Value val = function.getArgument(i);
-        ThisVal = ValueCategory(val, /*isReference*/ false);
-        i++;
-      }
-    }
-
-    for (auto parm : fd->parameters()) {
-      assert(i != function.getNumArguments());
-      // function.getArgument(i).setName(name);
-      bool isArray = false;
-      auto LLTy = getLLVMType(parm->getType());
-      while (auto ST = dyn_cast<llvm::StructType>(LLTy)) {
-        if (ST->getNumElements() == 1)
-          LLTy = ST->getTypeAtIndex(0U);
-        else
-          break;
-      }
-      bool LLVMABI = false;
-
-      if (Glob.getMLIRType(
-                  Glob.CGM.getContext().getPointerType(parm->getType()))
-              .isa<mlir::LLVM::LLVMPointerType>())
-        LLVMABI = true;
-
-      if (!LLVMABI) {
-        Glob.getMLIRType(parm->getType(), &isArray);
-      }
-      if (!isArray && (isa<clang::RValueReferenceType>(parm->getType()) ||
-                       isa<clang::LValueReferenceType>(parm->getType())))
-        isArray = true;
-      mlir::Value val = function.getArgument(i);
-      assert(val);
-      if (isArray) {
-        params.emplace(parm, ValueCategory(val, /*isReference*/ true));
-      } else {
-        auto alloc = createAllocOp(val.getType(), parm, /*memspace*/ 0, isArray,
-                                   /*LLVMABI*/ LLVMABI);
-        ValueCategory(alloc, /*isReference*/ true).store(builder, val);
-      }
-      i++;
-    }
-
-    if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
-
-      for (auto expr : CC->inits()) {
-        if (ShowAST) {
-          if (expr->getMember())
-            expr->getMember()->dump();
-          if (expr->getInit())
-            expr->getInit()->dump();
-        }
-        assert(ThisVal.val);
-        FieldDecl *field = expr->getMember();
-        if (auto AILE = dyn_cast<ArrayInitLoopExpr>(expr->getInit())) {
-          VisitArrayInitLoop(AILE, CommonFieldLookup(CC->getThisObjectType(),
-                                                     field, ThisVal.val));
-          continue;
-        }
-        auto initexpr = Visit(expr->getInit());
-        if (!initexpr.val) {
-          expr->getInit()->dump();
-          assert(initexpr.val);
-        }
-        bool isArray = false;
-        Glob.getMLIRType(expr->getInit()->getType(), &isArray);
-
-        auto cfl =
-            CommonFieldLookup(CC->getThisObjectType(), field, ThisVal.val);
-        assert(cfl.val);
-        cfl.store(builder, initexpr, isArray);
-      }
-    }
-    if (auto CC = dyn_cast<CXXDestructorDecl>(fd)) {
-      CC->dump();
-      llvm::errs() << " warning, destructor not fully handled yet\n";
-    }
-
-    Stmt *stmt = fd->getBody();
-    assert(stmt);
-    if (ShowAST) {
-      stmt->dump();
-    }
-
-    auto i1Ty = builder.getIntegerType(1);
-    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-    auto truev = builder.create<mlir::ConstantIntOp>(loc, true, 1);
-    loops.push_back(
-        (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                      builder.create<mlir::memref::AllocaOp>(loc, type)});
-    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
-    builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
-    if (function.getType().getResults().size()) {
-      auto type =
-          mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
-      returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
-      if (type.getElementType().isa<mlir::IntegerType>()) {
-        builder.create<mlir::memref::StoreOp>(
-            loc,
-            builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
-            returnVal, std::vector<mlir::Value>({}));
-      }
-    }
-    Visit(stmt);
-
-    if (function.getType().getResults().size()) {
-      mlir::Value vals[1] = {
-          builder.create<mlir::memref::LoadOp>(loc, returnVal)};
-      builder.create<mlir::ReturnOp>(loc, vals);
-    } else
-      builder.create<mlir::ReturnOp>(loc);
-
-    assert(function->getParentOp() == Glob.module.get() &&
-           "New function must be inserted into global module");
-  }
+  mlir::Value getConstantIndex(int x);
 
   ValueCategory VisitDeclStmt(clang::DeclStmt *decl);
 
