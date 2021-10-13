@@ -16,6 +16,7 @@
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -244,6 +245,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
         }
       }
+      if (auto loadOp = dyn_cast<mlir::LLVM::LoadOp>(user)) {
+        subType = loadOp.getType();
+        loadOps.insert(loadOp);
+        LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+      }
       if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
         if (matchesIndices(loadOp.getAffineMapAttr().getValue().getResults(),
                            idx)) {
@@ -253,13 +259,21 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         }
       }
       if (auto storeOp = dyn_cast<mlir::memref::StoreOp>(user)) {
-        if (matchesIndices(storeOp.getIndices(), idx)) {
+        if (storeOp.getMemRef() == val &&
+            matchesIndices(storeOp.getIndices(), idx)) {
+          LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
+          allStoreOps.insert(storeOp);
+        }
+      }
+      if (auto storeOp = dyn_cast<LLVM::StoreOp>(user)) {
+        if (storeOp.addr() == val) {
           LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
           allStoreOps.insert(storeOp);
         }
       }
       if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
-        if (matchesIndices(storeOp.getAffineMapAttr().getValue().getResults(),
+        if (storeOp.getMemRef() == val &&
+            matchesIndices(storeOp.getAffineMapAttr().getValue().getResults(),
                            idx)) {
           LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
           allStoreOps.insert(storeOp);
@@ -381,9 +395,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 nidx.push_back(
                     B.create<mlir::ConstantIndexOp>(exOp.getLoc(), i));
               }
-              auto newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+              Operation *newLoad;
+              if (AI.getType().isa<MemRefType>())
+                newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+              else
+                newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
+
               loadOps.insert(newLoad);
-              thenVal = newLoad;
+              thenVal = newLoad->getResult(0);
 
               B.setInsertionPoint(exOp);
               SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
@@ -419,10 +438,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   nidx.push_back(
                       B.create<mlir::ConstantIndexOp>(ifOp.getLoc(), i));
                 }
-                auto newLoad =
-                    B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
+                Operation *newLoad;
+                if (AI.getType().isa<MemRefType>())
+                  newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+                else
+                  newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
+
                 loadOps.insert(newLoad);
-                lastVal = newLoad;
+                lastVal = newLoad->getResult(0);
               }
 
               valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
@@ -504,13 +527,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             if (loadOps.count(loadOp)) {
               if (lastVal) {
                 changed = true;
-                // llvm::errs() << "replacing " << loadOp << " with " << lastVal
-                // <<
-                // "\n";
                 if (loadOp.getType() != lastVal.getType()) {
                   llvm::errs() << loadOp << " - " << lastVal << "\n";
                 }
-                assert(loadOp.getType() == lastVal.getType());
+                assert(loadOp.getType() == lastVal.getType() &&
+                       "mismatched load type");
                 loadOp.replaceAllUsesWith(lastVal);
                 for (auto &pair : lastStoreInBlock) {
                   if (pair.second == loadOp)
@@ -531,17 +552,43 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 lastVal = loadOp;
               }
             }
+          } else if (auto loadOp = dyn_cast<LLVM::LoadOp>(a)) {
+            if (loadOps.count(loadOp)) {
+              if (lastVal) {
+                changed = true;
+                if (loadOp.getType() != lastVal.getType()) {
+                  llvm::errs() << loadOp << " - " << lastVal << "\n";
+                }
+                assert(loadOp.getType() == lastVal.getType() &&
+                       "mismatched load type");
+                loadOp.replaceAllUsesWith(lastVal);
+                for (auto &pair : lastStoreInBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                for (auto &pair : valueAtStartOfBlock) {
+                  if (pair.second == loadOp)
+                    pair.second = lastVal;
+                }
+                // Record this to erase later.
+                loadOpsToErase.push_back(loadOp);
+                loadOps.erase(loadOp);
+              } else if (seenSubStore) {
+                loadOps.erase(loadOp);
+                lastVal = loadOp;
+              } else {
+                lastVal = loadOp;
+              }
+            }
           } else if (auto loadOp = dyn_cast<AffineLoadOp>(a)) {
             if (loadOps.count(loadOp)) {
               if (lastVal) {
                 changed = true;
-                // llvm::errs() << "replacing " << loadOp << " with " << lastVal
-                // <<
-                // "\n";
                 if (loadOp.getType() != lastVal.getType()) {
                   llvm::errs() << loadOp << " - " << lastVal << "\n";
                 }
-                assert(loadOp.getType() == lastVal.getType());
+                assert(loadOp.getType() == lastVal.getType() &&
+                       "mismatched load type");
                 loadOp.replaceAllUsesWith(lastVal);
                 for (auto &pair : lastStoreInBlock) {
                   if (pair.second == loadOp)
@@ -567,6 +614,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               lastVal = storeOp.getValueToStore();
               seenSubStore = false;
             }
+          } else if (auto storeOp = dyn_cast<LLVM::StoreOp>(a)) {
+            if (allStoreOps.count(storeOp)) {
+              lastVal = storeOp.value();
+              seenSubStore = false;
+            }
           } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
               lastVal = storeOp.getValueToStore();
@@ -582,7 +634,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   if (loadOp.getType() != lastVal.getType()) {
                     llvm::errs() << loadOp << " - " << lastVal << "\n";
                   }
-                  assert(loadOp.getType() == lastVal.getType());
+                  assert(loadOp.getType() == lastVal.getType() &&
+                         "mismatched load type");
                   loadOp.replaceAllUsesWith(lastVal);
                   for (auto &pair : lastStoreInBlock) {
                     if (pair.second == loadOp)
@@ -596,8 +649,32 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   loadOpsToErase.push_back(loadOp);
                   loadOps.erase(loadOp);
                 } else if (seenSubStore) {
-                  // llvm::errs() << "ano lastval found for: " << loadOp <<
-                  // "\n";
+                  loadOps.erase(loadOp);
+                }
+              }
+            });
+            a->walk([&](LLVM::LoadOp loadOp) {
+              if (loadOps.count(loadOp)) {
+                if (lastVal) {
+                  changed = true;
+                  if (loadOp.getType() != lastVal.getType()) {
+                    llvm::errs() << loadOp << " - " << lastVal << "\n";
+                  }
+                  assert(loadOp.getType() == lastVal.getType() &&
+                         "mismatched load type");
+                  loadOp.replaceAllUsesWith(lastVal);
+                  for (auto &pair : lastStoreInBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  for (auto &pair : valueAtStartOfBlock) {
+                    if (pair.second == loadOp)
+                      pair.second = lastVal;
+                  }
+                  // Record this to erase later.
+                  loadOpsToErase.push_back(loadOp);
+                  loadOps.erase(loadOp);
+                } else if (seenSubStore) {
                   loadOps.erase(loadOp);
                 }
               }
@@ -609,7 +686,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   if (loadOp.getType() != lastVal.getType()) {
                     llvm::errs() << loadOp << " - " << lastVal << "\n";
                   }
-                  assert(loadOp.getType() == lastVal.getType());
+                  assert(loadOp.getType() == lastVal.getType() &&
+                         "mismatched load type");
                   loadOp.replaceAllUsesWith(lastVal);
                   for (auto &pair : lastStoreInBlock) {
                     if (pair.second == loadOp)
@@ -623,8 +701,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   loadOpsToErase.push_back(loadOp);
                   loadOps.erase(loadOp);
                 } else if (seenSubStore) {
-                  // llvm::errs() << "ano lastval found for: " << loadOp <<
-                  // "\n";
                   loadOps.erase(loadOp);
                 }
               }
@@ -1069,6 +1145,10 @@ bool isPromotable(mlir::Value AI) {
           }
         }
         continue;
+      } else if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
+        continue;
+      } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
+        continue;
       } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
         for (auto idx : LO.getAffineMapAttr().getValue().getResults()) {
           if (!idx.isa<AffineConstantExpr>()) {
@@ -1206,6 +1286,11 @@ void Mem2Reg::runOnFunction() {
       }
     });
     f.walk([&](mlir::memref::AllocOp AI) {
+      if (isPromotable(AI)) {
+        toPromote.push_back(AI);
+      }
+    });
+    f.walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }

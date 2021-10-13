@@ -117,6 +117,9 @@ static cl::opt<std::string> MArch("march", cl::init(""),
 static cl::opt<std::string> ResourceDir("resource-dir", cl::init(""),
                                         cl::desc("Resource-dir"));
 
+static cl::opt<bool> EarlyVerifier("early-verifier", cl::init(false),
+                                   cl::desc("Enable verifier ASAP"));
+
 static cl::opt<bool> Verbose("v", cl::init(false), cl::desc("Verbose"));
 
 static cl::opt<bool>
@@ -406,7 +409,7 @@ int main(int argc, char **argv) {
   }
 
   bool LinkOMP = false;
-  pm.enableVerifier(false);
+  pm.enableVerifier(EarlyVerifier);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {
     optPM.addPass(mlir::createCSEPass());
