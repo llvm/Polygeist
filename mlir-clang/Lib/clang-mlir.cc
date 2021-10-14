@@ -4134,6 +4134,15 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     lhs.store(builder, result);
     return lhs;
   }
+  case clang::BinaryOperator::Opcode::BO_XorAssign: {
+    assert(lhs.isReference);
+    auto prev = lhs.getValue(builder);
+
+    mlir::Value result =
+        builder.create<mlir::XOrOp>(loc, prev, rhs.getValue(builder));
+    lhs.store(builder, result);
+    return lhs;
+  }
 
   default: {
     BO->dump();
