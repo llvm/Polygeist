@@ -16,16 +16,29 @@ set( LLVM_LINK_COMPONENTS
   Vectorize
 )
 
+#add_library(mlir-clang-lib 
+  #Lib/utils.cc
+  #Lib/AffineUtils.cc
+  #Lib/pragmaHandler.cc
+  #Lib/ValueCategory.cc
+  #Lib/CGStmt.cc
+  #Lib/clang-mlir.cc
+  #"${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
+  #"${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
+  #"${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
+#)
+
 add_clang_tool(mlir-clang
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
   mlir-clang.cc
   Lib/utils.cc
   Lib/AffineUtils.cc
   Lib/pragmaHandler.cc
   Lib/ValueCategory.cc
   Lib/CGStmt.cc
+  Lib/clang-mlir.cc
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
+  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp" 
 )
 
 target_include_directories(mlir-clang PRIVATE
@@ -35,6 +48,7 @@ target_include_directories(mlir-clang PRIVATE
 
 target_compile_definitions(mlir-clang PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")
 target_link_libraries(mlir-clang PRIVATE
+  #mlir-clang-lib
   MLIRSCFTransforms
   MLIRPolygeist
 

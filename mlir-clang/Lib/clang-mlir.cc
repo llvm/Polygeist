@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-mlir.h"
+#include "CGOptions.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "utils.h"
 #include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
@@ -50,6 +52,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
       builder(module->getContext()), loc(builder.getUnknownLoc()),
       EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
 
+  bool ShowAST = false;
   if (ShowAST) {
     llvm::errs() << "Emitting fn: " << function.getName() << "\n";
     llvm::errs() << *fd << "\n";
@@ -1797,6 +1800,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                   builder.create<mlir::ConstantOp>(
                       loc, allocSize.getType(),
                       builder.getIntegerAttr(allocSize.getType(), elemSize)))};
+              bool CudaLower = false;
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
@@ -6145,12 +6149,30 @@ size_t MLIRScanner::getTypeSize(clang::QualType t) {
   return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
 }
 
+static std::string GetExecutablePath(const char *Argv0,
+                                     bool CanonicalPrefixes) {
+  if (!CanonicalPrefixes) {
+    SmallString<128> ExecutablePath(Argv0);
+    // Do a PATH lookup if Argv0 isn't a valid path.
+    if (!llvm::sys::fs::exists(ExecutablePath))
+      if (llvm::ErrorOr<std::string> P =
+              llvm::sys::findProgramByName(ExecutablePath))
+        ExecutablePath = *P;
+    return std::string(ExecutablePath.str());
+  }
+
+  // This just needs to be some symbol in the binary; C++ doesn't
+  // allow taking the address of ::main however.
+  void *P = (void *)(intptr_t)GetExecutablePath;
+  return llvm::sys::fs::getMainExecutable(Argv0, P);
+}
+
 #include "clang/Frontend/TextDiagnosticBuffer.h"
-static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
-                      std::string fn, std::vector<std::string> includeDirs,
-                      std::vector<std::string> defines,
-                      mlir::OwningOpRef<mlir::ModuleOp> &module,
-                      llvm::Triple &triple, llvm::DataLayout &DL) {
+bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
+               std::string fn, std::vector<std::string> includeDirs,
+               std::vector<std::string> defines,
+               mlir::OwningOpRef<mlir::ModuleOp> &module, llvm::Triple &triple,
+               llvm::DataLayout &DL, CGOptions &cgoptions) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   // Buffer diagnostics from argument parsing so that we can output them using a
@@ -6172,41 +6194,41 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  if (FOpenMP)
+  if (cgoptions.FOpenMP)
     Argv.push_back("-fopenmp");
-  if (Standard != "") {
-    auto a = "-std=" + Standard;
+  if (cgoptions.Standard != "") {
+    auto a = "-std=" + cgoptions.Standard;
     char *chars = (char *)malloc(a.length() + 1);
     memcpy(chars, a.data(), a.length());
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  if (ResourceDir != "") {
+  if (cgoptions.ResourceDir != "") {
     Argv.push_back("-resource-dir");
-    char *chars = (char *)malloc(ResourceDir.length() + 1);
-    memcpy(chars, ResourceDir.data(), ResourceDir.length());
-    chars[ResourceDir.length()] = 0;
+    char *chars = (char *)malloc(cgoptions.ResourceDir.length() + 1);
+    memcpy(chars, cgoptions.ResourceDir.data(), cgoptions.ResourceDir.length());
+    chars[cgoptions.ResourceDir.length()] = 0;
     Argv.push_back(chars);
   }
-  if (Verbose) {
+  if (cgoptions.Verbose) {
     Argv.push_back("-v");
   }
-  if (CUDAGPUArch != "") {
-    auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
+  if (cgoptions.CUDAGPUArch != "") {
+    auto a = "--cuda-gpu-arch=" + cgoptions.CUDAGPUArch;
     char *chars = (char *)malloc(a.length() + 1);
     memcpy(chars, a.data(), a.length());
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  if (CUDAPath != "") {
-    auto a = "--cuda-path=" + CUDAPath;
+  if (cgoptions.CUDAPath != "") {
+    auto a = "--cuda-path=" + cgoptions.CUDAPath;
     char *chars = (char *)malloc(a.length() + 1);
     memcpy(chars, a.data(), a.length());
     chars[a.length()] = 0;
     Argv.push_back(chars);
   }
-  if (MArch != "") {
-    auto a = "-march=" + MArch;
+  if (cgoptions.MArch != "") {
+    auto a = "-march=" + cgoptions.MArch;
     char *chars = (char *)malloc(a.length() + 1);
     memcpy(chars, a.data(), a.length());
     chars[a.length()] = 0;

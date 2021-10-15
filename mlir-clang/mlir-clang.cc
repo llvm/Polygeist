@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/Driver/Compilation.h"
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -28,6 +29,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
@@ -36,6 +38,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/Passes.h"
@@ -47,6 +50,7 @@
 #include "llvm/Support/Program.h"
 #include <fstream>
 
+#include "Lib/CGOptions.h"
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
@@ -297,7 +301,12 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
-#include "Lib/clang-mlir.cc"
+bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
+               std::string fn, std::vector<std::string> includeDirs,
+               std::vector<std::string> defines,
+               mlir::OwningOpRef<mlir::ModuleOp> &module, llvm::Triple &triple,
+               llvm::DataLayout &DL, CGOptions &cgoptions);
+
 int main(int argc, char **argv) {
 
   if (argc >= 1) {
@@ -398,8 +407,10 @@ int main(int argc, char **argv) {
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
+  CGOptions cgoptions = {FOpenMP,  ShowAST, CudaLower,   Verbose, CUDAGPUArch,
+                         CUDAPath, MArch,   ResourceDir, Standard};
   parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module,
-            triple, DL);
+            triple, DL, cgoptions);
   mlir::PassManager pm(&context);
 
   if (ImmediateMLIR) {
