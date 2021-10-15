@@ -29,7 +29,7 @@ def BarrierOp
 //===----------------------------------------------------------------------===//
 
 def SubIndexOp : Polygeist_Op<"subindex", [
-  DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect
+  ViewLikeOpInterface, NoSideEffect
 ]> {
   let summary = "memref subview operation";
 
@@ -37,7 +37,10 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   let results = (outs AnyMemRef : $result);
 
   let hasCanonicalizer = 1;
-  let hasFolder = 0;
+
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return source(); }
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -45,15 +48,33 @@ def SubIndexOp : Polygeist_Op<"subindex", [
 //===----------------------------------------------------------------------===//
 
 def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
-  DeclareOpInterfaceMethods<ViewLikeOpInterface>, NoSideEffect
+  ViewLikeOpInterface, NoSideEffect
 ]> {
-  let summary = "memref subview operation";
+  let summary = "Extract and LLVM pointer from a MemRef";
 
   let arguments = (ins AnyMemRef : $source);
   let results = (outs LLVM_AnyPointer : $result);
 
   let hasCanonicalizer = 1;
-  let hasFolder = 0;
+  
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return source(); }
+  }];
+}
+
+def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
+  ViewLikeOpInterface, NoSideEffect
+]> {
+  let summary = "Upgrade a pointer to a memref";
+
+  let arguments = (ins LLVM_AnyPointer : $result);
+  let results = (outs AnyMemRef : $source);
+
+  let hasCanonicalizer = 1;
+  
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return source(); }
+  }];
 }
 
 def TrivialUseOp : Polygeist_Op<"trivialuse"> {

@@ -103,11 +103,61 @@ struct Memref2PointerOpLowering
   }
 };
 
+struct Pointer2MemrefOpLowering
+    : public ConvertOpToLLVMPattern<Pointer2MemrefOp> {
+  using ConvertOpToLLVMPattern<Pointer2MemrefOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(Pointer2MemrefOp op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+
+    // MemRefDescriptor sourceMemRef(operands.front());
+    auto convertedType = getTypeConverter()->convertType(op.getType());
+    assert(convertedType && "unexpected failure in memref type conversion");
+    auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
+    auto ptr = rewriter.create<LLVM::BitcastOp>(
+        op.getLoc(), descr.getElementPtrType(), operands[0]);
+
+    // Extract all strides and offsets and verify they are static.
+    int64_t offset;
+    SmallVector<int64_t, 4> strides;
+    auto result = getStridesAndOffset(op.getType(), strides, offset);
+    (void)result;
+    assert(succeeded(result) && "unexpected failure in stride computation");
+    assert(!MemRefType::isDynamicStrideOrOffset(offset) &&
+           "expected static offset");
+
+    bool first = true;
+    assert(!llvm::any_of(strides, [&](int64_t stride) {
+      if (first) {
+        first = false;
+        return false;
+      }
+      return MemRefType::isDynamicStrideOrOffset(stride);
+    }) && "expected static strides except first element");
+
+    descr.setAllocatedPtr(rewriter, loc, ptr);
+    descr.setAlignedPtr(rewriter, loc, ptr);
+    descr.setConstantOffset(rewriter, loc, offset);
+
+    // Fill in sizes and strides
+    for (unsigned i = 0, e = op.getType().getRank(); i != e; ++i) {
+      descr.setConstantSize(rewriter, loc, i, op.getType().getDimSize(i));
+      descr.setConstantStride(rewriter, loc, i, strides[i]);
+    }
+
+    rewriter.replaceOp(op, {descr});
+    return success();
+  }
+};
+
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<SubIndexOpLowering>(converter);
   patterns.add<Memref2PointerOpLowering>(converter);
+  patterns.add<Pointer2MemrefOpLowering>(converter);
 }
 
 namespace {

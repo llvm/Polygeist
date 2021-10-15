@@ -12,7 +12,7 @@
 #   define N 2800
 
 /* Array initialization. */
-void init_array (int path[N])
+void init_array (int path[N]);
 
 int main()
 {

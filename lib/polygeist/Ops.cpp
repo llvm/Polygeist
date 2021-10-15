@@ -87,8 +87,7 @@ void BarrierOp::getEffects(
   // TODO: we need to handle regions in case the parent op isn't an SCF parallel
 }
 
-Value SubIndexOp::getViewSource() { return source(); }
-
+/// Replace subindex(cast(x)) with subindex(x)
 class SubIndexOpMemRefCastFolder final : public OpRewritePattern<SubIndexOp> {
 public:
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
@@ -109,6 +108,8 @@ public:
   }
 };
 
+/// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,
+/// FinalType)
 class CastOfSubIndex final : public OpRewritePattern<memref::CastOp> {
 public:
   using OpRewritePattern<memref::CastOp>::OpRewritePattern;
@@ -129,6 +130,8 @@ public:
   }
 };
 
+// Replace subindex(subindex(x)) with subindex(x) with appropriate
+// indexing.
 class SubIndex2 final : public OpRewritePattern<SubIndexOp> {
 public:
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
@@ -160,6 +163,7 @@ public:
   }
 };
 
+// When possible, simplify subindex(x) to cast(x)
 class SubToCast final : public OpRewritePattern<SubIndexOp> {
 public:
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
@@ -187,7 +191,13 @@ public:
   }
 };
 
-struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
+/// Simplify all uses of subindex, specifically
+//    store subindex(x) = ...
+//    affine.store subindex(x) = ...
+//    load subindex(x)
+//    affine.load subindex(x)
+//    dealloc subindex(x)
+struct SimplifySubViewUsers : public OpRewritePattern<SubIndexOp> {
   using OpRewritePattern<SubIndexOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(SubIndexOp subindex,
@@ -346,6 +356,7 @@ struct DeallocSubView : public OpRewritePattern<SubIndexOp> {
   }
 };
 
+/// Simplify select cast(x), cast(y) to cast(select x, y)
 struct SelectOfCast : public OpRewritePattern<SelectOp> {
   using OpRewritePattern<SelectOp>::OpRewritePattern;
 
@@ -370,6 +381,7 @@ struct SelectOfCast : public OpRewritePattern<SelectOp> {
   }
 };
 
+/// Simplify select subindex(x), subindex(y) to subindex(select x, y)
 struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
   using OpRewritePattern<SelectOp>::OpRewritePattern;
 
@@ -397,14 +409,13 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
 
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
-  results.insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2,
-                 SubToCast, DeallocSubView, SelectOfCast, SelectOfSubIndex>(
-      context);
+  results
+      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast,
+              SimplifySubViewUsers, SelectOfCast, SelectOfSubIndex>(context);
 }
 
-Value Memref2PointerOp::getViewSource() { return source(); }
-
-class MemRef2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
+/// Simplify memref2pointer(cast(x)) to memref2pointer(x)
+class Memref2PointerCast final : public OpRewritePattern<Memref2PointerOp> {
 public:
   using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
 
@@ -419,7 +430,164 @@ public:
     return success();
   }
 };
+
+/// Simplify pointer2memref(memref2pointer(x)) to cast(x)
+class Memref2Pointer2MemrefCast final
+    : public OpRewritePattern<Pointer2MemrefOp> {
+public:
+  using OpRewritePattern<Pointer2MemrefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Pointer2MemrefOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Memref2PointerOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), src.source());
+    return success();
+  }
+};
 void Memref2PointerOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<MemRef2PointerCast>(context);
+  results.insert<Memref2PointerCast, Memref2Pointer2MemrefCast>(context);
+}
+
+/// Simplify cast(pointer2memref(x)) to pointer2memref(x)
+class Pointer2MemrefCast final : public OpRewritePattern<memref::CastOp> {
+public:
+  using OpRewritePattern<memref::CastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::CastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<polygeist::Pointer2MemrefOp>(op, op.getType(),
+                                                             src.source());
+    return success();
+  }
+};
+
+/// Simplify memref2pointer(pointer2memref(x)) to cast(x)
+class Pointer2Memref2PointerCast final
+    : public OpRewritePattern<Memref2PointerOp> {
+public:
+  using OpRewritePattern<Memref2PointerOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Memref2PointerOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(),
+                                                 src.source());
+    return success();
+  }
+};
+
+/// Simplify load (pointer2memref(x)) to llvm.load x
+class Pointer2MemrefLoad final : public OpRewritePattern<memref::LoadOp> {
+public:
+  using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::LoadOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    Value val = src.source();
+    Value idx = nullptr;
+    for (size_t i = 0; i < op.indices().size(); i++) {
+      auto cur = rewriter.create<IndexCastOp>(
+          op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
+      if (idx == nullptr) {
+        idx = cur;
+      } else {
+        idx = rewriter.create<AddIOp>(
+            op.getLoc(),
+            rewriter.create<MulIOp>(
+                op.getLoc(), idx,
+                rewriter.create<ConstantOp>(
+                    op.getLoc(), rewriter.getI32Type(),
+                    rewriter.getIntegerAttr(rewriter.getI32Type(),
+                                            op.memref()
+                                                .getType()
+                                                .cast<MemRefType>()
+                                                .getShape()[i]))),
+            cur);
+      }
+    }
+    Value idxs[] = {idx};
+    if (idx)
+      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), val);
+    return success();
+  }
+};
+
+/// Simplify store (pointer2memref(x)) to llvm.store x
+class Pointer2MemrefStore final : public OpRewritePattern<memref::StoreOp> {
+public:
+  using OpRewritePattern<memref::StoreOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::StoreOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
+    if (!src)
+      return failure();
+
+    Value val = src.source();
+    Value idx = nullptr;
+    for (size_t i = 0; i < op.indices().size(); i++) {
+      auto cur = rewriter.create<IndexCastOp>(
+          op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
+      if (idx == nullptr) {
+        idx = cur;
+      } else {
+        idx = rewriter.create<AddIOp>(
+            op.getLoc(),
+            rewriter.create<MulIOp>(
+                op.getLoc(), idx,
+                rewriter.create<ConstantOp>(
+                    op.getLoc(), rewriter.getI32Type(),
+                    rewriter.getIntegerAttr(rewriter.getI32Type(),
+                                            op.memref()
+                                                .getType()
+                                                .cast<MemRefType>()
+                                                .getShape()[i]))),
+            cur);
+      }
+    }
+    Value idxs[] = {idx};
+    if (idx)
+      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), val);
+    return success();
+  }
+};
+
+/// Simplify pointer2memref(cast(x)) to pointer2memref(x)
+class BCPointer2Memref final : public OpRewritePattern<Pointer2MemrefOp> {
+public:
+  using OpRewritePattern<Pointer2MemrefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(Pointer2MemrefOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.source().getDefiningOp<LLVM::BitcastOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<Pointer2MemrefOp>(op, op.getType(), src.arg());
+    return success();
+  }
+};
+
+void Pointer2MemrefOp::getCanonicalizationPatterns(
+    OwningRewritePatternList &results, MLIRContext *context) {
+  results.insert<Pointer2MemrefCast, Pointer2Memref2PointerCast,
+                 Pointer2MemrefLoad, Pointer2MemrefStore, BCPointer2Memref>(
+      context);
 }

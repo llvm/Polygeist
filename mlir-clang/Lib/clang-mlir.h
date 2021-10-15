@@ -338,7 +338,7 @@ public:
   ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
 
   ValueCategory CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
-                                  mlir::Value val);
+                                  mlir::Value val, bool isLValue);
 
   ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx);
 
