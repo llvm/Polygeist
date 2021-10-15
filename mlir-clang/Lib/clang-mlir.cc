@@ -42,6 +42,67 @@ using namespace mlir;
 
 #define DEBUG_TYPE "clang-mlir"
 
+static cl::opt<bool>
+    memRefFullRank("memref-fullrank", cl::init(false),
+                   cl::desc("Get the full rank of the memref."));
+
+/// Try to typecast the caller arg of type MemRef to fit the corresponding
+/// callee arg type. We only deal with the cast where src and dst have the same
+/// shape size and elem type, and just the first shape differs: src has -1 and
+/// dst has a constant integer.
+static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
+                                       mlir::Type calleeArgType,
+                                       mlir::OpBuilder &b) {
+  mlir::OpBuilder::InsertionGuard guard(b);
+  mlir::Type callerArgType = callerArg.getType();
+
+  if (MemRefType dstTy = calleeArgType.dyn_cast_or_null<MemRefType>()) {
+    MemRefType srcTy = callerArgType.dyn_cast<MemRefType>();
+    if (srcTy && dstTy.getElementType() == srcTy.getElementType()) {
+      auto srcShape = srcTy.getShape();
+      auto dstShape = dstTy.getShape();
+
+      if (srcShape.size() == dstShape.size() && !srcShape.empty() &&
+          srcShape[0] == -1 &&
+          std::equal(std::next(srcShape.begin()), srcShape.end(),
+                     std::next(dstShape.begin()))) {
+        b.setInsertionPointAfterValue(callerArg);
+
+        return b.create<mlir::memref::CastOp>(callerArg.getLoc(), callerArg,
+                                              calleeArgType);
+      }
+    }
+  }
+
+  // Return the original value when casting fails.
+  return callerArg;
+}
+
+/// Typecast the caller args to match the callee's signature. Mismatches that
+/// cannot be resolved by given rules won't raise exceptions, e.g., if the
+/// expected type for an arg is memref<10xi8> while the provided is
+/// memref<20xf32>, we will simply ignore the case in this function and wait for
+/// the rest of the pipeline to detect it.
+static void castCallerArgs(mlir::FuncOp callee,
+                           llvm::SmallVectorImpl<mlir::Value> &args,
+                           mlir::OpBuilder &b) {
+  mlir::FunctionType funcTy = callee.getType().cast<mlir::FunctionType>();
+  assert(args.size() == funcTy.getNumInputs() &&
+         "The caller arguments should have the same size as the number of "
+         "callee arguments as the interface.");
+
+  for (unsigned i = 0; i < args.size(); ++i) {
+    mlir::Type calleeArgType = funcTy.getInput(i);
+    mlir::Type callerArgType = args[i].getType();
+
+    if (calleeArgType == callerArgType)
+      continue;
+
+    if (calleeArgType.isa<MemRefType>())
+      args[i] = castCallerMemRefArg(args[i], calleeArgType, b);
+  }
+}
+
 class IfScope {
 public:
   MLIRScanner &scanner;
@@ -3305,6 +3366,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return nullptr;
   }
 
+  // Try to rescue some mismatched types.
+  castCallerArgs(tocall, args, builder);
+
   auto op = builder.create<mlir::CallOp>(loc, tocall, args);
   for (auto pair : toRestore) {
     pair.second.store(builder, pair.first, /*isArray*/ true);
@@ -5854,6 +5918,22 @@ mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
   return FileLineColLoc::get(ctx, fileId, lineNumber, colNumber);
 }
 
+/// Iteratively get the size of each dim of the given ConstantArrayType inst.
+static void getConstantArrayShapeAndElemType(const clang::QualType &ty,
+                                             SmallVectorImpl<int64_t> &shape,
+                                             clang::QualType &elemTy) {
+  shape.clear();
+
+  clang::QualType curTy = ty;
+  while (curTy->isConstantArrayType()) {
+    auto cstArrTy = cast<clang::ConstantArrayType>(curTy);
+    shape.push_back(cstArrTy->getSize().getSExtValue());
+    curTy = cstArrTy->getElementType();
+  }
+
+  elemTy = curTy;
+}
+
 mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                         bool allowMerge) {
   if (auto ET = dyn_cast<clang::ElaboratedType>(qt)) {
@@ -5879,6 +5959,24 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     bool assumeRef = false;
     auto mlirty = getMLIRType(DT->getOriginalType(), &assumeRef, allowMerge);
     if (assumeRef) {
+      // Constant array types like `int A[30][20]` will be converted to LLVM
+      // type `[20 x i32]* %0`, which has the outermost dimension size erased,
+      // and we can only recover to `memref<?x20xi32>` from there. This prevents
+      // us from doing more comprehensive analysis. Here we specifically handle
+      // this case by unwrapping the clang-adjusted type, to get the
+      // corresponding ConstantArrayType with the full dimensions.
+      if (memRefFullRank) {
+        clang::QualType origTy = DT->getOriginalType();
+        if (origTy->isConstantArrayType()) {
+          SmallVector<int64_t, 4> shape;
+          clang::QualType elemTy;
+          getConstantArrayShapeAndElemType(origTy, shape, elemTy);
+
+          return mlir::MemRefType::get(shape, getMLIRType(elemTy));
+        }
+      }
+
+      // If -memref-fullrank is unset or it cannot be fulfilled.
       auto mt = mlirty.dyn_cast<MemRefType>();
       auto shape2 = std::vector<int64_t>(mt.getShape());
       shape2[0] = -1;

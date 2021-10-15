@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov -S | FileCheck %s
+// RUN: mlir-clang %s -detect-reduction --function=kernel_nussinov -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define max_score(s1, s2) ((s1 >= s2) ? s1 : s2)
 
@@ -30,3 +31,7 @@ void kernel_nussinov(double* out, int n)  {
 // CHECK-NEXT:     affine.store %4, %arg0[symbol(%[[i1]])] : memref<?xf64>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// FULLRANK: func @kernel_nussinov(%{{.*}}: memref<?xf64>, %{{.*}}: i32)
+// FULLRANK:     %[[i0:.+]] = memref.alloca() : memref<20xf64>
+// FULLRANK:     call @set(%[[i0]]) : (memref<20xf64>) -> ()

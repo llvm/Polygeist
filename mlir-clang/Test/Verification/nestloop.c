@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude --function=init_array -S | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=init_array -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>
@@ -63,3 +64,5 @@ void init_array (int path[10][10])
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT: }
+
+// FULLRANK:   func @init_array(%{{.*}}: memref<10x10xi32>)

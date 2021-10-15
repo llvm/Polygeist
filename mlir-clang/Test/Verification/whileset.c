@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude --function=set -S | FileCheck %s
+// RUN: mlir-clang %s %stdinclude --function=set -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>
@@ -38,3 +39,5 @@ void set (int path[20])
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// FULLRANK: func @set(%{{.*}}: memref<20xi32>)

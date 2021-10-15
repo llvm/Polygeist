@@ -1,4 +1,6 @@
 // RUN: mlir-clang %s --function=kernel_nussinov -S | FileCheck %s
+// RUN: mlir-clang %s --function=kernel_nussinov -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+
 #define N 5500
 #define max_score(s1, s2) ((s1 >= s2) ? s1 : s2)
 
@@ -14,6 +16,8 @@
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
+// FULLRANK: @kernel_nussinov(%{{.*}}: i32, %{{.*}}: memref<5500xi32>)
 
 void kernel_nussinov(int n, int table[N])
 {

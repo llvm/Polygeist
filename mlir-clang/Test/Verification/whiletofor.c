@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s --function=whiletofor -S | FileCheck %s
+// RUN: mlir-clang %s --function=whiletofor -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 void use(int a[100][100]);
 
@@ -51,3 +52,6 @@ void whiletofor() {
 // CHECK-NEXT:      call @use(%2) : (memref<?x100xi32>) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
+
+// FULLRANK:      %[[VAL0:.*]] = memref.alloca() : memref<100x100xi32>
+// FULLRANK:      call @use(%[[VAL0]]) : (memref<100x100xi32>) -> ()

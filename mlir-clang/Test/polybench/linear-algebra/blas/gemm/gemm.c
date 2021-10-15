@@ -1,4 +1,5 @@
 // RUN: mlir-clang %s %stdinclude -S | FileCheck %s
+// RUN: mlir-clang %s %stdinclude -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
 // RUN: mlir-clang %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
@@ -159,6 +160,8 @@ int main(int argc, char** argv)
 
   return 0;
 }
+
+// FULLRANK: func @kernel_gemm(%{{.*}}: i32, %{{.*}}: i32, %{{.*}}: i32, %{{.*}}: f64, %{{.*}}: f64, %{{.*}}: memref<1000x1100xf64>, %{{.*}}: memref<1000x1200xf64>, %{{.*}}: memref<1200x1100xf64>)
 
 // CHECK:   func @kernel_gemm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: f64, %arg4: f64, %arg5: memref<?x1100xf64>, %arg6: memref<?x1200xf64>, %arg7: memref<?x1100xf64>)
 // CHECK-DAG:    %[[i0:.+]] = index_cast %arg0 : i32 to index  
