@@ -345,4 +345,10 @@ public:
   ValueCategory CommonArrayToPointer(ValueCategory val);
 };
 
+struct IfScope {
+  MLIRScanner &scanner;
+  IfScope(MLIRScanner &scanner) : scanner(scanner) { scanner.pushLoopIf(); }
+  ~IfScope() { scanner.popLoopIf(); }
+};
+
 #endif

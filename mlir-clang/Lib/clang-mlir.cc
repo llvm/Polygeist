@@ -42,13 +42,6 @@ using namespace mlir;
 
 #define DEBUG_TYPE "clang-mlir"
 
-class IfScope {
-public:
-  MLIRScanner &scanner;
-  IfScope(MLIRScanner &scanner) : scanner(scanner) { scanner.pushLoopIf(); }
-  ~IfScope() { scanner.popLoopIf(); }
-};
-
 MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
                          const FunctionDecl *fd,
                          mlir::OwningOpRef<mlir::ModuleOp> &module,
@@ -383,7 +376,6 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 }
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
-  auto loc = getMLIRLocation(decl->getLocation());
   unsigned memtype = 0;
 
   if (decl->hasAttr<CUDASharedAttr>()) {
@@ -973,10 +965,6 @@ void MLIRScanner::buildAffineLoopImpl(
   builder.setInsertionPoint(oldblock, oldpoint);
 }
 
-static bool isTerminator(Operation *op) {
-  return op->mightHaveTrait<OpTrait::IsTerminator>();
-}
-
 void MLIRScanner::buildAffineLoop(
     clang::ForStmt *fors, mlir::Location loc,
     const mlirclang::AffineLoopDescriptor &descr) {
@@ -1230,84 +1218,6 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
   builder.setInsertionPoint(oldblock, oldpoint);
-  return nullptr;
-}
-
-ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
-  IfScope scope(*this);
-
-  auto loc = getMLIRLocation(fors->getForLoc());
-
-  mlirclang::AffineLoopDescriptor affineLoopDescr;
-  if (Glob.scopLocList.isInScop(fors->getForLoc()) &&
-      isTrivialAffineLoop(fors, affineLoopDescr)) {
-    buildAffineLoop(fors, loc, affineLoopDescr);
-  } else {
-
-    if (auto s = fors->getInit()) {
-      Visit(s);
-    }
-
-    auto i1Ty = builder.getIntegerType(1);
-    auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
-    auto truev = builder.create<mlir::ConstantOp>(
-        loc, i1Ty, builder.getIntegerAttr(i1Ty, 1));
-
-    LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
-                     builder.create<mlir::memref::AllocaOp>(loc, type)};
-    builder.create<mlir::memref::StoreOp>(loc, truev, lctx.noBreak);
-
-    auto toadd = builder.getInsertionBlock()->getParent();
-    auto &condB = *(new Block());
-    toadd->getBlocks().push_back(&condB);
-    auto &bodyB = *(new Block());
-    toadd->getBlocks().push_back(&bodyB);
-    auto &exitB = *(new Block());
-    toadd->getBlocks().push_back(&exitB);
-
-    builder.create<mlir::BranchOp>(loc, &condB);
-
-    builder.setInsertionPointToStart(&condB);
-
-    if (auto s = fors->getCond()) {
-      auto condRes = Visit(s);
-      auto cond = condRes.getValue(builder);
-      if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-        auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-        cond = builder.create<mlir::LLVM::ICmpOp>(
-            loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-      }
-      auto ty = cond.getType().cast<mlir::IntegerType>();
-      if (ty.getWidth() != 1) {
-        ty = builder.getIntegerType(1);
-        cond = builder.create<mlir::TruncateIOp>(loc, cond, ty);
-      }
-      auto nb = builder.create<mlir::memref::LoadOp>(
-          loc, lctx.noBreak, std::vector<mlir::Value>());
-      cond = builder.create<mlir::AndOp>(loc, cond, nb);
-      builder.create<mlir::CondBranchOp>(loc, cond, &bodyB, &exitB);
-    }
-
-    builder.setInsertionPointToStart(&bodyB);
-    builder.create<mlir::memref::StoreOp>(
-        loc,
-        builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
-                                             std::vector<mlir::Value>()),
-        lctx.keepRunning, std::vector<mlir::Value>());
-
-    loops.push_back(lctx);
-    Visit(fors->getBody());
-    if (auto s = fors->getInc()) {
-      Visit(s);
-    }
-    loops.pop_back();
-    if (builder.getInsertionBlock()->empty() ||
-        !isTerminator(&builder.getInsertionBlock()->back())) {
-      builder.create<mlir::BranchOp>(loc, &condB);
-    }
-
-    builder.setInsertionPointToStart(&exitB);
-  }
   return nullptr;
 }
 
