@@ -226,7 +226,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   SmallPtrSet<Operation *, 4> AliasingStoreOperations;
 
-  LLVM_DEBUG(llvm::dbgs() << "Begin forwarding store of " << AI << " to load\n" << *AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "Begin forwarding store of " << AI << " to load\n"
+                          << *AI.getDefiningOp()->getParentOfType<FuncOp>()
+                          << "\n");
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
@@ -312,13 +314,13 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   {
     std::deque<Block *> todo;
     for (auto &pair : allStoreOps) {
-      StoringOperations.insert(pair);
       LLVM_DEBUG(llvm::errs() << " storing operation: " << *pair << "\n");
       todo.push_back(pair->getBlock());
     }
     for (auto op : AliasingStoreOperations) {
       StoringOperations.insert(op);
-      LLVM_DEBUG(llvm::errs() << " aliasing storing operation: " << *op << "\n");
+      LLVM_DEBUG(llvm::errs()
+                 << " aliasing storing operation: " << *op << "\n");
       todo.push_back(op->getBlock());
     }
     while (todo.size()) {
@@ -327,14 +329,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       todo.pop_front();
       StoringBlocks.insert(block);
       LLVM_DEBUG(llvm::errs() << " initial storing block: " << block << "\n");
-      block->dump();
       if (auto op = block->getParentOp()) {
         StoringOperations.insert(op);
-        //LLVM_DEBUG(llvm::errs() << " derived storing operation: " << *op << "\n");
         if (auto next = op->getBlock()) {
           StoringBlocks.insert(next);
-          LLVM_DEBUG(llvm::errs() << " derived storing block: " << next << "\n");
-          next->dump();
+          LLVM_DEBUG(llvm::errs()
+                     << " derived storing block: " << next << "\n");
           todo.push_back(next);
         }
       }
@@ -377,6 +377,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               valueAtStartOfBlock[&*exOp.region().begin()] = lastVal;
               Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
               lastVal = nullptr;
+              seenSubStore = true;
               continue;
 
               bool needsAfter = false;
@@ -439,8 +440,28 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               exOp.erase();
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
               if (!lastVal) {
-                lastVal = nullptr;
-                continue;
+
+                bool needsAfter = false;
+                {
+                  for (auto n = ifOp->getNextNode(); n != nullptr;
+                       n = n->getNextNode()) {
+                    if (loadOps.count(n))
+                      needsAfter = true;
+                    else if (StoringOperations.count(n))
+                      break;
+                    else
+                      n->walk([&](Operation *a) {
+                        if (loadOps.count(a))
+                          needsAfter = true;
+                      });
+                  }
+                }
+                if (!needsAfter) {
+                  lastVal = nullptr;
+                  seenSubStore = true;
+                  continue;
+                }
+
                 OpBuilder B(ifOp.getContext());
                 B.setInsertionPoint(ifOp);
                 SmallVector<mlir::Value, 4> nidx;
@@ -450,9 +471,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 }
                 Operation *newLoad;
                 if (AI.getType().isa<MemRefType>())
-                  newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
+                  newLoad = B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
                 else
-                  newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
+                  newLoad = B.create<LLVM::LoadOp>(ifOp.getLoc(), AI);
 
                 loadOps.insert(newLoad);
                 lastVal = newLoad->getResult(0);
@@ -461,9 +482,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
               mlir::Value thenVal =
                   handleBlock(*ifOp.thenRegion().begin(), lastVal);
-              // llvm::errs() << ifOp << " - AI " << AI << " " << (lastVal !=
-              // nullptr) << " tv " << (thenVal != nullptr) << " else: " <<
-              // ifOp.elseRegion().getBlocks().size() << "\n";
 
               if (lastVal && ifOp.elseRegion().getBlocks().size())
                 valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
@@ -471,8 +489,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   (ifOp.elseRegion().getBlocks().size())
                       ? handleBlock(*ifOp.elseRegion().begin(), lastVal)
                       : lastVal;
-              // llvm::errs() << " +++ elseVal: " << (elseVal != nullptr) <<
-              // "\n";
+
               if (thenVal == elseVal && thenVal != nullptr) {
                 lastVal = thenVal;
                 continue;
@@ -809,9 +826,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   }
 
   for (auto loadOp : loadOps) {
+    assert(loadOp);
     auto blk = loadOp->getBlock();
-    if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end()) {
+    if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end() &&
+        valueAtStartOfBlock[blk]) {
       changed = true;
+      assert(loadOp->getResult(0));
       assert(loadOp->getResult(0).getType() ==
              valueAtStartOfBlock[blk].getType());
       loadOp->getResult(0).replaceAllUsesWith(valueAtStartOfBlock[blk]);
@@ -838,7 +858,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
     assert(blockArg && blockArg.getOwner() == block);
 
-    SmallVector<Block*> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+    SmallVector<Block *> prepred(block->getPredecessors().begin(),
+                                 block->getPredecessors().end());
 
     for (auto pred : prepred) {
       assert(pred && "Null predecessor");
@@ -1137,7 +1158,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       }
     }
   }
-  LLVM_DEBUG(llvm::dbgs() << "End forwarding store of " << AI << " to load\n" << *AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "End forwarding store of " << AI << " to load\n"
+                          << *AI.getDefiningOp()->getParentOfType<FuncOp>()
+                          << "\n");
   return changed;
 }
 
