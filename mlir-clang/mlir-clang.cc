@@ -298,7 +298,6 @@ int emitBinary(char *Argv0, const char *filename,
 }
 
 #include "Lib/clang-mlir.cc"
-
 int main(int argc, char **argv) {
 
   if (argc >= 1) {
