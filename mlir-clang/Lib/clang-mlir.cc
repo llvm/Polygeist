@@ -382,6 +382,82 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   assert(0 && "bad");
 }
 
+/// Construct corresponding MLIR operations to initialize the given value by a
+/// provided InitListExpr.
+static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
+                                          MLIRScanner *scanner) {
+  auto initListExpr = cast<InitListExpr>(expr);
+  assert(toInit.getType().isa<MemRefType>() &&
+         "The value initialized by an InitListExpr should be a MemRef.");
+
+  // The initialization values will be translated into individual
+  // memref.store operations. This requires that the memref value should
+  // have static shape.
+  MemRefType memTy = toInit.getType().cast<MemRefType>();
+  assert(memTy.hasStaticShape() &&
+         "The memref to be initialized by InitListExpr should have static "
+         "shape.");
+
+  auto shape = memTy.getShape();
+  // `offsets` is being mutable during the recursive function call to helper.
+  SmallVector<int64_t> offsets;
+
+  // Recursively visit the initialization expression following the linear
+  // increment of the memory address.
+  std::function<void(Expr *)> helper = [&](Expr *expr) {
+    Location loc = toInit.getLoc();
+
+    OpBuilder &b = scanner->getBuilder();
+    OpBuilder::InsertionGuard guard(b);
+
+    InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr);
+
+    // All the addresses have been instantiated, can generate the store
+    // operation.
+    if (offsets.size() == shape.size()) {
+      // Generate the constant addresses.
+      SmallVector<mlir::Value> addr;
+      transform(offsets, std::back_inserter(addr), [&](const int64_t &offset) {
+        return scanner->getConstantIndex(offset);
+      });
+
+      // Resolve the value to be stored.
+      Expr *toVisit = (initListExpr && initListExpr->hasArrayFiller())
+                          ? initListExpr->getInit(0)
+                          : expr;
+      assert(!isa<InitListExpr>(toVisit) &&
+             "The expr to visit and resolve shouldn't still be a "
+             "InitListExpr - "
+             "it should be an actual value.");
+
+      auto visitor = scanner->Visit(toVisit);
+      auto valueToStore = visitor.getValue(b);
+
+      b.create<memref::StoreOp>(loc, valueToStore, toInit, addr);
+    } else {
+      assert(initListExpr &&
+             "The passed in expr should be an InitListExpr since we're still "
+             "iterating all the values to be stored.");
+
+      unsigned nextDim = offsets.size();
+      offsets.push_back(0);
+      for (unsigned i = 0, e = shape[nextDim]; i < e; ++i) {
+        offsets[nextDim] = i;
+
+        // If the current expr is an array filler, we will pass it all the
+        // way down until we reach to the last dimension. Otherwise, there
+        // should be a corresponding InitListExpr for the current dim, and
+        // we pass that down.
+        helper(initListExpr->hasArrayFiller() ? expr
+                                              : initListExpr->getInit(i));
+      }
+      offsets.pop_back();
+    }
+  };
+
+  helper(initListExpr);
+}
+
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
   mlir::Type subType = getMLIRType(decl->getType());
@@ -470,9 +546,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (inite.val) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
-    if (auto il = dyn_cast<InitListExpr>(init))
-      mlirclang::initializeValueByInitListExpr(op, init, this);
-    else
+    if (auto il = dyn_cast<InitListExpr>(init)) {
+      initializeValueByInitListExpr(op, init, this);
+    } else
       assert(0 && "unknown init list");
   }
   return ValueCategory(op, /*isReference*/ true);

@@ -47,12 +47,6 @@ mlir::Operation *buildLinalgOp(const mlir::AbstractOperation *op,
                                mlir::OpBuilder &b,
                                llvm::SmallVectorImpl<mlir::Value> &input,
                                llvm::SmallVectorImpl<mlir::Value> &output);
-
-/// Construct corresponding MLIR operations to initialize the given value by a
-/// provided InitListExpr.
-void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
-                                   MLIRScanner *scanner);
-
 } // namespace mlirclang
 
 #endif
