@@ -24,6 +24,12 @@ namespace llvm {
 class StringRef;
 } // namespace llvm
 
+namespace clang {
+class Expr;
+}
+
+struct MLIRScanner;
+
 namespace mlirclang {
 
 /// Replace the given function by the operation with the given name, and use the
@@ -41,7 +47,6 @@ mlir::Operation *buildLinalgOp(const mlir::AbstractOperation *op,
                                mlir::OpBuilder &b,
                                llvm::SmallVectorImpl<mlir::Value> &input,
                                llvm::SmallVectorImpl<mlir::Value> &output);
-
 } // namespace mlirclang
 
 #endif

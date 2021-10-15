@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "utils.h"
+#include "clang-mlir.h"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -15,16 +16,21 @@
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
+
+#include "clang/AST/Expr.h"
 
 using namespace mlir;
 using namespace llvm;
+using namespace clang;
 
 Operation *mlirclang::buildLinalgOp(const AbstractOperation *op, OpBuilder &b,
-                                    SmallVectorImpl<Value> &input,
-                                    SmallVectorImpl<Value> &output) {
+                                    SmallVectorImpl<mlir::Value> &input,
+                                    SmallVectorImpl<mlir::Value> &output) {
   StringRef name = op->name;
   if (name.compare("linalg.copy") == 0) {
     assert(input.size() == 1 && "linalg::copyOp requires 1 input");
@@ -36,10 +42,10 @@ Operation *mlirclang::buildLinalgOp(const AbstractOperation *op, OpBuilder &b,
   }
 }
 
-Operation *mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName,
-                                             OpBuilder &b,
-                                             SmallVectorImpl<Value> &input,
-                                             SmallVectorImpl<Value> &output) {
+Operation *
+mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
+                                  SmallVectorImpl<mlir::Value> &input,
+                                  SmallVectorImpl<mlir::Value> &output) {
   MLIRContext *ctx = f->getContext();
   assert(ctx->isOperationRegistered(opName) &&
          "Provided lower_to opName should be registered.");

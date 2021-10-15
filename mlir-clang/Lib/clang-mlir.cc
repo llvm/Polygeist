@@ -8,7 +8,7 @@
 
 #include "clang-mlir.h"
 #include "utils.h"
-#include "llvm/Support/Debug.h"
+#include <clang/AST/Attr.h>
 #include <clang/AST/Decl.h>
 #include <clang/Basic/DiagnosticOptions.h>
 #include <clang/Basic/FileManager.h>
@@ -29,9 +29,13 @@
 #include <clang/Parse/Parser.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/SemaDiagnostic.h>
+#include <llvm/Support/Debug.h>
+#include <llvm/Support/raw_ostream.h>
+#include <mlir/Dialect/SCF/SCF.h>
 
 using namespace std;
 using namespace clang;
+using namespace llvm;
 using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
@@ -44,6 +48,153 @@ public:
   IfScope(MLIRScanner &scanner) : scanner(scanner) { scanner.pushLoopIf(); }
   ~IfScope() { scanner.popLoopIf(); }
 };
+
+MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
+                         const FunctionDecl *fd,
+                         mlir::OwningOpRef<mlir::ModuleOp> &module,
+                         LowerToInfo &LTInfo)
+    : Glob(Glob), function(function), module(module),
+      builder(module->getContext()), loc(builder.getUnknownLoc()),
+      EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
+
+  if (ShowAST) {
+    llvm::errs() << "Emitting fn: " << function.getName() << "\n";
+    llvm::errs() << *fd << "\n";
+  }
+
+  allocationScope = entryBlock = function.addEntryBlock();
+
+  builder.setInsertionPointToStart(entryBlock);
+
+  unsigned i = 0;
+  if (auto CM = dyn_cast<CXXMethodDecl>(fd)) {
+    if (CM->getParent()->isLambda()) {
+      for (auto C : CM->getParent()->captures()) {
+        if (C.capturesVariable()) {
+          CaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
+        }
+      }
+      CM->getParent()->getCaptureFields(Captures, ThisCapture);
+      if (ThisCapture) {
+        llvm::errs() << " thiscapture:\n";
+        ThisCapture->dump();
+      }
+    }
+
+    if (CM->isInstance()) {
+      mlir::Value val = function.getArgument(i);
+      ThisVal = ValueCategory(val, /*isReference*/ false);
+      i++;
+    }
+  }
+
+  for (auto parm : fd->parameters()) {
+    assert(i != function.getNumArguments());
+    // function.getArgument(i).setName(name);
+    bool isArray = false;
+    auto LLTy = getLLVMType(parm->getType());
+    while (auto ST = dyn_cast<llvm::StructType>(LLTy)) {
+      if (ST->getNumElements() == 1)
+        LLTy = ST->getTypeAtIndex(0U);
+      else
+        break;
+    }
+    bool LLVMABI = false;
+
+    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(parm->getType()))
+            .isa<mlir::LLVM::LLVMPointerType>())
+      LLVMABI = true;
+
+    if (!LLVMABI) {
+      Glob.getMLIRType(parm->getType(), &isArray);
+    }
+    if (!isArray && (isa<clang::RValueReferenceType>(parm->getType()) ||
+                     isa<clang::LValueReferenceType>(parm->getType())))
+      isArray = true;
+    mlir::Value val = function.getArgument(i);
+    assert(val);
+    if (isArray) {
+      params.emplace(parm, ValueCategory(val, /*isReference*/ true));
+    } else {
+      auto alloc = createAllocOp(val.getType(), parm, /*memspace*/ 0, isArray,
+                                 /*LLVMABI*/ LLVMABI);
+      ValueCategory(alloc, /*isReference*/ true).store(builder, val);
+    }
+    i++;
+  }
+
+  if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
+
+    for (auto expr : CC->inits()) {
+      if (ShowAST) {
+        if (expr->getMember())
+          expr->getMember()->dump();
+        if (expr->getInit())
+          expr->getInit()->dump();
+      }
+      assert(ThisVal.val);
+      FieldDecl *field = expr->getMember();
+      if (auto AILE = dyn_cast<ArrayInitLoopExpr>(expr->getInit())) {
+        VisitArrayInitLoop(AILE, CommonFieldLookup(CC->getThisObjectType(),
+                                                   field, ThisVal.val));
+        continue;
+      }
+      auto initexpr = Visit(expr->getInit());
+      if (!initexpr.val) {
+        expr->getInit()->dump();
+        assert(initexpr.val);
+      }
+      bool isArray = false;
+      Glob.getMLIRType(expr->getInit()->getType(), &isArray);
+
+      auto cfl = CommonFieldLookup(CC->getThisObjectType(), field, ThisVal.val);
+      assert(cfl.val);
+      cfl.store(builder, initexpr, isArray);
+    }
+  }
+  if (auto CC = dyn_cast<CXXDestructorDecl>(fd)) {
+    CC->dump();
+    llvm::errs() << " warning, destructor not fully handled yet\n";
+  }
+
+  Stmt *stmt = fd->getBody();
+  assert(stmt);
+  if (ShowAST) {
+    stmt->dump();
+  }
+
+  auto i1Ty = builder.getIntegerType(1);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+  auto truev = builder.create<mlir::ConstantIntOp>(loc, true, 1);
+  loops.push_back(
+      (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
+                    builder.create<mlir::memref::AllocaOp>(loc, type)});
+  builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
+  builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
+  if (function.getType().getResults().size()) {
+    auto type =
+        mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
+    returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
+    if (type.getElementType().isa<mlir::IntegerType>()) {
+      builder.create<mlir::memref::StoreOp>(
+          loc, builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
+          returnVal, std::vector<mlir::Value>({}));
+    }
+  }
+  Visit(stmt);
+
+  if (function.getType().getResults().size()) {
+    mlir::Value vals[1] = {
+        builder.create<mlir::memref::LoadOp>(loc, returnVal)};
+    builder.create<mlir::ReturnOp>(loc, vals);
+  } else
+    builder.create<mlir::ReturnOp>(loc);
+
+  assert(function->getParentOp() == Glob.module.get() &&
+         "New function must be inserted into global module");
+}
+
+mlir::OpBuilder &MLIRScanner::getBuilder() { return builder; }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
                                        uint64_t memspace, bool isArray = false,
@@ -231,7 +382,82 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   assert(0 && "bad");
 }
 
-#include "clang/AST/Attr.h"
+/// Construct corresponding MLIR operations to initialize the given value by a
+/// provided InitListExpr.
+static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
+                                          MLIRScanner *scanner) {
+  auto initListExpr = cast<InitListExpr>(expr);
+  assert(toInit.getType().isa<MemRefType>() &&
+         "The value initialized by an InitListExpr should be a MemRef.");
+
+  // The initialization values will be translated into individual
+  // memref.store operations. This requires that the memref value should
+  // have static shape.
+  MemRefType memTy = toInit.getType().cast<MemRefType>();
+  assert(memTy.hasStaticShape() &&
+         "The memref to be initialized by InitListExpr should have static "
+         "shape.");
+
+  auto shape = memTy.getShape();
+  // `offsets` is being mutable during the recursive function call to helper.
+  SmallVector<int64_t> offsets;
+
+  // Recursively visit the initialization expression following the linear
+  // increment of the memory address.
+  std::function<void(Expr *)> helper = [&](Expr *expr) {
+    Location loc = toInit.getLoc();
+
+    OpBuilder &b = scanner->getBuilder();
+    OpBuilder::InsertionGuard guard(b);
+
+    InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr);
+
+    // All the addresses have been instantiated, can generate the store
+    // operation.
+    if (offsets.size() == shape.size()) {
+      // Generate the constant addresses.
+      SmallVector<mlir::Value> addr;
+      transform(offsets, std::back_inserter(addr), [&](const int64_t &offset) {
+        return scanner->getConstantIndex(offset);
+      });
+
+      // Resolve the value to be stored.
+      Expr *toVisit = (initListExpr && initListExpr->hasArrayFiller())
+                          ? initListExpr->getInit(0)
+                          : expr;
+      assert(!isa<InitListExpr>(toVisit) &&
+             "The expr to visit and resolve shouldn't still be a "
+             "InitListExpr - "
+             "it should be an actual value.");
+
+      auto visitor = scanner->Visit(toVisit);
+      auto valueToStore = visitor.getValue(b);
+
+      b.create<memref::StoreOp>(loc, valueToStore, toInit, addr);
+    } else {
+      assert(initListExpr &&
+             "The passed in expr should be an InitListExpr since we're still "
+             "iterating all the values to be stored.");
+
+      unsigned nextDim = offsets.size();
+      offsets.push_back(0);
+      for (unsigned i = 0, e = shape[nextDim]; i < e; ++i) {
+        offsets[nextDim] = i;
+
+        // If the current expr is an array filler, we will pass it all the
+        // way down until we reach to the last dimension. Otherwise, there
+        // should be a corresponding InitListExpr for the current dim, and
+        // we pass that down.
+        helper(initListExpr->hasArrayFiller() ? expr
+                                              : initListExpr->getInit(i));
+      }
+      offsets.pop_back();
+    }
+  };
+
+  helper(initListExpr);
+}
+
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
   unsigned memtype = 0;
@@ -321,29 +547,12 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
   } else
     op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
+
   if (inite.val) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
     if (auto il = dyn_cast<InitListExpr>(init)) {
-      if (il->hasArrayFiller()) {
-        auto visit = Visit(il->getInit(0));
-        mlir::Value inite = visit.getValue(builder);
-        if (!inite) {
-          il->getArrayFiller()->dump();
-          assert(inite);
-        }
-        assert(subType.cast<MemRefType>().getShape().size() == 1);
-        for (ssize_t i = 0; i < subType.cast<MemRefType>().getShape()[0]; i++) {
-          assert(inite.getType() ==
-                 op.getType().cast<MemRefType>().getElementType());
-          assert(op.getType().cast<MemRefType>().getShape().size() == 1);
-          builder.create<mlir::memref::StoreOp>(loc, inite, op,
-                                                getConstantIndex(i));
-        }
-      } else {
-        init->dump();
-        assert(0 && "init list expr unhandled");
-      }
+      initializeValueByInitListExpr(op, init, this);
     } else
       assert(0 && "unknown init list");
   }
