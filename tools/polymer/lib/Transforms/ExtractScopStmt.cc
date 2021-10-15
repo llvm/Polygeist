@@ -178,6 +178,7 @@ static void getScopStmtOps(Operation *writeOp,
 
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
+    LLVM_DEBUG(dbgs() << "-- Working on: " << (*op) << '\n');
 
     // If op is already in another callee.
     if (!isa<mlir::ConstantOp>(op) && opToCallee[op] &&
@@ -209,7 +210,9 @@ static void getScopStmtOps(Operation *writeOp,
     // if we consume it in the callee, the AffineValueMap built for the accesses
     // that use this dim cannot relate it with the global context.
     if (isa<memref::AllocaOp, memref::AllocOp, memref::DimOp,
-            mlir::AffineApplyOp, mlir::IndexCastOp>(op)) {
+            mlir::AffineApplyOp>(op) ||
+        (isa<mlir::IndexCastOp>(op) &&
+         op->getOperand(0).isa<BlockArgument>())) {
       for (mlir::Value result : op->getResults())
         args.insert(result);
       continue;
@@ -486,5 +489,6 @@ void polymer::registerExtractScopStmtPass() {
       "extract-scop-stmt", "Extract SCoP statements into functions.",
       [](OpPassManager &pm) {
         pm.addPass(std::make_unique<ExtractScopStmtPass>());
+        pm.addPass(createCanonicalizerPass());
       });
 }
