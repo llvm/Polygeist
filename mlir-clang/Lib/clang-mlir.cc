@@ -521,15 +521,10 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   auto loc = getMLIRLocation(decl->getLocation());
-  unsigned memtype = 0;
-
-  if (decl->hasAttr<CUDASharedAttr>()) {
-    memtype = 5;
-  }
   mlir::Type subType = getMLIRType(decl->getType());
   ValueCategory inite = nullptr;
+  unsigned memtype = decl->hasAttr<CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false;
-
   bool isArray = false;
 
   if (Glob.getMLIRType(
@@ -4276,6 +4271,15 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     mlir::Value result =
         builder.create<mlir::OrOp>(loc, prev, rhs.getValue(builder));
+    lhs.store(builder, result);
+    return lhs;
+  }
+  case clang::BinaryOperator::Opcode::BO_XorAssign: {
+    assert(lhs.isReference);
+    auto prev = lhs.getValue(builder);
+
+    mlir::Value result =
+        builder.create<mlir::XOrOp>(loc, prev, rhs.getValue(builder));
     lhs.store(builder, result);
     return lhs;
   }
