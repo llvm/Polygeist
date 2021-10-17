@@ -6013,7 +6013,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT->getDecl()->isUnion() ||
         (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                   CXRD->getDefinition()->getNumBases() > 0)) ||
-        ST->getNumElements() == 0 || recursive ||
+        ST->getNumElements() == 0 || recursive || ST->isPacked() ||
         (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                               ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
