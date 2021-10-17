@@ -4402,8 +4402,6 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
           cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), field,
           ThisVal.val, isa<LValueReferenceType>(field->getType()));
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
-      if (CaptureKinds[VD] == LambdaCaptureKind::LCK_ByRef)
-        res = res.dereference(builder);
       return res;
     }
   }
