@@ -20,14 +20,15 @@ using namespace mlir::arith;
 
 ValueCategory::ValueCategory(mlir::Value val, bool isReference)
     : val(val), isReference(isReference) {
-  assert(val);
+  assert(val && "null value");
   if (isReference) {
     if (!(val.getType().isa<MemRefType>() ||
           val.getType().isa<LLVM::LLVMPointerType>())) {
       llvm::errs() << "val: " << val << "\n";
     }
     assert(val.getType().isa<MemRefType>() ||
-           val.getType().isa<LLVM::LLVMPointerType>());
+           val.getType().isa<LLVM::LLVMPointerType>() &&
+               "Reference value must have pointer/memref type");
   }
 }
 

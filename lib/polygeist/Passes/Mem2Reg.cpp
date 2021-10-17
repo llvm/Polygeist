@@ -388,12 +388,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   {
     std::deque<Block *> todo;
     for (auto &pair : allStoreOps) {
-      LLVM_DEBUG(llvm::errs() << " storing operation: " << *pair << "\n");
+      LLVM_DEBUG(llvm::dbgs() << " storing operation: " << *pair << "\n");
       todo.push_back(pair->getBlock());
     }
     for (auto op : AliasingStoreOperations) {
       StoringOperations.insert(op);
-      LLVM_DEBUG(llvm::errs()
+      LLVM_DEBUG(llvm::dbgs()
                  << " aliasing storing operation: " << *op << "\n");
       todo.push_back(op->getBlock());
     }
@@ -402,12 +402,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(block);
       todo.pop_front();
       StoringBlocks.insert(block);
-      LLVM_DEBUG(llvm::errs() << " initial storing block: " << block << "\n");
+      LLVM_DEBUG(llvm::dbgs() << " initial storing block: " << block << "\n");
       if (auto op = block->getParentOp()) {
         StoringOperations.insert(op);
         if (auto next = op->getBlock()) {
           StoringBlocks.insert(next);
-          LLVM_DEBUG(llvm::errs()
+          LLVM_DEBUG(llvm::dbgs()
                      << " derived storing block: " << next << "\n");
           todo.push_back(next);
         }
@@ -621,7 +621,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             }
             lastVal = nullptr;
             seenSubStore = true;
-            LLVM_DEBUG(llvm::errs() << "erased store due to: " << *a << "\n");
+            LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
           } else if (auto loadOp = dyn_cast<memref::LoadOp>(a)) {
             if (loadOps.count(loadOp)) {
               if (lastVal) {
