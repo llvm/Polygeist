@@ -22,8 +22,8 @@ float foo(int i, int j) {
 }
 
 // CHECK-LABEL: func @foo
-// CHECK-DAG: %[[CST3:.*]] = constant 3.33
-// CHECK-DAG: %[[CST1_23:.*]] = constant 1.23
+// CHECK-DAG: %[[CST3:.*]] = arith.constant 3.33
+// CHECK-DAG: %[[CST1_23:.*]] = arith.constant 1.23
 // CHECK-DAG: %[[MEM_A:.*]] = memref.alloca() : memref<3x4xf32>
 // CHECK-DAG: %[[MEM_B:.*]] = memref.alloca() : memref<4xf32>
 // CHECK-DAG: %[[MEM_C:.*]] = memref.alloca() : memref<2xf32>

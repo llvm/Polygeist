@@ -17,12 +17,12 @@ int foo(int t) {
 
 // TODO the select should be canonicalized better
 // CHECK:   func @foo(%arg0: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c-1_i32 = constant -1 : i32
-// CHECK-NEXT:     %c30_i32 = constant 30 : i32
-// CHECK-NEXT:     %false = constant false
-// CHECK-NEXT:     %c20_i32 = constant 20 : i32
-// CHECK-NEXT:     %c10_i32 = constant 10 : i32
-// CHECK-NEXT:     %true = constant true
+// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-NEXT:     %c30_i32 = arith.constant 30 : i32
+// CHECK-NEXT:     %false = arith.constant false
+// CHECK-NEXT:     %c20_i32 = arith.constant 20 : i32
+// CHECK-NEXT:     %c10_i32 = arith.constant 10 : i32
+// CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %0 = llvm.mlir.undef : i32
 // CHECK-NEXT:     switch %arg0 : i32, [
 // CHECK-NEXT:       default: ^bb1(%c10_i32, %false, %c-1_i32 : i32, i1, i32),

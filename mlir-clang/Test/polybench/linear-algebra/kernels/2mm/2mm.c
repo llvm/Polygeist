@@ -180,11 +180,11 @@ int main(int argc, char** argv)
 // CHECK:      affine.store %cst, %arg6[%arg11, %arg12] : memref<?x900xf64>
 // CHECK:      affine.for %arg13 = 0 to {{.*}} {
 // CHECK:        %4 = affine.load %arg7[%arg11, %arg13] : memref<?x1100xf64>
-// CHECK:        %5 = mulf %arg4, %4 : f64
+// CHECK:        %5 = arith.mulf %arg4, %4 : f64
 // CHECK:        %6 = affine.load %arg8[%arg13, %arg12] : memref<?x900xf64>
-// CHECK:        %7 = mulf %5, %6 : f64
+// CHECK:        %7 = arith.mulf %5, %6 : f64
 // CHECK:        %8 = affine.load %arg6[%arg11, %arg12] : memref<?x900xf64>
-// CHECK:        %9 = addf %8, %7 : f64
+// CHECK:        %9 = arith.addf %8, %7 : f64
 // CHECK:        affine.store %9, %arg6[%arg11, %arg12] : memref<?x900xf64>
 // CHECK:      }
 // CHECK:    }
@@ -192,14 +192,14 @@ int main(int argc, char** argv)
 // CHECK:  affine.for %arg11 = 0 to {{.*}} {
 // CHECK:    affine.for %arg12 = 0 to {{.*}} {
 // CHECK:      %4 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK:      %5 = mulf %4, %arg5 : f64
+// CHECK:      %5 = arith.mulf %4, %arg5 : f64
 // CHECK:      affine.store %5, %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK:      affine.for %arg13 = 0 to {{.*}} {
 // CHECK:      %6 = affine.load %arg6[%arg11, %arg13] : memref<?x900xf64> 
 // CHECK:      %7 = affine.load %arg9[%arg13, %arg12] : memref<?x1200xf64>
-// CHECK:      %8 = mulf %6, %7 : f64
+// CHECK:      %8 = arith.mulf %6, %7 : f64
 // CHECK:      %9 = affine.load %arg10[%arg11, %arg12] : memref<?x1200xf64>
-// CHECK:      %10 = addf %9, %8 : f64
+// CHECK:      %10 = arith.addf %9, %8 : f64
 // CHECK:      affine.store %10, %arg10[%arg11, %arg12] : memref<?x1200xf64>
 // CHECK:      }
 // CHECK:    }

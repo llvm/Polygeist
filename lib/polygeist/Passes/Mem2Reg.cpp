@@ -27,6 +27,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
 #include <deque>
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <set>
 
 #include "polygeist/Ops.h"
@@ -34,6 +35,7 @@
 #define DEBUG_TYPE "mem2reg"
 
 using namespace mlir;
+using namespace mlir::arith;
 
 typedef std::set<std::vector<ssize_t>> StoreMap;
 
@@ -90,12 +92,12 @@ bool matchesIndices(mlir::OperandRange ops, const std::vector<ssize_t> &idx) {
   if (ops.size() != idx.size())
     return false;
   for (size_t i = 0; i < idx.size(); i++) {
-    if (auto op = ops[i].getDefiningOp<ConstantOp>()) {
-      if (op.getValue().cast<IntegerAttr>().getInt() != idx[i]) {
+    if (auto op = ops[i].getDefiningOp<ConstantIntOp>()) {
+      if (op.value() != idx[i]) {
         return false;
       }
     } else if (auto op = ops[i].getDefiningOp<ConstantIndexOp>()) {
-      if (op.getValue() != idx[i]) {
+      if (op.value() != idx[i]) {
         return false;
       }
     } else {
@@ -403,8 +405,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
               SmallVector<mlir::Value, 4> nidx;
               for (auto i : idx) {
-                nidx.push_back(
-                    B.create<mlir::ConstantIndexOp>(exOp.getLoc(), i));
+                nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
               }
               Operation *newLoad;
               if (AI.getType().isa<MemRefType>())
@@ -466,8 +467,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 B.setInsertionPoint(ifOp);
                 SmallVector<mlir::Value, 4> nidx;
                 for (auto i : idx) {
-                  nidx.push_back(
-                      B.create<mlir::ConstantIndexOp>(ifOp.getLoc(), i));
+                  nidx.push_back(B.create<ConstantIndexOp>(ifOp.getLoc(), i));
                 }
                 Operation *newLoad;
                 if (AI.getType().isa<MemRefType>())
@@ -1174,7 +1174,7 @@ bool isPromotable(mlir::Value AI) {
     for (auto U : val.getUsers()) {
       if (auto LO = dyn_cast<memref::LoadOp>(U)) {
         for (auto idx : LO.getIndices()) {
-          if (!idx.getDefiningOp<ConstantOp>() &&
+          if (!idx.getDefiningOp<ConstantIntOp>() &&
               !idx.getDefiningOp<ConstantIndexOp>()) {
             // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "
             // ldue to " << idx << "\n";
@@ -1197,7 +1197,7 @@ bool isPromotable(mlir::Value AI) {
         if (SO.value() == val)
           return false;
         for (auto idx : SO.getIndices()) {
-          if (!idx.getDefiningOp<ConstantOp>() &&
+          if (!idx.getDefiningOp<ConstantIntOp>() &&
               !idx.getDefiningOp<ConstantIndexOp>()) {
             // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "
             // sdue to " << idx << "\n";
@@ -1246,10 +1246,10 @@ StoreMap getLastStored(mlir::Value AI) {
       if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
-          if (auto op = idx.getDefiningOp<ConstantOp>()) {
-            vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
+          if (auto op = idx.getDefiningOp<ConstantIntOp>()) {
+            vec.push_back(op.value());
           } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
-            vec.push_back(op.getValue());
+            vec.push_back(op.value());
           } else {
             assert(0 && "unhandled op");
           }
@@ -1272,10 +1272,10 @@ StoreMap getLastStored(mlir::Value AI) {
       } else if (auto SO = dyn_cast<memref::LoadOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
-          if (auto op = idx.getDefiningOp<ConstantOp>()) {
-            vec.push_back(op.getValue().cast<IntegerAttr>().getInt());
+          if (auto op = idx.getDefiningOp<ConstantIntOp>()) {
+            vec.push_back(op.value());
           } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
-            vec.push_back(op.getValue());
+            vec.push_back(op.value());
           } else {
             assert(0 && "unhandled op");
           }

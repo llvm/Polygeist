@@ -164,23 +164,23 @@ int main(int argc, char** argv)
 // FULLRANK: func @kernel_gemm(%{{.*}}: i32, %{{.*}}: i32, %{{.*}}: i32, %{{.*}}: f64, %{{.*}}: f64, %{{.*}}: memref<1000x1100xf64>, %{{.*}}: memref<1000x1200xf64>, %{{.*}}: memref<1200x1100xf64>)
 
 // CHECK:   func @kernel_gemm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: f64, %arg4: f64, %arg5: memref<?x1100xf64>, %arg6: memref<?x1200xf64>, %arg7: memref<?x1100xf64>)
-// CHECK-DAG:    %[[i0:.+]] = index_cast %arg0 : i32 to index  
-// CHECK-DAG:    %[[i1:.+]] = index_cast %arg1 : i32 to index
-// CHECK-DAG:    %[[i2:.+]] = index_cast %arg2 : i32 to index
+// CHECK-DAG:    %[[i0:.+]] = arith.index_cast %arg0 : i32 to index  
+// CHECK-DAG:    %[[i1:.+]] = arith.index_cast %arg1 : i32 to index
+// CHECK-DAG:    %[[i2:.+]] = arith.index_cast %arg2 : i32 to index
 // CHECK-DAG:    affine.for %arg8 = 0 to %[[i0]] {
 // CHECK-NEXT:      affine.for %arg9 = 0 to %[[i1]] {
 // CHECK-NEXT:        %3 = affine.load %arg5[%arg8, %arg9] : memref<?x1100xf64>
-// CHECK-NEXT:        %4 = mulf %3, %arg4 : f64
+// CHECK-NEXT:        %4 = arith.mulf %3, %arg4 : f64
 // CHECK-NEXT:        affine.store %4, %arg5[%arg8, %arg9] : memref<?x1100xf64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      affine.for %arg9 = 0 to %[[i2]] {
 // CHECK-NEXT:        affine.for %arg10 = 0 to %[[i1]] {
 // CHECK-NEXT:          %3 = affine.load %arg6[%arg8, %arg9] : memref<?x1200xf64>
-// CHECK-NEXT:          %4 = mulf %arg3, %3 : f64
+// CHECK-NEXT:          %4 = arith.mulf %arg3, %3 : f64
 // CHECK-NEXT:          %5 = affine.load %arg7[%arg9, %arg10] : memref<?x1100xf64>
-// CHECK-NEXT:          %6 = mulf %4, %5 : f64
+// CHECK-NEXT:          %6 = arith.mulf %4, %5 : f64
 // CHECK-NEXT:          %7 = affine.load %arg5[%arg8, %arg10] : memref<?x1100xf64>
-// CHECK-NEXT:          %8 = addf %7, %6 : f64
+// CHECK-NEXT:          %8 = arith.addf %7, %6 : f64
 // CHECK-NEXT:          affine.store %8, %arg5[%arg8, %arg10] : memref<?x1100xf64>
 // CHECK-NEXT:        }
 // CHECK-NEXT:      }

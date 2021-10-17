@@ -23,11 +23,13 @@
 #include "polygeist/BarrierUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define DEBUG_TYPE "cpuify"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
 
 using namespace mlir;
+using namespace mlir::arith;
 
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
@@ -117,8 +119,8 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
 
     auto cond = rewriter.create<IndexCastOp>(
         loc, rewriter.getIndexType(),
-        rewriter.create<ZeroExtendIOp>(
-            loc, op.condition(), mlir::IntegerType::get(one.getContext(), 64)));
+        rewriter.create<ExtUIOp>(loc, op.condition(),
+                                 mlir::IntegerType::get(one.getContext(), 64)));
     auto thenLoop = rewriter.create<scf::ForOp>(loc, zero, cond, one);
     rewriter.mergeBlockBefore(op.getBody(0), &thenLoop.getBody()->back());
     rewriter.eraseOp(&thenLoop.getBody()->back());
@@ -171,7 +173,7 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
     Value difference =
         rewriter.create<SubIOp>(op.getLoc(), op.upperBound(), op.lowerBound());
     Value tripCount =
-        rewriter.create<SignedCeilDivIOp>(op.getLoc(), difference, op.step());
+        rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.step());
     auto newForOp =
         rewriter.create<scf::ForOp>(op.getLoc(), zero, tripCount, one);
     rewriter.setInsertionPointToStart(newForOp.getBody());

@@ -12,8 +12,8 @@ void kernel_deriche(int w, int h, double alpha, double** y2) {
 #pragma endscop
 }
 // CHECK:  func @kernel_deriche(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<?xmemref<?xf64>>)
-// CHECK-NEXT:    %0 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:    %1 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:    %0 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:    %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:    affine.for %arg4 = 0 to %1 {
 // CHECK-NEXT:      affine.for %arg5 = 0 to %0 {
 // CHECK-NEXT:        %2 = affine.load %arg3[%arg4] : memref<?xmemref<?xf64>>

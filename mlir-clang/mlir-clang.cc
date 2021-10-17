@@ -526,7 +526,7 @@ int main(int argc, char **argv) {
       }
       mlir::PassManager pm2(&context);
       if (SCFOpenMP)
-        pm2.nest<mlir::FuncOp>().addPass(createConvertSCFToOpenMPPass());
+        pm2.addPass(createConvertSCFToOpenMPPass());
       if (mlir::failed(pm2.run(module.get()))) {
         module->dump();
         return 4;

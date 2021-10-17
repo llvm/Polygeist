@@ -21,7 +21,7 @@ void kernel_correlation(double A[28], double B[28])
 }
 
 // CHECK:   func @kernel_correlation(%arg0: memref<?xf64>, %arg1: memref<?xf64>)
-// CHECK-NEXT:      %cst = constant 0.000000e+00 : f64
+// CHECK-NEXT:      %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:       affine.for %arg2 = 1 to 10 {
 // CHECK-NEXT:         affine.store %cst, %arg0[%arg2] : memref<?xf64>
 // CHECK-NEXT:       }

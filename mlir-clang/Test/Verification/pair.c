@@ -27,9 +27,9 @@ int create() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @create() -> i32
-// CHECK-NEXT:     %c2_i32 = constant 2 : i32
-// CHECK-NEXT:     %c1_i32 = constant 1 : i32
-// CHECK-NEXT:     %c0_i32 = constant 0 : i32
+// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
+// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = memref.alloca() : memref<1x2xi32>
 // CHECK-NEXT:     %1 = memref.alloca() : memref<1x2xi32>
 // CHECK-NEXT:     affine.store %c0_i32, %1[0, 0] : memref<1x2xi32>

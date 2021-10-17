@@ -26,10 +26,12 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define DEBUG_TYPE "parallel-lower-opt"
 
 using namespace mlir;
+using namespace mlir::arith;
 
 namespace {
 // The store to load forwarding relies on three conditions:
@@ -190,15 +192,15 @@ void ParallelLower::runOnOperation() {
     auto loc = builder.getUnknownLoc();
 
     builder.setInsertionPoint(launchOp->getBlock(), launchOp->getIterator());
-    auto zindex = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    auto zindex = builder.create<ConstantIndexOp>(loc, 0);
 
-    auto oneindex = builder.create<mlir::ConstantIndexOp>(loc, 1);
+    auto oneindex = builder.create<ConstantIndexOp>(loc, 1);
 
     auto block = builder.create<mlir::scf::ParallelOp>(
-        loc, ValueRange({zindex, zindex, zindex}),
-        ValueRange(
+        loc, std::vector<Value>({zindex, zindex, zindex}),
+        std::vector<Value>(
             {launchOp.gridSizeX(), launchOp.gridSizeY(), launchOp.gridSizeZ()}),
-        ValueRange({oneindex, oneindex, oneindex}));
+        std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB;
     {
       auto iter = block.getRegion().getBlocks().begin();
@@ -208,10 +210,10 @@ void ParallelLower::runOnOperation() {
     builder.setInsertionPointToStart(blockB);
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
-        loc, ValueRange({zindex, zindex, zindex}),
-        ValueRange({launchOp.blockSizeX(), launchOp.blockSizeY(),
-                    launchOp.blockSizeZ()}),
-        ValueRange({oneindex, oneindex, oneindex}));
+        loc, std::vector<Value>({zindex, zindex, zindex}),
+        std::vector<Value>({launchOp.blockSizeX(), launchOp.blockSizeY(),
+                            launchOp.blockSizeZ()}),
+        std::vector<Value>({oneindex, oneindex, oneindex}));
     builder.create<mlir::scf::YieldOp>(loc);
     Block *threadB;
     auto iter = threadr.getRegion().getBlocks().begin();
@@ -357,14 +359,12 @@ void ParallelLower::runOnOperation() {
       if (call.callee().getValue() == "cudaMemcpy") {
         OpBuilder bz(call);
         auto i1 = bz.getI1Type();
-        auto falsev = bz.create<mlir::ConstantOp>(
-            call.getLoc(), i1, builder.getIntegerAttr(i1, 0));
+        auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
                                   call.getOperand(1), call.getOperand(1),
                                   /*isVolatile*/ falsev);
-        call.replaceAllUsesWith(bz.create<mlir::ConstantOp>(
-            call.getLoc(), call.getType(0),
-            builder.getIntegerAttr(call.getType(0), 0)));
+        call.replaceAllUsesWith(
+            bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
         call.erase();
       }
     });

@@ -7,9 +7,12 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+
 #define DEBUG_TYPE "raise-to-affine"
 
 using namespace mlir;
+using namespace mlir::arith;
 
 namespace {
 struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
@@ -53,7 +56,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   int64_t getStep(mlir::Value value) const {
     ConstantIndexOp cstOp = value.getDefiningOp<ConstantIndexOp>();
     assert(cstOp && "expect non-null operation");
-    return cstOp.getValue();
+    return cstOp.value();
   }
 
   LogicalResult matchAndRewrite(scf::ForOp loop,

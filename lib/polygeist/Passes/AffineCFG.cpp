@@ -8,10 +8,12 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 #include <deque>
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define DEBUG_TYPE "affine-cfg"
 
 using namespace mlir;
+using namespace mlir::arith;
 
 struct AffineApplyNormalizer {
   AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands);
@@ -79,9 +81,9 @@ static bool isAffineForArg(Value val) {
 }
 
 static bool legalCondition(Value en, bool outer = true, bool dim = false) {
-  if (en.getDefiningOp() &&
-      isa<AffineApplyOp, ZeroExtendIOp, AddIOp, SubIOp, MulIOp>(
-          en.getDefiningOp())) {
+  if (en.getDefiningOp<AffineApplyOp>() || en.getDefiningOp<ExtUIOp>() ||
+      en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
+      en.getDefiningOp<MulIOp>()) {
     return true;
   }
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
@@ -633,9 +635,8 @@ struct CanonicalizeIndexCast : public OpRewritePattern<IndexCastOp> {
     // Fold IndexCast(constant) -> constant
     // A little hack because we go through int.  Otherwise, the size
     // of the constant might need to change.
-    if (auto cst = indexcastOp.getOperand().getDefiningOp<ConstantOp>()) {
-      rewriter.replaceOpWithNewOp<ConstantIndexOp>(
-          indexcastOp, cst.getValue().cast<IntegerAttr>().getInt());
+    if (auto cst = indexcastOp.getOperand().getDefiningOp<ConstantIntOp>()) {
+      rewriter.replaceOpWithNewOp<ConstantIndexOp>(indexcastOp, cst.value());
       return success();
     }
     return failure();
@@ -680,7 +681,7 @@ bool isValidIndex(Value val) {
   if (val.getDefiningOp<ConstantIndexOp>())
     return true;
 
-  if (val.getDefiningOp<ConstantOp>())
+  if (val.getDefiningOp<ConstantIntOp>())
     return true;
 
   if (auto ba = val.dyn_cast<BlockArgument>()) {
@@ -722,8 +723,8 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   }
   SmallVector<Value, 4> lhspack = {cmpi.lhs()};
   if (!lhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<mlir::IndexCastOp>(
-        cmpi.getLoc(), lhspack[0], mlir::IndexType::get(cmpi.getContext()));
+    auto op = b.create<IndexCastOp>(cmpi.getLoc(), lhspack[0],
+                                    IndexType::get(cmpi.getContext()));
     lhspack[0] = op;
   }
 
@@ -731,8 +732,8 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
       AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
   SmallVector<Value, 4> rhspack = {cmpi.rhs()};
   if (!rhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<mlir::IndexCastOp>(
-        cmpi.getLoc(), rhspack[0], mlir::IndexType::get(cmpi.getContext()));
+    auto op = b.create<IndexCastOp>(cmpi.getLoc(), rhspack[0],
+                                    IndexType::get(cmpi.getContext()));
     rhspack[0] = op;
   }
 
@@ -1061,7 +1062,7 @@ void AffineCFGPass::runOnFunction() {
           }
           continue;
         }
-        if (auto andi = cur.getDefiningOp<AndOp>()) {
+        if (auto andi = cur.getDefiningOp<AndIOp>()) {
           todo.push_back(andi.getOperand(0));
           todo.push_back(andi.getOperand(1));
           continue;
@@ -1112,8 +1113,8 @@ void AffineCFGPass::runOnFunction() {
       AffineMap idxmap =
           AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
       if (!idx.getType().isa<IndexType>())
-        idx = b.create<mlir::IndexCastOp>(
-            idx.getLoc(), idx, mlir::IndexType::get(idx.getContext()));
+        idx = b.create<IndexCastOp>(
+            idx.getLoc(), idx, IndexType::get(idx.getContext()));
       Value idxpack[1] = {idx};
       newIndices.push_back(
           b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
@@ -1136,8 +1137,8 @@ void AffineCFGPass::runOnFunction() {
       AffineMap idxmap =
           AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
       if (!idx.getType().isa<IndexType>())
-        idx = b.create<mlir::IndexCastOp>(
-            idx.getLoc(), idx, mlir::IndexType::get(idx.getContext()));
+        idx = b.create<IndexCastOp>(
+            idx.getLoc(), idx, IndexType::get(idx.getContext()));
       Value idxpack[1] = {idx};
       newIndices.push_back(
           b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));

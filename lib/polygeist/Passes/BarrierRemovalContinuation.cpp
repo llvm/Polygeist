@@ -25,8 +25,10 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/BarrierUtils.h"
 #include "polygeist/Passes/Passes.h"
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
+using namespace mlir::arith;
 using namespace polygeist;
 
 /// Returns true if the given parallel op has a nested barrier op that is not
@@ -169,8 +171,8 @@ static void emitStoreContinuationID(Location loc, int id, ValueRange ivs,
 
   Value condition = comparisons[0];
   for (unsigned i = 1, e = ivs.size(); i < e; ++i) {
-    condition = builder.create<AndOp>(loc, condition.getType(), condition,
-                                      comparisons[i]);
+    condition = builder.create<AndIOp>(loc, condition.getType(), condition,
+                                       comparisons[i]);
   }
 
   auto thenBuilder = [&](OpBuilder &nested, Location loc) {
