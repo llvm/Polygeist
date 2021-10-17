@@ -3261,6 +3261,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           val = builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType,
                                                             val);
         }
+        if (auto prevTy = val.getType().dyn_cast<mlir::IntegerType>()) {
+          auto ipostTy = expectedType.cast<mlir::IntegerType>();
+          if (prevTy != ipostTy)
+            val = builder.create<arith::TruncIOp>(loc, val, ipostTy);
+        }
       }
     } else {
       assert(arg.isReference);
@@ -5244,13 +5249,28 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
         stmt->dump();
       }
       assert(rv.val);
+
+      mlir::Value val;
       if (stmt->getRetValue()->isLValue() || stmt->getRetValue()->isXValue()) {
         assert(rv.isReference);
-        builder.create<mlir::memref::StoreOp>(loc, rv.val, returnVal);
+        val = rv.val;
       } else {
-        builder.create<mlir::memref::StoreOp>(loc, rv.getValue(builder),
-                                              returnVal);
+        val = rv.getValue(builder);
       }
+
+      auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
+      if (auto prevTy = val.getType().dyn_cast<mlir::IntegerType>()) {
+        auto ipostTy = postTy.cast<mlir::IntegerType>();
+        if (prevTy != ipostTy) {
+          val = builder.create<arith::TruncIOp>(loc, val, ipostTy);
+        }
+      } else if (val.getType().isa<MemRefType>() &&
+                 postTy.isa<LLVM::LLVMPointerType>())
+        val = builder.create<polygeist::Memref2PointerOp>(loc, postTy, val);
+      else if (val.getType().isa<LLVM::LLVMPointerType>() &&
+               postTy.isa<MemRefType>())
+        val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
+      builder.create<mlir::memref::StoreOp>(loc, val, returnVal);
     }
   }
 
