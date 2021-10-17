@@ -13,8 +13,23 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "polygeist/Ops.h"
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
+using namespace mlir::arith;
+
+ValueCategory::ValueCategory(mlir::Value val, bool isReference)
+    : val(val), isReference(isReference) {
+  assert(val);
+  if (isReference) {
+    if (!(val.getType().isa<MemRefType>() ||
+          val.getType().isa<LLVM::LLVMPointerType>())) {
+      llvm::errs() << "val: " << val << "\n";
+    }
+    assert(val.getType().isa<MemRefType>() ||
+           val.getType().isa<LLVM::LLVMPointerType>());
+  }
+}
 
 mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   assert(val && "must be not-null");
@@ -26,7 +41,7 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   }
   if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
     assert(mt.getShape().size() == 1 && "must have shape 1");
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     return builder.create<memref::LoadOp>(loc, val,
                                           std::vector<mlir::Value>({c0}));
   }
@@ -59,7 +74,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
     assert(toStore.getType() ==
                val.getType().cast<MemRefType>().getElementType() &&
            "expect same type");
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     builder.create<mlir::memref::StoreOp>(loc, toStore, val,
                                           std::vector<mlir::Value>({c0}));
     return;
@@ -80,7 +95,7 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
   }
 
   if (auto mt = val.getType().cast<mlir::MemRefType>()) {
-    auto c0 = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    auto c0 = builder.create<ConstantIndexOp>(loc, 0);
     auto shape = std::vector<int64_t>(mt.getShape());
 
     if (isReference) {
@@ -115,7 +130,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
     }
     assert(toStore.isReference);
     auto loc = builder.getUnknownLoc();
-    auto zeroIndex = builder.create<mlir::ConstantIndexOp>(loc, 0);
+    auto zeroIndex = builder.create<ConstantIndexOp>(loc, 0);
 
     if (auto smt = toStore.val.getType().dyn_cast<mlir::MemRefType>()) {
       assert(smt.getShape().size() <= 2);
@@ -133,7 +148,7 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           SmallVector<mlir::Value, 2> idx;
           if (smt.getShape().size() == 2)
             idx.push_back(zeroIndex);
-          idx.push_back(builder.create<mlir::ConstantIndexOp>(loc, i));
+          idx.push_back(builder.create<ConstantIndexOp>(loc, i));
           builder.create<mlir::memref::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
               val, idx);
@@ -152,17 +167,14 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         assert(elty == smt.getElementType());
         elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
 
-        auto iTy = builder.getIntegerType(32);
-        auto zero32 = builder.create<mlir::ConstantOp>(
-            loc, iTy, builder.getIntegerAttr(iTy, 0));
+        auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
         for (ssize_t i = 0; i < smt.getShape().back(); i++) {
           SmallVector<mlir::Value, 2> idx;
           if (smt.getShape().size() == 2)
             idx.push_back(zeroIndex);
-          idx.push_back(builder.create<mlir::ConstantIndexOp>(loc, i));
+          idx.push_back(builder.create<ConstantIndexOp>(loc, i));
           mlir::Value lidx[] = {val, zero32,
-                                builder.create<mlir::ConstantOp>(
-                                    loc, iTy, builder.getIntegerAttr(iTy, i))};
+                                builder.create<ConstantIntOp>(loc, i, 32)};
           builder.create<mlir::LLVM::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
               builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx));
@@ -184,17 +196,14 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
       assert(elty == smt.getElementType());
       elty = LLVM::LLVMPointerType::get(elty, pt.getAddressSpace());
 
-      auto iTy = builder.getIntegerType(32);
-      auto zero32 = builder.create<mlir::ConstantOp>(
-          loc, iTy, builder.getIntegerAttr(iTy, 0));
+      auto zero32 = builder.create<ConstantIntOp>(loc, 0, 32);
       for (ssize_t i = 0; i < smt.getShape().back(); i++) {
         SmallVector<mlir::Value, 2> idx;
         if (smt.getShape().size() == 2)
           idx.push_back(zeroIndex);
-        idx.push_back(builder.create<mlir::ConstantIndexOp>(loc, i));
+        idx.push_back(builder.create<ConstantIndexOp>(loc, i));
         mlir::Value lidx[] = {toStore.val, zero32,
-                              builder.create<mlir::ConstantOp>(
-                                  loc, iTy, builder.getIntegerAttr(iTy, i))};
+                              builder.create<ConstantIntOp>(loc, i, 32)};
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(

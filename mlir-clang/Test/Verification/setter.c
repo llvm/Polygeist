@@ -11,7 +11,7 @@ void kernel_deriche() {
 }
 
 // CHECK:  func @sub(%arg0: memref<?xi32>)
-// CHECK-NEXT:    %c3_i32 = constant 3 : i32
+// CHECK-NEXT:    %c3_i32 = arith.constant 3 : i32
 // CHECK-NEXT:    affine.store %c3_i32, %arg0[0] : memref<?xi32>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }

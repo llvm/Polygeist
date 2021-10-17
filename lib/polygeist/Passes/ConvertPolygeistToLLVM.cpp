@@ -14,6 +14,7 @@
 #include "polygeist/Passes/Passes.h"
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
+#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
@@ -192,6 +193,7 @@ struct ConvertPolygeistToLLVMPass : public ConvertPolygeistToLLVMBase<ConvertPol
     populateMemRefToLLVMConversionPatterns(converter, patterns);
     populateStdToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
+    arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
 
     LLVMConversionTarget target(getContext());

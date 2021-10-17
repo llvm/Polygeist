@@ -8,8 +8,8 @@ void foo(int A[10], int a) {
 // CHECK-LABEL: func @foo
 // CHECK: scf.for 
 // CHECK: %[[VAL0:.*]] = memref.load
-// CHECK: %[[VAL1:.*]] = addi %[[VAL0]], %{{.*}}
-// CHECK: %[[VAL2:.*]] = xor %{{.*}}, %[[VAL1]]
+// CHECK: %[[VAL1:.*]] = arith.addi %[[VAL0]], %{{.*}}
+// CHECK: %[[VAL2:.*]] = arith.xori %{{.*}}, %[[VAL1]]
 // CHECK: %[[VAL3:.*]] = memref.load
-// CHECK: %[[VAL4:.*]] = xor %[[VAL3]], %[[VAL2]]
+// CHECK: %[[VAL4:.*]] = arith.xori %[[VAL3]], %[[VAL2]]
 // CHECK: memref.store %[[VAL4]]

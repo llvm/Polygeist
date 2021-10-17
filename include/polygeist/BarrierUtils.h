@@ -15,6 +15,7 @@
 #include "mlir/IR/Block.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SetVector.h"
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 void findValuesUsedBelow(mlir::polygeist::BarrierOp barrier,
                          llvm::SetVector<mlir::Value> &crossing);
@@ -32,8 +33,9 @@ emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
     Value lowerBound = std::get<0>(bounds);
     Value upperBound = std::get<1>(bounds);
     Value step = std::get<2>(bounds);
-    Value diff = rewriter.create<SubIOp>(op.getLoc(), upperBound, lowerBound);
-    Value count = rewriter.create<SignedCeilDivIOp>(op.getLoc(), diff, step);
+    Value diff =
+        rewriter.create<arith::SubIOp>(op.getLoc(), upperBound, lowerBound);
+    Value count = rewriter.create<arith::CeilDivSIOp>(op.getLoc(), diff, step);
     iterationCounts.push_back(count);
   }
   return iterationCounts;

@@ -9,7 +9,7 @@
 // CHECK-NEXT:      affine.if #set(%arg2) {
 // CHECK-NEXT:        %0 = affine.load %arg1[%arg2] : memref<?xi32>
 // CHECK-NEXT:        %1 = affine.load %arg1[%arg2 - 1] : memref<?xi32>
-// CHECK-NEXT:        %2 = cmpi sge, %0, %1 : i32
+// CHECK-NEXT:        %2 = arith.cmpi sge, %0, %1 : i32
 // CHECK-NEXT:        %3 = select %2, %0, %1 : i32
 // CHECK-NEXT:        affine.store %3, %arg1[%arg2] : memref<?xi32>
 // CHECK-NEXT:      }

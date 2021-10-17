@@ -5,6 +5,6 @@ int test() {
 }
 
 // CHECK:  func @test() -> i32
-// CHECK-NEXT:    %c-3_i32 = constant -3 : i32
+// CHECK-NEXT:    %c-3_i32 = arith.constant -3 : i32
 // CHECK-NEXT:    return %c-3_i32 : i32
 // CHECK-NEXT:  }

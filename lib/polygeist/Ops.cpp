@@ -13,6 +13,8 @@
 #include "mlir/IR/OpImplementation.h"
 #include "polygeist/Dialect.h"
 
+#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.cpp.inc"
 
@@ -23,6 +25,7 @@
 
 using namespace mlir;
 using namespace mlir::polygeist;
+using namespace mlir::arith;
 
 //===----------------------------------------------------------------------===//
 // BarrierOp
@@ -179,7 +182,7 @@ public:
       if (!cidx)
         return failure();
 
-      if (cidx.getValue() != 0 && cidx.getValue() != -1)
+      if (cidx.value() != 0 && cidx.value() != -1)
         return failure();
 
       rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, subViewOp.source(),
@@ -510,13 +513,10 @@ public:
             op.getLoc(),
             rewriter.create<MulIOp>(
                 op.getLoc(), idx,
-                rewriter.create<ConstantOp>(
-                    op.getLoc(), rewriter.getI32Type(),
-                    rewriter.getIntegerAttr(rewriter.getI32Type(),
-                                            op.memref()
-                                                .getType()
-                                                .cast<MemRefType>()
-                                                .getShape()[i]))),
+                rewriter.create<ConstantIntOp>(
+                    op.getLoc(),
+                    op.memref().getType().cast<MemRefType>().getShape()[i],
+                    32)),
             cur);
       }
     }
@@ -551,13 +551,10 @@ public:
             op.getLoc(),
             rewriter.create<MulIOp>(
                 op.getLoc(), idx,
-                rewriter.create<ConstantOp>(
-                    op.getLoc(), rewriter.getI32Type(),
-                    rewriter.getIntegerAttr(rewriter.getI32Type(),
-                                            op.memref()
-                                                .getType()
-                                                .cast<MemRefType>()
-                                                .getShape()[i]))),
+                rewriter.create<ConstantIntOp>(
+                    op.getLoc(),
+                    op.memref().getType().cast<MemRefType>().getShape()[i],
+                    32)),
             cur);
       }
     }

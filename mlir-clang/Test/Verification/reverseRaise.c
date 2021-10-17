@@ -16,12 +16,12 @@ void kernel_correlation(int start, int end) {
 
 // CHECK:   #map = affine_map<()[s0] -> (s0 + 1)>
 // CHECK:   func @kernel_correlation(%arg0: i32, %arg1: i32)
-// CHECK-NEXT:     %0 = index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %1 = index_cast %arg0 : i32 to index
+// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] {
-// CHECK-NEXT:       %2 = index_cast %arg2 : index to i32
-// CHECK-NEXT:       %3 = subi %2, %arg0 : i32
-// CHECK-NEXT:       %4 = subi %arg1, %3 : i32
+// CHECK-NEXT:       %2 = arith.index_cast %arg2 : index to i32
+// CHECK-NEXT:       %3 = arith.subi %2, %arg0 : i32
+// CHECK-NEXT:       %4 = arith.subi %arg1, %3 : i32
 // CHECK-NEXT:       call @use(%4) : (i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
