@@ -345,4 +345,11 @@ public:
   ValueCategory CommonArrayToPointer(ValueCategory val);
 };
 
+class IfScope {
+public:
+  MLIRScanner &scanner;
+  IfScope(MLIRScanner &scanner) : scanner(scanner) { scanner.pushLoopIf(); }
+  ~IfScope() { scanner.popLoopIf(); }
+};
+
 #endif

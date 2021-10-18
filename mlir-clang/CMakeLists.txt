@@ -25,6 +25,7 @@ add_clang_tool(mlir-clang
   Lib/AffineUtils.cc
   Lib/pragmaHandler.cc
   Lib/ValueCategory.cc
+  Lib/CGStmt.cc
 )
 
 target_include_directories(mlir-clang PRIVATE
