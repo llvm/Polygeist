@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: "wsmoses/Polygeist"
-          ref: "2ace9617dcb0df605d088bbb56ae249ad921addf"
+          ref: "daeb952678b1d46c867c94ed2f20d78e1a3d5ec5"
           path: "polygeist"
           submodules: "true"
 
