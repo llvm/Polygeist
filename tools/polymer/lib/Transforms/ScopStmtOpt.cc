@@ -8,6 +8,7 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -42,7 +43,7 @@ static void replace(ValueRange srcValues,
                     BlockAndValueMapping &mapping) {
   for (Value src : srcValues) {
     // src could come from an index_cast.
-    if (IndexCastOp op = src.getDefiningOp<IndexCastOp>())
+    if (arith::IndexCastOp op = src.getDefiningOp<arith::IndexCastOp>())
       src = op.getOperand();
 
     dstValues.push_back(mapping.lookup(src));
@@ -99,8 +100,8 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   // TODO: properly handle these index casting cases.
   for (size_t i = 0; i < newOperands.size(); i++)
     if (newOperands[i].getType() != b.getIndexType())
-      newOperands[i] = b.create<IndexCastOp>(call.getLoc(), newOperands[i],
-                                             b.getIndexType());
+      newOperands[i] = b.create<arith::IndexCastOp>(
+          call.getLoc(), newOperands[i], b.getIndexType());
 
   return b.create<mlir::AffineApplyOp>(call.getLoc(), affMap, newOperands);
 }
@@ -501,9 +502,8 @@ struct SinkScratchpadPass
 
 static bool isSplittable(Operation *op) {
   // NOTE: some ops cannot be annotated in textual format. We skip them for now.
-  if (isa<mlir::SIToFPOp>(op)) {
+  if (isa<mlir::arith::SIToFPOp>(op))
     return false;
-  }
 
   SmallVector<mlir::AffineForOp, 4> forOps;
   getLoopIVs(*op, &forOps);

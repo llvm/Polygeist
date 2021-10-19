@@ -11,6 +11,7 @@
 #include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -211,7 +212,7 @@ static void getScopStmtOps(Operation *writeOp,
     // that use this dim cannot relate it with the global context.
     if (isa<memref::AllocaOp, memref::AllocOp, memref::DimOp,
             mlir::AffineApplyOp>(op) ||
-        (isa<mlir::IndexCastOp>(op) &&
+        (isa<mlir::arith::IndexCastOp>(op) &&
          op->getOperand(0).isa<BlockArgument>())) {
       for (mlir::Value result : op->getResults())
         args.insert(result);
