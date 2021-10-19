@@ -130,7 +130,12 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 /// Check is there any load in the use-def chains of op loads from a memref that
 /// is later updated by a store op that dominates the current op. We should use
 /// a proper RAW checker for this purpose.
-static bool isUpdatedByDominatingStore(Operation *op, mlir::FuncOp f) {
+static bool isUpdatedByDominatingStore(Operation *op, Operation *domOp,
+                                       mlir::FuncOp f) {
+
+  LLVM_DEBUG(dbgs() << " -- Checking if " << (*op)
+                    << " is updated by a store that dominates:\n"
+                    << (*domOp) << '\n');
   DominanceInfo dom(f);
 
   llvm::SmallSetVector<Operation *, 8> visited;
@@ -146,7 +151,7 @@ static bool isUpdatedByDominatingStore(Operation *op, mlir::FuncOp f) {
 
       for (Operation *userOp : memref.getUsers())
         if (mlir::AffineStoreOp storeOp = dyn_cast<mlir::AffineStoreOp>(userOp))
-          if (dom.dominates(storeOp, op))
+          if (dom.dominates(storeOp, domOp))
             return true;
     }
 
@@ -177,13 +182,21 @@ static void getScopStmtOps(Operation *writeOp,
   worklist.push_back(writeOp);
   ops.insert(writeOp);
 
+  LLVM_DEBUG(dbgs() << " -- Starting from " << (*writeOp) << '\n');
+
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
-    LLVM_DEBUG(dbgs() << "-- Working on: " << (*op) << '\n');
+    LLVM_DEBUG(dbgs() << " -- Working on: " << (*op) << '\n');
 
     // If op is already in another callee.
-    if (!isa<mlir::ConstantOp>(op) && opToCallee[op] &&
-        isUpdatedByDominatingStore(op, topLevelFun)) {
+    LLVM_DEBUG(dbgs() << "  Previously included callee: " << opToCallee[op]
+                      << '\n');
+    if (!isa<mlir::arith::ConstantOp>(op) && opToCallee[op] &&
+        isUpdatedByDominatingStore(op, writeOp, topLevelFun)) {
+      LLVM_DEBUG(
+          dbgs() << " -> This op has been included in another callee, and "
+                    "there is a store to the memref that a load on the use-def "
+                    "chain of this op dominating the writeOp.\n");
       OpBuilder::InsertionGuard guard(b);
       mlir::Value scratchpad = insertScratchpadForInterprocUses(
           op, opToCallee[op], calleeToCallers, topLevelFun, b);
@@ -214,6 +227,7 @@ static void getScopStmtOps(Operation *writeOp,
             mlir::AffineApplyOp>(op) ||
         (isa<mlir::arith::IndexCastOp>(op) &&
          op->getOperand(0).isa<BlockArgument>())) {
+      LLVM_DEBUG(dbgs() << " -> Hits a terminating operator.\n\n");
       for (mlir::Value result : op->getResults())
         args.insert(result);
       continue;
@@ -222,6 +236,7 @@ static void getScopStmtOps(Operation *writeOp,
     // Keep the op in the given set. ops also stores the "visited" information:
     // any op inside ops will be treated as visited and won't be inserted into
     // the worklist again.
+    LLVM_DEBUG(dbgs() << " -> Inserted into the OP set.\n\n");
     ops.insert(op);
 
     // Recursively visit other defining ops that are not in ops.
@@ -308,7 +323,8 @@ static mlir::FuncOp createCallee(StringRef calleeName,
         mlir::Operation *defOp = operand.getDefiningOp();
         if (!defOp)
           continue;
-        if (mlir::ConstantOp constOp = dyn_cast<mlir::ConstantOp>(defOp)) {
+        if (mlir::arith::ConstantOp constOp =
+                dyn_cast<mlir::arith::ConstantOp>(defOp)) {
           mapping.map(defOp->getResult(0), b.clone(*defOp)->getResult(0));
         }
       }
@@ -404,6 +420,9 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
 
     // All the ops that have been placed in the callee should be removed.
     opsToRemove.set_union(ops);
+
+    LLVM_DEBUG(dbgs() << "\n=======================\n\nUpdated module:\n"
+                      << m << "\n\n=======================\n\n");
   }
 
   // Remove those extracted ops in the original function.
@@ -448,6 +467,10 @@ static void replaceUsesByStored(mlir::FuncOp f, OpBuilder &b) {
     mlir::AffineLoadOp loadOp =
         b.create<mlir::AffineLoadOp>(storeOp.getLoc(), storeOp.getMemRef(),
                                      storeOp.getAffineMap(), access.indices);
+
+    LLVM_DEBUG(dbgs() << " + Created load : \n\t" << loadOp
+                      << "\n   immediately after the store: \n\t" << storeOp
+                      << '\n');
 
     // And replace any use of value val that is dominated by this load.
     DominanceInfo dominance(val.getParentBlock()->getParentOp());
