@@ -45,16 +45,10 @@ using CalleeToCallersMap =
 /// TODO: support CallOp.
 static void discoverMemWriteOps(mlir::FuncOp f,
                                 SmallVectorImpl<Operation *> &ops) {
-  bool hasAffineScope = false;
   f.getOperation()->walk([&](Operation *op) {
-    if (isa<mlir::AffineForOp>(op))
-      hasAffineScope = true;
-    if (isa<mlir::AffineWriteOpInterface, memref::StoreOp>(op))
+    if (isa<mlir::AffineWriteOpInterface>(op))
       ops.push_back(op);
   });
-
-  if (!hasAffineScope)
-    ops.clear();
 }
 
 /// Returns the newly created scratchpad.
@@ -127,6 +121,15 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
   return memref;
 }
 
+static Value getMemRef(Operation *op) {
+  if (isa<mlir::AffineLoadOp, memref::LoadOp>(op))
+    return op->getOperand(0);
+  if (isa<mlir::AffineStoreOp, memref::StoreOp>(op))
+    return op->getOperand(1);
+
+  return nullptr;
+}
+
 /// Check is there any load in the use-def chains of op loads from a memref that
 /// is later updated by a store op that dominates the current op. We should use
 /// a proper RAW checker for this purpose.
@@ -146,14 +149,21 @@ static bool isUpdatedByDominatingStore(Operation *op, Operation *domOp,
 
   while (!worklist.empty()) {
     Operation *currOp = worklist.pop_back_val();
-    if (mlir::AffineLoadOp loadOp = dyn_cast<mlir::AffineLoadOp>(currOp)) {
-      Value memref = loadOp.memref();
 
+    if (Value memref = getMemRef(currOp))
       for (Operation *userOp : memref.getUsers())
-        if (mlir::AffineStoreOp storeOp = dyn_cast<mlir::AffineStoreOp>(userOp))
-          if (dom.dominates(storeOp, domOp))
+        // Both affine.store and memref.store should be counted.
+        if (isa<mlir::AffineStoreOp, memref::StoreOp>(userOp))
+          if (memref == getMemRef(userOp) && userOp != domOp &&
+              dom.dominates(userOp, domOp)) {
+            LLVM_DEBUG(dbgs()
+                       << "The load op:\n\t" << (*currOp)
+                       << "\nThe store op:\n\t" << (*userOp)
+                       << "\naccess to the same memref:\n\t" << memref
+                       << "\nand the store is dominating the final write:\n\t"
+                       << (*domOp));
             return true;
-    }
+          }
 
     for (mlir::Value operand : currOp->getOperands())
       if (Operation *defOp = operand.getDefiningOp()) {
@@ -385,6 +395,12 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
   discoverMemWriteOps(f, writeOps);
+
+  LLVM_DEBUG({
+    dbgs() << "Discovered memref write ops:\n";
+    for (Operation *op : writeOps)
+      op->dump();
+  });
 
   llvm::SetVector<Operation *> opsToRemove;
   // Map from an op in the original funcOp to which callee it would belong to.
