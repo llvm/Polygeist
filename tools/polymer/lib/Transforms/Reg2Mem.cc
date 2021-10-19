@@ -12,6 +12,7 @@
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -71,10 +72,13 @@ static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
         // - AllocOp: we cannot load/store a memref value itself;
         // - DimOp/AffineApplyOp: indices and bounds shouldn't be loaded from
         // memory, otherwise, it would mess up with the dependence analysis.
+
         if (!defOp ||
             isa<memref::AllocOp, memref::AllocaOp, memref::DimOp,
-                mlir::ConstantOp, mlir::AffineApplyOp, mlir::IndexCastOp>(
-                defOp))
+                mlir::arith::ConstantOp, mlir::ConstantOp, mlir::AffineApplyOp>(
+                defOp) ||
+            (isa<mlir::arith::IndexCastOp>(defOp) &&
+             defOp->getOperand(0).isa<BlockArgument>()))
           continue;
 
         // The block that defines the value is different from the block of the
@@ -187,6 +191,16 @@ static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
   mapDefToUses(f, defToUses);
   // Make sure every def will have a single use in each block.
   filterUsesInSameBlock(defToUses);
+
+  LLVM_DEBUG({
+    for (auto &p : defToUses) {
+      dbgs() << " -- Defined value: " << p.first << '\n';
+      dbgs() << "    Uses:\n";
+      for (auto &use : p.second) {
+        dbgs() << "      + " << (*use) << '\n';
+      }
+    }
+  });
 
   // Handle each def-use pair in in the current function.
   for (const auto &defUsesPair : defToUses) {

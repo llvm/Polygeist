@@ -13,6 +13,7 @@
 #include "polymer/Transforms/ScopStmtOpt.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -73,6 +74,7 @@ int main(int argc, char *argv[]) {
   registry.insert<mlir::memref::MemRefDialect>();
   registry.insert<mlir::AffineDialect>();
   registry.insert<mlir::scf::SCFDialect>();
+  registry.insert<mlir::arith::ArithmeticDialect>();
   registry.insert<mlir::LLVM::LLVMDialect>();
 
 // Register the standard passes we want.
