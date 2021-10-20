@@ -5,6 +5,7 @@ add_mlir_conversion_library(PolymerTransforms
   ScopStmtOpt.cc
   LoopAnnotate.cc
   LoopExtract.cc
+  FoldSCFIf.cc
 
   ADDITIONAL_HEADER_DIRS
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"

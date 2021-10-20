@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polymer/Transforms/ExtractScopStmt.h"
+#include "polymer/Transforms/FoldSCFIf.h"
 #include "polymer/Transforms/LoopAnnotate.h"
 #include "polymer/Transforms/LoopExtract.h"
 #include "polymer/Transforms/PlutoTransform.h"
@@ -59,6 +60,7 @@ int main(int argc, char *argv[]) {
   registerScopStmtOptPasses();
   registerLoopAnnotatePasses();
   registerLoopExtractPasses();
+  registerFoldSCFIfPass();
 
   // Register any pass manager command line options.
   registerMLIRContextCLOptions();
