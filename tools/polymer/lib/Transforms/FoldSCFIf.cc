@@ -53,13 +53,17 @@ static void foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   };
 
   cloneAfter(ifOp.thenBlock(), thenResults);
-  cloneAfter(ifOp.elseBlock(), elseResults);
 
-  for (auto ifResult : enumerate(ifOp.getResults())) {
-    Value newResult =
-        b.create<SelectOp>(loc, ifOp.condition(), thenResults[ifResult.index()],
-                           elseResults[ifResult.index()]);
-    ifResult.value().replaceAllUsesWith(newResult);
+  // Only an if op can have results when an else block is present.
+  if (ifOp.elseBlock()) {
+    cloneAfter(ifOp.elseBlock(), elseResults);
+
+    for (auto ifResult : enumerate(ifOp.getResults())) {
+      Value newResult = b.create<SelectOp>(loc, ifOp.condition(),
+                                           thenResults[ifResult.index()],
+                                           elseResults[ifResult.index()]);
+      ifResult.value().replaceAllUsesWith(newResult);
+    }
   }
 
   ifOp.erase();
