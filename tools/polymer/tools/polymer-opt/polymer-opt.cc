@@ -9,6 +9,7 @@
 #include "polymer/Transforms/FoldSCFIf.h"
 #include "polymer/Transforms/LoopAnnotate.h"
 #include "polymer/Transforms/LoopExtract.h"
+#include "polymer/Transforms/Passes.h"
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 #include "polymer/Transforms/ScopStmtOpt.h"
@@ -61,6 +62,7 @@ int main(int argc, char *argv[]) {
   registerLoopAnnotatePasses();
   registerLoopExtractPasses();
   registerFoldSCFIfPass();
+  registerAnnotateScopPass();
 
   // Register any pass manager command line options.
   registerMLIRContextCLOptions();
