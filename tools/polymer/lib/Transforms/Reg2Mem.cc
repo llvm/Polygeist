@@ -315,6 +315,9 @@ public:
     mlir::FuncOp f = getOperation();
     auto builder = OpBuilder(f.getContext());
 
+    if (f->hasAttr("scop.ignored"))
+      return;
+
     separateAffineIfBlocks(f, builder);
     demoteRegisterToMemory(f, builder);
   }
