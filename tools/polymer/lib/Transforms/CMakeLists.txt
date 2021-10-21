@@ -6,12 +6,13 @@ add_mlir_conversion_library(PolymerTransforms
   LoopAnnotate.cc
   LoopExtract.cc
   FoldSCFIf.cc
+  AnnotateScop.cc
 
   ADDITIONAL_HEADER_DIRS
   "${POLYMER_MAIN_INCLUDE_DIR}/polymer/Transforms"
 
   DEPENDS
-  ${POLYMER_TRANSFORM_DEPENDS}
+  PolymerTransformsIncGen
 
   LINK_LIBS PUBLIC
   MLIRAffine
