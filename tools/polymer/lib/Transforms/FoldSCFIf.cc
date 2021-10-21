@@ -167,9 +167,8 @@ struct MemRefStoreInfo {
 };
 } // namespace
 
-static void
-getMemRefStoreInfo(Block *block,
-                   SmallDenseMap<Value, MemRefStoreInfo> &storeInfo) {
+static void getMemRefStoreInfo(Block *block,
+                               MapVector<Value, MemRefStoreInfo> &storeInfo) {
   unsigned ord = 0;
   for (Operation &op : block->getOperations())
     if (isa<memref::StoreOp, mlir::AffineStoreOp>(op)) {
@@ -193,7 +192,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   if (!hasMatchingStores({ifOp.thenBlock(), ifOp.elseBlock()}))
     return failure();
 
-  SmallDenseMap<Value, MemRefStoreInfo> storeInfo;
+  MapVector<Value, MemRefStoreInfo> storeInfo;
   getMemRefStoreInfo(ifOp.thenBlock(), storeInfo);
 
   SmallVector<Type> storeTypes(storeInfo.size());
@@ -244,6 +243,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   cloneBlock(newIfOp.elseBlock(), ifOp.elseBlock());
 
   b.setInsertionPointAfter(newIfOp);
+
   for (auto &p : storeInfo) {
     Value memref;
     MemRefStoreInfo info;
