@@ -156,7 +156,7 @@ public:
     llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
 
     m.walk([&](mlir::FuncOp f) {
-      if (!f->getAttr("scop.stmt"))
+      if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored"))
         funcOps.push_back(f);
     });
 

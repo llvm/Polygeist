@@ -511,7 +511,11 @@ class ExtractScopStmtPass
     OpBuilder b(m.getContext());
 
     SmallVector<mlir::FuncOp, 4> funcs;
-    m.walk([&](mlir::FuncOp f) { funcs.push_back(f); });
+    m.walk([&](mlir::FuncOp f) {
+      if (f->hasAttr("scop.ignored"))
+        return;
+      funcs.push_back(f);
+    });
 
     unsigned numCallees = 0;
     for (mlir::FuncOp f : funcs) {
