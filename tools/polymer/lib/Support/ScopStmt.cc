@@ -115,7 +115,20 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
 
   // The domain constraints can then be collected from the enclosing ops.
-  getIndexSet(enclosingOps, &domain);
+  assert(succeeded(getIndexSet(enclosingOps, &domain)));
+
+  // Add additional indices that are in the top level block arguments.
+  for (Value arg : caller->getOperands()) {
+    if (!arg.getType().isIndex())
+      continue;
+    unsigned pos;
+    if (domain.findId(arg, &pos))
+      continue;
+
+    domain.appendSymbolId(1);
+    domain.dump();
+    domain.setValue(domain.getNumDimAndSymbolIds() - 1, arg);
+  }
 
   // Symbol values, which could be a BlockArgument, or the result of DimOp or
   // IndexCastOp, or even an affine.apply. Here we limit the cases to be either
@@ -181,6 +194,8 @@ static mlir::Value findBlockArg(mlir::Value v) {
 void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
                                      mlir::AffineValueMap *vMap,
                                      mlir::Value *memref) const {
+  // Map from callee arguments to caller's. impl holds the callee and caller
+  // instances.
   BlockAndValueMapping argMap;
   impl->getArgsValueMapping(argMap);
 
