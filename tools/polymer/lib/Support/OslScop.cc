@@ -585,6 +585,12 @@ void OslScop::createAccessRelationConstraints(
   cst.reset();
   cst.mergeAndAlignIdsWithOther(0, &domain);
 
+  LLVM_DEBUG({
+    dbgs() << "Building access relation.\n"
+           << " + Domain:\n";
+    domain.dump();
+  });
+
   SmallVector<mlir::Value, 8> idValues;
   domain.getAllValues(&idValues);
   llvm::SetVector<mlir::Value> idValueSet;
