@@ -92,6 +92,9 @@ static cl::opt<std::string> Standard("std", cl::init(""),
 static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
                                         cl::desc("CUDA GPU arch"));
 
+static cl::opt<std::string> Include("include", cl::init(""),
+                                     cl::desc("Include a file at the top of the source"));
+
 static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
                                      cl::desc("CUDA Path"));
 
