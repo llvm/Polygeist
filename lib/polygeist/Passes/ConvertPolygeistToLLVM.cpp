@@ -40,7 +40,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   using ConvertOpToLLVMPattern<SubIndexOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(SubIndexOp subViewOp, ArrayRef<Value> operands,
+  matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = subViewOp.getLoc();
 
@@ -52,7 +52,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       return failure();
 
     // MemRefDescriptor sourceMemRef(operands.front());
-    SubIndexOp::Adaptor transformed(operands);
     MemRefDescriptor targetMemRef(
         transformed
             .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
@@ -82,12 +81,11 @@ struct Memref2PointerOpLowering
   using ConvertOpToLLVMPattern<Memref2PointerOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(Memref2PointerOp op, ArrayRef<Value> operands,
+  matchAndRewrite(Memref2PointerOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
     // MemRefDescriptor sourceMemRef(operands.front());
-    SubIndexOp::Adaptor transformed(operands);
     MemRefDescriptor targetMemRef(
         transformed
             .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
@@ -109,7 +107,7 @@ struct Pointer2MemrefOpLowering
   using ConvertOpToLLVMPattern<Pointer2MemrefOp>::ConvertOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(Pointer2MemrefOp op, ArrayRef<Value> operands,
+  matchAndRewrite(Pointer2MemrefOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
@@ -118,7 +116,7 @@ struct Pointer2MemrefOpLowering
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
     auto ptr = rewriter.create<LLVM::BitcastOp>(
-        op.getLoc(), descr.getElementPtrType(), operands[0]);
+        op.getLoc(), descr.getElementPtrType(), adaptor.source());
 
     // Extract all strides and offsets and verify they are static.
     int64_t offset;

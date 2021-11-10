@@ -43,19 +43,17 @@ void make() {
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %c4_i32 = arith.constant 4 : i32
-// CHECK-NEXT:     %0 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>> to !llvm.ptr<struct<(i32)>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<struct<(i32)>>) -> memref<?x1xi32>
-// CHECK-NEXT:     call @_ZN4RootC1Ei(%1, %arg1) : (memref<?x1xi32>, i32) -> ()
-// CHECK-NEXT:     %2 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>> to !llvm.ptr<i8>
-// CHECK-NEXT:     %3 = llvm.getelementptr %2[%c4_i32] : (!llvm.ptr<i8>, i32) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %4 = llvm.bitcast %3 : !llvm.ptr<i8> to !llvm.ptr<struct<(f32)>>
-// CHECK-NEXT:     %5 = "polygeist.pointer2memref"(%4) : (!llvm.ptr<struct<(f32)>>) -> memref<?x1xf32>
-// CHECK-NEXT:     call @_ZN5FRootC1Ev(%5) : (memref<?x1xf32>) -> ()
-// CHECK-NEXT:     %6 = llvm.getelementptr %arg0[%c0_i32, %c2_i32] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %arg2, %6 : !llvm.ptr<f64>
-// CHECK-NEXT:     %7 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %8 = llvm.getelementptr %7[%c0_i64, %c0_i64] : (!llvm.ptr<array<12 x i8>>, i64, i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%8) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> memref<?x1xi32>
+// CHECK-NEXT:     call @_ZN4RootC1Ei(%0, %arg1) : (memref<?x1xi32>, i32) -> ()
+// CHECK-NEXT:     %1 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>> to !llvm.ptr<i8>
+// CHECK-NEXT:     %2 = llvm.getelementptr %1[%c4_i32] : (!llvm.ptr<i8>, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<i8>) -> memref<?x1xf32>
+// CHECK-NEXT:     call @_ZN5FRootC1Ev(%3) : (memref<?x1xf32>) -> ()
+// CHECK-NEXT:     %4 = llvm.getelementptr %arg0[%c0_i32, %c2_i32] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:     llvm.store %arg2, %4 : !llvm.ptr<f64>
+// CHECK-NEXT:     %5 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
+// CHECK-NEXT:     %6 = llvm.getelementptr %5[%c0_i64, %c0_i64] : (!llvm.ptr<array<12 x i8>>, i64, i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:     call @_Z5printPc(%6) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: memref<?x1xi32>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
