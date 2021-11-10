@@ -4437,6 +4437,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     return ValueCategory(res, /*isReference*/ false);
   }
+  case clang::CastKind::CK_IntegralToPointer: {
+    auto res = Visit(E->getSubExpr()).getValue(builder);
+    auto prevTy = res.getType().cast<mlir::IntegerType>();
+    auto postTy = getMLIRType(E->getType()).cast<LLVM::LLVMPointerType>();
+    res = builder.create<LLVM::BitcastOp>(loc, postTy, res);
+    return ValueCategory(res, /*isReference*/ false);
+  }
+
   default:
     EmittingFunctionDecl->dump();
     E->dump();
@@ -4448,6 +4456,11 @@ ValueCategory
 MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   auto cond = Visit(E->getCond()).getValue(builder);
   assert(cond != nullptr);
+  if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+    auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+    cond = builder.create<mlir::LLVM::ICmpOp>(
+      loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+  }
   auto prevTy = cond.getType().cast<mlir::IntegerType>();
   if (!prevTy.isInteger(1)) {
     auto postTy = builder.getI1Type();
