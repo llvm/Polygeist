@@ -102,9 +102,8 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
     if (isReference) {
       if (shape.size() > 1) {
         shape.erase(shape.begin());
-        auto mt0 =
-            mlir::MemRefType::get(shape, mt.getElementType(),
-                                  mt.getAffineMaps(), mt.getMemorySpace());
+        auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                         mt.getLayout(), mt.getMemorySpace());
         return ValueCategory(
             builder.create<polygeist::SubIndexOp>(loc, mt0, val, c0),
             /*isReference*/ true);

@@ -728,9 +728,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
             auto mt0 = buf.getType().cast<MemRefType>();
             std::vector<int64_t> shape(mt0.getShape());
             shape.erase(shape.begin());
-            auto mt =
-                MemRefType::get(shape, mt0.getElementType(),
-                                mt0.getAffineMaps(), mt0.getMemorySpace());
+            auto mt = MemRefType::get(shape, mt0.getElementType(),
+                                      mt0.getLayout(), mt0.getMemorySpace());
             auto subidx = rewriter.create<polygeist::SubIndexOp>(alloc.getLoc(),
                                                                  mt, buf, idx);
             buf = subidx;

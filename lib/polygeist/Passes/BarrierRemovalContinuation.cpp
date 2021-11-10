@@ -458,7 +458,7 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
           std::vector<int64_t> shape(mt0.getShape());
           shape.erase(shape.begin());
           auto mt = MemRefType::get(shape, mt0.getElementType(),
-                                    mt0.getAffineMaps(), mt0.getMemorySpace());
+                                    mt0.getLayout(), mt0.getMemorySpace());
           auto subidx = accessBuilder.create<polygeist::SubIndexOp>(
               allocation.getLoc(), mt, buf, idx);
           buf = subidx;

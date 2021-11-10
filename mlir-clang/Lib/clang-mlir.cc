@@ -33,7 +33,6 @@
 #include <llvm/Support/raw_ostream.h>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <mlir/Dialect/SCF/SCF.h>
-
 using namespace std;
 using namespace clang;
 using namespace llvm;
@@ -47,6 +46,13 @@ using namespace mlir::arith;
 static cl::opt<bool>
     memRefFullRank("memref-fullrank", cl::init(false),
                    cl::desc("Get the full rank of the memref."));
+
+mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
+  if (memorySpace == 0)
+    return nullptr;
+
+  return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
+}
 
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
@@ -342,8 +348,9 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       if (auto var = dyn_cast<VariableArrayType>(
               name->getType()->getUnqualifiedDesugaredType())) {
         assert(shape[0] == -1);
-        mr = mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), memspace);
+        mr = mlir::MemRefType::get(
+            shape, mt.getElementType(), MemRefLayoutAttrInterface(),
+            wrapIntegerMemorySpace(memspace, mt.getContext()));
         auto len = Visit(var->getSizeExpr()).getValue(builder);
         len = builder.create<IndexCastOp>(varLoc, len, builder.getIndexType());
         alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
@@ -353,14 +360,16 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
     if (!alloc) {
       if (pshape == -1)
         shape[0] = 1;
-      mr = mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
-                                 memspace);
+      mr = mlir::MemRefType::get(
+          shape, mt.getElementType(), MemRefLayoutAttrInterface(),
+          wrapIntegerMemorySpace(memspace, mt.getContext()));
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       shape[0] = pshape;
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc,
-          mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
-                                memspace));
+          mlir::MemRefType::get(
+              shape, mt.getElementType(), MemRefLayoutAttrInterface(),
+              wrapIntegerMemorySpace(memspace, mt.getContext())));
     }
   }
   assert(alloc);
@@ -835,8 +844,8 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
     auto shape = std::vector<int64_t>(mt.getShape());
     if (!isArray)
       shape[0] = 1;
-    t = mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
-                              mt.getMemorySpace());
+    t = mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
   }
   auto op = createAllocOp(t, nullptr, /*memtype*/ 0, isArray, LLVMABI);
 
@@ -895,8 +904,8 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
         shape[0] = -1;
         val = builder.create<memref::CastOp>(
             loc,
-            MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
-                            mt.getMemorySpace()),
+            MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace()),
             val);
       }
 
@@ -1431,9 +1440,9 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
           OpBuilder abuilder(builder.getContext());
           abuilder.setInsertionPointToStart(allocationScope);
           auto alloc = abuilder.create<mlir::memref::AllocaOp>(
-              loc,
-              mlir::MemRefType::get(shape, mt.getElementType(),
-                                    mt.getAffineMaps(), mt.getMemorySpace()));
+              loc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                         MemRefLayoutAttrInterface(),
+                                         mt.getMemorySpace()));
 
           ValueCategory(alloc, /*isRef*/ true)
               .store(builder, arg, /*isArray*/ isArray);
@@ -1441,7 +1450,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
           val = builder.create<mlir::memref::CastOp>(
               loc, alloc,
               mlir::MemRefType::get(shape, mt.getElementType(),
-                                    mt.getAffineMaps(), mt.getMemorySpace()));
+                                    MemRefLayoutAttrInterface(),
+                                    mt.getMemorySpace()));
         } else
           val = arg.getValue(builder);
       } else {
@@ -1467,7 +1477,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
           shape[0] = pshape;
           val = builder.create<memref::CastOp>(
               loc, alloc,
-              MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
+              MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(),
                               mt.getMemorySpace()));
         } else
           val = arg.val;
@@ -1480,7 +1491,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
             val = builder.create<memref::CastOp>(
                 loc, val,
                 mlir::MemRefType::get(shape, mt.getElementType(),
-                                      mt.getAffineMaps(), mt.getMemorySpace()));
+                                      mt.getLayout(), mt.getMemorySpace()));
           }
         */
       }
@@ -1526,8 +1537,9 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
   //} else {
   shape[0] = -1;
   //}
-  auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+  auto mt0 =
+      mlir::MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
 
   auto post = builder.create<memref::CastOp>(loc, mt0, scalar.val);
   return ValueCategory(post, /*isReference*/ false);
@@ -1560,8 +1572,9 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
     auto mt = val.getType().cast<MemRefType>();
     auto shape = std::vector<int64_t>(mt.getShape());
     shape[0] = -1;
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
     auto post = builder.create<polygeist::SubIndexOp>(loc, mt0, val, idx);
     // TODO sub
     dref = ValueCategory(post, /*isReference*/ true);
@@ -1575,8 +1588,9 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
   } else {
     shape[0] = -1;
   }
-  auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+  auto mt0 =
+      mlir::MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
   auto post = builder.create<polygeist::SubIndexOp>(loc, mt0, dref.val,
                                                     getConstantIndex(0));
   return ValueCategory(post, /*isReference*/ true);
@@ -1598,8 +1612,9 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
 
     auto shape = std::vector<int64_t>(mt.getShape());
     shape.erase(shape.begin());
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
     moo.val = builder.create<polygeist::SubIndexOp>(loc, mt0, moo.val,
                                                     getConstantIndex(0));
   }
@@ -1852,8 +1867,10 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
-                      ? mlir::MemRefType::get(shape, mt.getElementType(),
-                                              mt.getAffineMaps(), 1)
+                      ? mlir::MemRefType::get(
+                            shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(),
+                            wrapIntegerMemorySpace(1, mt.getContext()))
                       : mt,
                   args);
               ValueCategory(dst, /*isReference*/ true)
@@ -2580,7 +2597,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 auto shape = std::vector<int64_t>(mt.getShape());
                 shape[0] = -1;
                 auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                                 mt.getAffineMaps(),
+                                                 MemRefLayoutAttrInterface(),
                                                  mt.getMemorySpace());
                 dst = builder.create<polygeist::SubIndexOp>(loc, mt0, dst,
                                                             offset);
@@ -2890,9 +2907,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             auto shape = std::vector<int64_t>(mt.getShape());
             mlir::Value res;
             shape.erase(shape.begin());
-            auto mt0 =
-                mlir::MemRefType::get(shape, mt.getElementType(),
-                                      mt.getAffineMaps(), mt.getMemorySpace());
+            auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                             MemRefLayoutAttrInterface(),
+                                             mt.getMemorySpace());
             tostore = builder.create<polygeist::SubIndexOp>(
                 loc, mt0, tostore, getConstantIndex(0));
             i++;
@@ -3016,16 +3033,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         OpBuilder abuilder(builder.getContext());
         abuilder.setInsertionPointToStart(allocationScope);
         auto alloc = abuilder.create<mlir::memref::AllocaOp>(
-            loc,
-            mlir::MemRefType::get(shape, mt.getElementType(),
-                                  mt.getAffineMaps(), mt.getMemorySpace()));
+            loc, mlir::MemRefType::get(shape, mt.getElementType(),
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace()));
         ValueCategory(alloc, /*isRef*/ true)
             .store(builder, arg, /*isArray*/ isArray);
         shape[0] = pshape;
         val = builder.create<mlir::memref::CastOp>(
             loc, alloc,
             mlir::MemRefType::get(shape, mt.getElementType(),
-                                  mt.getAffineMaps(), mt.getMemorySpace()));
+                                  MemRefLayoutAttrInterface(),
+                                  mt.getMemorySpace()));
       } else {
         val = arg.getValue(builder);
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
@@ -3108,11 +3126,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     abuilder.setInsertionPointToStart(allocationScope);
     alloc = abuilder.create<mlir::memref::AllocaOp>(
         loc, mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace()));
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace()));
     shape[0] = pshape;
     alloc = builder.create<mlir::memref::CastOp>(
         loc, alloc,
-        mlir::MemRefType::get(shape, mt.getElementType(), mt.getAffineMaps(),
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(),
                               mt.getMemorySpace()));
     args.push_back(alloc);
   }
@@ -3253,8 +3273,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     auto shape = std::vector<int64_t>(mt.getShape());
     mlir::Value res;
     shape[0] = -1;
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
     res = builder.create<memref::CastOp>(loc, sub.val, mt0);
     return ValueCategory(res,
                          /*isReference*/ false);
@@ -3297,7 +3318,8 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       auto shape = std::vector<int64_t>(mt.getShape());
       shape[0] = -1;
       auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       mt.getAffineMaps(), mt.getMemorySpace());
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
       next = builder.create<polygeist::SubIndexOp>(loc, mt0, prev,
                                                    getConstantIndex(1));
     } else if (auto pt = ty.dyn_cast<mlir::LLVM::LLVMPointerType>()) {
@@ -3350,7 +3372,8 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       // Technically not legal per the -1
       llvm::errs() << "postdec of memref subindex doing illegal op\n";
       auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       mt.getAffineMaps(), mt.getMemorySpace());
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
       next = builder.create<polygeist::SubIndexOp>(loc, mt0, prev,
                                                    getConstantIndex(-1));
     } else {
@@ -3802,7 +3825,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       auto shape = std::vector<int64_t>(mt.getShape());
       shape[0] = -1;
       auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       mt.getAffineMaps(), mt.getMemorySpace());
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
       auto ptradd = rhs.getValue(builder);
       ptradd = castToIndex(loc, ptradd);
       return ValueCategory(
@@ -4149,11 +4173,13 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   } else {
     shape[0] = -1;
   }
-  auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+  auto mt0 =
+      mlir::MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
   shape[0] = -1;
-  auto mt1 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+  auto mt1 =
+      mlir::MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
   mlir::Value sub0 =
       builder.create<polygeist::SubIndexOp>(loc, mt0, val, getConstantIndex(0));
   mlir::Value sub1 = builder.create<polygeist::SubIndexOp>(
@@ -4373,8 +4399,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                    << "\n";
     }
     assert(ut.getShape().size() == mt.getShape().size());
-    auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
-                                    ut.getAffineMaps(), ut.getMemorySpace());
+    auto ty =
+        mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
+                              MemRefLayoutAttrInterface(), ut.getMemorySpace());
     return ValueCategory(builder.create<mlir::memref::CastOp>(loc, se.val, ty),
                          /*isReference*/ se.isReference);
   }
@@ -4388,9 +4415,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 
             auto shape = std::vector<int64_t>(mt.getShape());
             // shape.erase(shape.begin());
-            auto mt0 =
-                mlir::MemRefType::get(shape, mt.getElementType(),
-                                      mt.getAffineMaps(), mt.getMemorySpace());
+            auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                             MemRefLayoutAttrInterface(),
+                                             mt.getMemorySpace());
 
             auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt0);
             return ValueCategory(alloc, /*isReference*/ false);
@@ -4478,8 +4505,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       llvm::errs() << " scalar: " << scalar << " mlirty: " << mlirty << "\n";
     }
     auto mt = mlirty.cast<mlir::MemRefType>();
-    auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
-                                    ut.getAffineMaps(), ut.getMemorySpace());
+    auto ty =
+        mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
+                              MemRefLayoutAttrInterface(), ut.getMemorySpace());
     if (ut.getShape().size() == mt.getShape().size() + 1) {
       return ValueCategory(builder.create<mlir::polygeist::SubIndexOp>(
                                loc, ty, scalar, getConstantIndex(0)),
@@ -4638,7 +4666,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     shape2[0] = -1;
     auto nex = mlir::MemRefType::get(shape2, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+                                     mt.getLayout(), mt.getMemorySpace());
     auto cst = builder.create<mlir::MemRefCastOp>(loc, scalar.val, nex);
     //llvm::errs() << "<ArrayToPtrDecay>\n";
     //E->dump();
@@ -5083,8 +5111,9 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     mr = mlir::MemRefType::get(1, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();
-    mr = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
-                               mt.getAffineMaps(), memspace);
+    mr = mlir::MemRefType::get(
+        mt.getShape(), mt.getElementType(), MemRefLayoutAttrInterface(),
+        wrapIntegerMemorySpace(memspace, mt.getContext()));
   }
 
   mlir::SymbolTable::Visibility lnk;
@@ -5273,7 +5302,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
         auto shape = std::vector<int64_t>(mt.getShape());
         // shape[0] = 1;
         t = mlir::MemRefType::get(shape, mt.getElementType(),
-                                  mt.getAffineMaps(), mt.getMemorySpace());
+                                  MemRefLayoutAttrInterface(),
+                                  mt.getMemorySpace());
       }
       if (!t.isa<LLVM::LLVMPointerType, MemRefType>()) {
         FD->dump();
@@ -5313,7 +5343,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
                       .cast<MemRefType>();
         t = mt; // auto shape = std::vector<int64_t>(mt.getShape());
         // t = mlir::MemRefType::get(shape, mt.getElementType(),
-        //                                mt.getAffineMaps(),
+        //                                mt.getLayout(),
         //                                mt.getMemorySpace());
       }
 
@@ -5335,8 +5365,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     auto shape = std::vector<int64_t>(mt.getShape());
     assert(shape.size() == 2);
 
-    types.push_back(mlir::MemRefType::get(
-        shape, mt.getElementType(), mt.getAffineMaps(), mt.getMemorySpace()));
+    types.push_back(mt);
   } else {
     auto rt = getMLIRType(FD->getReturnType());
     if (!rt.isa<mlir::NoneType>()) {
@@ -5624,7 +5653,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       auto shape2 = std::vector<int64_t>(mt.getShape());
       shape2[0] = -1;
       return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
     } else {
       return getMLIRType(DT->getAdjustedType(), implicitRef, allowMerge);
     }
@@ -5739,7 +5769,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       if (implicitRef)
         *implicitRef = true;
       return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
     }
     if (!allowMerge || ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
@@ -5760,7 +5791,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       if (implicitRef)
         *implicitRef = true;
       return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
     }
     if (!allowMerge || ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
                               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
@@ -5796,7 +5828,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
     if (PTT->isBooleanType()) {
       OpBuilder builder(module->getContext());
-      return MemRefType::get(outer, builder.getIntegerType(1), {});
+      return MemRefType::get(outer, builder.getIntegerType(1));
     }
 
     if (isa<clang::ArrayType>(PTT)) {
@@ -5814,7 +5846,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         auto shape2 = std::vector<int64_t>(mt.getShape());
         shape2.insert(shape2.begin(), outer);
         return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+                                     MemRefLayoutAttrInterface(),
+                                     mt.getMemorySpace());
       } else
         return LLVM::LLVMPointerType::get(subType);
     }
@@ -5825,7 +5858,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         auto shape2 = std::vector<int64_t>(mt.getShape());
         shape2.insert(shape2.begin(), outer);
         return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                     mt.getAffineMaps(), mt.getMemorySpace());
+                                     MemRefLayoutAttrInterface(),
+                                     mt.getMemorySpace());
       }
 
     assert(!subRef);
@@ -5915,7 +5949,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       // shape2[0] = -1;//
       // shape2.insert(shape2.begin(), -1);
       return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
     }
     return mlir::MemRefType::get(-1, getMLIRType(pt->getElementType()), {},
                                  pt->getAddressSpace());
@@ -5929,7 +5964,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
       auto shape2 = std::vector<int64_t>(mt.getShape());
       shape2.insert(shape2.begin(), (int64_t)pt->getNumElements());
       return mlir::MemRefType::get(shape2, mt.getElementType(),
-                                   mt.getAffineMaps(), mt.getMemorySpace());
+                                   MemRefLayoutAttrInterface(),
+                                   mt.getMemorySpace());
     }
     return mlir::MemRefType::get({(int64_t)pt->getNumElements()}, under);
   }
