@@ -67,8 +67,8 @@ def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
 ]> {
   let summary = "Upgrade a pointer to a memref";
 
-  let arguments = (ins LLVM_AnyPointer : $result);
-  let results = (outs AnyMemRef : $source);
+  let arguments = (ins LLVM_AnyPointer : $source);
+  let results = (outs AnyMemRef : $result);
 
   let hasCanonicalizer = 1;
   
