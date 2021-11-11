@@ -17,10 +17,10 @@ set( LLVM_LINK_COMPONENTS
 )
 
 add_clang_tool(mlir-clang
+  mlir-clang.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
-  mlir-clang.cc
   Lib/utils.cc
   Lib/AffineUtils.cc
   Lib/pragmaHandler.cc

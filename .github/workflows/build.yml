@@ -12,6 +12,7 @@ jobs:
       matrix:
         build: ["Release"] #, "Debug"] # "RelWithDebInfo"
         os: [ubuntu-18.04]
+        compiler: [gcc, clang]
 
     steps:
     - name: add dependencies
@@ -53,7 +54,7 @@ jobs:
       run: |
         cd build
         ls ../mlir-build/lib/cmake/clang
-        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.build }}
+        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.compiler}}++
     - name: test mlir-clang
       run: |
         cd build

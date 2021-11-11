@@ -262,7 +262,7 @@ void ParallelLower::runOnOperation() {
               alop.getLoc(),
               MemRefType::get(alop.getType().getShape(),
                               alop.getType().getElementType(),
-                              alop.getType().getLayout(), (uint64_t)0));
+                              alop.getType().getLayout(), Attribute()));
           alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
               alop.getLoc(), newAlloca, alop.getType()));
           alop.erase();
