@@ -306,6 +306,37 @@ ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
   return nullptr;
 }
 
+ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
+  auto toadd = builder.getInsertionBlock()->getParent();
+  Block *labelB;
+  auto found = labels.find(stmt);
+  if (found != labels.end()) {
+    labelB = found->second;
+  } else {
+    labelB = new Block();
+    labels[stmt] = labelB;
+  }
+  toadd->getBlocks().push_back(labelB);
+  builder.create<mlir::BranchOp>(loc, labelB);
+  builder.setInsertionPointToStart(labelB);
+  Visit(stmt->getSubStmt());
+  return nullptr;
+}
+
+ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
+  auto labelstmt = stmt->getLabel()->getStmt();
+  Block *labelB;
+  auto found = labels.find(labelstmt);
+  if (found != labels.end()) {
+    labelB = found->second;
+  } else {
+    labelB = new Block();
+    labels[labelstmt] = labelB;
+  }
+  builder.create<mlir::BranchOp>(loc, labelB);
+  return nullptr;
+}
+
 ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   IfScope scope(*this);
   bool isArrayReturn = false;
