@@ -309,6 +309,10 @@ public:
 
   ValueCategory VisitReturnStmt(clang::ReturnStmt *stmt);
 
+  std::map<LabelStmt *, Block *> labels;
+  ValueCategory VisitLabelStmt(clang::LabelStmt *stmt);
+  ValueCategory VisitGotoStmt(clang::GotoStmt *stmt);
+
   ValueCategory VisitStmtExpr(clang::StmtExpr *stmt);
 
   ValueCategory VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *expr);
