@@ -193,7 +193,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
 }
 
 int emitBinary(char *Argv0, const char *filename,
-               SmallVectorImpl<char *> &LinkArgs, bool LinkOMP) {
+               SmallVectorImpl<const char *> &LinkArgs, bool LinkOMP) {
 
   using namespace clang;
   using namespace clang::driver;
@@ -308,8 +308,8 @@ int main(int argc, char **argv) {
       return ExecuteCC1Tool(Argv);
     }
   }
-  SmallVector<char *> LinkageArgs;
-  SmallVector<char *> MLIRArgs;
+  SmallVector<const char *> LinkageArgs;
+  SmallVector<const char *> MLIRArgs;
   {
     bool linkOnly = false;
     for (int i = 0; i < argc; i++) {
@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
   using namespace mlir;
 
   int size = MLIRArgs.size();
-  char **data = MLIRArgs.data();
+  const char **data = MLIRArgs.data();
   InitLLVM y(size, data);
   cl::ParseCommandLineOptions(size, data);
   assert(inputFileName.size());

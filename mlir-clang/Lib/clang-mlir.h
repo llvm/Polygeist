@@ -130,8 +130,9 @@ struct MLIRASTConsumer : public ASTConsumer {
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 };
 
-struct MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
+class MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
 private:
+  friend class IfScope;
   MLIRASTConsumer &Glob;
   mlir::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
@@ -197,12 +198,6 @@ private:
   void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
                            mlir::Value lb, mlir::Value ub,
                            const mlirclang::AffineLoopDescriptor &descr);
-  std::vector<Block *> prevBlock;
-  std::vector<Block::iterator> prevIterator;
-
-public:
-  void pushLoopIf();
-  void popLoopIf();
 
 public:
   const FunctionDecl *EmittingFunctionDecl;
@@ -347,13 +342,6 @@ public:
   ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx);
 
   ValueCategory CommonArrayToPointer(ValueCategory val);
-};
-
-class IfScope {
-public:
-  MLIRScanner &scanner;
-  IfScope(MLIRScanner &scanner) : scanner(scanner) { scanner.pushLoopIf(); }
-  ~IfScope() { scanner.popLoopIf(); }
 };
 
 #endif
