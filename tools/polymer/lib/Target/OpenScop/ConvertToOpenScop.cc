@@ -233,10 +233,6 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     FlatAffineValueConstraints *domain = it.second.getDomain();
     FlatAffineValueConstraints cst(*domain);
 
-    ctx.mergeAndAlignIdsWithOther(0, &cst);
-    ctx.append(cst);
-    ctx.removeRedundantConstraints();
-
     LLVM_DEBUG(dbgs() << "Statement:\n");
     LLVM_DEBUG(it.second.getCaller().dump());
     LLVM_DEBUG(it.second.getCallee().dump());
@@ -250,6 +246,10 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
       for (Value value : values)
         dbgs() << " * " << value << '\n';
     });
+
+    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.append(cst);
+    ctx.removeRedundantConstraints();
 
     LLVM_DEBUG(dbgs() << "Updated context: \n");
     LLVM_DEBUG(ctx.dump());
