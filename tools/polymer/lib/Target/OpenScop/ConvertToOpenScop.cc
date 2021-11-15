@@ -196,7 +196,33 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
 void OslScopBuilder::buildScopContext(OslScop *scop,
                                       OslScop::ScopStmtMap *scopStmtMap,
                                       FlatAffineValueConstraints &ctx) const {
-  ctx.reset();
+  LLVM_DEBUG(dbgs() << "--- Building SCoP context ...\n");
+
+  // First initialize the symbols of the ctx by the order of arg number.
+  // This simply aims to make mergeAndAlignIdsWithOthers work.
+  SmallVector<Value> symbols;
+  for (const auto &it : *scopStmtMap) {
+    auto domain = it.second.getDomain();
+    SmallVector<Value> syms;
+    domain->getValues(domain->getNumDimIds(), domain->getNumDimAndSymbolIds(),
+                      &syms);
+
+    for (Value sym : syms) {
+      // Find the insertion position.
+      auto it = symbols.begin();
+      while (it != symbols.end()) {
+        auto lhs = it->cast<BlockArgument>();
+        auto rhs = sym.cast<BlockArgument>();
+        if (lhs.getArgNumber() >= rhs.getArgNumber())
+          break;
+        ++it;
+      }
+      if (*it != sym)
+        symbols.insert(it, sym);
+    }
+  }
+  ctx.reset(/*numDims=*/0, /*numSymbols=*/symbols.size());
+  ctx.setValues(0, symbols.size(), symbols);
 
   // Union with the domains of all Scop statements. We first merge and align the
   // IDs of the context and the domain of the scop statement, and then append
@@ -210,6 +236,31 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     ctx.mergeAndAlignIdsWithOther(0, &cst);
     ctx.append(cst);
     ctx.removeRedundantConstraints();
+
+    LLVM_DEBUG(dbgs() << "Statement:\n");
+    LLVM_DEBUG(it.second.getCaller().dump());
+    LLVM_DEBUG(it.second.getCallee().dump());
+    LLVM_DEBUG(dbgs() << "Target domain: \n");
+    LLVM_DEBUG(domain->dump());
+
+    LLVM_DEBUG({
+      dbgs() << "Domain values: \n";
+      SmallVector<Value> values;
+      domain->getValues(0, domain->getNumDimAndSymbolIds(), &values);
+      for (Value value : values)
+        dbgs() << " * " << value << '\n';
+    });
+
+    LLVM_DEBUG(dbgs() << "Updated context: \n");
+    LLVM_DEBUG(ctx.dump());
+
+    LLVM_DEBUG({
+      dbgs() << "Context values: \n";
+      SmallVector<Value> values;
+      ctx.getValues(0, ctx.getNumDimAndSymbolIds(), &values);
+      for (Value value : values)
+        dbgs() << " * " << value << '\n';
+    });
   }
 
   // Then, create the single context relation in scop.
@@ -221,19 +272,43 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   SmallVector<mlir::Value, 8> symValues;
   ctx.getValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
 
+  // Add and align domain SYMBOL columns.
   for (const auto &it : *scopStmtMap) {
     FlatAffineValueConstraints *domain = it.second.getDomain();
+    // For any symbol missing in the domain, add them directly to the end.
+    for (unsigned i = 0; i < ctx.getNumSymbolIds(); ++i) {
+      unsigned pos;
+      if (!domain->findId(symValues[i], &pos)) // insert to the back
+        domain->appendSymbolId(symValues[i]);
+      else
+        LLVM_DEBUG(dbgs() << "Found " << symValues[i] << '\n');
+    }
 
+    // Then do the aligning.
+    LLVM_DEBUG(domain->dump());
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
       mlir::Value sym = symValues[i];
       unsigned pos;
-      if (domain->findId(sym, &pos)) {
-        if (pos != i + domain->getNumDimIds())
-          domain->swapId(i + domain->getNumDimIds(), pos);
-      } else {
-        domain->insertSymbolId(i, sym);
-      }
+      assert(domain->findId(sym, &pos));
+
+      unsigned posAsCtx = i + domain->getNumDimIds();
+      LLVM_DEBUG(dbgs() << "Swapping " << posAsCtx << " " << pos << "\n");
+      if (pos != posAsCtx)
+        domain->swapId(posAsCtx, pos);
     }
+
+    // for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+    //   mlir::Value sym = symValues[i];
+    //   unsigned pos;
+    //   // If the symbol can be found in the domain, we put it in the same
+    //   // position as the ctx.
+    //   if (domain->findId(sym, &pos)) {
+    //     if (pos != i + domain->getNumDimIds())
+    //       domain->swapId(i + domain->getNumDimIds(), pos);
+    //   } else {
+    //     domain->insertSymbolId(i, sym);
+    //   }
+    // }
   }
 }
 

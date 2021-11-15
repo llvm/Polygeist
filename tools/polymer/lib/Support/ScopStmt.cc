@@ -109,6 +109,17 @@ promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
   symMap[val] = arg;
 }
 
+static void reorderSymbolsByOperandId(FlatAffineValueConstraints &cst) {
+  // bubble sort
+  for (unsigned i = cst.getNumDimIds(); i < cst.getNumDimAndSymbolIds(); ++i)
+    for (unsigned j = i + 1; j < cst.getNumDimAndSymbolIds(); ++j) {
+      auto fst = cst.getValue(i).cast<BlockArgument>();
+      auto snd = cst.getValue(j).cast<BlockArgument>();
+      if (fst.getArgNumber() > snd.getArgNumber())
+        cst.swapId(i, j);
+    }
+}
+
 void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // Extract the affine for/if ops enclosing the caller and insert them into the
   // enclosingOps list.
@@ -140,6 +151,9 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
                    &symValues);
   for (mlir::Value val : symValues)
     promoteSymbolToTopLevel(val, domain, symMap);
+
+  // Without this things like swapped-bounds.mlir in test cannot work.
+  reorderSymbolsByOperandId(domain);
 }
 
 void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {
