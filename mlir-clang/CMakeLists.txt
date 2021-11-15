@@ -18,14 +18,15 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_tool(mlir-clang
   mlir-clang.cc
+  Lib/CGStmt.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
-  Lib/utils.cc
-  Lib/AffineUtils.cc
   Lib/pragmaHandler.cc
+  Lib/AffineUtils.cc
   Lib/ValueCategory.cc
-  Lib/CGStmt.cc
+  Lib/utils.cc
+  Lib/IfScope.cc
 )
 
 target_include_directories(mlir-clang PRIVATE

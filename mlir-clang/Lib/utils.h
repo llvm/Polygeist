@@ -28,7 +28,7 @@ namespace clang {
 class Expr;
 }
 
-struct MLIRScanner;
+class MLIRScanner;
 
 namespace mlirclang {
 
