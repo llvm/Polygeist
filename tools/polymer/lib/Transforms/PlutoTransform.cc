@@ -37,6 +37,8 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
+#define DEBUG_TYPE "pluto-opt"
+
 namespace {
 struct PlutoOptPipelineOptions
     : public mlir::PassPipelineOptions<PlutoOptPipelineOptions> {
@@ -72,6 +74,8 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
                                    bool parallelize = false, bool debug = false,
                                    int cloogf = -1, int cloogl = -1,
                                    bool diamondTiling = false) {
+  LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
+  LLVM_DEBUG(f.dump());
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
@@ -128,6 +132,28 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   return g;
 }
 
+static void dedupIndexCast(FuncOp f) {
+  Block &entry = f.getBlocks().front();
+  llvm::MapVector<Value, Value> argToCast;
+  SmallVector<Operation *> toErase;
+  for (auto &op : entry) {
+    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
+      auto arg = indexCast.getOperand().dyn_cast<BlockArgument>();
+      if (argToCast.count(arg)) {
+        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
+                          << '\n');
+        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
+        toErase.push_back(indexCast);
+      } else {
+        argToCast[arg] = indexCast;
+      }
+    }
+  }
+
+  for (auto op : toErase)
+    op->erase();
+}
+
 namespace {
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
@@ -156,8 +182,10 @@ public:
     llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
 
     m.walk([&](mlir::FuncOp f) {
-      if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored"))
+      if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored")) {
+        dedupIndexCast(f);
         funcOps.push_back(f);
+      }
     });
 
     for (mlir::FuncOp f : funcOps)
