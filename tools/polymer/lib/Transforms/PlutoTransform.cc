@@ -132,28 +132,6 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   return g;
 }
 
-static void dedupIndexCast(FuncOp f) {
-  Block &entry = f.getBlocks().front();
-  llvm::MapVector<Value, Value> argToCast;
-  SmallVector<Operation *> toErase;
-  for (auto &op : entry) {
-    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
-      auto arg = indexCast.getOperand().dyn_cast<BlockArgument>();
-      if (argToCast.count(arg)) {
-        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
-                          << '\n');
-        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
-        toErase.push_back(indexCast);
-      } else {
-        argToCast[arg] = indexCast;
-      }
-    }
-  }
-
-  for (auto op : toErase)
-    op->erase();
-}
-
 namespace {
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
@@ -183,7 +161,6 @@ public:
 
     m.walk([&](mlir::FuncOp f) {
       if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored")) {
-        dedupIndexCast(f);
         funcOps.push_back(f);
       }
     });
@@ -300,10 +277,45 @@ struct PlutoParallelizePass
 };
 } // namespace
 
+static void dedupIndexCast(FuncOp f) {
+  if (f.getBlocks().empty())
+    return;
+
+  Block &entry = f.getBlocks().front();
+  llvm::MapVector<Value, Value> argToCast;
+  SmallVector<Operation *> toErase;
+  for (auto &op : entry) {
+    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
+      auto arg = indexCast.getOperand().dyn_cast<BlockArgument>();
+      if (argToCast.count(arg)) {
+        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
+                          << '\n');
+        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
+        toErase.push_back(indexCast);
+      } else {
+        argToCast[arg] = indexCast;
+      }
+    }
+  }
+
+  for (auto op : toErase)
+    op->erase();
+}
+
+namespace {
+struct DedupIndexCastPass
+    : public mlir::PassWrapper<DedupIndexCastPass,
+                               OperationPass<mlir::FuncOp>> {
+  void runOnOperation() override { dedupIndexCast(getOperation()); }
+};
+} // namespace
+
 void polymer::registerPlutoTransformPass() {
   PassPipelineRegistration<PlutoOptPipelineOptions>(
       "pluto-opt", "Optimization implemented by PLUTO.",
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
+        pm.addPass(std::make_unique<DedupIndexCastPass>());
+        pm.addPass(createCanonicalizerPass());
         pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
         pm.addPass(createCanonicalizerPass());
         if (pipelineOptions.generateParallel) {
