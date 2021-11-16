@@ -172,9 +172,19 @@ struct LLVMOpLowering : public ConversionPattern {
     TypeConverter *converter = getTypeConverter();
     SmallVector<Type> convertedResultTypes;
     if (failed(converter->convertTypes(op->getResultTypes(),
-                                       convertedResultTypes)))
+                                       convertedResultTypes))) {
       return failure();
-    if (convertedResultTypes == op->getResultTypes())
+    }
+    SmallVector<Type> convertedOperandTypes;
+    if (failed(converter->convertTypes(op->getOperandTypes(),
+                                       convertedOperandTypes))) {
+      return failure();
+    }
+    if (convertedResultTypes == op->getResultTypes() &&
+        convertedOperandTypes == op->getOperandTypes()) {
+      return failure();
+    }
+    if (isa<UnrealizedConversionCastOp>(op))
       return failure();
 
     OperationState state(op->getLoc(), op->getName());
@@ -192,6 +202,22 @@ struct LLVMOpLowering : public ConversionPattern {
       rewriter.inlineRegionBefore(op->getRegion(i), rewritten->getRegion(i),
                                   rewritten->getRegion(i).begin());
 
+    return success();
+  }
+};
+
+struct URLLVMOpLowering
+    : public ConvertOpToLLVMPattern<UnrealizedConversionCastOp> {
+  using ConvertOpToLLVMPattern<
+      UnrealizedConversionCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(UnrealizedConversionCastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (op->getResult(0).getType() != op->getOperand(0).getType())
+      return failure();
+
+    rewriter.replaceOp(op, op->getOperands());
     return success();
   }
 };
@@ -230,6 +256,7 @@ struct ConvertPolygeistToLLVMPass
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
     patterns.add<LLVMOpLowering>(converter);
+    patterns.add<URLLVMOpLowering>(converter);
 
     LLVMConversionTarget target(getContext());
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
@@ -240,10 +267,21 @@ struct ConvertPolygeistToLLVMPass
         [&](Operation *op) -> Optional<bool> {
           SmallVector<Type> convertedResultTypes;
           if (failed(converter.convertTypes(op->getResultTypes(),
-                                                convertedResultTypes)))
+                                            convertedResultTypes)))
             return llvm::None;
-          return convertedResultTypes == op->getResultTypes();
+          SmallVector<Type> convertedOperandTypes;
+          if (failed(converter.convertTypes(op->getOperandTypes(),
+                                            convertedOperandTypes)))
+            return llvm::None;
+          return convertedResultTypes == op->getResultTypes() &&
+                 convertedOperandTypes == op->getOperandTypes();
         });
+    target.addIllegalOp<UnrealizedConversionCastOp>();
+    /*
+    target.addDynamicallyLegalOp<UnrealizedConversionCastOp>(
+        [&](Operation *op) { return op->getOperand(0).getType() !=
+    op->getResult(0).getType(); });
+        */
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
   }
