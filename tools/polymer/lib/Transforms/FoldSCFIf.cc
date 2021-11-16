@@ -358,6 +358,8 @@ struct FoldSCFIfPass : PassWrapper<FoldSCFIfPass, OperationPass<FuncOp>> {
     FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
+    if (f->hasAttr("scop.ignored"))
+      return;
     while (process(f, b))
       ;
   }
