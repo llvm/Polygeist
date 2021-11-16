@@ -171,6 +171,7 @@ public:
                              cloogf, cloogl, diamondTiling)) {
         funcMap[f] = g;
         g.setPublic();
+        g->setAttrs(f->getAttrs());
       }
 
     // Finally, we delete the definition of the original function, and make the
