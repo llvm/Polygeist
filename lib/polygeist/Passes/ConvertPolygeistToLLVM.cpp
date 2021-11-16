@@ -161,6 +161,41 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
 }
 
 namespace {
+struct LLVMOpLowering : public ConversionPattern {
+  explicit LLVMOpLowering(LLVMTypeConverter &converter)
+      : ConversionPattern(converter, Pattern::MatchAnyOpTypeTag(), 1,
+                          &converter.getContext()) {}
+
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *converter = getTypeConverter();
+    SmallVector<Type> convertedResultTypes;
+    if (failed(converter->convertTypes(op->getResultTypes(),
+                                       convertedResultTypes)))
+      return failure();
+    if (convertedResultTypes == op->getResultTypes())
+      return failure();
+
+    OperationState state(op->getLoc(), op->getName());
+    state.addOperands(operands);
+    state.addTypes(convertedResultTypes);
+    state.addAttributes(op->getAttrs());
+    state.addSuccessors(op->getSuccessors());
+    for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
+      state.addRegion();
+
+    Operation *rewritten = rewriter.createOperation(state);
+    rewriter.replaceOp(op, rewritten->getResults());
+
+    for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
+      rewriter.inlineRegionBefore(op->getRegion(i), rewritten->getRegion(i),
+                                  rewritten->getRegion(i).begin());
+
+    return success();
+  }
+};
+
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
@@ -194,12 +229,21 @@ struct ConvertPolygeistToLLVMPass
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
+    patterns.add<LLVMOpLowering>(converter);
 
     LLVMConversionTarget target(getContext());
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
         [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
     target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                       omp::BarrierOp, omp::TaskwaitOp>();
+    target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(
+        [&](Operation *op) -> Optional<bool> {
+          SmallVector<Type> convertedResultTypes;
+          if (failed(converter.convertTypes(op->getResultTypes(),
+                                                convertedResultTypes)))
+            return llvm::None;
+          return convertedResultTypes == op->getResultTypes();
+        });
     if (failed(applyPartialConversion(m, target, std::move(patterns))))
       signalPassFailure();
   }
