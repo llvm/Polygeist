@@ -3034,10 +3034,11 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
           builder.create<ConstantIntOp>(loc, 1, ty.cast<mlir::IntegerType>()));
     }
     sub.store(builder, next);
-    return ValueCategory(
-        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
-                                                                     : next,
-        /*isReference*/ false);
+
+    if (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PreInc)
+      return sub;
+    else
+      return ValueCategory(prev, /*isReference*/ false);
   }
   case clang::UnaryOperator::Opcode::UO_PreDec:
   case clang::UnaryOperator::Opcode::UO_PostDec: {
