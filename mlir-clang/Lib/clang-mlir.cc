@@ -512,8 +512,6 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   if (isArray) {
 	  offsets.push_back(0);
   }
-  expr->getType()->dump();
-  llvm::errs() << "isAr: " <<isArray << " mlirty: " << mlirty << "\n";
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
@@ -4471,10 +4469,6 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
     auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
     cond = builder.create<mlir::LLVM::ICmpOp>(
       loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
-  }
-  if (!cond.getType().isa<mlir::IntegerType>()) {
-	  E->dump();
-	  llvm::errs() << cond << "\n";
   }
   auto prevTy = cond.getType().cast<mlir::IntegerType>();
   if (!prevTy.isInteger(1)) {
