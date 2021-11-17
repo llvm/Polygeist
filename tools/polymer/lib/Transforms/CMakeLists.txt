@@ -24,6 +24,7 @@ add_mlir_conversion_library(PolymerTransforms
   MLIRStandard
   MLIRSupport
   MLIRAffineToStandard
+  MLIRAffineTransforms
 
   PolymerSupport
   PolymerTargetOpenScop
