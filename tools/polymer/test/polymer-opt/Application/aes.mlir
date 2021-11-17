@@ -51,64 +51,13 @@ func @encrypt(%Sbox: memref<?x16xi32>, %statemt: memref<?xi32>)  {
   return
 }
 
-// CHECK:  func private @S0(%[[statemt:.*]]: memref<?xi32>, %[[i:.*]]: index, %[[Sbox:.*]]: memref<?x16xi32>) attributes {scop.stmt} 
-// CHECK-NEXT:    %[[c15_i32:.*]] = arith.constant 15 : i32
-// CHECK-NEXT:    %[[c4_i32:.*]] = arith.constant 4 : i32
-// CHECK-NEXT:    %[[v0:.*]] = affine.load %[[statemt]][symbol(%[[i]]) * 4] : memref<?xi32>
-// CHECK-NEXT:    %[[v1:.*]] = arith.shrsi %[[v0]], %[[c4_i32]] : i32
-// CHECK-NEXT:    %[[v2:.*]] = arith.index_cast %[[v1]] : i32 to index
-// CHECK-NEXT:    %[[v3:.*]] = arith.andi %[[v0]], %[[c15_i32]] : i32
-// CHECK-NEXT:    %[[v4:.*]] = arith.index_cast %[[v3]] : i32 to index
-// CHECK-NEXT:    %[[v5:.*]] = memref.load %[[Sbox]][%[[v2]], %[[v4]]] : memref<?x16xi32>
-// CHECK-NEXT:    affine.store %[[v5]], %[[statemt]][symbol(%[[i]]) * 4] : memref<?xi32>
-
-// CHECK: func private @S1(%[[i:.*]]: index, %[[ret:.*]]: memref<1024xi32>, %[[statemt:.*]]: memref<?xi32>) attributes {scop.stmt} 
-// CHECK-NEXT:   %[[c1_i32:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:   %[[v0:.*]] = affine.load %[[statemt]][symbol(%[[i]])] : memref<?xi32>
-// CHECK-NEXT:   %[[v1:.*]] = arith.shli %[[v0]], %[[c1_i32]] : i32
-// CHECK-NEXT:   affine.store %[[v1]], %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-
-// CHECK: func private @S2(%[[i:.*]]: index, %[[ret:.*]]: memref<1024xi32>) attributes {scop.stmt} 
-// CHECK:   %[[c283_i32:.*]] = arith.constant 283 : i32
-// CHECK:   %[[c1_i32:.*]] = arith.constant 1 : i32
-// CHECK:   %[[c8_i32:.*]] = arith.constant 8 : i32
-// CHECK:   %[[v0:.*]] = affine.load %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-// CHECK:   %[[v1:.*]] = arith.shrsi %[[v0]], %[[c8_i32]] : i32
-// CHECK:   %[[v2:.*]] = arith.cmpi eq, %[[v1]], %[[c1_i32]] : i32
-// CHECK:   %[[v3:.*]] = arith.xori %[[v0]], %[[c283_i32]] : i32
-// CHECK:   %[[v4:.*]] = affine.load %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-// CHECK:   %[[v5:.*]] = select %[[v2]], %[[v3]], %[[v4]] : i32
-// CHECK:   affine.store %[[v5]], %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-
-// CHECK: func private @S3(%[[i:.*]]: index, %[[ret:.*]]: memref<1024xi32>, %[[statemt]]: memref<?xi32>) attributes {scop.stmt} 
-// CHECK-NEXT:   %[[c283_i32:.*]] = arith.constant 283 : i32
-// CHECK-NEXT:   %[[c1_i32:.*]] = arith.constant 1 : i32
-// CHECK-NEXT:   %[[c8_i32:.*]] = arith.constant 8 : i32
-// CHECK-NEXT:   %[[v0:.*]] = affine.load %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-// CHECK-NEXT:   %[[v1:.*]] = affine.load %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-// CHECK-NEXT:   %[[v2:.*]] = affine.load %[[statemt]][symbol(%[[i]]) + 1] : memref<?xi32>
-// CHECK-NEXT:   %[[v3:.*]] = arith.shli %[[v2]], %[[c1_i32]] : i32
-// CHECK-NEXT:   %[[v4:.*]] = arith.xori %[[v2]], %[[v3]] : i32
-// CHECK-NEXT:   %[[v5:.*]] = arith.shrsi %[[v4]], %[[c8_i32]] : i32
-// CHECK-NEXT:   %[[v6:.*]] = arith.cmpi eq, %[[v5]], %[[c1_i32]] : i32
-// CHECK-NEXT:   %[[v7:.*]] = arith.xori %[[v4]], %[[c283_i32]] : i32
-// CHECK-NEXT:   %[[v8:.*]] = arith.xori %[[v0]], %[[v7]] : i32
-// CHECK-NEXT:   %[[v9:.*]] = arith.xori %[[v1]], %[[v4]] : i32
-// CHECK-NEXT:   %[[v10:.*]] = select %[[v6]], %[[v8]], %[[v9]] : i32
-// CHECK-NEXT:   affine.store %[[v10]], %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-
-// CHECK: func private @S4(%[[statemt:.*]]: memref<?xi32>, %[[i:.*]]: index, %[[ret:.*]]: memref<1024xi32>) attributes {scop.stmt} 
-// CHECK-NEXT:   %[[v0:.*]] = affine.load %[[ret]][symbol(%[[i]])] : memref<1024xi32>
-// CHECK-NEXT:   affine.store %[[v0]], %[[statemt]][symbol(%[[i]])] : memref<?xi32>
-
-// CHECK:  func @encrypt(%[[Sbox:.*]]: memref<?x16xi32>, %[[statemt:.*]]: memref<?xi32>)
-// CHECK:    %[[ret:.*]] = memref.alloca() : memref<1024xi32>
-// CHECK:    affine.for %[[i:.*]] = 1 to 5 
-// CHECK:      affine.for %[[j:.*]] = 0 to 16 
-// CHECK:        call @S0(%[[statemt]], %[[j]], %[[Sbox]]) : (memref<?xi32>, index, memref<?x16xi32>) -> ()
-// CHECK:      affine.for %[[j:.*]] = 0 to 1023 
-// CHECK:        call @S1(%[[j]], %[[ret]], %[[statemt]]) : (index, memref<1024xi32>, memref<?xi32>) -> ()
-// CHECK:        call @S2(%[[j]], %[[ret]]) : (index, memref<1024xi32>) -> ()
-// CHECK:        call @S3(%[[j]], %[[ret]], %[[statemt]]) : (index, memref<1024xi32>, memref<?xi32>) -> ()
-// CHECK:      affine.for %[[j:.*]] = 0 to 1024 
-// CHECK:        call @S4(%[[statemt]], %[[j]], %[[ret]]) : (memref<?xi32>, index, memref<1024xi32>) -> ()
+// CHECK: func @encrypt(%[[Sbox:.*]]: memref<?x16xi32>, %[[statemt:.*]]: memref<?xi32>) 
+// CHECK:   %[[v0:.*]] = memref.alloca() : memref<1024xi32>
+// CHECK:   affine.for %[[i:.*]] = 1 to 5 
+// CHECK:     affine.for %[[j:.*]] = 0 to 16 
+// CHECK:       call @S0(%[[statemt]], %[[j]], %[[Sbox]])
+// CHECK:     affine.for %[[j:.*]] = 0 to 1023 
+// CHECK:       call @S1(%[[j]], %[[v0]], %[[statemt]])
+// CHECK:       call @S2(%[[j]], %[[v0]], %[[statemt]])
+// CHECK:     affine.for %[[j:.*]] = 0 to 1024 
+// CHECK:       call @S3(%[[statemt]], %[[j]], %[[v0]])

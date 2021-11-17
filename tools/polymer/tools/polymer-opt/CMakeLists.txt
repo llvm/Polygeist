@@ -21,6 +21,7 @@ target_link_libraries(polymer-opt
   MLIRTransformUtils
   MLIRSupport
   MLIRIR
+  MLIRAffineTransforms
 
   PolymerTransforms
   )

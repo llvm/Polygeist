@@ -8,6 +8,7 @@
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -125,6 +126,8 @@ struct MatchIfElsePass : PassWrapper<MatchIfElsePass, OperationPass<FuncOp>> {
 
       LLVM_DEBUG(dbgs() << "Matched else block:\n" << ifOp << "\n\n");
     });
+
+    LLVM_DEBUG(dbgs() << "After store matched:\n" << f << "\n\n");
   }
 };
 } // namespace
@@ -290,20 +293,22 @@ struct LiftStoreOps : PassWrapper<LiftStoreOps, OperationPass<FuncOp>> {
     // branch.
     while (processLiftStoreOps(f, b))
       ;
+
+    LLVM_DEBUG(dbgs() << "After LiftStoreOps: " << f << "\n\n");
   }
 };
 } // namespace
 
 /// ---------------------- FoldSCFIf ----------------------------------
 
-static void foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
+static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
   LLVM_DEBUG(dbgs() << "Working on ifOp: " << ifOp << "\n\n");
 
   if (!hasSingleStore(ifOp.thenBlock()) ||
       (ifOp.elseBlock() && !hasSingleStore(ifOp.elseBlock())))
-    return;
+    return false;
 
   OpBuilder::InsertionGuard g(b);
   b.setInsertionPointAfter(ifOp);
@@ -337,6 +342,7 @@ static void foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   }
 
   ifOp.erase();
+  return true;
 }
 
 /// Return true if anything changed.
@@ -345,8 +351,11 @@ static bool process(FuncOp f, OpBuilder &b) {
 
   f.walk([&](scf::IfOp ifOp) {
     /// TODO: add verification.
-    foldSCFIf(ifOp, f, b);
-    changed = true;
+    if (changed)
+      return;
+
+    changed = foldSCFIf(ifOp, f, b);
+    ;
   });
 
   return changed;
@@ -371,6 +380,7 @@ void polymer::registerFoldSCFIfPass() {
                              [](OpPassManager &pm) {
                                pm.addPass(std::make_unique<MatchIfElsePass>());
                                pm.addPass(std::make_unique<LiftStoreOps>());
+                               pm.addPass(createAffineScalarReplacementPass());
                                pm.addPass(std::make_unique<FoldSCFIfPass>());
                              });
 }

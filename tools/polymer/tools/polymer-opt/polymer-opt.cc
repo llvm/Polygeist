@@ -15,6 +15,7 @@
 #include "polymer/Transforms/ScopStmtOpt.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
@@ -54,6 +55,7 @@ int main(int argc, char *argv[]) {
   registerCanonicalizerPass();
   registerCSEPass();
   registerInlinerPass();
+  registerAffineScalarReplacementPass();
   // Register polymer specific passes.
   registerPlutoTransformPass();
   registerRegToMemPass();
