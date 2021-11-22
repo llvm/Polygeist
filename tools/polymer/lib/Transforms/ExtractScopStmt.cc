@@ -236,7 +236,11 @@ static void getScopStmtOps(Operation *writeOp,
     if (isa<memref::AllocaOp, memref::AllocOp, memref::DimOp,
             mlir::AffineApplyOp>(op) ||
         (isa<mlir::arith::IndexCastOp>(op) &&
-         op->getOperand(0).isa<BlockArgument>())) {
+         op->getOperand(0).isa<BlockArgument>() &&
+         isa<FuncOp>(op->getOperand(0)
+                         .cast<BlockArgument>()
+                         .getOwner()
+                         ->getParentOp()))) {
       LLVM_DEBUG(dbgs() << " -> Hits a terminating operator.\n\n");
       for (mlir::Value result : op->getResults())
         args.insert(result);
