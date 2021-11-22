@@ -891,6 +891,8 @@ void Importer::getInductionVars(clast_user_stmt *userStmt, osl_body_p body,
                                 SmallVectorImpl<mlir::Value> &inductionVars) {
   char *expr = osl_util_identifier_substitution(body->expression->string[0],
                                                 body->iterators->string);
+  // dbgs() << "Getting induction vars from: " << (*body->expression->string[0])
+  //        << '\n' << (*expr) << '\n';
   char *tmp = expr;
   clast_stmt *subst;
 
@@ -1035,6 +1037,10 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
 
         callerArgs.push_back(newDefOp->getResult(0));
       } else if (scop->isDimSymbol(argSymbol)) {
+        // dbgs() << "currInductionVar: " << currInductionVar << '\n';
+        // dbgs() << "inductionVars: \n";
+        // interleave(inductionVars, dbgs(), "\n");
+        // dbgs() << '\n';
         callerArgs.push_back(inductionVars[currInductionVar++]);
       } else if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
         callerArgs.push_back(val);
