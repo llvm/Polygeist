@@ -5717,6 +5717,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[2 + a.length()] = 0;
     Argv.push_back(chars);
   }
+  for (auto a : Includes) {
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back("-include");
+    Argv.push_back(chars);
+  }
 
   Argv.push_back("-emit-ast");
 
