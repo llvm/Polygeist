@@ -133,6 +133,9 @@ static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
 static cl::list<std::string> defines("D", cl::desc("defines"),
                                      cl::cat(toolOptions));
 
+static cl::list<std::string> Includes("include", cl::desc("includes"),
+                                      cl::cat(toolOptions));
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 class MemRefInsider
