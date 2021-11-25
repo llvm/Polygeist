@@ -492,7 +492,13 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   // The initialization values will be translated into individual
   // memref.store operations. This requires that the memref value should
   // have static shape.
+  if (auto CO = toInit.getDefiningOp<memref::CastOp>())
+	  toInit = CO.source();
   MemRefType memTy = toInit.getType().cast<MemRefType>();
+  if (!memTy.hasStaticShape()) {
+	  expr->dump();
+	  llvm::errs() << "toInit" << toInit << " memty: " << memTy << "\n";
+  }
   assert(memTy.hasStaticShape() &&
          "The memref to be initialized by InitListExpr should have static "
          "shape.");
@@ -500,6 +506,12 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   auto shape = memTy.getShape();
   // `offsets` is being mutable during the recursive function call to helper.
   SmallVector<int64_t> offsets;
+
+  bool isArray = false;
+  if (isArray) {
+	  offsets.push_back(0);
+  }
+  expr->getType()->dump();
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
@@ -1544,17 +1556,14 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                     .dereference(builder)
                     .store(builder, width);
                 auto idxType = mlir::IndexType::get(builder.getContext());
-                allocSize = builder.create<MulIOp>(
-                    loc, builder.create<IndexCastOp>(loc, width, idxType),
-                    builder.create<IndexCastOp>(loc, height, idxType));
+                allocSize = builder.create<MulIOp>(loc, width, height);
               } else
-                allocSize = builder.create<IndexCastOp>(
-                    loc, Visit(expr->getArg(1)).getValue(builder),
-                    mlir::IndexType::get(builder.getContext()));
-              mlir::Value args[1] = {builder.create<DivUIOp>(
+                allocSize = Visit(expr->getArg(1)).getValue(builder);
+              auto idxType = mlir::IndexType::get(builder.getContext());
+              mlir::Value args[1] = {builder.create<IndexCastOp>(loc, builder.create<DivUIOp>(
                   loc, allocSize,
                   builder.create<ConstantIntOp>(loc, elemSize,
-                                                allocSize.getType()))};
+                                                allocSize.getType())), idxType)};
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
