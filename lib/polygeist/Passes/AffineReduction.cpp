@@ -1,3 +1,5 @@
+#include "PassDetails.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -7,6 +9,7 @@
 #include "llvm/Support/Debug.h"
 
 using namespace mlir;
+using namespace polygeist;
 
 namespace {
 struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {

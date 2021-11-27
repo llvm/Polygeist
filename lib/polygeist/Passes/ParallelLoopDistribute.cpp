@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "PassDetails.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -30,6 +31,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace polygeist;
 
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
@@ -938,8 +940,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 };
 
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
-  std::string method;
-  CPUifyPass(std::string method) : method(method) {}
+  StringRef method;
+  CPUifyPass(StringRef method) : method(method) {}
   void runOnFunction() override {
     if (method == "distribute") {
       OwningRewritePatternList patterns(&getContext());
@@ -974,7 +976,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createCPUifyPass(std::string str) {
+std::unique_ptr<Pass> createCPUifyPass(StringRef str) {
   return std::make_unique<CPUifyPass>(str);
 }
 } // namespace polygeist

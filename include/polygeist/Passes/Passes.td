@@ -5,58 +5,58 @@ include "mlir/Pass/PassBase.td"
 
 def AffineCFG : FunctionPass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::replaceAffineCFGPass()";
+  let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
 def Mem2Reg : FunctionPass<"mem2reg"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::replaceAffineCFGPass()";
+  let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def ParallelLower : Pass<"parallel-lower", "ModuleOp"> {
+def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::createParallelLowerPass()";
+  let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
 def AffineReduction : FunctionPass<"detect-reduction"> {
   let summary = "Detect reductions in affine.for";
-  let constructor = "mlir::detectReductionPass()";
+  let constructor = "mlir::polygeist::detectReductionPass()";
 }
 
 def SCFCPUify : FunctionPass<"cpuify"> {
   let summary = "remove scf.barrier";
-  let constructor = "mlir::createCPUifyPass()";
+  let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
       ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
 }
 
 def SCFBarrierRemovalContinuation : FunctionPass<"barrier-removal-continuation"> {
   let summary = "Remove scf.barrier using continuations";
-  let constructor = "mlir::createBarrierRemovalContinuation()";
+  let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect"];
 }
 
 def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
-  let constructor = "mlir::createRaiseSCFToAffinePass()";
+  let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
   let dependentDialects = ["AffineDialect"];
 }
 
 def SCFCanonicalizeFor : FunctionPass<"canonicalize-scf-for"> {
   let summary = "Run some additional canonicalization for scf::for";
-  let constructor = "mlir::createCanonicalizeForPass()";
+  let constructor = "mlir::polygeist::createCanonicalizeForPass()";
 }
 
 def LoopRestructure : FunctionPass<"loop-restructure"> {
-  let constructor = "mlir::createLoopRestructurePass()";
+  let constructor = "mlir::polygeist::createLoopRestructurePass()";
   let dependentDialects = ["::mlir::scf::SCFDialect"];
 }
 
 def RemoveTrivialUse : FunctionPass<"trivialuse"> {
-  let constructor = "mlir::createRemoveTrivialUse()";
+  let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 
-def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "ModuleOp"> {
+def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
   let summary = "Convert scalar and vector operations from the Standard to the "
                 "LLVM dialect";
   let description = [{
@@ -83,7 +83,7 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "ModuleOp"> {
     returns are updated accordingly. Block argument types are updated to use
     LLVM IR types.
   }];
-  let constructor = "mlir::createConvertPolygeistToLLVMPass()";
+  let constructor = "mlir::polygeist::createConvertPolygeistToLLVMPass()";
   let dependentDialects = ["LLVM::LLVMDialect"];
   let options = [
     Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",

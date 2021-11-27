@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "PassDetails.h"
+
 #include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Passes.h"

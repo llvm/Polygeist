@@ -12,6 +12,7 @@
 // dead memref store's and perform more complex forwarding when support for
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
+#include "PassDetails.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
@@ -36,6 +37,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace polygeist;
 
 typedef std::set<std::vector<ssize_t>> StoreMap;
 
