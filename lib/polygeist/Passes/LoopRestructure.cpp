@@ -62,6 +62,8 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
   return
 }
 */
+#include "PassDetails.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -81,6 +83,7 @@ func @kernel_gemm(%arg0: i32, %arg1: memref<?xf64>) {
 #define DEBUG_TYPE "LoopRestructure"
 
 using namespace mlir;
+using namespace polygeist;
 
 struct Wrapper;
 
@@ -235,7 +238,7 @@ struct GraphTraits<const DomTreeNodeBase<Wrapper> *>
 
 namespace {
 
-struct LoopRestructure : public mlir::LoopRestructureBase<LoopRestructure> {
+struct LoopRestructure : public LoopRestructureBase<LoopRestructure> {
   void runOnRegion(DominanceInfo &domInfo, Region &region);
   bool removeIfFromRegion(DominanceInfo &domInfo, Region &region,
                           Block *pseudoExit);

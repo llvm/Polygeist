@@ -9,9 +9,7 @@
 // This file implements a pass to lower gpu kernels in NVVM/gpu dialects into
 // a generic parallel for representation
 //===----------------------------------------------------------------------===//
-
-#include "polygeist/Ops.h"
-#include "polygeist/Passes/Passes.h"
+#include "PassDetails.h"
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
@@ -25,6 +23,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
+#include "polygeist/Ops.h"
 
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
@@ -300,4 +299,13 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.emitCWrappers,
       options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+}
+
+std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
+  // TODO: meaningful arguments to this pass should be specified as
+  // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
+  // default values to allow for pass creation.
+  auto dl = llvm::DataLayout("");
+  return std::make_unique<ConvertPolygeistToLLVMPass>(true, true, 64u, true,
+                                                      dl);
 }

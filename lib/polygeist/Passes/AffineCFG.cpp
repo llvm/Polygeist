@@ -1,3 +1,5 @@
+#include "PassDetails.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -14,6 +16,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace polygeist;
 
 struct AffineApplyNormalizer {
   AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands);

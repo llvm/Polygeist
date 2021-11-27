@@ -1,3 +1,5 @@
+#include "PassDetails.h"
+
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -10,6 +12,7 @@
 using namespace mlir;
 using namespace mlir::scf;
 using namespace mlir::arith;
+using namespace polygeist;
 
 namespace {
 struct CanonicalizeFor : public SCFCanonicalizeForBase<CanonicalizeFor> {

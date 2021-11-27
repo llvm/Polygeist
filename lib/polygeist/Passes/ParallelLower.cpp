@@ -9,6 +9,7 @@
 // This file implements a pass to lower gpu kernels in NVVM/gpu dialects into
 // a generic parallel for representation
 //===----------------------------------------------------------------------===//
+#include "PassDetails.h"
 
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/CallGraph.h"
@@ -32,6 +33,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace polygeist;
 
 namespace {
 // The store to load forwarding relies on three conditions:

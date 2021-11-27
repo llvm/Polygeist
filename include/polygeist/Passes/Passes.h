@@ -1,3 +1,6 @@
+#ifndef POLYGEIST_DIALECT_POLYGEIST_PASSES_H
+#define POLYGEIST_DIALECT_POLYGEIST_PASSES_H
+
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Pass/Pass.h"
 #include <memory>
@@ -8,13 +11,15 @@ std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass();
 std::unique_ptr<OperationPass<FuncOp>> replaceAffineCFGPass();
 std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
-std::unique_ptr<Pass> createCPUifyPass(std::string);
+std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
+std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
+
 } // namespace polygeist
 } // namespace mlir
 
@@ -41,7 +46,9 @@ namespace LLVM {
 class LLVMDialect;
 }
 
-#define GEN_PASS_CLASSES
+#define GEN_PASS_REGISTRATION
 #include "polygeist/Passes/Passes.h.inc"
 
 } // end namespace mlir
+
+#endif // POLYGEIST_DIALECT_POLYGEIST_PASSES_H

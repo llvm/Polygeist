@@ -13,6 +13,8 @@ if(POLICY CMP0077)
   cmake_policy(SET CMP0077 NEW)
 endif()
 
+option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
+option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(polygeist LANGUAGES CXX C)
@@ -70,3 +72,4 @@ include(sanitizers)
 add_subdirectory(include)
 add_subdirectory(mlir-clang)
 add_subdirectory(lib)
+add_subdirectory(tools)

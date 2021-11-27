@@ -1,3 +1,5 @@
+#include "PassDetails.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
@@ -13,6 +15,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace polygeist;
 
 namespace {
 struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
