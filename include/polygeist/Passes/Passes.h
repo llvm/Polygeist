@@ -13,6 +13,7 @@ std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
+std::unique_ptr<OperationPass<FuncOp>> createLowerSubIndexPass();
 std::unique_ptr<OperationPass<FuncOp>> detectReductionPass();
 std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass();

@@ -194,6 +194,48 @@ public:
   }
 };
 
+// Simplify polygeist.subindex to memref.subview.
+class SubToSubView final : public OpRewritePattern<SubIndexOp> {
+public:
+  using OpRewritePattern<SubIndexOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SubIndexOp op,
+                                PatternRewriter &rewriter) const override {
+    auto srcMemRefType = op.source().getType().cast<MemRefType>();
+    auto resMemRefType = op.result().getType().cast<MemRefType>();
+    auto dims = srcMemRefType.getShape().size();
+
+    // For now, restrict subview lowering to statically defined memref's
+    if (!srcMemRefType.hasStaticShape() | !resMemRefType.hasStaticShape())
+      return failure();
+
+    // For now, restrict to simple rank-reducing indexing
+    if (srcMemRefType.getShape().size() <= resMemRefType.getShape().size())
+      return failure();
+
+    // Build offset, sizes and strides
+    SmallVector<OpFoldResult> sizes(dims, rewriter.getIndexAttr(0));
+    sizes[0] = op.index();
+    SmallVector<OpFoldResult> offsets(dims);
+    for (auto dim : llvm::enumerate(srcMemRefType.getShape())) {
+      if (dim.index() == 0)
+        offsets[0] = rewriter.getIndexAttr(1);
+      else
+        offsets[dim.index()] = rewriter.getIndexAttr(dim.value());
+    }
+    SmallVector<OpFoldResult> strides(dims, rewriter.getIndexAttr(1));
+
+    // Generate the appropriate return type:
+    auto subMemRefType = MemRefType::get(srcMemRefType.getShape().drop_front(),
+                                         srcMemRefType.getElementType());
+
+    rewriter.replaceOpWithNewOp<memref::SubViewOp>(
+        op, subMemRefType, op.source(), sizes, offsets, strides);
+
+    return success();
+  }
+};
+
 /// Simplify all uses of subindex, specifically
 //    store subindex(x) = ...
 //    affine.store subindex(x) = ...
@@ -412,9 +454,9 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
 
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
-  results
-      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast,
-              SimplifySubViewUsers, SelectOfCast, SelectOfSubIndex>(context);
+  results.insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2,
+                 SubToCast, SimplifySubViewUsers, SelectOfCast,
+                 SelectOfSubIndex, SubToSubView>(context);
 }
 
 /// Simplify memref2pointer(cast(x)) to memref2pointer(x)
