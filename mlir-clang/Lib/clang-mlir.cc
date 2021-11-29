@@ -311,8 +311,9 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
 mlir::OpBuilder &MLIRScanner::getBuilder() { return builder; }
 
 mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
-                                       uint64_t memspace, bool isArray = false,
-                                       bool LLVMABI = false) {
+                                       uint64_t memspace, bool isArray,
+                                       bool LLVMABI,
+                                       mlir::ReassociationIndicesRef shape_out) {
 
   mlir::MemRefType mr;
   mlir::Value alloc = nullptr;
@@ -333,7 +334,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       alloc = abuilder.create<mlir::memref::CastOp>(
-          varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
+          varLoc, alloc, mlir::MemRefType::get(shape_out, t, {}, memspace));
       if (t.isa<mlir::IntegerType>()) {
         abuilder.create<mlir::memref::StoreOp>(
             varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
@@ -563,6 +564,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   unsigned memtype = decl->hasAttr<CUDASharedAttr>() ? 5 : 0;
   bool LLVMABI = false;
   bool isArray = false;
+  std::vector<int64_t> shape = {-1};
 
   if (Glob.getMLIRType(
               Glob.CGM.getContext().getLValueReferenceType(decl->getType()))
@@ -602,6 +604,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
         }
         subType = inite.val.getType();
       }
+    } else {
+      LLVMABI = false;
+      shape[0] = 1;      
     }
   } else if (auto ava = decl->getAttr<AlignValueAttr>()) {
     if (auto algn = dyn_cast<clang::ConstantExpr>(ava->getAlignment())) {
@@ -639,7 +644,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
                       "not implemented yet\n";
     }
   } else
-    op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
+    op = createAllocOp(subType, decl, memtype, isArray, LLVMABI, shape);
 
   if (inite.val) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
@@ -670,17 +675,17 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
   bool isArray = false;
   bool LLVMABI = false;
 
-  if (Glob.getMLIRType(
+  if (!Glob.getMLIRType(
               Glob.CGM.getContext().getLValueReferenceType(expr->getType()))
-          .isa<mlir::LLVM::LLVMPointerType>())
-    LLVMABI = true;
-  else {
+          .isa<mlir::LLVM::LLVMPointerType>()) {
     Glob.getMLIRType(expr->getType(), &isArray);
     if (isArray)
       subType = Glob.getMLIRType(
           Glob.CGM.getContext().getLValueReferenceType(expr->getType()));
   }
   auto op = createAllocOp(subType, nullptr, /*memtype*/ 0, isArray, LLVMABI);
+  assert(op.getType().isa<MemRefType>() &&
+         "The value initialized by an InitListExpr should be a MemRef.");
   if (expr->hasArrayFiller()) {
     auto visit = Visit(expr->getInit(0));
     mlir::Value inite = visit.getValue(builder);
@@ -706,8 +711,14 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
                expr->getNumInits());
     for (size_t i = 0; i < expr->getNumInits(); ++i) {
       auto inite = Visit(expr->getInit(i)).getValue(builder);
-      assert(inite.getType() ==
-             op.getType().cast<MemRefType>().getElementType());
+      if (auto ST = op.getType().cast<MemRefType>()
+                                .getElementType()
+                                .dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        assert(inite.getType() == ST.getBody()[i]);
+      } else {
+        assert(inite.getType() ==
+              op.getType().cast<MemRefType>().getElementType());        
+      }
       SmallVector<mlir::Value> idxs;
       if (op.getType().cast<MemRefType>().getShape().size() == 2)
         idxs.push_back(getConstantIndex(0));
