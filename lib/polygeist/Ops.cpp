@@ -271,6 +271,16 @@ public:
     if (srcMemRefType.getShape().size() !=
         (resMemRefType.getShape().size() + 1))
       return failure();
+
+    // Check that there is not a downstream cast of subindex result. This is a
+    // bit dubious, but allowing cast canonicalizations - when possible - to
+    // convert subindexes will ultimately result in fewer memref.subview
+    // operations to be inferred.
+    for (auto user : op.getResult().getUsers()) {
+      if (isa<memref::CastOp>(user))
+        return failure();
+    }
+
     for (auto it : llvm::zip(srcMemRefType.getShape().drop_front(),
                              resMemRefType.getShape())) {
       if (std::get<0>(it) != std::get<1>(it))
