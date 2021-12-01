@@ -17,8 +17,8 @@
 #ifndef DIALECT_POLYGEIST_TRANSFORMS_PASSDETAILS_H
 #define DIALECT_POLYGEIST_TRANSFORMS_PASSDETAILS_H
 
-#include "polygeist/Ops.h"
 #include "mlir/Pass/Pass.h"
+#include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 
 namespace mlir {
@@ -28,6 +28,6 @@ namespace polygeist {
 #include "polygeist/Passes/Passes.h.inc"
 
 } // namespace polygeist
-}
+} // namespace mlir
 
 #endif // DIALECT_POLYGEIST_TRANSFORMS_PASSDETAILS_H
