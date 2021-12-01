@@ -484,7 +484,10 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
 static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
-                                          MLIRScanner *scanner) {
+                                          MLIRScanner *scanner, bool isArray) {
+  expr->dump();
+  llvm::errs() << " isarray: " << isArray << " - ti: " << toInit << "\n";
+  
   auto initListExpr = cast<InitListExpr>(expr);
   assert(toInit.getType().isa<MemRefType>() &&
          "The value initialized by an InitListExpr should be a MemRef.");
@@ -507,8 +510,6 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   // `offsets` is being mutable during the recursive function call to helper.
   SmallVector<int64_t> offsets;
 
-  bool isArray = false;
-  auto mlirty = scanner->Glob.getMLIRType(expr->getType(), &isArray);
   if (isArray) {
 	  offsets.push_back(0);
   }
@@ -657,7 +658,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
     if (isa<InitListExpr>(init)) {
-      initializeValueByInitListExpr(op, init, this);
+      bool isArray = false;
+      Glob.getMLIRType(init->getType(), &isArray);
+      initializeValueByInitListExpr(op, init, this, isArray);
     } else
       assert(0 && "unknown init list");
   }
@@ -1555,7 +1558,6 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                 Visit(expr->getArg(1))
                     .dereference(builder)
                     .store(builder, width);
-                auto idxType = mlir::IndexType::get(builder.getContext());
                 allocSize = builder.create<MulIOp>(loc, width, height);
               } else
                 allocSize = Visit(expr->getArg(1)).getValue(builder);
@@ -2577,6 +2579,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       args.push_back(getLLVM(a));
     }
     mlir::Value called;
+    if (callee) {
+        auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
+        called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
+                       .getResult(0);
+    } else {
     args.insert(args.begin(), getLLVM(expr->getCallee()));
     called = builder
                  .create<mlir::LLVM::CallOp>(
@@ -2585,6 +2592,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                          anonymize(getLLVMType(expr->getType())))}),
                      args)
                  .getResult(0);
+    }
     return ValueCategory(called,
                          /*isReference*/ expr->isLValue() || expr->isXValue());
   }
@@ -3893,6 +3901,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
 ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   auto name = E->getDecl()->getName().str();
+  if (isa<FunctionDecl>(E->getDecl()))
+      E->dump();
   assert(!isa<FunctionDecl>(E->getDecl()));
 
   if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
@@ -4448,7 +4458,6 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_IntegralToPointer: {
     auto res = Visit(E->getSubExpr()).getValue(builder);
-    auto prevTy = res.getType().cast<mlir::IntegerType>();
     auto postTy = getMLIRType(E->getType()).cast<LLVM::LLVMPointerType>();
     res = builder.create<LLVM::BitcastOp>(loc, postTy, res);
     return ValueCategory(res, /*isReference*/ false);
