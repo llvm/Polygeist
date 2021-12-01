@@ -360,7 +360,6 @@ void ParallelLower::runOnOperation() {
     container.walk([&](LLVM::CallOp call) {
       if (call.callee().getValue() == "cudaMemcpy") {
         OpBuilder bz(call);
-        auto i1 = bz.getI1Type();
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
                                   call.getOperand(1), call.getOperand(1),
