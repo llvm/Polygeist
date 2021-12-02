@@ -100,6 +100,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
+  mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
 
   mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD);
 
