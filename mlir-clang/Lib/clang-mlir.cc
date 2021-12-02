@@ -427,7 +427,7 @@ ValueCategory MLIRScanner::VisitFloatingLiteral(clang::FloatingLiteral *expr) {
 ValueCategory
 MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
   auto mt = getMLIRType(expr->getType()).cast<MemRefType>();
-  auto ty = mt.getElementType();
+  auto ty = mt.getElementType().cast<FloatType>();
 
   OpBuilder abuilder(builder.getContext());
   abuilder.setInsertionPointToStart(allocationScope);
@@ -435,7 +435,7 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
   auto alloc = abuilder.create<mlir::memref::AllocaOp>(iloc, mt);
   builder.create<mlir::memref::StoreOp>(
       iloc,
-      builder.create<ConstantFloatOp>(iloc, APFloat(0.0), ty.cast<FloatType>()),
+      builder.create<ConstantFloatOp>(iloc, APFloat(ty.getFloatSemantics(), "0"), ty),
       alloc, getConstantIndex(0));
   builder.create<mlir::memref::StoreOp>(
       iloc, Visit(expr->getSubExpr()).getValue(builder), alloc,
@@ -470,7 +470,7 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   auto Mty = getMLIRType(decl->getType());
 
   if (auto FT = Mty.dyn_cast<mlir::FloatType>())
-    return ValueCategory(builder.create<ConstantFloatOp>(loc, APFloat(0.0), FT),
+    return ValueCategory(builder.create<ConstantFloatOp>(loc, APFloat(FT.getFloatSemantics(), "0"), FT),
                          /*isReference*/ false);
   ;
   for (auto child : decl->children()) {
@@ -2458,9 +2458,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               if (melem.isa<mlir::IntegerType>())
                 toStore = builder.create<ConstantIntOp>(loc, 0, melem);
               else {
-                APFloat v(0.0);
+                auto ft = melem.cast<FloatType>();
                 toStore = builder.create<ConstantFloatOp>(
-                    loc, v, melem.cast<FloatType>());
+                    loc, APFloat(ft.getFloatSemantics(), "0"), ft);
               }
 
               auto elemSize = getTypeSize(elem);
@@ -4174,9 +4174,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                 if (melem.isa<mlir::IntegerType>())
                   toStore = builder.create<ConstantIntOp>(loc, 0, melem);
                 else {
-                  APFloat zerov(0.0);
+                  auto ty = melem.cast<FloatType>();
+                  APFloat zerov(ty.getFloatSemantics(), "0");
                   toStore = builder.create<ConstantFloatOp>(
-                      loc, zerov, melem.cast<FloatType>());
+                      loc, zerov, ty);
                 }
                 auto affineOp = builder.create<scf::ForOp>(
                     loc, getConstantIndex(0), args[0], getConstantIndex(1));
