@@ -963,19 +963,44 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
 ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   auto loc = getMLIRLocation(expr->getExprLoc());
-  assert(!expr->getConstructExpr());
-  assert(expr->isArray());
   // assert(expr->isGlobalNew());
-  auto v = Visit(*expr->raw_arg_begin());
-  assert(v.val);
+  
+  mlir::Value count;
 
-  auto mt = getMLIRType(expr->getType()).cast<mlir::MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
+  expr->dump();
+  
+  
+  if (expr->isArray()) {
+    (*expr->raw_arg_begin())->dump();
+    count = Visit(*expr->raw_arg_begin()).getValue(builder);
+    count = builder.create<IndexCastOp>(loc, count, mlir::IndexType::get(builder.getContext()));
+  } else {
+    count = getConstantIndex(1);
+  }
+  assert(count);
 
-  auto allocSize = builder.create<IndexCastOp>(
-      loc, v.getValue(builder), mlir::IndexType::get(builder.getContext()));
-  mlir::Value args[1] = {allocSize};
-  auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+
+  auto ty = getMLIRType(expr->getType());
+  
+  mlir::Value alloc;
+  if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+    auto shape = std::vector<int64_t>(mt.getShape());
+    mlir::Value args[1] = {count};
+    alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+  } else {
+    auto i64 = mlir::IntegerType::get(count.getContext(), 64);
+    auto typeSize = builder.create<ConstantIntOp>(loc, getTypeSize(expr->getAllocatedType()), i64);
+    if (count.getType().cast<mlir::IntegerType>().getWidth() < 64)
+      count = builder.create<mlir::arith::ExtUIOp>(loc, count, i64);
+    mlir::Value args[1] = { builder.create<arith::MulIOp>(loc, count, typeSize) };
+    alloc = builder.create<mlir::LLVM::BitcastOp>(loc, ty, builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(), args)->getResult(0));
+  }
+  assert(alloc);
+
+  if (expr->getConstructExpr()) {
+    assert(!expr->isArray());
+    VisitConstructCommon(const_cast<CXXConstructExpr*>(expr->getConstructExpr()), /*name*/nullptr, /*memtype*/0, alloc);
+  }
   return ValueCategory(alloc, /*isRefererence*/ false);
 }
 
@@ -1051,7 +1076,6 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     if (val.getType().isa<MemRefType>()) {
       val = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
-      assert(0 && "zero initialization of memref unhandled");
     } else {
       val = builder.create<LLVM::BitcastOp>(
           loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
@@ -4555,6 +4579,23 @@ ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
     off = Visit(a);
   }
   return off;
+}
+
+mlir::LLVM::LLVMFuncOp
+MLIRASTConsumer::GetOrCreateMallocFunction() {
+  std::string name = "malloc";
+  if (llvmFunctions.find(name) != llvmFunctions.end()) {
+    return llvmFunctions[name];
+  }
+  auto ctx = module->getContext();
+  mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
+  auto llvmFnType = LLVM::LLVMFunctionType::get(LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+  
+  LLVM::Linkage lnk = LLVM::Linkage::External;
+  mlir::OpBuilder builder(module->getContext());
+  builder.setInsertionPointToStart(module->getBody());
+  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
+             module->getLoc(), name, llvmFnType, lnk);
 }
 
 mlir::LLVM::LLVMFuncOp
