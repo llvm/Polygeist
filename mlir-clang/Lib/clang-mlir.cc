@@ -484,10 +484,7 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
 static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
-                                          MLIRScanner *scanner, bool isArray) {
-  expr->dump();
-  llvm::errs() << " isarray: " << isArray << " - ti: " << toInit << "\n";
-  
+                                          MLIRScanner *scanner) {
   auto initListExpr = cast<InitListExpr>(expr);
   assert(toInit.getType().isa<MemRefType>() &&
          "The value initialized by an InitListExpr should be a MemRef.");
@@ -496,11 +493,11 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   // memref.store operations. This requires that the memref value should
   // have static shape.
   if (auto CO = toInit.getDefiningOp<memref::CastOp>())
-	  toInit = CO.source();
+    toInit = CO.source();
   MemRefType memTy = toInit.getType().cast<MemRefType>();
   if (!memTy.hasStaticShape()) {
-	  expr->dump();
-	  llvm::errs() << "toInit" << toInit << " memty: " << memTy << "\n";
+    expr->dump();
+    llvm::errs() << "toInit" << toInit << " memty: " << memTy << "\n";
   }
   assert(memTy.hasStaticShape() &&
          "The memref to be initialized by InitListExpr should have static "
@@ -510,9 +507,11 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
   // `offsets` is being mutable during the recursive function call to helper.
   SmallVector<int64_t> offsets;
 
-  if (isArray) {
-	  offsets.push_back(0);
-  }
+  // Struct initializan requires an extra 0, since the first index
+  // is the pointer index, and then the struct index.
+  auto PTT = expr->getType()->getUnqualifiedDesugaredType();
+  if (isa<RecordType>(PTT))
+    offsets.push_back(0);
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
@@ -547,6 +546,9 @@ static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
 
       b.create<memref::StoreOp>(loc, valueToStore, toInit, addr);
     } else {
+      if (!initListExpr) {
+        expr->dump();
+      }
       assert(initListExpr &&
              "The passed in expr should be an InitListExpr since we're still "
              "iterating all the values to be stored.");
@@ -587,7 +589,6 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   if (!LLVMABI && isArray) {
     subType = Glob.getMLIRType(
         Glob.CGM.getContext().getLValueReferenceType(decl->getType()));
-    isArray = true;
   }
 
   if (auto init = decl->getInit()) {
@@ -658,9 +659,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
     if (isa<InitListExpr>(init)) {
-      bool isArray = false;
-      Glob.getMLIRType(init->getType(), &isArray);
-      initializeValueByInitListExpr(op, init, this, isArray);
+      initializeValueByInitListExpr(op, init, this);
     } else
       assert(0 && "unknown init list");
   }
@@ -1562,10 +1561,13 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
               } else
                 allocSize = Visit(expr->getArg(1)).getValue(builder);
               auto idxType = mlir::IndexType::get(builder.getContext());
-              mlir::Value args[1] = {builder.create<IndexCastOp>(loc, builder.create<DivUIOp>(
-                  loc, allocSize,
-                  builder.create<ConstantIntOp>(loc, elemSize,
-                                                allocSize.getType())), idxType)};
+              mlir::Value args[1] = {builder.create<IndexCastOp>(
+                  loc,
+                  builder.create<DivUIOp>(
+                      loc, allocSize,
+                      builder.create<ConstantIntOp>(loc, elemSize,
+                                                    allocSize.getType())),
+                  idxType)};
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
@@ -2580,18 +2582,19 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
     mlir::Value called;
     if (callee) {
-        auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
-        called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
-                       .getResult(0);
+      auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
+      called =
+          builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult(0);
     } else {
-    args.insert(args.begin(), getLLVM(expr->getCallee()));
-    called = builder
-                 .create<mlir::LLVM::CallOp>(
-                     loc,
-                     std::vector<mlir::Type>({Glob.typeTranslator.translateType(
-                         anonymize(getLLVMType(expr->getType())))}),
-                     args)
-                 .getResult(0);
+      args.insert(args.begin(), getLLVM(expr->getCallee()));
+      called =
+          builder
+              .create<mlir::LLVM::CallOp>(
+                  loc,
+                  std::vector<mlir::Type>({Glob.typeTranslator.translateType(
+                      anonymize(getLLVMType(expr->getType())))}),
+                  args)
+              .getResult(0);
     }
     return ValueCategory(called,
                          /*isReference*/ expr->isLValue() || expr->isXValue());
@@ -3902,7 +3905,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   auto name = E->getDecl()->getName().str();
   if (isa<FunctionDecl>(E->getDecl()))
-      E->dump();
+    E->dump();
   assert(!isa<FunctionDecl>(E->getDecl()));
 
   if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
@@ -4477,7 +4480,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
     cond = builder.create<mlir::LLVM::ICmpOp>(
-      loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+        loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
   }
   auto prevTy = cond.getType().cast<mlir::IntegerType>();
   if (!prevTy.isInteger(1)) {
