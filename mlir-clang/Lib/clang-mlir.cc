@@ -3904,9 +3904,11 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
 ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   auto name = E->getDecl()->getName().str();
-  if (isa<FunctionDecl>(E->getDecl()))
-    E->dump();
-  assert(!isa<FunctionDecl>(E->getDecl()));
+
+  if (auto tocall = dyn_cast<FunctionDecl>(E->getDecl()))
+    return ValueCategory(
+            builder.create<LLVM::AddressOfOp>(loc, Glob.GetOrCreateLLVMFunction(tocall)),
+                            /*isReference*/ true);
 
   if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
