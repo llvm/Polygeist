@@ -259,6 +259,8 @@ public:
 
   std::pair<ValueCategory, bool> EmitBuiltinOps(clang::CallExpr *expr);
 
+  ValueCategory
+  VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr);
   ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
