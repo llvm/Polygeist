@@ -492,7 +492,7 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
   auto PTT = expr->getType()->getUnqualifiedDesugaredType();
 
   bool inner = false;
-  if (isa<RecordType>(PTT)) {
+  if (isa<RecordType>(PTT) || isa<clang::ComplexType>(PTT)) {
     if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
       inner = true;
     }
@@ -3134,6 +3134,45 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
                                                                      : next,
         /*isReference*/ false);
+  }
+  case clang::UnaryOperator::Opcode::UO_Real:
+  case clang::UnaryOperator::Opcode::UO_Imag: {
+    int fnum =
+        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_Real) ? 0 : 1;
+    auto lhs_v = sub.val;
+    assert(sub.isReference);
+    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape[0] = -1;
+      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
+      return ValueCategory(builder.create<polygeist::SubIndexOp>(
+                               loc, mt0, lhs_v, getConstantIndex(fnum)),
+                           /*isReference*/ true);
+    } else if (auto PT =
+                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      mlir::Type ET;
+      if (auto ST =
+              PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        ET = ST.getBody()[fnum];
+      } else {
+        ET = PT.getElementType()
+                 .cast<mlir::LLVM::LLVMArrayType>()
+                 .getElementType();
+      }
+      mlir::Value vec[3] = {lhs_v, builder.create<ConstantIntOp>(loc, 0, 32),
+                            builder.create<ConstantIntOp>(loc, fnum, 32)};
+      return ValueCategory(
+          builder.create<mlir::LLVM::GEPOp>(
+              loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+              vec),
+          /*isReference*/ true);
+    }
+
+    llvm::errs() << "lhs_v: " << lhs_v << "\n";
+    U->dump();
+    assert(0 && "unhandled real");
   }
   default: {
     U->dump();
