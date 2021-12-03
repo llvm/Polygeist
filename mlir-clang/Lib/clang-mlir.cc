@@ -486,8 +486,10 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
                                           MLIRScanner *scanner) {
   auto initListExpr = cast<InitListExpr>(expr);
-  assert(toInit.getType().isa<MemRefType>() &&
-         "The value initialized by an InitListExpr should be a MemRef.");
+  if (!toInit.getType().isa<MemRefType>()) {
+      expr->dump();
+      llvm::errs() << " toInit: " << toInit << "\n";
+  }
 
   // The initialization values will be translated into individual
   // memref.store operations. This requires that the memref value should
