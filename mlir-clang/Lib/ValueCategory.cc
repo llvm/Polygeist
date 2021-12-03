@@ -72,6 +72,14 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   }
   if (auto mt = val.getType().dyn_cast<MemRefType>()) {
     assert(mt.getShape().size() == 1 && "must have size 1");
+    if (auto PT = toStore.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+        if (auto MT = val.getType().cast<MemRefType>().getElementType().dyn_cast<mlir::MemRefType>()) {
+            assert(MT.getShape().size() == 1);
+            assert(MT.getShape()[0] == -1);
+            assert(MT.getElementType() == PT.getElementType());
+            toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
+        }
+    }
     assert(toStore.getType() ==
                val.getType().cast<MemRefType>().getElementType() &&
            "expect same type");
