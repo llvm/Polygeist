@@ -499,8 +499,6 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr 
   // increment of the memory address.
   std::function<void(Expr *, mlir::Value, bool)> helper = [&](Expr *expr, mlir::Value toInit, bool inner) {
     Location loc = toInit.getLoc();
-    llvm::errs() << "\n\n\nnew depth toInit: " << toInit << "\n";
-    expr->dump();
 
     if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
 
@@ -547,7 +545,7 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr 
                 builder.create<ConstantIntOp>(loc, 0, 32),
                 builder.create<ConstantIntOp>(loc, i, 64),
             };
-            next = builder.create<LLVM::GEPOp>(loc, nextType, toInit, idxs);
+            next = builder.create<LLVM::GEPOp>(loc, LLVM::LLVMPointerType::get(nextType, PT.getAddressSpace()), toInit, idxs);
         }
         
         helper(initListExpr->hasArrayFiller() ? expr
@@ -558,7 +556,6 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr 
         bool isArray = false;
         Glob.getMLIRType(expr->getType(), &isArray);
         ValueCategory sub = Visit(expr);
-        llvm::errs() << " -- final store, isArray: " << isArray << " sub.val: " << sub.val << " sub.isRef: " << sub.isReference << "\n";
         ValueCategory(toInit, /*isReference*/true).store(builder, sub, isArray);
     }
   };
