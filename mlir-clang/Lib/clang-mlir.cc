@@ -1028,6 +1028,24 @@ mlir::Value MLIRScanner::castToIndex(mlir::Location loc, mlir::Value val) {
 }
 
 ValueCategory
+MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
+
+  bool isArray = false;
+  mlir::Type melem = Glob.getMLIRType(expr->getType(), &isArray);
+  assert(!isArray);
+
+  if (melem.isa<mlir::IntegerType>())
+    return ValueCategory(builder.create<ConstantIntOp>(loc, 0, melem), false);
+  else {
+    auto ft = melem.cast<FloatType>();
+    return ValueCategory(builder.create<ConstantFloatOp>(
+                             loc, APFloat(ft.getFloatSemantics(), "0"), ft),
+                         false);
+  }
+}
+
+ValueCategory
 MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
   return VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0);
 }
