@@ -2541,6 +2541,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "fputs",
       "puts",
       "memcpy",
+      "strlen",
       "__builtin_memcpy",
       "cudaMemcpy",
       "cudaMalloc",
