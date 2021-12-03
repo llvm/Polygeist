@@ -3,7 +3,7 @@
 float foo(int i, int j) {
   // multiple dims with array fillers
   float A[][4] = {
-      {1.0f, 2.0, 3.0, 4.0},
+      {1.0f, 2.0, 3.0, 4.0}, 
       {3.33333f},
       {0.1f, 0.2f, 0.3, 0.4},
   };

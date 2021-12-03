@@ -483,95 +483,87 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
-static void initializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr,
-                                          MLIRScanner *scanner) {
-  auto initListExpr = cast<InitListExpr>(expr);
-  if (!toInit.getType().isa<MemRefType>()) {
-      expr->dump();
-      llvm::errs() << " toInit: " << toInit << "\n";
-  }
-
-  // The initialization values will be translated into individual
-  // memref.store operations. This requires that the memref value should
-  // have static shape.
-  if (auto CO = toInit.getDefiningOp<memref::CastOp>())
-    toInit = CO.source();
-  MemRefType memTy = toInit.getType().cast<MemRefType>();
-  if (!memTy.hasStaticShape()) {
-    expr->dump();
-    llvm::errs() << "toInit" << toInit << " memty: " << memTy << "\n";
-  }
-  assert(memTy.hasStaticShape() &&
-         "The memref to be initialized by InitListExpr should have static "
-         "shape.");
-
-  auto shape = memTy.getShape();
-  // `offsets` is being mutable during the recursive function call to helper.
-  SmallVector<int64_t> offsets;
-
+void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr) {
   // Struct initializan requires an extra 0, since the first index
   // is the pointer index, and then the struct index.
   auto PTT = expr->getType()->getUnqualifiedDesugaredType();
-  if (isa<RecordType>(PTT))
-    offsets.push_back(0);
+
+  bool inner = false;
+  if (isa<RecordType>(PTT)) {
+    if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
+        inner = true;
+    }
+  }
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
-  std::function<void(Expr *)> helper = [&](Expr *expr) {
+  std::function<void(Expr *, mlir::Value, bool)> helper = [&](Expr *expr, mlir::Value toInit, bool inner) {
     Location loc = toInit.getLoc();
+    llvm::errs() << "\n\n\nnew depth toInit: " << toInit << "\n";
+    expr->dump();
 
-    OpBuilder &b = scanner->getBuilder();
-    OpBuilder::InsertionGuard guard(b);
+    if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
 
-    InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr);
-
-    // All the addresses have been instantiated, can generate the store
-    // operation.
-    if (offsets.size() == shape.size()) {
-      // Generate the constant addresses.
-      SmallVector<mlir::Value> addr;
-      transform(offsets, std::back_inserter(addr), [&](const int64_t &offset) {
-        return scanner->getConstantIndex(offset);
-      });
-
-      // Resolve the value to be stored.
-      Expr *toVisit = (initListExpr && initListExpr->hasArrayFiller())
-                          ? initListExpr->getInit(0)
-                          : expr;
-      assert(!isa<InitListExpr>(toVisit) &&
-             "The expr to visit and resolve shouldn't still be a "
-             "InitListExpr - "
-             "it should be an actual value.");
-
-      auto visitor = scanner->Visit(toVisit);
-      auto valueToStore = visitor.getValue(b);
-
-      b.create<memref::StoreOp>(loc, valueToStore, toInit, addr);
-    } else {
-      if (!initListExpr) {
-        expr->dump();
+      unsigned num = 0;
+      if (initListExpr->hasArrayFiller()) {
+          //num = ...;
+            assert(0 && "TODO get number of values in array filler expression");
+      } else {
+          num = initListExpr->getNumInits();
       }
-      assert(initListExpr &&
-             "The passed in expr should be an InitListExpr since we're still "
-             "iterating all the values to be stored.");
 
-      unsigned nextDim = offsets.size();
-      offsets.push_back(0);
-      for (unsigned i = 0, e = shape[nextDim]; i < e; ++i) {
-        offsets[nextDim] = i;
+      if (inner) {
+        if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
+            auto shape = std::vector<int64_t>(mt.getShape());
+            shape.erase(shape.begin());
+            auto mt0 =
+                mlir::MemRefType::get(shape, mt.getElementType(),
+                                      MemRefLayoutAttrInterface(), mt.getMemorySpace());
+            toInit = builder.create<polygeist::SubIndexOp>(loc, mt0, toInit, getConstantIndex(0));
+        }
+      }
 
-        // If the current expr is an array filler, we will pass it all the
-        // way down until we reach to the last dimension. Otherwise, there
-        // should be a corresponding InitListExpr for the current dim, and
-        // we pass that down.
+      for (unsigned i = 0, e = num; i < e; ++i) {
+    
+        mlir::Value next;
+        if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
+            auto shape = std::vector<int64_t>(mt.getShape());
+            shape[0] = -1;
+            auto mt0 =
+                mlir::MemRefType::get(shape, mt.getElementType(),
+                                      MemRefLayoutAttrInterface(), mt.getMemorySpace());
+            next = builder.create<polygeist::SubIndexOp>(loc, mt0, toInit, getConstantIndex(i));
+        } else {
+            auto PT = toInit.getType().cast<LLVM::LLVMPointerType>();
+            auto ET = PT.getElementType();
+            mlir::Type nextType;
+            if (auto ST = ET.dyn_cast<LLVM::LLVMStructType>())
+                nextType = ST.getBody()[i];
+            else if (auto AT = ET.dyn_cast<LLVM::LLVMArrayType>())
+                nextType = AT.getElementType();
+            else assert(0 && "unknown inner type");
+            
+            mlir::Value idxs[] = {
+                builder.create<ConstantIntOp>(loc, 0, 32),
+                builder.create<ConstantIntOp>(loc, i, 64),
+            };
+            next = builder.create<LLVM::GEPOp>(loc, nextType, toInit, idxs);
+        }
+        
         helper(initListExpr->hasArrayFiller() ? expr
-                                              : initListExpr->getInit(i));
+                                              : initListExpr->getInit(i), next, true);
       }
-      offsets.pop_back();
+
+    } else {
+        bool isArray = false;
+        Glob.getMLIRType(expr->getType(), &isArray);
+        ValueCategory sub = Visit(expr);
+        llvm::errs() << " -- final store, isArray: " << isArray << " sub.val: " << sub.val << " sub.isRef: " << sub.isReference << "\n";
+        ValueCategory(toInit, /*isReference*/true).store(builder, sub, isArray);
     }
   };
 
-  helper(initListExpr);
+  helper(expr, toInit, inner);
 }
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
@@ -661,7 +653,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
     if (isa<InitListExpr>(init)) {
-      initializeValueByInitListExpr(op, init, this);
+      InitializeValueByInitListExpr(op, init);
     } else
       assert(0 && "unknown init list");
   }
