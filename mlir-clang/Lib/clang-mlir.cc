@@ -990,8 +990,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   } else {
     auto i64 = mlir::IntegerType::get(count.getContext(), 64);
     auto typeSize = builder.create<ConstantIntOp>(loc, getTypeSize(expr->getAllocatedType()), i64);
-    if (count.getType().cast<mlir::IntegerType>().getWidth() < 64)
-      count = builder.create<mlir::arith::ExtUIOp>(loc, count, i64);
+    count = builder.create<IndexCastOp>(loc, count, i64);
     mlir::Value args[1] = { builder.create<arith::MulIOp>(loc, count, typeSize) };
     alloc = builder.create<mlir::LLVM::BitcastOp>(loc, ty, builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(), args)->getResult(0));
   }
@@ -5144,6 +5143,7 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
       continue;
     if (StringRef(name).startswith("_ZN9__gnu"))
       continue;
+    if (name == "cudaGetDevice") continue;
 
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
@@ -5217,6 +5217,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
       continue;
     if (StringRef(name).startswith("_ZN9__gnu"))
       continue;
+    if (name == "cudaGetDevice") continue;
 
     if ((emitIfFound.count("*") && name != "fpclassify" && !fd->isStatic() &&
          externLinkage) ||
