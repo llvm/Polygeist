@@ -143,6 +143,26 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   }
 };
 
+// TODO
+#if 0
+mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateMallocFunction(ModuleOp* module) {
+  std::string name = "malloc";
+  if (llvmFunctions.find(name) != llvmFunctions.end()) {
+    return llvmFunctions[name];
+  }
+  auto ctx = module->getContext();
+  mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
+  auto llvmFnType = LLVM::LLVMFunctionType::get(
+      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+
+  LLVM::Linkage lnk = LLVM::Linkage::External;
+  mlir::OpBuilder builder(module->getContext());
+  builder.setInsertionPointToStart(module->getBody());
+  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
+             module->getLoc(), name, llvmFnType, lnk);
+}
+#endif
+
 void ParallelLower::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
   // as the callgraph will need to resolve references.
@@ -159,7 +179,7 @@ void ParallelLower::runOnOperation() {
 
   // Only supports single block functions at the moment.
   getOperation().walk([&](gpu::LaunchOp launchOp) {
-    launchOp.walk([&](CallOp caller) {
+    std::function<void(CallOp)> callInliner = [&](CallOp caller) {
       // Build the inliner interface.
       AlwaysInlinerInterface interface(&getContext());
 
@@ -181,13 +201,15 @@ void ParallelLower::runOnOperation() {
         return;
       if (targetRegion->empty())
         return;
+      callableOp.walk(callInliner);
       if (inlineCall(interface, caller, callableOp, targetRegion,
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {
         caller.erase();
         toErase.insert(callableOp);
       }
-    });
+    };
+    launchOp.walk(callInliner);
 
     Block *nb = &launchOp.getRegion().front();
     mlir::OpBuilder builder(launchOp.getContext());
@@ -267,6 +289,21 @@ void ParallelLower::runOnOperation() {
                               alop.getType().getLayout(), Attribute()));
           alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
               alop.getLoc(), newAlloca, alop.getType()));
+          alop.erase();
+        }
+    });
+    
+    container.walk([&](mlir::LLVM::AllocaOp alop) {
+      auto PT = alop.getType().cast<LLVM::LLVMPointerType>();
+      if (PT.getAddressSpace() == 5) {
+          mlir::OpBuilder bz(launchOp.getContext());
+          bz.setInsertionPointToStart(blockB);
+          auto newAlloca = bz.create<LLVM::AllocaOp>(
+              alop.getLoc(),
+              LLVM::LLVMPointerType::get(PT.getElementType(), 0),
+              alop.arraySize());
+          alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
+              alop.getLoc(), PT, newAlloca));
           alop.erase();
         }
     });
@@ -362,10 +399,26 @@ void ParallelLower::runOnOperation() {
         OpBuilder bz(call);
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
-                                  call.getOperand(1), call.getOperand(1),
+                                  call.getOperand(1), call.getOperand(2),
                                   /*isVolatile*/ falsev);
         call.replaceAllUsesWith(
             bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
+        call.erase();
+      }
+      if (call.callee().getValue() == "cudaMemset") {
+        OpBuilder bz(call);
+        auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
+        bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
+                                  call.getOperand(1), call.getOperand(2),
+                                  /*isVolatile*/ falsev);
+        Value vals[] = {call.getOperand(2)};
+        call.replaceAllUsesWith(ArrayRef<Value>(vals));
+        call.erase();
+      }
+      if (call.callee().getValue() == "cudaMalloc") {
+
+        Value vals[] = {call.getOperand(0)};
+        call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
     });
