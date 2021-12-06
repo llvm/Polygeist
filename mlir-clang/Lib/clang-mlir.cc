@@ -573,7 +573,7 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 
           mlir::Value idxs[] = {
               builder.create<ConstantIntOp>(loc, 0, 32),
-              builder.create<ConstantIntOp>(loc, i, 64),
+              builder.create<ConstantIntOp>(loc, i, 32),
           };
           next = builder.create<LLVM::GEPOp>(
               loc, LLVM::LLVMPointerType::get(nextType, PT.getAddressSpace()),
@@ -5468,6 +5468,11 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (!types.size()) {
       RT->dump();
       llvm::errs() << "ST: " << *ST << "\n";
+      llvm::errs() << "fields\n";
+        for (auto f : RT->getDecl()->fields()) {
+            llvm::errs() << " +++ "; f->getType()->dump();
+            llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(f->getType()) << "\n";
+        }
       llvm::errs() << "types\n";
       for (auto t : types)
         llvm::errs() << " --- " << t << "\n";
@@ -5594,6 +5599,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   }
 
   if (t->isBuiltinType() || isa<clang::EnumType>(t)) {
+    if (t->isBooleanType()) {
+      OpBuilder builder(module->getContext());
+      return builder.getIntegerType(8);
+    }
     llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
     return getMLIRType(T);
   }
