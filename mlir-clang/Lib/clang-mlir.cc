@@ -253,10 +253,11 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
         continue;
       }
       if (auto cons = dyn_cast<CXXConstructExpr>(expr->getInit())) {
-          VisitConstructCommon(cons, /*name*/nullptr, /*space*/0,
-                                CommonFieldLookup(CC->getThisObjectType(), field,
-                                    ThisVal.val, /*isLValue*/ false).val);
-          continue;
+        VisitConstructCommon(cons, /*name*/ nullptr, /*space*/ 0,
+                             CommonFieldLookup(CC->getThisObjectType(), field,
+                                               ThisVal.val, /*isLValue*/ false)
+                                 .val);
+        continue;
       }
       auto initexpr = Visit(expr->getInit());
       if (!initexpr.val) {
@@ -748,8 +749,9 @@ ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
 
   arrayinit.push_back(affineOp.getInductionVar());
 
-  auto alu = CommonArrayLookup(CommonArrayToPointer(tostore),
-                               affineOp.getInductionVar(), /*isImplicitRef*/false);
+  auto alu =
+      CommonArrayLookup(CommonArrayToPointer(tostore),
+                        affineOp.getInductionVar(), /*isImplicitRef*/ false);
 
   if (auto AILE = dyn_cast<ArrayInitLoopExpr>(expr->getSubExpr())) {
     VisitArrayInitLoop(AILE, alu);
@@ -1290,7 +1292,8 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
 }
 
 ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
-                                             mlir::Value idx, bool isImplicitRefResult) {
+                                             mlir::Value idx,
+                                             bool isImplicitRefResult) {
   mlir::Value val = array.getValue(builder);
   assert(val);
 
@@ -1328,7 +1331,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
   auto mt = dref.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(mt.getShape());
   if (shape.size() > 1) {
-  // if (shape.size() > 2 || (shape.size() > 1 && !isImplicitRefResult)) {
+    // if (shape.size() > 2 || (shape.size() > 1 && !isImplicitRefResult)) {
     shape.erase(shape.begin());
   } else {
     shape[0] = -1;
@@ -2433,16 +2436,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             builder.setInsertionPoint(oldblock, oldpoint);
 
             auto retTy = getMLIRType(expr->getType());
-            if (sr->getDecl()->getName() == "__builtin_memcpy" || retTy.isa<LLVM::LLVMPointerType>()) {
+            if (sr->getDecl()->getName() == "__builtin_memcpy" ||
+                retTy.isa<LLVM::LLVMPointerType>()) {
               if (dst.getType().isa<MemRefType>())
-                dst = builder.create<polygeist::Memref2PointerOp>(loc, retTy, dst);
+                dst = builder.create<polygeist::Memref2PointerOp>(loc, retTy,
+                                                                  dst);
               assert(dst.getType() == retTy);
               return ValueCategory(dst, /*isReference*/ false);
-            }
-            else {
+            } else {
               if (!retTy.isa<mlir::IntegerType>()) {
-                  expr->dump();
-                  llvm::errs() << " retTy: " << retTy << "\n";
+                expr->dump();
+                llvm::errs() << " retTy: " << retTy << "\n";
               }
               return ValueCategory(builder.create<ConstantIntOp>(loc, 0, retTy),
                                    /*isReference*/ false);
@@ -4552,7 +4556,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
         signedType = true;
     }
     auto Zero = builder.create<ConstantFloatOp>(
-            loc, APFloat::getZero(prevTy.getFloatSemantics()), prevTy);
+        loc, APFloat::getZero(prevTy.getFloatSemantics()), prevTy);
     res = builder.create<arith::CmpFOp>(loc, CmpFPredicate::UNE, res, Zero);
     if (1 < postTy.getWidth()) {
       if (signedType) {
@@ -5469,10 +5473,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       RT->dump();
       llvm::errs() << "ST: " << *ST << "\n";
       llvm::errs() << "fields\n";
-        for (auto f : RT->getDecl()->fields()) {
-            llvm::errs() << " +++ "; f->getType()->dump();
-            llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(f->getType()) << "\n";
-        }
+      for (auto f : RT->getDecl()->fields()) {
+        llvm::errs() << " +++ ";
+        f->getType()->dump();
+        llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(f->getType())
+                     << "\n";
+      }
       llvm::errs() << "types\n";
       for (auto t : types)
         llvm::errs() << " --- " << t << "\n";
