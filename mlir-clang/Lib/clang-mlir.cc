@@ -252,6 +252,12 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
                                              ThisVal.val, /*isLValue*/ false));
         continue;
       }
+      if (auto cons = dyn_cast<CXXConstructExpr>(expr->getInit())) {
+          VisitConstructCommon(cons, /*name*/nullptr, /*space*/0,
+                                CommonFieldLookup(CC->getThisObjectType(), field,
+                                    ThisVal.val, /*isLValue*/ false).val);
+          continue;
+      }
       auto initexpr = Visit(expr->getInit());
       if (!initexpr.val) {
         expr->getInit()->dump();
@@ -5551,11 +5557,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
                     LLVM::LLVMPointerType>())
       return LLVM::LLVMPointerType::get(subType);
-
-    if (PTT->isBooleanType()) {
-      OpBuilder builder(module->getContext());
-      return MemRefType::get(outer, builder.getIntegerType(1));
-    }
 
     if (isa<clang::ArrayType>(PTT)) {
       if (subType.isa<MemRefType>()) {
