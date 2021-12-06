@@ -28,6 +28,9 @@ def SCFCPUify : FunctionPass<"cpuify"> {
   let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
       ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
+  let options = [
+  Option<"method", "method", "std::string", /*default=*/"\"distribute\"", "Method of doing distribution">
+  ];
 }
 
 def SCFBarrierRemovalContinuation : FunctionPass<"barrier-removal-continuation"> {

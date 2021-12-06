@@ -940,8 +940,10 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 };
 
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
-  StringRef method;
-  CPUifyPass(StringRef method) : method(method) {}
+  CPUifyPass() = default;
+  CPUifyPass(StringRef method) {
+    this->method.setValue(method.str());
+  }
   void runOnFunction() override {
     if (method == "distribute") {
       OwningRewritePatternList patterns(&getContext());
