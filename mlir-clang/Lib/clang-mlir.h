@@ -226,7 +226,7 @@ public:
   ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
 
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
-  
+
   ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
   ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);
@@ -345,7 +345,8 @@ public:
   ValueCategory CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
                                   mlir::Value val, bool isLValue);
 
-  ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx, bool isImplicitRefResult);
+  ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx,
+                                  bool isImplicitRefResult);
 
   ValueCategory CommonArrayToPointer(ValueCategory val);
 };
