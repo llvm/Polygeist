@@ -1499,7 +1499,8 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         if (arg.getType().isa<mlir::LLVM::LLVMPointerType>()) {
           auto callee = EmitCallee(expr->getCallee());
           auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
-          mlir::Value args[] = {arg};
+          mlir::Value args[] = {builder.create<LLVM::BitcastOp>(
+              loc, LLVM::LLVMPointerType::get(builder.getIntegerType(8)), arg)};
           builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
         } else {
           builder.create<mlir::memref::DeallocOp>(loc, arg);
