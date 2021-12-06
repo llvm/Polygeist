@@ -169,6 +169,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         mlir::Type elty;
         if (auto at = pt.getElementType().dyn_cast<LLVM::LLVMArrayType>()) {
           elty = at.getElementType();
+          if (smt.getShape().back() != at.getNumElements()) {
+              llvm::errs() << " at: " << at << " smt: " << smt << "\n";
+              llvm::errs() << " val: " << val << " val.isRef: " << isReference << " ts: " << toStore.val << " ts.isRef: " << toStore.isReference << " isArray: " << isArray << "\n";
+          }
           assert(smt.getShape().back() == at.getNumElements());
         } else {
           auto st = pt.getElementType().dyn_cast<LLVM::LLVMStructType>();
