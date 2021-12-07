@@ -585,10 +585,18 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     if (auto cses = dyn_cast<CaseStmt>(cse)) {
       auto &condB = *(new Block());
 
-      caseVals.push_back(Visit(cses->getLHS())
-                             .getValue(builder)
-                             .getDefiningOp<ConstantIntOp>()
-                             .value());
+      auto cval = Visit(cses->getLHS());
+      if (!cval.val) {
+          cses->getLHS()->dump();
+      }
+      assert(cval.val);
+      auto cint = cval.getValue(builder).getDefiningOp<ConstantIntOp>();
+      if (!cint) {
+          cses->getLHS()->dump();
+          llvm::errs() << "cval: " << cval.val << "\n";
+      }
+      assert(cint);
+      caseVals.push_back(cint.value());
 
       if (inCase) {
         auto noBreak =

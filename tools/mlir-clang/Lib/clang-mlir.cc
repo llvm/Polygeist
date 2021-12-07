@@ -407,15 +407,9 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
 }
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
-  if (expr->hasAPValueResult()) {
-    auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
-    return ValueCategory(builder.create<ConstantIntOp>(
-                             getMLIRLocation(expr->getExprLoc()),
-                             expr->getAPValueResult().getInt().getExtValue(),
-                             ty),
-                         /*isReference*/ false);
-  }
-  return Visit(expr->getSubExpr());
+  auto sv = Visit(expr->getSubExpr());
+  assert(sv.val);
+  return sv;
 }
 
 ValueCategory MLIRScanner::VisitTypeTraitExpr(clang::TypeTraitExpr *expr) {
@@ -798,6 +792,7 @@ MLIRScanner::VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr) {
     return Visit(expr->getSubExpr());
   if (expr->getCastKind() == clang::CastKind::CK_IntegralCast) {
     auto scalar = Visit(expr->getSubExpr()).getValue(builder);
+    assert(scalar);
     auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
     if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
       return ValueCategory(
@@ -2190,6 +2185,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           srcSub = BC->getSubExpr();
 
         auto dstst = dstSub->getType()->getUnqualifiedDesugaredType();
+        if (isa<clang::PointerType>(dstst) || isa<clang::ArrayType>(dstst)) {
+        
         auto elem = isa<clang::PointerType>(dstst)
                         ? cast<clang::PointerType>(dstst)
                               ->getPointeeType()
@@ -2265,11 +2262,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 dst = builder.create<polygeist::SubIndexOp>(loc, mt0, dst,
                                                             offset);
               } else {
-                auto elty = dst.getType()
-                                .cast<LLVM::LLVMPointerType>()
-                                .getElementType();
                 mlir::Value idxs[] = {offset};
-                dst = builder.create<LLVM::GEPOp>(loc, elty, dst, idxs);
+                dst = builder.create<LLVM::GEPOp>(loc, dst.getType(), dst, idxs);
               }
             }
 
@@ -2405,6 +2399,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         assert(0 && "unhandled cudaMemcpy");
         */
       }
+    }
     }
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
@@ -4116,6 +4111,7 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
 }
 
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
+  auto loc = getMLIRLocation(E->getExprLoc());
   switch (E->getCastKind()) {
 
   case clang::CastKind::CK_NullToPointer: {
@@ -4349,6 +4345,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_IntegralCast: {
     auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    assert(scalar);
     auto postTy = getMLIRType(E->getType()).cast<mlir::IntegerType>();
     if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
       return ValueCategory(
@@ -4377,15 +4374,24 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return ValueCategory(scalar, /*isReference*/ false);
     if (prevTy.getWidth() < postTy.getWidth()) {
       if (signedType) {
+        if (auto CI = scalar.getDefiningOp<ConstantIntOp>()) {
+            return ValueCategory(builder.create<arith::ConstantOp>(loc, postTy, mlir::IntegerAttr::get(postTy, CI.getValue().cast<IntegerAttr>().getValue().sext(postTy.getWidth()))), /*isReference*/false);
+        }
         return ValueCategory(
             builder.create<arith::ExtSIOp>(loc, scalar, postTy),
             /*isReference*/ false);
       } else {
+        if (auto CI = scalar.getDefiningOp<ConstantIntOp>()) {
+            return ValueCategory(builder.create<arith::ConstantOp>(loc, postTy, mlir::IntegerAttr::get(postTy, CI.getValue().cast<IntegerAttr>().getValue().zext(postTy.getWidth()))), /*isReference*/false);
+        }
         return ValueCategory(
             builder.create<arith::ExtUIOp>(loc, scalar, postTy),
             /*isReference*/ false);
       }
     } else {
+      if (auto CI = scalar.getDefiningOp<ConstantIntOp>()) {
+            return ValueCategory(builder.create<arith::ConstantOp>(loc, postTy, mlir::IntegerAttr::get(postTy, CI.getValue().cast<IntegerAttr>().getValue().trunc(postTy.getWidth()))), /*isReference*/false);
+      }
       return ValueCategory(builder.create<arith::TruncIOp>(loc, scalar, postTy),
                            /*isReference*/ false);
     }
