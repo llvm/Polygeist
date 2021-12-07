@@ -328,12 +328,24 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
   auto varLoc = name ? getMLIRLocation(name->getBeginLoc()) : loc;
   if (!isArray) {
     if (LLVMABI) {
-      alloc = abuilder.create<mlir::LLVM::AllocaOp>(
-          varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
-          builder.create<ConstantIntOp>(varLoc, 1, 64), 0);
-      if (t.isa<mlir::IntegerType>()) {
-        abuilder.create<LLVM::StoreOp>(
-            varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
+      if (name)
+          if (auto var = dyn_cast<VariableArrayType>(
+                  name->getType()->getUnqualifiedDesugaredType())) {
+            auto len = Visit(var->getSizeExpr()).getValue(builder);
+            alloc = builder.create<mlir::LLVM::AllocaOp>(varLoc, LLVM::LLVMPointerType::get(t, memspace), len);
+            builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
+            alloc = builder.create<mlir::LLVM::BitcastOp>(varLoc, LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 0)), alloc);
+          }
+
+      if (!alloc) {
+        alloc = abuilder.create<mlir::LLVM::AllocaOp>(
+            varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
+            builder.create<ConstantIntOp>(varLoc, 1, 64), 0);
+        if (t.isa<mlir::IntegerType>()) {
+          abuilder.create<LLVM::StoreOp>(
+              varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
+        }
+        // alloc = builder.create<mlir::LLVM::BitcastOp>(varLoc, LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 1)), alloc);
       }
     } else {
       mlir::Value idxs[] = {getConstantIndex(0)};
