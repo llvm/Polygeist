@@ -76,7 +76,6 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 include(sanitizers)
 
 add_subdirectory(include)
-add_subdirectory(mlir-clang)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(test)
