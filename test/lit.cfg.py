@@ -58,10 +58,8 @@ config.test_exec_root = os.path.join(config.polygeist_obj_root, 'test')
 llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
 
 tool_dirs = [
-    config.polygeist_tools_dir, config.mlir_tools_dir, config.llvm_tools_dir, config.polygeist_tools_dir
+    config.polygeist_tools_dir + '/tools/polygeist-opt'
 ]
-tools = [
-    'polygeist-opt', 'mlir-clang'
-]
+tools = ['polygeist-opt']
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
