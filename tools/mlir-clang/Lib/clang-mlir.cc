@@ -408,6 +408,14 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
   auto sv = Visit(expr->getSubExpr());
+  if (auto ty = getMLIRType(expr->getType()).dyn_cast<mlir::IntegerType>()) {
+      if (expr->hasAPValueResult()) {
+        return ValueCategory(
+      builder.create<ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+                                    expr->getResultAsAPSInt().getExtValue(), ty),
+      /*isReference*/ false);
+      }
+  }
   assert(sv.val);
   return sv;
 }
@@ -3597,20 +3605,25 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Sub: {
     auto lhs_v = lhs.getValue(builder);
+    auto rhs_v = rhs.getValue(builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
-      auto right = rhs.getValue(builder);
-      assert(right.getType() == lhs_v.getType());
-      return ValueCategory(builder.create<SubFOp>(loc, lhs_v, right),
+      assert(rhs_v.getType() == lhs_v.getType());
+      return ValueCategory(builder.create<SubFOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
     } else if (auto pt =
                    lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      if (auto IT = rhs_v.getType().dyn_cast<mlir::IntegerType>()) {
+          mlir::Value vals[1] = {builder.create<SubIOp>(loc, builder.create<ConstantIntOp>(loc, 0, IT.getWidth()), rhs_v)};
+        return ValueCategory(builder.create<LLVM::GEPOp>(loc, lhs_v.getType(),
+                    lhs_v, ArrayRef<mlir::Value>(vals)), false);
+      }
       return ValueCategory(
           builder.create<SubIOp>(
               loc,
               builder.create<LLVM::PtrToIntOp>(loc, getMLIRType(BO->getType()),
                                                lhs_v),
               builder.create<LLVM::PtrToIntOp>(loc, getMLIRType(BO->getType()),
-                                               rhs.getValue(builder))),
+                                               rhs_v)),
           /*isReference*/ false);
     } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
       llvm::errs() << " memref ptrtoint: " << mt << "\n";
@@ -3620,11 +3633,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
               builder.create<LLVM::PtrToIntOp>(loc, getMLIRType(BO->getType()),
                                                lhs_v),
               builder.create<LLVM::PtrToIntOp>(loc, getMLIRType(BO->getType()),
-                                               rhs.getValue(builder))),
+                                               rhs_v)),
           /*isReference*/ false);
     } else {
       return ValueCategory(
-          builder.create<SubIOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<SubIOp>(loc, lhs_v, rhs_v),
           /*isReference*/ false);
     }
   }
