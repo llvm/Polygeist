@@ -256,6 +256,7 @@ public:
   ValueCategory VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   ValueCategory VisitCallExpr(clang::CallExpr *expr);
+  ValueCategory CallHelper(mlir::FuncOp tocall, QualType objType, ArrayRef<std::pair<ValueCategory, clang::Expr*>> arguments, QualType retType, bool retReference, clang::Expr* expr);
 
   std::pair<ValueCategory, bool> EmitGPUCallExpr(clang::CallExpr *expr);
 
