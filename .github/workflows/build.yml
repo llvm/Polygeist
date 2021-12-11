@@ -1,6 +1,11 @@
 name: MLIR-GPU Test CI
 
 on: [push]
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [assigned, opened, synchronize, reopened]
 
 jobs:
   build:
@@ -35,7 +40,6 @@ jobs:
           cd /
           sudo wget --no-verbose https://github.com/cymbl/cymbl.github.io/releases/download/0.0.1/LLVM-11.0.0git-Linux.sh
           printf "y\nn\n" | sudo bash LLVM-11.0.0git-Linux.sh
-          # printf "{\"refreshToken\":\"%s\"}" "${{ secrets.SuperSecret }}" > ~/.cymblconfig
 
     - name: Cache MLIR
       id: cache-mlir
