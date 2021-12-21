@@ -7,6 +7,7 @@ set( LLVM_LINK_COMPONENTS
   InstCombine
   Instrumentation
   MC
+  IPO
   MCParser
   ObjCARCOpts
   Option
