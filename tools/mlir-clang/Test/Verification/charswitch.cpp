@@ -1,5 +1,6 @@
 // RUN: mlir-clang %s --function=foo -S | FileCheck %s
 
+extern "C" {
 int foo(char t) {
   int n = 10;
   switch (t) {
@@ -14,9 +15,10 @@ int foo(char t) {
   }
   return n;
 }
+}
 
 // TODO the select should be canonicalized better
-// CHECK:   func @foo(%arg0: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @foo(%arg0: i8) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
 // CHECK-NEXT:     %c30_i32 = arith.constant 30 : i32
 // CHECK-NEXT:     %false = arith.constant false

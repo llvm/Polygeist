@@ -1344,10 +1344,12 @@ StoreMap getLastStored(mlir::Value AI) {
           }
         }
         lastStored.insert(vec);
-      } else if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
-        lastStored.insert({});
-      } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
-        lastStored.insert({});
+      } else if (isa<LLVM::LoadOp>(U)) {
+        std::vector<ssize_t> vec;
+        lastStored.insert(vec);
+      } else if (isa<LLVM::StoreOp>(U)) {
+        std::vector<ssize_t> vec;
+        lastStored.insert(vec);
       } else if (auto SO = dyn_cast<memref::LoadOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
@@ -1419,7 +1421,6 @@ void Mem2Reg::runOnFunction() {
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
       for (auto &vec : lastStored) {
-
         LLVM_DEBUG(llvm::dbgs() << " + forwarding vec to promote {";
                    for (auto m
                         : vec) llvm::dbgs()
@@ -1462,7 +1463,8 @@ void Mem2Reg::runOnFunction() {
         list.pop_front();
 
         for (auto U : val.getUsers()) {
-          if (isa<memref::StoreOp, AffineStoreOp, memref::DeallocOp>(U)) {
+          if (isa<LLVM::StoreOp, memref::StoreOp, AffineStoreOp,
+                  memref::DeallocOp>(U)) {
             toErase.push_back(U);
           } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
             toErase.push_back(U);
