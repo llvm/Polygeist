@@ -26,12 +26,13 @@ int foo(char t) {
 // CHECK-NEXT:     %c10_i32 = arith.constant 10 : i32
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %0 = llvm.mlir.undef : i32
-// CHECK-NEXT:     switch %arg0 : i32, [
+// CHECK-NEXT:     %1 = arith.extsi %arg0 : i8 to i32
+// CHECK-NEXT:     switch %1 : i32, [
 // CHECK-NEXT:       default: ^bb1(%c10_i32, %false, %c-1_i32 : i32, i1, i32),
-// CHECK-NEXT:       1: ^bb1(%c20_i32, %true, %0 : i32, i1, i32),
-// CHECK-NEXT:       2: ^bb1(%c30_i32, %true, %0 : i32, i1, i32)
+// CHECK-NEXT:       97: ^bb1(%c20_i32, %true, %0 : i32, i1, i32),
+// CHECK-NEXT:       65: ^bb1(%c30_i32, %true, %0 : i32, i1, i32)
 // CHECK-NEXT:     ]
-// CHECK-NEXT:   ^bb1(%1: i32, %2: i1, %3: i32):  // 3 preds: ^bb0, ^bb0, ^bb0
-// CHECK-NEXT:     %4 = select %2, %1, %3 : i32
-// CHECK-NEXT:     return %4 : i32
+// CHECK-NEXT:   ^bb1(%2: i32, %3: i1, %4: i32):  // 3 preds: ^bb0, ^bb0, ^bb0
+// CHECK-NEXT:     %5 = select %3, %2, %4 : i32
+// CHECK-NEXT:     return %5 : i32
 // CHECK-NEXT:   }
