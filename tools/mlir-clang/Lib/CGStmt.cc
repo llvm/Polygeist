@@ -650,6 +650,13 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     }
   }
 
+  if (caseVals.size() == 0) {
+      delete &exitB;
+      er.erase();
+      builder.setInsertionPoint(oldblock2, oldpoint2);
+      return nullptr;
+  }
+
   if (inCase)
     loops.pop_back();
   builder.create<mlir::BranchOp>(loc, &exitB);
