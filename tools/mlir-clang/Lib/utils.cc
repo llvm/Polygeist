@@ -19,7 +19,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 #include "clang/AST/Expr.h"
@@ -28,10 +28,9 @@ using namespace mlir;
 using namespace llvm;
 using namespace clang;
 
-Operation *mlirclang::buildLinalgOp(const AbstractOperation *op, OpBuilder &b,
-                                    SmallVectorImpl<mlir::Value> &input,
-                                    SmallVectorImpl<mlir::Value> &output) {
-  StringRef name = op->name;
+Operation *buildLinalgOp(StringRef name, OpBuilder &b,
+                         SmallVectorImpl<mlir::Value> &input,
+                         SmallVectorImpl<mlir::Value> &output) {
   if (name.compare("linalg.copy") == 0) {
     assert(input.size() == 1 && "linalg::copyOp requires 1 input");
     assert(output.size() == 1 && "linalg::CopyOp requires 1 output");
@@ -50,13 +49,11 @@ mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
   assert(ctx->isOperationRegistered(opName) &&
          "Provided lower_to opName should be registered.");
 
-  const AbstractOperation *op = AbstractOperation::lookup(opName, ctx);
-
   if (opName.startswith("linalg"))
-    return buildLinalgOp(op, b, input, output);
+    return buildLinalgOp(opName, b, input, output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.
-  OperationState opState(b.getUnknownLoc(), op->name, input,
+  OperationState opState(b.getUnknownLoc(), opName, input,
                          f.getCallableResults(), {});
   return b.createOperation(opState);
 }

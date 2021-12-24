@@ -557,7 +557,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       return failure();
     }
 
-    BlockArgument indVar = cmpIOp.lhs().dyn_cast<BlockArgument>();
+    BlockArgument indVar = cmpIOp.getLhs().dyn_cast<BlockArgument>();
     if (!indVar)
       return failure();
     if (indVar.getOwner() != &loop.before().front())
@@ -608,11 +608,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
           loop.getLoc(), loop.getOperand(indVar.getArgNumber()),
           rewriter.create<ConstantIntOp>(loop.getLoc(), 1, indVar.getType()));
 
-    if (isBlockArg(cmpIOp.rhs()) || dominateWhile(cmpIOp.rhs(), loop)) {
+    if (isBlockArg(cmpIOp.getRhs()) || dominateWhile(cmpIOp.getRhs(), loop)) {
       switch (cmpIOp.getPredicate()) {
       case CmpIPredicate::slt:
       case CmpIPredicate::ult: {
-        loopInfo.ub = cmpIOp.rhs();
+        loopInfo.ub = cmpIOp.getRhs();
         break;
       }
       case CmpIPredicate::ule:
@@ -620,13 +620,14 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         // TODO: f32 likely not always true.
         auto one =
             rewriter.create<ConstantIntOp>(loop.getLoc(), 1, indVar.getType());
-        auto addIOp = rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
+        auto addIOp =
+            rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.ub = addIOp.getResult();
         break;
       }
       case CmpIPredicate::uge:
       case CmpIPredicate::sge: {
-        loopInfo.lb = cmpIOp.rhs();
+        loopInfo.lb = cmpIOp.getRhs();
         break;
       }
 
@@ -635,7 +636,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
         // TODO: f32 likely not always true.
         auto one =
             rewriter.create<ConstantIntOp>(loop.getLoc(), 1, indVar.getType());
-        auto addIOp = rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.rhs(), one);
+        auto addIOp =
+            rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.lb = addIOp.getResult();
         break;
       }
@@ -647,12 +649,12 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     } else {
       if (negativeStep)
         return failure();
-      auto *op = cmpIOp.rhs().getDefiningOp();
+      auto *op = cmpIOp.getRhs().getDefiningOp();
       if (!op || !canMoveOpOutsideWhile(op, loop) || (op->getNumResults() != 1))
         return failure();
       auto newOp = rewriter.clone(*op);
       loopInfo.ub = newOp->getResult(0);
-      cmpIOp.rhs().replaceAllUsesWith(newOp->getResult(0));
+      cmpIOp.getRhs().replaceAllUsesWith(newOp->getResult(0));
     }
 
     if ((!loopInfo.ub) || (!loopInfo.lb) || (!step))
@@ -683,7 +685,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       Type cst = nullptr;
       if (auto idx = arg.getDefiningOp<IndexCastOp>()) {
         cst = idx.getType();
-        arg = idx.in();
+        arg = idx.getIn();
       }
       Value res;
       if (isTopLevelArgValue(arg, &loop.before())) {
@@ -1048,13 +1050,12 @@ struct WhileLogicalNegation : public OpRewritePattern<WhileOp> {
       for (auto pair : llvm::zip(op.getResults(), term.args(), origAfterArgs)) {
         if (!std::get<0>(pair).use_empty()) {
           if (auto termCmp = std::get<1>(pair).getDefiningOp<CmpIOp>()) {
-            if (termCmp.lhs() == condCmp.lhs() &&
-                termCmp.rhs() == condCmp.rhs()) {
+            if (termCmp.getLhs() == condCmp.getLhs() &&
+                termCmp.getRhs() == condCmp.getRhs()) {
               // TODO generalize to logical negation of
               if (condCmp.getPredicate() == CmpIPredicate::slt &&
                   termCmp.getPredicate() == CmpIPredicate::sge) {
 
-                auto i1Ty = rewriter.getIntegerType(1);
                 rewriter.updateRootInPlace(op, [&] {
                   rewriter.setInsertionPoint(op);
                   auto truev =
@@ -1086,7 +1087,7 @@ struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
     assert(origAfterArgs.size() == term.args().size());
 
     if (auto condCmp = term.condition().getDefiningOp<CmpIOp>()) {
-      if (auto addI = condCmp.lhs().getDefiningOp<AddIOp>()) {
+      if (auto addI = condCmp.getLhs().getDefiningOp<AddIOp>()) {
         if (addI.getOperand(1).getDefiningOp() &&
             !op.before().isAncestor(
                 addI.getOperand(1).getDefiningOp()->getParentRegion()))
@@ -1368,8 +1369,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
           auto rep =
               op.after().front().addArgument(IC->getOperand(0).getType());
           IC->moveBefore(&op.after().front(), op.after().front().begin());
-          conds.push_back(IC.in());
-          IC.inMutable().assign(rep);
+          conds.push_back(IC.getIn());
+          IC.getInMutable().assign(rep);
           op.after().front().getArgument(i).replaceAllUsesWith(
               IC->getResult(0));
           changed = true;

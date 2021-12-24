@@ -28,7 +28,7 @@
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/Linalg/IR/LinalgOps.h"
+#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -388,6 +388,8 @@ int main(int argc, char **argv) {
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
+  LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
+      context);
 
   if (showDialects) {
     outs() << "Registered Dialects:\n";

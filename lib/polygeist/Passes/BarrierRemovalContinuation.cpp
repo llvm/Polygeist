@@ -247,7 +247,7 @@ replicateIntoRegion(Region &region, Value storage, ValueRange ivs,
       if (auto branch = dyn_cast<BranchOp>(&op)) {
         // if (!blocks.contains(branch.dest())) {
         if (isa_and_nonnull<polygeist::BarrierOp>(branch->getPrevNode())) {
-          auto it = llvm::find(subgraphEntryPoints, branch.dest());
+          auto it = llvm::find(subgraphEntryPoints, branch.getDest());
           assert(it != subgraphEntryPoints.end());
           emitStoreContinuationID(
               branch.getLoc(), std::distance(subgraphEntryPoints.begin(), it),
