@@ -587,13 +587,13 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 
       auto cval = Visit(cses->getLHS());
       if (!cval.val) {
-          cses->getLHS()->dump();
+        cses->getLHS()->dump();
       }
       assert(cval.val);
       auto cint = cval.getValue(builder).getDefiningOp<ConstantIntOp>();
       if (!cint) {
-          cses->getLHS()->dump();
-          llvm::errs() << "cval: " << cval.val << "\n";
+        cses->getLHS()->dump();
+        llvm::errs() << "cval: " << cval.val << "\n";
       }
       assert(cint);
       caseVals.push_back(cint.value());
