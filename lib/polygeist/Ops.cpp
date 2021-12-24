@@ -251,7 +251,7 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp op,
                                 PatternRewriter &rewriter) const override {
-    auto srcOp = dyn_cast<SubIndexOp>(op.source().getDefiningOp());
+    auto srcOp = op.source().getDefiningOp<SubIndexOp>();
     if (!srcOp)
       return failure();
 
@@ -288,7 +288,7 @@ public:
     }
 
     // Check that we're indexing into the 0'th index in the 2nd subindex op
-    auto constIdx = dyn_cast<arith::ConstantOp>(op.index().getDefiningOp());
+    auto constIdx = op.index().getDefiningOp<arith::ConstantOp>();
     if (!constIdx)
       return failure();
     auto constValue = constIdx.value().dyn_cast<IntegerAttr>();
