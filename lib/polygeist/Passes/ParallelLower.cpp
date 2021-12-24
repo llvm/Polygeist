@@ -171,7 +171,7 @@ void ParallelLower::runOnOperation() {
   symbolTable.getSymbolTable(getOperation());
 
   getOperation()->walk([&](mlir::CallOp bidx) {
-    if (bidx.callee() == "cudaThreadSynchronize")
+    if (bidx.getCallee() == "cudaThreadSynchronize")
       bidx.erase();
   });
 
@@ -300,7 +300,7 @@ void ParallelLower::runOnOperation() {
         bz.setInsertionPointToStart(blockB);
         auto newAlloca = bz.create<LLVM::AllocaOp>(
             alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
-            alop.arraySize());
+            alop.getArraySize());
         alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
             alop.getLoc(), PT, newAlloca));
         alop.erase();
@@ -394,7 +394,7 @@ void ParallelLower::runOnOperation() {
     });
 
     container.walk([&](LLVM::CallOp call) {
-      if (call.callee().getValue() == "cudaMemcpy") {
+      if (call.getCallee().getValue() == "cudaMemcpy") {
         OpBuilder bz(call);
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
@@ -404,7 +404,7 @@ void ParallelLower::runOnOperation() {
             bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
         call.erase();
       }
-      if (call.callee().getValue() == "cudaMemset") {
+      if (call.getCallee().getValue() == "cudaMemset") {
         OpBuilder bz(call);
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
@@ -414,7 +414,7 @@ void ParallelLower::runOnOperation() {
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-      if (call.callee().getValue() == "cudaMalloc") {
+      if (call.getCallee().getValue() == "cudaMalloc") {
 
         Value vals[] = {call.getOperand(0)};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));

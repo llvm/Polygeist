@@ -2146,6 +2146,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "memmove" ||
+           sr->getDecl()->getName() == "__builtin_memmove")) {
+        std::vector<mlir::Value> args = {
+            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
+            getLLVM(expr->getArg(2)), /*isVolatile*/
+            builder.create<ConstantIntOp>(loc, false, 1)};
+        builder.create<LLVM::MemmoveOp>(loc, args[0], args[1], args[2],
+                                        args[3]);
+        return ValueCategory(args[0], /*isReference*/ false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
            sr->getDecl()->getName() == "memcpy" ||

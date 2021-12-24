@@ -42,11 +42,6 @@ replaceFuncByOperation(mlir::FuncOp f, llvm::StringRef opName,
                        mlir::OpBuilder &b,
                        llvm::SmallVectorImpl<mlir::Value> &input,
                        llvm::SmallVectorImpl<mlir::Value> &output);
-
-mlir::Operation *buildLinalgOp(const mlir::AbstractOperation *op,
-                               mlir::OpBuilder &b,
-                               llvm::SmallVectorImpl<mlir::Value> &input,
-                               llvm::SmallVectorImpl<mlir::Value> &output);
 } // namespace mlirclang
 
 #endif

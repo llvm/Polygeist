@@ -297,7 +297,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
         }
         if (auto storeOp = dyn_cast<LLVM::StoreOp>(user)) {
-          if (storeOp.addr() == val) {
+          if (storeOp.getAddr() == val) {
             LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
             allStoreOps.insert(storeOp);
             continue;
@@ -319,14 +319,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         }
       }
       if (auto callOp = dyn_cast<mlir::CallOp>(user)) {
-        if (callOp.callee() != "free") {
+        if (callOp.getCallee() != "free") {
           LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << callOp << "\n");
           AliasingStoreOperations.insert(callOp);
           captured = true;
         }
       }
       if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(user)) {
-        if (*callOp.callee() != "free") {
+        if (*callOp.getCallee() != "free") {
           LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << callOp << "\n");
           AliasingStoreOperations.insert(callOp);
           captured = true;
@@ -722,7 +722,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             }
           } else if (auto storeOp = dyn_cast<LLVM::StoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
-              lastVal = storeOp.value();
+              lastVal = storeOp.getValue();
               seenSubStore = false;
             }
           } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
@@ -975,15 +975,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         op.erase();
       } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder builder(op.getOperation());
-        SmallVector<Value> defaultOps(op.defaultOperands().begin(),
-                                      op.defaultOperands().end());
+        SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
+                                      op.getDefaultOperands().end());
 
-        if (op.defaultDestination() == block)
+        if (op.getDefaultDestination() == block)
           defaultOps.push_back(pval);
 
         SmallVector<SmallVector<Value>> cases;
         SmallVector<ValueRange> vrange;
-        for (auto pair : llvm::enumerate(op.caseDestinations())) {
+        for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
           cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
                              op.getCaseOperands(pair.index()).end());
           if (pair.value() == block) {
@@ -992,8 +992,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           vrange.push_back(cases.back());
         }
         builder.create<mlir::SwitchOp>(
-            op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
-            op.case_valuesAttr(), op.caseDestinations(), vrange);
+            op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
+            op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
         op.erase();
       } else {
         llvm_unreachable("unknown pred branch");
@@ -1064,12 +1064,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
         } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
-          if (op.defaultDestination() == block) {
-            pval = op.defaultOperands()[blockArg.getArgNumber()];
+          if (op.getDefaultDestination() == block) {
+            pval = op.getDefaultOperands()[blockArg.getArgNumber()];
             if (pval == blockArg)
               pval = nullptr;
           }
-          for (auto pair : llvm::enumerate(op.caseDestinations())) {
+          for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
             if (pair.value() == block) {
               auto pval2 =
                   op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
@@ -1210,14 +1210,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             op.erase();
           } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
             mlir::OpBuilder builder(op.getOperation());
-            SmallVector<Value> defaultOps(op.defaultOperands().begin(),
-                                          op.defaultOperands().end());
-            if (op.defaultDestination() == block)
+            SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
+                                          op.getDefaultOperands().end());
+            if (op.getDefaultDestination() == block)
               defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
 
             SmallVector<SmallVector<Value>> cases;
             SmallVector<ValueRange> vrange;
-            for (auto pair : llvm::enumerate(op.caseDestinations())) {
+            for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
               cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
                                  op.getCaseOperands(pair.index()).end());
               if (pair.value() == block) {
@@ -1226,9 +1226,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               }
               vrange.push_back(cases.back());
             }
-            builder.create<mlir::SwitchOp>(
-                op.getLoc(), op.flag(), op.defaultDestination(), defaultOps,
-                op.case_valuesAttr(), op.caseDestinations(), vrange);
+            builder.create<mlir::SwitchOp>(op.getLoc(), op.getFlag(),
+                                           op.getDefaultDestination(),
+                                           defaultOps, op.getCaseValuesAttr(),
+                                           op.getCaseDestinations(), vrange);
             op.erase();
           }
         }
@@ -1295,7 +1296,7 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
-      } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
+      } else if (isa<CallOp>(U) && cast<CallOp>(U).getCallee() == "free") {
         continue;
       } else if (isa<CallOp>(U)) {
         // TODO check "no capture", currently assume as a fallback always
@@ -1466,7 +1467,7 @@ void Mem2Reg::runOnFunction() {
           if (isa<LLVM::StoreOp, memref::StoreOp, AffineStoreOp,
                   memref::DeallocOp>(U)) {
             toErase.push_back(U);
-          } else if (isa<CallOp>(U) && cast<CallOp>(U).callee() == "free") {
+          } else if (isa<CallOp>(U) && cast<CallOp>(U).getCallee() == "free") {
             toErase.push_back(U);
           } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
             toErase.push_back(U);

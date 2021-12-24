@@ -714,17 +714,17 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
             SmallVectorImpl<bool> &eqflags, SmallVectorImpl<Value> &applies) {
   AffineMap lhsmap =
       AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
-  if (!isValidIndex(cmpi.lhs())) {
+  if (!isValidIndex(cmpi.getLhs())) {
     LLVM_DEBUG(llvm::dbgs()
-               << "illegal lhs: " << cmpi.lhs() << " - " << cmpi << "\n");
+               << "illegal lhs: " << cmpi.getLhs() << " - " << cmpi << "\n");
     return false;
   }
-  if (!isValidIndex(cmpi.rhs())) {
+  if (!isValidIndex(cmpi.getRhs())) {
     LLVM_DEBUG(llvm::dbgs()
-               << "illegal rhs: " << cmpi.rhs() << " - " << cmpi << "\n");
+               << "illegal rhs: " << cmpi.getRhs() << " - " << cmpi << "\n");
     return false;
   }
-  SmallVector<Value, 4> lhspack = {cmpi.lhs()};
+  SmallVector<Value, 4> lhspack = {cmpi.getLhs()};
   if (!lhspack[0].getType().isa<IndexType>()) {
     auto op = b.create<IndexCastOp>(cmpi.getLoc(), lhspack[0],
                                     IndexType::get(cmpi.getContext()));
@@ -733,7 +733,7 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
 
   AffineMap rhsmap =
       AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
-  SmallVector<Value, 4> rhspack = {cmpi.rhs()};
+  SmallVector<Value, 4> rhspack = {cmpi.getRhs()};
   if (!rhspack[0].getType().isa<IndexType>()) {
     auto op = b.create<IndexCastOp>(cmpi.getLoc(), rhspack[0],
                                     IndexType::get(cmpi.getContext()));
