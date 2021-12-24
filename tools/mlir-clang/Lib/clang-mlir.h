@@ -350,7 +350,8 @@ public:
                                   mlir::Value val, bool isLValue);
 
   ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx,
-                                  bool isImplicitRefResult);
+                                  bool isImplicitRefResult,
+                                  bool removeIndex = true);
 
   ValueCategory CommonArrayToPointer(ValueCategory val);
 };

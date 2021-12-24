@@ -1142,7 +1142,28 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   if (decl->isTrivial() && decl->isDefaultConstructor())
     return ValueCategory(op, /*isReference*/ true);
 
+  mlir::Block::iterator oldpoint;
+  mlir::Block *oldblock;
+  ValueCategory endobj(op, /*isReference*/ true);
+
   ValueCategory obj(op, /*isReference*/ true);
+  QualType innerType = cons->getType();
+  if (auto arrayType = Glob.CGM.getContext().getAsArrayType(cons->getType())) {
+    innerType = arrayType->getElementType();
+    auto CAT = cast<clang::ConstantArrayType>(arrayType);
+    auto size = getConstantIndex(CAT->getSize().getLimitedValue());
+    auto forOp = builder.create<scf::ForOp>(loc, getConstantIndex(0), size,
+                                            getConstantIndex(1));
+    oldpoint = builder.getInsertionPoint();
+    oldblock = builder.getInsertionBlock();
+
+    builder.setInsertionPointToStart(&forOp.getLoopBody().front());
+    assert(obj.isReference);
+    obj = CommonArrayToPointer(obj);
+    obj = CommonArrayLookup(obj, forOp.getInductionVar(),
+                            /*isImplicitRef*/ false, /*removeIndex*/ false);
+    assert(obj.isReference);
+  }
 
   auto tocall = Glob.GetOrCreateMLIRFunction(cons->getConstructor());
 
@@ -1150,9 +1171,13 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   args.emplace_back(make_pair(obj, (clang::Expr *)nullptr));
   for (auto a : cons->arguments())
     args.push_back(make_pair(Visit(a), a));
-  CallHelper(tocall, cons->getType(), args,
+  CallHelper(tocall, innerType, args,
              /*retType*/ Glob.CGM.getContext().VoidTy, false, cons);
-  return ValueCategory(op, /*isReference*/ true);
+
+  if (Glob.CGM.getContext().getAsArrayType(cons->getType())) {
+    builder.setInsertionPoint(oldblock, oldpoint);
+  }
+  return endobj;
 }
 
 ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
@@ -1195,7 +1220,8 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
 
 ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
                                              mlir::Value idx,
-                                             bool isImplicitRefResult) {
+                                             bool isImplicitRefResult,
+                                             bool removeIndex) {
   mlir::Value val = array.getValue(builder);
   assert(val);
 
@@ -1229,6 +1255,8 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
     dref = ValueCategory(post, /*isReference*/ true);
   }
   assert(dref.isReference);
+  if (!removeIndex)
+    return dref;
 
   auto mt = dref.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(mt.getShape());
