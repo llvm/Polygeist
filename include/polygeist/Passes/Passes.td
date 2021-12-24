@@ -10,7 +10,7 @@ def AffineCFG : FunctionPass<"affine-cfg"> {
 
 def Mem2Reg : FunctionPass<"mem2reg"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::polygeist::replaceAffineCFGPass()";
+  let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
