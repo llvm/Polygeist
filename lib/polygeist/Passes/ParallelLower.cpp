@@ -292,20 +292,19 @@ void ParallelLower::runOnOperation() {
           alop.erase();
         }
     });
-    
+
     container.walk([&](mlir::LLVM::AllocaOp alop) {
       auto PT = alop.getType().cast<LLVM::LLVMPointerType>();
       if (PT.getAddressSpace() == 5) {
-          mlir::OpBuilder bz(launchOp.getContext());
-          bz.setInsertionPointToStart(blockB);
-          auto newAlloca = bz.create<LLVM::AllocaOp>(
-              alop.getLoc(),
-              LLVM::LLVMPointerType::get(PT.getElementType(), 0),
-              alop.arraySize());
-          alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
-              alop.getLoc(), PT, newAlloca));
-          alop.erase();
-        }
+        mlir::OpBuilder bz(launchOp.getContext());
+        bz.setInsertionPointToStart(blockB);
+        auto newAlloca = bz.create<LLVM::AllocaOp>(
+            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
+            alop.arraySize());
+        alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
+            alop.getLoc(), PT, newAlloca));
+        alop.erase();
+      }
     });
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {

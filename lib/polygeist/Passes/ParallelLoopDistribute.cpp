@@ -731,8 +731,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
             std::vector<int64_t> shape(mt0.getShape());
             shape.erase(shape.begin());
             auto mt = MemRefType::get(shape, mt0.getElementType(),
-                                      MemRefLayoutAttrInterface(), 
-                                      //mt0.getLayout(),
+                                      MemRefLayoutAttrInterface(),
+                                      // mt0.getLayout(),
                                       mt0.getMemorySpace());
             auto subidx = rewriter.create<polygeist::SubIndexOp>(alloc.getLoc(),
                                                                  mt, buf, idx);
@@ -943,9 +943,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass() = default;
-  CPUifyPass(StringRef method) {
-    this->method.setValue(method.str());
-  }
+  CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
   void runOnFunction() override {
     if (method == "distribute") {
       OwningRewritePatternList patterns(&getContext());

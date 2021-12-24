@@ -349,7 +349,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           // If op causes EffectType on a potentially aliasing location for
           // memOp, mark as having the effect.
           if (isa<MemoryEffects::Write>(effect.getEffect())) {
-            if (effect.getValue() && (effect.getValue().getDefiningOp<memref::AllocaOp>() ||
+            if (effect.getValue() &&
+                (effect.getValue().getDefiningOp<memref::AllocaOp>() ||
                  effect.getValue().getDefiningOp<memref::AllocOp>())) {
               if (effect.getValue() != AI)
                 continue;

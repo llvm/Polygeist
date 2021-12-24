@@ -645,25 +645,29 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       attemptToFoldIntoPredecessor(wrapper);
       attemptToFoldIntoPredecessor(target);
       if (loop.before().getBlocks().size() != 1) {
-          Block* blk = new Block();
-          OpBuilder B(loop.getContext());
-          B.setInsertionPointToEnd(blk);
-          auto cop = cast<scf::ConditionOp>(loop.before().getBlocks().back().back());
-          auto er = B.create<scf::ExecuteRegionOp>(loop.getLoc(), cop.getOperandTypes());
-          er.region().getBlocks().splice(er.region().getBlocks().begin(), loop.before().getBlocks());
-          loop.before().push_back(blk);
-          SmallVector<Value> yields;
-          for(auto a : er.getResults()) yields.push_back(a);
-          yields.erase(yields.begin());
-          B.create<scf::ConditionOp>(cop.getLoc(), er.getResult(0), yields);
-          B.setInsertionPoint(&*cop);
-          for(auto arg : er.region().front().getArguments()) {
-            auto na = blk->addArgument(arg.getType());
-            arg.replaceAllUsesWith(na);
-          }
-          er.region().front().eraseArguments([](BlockArgument){ return true; });
-          B.create<scf::YieldOp>(cop.getLoc(), cop.getOperands());
-          cop.erase();
+        Block *blk = new Block();
+        OpBuilder B(loop.getContext());
+        B.setInsertionPointToEnd(blk);
+        auto cop =
+            cast<scf::ConditionOp>(loop.before().getBlocks().back().back());
+        auto er = B.create<scf::ExecuteRegionOp>(loop.getLoc(),
+                                                 cop.getOperandTypes());
+        er.region().getBlocks().splice(er.region().getBlocks().begin(),
+                                       loop.before().getBlocks());
+        loop.before().push_back(blk);
+        SmallVector<Value> yields;
+        for (auto a : er.getResults())
+          yields.push_back(a);
+        yields.erase(yields.begin());
+        B.create<scf::ConditionOp>(cop.getLoc(), er.getResult(0), yields);
+        B.setInsertionPoint(&*cop);
+        for (auto arg : er.region().front().getArguments()) {
+          auto na = blk->addArgument(arg.getType());
+          arg.replaceAllUsesWith(na);
+        }
+        er.region().front().eraseArguments([](BlockArgument) { return true; });
+        B.create<scf::YieldOp>(cop.getLoc(), cop.getOperands());
+        cop.erase();
       }
       assert(loop.before().getBlocks().size() == 1);
       runOnRegion(domInfo, loop.after());
