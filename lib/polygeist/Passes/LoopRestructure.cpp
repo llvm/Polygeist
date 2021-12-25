@@ -505,8 +505,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           if (successor == target) {
 
             OpBuilder builder(terminator);
-            auto vfalse = builder.create<mlir::ConstantOp>(
-                builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 0));
+            auto vfalse = builder.create<arith::ConstantIntOp>(
+                builder.getUnknownLoc(), false, 1);
 
             std::vector<Value> args = {vfalse};
             for (auto arg : header->getArguments())
@@ -557,8 +557,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           if (successor == header) {
 
             OpBuilder builder(terminator);
-            auto vtrue = builder.create<mlir::ConstantOp>(
-                builder.getUnknownLoc(), i1Ty, builder.getIntegerAttr(i1Ty, 1));
+            auto vtrue = builder.create<arith::ConstantIntOp>(
+                builder.getUnknownLoc(), true, 1);
 
             if (auto op = dyn_cast<BranchOp>(terminator)) {
               std::vector<Value> args(op.getOperands().begin(),

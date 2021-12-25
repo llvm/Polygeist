@@ -1157,7 +1157,8 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
         // TODO generalize to any non memory effecting op
         if (auto idx =
                 std::get<1>(pair).getDefiningOp<MemoryEffectOpInterface>()) {
-          if (idx.hasNoEffect()) {
+          if (idx.hasNoEffect() &&
+              !llvm::is_contained(newOps, std::get<1>(pair))) {
             Operation *cloned = std::get<1>(pair).getDefiningOp();
             if (!std::get<1>(pair).hasOneUse()) {
               cloned = std::get<1>(pair).getDefiningOp()->clone();
