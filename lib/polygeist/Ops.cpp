@@ -255,51 +255,23 @@ public:
     if (!srcOp)
       return failure();
 
+    auto preMemRefType = srcOp.source().getType().cast<MemRefType>();
     auto srcMemRefType = op.source().getType().cast<MemRefType>();
     auto resMemRefType = op.result().getType().cast<MemRefType>();
-
-    // Check if there are multiple users of the dynamically sized memory
-    if (!op.source().hasOneUse())
-      return failure();
-
-    // Check that the source op indeed is a dynamically indexed memory in the
-    // 0'th index.
-    if (srcMemRefType.getShape()[0] != -1)
-      return failure();
 
     // Check that this is indeed a rank reducing operation
     if (srcMemRefType.getShape().size() !=
         (resMemRefType.getShape().size() + 1))
       return failure();
 
-    // Check that there is not a downstream cast of subindex result. This is a
-    // bit dubious, but allowing cast canonicalizations - when possible - to
-    // convert subindexes will ultimately result in fewer memref.subview
-    // operations to be inferred.
-    for (auto user : op.getResult().getUsers()) {
-      if (isa<memref::CastOp>(user))
-        return failure();
-    }
-
-    for (auto it : llvm::zip(srcMemRefType.getShape().drop_front(),
-                             resMemRefType.getShape())) {
-      if (std::get<0>(it) != std::get<1>(it))
-        return failure();
-    }
-
-    // Check that we're indexing into the 0'th index in the 2nd subindex op
-    auto constIdx = op.index().getDefiningOp<arith::ConstantOp>();
-    if (!constIdx)
-      return failure();
-    auto constValue = constIdx.getValue().dyn_cast<IntegerAttr>();
-    if (!constValue || !constValue.getType().isa<IndexType>() ||
-        constValue.getValue().getZExtValue() != 0)
+    // Check that the previous op is the same rank.
+    if (srcMemRefType.getShape().size() != preMemRefType.getShape().size())
       return failure();
 
     // Valid optimization target; perform the substitution.
-    rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.result().getType(),
-                                            srcOp.source(), srcOp.index());
-    rewriter.eraseOp(srcOp);
+    rewriter.replaceOpWithNewOp<SubIndexOp>(
+        op, op.result().getType(), srcOp.source(),
+        rewriter.create<arith::AddIOp>(op.getLoc(), op.index(), srcOp.index()));
     return success();
   }
 };
@@ -708,10 +680,10 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
 
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
-  results
-      .insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2, SubToCast,
-              SimplifySubViewUsers, SimplifySubIndexUsers, SelectOfCast,
-              SelectOfSubIndex, SubToSubView, RedundantDynSubIndex>(context);
+  results.insert<CastOfSubIndex, SubIndexOpMemRefCastFolder, SubIndex2,
+                 SubToCast, SimplifySubViewUsers, SimplifySubIndexUsers,
+                 SelectOfCast, SelectOfSubIndex, RedundantDynSubIndex>(context);
+  // Disabled: SubToSubView
 }
 
 /// Simplify memref2pointer(cast(x)) to memref2pointer(x)

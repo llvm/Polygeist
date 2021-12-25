@@ -351,7 +351,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       if (!alloc) {
         alloc = abuilder.create<mlir::LLVM::AllocaOp>(
             varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
-            builder.create<ConstantIntOp>(varLoc, 1, 64), 0);
+            abuilder.create<ConstantIntOp>(varLoc, 1, 64), 0);
         if (t.isa<mlir::IntegerType>()) {
           abuilder.create<LLVM::StoreOp>(
               varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
@@ -360,12 +360,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         // LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 1)), alloc);
       }
     } else {
-      mlir::Value idxs[] = {getConstantIndex(0)};
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
       if (t.isa<mlir::IntegerType>()) {
+        mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
             varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
             idxs);
@@ -3509,17 +3509,25 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_NE: {
     auto lhs_v = lhs.getValue(builder);
+    auto rhs_v = rhs.getValue(builder);
+    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      lhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
+    }
+    if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      rhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), rhs_v);
+    }
     mlir::Value res;
     if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res = builder.create<arith::CmpFOp>(loc, CmpFPredicate::UNE, lhs_v,
-                                          rhs.getValue(builder));
+      res =
+          builder.create<arith::CmpFOp>(loc, CmpFPredicate::UNE, lhs_v, rhs_v);
     } else if (auto pt =
                    lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       res = builder.create<LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::ne,
-                                         lhs_v, rhs.getValue(builder));
+                                         lhs_v, rhs_v);
     } else {
-      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::ne, lhs_v,
-                                          rhs.getValue(builder));
+      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::ne, lhs_v, rhs_v);
     }
     return fixInteger(res);
   }
@@ -3603,6 +3611,14 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   case clang::BinaryOperator::Opcode::BO_Sub: {
     auto lhs_v = lhs.getValue(builder);
     auto rhs_v = rhs.getValue(builder);
+    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      lhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
+    }
+    if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      rhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), rhs_v);
+    }
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       assert(rhs_v.getType() == lhs_v.getType());
       return ValueCategory(builder.create<SubFOp>(loc, lhs_v, rhs_v),
@@ -3617,15 +3633,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                                         ArrayRef<mlir::Value>(vals)),
             false);
       }
-      return ValueCategory(
-          builder.create<SubIOp>(loc,
-                                 builder.create<LLVM::PtrToIntOp>(
-                                     loc, getMLIRType(BO->getType()), lhs_v),
-                                 builder.create<LLVM::PtrToIntOp>(
-                                     loc, getMLIRType(BO->getType()), rhs_v)),
-          /*isReference*/ false);
-    } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
-      llvm::errs() << " memref ptrtoint: " << mt << "\n";
       return ValueCategory(
           builder.create<SubIOp>(loc,
                                  builder.create<LLVM::PtrToIntOp>(
