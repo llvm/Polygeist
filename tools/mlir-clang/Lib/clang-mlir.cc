@@ -4151,7 +4151,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     if (auto opt = se.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto pt = getMLIRType(E->getType()).cast<mlir::LLVM::LLVMPointerType>();
+      auto nt = getMLIRType(E->getType());
+      auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
+      if (!pt) {
+        return ValueCategory(
+            builder.create<polygeist::Pointer2MemrefOp>(loc, nt, se.val),
+            se.isReference);
+      }
       if (se.isReference)
         pt = mlir::LLVM::LLVMPointerType::get(pt, opt.getAddressSpace());
       auto nval = builder.create<mlir::LLVM::BitcastOp>(loc, pt, se.val);
