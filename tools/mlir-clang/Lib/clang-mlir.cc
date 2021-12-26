@@ -3881,7 +3881,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   if (rd->isUnion() ||
       (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                 CXRD->getDefinition()->getNumBases() > 0)) ||
-      recursive || ST->isPacked() ||
+      recursive || 
       (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                             ST->getName() == "struct._IO_FILE" ||
                             ST->getName() == "class.std::basic_ifstream" ||
@@ -5428,7 +5428,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT->getDecl()->isUnion() ||
         (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                   CXRD->getDefinition()->getNumBases() > 0)) ||
-        recursive || ST->isPacked() ||
+        recursive || 
         (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
                               ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
