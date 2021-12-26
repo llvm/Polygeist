@@ -19,11 +19,11 @@ double kernel_deriche(int x, float y) {
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(memref<?xf32>, i32)> : (i64) -> !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     %2 = memref.alloca() : memref<1xf32>
 // CHECK-NEXT:     affine.store %arg1, %2[0] : memref<1xf32>
-// CHECK-NEXT:     %3 = llvm.getelementptr %1[%c0_i32, %c1_i32] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>, i32, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %arg0, %3 : !llvm.ptr<i32>
-// CHECK-NEXT:     %4 = memref.cast %2 : memref<1xf32> to memref<?xf32>
-// CHECK-NEXT:     %5 = llvm.getelementptr %1[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>, i32, i32) -> !llvm.ptr<memref<?xf32>>
-// CHECK-NEXT:     llvm.store %4, %5 : !llvm.ptr<memref<?xf32>>
+// CHECK-NEXT:     %3 = memref.cast %2 : memref<1xf32> to memref<?xf32>
+// CHECK-NEXT:     %4 = llvm.getelementptr %1[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>, i32, i32) -> !llvm.ptr<memref<?xf32>>
+// CHECK-NEXT:     llvm.store %3, %4 : !llvm.ptr<memref<?xf32>>
+// CHECK-NEXT:     %5 = llvm.getelementptr %1[%c0_i32, %c1_i32] : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %arg0, %5 : !llvm.ptr<i32>
 // CHECK-NEXT:     %6 = llvm.load %1 : !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     llvm.store %6, %0 : !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     call @_ZZ14kernel_dericheENK3$_0clEv(%0) : (!llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>) -> ()
