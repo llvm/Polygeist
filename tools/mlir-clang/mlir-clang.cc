@@ -390,6 +390,10 @@ int main(int argc, char **argv) {
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
   LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
       context);
+  LLVM::LLVMPointerType::attachInterface<
+      PtrElementModel<LLVM::LLVMPointerType>>(context);
+  LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
+      context);
 
   if (showDialects) {
     outs() << "Registered Dialects:\n";

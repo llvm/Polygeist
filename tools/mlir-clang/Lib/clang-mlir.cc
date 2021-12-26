@@ -859,10 +859,10 @@ MLIRScanner::VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr) {
 
 ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
 
-  llvm::DenseMap<const VarDecl *, FieldDecl *> InnerCaptures;
-  FieldDecl *ThisCapture = nullptr;
+  // llvm::DenseMap<const VarDecl *, FieldDecl *> InnerCaptures;
+  // FieldDecl *ThisCapture = nullptr;
 
-  expr->getLambdaClass()->getCaptureFields(InnerCaptures, ThisCapture);
+  // expr->getLambdaClass()->getCaptureFields(InnerCaptures, ThisCapture);
 
   bool LLVMABI = false;
   mlir::Type t = Glob.getMLIRType(expr->getCallOperator()->getThisType());
@@ -884,20 +884,24 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
   }
   auto op = createAllocOp(t, nullptr, /*memtype*/ 0, isArray, LLVMABI);
 
-  llvm::DenseMap<const VarDecl *, LambdaCaptureKind> InnerCaptureKinds;
-  for (auto C : expr->getLambdaClass()->captures()) {
-    if (C.capturesVariable()) {
-      InnerCaptureKinds[C.getCapturedVar()] = C.getCaptureKind();
-    }
-  }
+  for (auto tup : llvm::zip(expr->getLambdaClass()->captures(),
+                            expr->getLambdaClass()->fields())) {
+    auto C = std::get<0>(tup);
+    auto field = std::get<1>(tup);
+    if (C.capturesThis())
+      continue;
+    else if (!C.capturesVariable())
+      continue;
 
-  for (auto pair : InnerCaptures) {
+    auto CK = C.getCaptureKind();
+    auto var = C.getCapturedVar();
+
     ValueCategory result;
 
-    if (params.find(pair.first) != params.end()) {
-      result = params[pair.first];
+    if (params.find(var) != params.end()) {
+      result = params[var];
     } else {
-      if (auto VD = dyn_cast<VarDecl>(pair.first)) {
+      if (auto VD = dyn_cast<VarDecl>(var)) {
         if (Captures.find(VD) != Captures.end()) {
           FieldDecl *field = Captures[VD];
           result = CommonFieldLookup(
@@ -916,20 +920,19 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
       for (auto p : params)
         p.first->dump();
       llvm::errs() << "</pairs>";
-      pair.first->dump();
+      var->dump();
     }
   endp:
-    assert(InnerCaptureKinds.find(pair.first) != InnerCaptureKinds.end());
 
     bool isArray = false;
-    Glob.getMLIRType(pair.second->getType(), &isArray);
+    Glob.getMLIRType(field->getType(), &isArray);
 
-    if (InnerCaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByCopy)
-      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
-                        pair.second, op, /*isLValue*/ false)
+    if (CK == LambdaCaptureKind::LCK_ByCopy)
+      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(), field, op,
+                        /*isLValue*/ false)
           .store(builder, result, isArray);
     else {
-      assert(InnerCaptureKinds[pair.first] == LambdaCaptureKind::LCK_ByRef);
+      assert(CK == LambdaCaptureKind::LCK_ByRef);
       assert(result.isReference);
 
       auto val = result.val;
@@ -944,8 +947,8 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
             val);
       }
 
-      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(),
-                        pair.second, op, /*isLValue*/ false)
+      CommonFieldLookup(expr->getCallOperator()->getThisObjectType(), field, op,
+                        /*isLValue*/ false)
           .store(builder, val);
     }
   }
@@ -1260,11 +1263,10 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
 
   auto mt = dref.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(mt.getShape());
-  if (shape.size() > 1) {
-    // if (shape.size() > 2 || (shape.size() > 1 && !isImplicitRefResult)) {
-    shape.erase(shape.begin());
-  } else {
+  if (shape.size() == 1 || shape.size() == 2 && isImplicitRefResult) {
     shape[0] = -1;
+  } else {
+    shape.erase(shape.begin());
   }
   auto mt0 =
       mlir::MemRefType::get(shape, mt.getElementType(),
@@ -1297,7 +1299,8 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
                                                     getConstantIndex(0));
   }
   bool isArray = false;
-  Glob.getMLIRType(expr->getType(), &isArray);
+  if (!Glob.CGM.getContext().getAsArrayType(expr->getType()))
+    Glob.getMLIRType(expr->getType(), &isArray);
   return CommonArrayLookup(moo, idx, isArray);
 }
 
@@ -3881,9 +3884,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   if (rd->isUnion() ||
       (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                 CXRD->getDefinition()->getNumBases() > 0)) ||
-      recursive || 
-      (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
-                            ST->getName() == "struct._IO_FILE" ||
+      recursive ||
+      (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                             ST->getName() == "class.std::basic_ifstream" ||
                             ST->getName() == "class.std::basic_istream" ||
                             ST->getName() == "class.std::basic_ostream" ||
@@ -4149,8 +4151,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     if (auto opt = se.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto pt = Glob.typeTranslator.translateType(
-          anonymize(getLLVMType(E->getType())));
+      auto pt = getMLIRType(E->getType()).cast<mlir::LLVM::LLVMPointerType>();
       if (se.isReference)
         pt = mlir::LLVM::LLVMPointerType::get(pt, opt.getAddressSpace());
       auto nval = builder.create<mlir::LLVM::BitcastOp>(loc, pt, se.val);
@@ -4258,10 +4259,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     auto scalar = se.getValue(builder);
     if (auto spt = scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      LLVM::LLVMPointerType pt =
-          Glob.typeTranslator
-              .translateType(anonymize(getLLVMType(E->getType())))
-              .cast<LLVM::LLVMPointerType>();
+      auto nt = getMLIRType(E->getType());
+      LLVM::LLVMPointerType pt = nt.dyn_cast<LLVM::LLVMPointerType>();
+      if (!pt) {
+        return ValueCategory(
+            builder.create<polygeist::Pointer2MemrefOp>(loc, nt, scalar),
+            false);
+      }
       pt = LLVM::LLVMPointerType::get(pt.getElementType(),
                                       spt.getAddressSpace());
       auto nval = builder.create<mlir::LLVM::BitcastOp>(loc, pt, scalar);
@@ -5428,9 +5432,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT->getDecl()->isUnion() ||
         (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                   CXRD->getDefinition()->getNumBases() > 0)) ||
-        recursive || 
-        (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
-                              ST->getName() == "struct._IO_FILE" ||
+        recursive ||
+        (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
                               ST->getName() == "class.std::basic_istream" ||
                               ST->getName() == "class.std::basic_ostream" ||
@@ -5650,8 +5653,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
     if (auto ST = dyn_cast<llvm::StructType>(pt->getElementType())) {
       if (ST->getNumElements() == 0 ||
           (!ST->isLiteral() &&
-           (ST->getName().contains("SmallVector") ||
-            ST->getName() == "struct._IO_FILE" ||
+           (ST->getName() == "struct._IO_FILE" ||
             ST->getName() == "class.std::basic_ifstream" ||
             ST->getName() == "class.std::basic_istream" ||
             ST->getName() == "class.std::basic_ostream" ||
@@ -5726,8 +5728,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
     if (!recursive && ST->getNumElements() == 1)
       return getMLIRType(ST->getTypeAtIndex(0U));
     if (ST->getNumElements() == 0 || recursive ||
-        (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
-                              ST->getName() == "struct._IO_FILE" ||
+        (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
                               ST->getName() == "class.std::basic_istream" ||
                               ST->getName() == "class.std::basic_ostream" ||
