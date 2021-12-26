@@ -24,6 +24,16 @@
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
+using namespace mlir;
+
+class MemRefInsider
+    : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
+
+template <typename T>
+struct PtrElementModel
+    : public mlir::LLVM::PointerElementTypeInterface::ExternalModel<
+          PtrElementModel<T>, T> {};
+
 int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
@@ -44,8 +54,20 @@ int main(int argc, char **argv) {
   mlir::registerSCCPPass();
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
+ 
+  auto f = [](MLIRContext &context) { 
+	  LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
+	  LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
+	  MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
+	  LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
+		  context);
+	  LLVM::LLVMPointerType::attachInterface<
+		  PtrElementModel<LLVM::LLVMPointerType>>(context);
+	  LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
+		  context);
+  };
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,
-      /*preloadDialectsInContext=*/false));
+      /*preloadDialectsInContext=*/true, f));
 }

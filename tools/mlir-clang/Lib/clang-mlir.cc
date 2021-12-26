@@ -4151,15 +4151,17 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     assert(se.val);
     if (auto opt = se.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-        mlir::Type nt = getMLIRType(
-                  E->isLValue() ? Glob.CGM.getContext().getLValueReferenceType(E->getType()) : E->getType() );
-        auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
+      mlir::Type nt = getMLIRType(
+          (E->isLValue() || E->isXValue())
+              ? Glob.CGM.getContext().getLValueReferenceType(E->getType())
+              : E->getType());
+      auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
       if (!pt) {
         if (!nt.isa<MemRefType>()) {
-            E->dump();
-            E->getType()->dump();
-            llvm::errs() << " nt: " << nt << "\n";
-            assert(nt.isa<MemRefType>());
+          E->dump();
+          E->getType()->dump();
+          llvm::errs() << " nt: " << nt << "\n";
+          assert(nt.isa<MemRefType>());
         }
         return ValueCategory(
             builder.create<polygeist::Pointer2MemrefOp>(loc, nt, se.val),
@@ -4635,8 +4637,16 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
     if (isReference) {
       assert(trueExpr.isReference);
       truev = trueExpr.val;
-    } else
+    } else {
+      if (auto mt = trueExpr.val.getType().dyn_cast<MemRefType>())
+        if (mt.getShape().size() != 1) {
+          E->dump();
+          E->getTrueExpr()->dump();
+          llvm::errs() << " trueExpr: " << trueExpr.val << "\n";
+          assert(0);
+        }
       truev = trueExpr.getValue(builder);
+    }
     assert(truev != nullptr);
     truearray.push_back(truev);
     builder.create<mlir::scf::YieldOp>(loc, truearray);
