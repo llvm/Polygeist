@@ -211,9 +211,15 @@ public:
   mlir::Value returnVal;
   LowerToInfo &LTInfo;
 
-  MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-              const FunctionDecl *fd, mlir::OwningOpRef<mlir::ModuleOp> &module,
+  MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
+  
+  void init(mlir::FuncOp function, const FunctionDecl *fd);
+
+  void setEntryAndAllocBlock(mlir::Block* B) {
+      allocationScope = entryBlock = B;
+      builder.setInsertionPointToStart(B);
+  }
 
   mlir::OpBuilder &getBuilder();
 

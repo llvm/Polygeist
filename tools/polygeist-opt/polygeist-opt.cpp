@@ -69,5 +69,5 @@ int main(int argc, char **argv) {
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,
-      /*preloadDialectsInContext=*/true, f));
+      /*preloadDialectsInContext=*/false));
 }
