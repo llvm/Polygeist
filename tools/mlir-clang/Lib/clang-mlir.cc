@@ -112,22 +112,25 @@ static void castCallerArgs(mlir::FuncOp callee,
   }
 }
 
-MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
-                         const FunctionDecl *fd,
+MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
                          mlir::OwningOpRef<mlir::ModuleOp> &module,
                          LowerToInfo &LTInfo)
-    : Glob(Glob), function(function), module(module),
+    : Glob(Glob), module(module),
       builder(module->getContext()), loc(builder.getUnknownLoc()),
-      EmittingFunctionDecl(fd), ThisCapture(nullptr), LTInfo(LTInfo) {
+      ThisCapture(nullptr), LTInfo(LTInfo) {}
 
+
+void MLIRScanner::init(mlir::FuncOp function,
+                  const FunctionDecl *fd) {
+  this->function = function;
+  this->EmittingFunctionDecl = fd;
+  
   if (ShowAST) {
     llvm::errs() << "Emitting fn: " << function.getName() << "\n";
     llvm::errs() << *fd << "\n";
   }
 
-  allocationScope = entryBlock = function.addEntryBlock();
-
-  builder.setInsertionPointToStart(entryBlock);
+  setEntryAndAllocBlock(function.addEntryBlock());
 
   unsigned i = 0;
   if (auto CM = dyn_cast<CXXMethodDecl>(fd)) {
@@ -1838,6 +1841,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__nv_fabsf" ||
            sr->getDecl()->getName() == "__nv_fabs" ||
+           sr->getDecl()->getName() == "fabs" ||
+           sr->getDecl()->getName() == "fabsf" ||
            sr->getDecl()->getName() == "__builtin_fabs" ||
            sr->getDecl()->getName() == "__builtin_fabsf")) {
         // isinf(x)    --> fabs(x) == infinity
@@ -3583,17 +3588,17 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Add: {
     auto lhs_v = lhs.getValue(builder);
+    auto rhs_v = rhs.getValue(builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
-          builder.create<AddFOp>(loc, lhs_v, rhs.getValue(builder)),
-          /*isReference*/ false);
+          builder.create<AddFOp>(loc, lhs_v, rhs_v), /*isReference*/ false);
     } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
       auto shape = std::vector<int64_t>(mt.getShape());
       shape[0] = -1;
       auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                        MemRefLayoutAttrInterface(),
                                        mt.getMemorySpace());
-      auto ptradd = rhs.getValue(builder);
+      auto ptradd = rhs_v;
       ptradd = castToIndex(loc, ptradd);
       return ValueCategory(
           builder.create<polygeist::SubIndexOp>(loc, mt0, lhs_v, ptradd),
@@ -3603,11 +3608,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       return ValueCategory(
           builder.create<LLVM::GEPOp>(
               loc, pt,
-              std::vector<mlir::Value>({lhs_v, rhs.getValue(builder)})),
+              std::vector<mlir::Value>({lhs_v, rhs_v})),
           /*isReference*/ false);
     } else {
+        if (auto lhs_c = lhs_v.getDefiningOp<ConstantIntOp>()) {
+          if (auto rhs_c = rhs_v.getDefiningOp<ConstantIntOp>()) {
+            return ValueCategory(
+              builder.create<arith::ConstantIntOp>(
+                  loc, lhs_c.value() + rhs_c.value(), lhs_c.getType()), false);
+          }
+        }
       return ValueCategory(
-          builder.create<AddIOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<AddIOp>(loc, lhs_v, rhs_v),
           /*isReference*/ false);
     }
   }
@@ -4314,23 +4326,18 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_LValueToRValue: {
     if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
       if (dr->getDecl()->getName() == "warpSize") {
-        bool foundVal = false;
-        /*
-        for (int i = scopes.size() - 1; i >= 0; i--) {
-          auto found = scopes[i].find("warpSize");
-          if (found != scopes[i].end()) {
-            foundVal = true;
-            break;
-          }
-        }
-        */
-        if (!foundVal) {
-          auto mlirType = getMLIRType(E->getType());
-          return ValueCategory(
+        auto mlirType = getMLIRType(E->getType());
+        return ValueCategory(
               builder.create<mlir::NVVM::WarpSizeOp>(loc, mlirType),
               /*isReference*/ false);
-        }
       }
+      /*
+      if (dr->isNonOdrUseReason() == clang::NonOdrUseReason::NOUR_Constant) {
+        dr->dump();
+        auto VD = cast<VarDecl>(dr->getDecl());
+        assert(VD->getInit());
+      }
+      */
     }
     auto prev = Visit(E->getSubExpr());
 
@@ -4925,6 +4932,24 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     break;
   }
 
+  if (auto init = cast<VarDecl>(FD)->getInit()) {
+    MLIRScanner ms(*this, module, LTInfo);
+  	mlir::Block* B = new Block();
+	ms.setEntryAndAllocBlock(B);
+	OpBuilder builder(module->getContext());
+	builder.setInsertionPointToEnd(B);
+	mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
+	if (auto cop = val.getDefiningOp<ConstantIntOp>()) {
+		initial_value = cop.getValue();
+		initial_value = SplatElementsAttr::get(mr, initial_value);
+    } else {
+        FD->dump();
+        init->dump();
+		llvm::errs() << " warning not initializing global: " << name << " - " << val << "\n";
+    }
+    delete B;
+  }
+
   auto globalOp = builder.create<mlir::memref::GlobalOp>(
       module->getLoc(), builder.getStringAttr(name),
       /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
@@ -5181,7 +5206,8 @@ void MLIRASTConsumer::run() {
     if (done.count(name))
       continue;
     done.insert(name);
-    MLIRScanner ms(*this, GetOrCreateMLIRFunction(FD), FD, module, LTInfo);
+    MLIRScanner ms(*this, module, LTInfo);
+	ms.init(GetOrCreateMLIRFunction(FD), FD);
   }
 }
 
