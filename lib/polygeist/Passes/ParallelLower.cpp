@@ -9,8 +9,8 @@
 // This file implements a pass to lower gpu kernels in NVVM/gpu dialects into
 // a generic parallel for representation
 //===----------------------------------------------------------------------===//
-#include "PassDetails.h"
 
+#include "PassDetails.h"
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Analysis/Utils.h"
