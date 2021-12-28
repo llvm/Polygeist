@@ -22,7 +22,12 @@
 #include "polygeist/Passes/Passes.h"
 
 namespace mlir {
+// Forward declaration from Dialect.h
+template <typename ConcreteDialect>
+void registerDialect(DialectRegistry &registry);
 namespace polygeist {
+
+class PolygeistDialect;
 
 #define GEN_PASS_CLASSES
 #include "polygeist/Passes/Passes.h.inc"

@@ -1,39 +1,65 @@
-// RUN: polygeist-opt --convert-polygeist-to-llvm %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" --split-input-file %s | FileCheck %s
 
 module {
-  func @funcasfda(%arg0: memref<256x3xi32>, %arg1 : index) -> memref<3xi32> {
-    %87 = "polygeist.subindex"(%arg0, %arg1) : (memref<256x3xi32>, index) -> memref<3xi32>
-    return %87 : memref<3xi32>
+  func @_Z9calc_pathi(%arg0: i32, %c : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+    %c0 = arith.constant 0 : index
+    %c0_i32 = arith.constant 0 : i32
+    %c1 = arith.constant 1 : index
+    %false = arith.constant false
+    %c9 = arith.constant 9 : index
+    %true = arith.constant true
+      %23 = memref.alloca() : memref<256xi32>
+      scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
+          %26 = scf.if %c -> i1 {
+            memref.store %c0_i32, %23[%c0] : memref<256xi32>
+            "polygeist.barrier"() : () -> ()
+            scf.yield %true : i1
+          } else {
+            scf.yield %false : i1
+          }
+          scf.yield
+      }
+    return
   }
 }
 
-// CHECK:   llvm.func @funcasfda(%arg0: !llvm.ptr<i32>, %arg1: i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %0 = llvm.mlir.undef : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %1 = llvm.insertvalue %arg0, %0[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %2 = llvm.insertvalue %arg0, %1[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %3 = llvm.mlir.constant(0 : index) : i64
-// CHECK-NEXT:     %4 = llvm.insertvalue %3, %2[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %5 = llvm.mlir.constant(256 : index) : i64
-// CHECK-NEXT:     %6 = llvm.insertvalue %5, %4[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %7 = llvm.mlir.constant(3 : index) : i64
-// CHECK-NEXT:     %8 = llvm.insertvalue %7, %6[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %9 = llvm.mlir.constant(3 : index) : i64
-// CHECK-NEXT:     %10 = llvm.insertvalue %9, %8[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %11 = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:     %12 = llvm.insertvalue %11, %10[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %13 = llvm.extractvalue %12[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %14 = llvm.mlir.constant(3 : i64) : i64
-// CHECK-NEXT:     %15 = llvm.mul %arg1, %14  : i64
-// CHECK-NEXT:     %16 = llvm.extractvalue %12[3, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %17 = llvm.extractvalue %12[4, 1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %18 = llvm.getelementptr %13[%15] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %19 = llvm.extractvalue %12[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<2 x i64>, array<2 x i64>)>
-// CHECK-NEXT:     %20 = llvm.mlir.undef : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %21 = llvm.insertvalue %19, %20[0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %22 = llvm.insertvalue %18, %21[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %23 = llvm.mlir.constant(0 : index) : i64
-// CHECK-NEXT:     %24 = llvm.insertvalue %23, %22[2] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %25 = llvm.insertvalue %16, %24[3, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %26 = llvm.insertvalue %17, %25[4, 0] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     %27 = llvm.extractvalue %26[1] : !llvm.struct<(ptr<i32>, ptr<i32>, i64, array<1 x i64>, array<1 x i64>)>
-// CHECK-NEXT:     llvm.return %27 : !llvm.ptr<i32>
+// CHECK:   func @_Z9calc_pathi(%arg0: i32, %arg1: i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-NEXT:     %c9 = arith.constant 9 : index
+// CHECK-NEXT:     %true = arith.constant true
+// CHECK-NEXT:     %0 = memref.alloca() : memref<256xi32>
+// CHECK-NEXT:     %1 = memref.alloc(%c9) : memref<?xmemref<1xi1>>
+// CHECK-NEXT:     %2 = memref.alloc(%c9) : memref<?xindex>
+// CHECK-NEXT:     scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:       %4 = llvm.mlir.undef : i1
+// CHECK-NEXT:       %5 = arith.extui %arg1 : i1 to i64
+// CHECK-NEXT:       %6 = arith.index_cast %5 : i64 to index
+// CHECK-NEXT:       memref.store %6, %2[%arg2] : memref<?xindex>
+// CHECK-NEXT:       %7 = memref.alloc() : memref<1xi1>
+// CHECK-NEXT:       memref.store %7, %1[%arg2] : memref<?xmemref<1xi1>>
+// CHECK-NEXT:       memref.store %4, %7[%c0] : memref<1xi1>
+// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:     }
+// CHECK-NEXT:     %3 = memref.load %2[%c0] : memref<?xindex>
+// CHECK-NEXT:     scf.for %arg2 = %c0 to %3 step %c1 {
+// CHECK-NEXT:       scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:         memref.store %c0_i32, %0[%c0] : memref<256xi32>
+// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:       }
+// CHECK-NEXT:       scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:         %4 = memref.load %1[%arg3] : memref<?xmemref<1xi1>>
+// CHECK-NEXT:         memref.store %true, %4[%c0] : memref<1xi1>
+// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:       %4 = memref.load %1[%arg2] : memref<?xmemref<1xi1>>
+// CHECK-NEXT:       memref.dealloc %4 : memref<1xi1>
+// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:     }
+// CHECK-NEXT:     memref.dealloc %1 : memref<?xmemref<1xi1>>
+// CHECK-NEXT:     memref.dealloc %2 : memref<?xindex>
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }

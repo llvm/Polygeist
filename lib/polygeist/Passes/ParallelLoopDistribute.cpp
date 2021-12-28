@@ -103,16 +103,14 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
                                 PatternRewriter &rewriter) const override {
     assert(op.condition().getType().isInteger(1));
 
-    // TODO: we can do this by having "undef" values as inputs, or do reg2mem.
-    if (op.getNumResults() != 0) {
-      LLVM_DEBUG(DBGS() << "[if-to-for] 'if' with results, need reg2mem\n";
-                 DBGS() << op);
-      return failure();
-    }
-
     if (!hasNestedBarrier(op)) {
       LLVM_DEBUG(DBGS() << "[if-to-for] no nested barrier\n");
       return failure();
+    }
+
+    SmallVector<Value, 8> forArgs;
+    for (auto a : op.getResults()) {
+        forArgs.push_back(rewriter.create<LLVM::UndefOp>(op.getLoc(), a.getType()));
     }
 
     Location loc = op.getLoc();
@@ -123,18 +121,25 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
         loc, rewriter.getIndexType(),
         rewriter.create<ExtUIOp>(loc, op.condition(),
                                  mlir::IntegerType::get(one.getContext(), 64)));
-    auto thenLoop = rewriter.create<scf::ForOp>(loc, zero, cond, one);
-    rewriter.mergeBlockBefore(op.getBody(0), &thenLoop.getBody()->back());
-    rewriter.eraseOp(&thenLoop.getBody()->back());
+    auto thenLoop = rewriter.create<scf::ForOp>(loc, zero, cond, one, forArgs);
+    if (forArgs.size() == 0)
+      rewriter.eraseOp(&thenLoop.getBody()->back());
+    rewriter.mergeBlocks(op.getBody(0), thenLoop.getBody(0));
 
+    scf::ForOp elseLoop;
     if (!op.elseRegion().empty()) {
       auto negCondition = rewriter.create<SubIOp>(loc, one, cond);
-      auto elseLoop = rewriter.create<scf::ForOp>(loc, zero, negCondition, one);
-      rewriter.mergeBlockBefore(op.getBody(1), &elseLoop.getBody()->back());
-      rewriter.eraseOp(&elseLoop.getBody()->back());
+      elseLoop = rewriter.create<scf::ForOp>(loc, zero, negCondition, one, forArgs);
+      if (forArgs.size() == 0)
+        rewriter.eraseOp(&elseLoop.getBody()->back());
+      rewriter.mergeBlocks(op.getBody(1), elseLoop.getBody(0));
     }
-
-    rewriter.eraseOp(op);
+    
+    SmallVector<Value> vals;
+    for (auto tup : llvm::zip(thenLoop.getResults(), elseLoop.getResults())) {
+        vals.push_back(rewriter.create<SelectOp>(op.getLoc(), op.condition(), std::get<0>(tup), std::get<1>(tup)));
+    }
+    rewriter.replaceOp(op, vals);
     return success();
   }
 };

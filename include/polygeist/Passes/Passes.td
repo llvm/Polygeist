@@ -15,6 +15,8 @@ def Mem2Reg : FunctionPass<"mem2reg"> {
 
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary = "Replace scf.if and similar with affine.if";
+  let dependentDialects =
+      ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
