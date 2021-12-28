@@ -634,7 +634,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                       << AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
                   llvm::errs() << loadOp << " - " << lastVal << "\n";
                   llvm::errs()
-                      << loadOp.getType() << " - " << lastVal.getType() << "\n";
+                      << loadOp.getType() << " - " << lastVal.getType() << " :: " << loadOp.getLoc() << " - " << lastVal.getLoc() << "\n";
                 }
                 assert(loadOp.getType() == lastVal.getType() &&
                        "mismatched load type");
