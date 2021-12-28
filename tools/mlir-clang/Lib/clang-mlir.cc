@@ -989,11 +989,8 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
 ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   auto loc = getMLIRLocation(expr->getExprLoc());
-  // assert(expr->isGlobalNew());
 
   mlir::Value count;
-
-  expr->dump();
 
   if (expr->isArray()) {
     (*expr->raw_arg_begin())->dump();
@@ -1028,10 +1025,9 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   assert(alloc);
 
   if (expr->getConstructExpr()) {
-    assert(!expr->isArray());
     VisitConstructCommon(
         const_cast<CXXConstructExpr *>(expr->getConstructExpr()),
-        /*name*/ nullptr, /*memtype*/ 0, alloc);
+        /*name*/ nullptr, /*memtype*/ 0, alloc, count);
   }
   return ValueCategory(alloc, /*isRefererence*/ false);
 }
@@ -1101,7 +1097,7 @@ MLIRScanner::VisitCXXConstructExpr(clang::CXXConstructExpr *cons) {
 
 ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
                                                 VarDecl *name, unsigned memtype,
-                                                mlir::Value op) {
+                                                mlir::Value op, mlir::Value count) {
   auto loc = getMLIRLocation(cons->getExprLoc());
 
   bool isArray = false;
@@ -1156,8 +1152,12 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   QualType innerType = cons->getType();
   if (auto arrayType = Glob.CGM.getContext().getAsArrayType(cons->getType())) {
     innerType = arrayType->getElementType();
-    auto CAT = cast<clang::ConstantArrayType>(arrayType);
-    auto size = getConstantIndex(CAT->getSize().getLimitedValue());
+    mlir::Value size;
+    if (count) size = count;
+    else {
+        auto CAT = cast<clang::ConstantArrayType>(arrayType);
+        size = getConstantIndex(CAT->getSize().getLimitedValue());
+    }
     auto forOp = builder.create<scf::ForOp>(loc, getConstantIndex(0), size,
                                             getConstantIndex(1));
     oldpoint = builder.getInsertionPoint();
@@ -2362,6 +2362,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 if (dst.getType().isa<MemRefType>())
                   dst = builder.create<polygeist::Memref2PointerOp>(loc, retTy,
                                                                     dst);
+                else
+                  dst = builder.create<LLVM::BitcastOp>(loc, retTy, dst);
+                if (dst.getType() != retTy) {
+                    expr->dump();
+                    llvm::errs() << " retTy: " << retTy << " dst: " << dst << "\n";
+                }
                 assert(dst.getType() == retTy);
                 return ValueCategory(dst, /*isReference*/ false);
               } else {
@@ -2481,6 +2487,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   auto callee = EmitCallee(expr->getCallee());
 
   std::set<std::string> funcs = {
+      "fread",
+      "read",
       "strcmp",
       "fputs",
       "puts",
@@ -2498,6 +2506,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "cudaMalloc",
       "open",
       "fopen",
+      "time",
       "memset",
       "cudaMemset",
       "strcpy",
@@ -3433,7 +3442,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                                                rhs.getValue(builder)),
                          /*isReference*/ false);
   }
-  case clang::BinaryOperator::Opcode::BO_GT: {
+                                             {
     auto lhs_v = lhs.getValue(builder);
     mlir::Value res;
     if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -3446,84 +3455,49 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
     return fixInteger(res);
   }
-  case clang::BinaryOperator::Opcode::BO_GE: {
-    auto lhs_v = lhs.getValue(builder);
-    mlir::Value res;
-    if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res = builder.create<CmpFOp>(loc, CmpFPredicate::UGE, lhs_v,
-                                   rhs.getValue(builder));
-    } else {
-      res = builder.create<CmpIOp>(
-          loc, signedType ? CmpIPredicate::sge : CmpIPredicate::uge, lhs_v,
-          rhs.getValue(builder));
-    }
-    return fixInteger(res);
-  }
-  case clang::BinaryOperator::Opcode::BO_LT: {
-    auto lhs_v = lhs.getValue(builder);
-    mlir::Value res;
-    if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res = builder.create<CmpFOp>(loc, CmpFPredicate::ULT, lhs_v,
-                                   rhs.getValue(builder));
-    } else if (auto pt =
-                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      res = builder.create<LLVM::ICmpOp>(loc,
-                                         signedType
-                                             ? mlir::LLVM::ICmpPredicate::slt
-                                             : mlir::LLVM::ICmpPredicate::ult,
-                                         lhs_v, rhs.getValue(builder));
-    } else {
-      res = builder.create<CmpIOp>(
-          loc, signedType ? CmpIPredicate::slt : CmpIPredicate::ult, lhs_v,
-          rhs.getValue(builder));
-    }
-    return fixInteger(res);
-  }
-  case clang::BinaryOperator::Opcode::BO_LE: {
-    auto lhs_v = lhs.getValue(builder);
-    mlir::Value res;
-    if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res = builder.create<CmpFOp>(loc, CmpFPredicate::ULE, lhs_v,
-                                   rhs.getValue(builder));
-    } else if (auto pt =
-                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      res = builder.create<LLVM::ICmpOp>(loc,
-                                         signedType
-                                             ? mlir::LLVM::ICmpPredicate::sle
-                                             : mlir::LLVM::ICmpPredicate::ule,
-                                         lhs_v, rhs.getValue(builder));
-    } else {
-      res = builder.create<CmpIOp>(
-          loc, signedType ? CmpIPredicate::sle : CmpIPredicate::ule, lhs_v,
-          rhs.getValue(builder));
-    }
-    return fixInteger(res);
-  }
-  case clang::BinaryOperator::Opcode::BO_EQ: {
-    auto lhs_v = lhs.getValue(builder);
-    auto rhs_v = rhs.getValue(builder);
-    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
-      lhs_v = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
-    }
-    if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
-      rhs_v = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), rhs_v);
-    }
-    mlir::Value res;
-    if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res =
-          builder.create<arith::CmpFOp>(loc, CmpFPredicate::UEQ, lhs_v, rhs_v);
-    } else if (auto pt =
-                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      res = builder.create<LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::eq,
-                                         lhs_v, rhs_v);
-    } else {
-      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::eq, lhs_v, rhs_v);
-    }
-    return fixInteger(res);
-  }
+  case clang::BinaryOperator::Opcode::BO_GT:
+  case clang::BinaryOperator::Opcode::BO_GE:
+  case clang::BinaryOperator::Opcode::BO_LT:
+  case clang::BinaryOperator::Opcode::BO_LE:
+  case clang::BinaryOperator::Opcode::BO_EQ: 
   case clang::BinaryOperator::Opcode::BO_NE: {
+    CmpFPredicate FPred;
+    CmpIPredicate IPred;
+    LLVM::ICmpPredicate LPred;
+    switch(BO->getOpcode()) {
+        case clang::BinaryOperator::Opcode::BO_GT:
+            FPred = CmpFPredicate::UGT;
+            IPred = signedType ? CmpIPredicate::sgt : CmpIPredicate::ugt,
+            LPred = LLVM::ICmpPredicate::ugt;
+            break;
+        case clang::BinaryOperator::Opcode::BO_GE:
+            FPred = CmpFPredicate::UGE;
+            IPred = signedType ? CmpIPredicate::sge : CmpIPredicate::uge,
+            LPred = LLVM::ICmpPredicate::uge;
+            break;
+        case clang::BinaryOperator::Opcode::BO_LT:
+            FPred = CmpFPredicate::ULT;
+            IPred = signedType ? CmpIPredicate::slt : CmpIPredicate::ult,
+            LPred = LLVM::ICmpPredicate::ult;
+            break;
+        case clang::BinaryOperator::Opcode::BO_LE:
+            FPred = CmpFPredicate::ULE;
+            IPred = signedType ? CmpIPredicate::sle : CmpIPredicate::ule,
+            LPred = LLVM::ICmpPredicate::ule;
+            break;
+        case clang::BinaryOperator::Opcode::BO_EQ:
+            FPred = CmpFPredicate::UEQ;
+            IPred = CmpIPredicate::eq;
+            LPred = LLVM::ICmpPredicate::eq;
+            break;
+        case clang::BinaryOperator::Opcode::BO_NE:
+            FPred = CmpFPredicate::UNE;
+            IPred = CmpIPredicate::ne;
+            LPred = LLVM::ICmpPredicate::ne;
+            break;
+        default: llvm_unreachable("Unknown op in binary comparision switch");
+    }
+
     auto lhs_v = lhs.getValue(builder);
     auto rhs_v = rhs.getValue(builder);
     if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
@@ -3536,14 +3510,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
     mlir::Value res;
     if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res =
-          builder.create<arith::CmpFOp>(loc, CmpFPredicate::UNE, lhs_v, rhs_v);
-    } else if (auto pt =
-                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      res = builder.create<LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::ne,
-                                         lhs_v, rhs_v);
+      res = builder.create<arith::CmpFOp>(loc, FPred, lhs_v, rhs_v);
+    } else if (lhs_v.getType().isa<LLVM::LLVMPointerType>()) {
+      res = builder.create<LLVM::ICmpOp>(loc, LPred, lhs_v, rhs_v);
     } else {
-      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::ne, lhs_v, rhs_v);
+      res = builder.create<arith::CmpIOp>(loc, IPred, lhs_v, rhs_v);
     }
     return fixInteger(res);
   }
@@ -3698,14 +3669,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           }
         }
       }
-    }
-    if (tostore.getType() != subType ||
-        (lhs.val.getType().isa<MemRefType>() &&
-         lhs.val.getType().cast<MemRefType>().getShape().size() != 1)) {
-      BO->dump();
-      function.dump();
-      llvm::errs() << " lhs.val: " << lhs.val << "\n";
-      llvm::errs() << " tostore: " << tostore << "\n";
     }
     lhs.store(builder, tostore);
     return lhs;
@@ -4948,7 +4911,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
 	ms.setEntryAndAllocBlock(B);
 	OpBuilder builder(module->getContext());
 	builder.setInsertionPointToEnd(B);
-	mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
+	//mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
 	//if (auto cop = val.getDefiningOp<ConstantIntOp>()) {
 	//	initial_value = qcop.getValue();
 	//	initial_value = SplatElementsAttr::get(mr, initial_value);
@@ -4956,7 +4919,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     {
         FD->dump();
         init->dump();
-		llvm::errs() << " warning not initializing global: " << name << " - " << val << "\n";
+		llvm::errs() << " warning not initializing global: " << name << "\n";// - " << val << "\n";
     }
     delete B;
   }
