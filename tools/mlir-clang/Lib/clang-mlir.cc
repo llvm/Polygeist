@@ -645,10 +645,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   }
 
   if (auto init = decl->getInit()) {
-    if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
-      return VisitConstructCommon(CE, decl, memtype);
-    }
-    if (!isa<InitListExpr>(init)) {
+    if (!isa<InitListExpr>(init) && !isa<CXXConstructExpr>(init)) {
       auto visit = Visit(init);
       if (!visit.val) {
         decl->dump();
@@ -693,9 +690,13 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   }
 
   mlir::Value op;
+
+  Block* block = nullptr;
+  Block::iterator iter;
+
   if (decl->isStaticLocal() && memtype == 0) {
     auto gv =
-        Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str());
+        Glob.GetOrCreateGlobal(decl, (function.getName() + "@static@").str(), /*tryInit*/false);
     OpBuilder abuilder(builder.getContext());
     abuilder.setInsertionPointToStart(allocationScope);
     auto varLoc = getMLIRLocation(decl->getBeginLoc());
@@ -703,8 +704,27 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
                                               gv.first.getName());
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
-      llvm::errs() << "warning: one-time initialization of static variable, "
-                      "not implemented yet\n";
+      auto mr = MemRefType::get({1}, builder.getI1Type());
+      bool inits[1] = {true};
+      auto rtt = RankedTensorType::get({1}, builder.getI1Type());
+      auto init_value = DenseIntElementsAttr::get(rtt, inits);
+      OpBuilder gbuilder(builder.getContext());
+      gbuilder.setInsertionPointToStart(module->getBody());
+      auto name = Glob.CGM.getMangledName(decl);
+      auto globalOp = gbuilder.create<mlir::memref::GlobalOp>(
+          module->getLoc(), builder.getStringAttr(function.getName() + "@static@" + name + "@init" ),
+          /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
+          init_value, mlir::UnitAttr(), /*alignment*/ nullptr);
+      SymbolTable::setSymbolVisibility(globalOp, mlir::SymbolTable::Visibility::Private);
+     
+      auto boolop = builder.create<memref::GetGlobalOp>(varLoc, mr, globalOp.getName());
+      auto cond = builder.create<memref::LoadOp>(varLoc, boolop, std::vector<mlir::Value>({getConstantIndex(0)}));
+
+      auto ifOp = builder.create<scf::IfOp>(varLoc, cond, /*hasElse*/false);
+      block = builder.getInsertionBlock();
+      iter = builder.getInsertionPoint();
+      builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+      builder.create<memref::StoreOp>(varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), boolop, std::vector<mlir::Value>({getConstantIndex(0)}));
     }
   } else
     op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
@@ -714,9 +734,13 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   } else if (auto init = decl->getInit()) {
     if (isa<InitListExpr>(init)) {
       InitializeValueByInitListExpr(op, init);
+    } else if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
+      VisitConstructCommon(CE, decl, memtype, op);
     } else
       assert(0 && "unknown init list");
   }
+  if (block)
+      builder.setInsertionPoint(block, iter);
   return ValueCategory(op, /*isReference*/ true);
 }
 
@@ -1811,8 +1835,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
     auto val = sub.getValue(builder);
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
+      auto nt = Glob.typeTranslator.translateType(anonymize(getLLVMType(E->getType()))).cast<LLVM::LLVMPointerType>();
       val = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), val);
+          loc, nt, val);
     }
     return val;
   };
@@ -2505,6 +2530,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "cudaMemcpy",
       "cudaMalloc",
       "open",
+      "gettimeofday",
       "fopen",
       "time",
       "memset",
@@ -2595,7 +2621,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return ValueCategory(called,
                          /*isReference*/ expr->isLValue() || expr->isXValue());
   }
-
+#if 0
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -2660,6 +2686,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(ret, /*isReference*/ false);
       }
     }
+#endif
 
   auto tocall = EmitDirectCallee(callee);
 
@@ -4809,7 +4836,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
   if (cast<VarDecl>(FD)->getInit())
     cast<VarDecl>(FD)->getInit()->dump();
 
-  auto rt = typeTranslator.translateType(anonymize(getLLVMType(FD->getType())));
+  auto rt = getMLIRType(FD->getType());
 
   mlir::OpBuilder builder(module->getContext());
   builder.setInsertionPointToStart(module->getBody());
@@ -4833,7 +4860,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
 }
 
 std::pair<mlir::memref::GlobalOp, bool>
-MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
+MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix, bool tryInit) {
   std::string name = prefix + CGM.getMangledName(FD).str();
 
   if (globals.find(name) != globals.end()) {
@@ -4905,6 +4932,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     break;
   }
 
+  if (tryInit)
   if (auto init = cast<VarDecl>(FD)->getInit()) {
     MLIRScanner ms(*this, module, LTInfo);
   	mlir::Block* B = new Block();
