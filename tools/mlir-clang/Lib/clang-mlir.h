@@ -111,7 +111,7 @@ struct MLIRASTConsumer : public ASTConsumer {
                                           StringRef value);
 
   std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const ValueDecl *VD,
-                                                            std::string prefix);
+                                                            std::string prefix, bool tryInit=true);
 
   std::deque<const FunctionDecl *> functionsToEmit;
 
