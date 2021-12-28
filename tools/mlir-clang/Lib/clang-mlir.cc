@@ -4939,10 +4939,11 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
 	OpBuilder builder(module->getContext());
 	builder.setInsertionPointToEnd(B);
 	mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
-	if (auto cop = val.getDefiningOp<ConstantIntOp>()) {
-		initial_value = cop.getValue();
-		initial_value = SplatElementsAttr::get(mr, initial_value);
-    } else {
+	//if (auto cop = val.getDefiningOp<ConstantIntOp>()) {
+	//	initial_value = qcop.getValue();
+	//	initial_value = SplatElementsAttr::get(mr, initial_value);
+    //} else 
+    {
         FD->dump();
         init->dump();
 		llvm::errs() << " warning not initializing global: " << name << " - " << val << "\n";
