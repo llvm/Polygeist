@@ -277,7 +277,8 @@ public:
 
   ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
                                      VarDecl *name, unsigned space,
-                                     mlir::Value mem = nullptr);
+                                     mlir::Value mem = nullptr,
+                                     mlir::Value count = nullptr);
 
   ValueCategory VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *expr);
 
