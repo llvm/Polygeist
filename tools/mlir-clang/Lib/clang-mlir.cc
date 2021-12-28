@@ -3501,17 +3501,25 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_EQ: {
     auto lhs_v = lhs.getValue(builder);
+    auto rhs_v = rhs.getValue(builder);
+    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      lhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
+    }
+    if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      rhs_v = builder.create<polygeist::Memref2PointerOp>(
+          loc, LLVM::LLVMPointerType::get(mt.getElementType()), rhs_v);
+    }
     mlir::Value res;
     if (lhs_v.getType().isa<mlir::FloatType>()) {
-      res = builder.create<arith::CmpFOp>(loc, CmpFPredicate::UEQ, lhs_v,
-                                          rhs.getValue(builder));
+      res =
+          builder.create<arith::CmpFOp>(loc, CmpFPredicate::UEQ, lhs_v, rhs_v);
     } else if (auto pt =
                    lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       res = builder.create<LLVM::ICmpOp>(loc, mlir::LLVM::ICmpPredicate::eq,
-                                         lhs_v, rhs.getValue(builder));
+                                         lhs_v, rhs_v);
     } else {
-      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::eq, lhs_v,
-                                          rhs.getValue(builder));
+      res = builder.create<arith::CmpIOp>(loc, CmpIPredicate::eq, lhs_v, rhs_v);
     }
     return fixInteger(res);
   }
@@ -4146,10 +4154,12 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   switch (E->getCastKind()) {
 
   case clang::CastKind::CK_NullToPointer: {
-    auto llvmType =
-        Glob.typeTranslator.translateType(anonymize(getLLVMType(E->getType())));
-    return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, llvmType),
+    auto llvmType = getMLIRType(E->getType());
+    if (llvmType.isa<LLVM::LLVMPointerType>())
+      return ValueCategory(builder.create<mlir::LLVM::NullOp>(loc, llvmType),
                          /*isReference*/ false);
+    else
+      return ValueCategory(builder.create<polygeist::Pointer2MemrefOp>(loc, llvmType, builder.create<mlir::LLVM::NullOp>(loc, LLVM::LLVMPointerType::get(builder.getI8Type()))), false);
   }
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
