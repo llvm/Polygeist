@@ -1001,6 +1001,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     }
   }
 
+  Type elType;
+  if (auto MT = AI.getType().dyn_cast<MemRefType>())
+      elType = MT.getElementType();
+  else
+      elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
+
   // Remove block arguments if possible
   {
     std::deque<Block *> todo(blocksWithAddedArgs.begin(),
@@ -1024,13 +1030,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
           pval = op.getOperands()[blockArg.getArgNumber()];
-          if (pval.getType() !=
-              AI.getType().cast<MemRefType>().getElementType()) {
+          if (pval.getType() != elType) {
             pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
             llvm::errs() << pval << " - " << AI << "\n";
           }
-          assert(pval.getType() ==
-                 AI.getType().cast<MemRefType>().getElementType());
+          assert(pval.getType() == elType);
           if (pval == blockArg)
             pval = nullptr;
         } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
@@ -1041,16 +1045,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             }
             assert(blockArg.getArgNumber() < op.getTrueOperands().size());
             pval = op.getTrueOperands()[blockArg.getArgNumber()];
-            assert(pval.getType() ==
-                   AI.getType().cast<MemRefType>().getElementType());
+            assert(pval.getType() == elType);
             if (pval == blockArg)
               pval = nullptr;
           }
           if (op.getFalseDest() == block) {
             assert(blockArg.getArgNumber() < op.getFalseOperands().size());
             auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
-            assert(pval2.getType() ==
-                   AI.getType().cast<MemRefType>().getElementType());
+            assert(pval2.getType() == elType);
             if (pval2 != blockArg) {
               if (pval == nullptr) {
                 pval = pval2;
@@ -1096,8 +1098,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (val == nullptr) {
           val = pval;
           if (pval)
-            assert(val.getType() ==
-                   AI.getType().cast<MemRefType>().getElementType());
+            assert(val.getType() == elType);
         } else {
           if (pval != nullptr && val != pval) {
             legal = false;
