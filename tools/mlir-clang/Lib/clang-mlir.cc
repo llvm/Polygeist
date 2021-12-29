@@ -1909,7 +1909,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         // isfinite(x) --> fabs(x) != infinity
         // x != NaN via the ordered compare in either case.
         mlir::Value V = getLLVM(expr->getArg(0));
-        mlir::Value Fabs = builder.create<math::AbsOp>(loc, V);
+        mlir::Value Fabs;
+        if (V.getType().isa<mlir::FloatType>())
+            Fabs = builder.create<math::AbsOp>(loc, V);
+        else {
+            auto zero = builder.create<arith::ConstantIntOp>(loc, 0, V.getType().cast<mlir::IntegerType>().getWidth());
+            Fabs = builder.create<SelectOp>(loc, builder.create<arith::CmpIOp>(loc, CmpIPredicate::sge, V, zero),
+                        V,
+                        builder.create<arith::SubIOp>(loc, zero, V));
+        }
         return ValueCategory(Fabs, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
