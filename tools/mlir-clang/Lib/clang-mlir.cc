@@ -528,7 +528,7 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
 
 /// Construct corresponding MLIR operations to initialize the given value by a
 /// provided InitListExpr.
-void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
+mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
                                                 clang::Expr *expr) {
   // Struct initializan requires an extra 0, since the first index
   // is the pointer index, and then the struct index.
@@ -546,10 +546,10 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
-  std::function<void(Expr *, mlir::Value, bool)> helper = [&](Expr *expr,
+  std::function<mlir::DenseElementsAttr(Expr *, mlir::Value, bool)> helper = [&](Expr *expr,
                                                               mlir::Value
                                                                   toInit,
-                                                              bool inner) {
+                                                              bool inner) -> mlir::DenseElementsAttr {
     Location loc = toInit.getLoc();
     if (InitListExpr *initListExpr = dyn_cast<InitListExpr>(expr)) {
 
@@ -578,6 +578,8 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
         num = initListExpr->getNumInits();
       }
 
+      SmallVector<char> attrs;
+      bool allSub = true;
       for (unsigned i = 0, e = num; i < e; ++i) {
 
         mlir::Value next;
@@ -609,20 +611,41 @@ void MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
               toInit, idxs);
         }
 
-        helper(initListExpr->hasArrayFiller() ? initListExpr->getInit(0)
+        auto sub = helper(initListExpr->hasArrayFiller() ? initListExpr->getInit(0)
                                               : initListExpr->getInit(i),
                next, true);
+        if (sub) {
+			size_t n = 1;
+			if (sub.isSplat()) n = sub.size();
+			for (size_t i=0; i<n; i++)
+				for (auto ea : sub.getRawData())
+					attrs.push_back(ea);
+        } else {
+            allSub = false;
+        }
       }
-
+      if (!allSub) return mlir::DenseElementsAttr();
+      if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
+        return DenseElementsAttr::getFromRawBuffer(RankedTensorType::get(mt.getShape(), mt.getElementType()), attrs, false);
+	  }
+      return mlir::DenseElementsAttr();
     } else {
       bool isArray = false;
       Glob.getMLIRType(expr->getType(), &isArray);
       ValueCategory sub = Visit(expr);
-      ValueCategory(toInit, /*isReference*/ true).store(builder, sub, isArray);
+        ValueCategory(toInit, /*isReference*/ true).store(builder, sub, isArray);
+        if (!sub.isReference)
+        if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
+          if (auto cop = sub.val.getDefiningOp<ConstantIntOp>())
+            return DenseElementsAttr::get(RankedTensorType::get(std::vector<int64_t>({1}), mt.getElementType()), cop.getValue());
+          if (auto cop = sub.val.getDefiningOp<ConstantFloatOp>())
+            return DenseElementsAttr::get(RankedTensorType::get(std::vector<int64_t>({1}), mt.getElementType()), cop.getValue());
+        }
+        return mlir::DenseElementsAttr();
     }
   };
 
-  helper(expr, toInit, inner);
+  return helper(expr, toInit, inner);
 }
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
@@ -649,6 +672,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto visit = Visit(init);
       if (!visit.val) {
         decl->dump();
+		assert(visit.val);
       }
       bool isReference = init->isLValue() || init->isXValue();
       if (isReference) {
@@ -1017,7 +1041,6 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   mlir::Value count;
 
   if (expr->isArray()) {
-    (*expr->raw_arg_begin())->dump();
     count = Visit(*expr->raw_arg_begin()).getValue(builder);
     count = builder.create<IndexCastOp>(
         loc, count, mlir::IndexType::get(builder.getContext()));
@@ -3043,16 +3066,37 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     return sub;
   }
   case clang::UnaryOperator::Opcode::UO_Minus: {
-    auto ty = getMLIRType(U->getType());
+    mlir::Value val = sub.getValue(builder);
+    auto ty = val.getType();
     if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
-      return ValueCategory(builder.create<NegFOp>(loc, sub.getValue(builder)),
+      if (auto CI = val.getDefiningOp<ConstantFloatOp>()) {
+		  auto api = CI.getValue().cast<FloatAttr>().getValue();
+          return ValueCategory(
+              builder.create<arith::ConstantOp>(
+                  loc, ty,
+                  mlir::FloatAttr::get(
+                      ty, -api)
+                  ),
+              /*isReference*/ false);
+      }
+      return ValueCategory(builder.create<NegFOp>(loc, val),
                            /*isReference*/ false);
     } else {
+      if (auto CI = val.getDefiningOp<ConstantIntOp>()) {
+		  auto api = CI.getValue().cast<IntegerAttr>().getValue();
+          return ValueCategory(
+              builder.create<arith::ConstantOp>(
+                  loc, ty,
+                  mlir::IntegerAttr::get(
+                      ty, -api)
+                  ),
+              /*isReference*/ false);
+      }
       return ValueCategory(
           builder.create<SubIOp>(loc,
                                  builder.create<ConstantIntOp>(
                                      loc, 0, ty.cast<mlir::IntegerType>()),
-                                 sub.getValue(builder)),
+                                 val),
           /*isReference*/ false);
     }
   }
@@ -4470,6 +4514,15 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 
     if (prevTy == postTy)
       return ValueCategory(scalar, /*isReference*/ false);
+    if (auto c = scalar.getDefiningOp<ConstantFloatOp>()) {
+          APFloat Val = c.getValue().cast<FloatAttr>().getValue();
+          bool ignored;
+          Val.convert(postTy.getFloatSemantics(), APFloat::rmNearestTiesToEven, &ignored);
+          return ValueCategory(builder.create<arith::ConstantOp>(loc, postTy, 
+                                      mlir::FloatAttr::get(
+                    postTy, Val)),
+                      false);
+    }
     if (prevTy.getWidth() < postTy.getWidth()) {
       return ValueCategory(builder.create<arith::ExtFOp>(loc, scalar, postTy),
                            /*isReference*/ false);
@@ -4932,6 +4985,14 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix, bool
     break;
   }
 
+  auto globalOp = builder.create<mlir::memref::GlobalOp>(
+      module->getLoc(), builder.getStringAttr(name),
+      /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
+      initial_value, mlir::UnitAttr(), /*alignment*/ nullptr);
+  SymbolTable::setSymbolVisibility(globalOp, lnk);
+
+  globals[name] = std::make_pair(globalOp, isArray);
+
   if (tryInit)
   if (auto init = cast<VarDecl>(FD)->getInit()) {
     MLIRScanner ms(*this, module, LTInfo);
@@ -4939,26 +5000,39 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix, bool
 	ms.setEntryAndAllocBlock(B);
 	OpBuilder builder(module->getContext());
 	builder.setInsertionPointToEnd(B);
+    auto op = builder.create<memref::AllocaOp>(module->getLoc(), mr);
+
+    bool initialized = false;
+    if (isa<InitListExpr>(init)) {
+      if (auto A = ms.InitializeValueByInitListExpr(op, const_cast<clang::Expr*>(init))) {
+          initialized = true;
+          initial_value = A;
+      }
+    } else {
+	    mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
+	    if (auto cop = val.getDefiningOp<arith::ConstantOp>()) {
+	        initial_value = cop.getValue();
+	        initial_value = SplatElementsAttr::get(RankedTensorType::get(mr.getShape(), mr.getElementType()), initial_value);
+            initialized = true;
+        }
+    }
+
 	//mlir::Value val = ms.Visit(const_cast<clang::Expr*>(init)).getValue(builder);
 	//if (auto cop = val.getDefiningOp<ConstantIntOp>()) {
 	//	initial_value = qcop.getValue();
 	//	initial_value = SplatElementsAttr::get(mr, initial_value);
     //} else 
-    {
+    if (!initialized) {
         FD->dump();
         init->dump();
 		llvm::errs() << " warning not initializing global: " << name << "\n";// - " << val << "\n";
-    }
+    } else {
+		globalOp.initial_valueAttr(initial_value);
+	}
     delete B;
   }
 
-  auto globalOp = builder.create<mlir::memref::GlobalOp>(
-      module->getLoc(), builder.getStringAttr(name),
-      /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
-      initial_value, mlir::UnitAttr(), /*alignment*/ nullptr);
-  SymbolTable::setSymbolVisibility(globalOp, lnk);
-
-  return globals[name] = std::make_pair(globalOp, isArray);
+  return globals[name];
 }
 
 mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(

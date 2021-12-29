@@ -1,4 +1,10 @@
-// RUN: mlir-clang %s -S --function=foo | FileCheck %s
+// RUN: mlir-clang %s -S --function=* | FileCheck %s
+
+  float glob_A[][4] = {
+      {1.0f, 2.0, 3.0, 4.0}, 
+      {3.33333f},
+      {0.1f, 0.2f, 0.3, 0.4},
+  };
 
 float foo(int i, int j) {
   // multiple dims with array fillers
@@ -18,9 +24,9 @@ float foo(int i, int j) {
     sum += C[i];
   }
 
-  return A[i][j] + B[j] + sum;
+  return glob_A[i][j] + A[i][j] + B[j] + sum;
 }
-
+// CHECK: memref.global @glob_A : memref<3x4xf32> = dense{{.*}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00], [3.333330e+00, 3.333330e+00, 3.333330e+00, 3.333330e+00], [1.000000e-01, 2.000000e-01, 3.000000e-01, 4.000000e-01{{.*}}
 // CHECK-LABEL: func @foo
 // CHECK-DAG: %[[CST3:.*]] = arith.constant 3.33
 // CHECK-DAG: %[[CST1_23:.*]] = arith.constant 1.23

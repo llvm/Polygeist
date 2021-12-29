@@ -345,7 +345,7 @@ public:
 
   ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr);
 
-  void InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr);
+  mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr);
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
 
   ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,

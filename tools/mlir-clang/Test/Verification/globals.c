@@ -12,9 +12,9 @@ void kernel_deriche() {
 }
 
 // CHECK-DAG:   memref.global @external : memref<1xi32>
-// CHECK-DAG:   memref.global "private" @internal_init : memref<1xi32> = uninitialized
+// CHECK-DAG:   memref.global "private" @internal_init : memref<1xi32> = dense<5>
 // CHECK-DAG:   memref.global "private" @internal : memref<1xi32> = uninitialized
-// CHECK-DAG:   memref.global @local_init : memref<1xi32> = uninitialized
+// CHECK-DAG:   memref.global @local_init : memref<1xi32> = dense<4>
 // CHECK-DAG:   memref.global @local : memref<1xi32> = uninitialized
 // CHECK:   func @kernel_deriche()
 // CHECK-NEXT:     %0 = memref.get_global @local : memref<1xi32>
