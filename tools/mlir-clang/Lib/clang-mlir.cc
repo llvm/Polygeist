@@ -1794,10 +1794,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "atomicOr") {
-#if 1
-        llvm_unreachable("atomicOr unhandled");
-        assert(0 && "atomicOr unhandled");
-#else
         std::vector<ValueCategory> args;
         for (auto a : expr->arguments()) {
           args.push_back(Visit(a));
@@ -1809,7 +1805,23 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 args[0].getValue(builder),
                 std::vector<mlir::Value>({getConstantIndex(0)})),
             /*isReference*/ false);
-#endif
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "atomicAnd") {
+        std::vector<ValueCategory> args;
+        for (auto a : expr->arguments()) {
+          args.push_back(Visit(a));
+        }
+        auto a1 = args[1].getValue(builder);
+        return ValueCategory(
+            builder.create<mlir::AtomicRMWOp>(
+                loc, a1.getType(), AtomicRMWKind::andi, a1,
+                args[0].getValue(builder),
+                std::vector<mlir::Value>({getConstantIndex(0)})),
+            /*isReference*/ false);
       }
     }
 
@@ -5532,8 +5544,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     return mlir::LLVM::LLVMStructType::getLiteral(module->getContext(), types);
   }
   if (auto RT = dyn_cast<clang::RecordType>(qt)) {
-    llvm::StructType *ST =
-        cast<llvm::StructType>(CGM.getTypes().ConvertType(qt));
+    llvm::Type* LT = CGM.getTypes().ConvertType(qt);
+    if (!isa<llvm::StructType>(LT)) {
+        qt->dump();
+        llvm::errs() << "LT: " << *LT << "\n";
+    }
+    llvm::StructType *ST = cast<llvm::StructType>(LT);
 
     if (RT->getDecl()->field_empty())
       if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
