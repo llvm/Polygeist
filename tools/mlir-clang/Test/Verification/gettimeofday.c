@@ -10,19 +10,16 @@ double alloc() {
 
 // CHECK:   func @alloc() -> f64
 // CHECK-NEXT:     %cst = arith.constant 9.9999999999999995E-7 : f64
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i64, i64)> : (i64) -> !llvm.ptr<struct<(i64, i64)>>
-// CHECK-NEXT:     %1 = llvm.mlir.null : !llvm.ptr<struct<(i32, i32)>>
-// CHECK-NEXT:     %2 = llvm.call @gettimeofday(%0, %1) : (!llvm.ptr<struct<(i64, i64)>>, !llvm.ptr<struct<(i32, i32)>>) -> i32
-// CHECK-NEXT:     %3 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(i64, i64)>>, i32, i32) -> !llvm.ptr<i64>
-// CHECK-NEXT:     %4 = llvm.load %3 : !llvm.ptr<i64>
-// CHECK-NEXT:     %5 = llvm.getelementptr %0[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(i64, i64)>>, i32, i32) -> !llvm.ptr<i64>
-// CHECK-NEXT:     %6 = llvm.load %5 : !llvm.ptr<i64>
-// CHECK-NEXT:     %7 = arith.sitofp %4 : i64 to f64
-// CHECK-NEXT:     %8 = arith.sitofp %6 : i64 to f64
+// CHECK-NEXT:     %0 = memref.alloca() : memref<1x2xi64>
+// CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<1x2xi64>) -> !llvm.ptr<struct<(i64, i64)>>
+// CHECK-NEXT:     %2 = llvm.mlir.null : !llvm.ptr<i8>
+// CHECK-NEXT:     %3 = llvm.bitcast %2 : !llvm.ptr<i8> to !llvm.ptr<struct<(i32, i32)>>
+// CHECK-NEXT:     %4 = llvm.call @gettimeofday(%1, %3) : (!llvm.ptr<struct<(i64, i64)>>, !llvm.ptr<struct<(i32, i32)>>) -> i32
+// CHECK-NEXT:     %5 = affine.load %0[0, 0] : memref<1x2xi64>
+// CHECK-NEXT:     %6 = arith.sitofp %5 : i64 to f64
+// CHECK-NEXT:     %7 = affine.load %0[0, 1] : memref<1x2xi64>
+// CHECK-NEXT:     %8 = arith.sitofp %7 : i64 to f64
 // CHECK-NEXT:     %9 = arith.mulf %8, %cst : f64
-// CHECK-NEXT:     %10 = arith.addf %7, %9 : f64
+// CHECK-NEXT:     %10 = arith.addf %6, %9 : f64
 // CHECK-NEXT:     return %10 : f64
 // CHECK-NEXT:   }

@@ -36,6 +36,7 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   let arguments = (ins AnyMemRef : $source, Index : $index);
   let results = (outs AnyMemRef : $result);
 
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
@@ -55,6 +56,7 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
   let arguments = (ins AnyMemRef : $source);
   let results = (outs LLVM_AnyPointer : $result);
 
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
   
   let extraClassDeclaration = [{
@@ -70,6 +72,7 @@ def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
   let arguments = (ins LLVM_AnyPointer : $source);
   let results = (outs AnyMemRef : $result);
 
+  let hasFolder = 1;
   let hasCanonicalizer = 1;
   
   let extraClassDeclaration = [{
