@@ -126,19 +126,20 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
       rewriter.eraseOp(&thenLoop.getBody()->back());
     rewriter.mergeBlocks(op.getBody(0), thenLoop.getBody(0));
 
-    scf::ForOp elseLoop;
+    SmallVector<Value> vals;
+    
     if (!op.elseRegion().empty()) {
       auto negCondition = rewriter.create<SubIOp>(loc, one, cond);
-      elseLoop = rewriter.create<scf::ForOp>(loc, zero, negCondition, one, forArgs);
+      scf::ForOp elseLoop = rewriter.create<scf::ForOp>(loc, zero, negCondition, one, forArgs);
       if (forArgs.size() == 0)
         rewriter.eraseOp(&elseLoop.getBody()->back());
       rewriter.mergeBlocks(op.getBody(1), elseLoop.getBody(0));
+      
+      for (auto tup : llvm::zip(thenLoop.getResults(), elseLoop.getResults())) {
+        vals.push_back(rewriter.create<SelectOp>(op.getLoc(), op.condition(), std::get<0>(tup), std::get<1>(tup)));
+      }
     }
     
-    SmallVector<Value> vals;
-    for (auto tup : llvm::zip(thenLoop.getResults(), elseLoop.getResults())) {
-        vals.push_back(rewriter.create<SelectOp>(op.getLoc(), op.condition(), std::get<0>(tup), std::get<1>(tup)));
-    }
     rewriter.replaceOp(op, vals);
     return success();
   }
