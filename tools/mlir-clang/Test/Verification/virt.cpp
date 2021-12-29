@@ -65,11 +65,10 @@ void make() {
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN5FRootC1Ev(%arg0: memref<?x1xf32>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %cst = arith.constant 2.180000e+00 : f64
-// CHECK-NEXT:     %0 = arith.truncf %cst : f64 to f32
-// CHECK-NEXT:     affine.store %0, %arg0[0, 0] : memref<?x1xf32>
-// CHECK-NEXT:     %1 = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
-// CHECK-NEXT:     %2 = llvm.getelementptr %1[%c0_i32, %c0_i32] : (!llvm.ptr<array<14 x i8>>, i32, i32) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%2) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %cst = arith.constant 2.180000e+00 : f32
+// CHECK-NEXT:     affine.store %cst, %arg0[0, 0] : memref<?x1xf32>
+// CHECK-NEXT:     %[[i1:.+]] = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
+// CHECK-NEXT:     %[[i2:.+]] = llvm.getelementptr %[[i1]][%c0_i32, %c0_i32] : (!llvm.ptr<array<14 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     call @_Z5printPc(%[[i2]]) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
