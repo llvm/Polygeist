@@ -2234,6 +2234,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
+           sr->getDecl()->getName() == "cudaMemcpyAsync" ||
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
            sr->getDecl()->getName() == "memcpy" ||
            sr->getDecl()->getName() == "__builtin_memcpy")) {
@@ -2586,13 +2587,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "calloc",
       "free",
       "fgets",
-      "__erno_location",
+      "__errno_location",
       "__assert_fail",
       "cudaEventElapsedTime",
       "cudaEventSynchronize",
       "cudaDeviceGetAttribute",
       "cudaFuncGetAttributes",
       "cudaGetDevice",
+      "cudaGetDeviceCount",
+      "clock_gettime",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
       "cudaEventRecord"};
