@@ -1792,14 +1792,14 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto a1 = args[1].getValue(builder);
         if (a1.getType().isa<mlir::IntegerType>())
           return ValueCategory(
-              builder.create<mlir::AtomicRMWOp>(
+              builder.create<memref::AtomicRMWOp>(
                   loc, a1.getType(), AtomicRMWKind::addi, a1,
                   args[0].getValue(builder),
                   std::vector<mlir::Value>({getConstantIndex(0)})),
               /*isReference*/ false);
         else
           return ValueCategory(
-              builder.create<mlir::AtomicRMWOp>(
+              builder.create<memref::AtomicRMWOp>(
                   loc, a1.getType(), AtomicRMWKind::addf, a1,
                   args[0].getValue(builder),
                   std::vector<mlir::Value>({getConstantIndex(0)})),
@@ -1816,7 +1816,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
         auto a1 = args[1].getValue(builder);
         return ValueCategory(
-            builder.create<mlir::AtomicRMWOp>(
+            builder.create<memref::AtomicRMWOp>(
                 loc, a1.getType(), AtomicRMWKind::ori, a1,
                 args[0].getValue(builder),
                 std::vector<mlir::Value>({getConstantIndex(0)})),
@@ -1833,7 +1833,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
         auto a1 = args[1].getValue(builder);
         return ValueCategory(
-            builder.create<mlir::AtomicRMWOp>(
+            builder.create<memref::AtomicRMWOp>(
                 loc, a1.getType(), AtomicRMWKind::andi, a1,
                 args[0].getValue(builder),
                 std::vector<mlir::Value>({getConstantIndex(0)})),
@@ -3947,6 +3947,15 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     lhs.store(builder, result);
     return lhs;
   }
+  case clang::BinaryOperator::Opcode::BO_AndAssign: {
+    assert(lhs.isReference);
+    auto prev = lhs.getValue(builder);
+
+    mlir::Value result =
+        builder.create<AndIOp>(loc, prev, rhs.getValue(builder));
+    lhs.store(builder, result);
+    return lhs;
+  }
   case clang::BinaryOperator::Opcode::BO_OrAssign: {
     assert(lhs.isReference);
     auto prev = lhs.getValue(builder);
@@ -4408,6 +4417,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           return ValueCategory(builder.create<mlir::polygeist::SubIndexOp>(
                                    loc, ty, scalar, getConstantIndex(0)),
                                /*isReference*/ false);
+        }
+        if (ut.getShape().size() != mt.getShape().size()) {
+            return ValueCategory(builder.create<polygeist::Pointer2MemrefOp>(loc, ty,
+                        builder.create<polygeist::Memref2PointerOp>(loc, LLVM::LLVMPointerType::get(builder.getI8Type()), scalar)),
+                             /*isReference*/ false);
         }
         return ValueCategory(builder.create<mlir::memref::CastOp>(loc, scalar, ty),
                              /*isReference*/ false);
