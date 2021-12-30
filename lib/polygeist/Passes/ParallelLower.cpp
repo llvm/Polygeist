@@ -187,7 +187,12 @@ void ParallelLower::runOnOperation() {
   SmallPtrSet<Operation *, 2> toErase;
 
   // Only supports single block functions at the moment.
+  SmallVector<gpu::LaunchOp> toHandle;
   getOperation().walk([&](gpu::LaunchOp launchOp) {
+    toHandle.push_back(launchOp);
+  });
+
+  for (gpu::LaunchOp launchOp: toHandle) {
     std::function<void(CallOp)> callInliner = [&](CallOp caller) {
       // Build the inliner interface.
       AlwaysInlinerInterface interface(&getContext());
@@ -402,7 +407,7 @@ void ParallelLower::runOnOperation() {
       storeOp.erase();
     });
     launchOp.erase();
-  });
+  }
 
     getOperation().walk([&](LLVM::CallOp call) {
       if (call.getCallee().getValue() == "cudaMemcpy" || call.getCallee().getValue() == "cudaMemcpyAsync") {
