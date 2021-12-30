@@ -68,7 +68,8 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
 
   if (MemRefType dstTy = calleeArgType.dyn_cast_or_null<MemRefType>()) {
     MemRefType srcTy = callerArgType.dyn_cast<MemRefType>();
-    if (srcTy && dstTy.getElementType() == srcTy.getElementType()) {
+    if (srcTy && dstTy.getElementType() == srcTy.getElementType()
+              && dstTy.getMemorySpace() == srcTy.getMemorySpace()) {
       auto srcShape = srcTy.getShape();
       auto dstShape = dstTy.getShape();
 
@@ -748,7 +749,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto ifOp = builder.create<scf::IfOp>(varLoc, cond, /*hasElse*/false);
       block = builder.getInsertionBlock();
       iter = builder.getInsertionPoint();
-      builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+      builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
       builder.create<memref::StoreOp>(varLoc, builder.create<ConstantIntOp>(varLoc, false, 1), boolop, std::vector<mlir::Value>({getConstantIndex(0)}));
     }
   } else
@@ -2919,15 +2920,6 @@ ValueCategory MLIRScanner::CallHelper(
       }
     }
     assert(val);
-    /*
-    if (val.getType() != fnType.getInput(i)) {
-      if (auto MR1 = val.getType().dyn_cast<MemRefType>()) {
-        if (auto MR2 = fnType.getInput(i).dyn_cast<MemRefType>()) {
-          val = builder.create<mlir::memref::CastOp>(loc, val, MR2);
-        }
-      }
-    }
-    */
     args.push_back(val);
     i++;
   }
@@ -3460,7 +3452,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     auto oldpoint = builder.getInsertionPoint();
     auto oldblock = builder.getInsertionBlock();
-    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
 
     auto rhs = Visit(BO->getRHS()).getValue(builder);
     assert(rhs != nullptr);
@@ -3476,7 +3468,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     mlir::Value truearray[] = {rhs};
     builder.create<mlir::scf::YieldOp>(loc, truearray);
 
-    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
     mlir::Value falsearray[] = {
         builder.create<ConstantIntOp>(loc, 0, types[0])};
     builder.create<mlir::scf::YieldOp>(loc, falsearray);
@@ -3497,12 +3489,12 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
     auto oldpoint = builder.getInsertionPoint();
     auto oldblock = builder.getInsertionBlock();
-    builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
 
     mlir::Value truearray[] = {builder.create<ConstantIntOp>(loc, 1, types[0])};
     builder.create<mlir::scf::YieldOp>(loc, truearray);
 
-    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
     auto rhs = Visit(BO->getRHS()).getValue(builder);
     if (!rhs.getType().cast<mlir::IntegerType>().isInteger(1)) {
       auto postTy = builder.getI1Type();
@@ -4747,7 +4739,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
 
   auto oldpoint = builder.getInsertionPoint();
   auto oldblock = builder.getInsertionBlock();
-  builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+  builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
 
   auto trueExpr = Visit(E->getTrueExpr());
 
@@ -4778,7 +4770,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
     builder.create<mlir::scf::YieldOp>(loc, truearray);
   }
 
-  builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+  builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
 
   auto falseExpr = Visit(E->getFalseExpr());
   std::vector<mlir::Value> falsearray;
@@ -4800,10 +4792,10 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
     types[i] = truearray[i].getType();
   auto newIfOp = builder.create<mlir::scf::IfOp>(loc, types, cond,
                                                  /*hasElseRegion*/ true);
-  newIfOp.thenRegion().takeBody(ifOp.thenRegion());
-  newIfOp.elseRegion().takeBody(ifOp.elseRegion());
+  newIfOp.getThenRegion().takeBody(ifOp.getThenRegion());
+  newIfOp.getElseRegion().takeBody(ifOp.getElseRegion());
+  ifOp.erase();
   return ValueCategory(newIfOp.getResult(0), /*isReference*/ isReference);
-  // return ifOp;
 }
 
 ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {

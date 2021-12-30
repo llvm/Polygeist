@@ -57,14 +57,14 @@ static void wrapPersistingLoopBodies(FuncOp function) {
   for (scf::ParallelOp op : loops) {
     OpBuilder builder = OpBuilder::atBlockBegin(op.getBody());
     auto wrapper = builder.create<scf::ExecuteRegionOp>(
-        op.getLoc(), op.results().getTypes());
-    builder.createBlock(&wrapper.region(), wrapper.region().begin());
-    wrapper.region().front().getOperations().splice(
-        wrapper.region().front().begin(), op.getBody()->getOperations(),
+        op.getLoc(), op.getResults().getTypes());
+    builder.createBlock(&wrapper.getRegion(), wrapper.getRegion().begin());
+    wrapper.getRegion().front().getOperations().splice(
+        wrapper.getRegion().front().begin(), op.getBody()->getOperations(),
         std::next(op.getBody()->begin()), op.getBody()->end());
     builder.setInsertionPointToEnd(op.getBody());
     builder.create<scf::YieldOp>(
-        wrapper.region().front().getTerminator()->getLoc(),
+        wrapper.getRegion().front().getTerminator()->getLoc(),
         wrapper.getResults());
   }
 }
@@ -124,7 +124,7 @@ static LogicalResult splitBlocksWithBarrier(FuncOp function) {
     }
 
     splitBlocksWithBarrier(
-        cast<scf::ExecuteRegionOp>(&op.getBody()->front()).region());
+        cast<scf::ExecuteRegionOp>(&op.getBody()->front()).getRegion());
     return success();
   });
   return success(!result.wasInterrupted());
@@ -288,15 +288,15 @@ emitContinuationCase(Value condition, Value storage, scf::ParallelOp parallel,
         bn.create<scf::ExecuteRegionOp>(TypeRange(), ValueRange());
     BlockAndValueMapping mapping;
     mapping.map(parallel.getInductionVars(), ivs);
-    replicateIntoRegion(executeRegion.region(), storage, ivs,
-                        parallel.lowerBound(), blocks, subgraphEntryPoints,
+    replicateIntoRegion(executeRegion.getRegion(), storage, ivs,
+                        parallel.getLowerBound(), blocks, subgraphEntryPoints,
                         mapping, builder);
   };
 
   auto thenBuilder = [&](OpBuilder &nested, Location loc) {
     ImplicitLocOpBuilder bn(loc, nested);
-    bn.create<scf::ParallelOp>(parallel.lowerBound(), parallel.upperBound(),
-                               parallel.step(), parallelBuilder);
+    bn.create<scf::ParallelOp>(parallel.getLowerBound(), parallel.getUpperBound(),
+                               parallel.getStep(), parallelBuilder);
     bn.create<scf::YieldOp>();
   };
 
@@ -362,9 +362,9 @@ findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
   // Find the earliest insertion point where loop bounds are fully defined.
   PostDominanceInfo postDominanceInfo(op->getParentOfType<FuncOp>());
   SmallVector<Value> operands;
-  llvm::append_range(operands, op.lowerBound());
-  llvm::append_range(operands, op.upperBound());
-  llvm::append_range(operands, op.step());
+  llvm::append_range(operands, op.getLowerBound());
+  llvm::append_range(operands, op.getUpperBound());
+  llvm::append_range(operands, op.getStep());
   return findNesrestPostDominatingInsertionPoint(operands, postDominanceInfo);
 }
 
@@ -536,8 +536,8 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
   llvm::SetVector<Block *> startBlocks;
   auto outerExecuteRegion =
       cast<scf::ExecuteRegionOp>(&parallel.getBody()->front());
-  startBlocks.insert(&outerExecuteRegion.region().front());
-  for (Block &block : outerExecuteRegion.region()) {
+  startBlocks.insert(&outerExecuteRegion.getRegion().front());
+  for (Block &block : outerExecuteRegion.getRegion()) {
     if (!isa_and_nonnull<polygeist::BarrierOp>(
             block.getTerminator()->getPrevNode()))
       continue;
@@ -560,12 +560,12 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
   OpBuilder allocBuilder(loop);
   reg2mem(subgraphs, parallel, allocBuilder, builder);
 
-  builder.createBlock(&loop.before(), loop.before().end());
+  builder.createBlock(&loop.getBefore(), loop.getBefore().end());
   Value next = builder.create<memref::LoadOp>(storage);
   Value condition = builder.create<CmpIOp>(CmpIPredicate::ne, next, negOne);
   builder.create<scf::ConditionOp>(TypeRange(), condition, ValueRange());
 
-  builder.createBlock(&loop.after(), loop.after().end());
+  builder.createBlock(&loop.getAfter(), loop.getAfter().end());
   next = builder.create<memref::LoadOp>(storage);
   SmallVector<Value> caseConditions;
   caseConditions.resize(startBlocks.size());

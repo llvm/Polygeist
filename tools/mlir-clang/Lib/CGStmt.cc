@@ -172,10 +172,10 @@ void MLIRScanner::buildAffineLoopImpl(
   builder.setInsertionPointToEnd(&reg.front());
 
   auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  er.region().push_back(new Block());
-  builder.setInsertionPointToStart(&er.region().back());
+  er.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&er.getRegion().back());
   builder.create<scf::YieldOp>(loc);
-  builder.setInsertionPointToStart(&er.region().back());
+  builder.setInsertionPointToStart(&er.getRegion().back());
 
   if (!descr.getForwardMode()) {
     val = builder.create<SubIOp>(loc, val, lb);
@@ -355,15 +355,15 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   auto oldpoint = builder.getInsertionPoint();
   auto oldblock = builder.getInsertionBlock();
 
-  builder.setInsertionPointToStart(&affineOp.region().front());
+  builder.setInsertionPointToStart(&affineOp.getRegion().front());
 
   auto executeRegion =
       builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  executeRegion.region().push_back(new Block());
-  builder.setInsertionPointToStart(&executeRegion.region().back());
+  executeRegion.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
 
   auto oldScope = allocationScope;
-  allocationScope = &executeRegion.region().back();
+  allocationScope = &executeRegion.getRegion().back();
 
   for (auto zp : zip(inds, fors->counters())) {
     auto idx = builder.create<IndexCastOp>(
@@ -552,13 +552,13 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   bool hasElseRegion = stmt->getElse();
   auto ifOp = builder.create<mlir::scf::IfOp>(loc, cond, hasElseRegion);
 
-  ifOp.thenRegion().back().clear();
-  builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+  ifOp.getThenRegion().back().clear();
+  builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
   Visit(stmt->getThen());
   builder.create<scf::YieldOp>(loc);
   if (hasElseRegion) {
-    ifOp.elseRegion().back().clear();
-    builder.setInsertionPointToStart(&ifOp.elseRegion().back());
+    ifOp.getElseRegion().back().clear();
+    builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
     Visit(stmt->getElse());
     builder.create<scf::YieldOp>(loc);
   }
@@ -574,7 +574,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   SmallVector<int64_t> caseVals;
 
   auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  er.region().push_back(new Block());
+  er.getRegion().push_back(new Block());
   auto oldpoint2 = builder.getInsertionPoint();
   auto oldblock2 = builder.getInsertionBlock();
 
@@ -613,7 +613,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       }
 
       inCase = true;
-      er.region().getBlocks().push_back(&condB);
+      er.getRegion().getBlocks().push_back(&condB);
       blocks.push_back(&condB);
       builder.setInsertionPointToStart(&condB);
 
@@ -638,7 +638,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       }
 
       inCase = true;
-      er.region().getBlocks().push_back(&condB);
+      er.getRegion().getBlocks().push_back(&condB);
       builder.setInsertionPointToStart(&condB);
 
       auto i1Ty = builder.getIntegerType(1);
@@ -668,7 +668,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     loops.pop_back();
   builder.create<mlir::BranchOp>(loc, &exitB);
 
-  er.region().getBlocks().push_back(&exitB);
+  er.getRegion().getBlocks().push_back(&exitB);
 
   DenseIntElementsAttr caseValuesAttr;
   ShapedType caseValueType = mlir::VectorType::get(
@@ -694,7 +694,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
     caseValuesAttr = DenseIntElementsAttr::get(caseValueType, caseVals8);
   }
 
-  builder.setInsertionPointToStart(&er.region().front());
+  builder.setInsertionPointToStart(&er.getRegion().front());
   builder.create<mlir::SwitchOp>(
       loc, cond, defaultB, ArrayRef<mlir::Value>(), caseValuesAttr, blocks,
       SmallVector<mlir::ValueRange>(caseVals.size(), ArrayRef<mlir::Value>()));

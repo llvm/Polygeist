@@ -29,7 +29,7 @@ static llvm::SmallVector<mlir::Value>
 emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   using namespace mlir;
   SmallVector<Value> iterationCounts;
-  for (auto bounds : llvm::zip(op.lowerBound(), op.upperBound(), op.step())) {
+  for (auto bounds : llvm::zip(op.getLowerBound(), op.getUpperBound(), op.getStep())) {
     Value lowerBound = std::get<0>(bounds);
     Value upperBound = std::get<1>(bounds);
     Value step = std::get<2>(bounds);

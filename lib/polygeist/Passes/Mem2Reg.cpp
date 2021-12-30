@@ -453,7 +453,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
-              valueAtStartOfBlock[&*exOp.region().begin()] = lastVal;
+              valueAtStartOfBlock[&*exOp.getRegion().begin()] = lastVal;
               Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
               lastVal = nullptr;
               seenSubStore = true;
@@ -477,7 +477,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 continue;
               }
 
-              Block &then = exOp.region().back();
+              Block &then = exOp.getRegion().back();
               OpBuilder B(exOp.getContext());
               auto yieldOp = cast<mlir::scf::YieldOp>(then.back());
               B.setInsertionPoint(yieldOp);
@@ -502,13 +502,13 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               auto nextIf =
                   B.create<mlir::scf::ExecuteRegionOp>(exOp.getLoc(), tys);
 
-              SmallVector<mlir::Value, 4> thenVals = yieldOp.results();
+              SmallVector<mlir::Value, 4> thenVals = yieldOp.getResults();
               thenVals.push_back(thenVal);
               yieldOp->setOperands(thenVals);
-              nextIf.region().getBlocks().clear();
-              nextIf.region().getBlocks().splice(
-                  nextIf.region().getBlocks().begin(),
-                  exOp.region().getBlocks());
+              nextIf.getRegion().getBlocks().clear();
+              nextIf.getRegion().getBlocks().splice(
+                  nextIf.getRegion().getBlocks().begin(),
+                  exOp.getRegion().getBlocks());
 
               SmallVector<mlir::Value, 3> resvals = (nextIf.getResults());
               lastVal = resvals.back();
@@ -559,15 +559,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 lastVal = newLoad->getResult(0);
               }
 
-              valueAtStartOfBlock[&*ifOp.thenRegion().begin()] = lastVal;
+              valueAtStartOfBlock[&*ifOp.getThenRegion().begin()] = lastVal;
               mlir::Value thenVal =
-                  handleBlock(*ifOp.thenRegion().begin(), lastVal);
+                  handleBlock(*ifOp.getThenRegion().begin(), lastVal);
 
-              if (lastVal && ifOp.elseRegion().getBlocks().size())
-                valueAtStartOfBlock[&*ifOp.elseRegion().begin()] = lastVal;
+              if (lastVal && ifOp.getElseRegion().getBlocks().size())
+                valueAtStartOfBlock[&*ifOp.getElseRegion().begin()] = lastVal;
               mlir::Value elseVal =
-                  (ifOp.elseRegion().getBlocks().size())
-                      ? handleBlock(*ifOp.elseRegion().begin(), lastVal)
+                  (ifOp.getElseRegion().getBlocks().size())
+                      ? handleBlock(*ifOp.getElseRegion().begin(), lastVal)
                       : lastVal;
 
               if (thenVal == elseVal && thenVal != nullptr) {
@@ -582,41 +582,37 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                                ifOp.getResultTypes().end());
                 tys.push_back(thenVal.getType());
                 auto nextIf = B.create<mlir::scf::IfOp>(
-                    ifOp.getLoc(), tys, ifOp.condition(), /*hasElse*/ true);
+                    ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
 
-                Block &then = ifOp.thenRegion().back();
+                Block &then = ifOp.getThenRegion().back();
                 SmallVector<mlir::Value, 4> thenVals =
-                    cast<mlir::scf::YieldOp>(then.back()).results();
+                    cast<mlir::scf::YieldOp>(then.back()).getResults();
                 thenVals.push_back(thenVal);
-                nextIf.thenRegion().getBlocks().clear();
-                nextIf.thenRegion().getBlocks().splice(
-                    nextIf.thenRegion().getBlocks().begin(),
-                    ifOp.thenRegion().getBlocks());
+                nextIf.getThenRegion().getBlocks().clear();
+                nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
                 cast<mlir::scf::YieldOp>(
-                    nextIf.thenRegion().back().getTerminator())
+                    nextIf.getThenRegion().back().getTerminator())
                     ->setOperands(thenVals);
 
-                if (ifOp.elseRegion().getBlocks().size()) {
-                  nextIf.elseRegion().getBlocks().clear();
+                if (ifOp.getElseRegion().getBlocks().size()) {
+                  nextIf.getElseRegion().getBlocks().clear();
                   SmallVector<mlir::Value, 4> elseVals =
-                      cast<mlir::scf::YieldOp>(ifOp.elseRegion().back().back())
-                          .results();
+                      cast<mlir::scf::YieldOp>(ifOp.getElseRegion().back().back())
+                          .getResults();
                   elseVals.push_back(elseVal);
-                  nextIf.elseRegion().getBlocks().splice(
-                      nextIf.elseRegion().getBlocks().begin(),
-                      ifOp.elseRegion().getBlocks());
+                  nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
                   cast<mlir::scf::YieldOp>(
-                      nextIf.elseRegion().back().getTerminator())
+                      nextIf.getElseRegion().back().getTerminator())
                       ->setOperands(elseVals);
                 } else {
-                  B.setInsertionPoint(&nextIf.elseRegion().back(),
-                                      nextIf.elseRegion().back().begin());
+                  B.setInsertionPoint(&nextIf.getElseRegion().back(),
+                                      nextIf.getElseRegion().back().begin());
                   SmallVector<mlir::Value, 4> elseVals;
                   elseVals.push_back(elseVal);
                   B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
                 }
 
-                SmallVector<mlir::Value, 3> resvals = (nextIf.results());
+                SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
                 lastVal = resvals.back();
                 resvals.pop_back();
                 ifOp.replaceAllUsesWith(resvals);
