@@ -21,13 +21,13 @@ IfScope::IfScope(MLIRScanner &scanner) : scanner(scanner), prevBlock(nullptr) {
                                                   /*hasElse*/ false);
     prevBlock = scanner.builder.getInsertionBlock();
     prevIterator = scanner.builder.getInsertionPoint();
-    ifOp.thenRegion().back().clear();
-    scanner.builder.setInsertionPointToStart(&ifOp.thenRegion().back());
+    ifOp.getThenRegion().back().clear();
+    scanner.builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
     auto er = scanner.builder.create<scf::ExecuteRegionOp>(
         scanner.loc, ArrayRef<mlir::Type>());
     scanner.builder.create<scf::YieldOp>(scanner.loc);
-    er.region().push_back(new Block());
-    scanner.builder.setInsertionPointToStart(&er.region().back());
+    er.getRegion().push_back(new Block());
+    scanner.builder.setInsertionPointToStart(&er.getRegion().back());
   }
 }
 

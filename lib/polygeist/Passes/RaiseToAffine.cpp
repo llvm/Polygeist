@@ -30,7 +30,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   bool isAffine(scf::ForOp loop) const {
     // return true;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
-    return isa_and_nonnull<ConstantIndexOp>(loop.step().getDefiningOp());
+    return isa_and_nonnull<ConstantIndexOp>(loop.getStep().getDefiningOp());
   }
 
   void canonicalizeLoopBounds(AffineForOp forOp) const {
@@ -67,23 +67,23 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     if (isAffine(loop)) {
       OpBuilder builder(loop);
 
-      if (!isValidIndex(loop.lowerBound())) {
+      if (!isValidIndex(loop.getLowerBound())) {
         return failure();
       }
 
-      if (!isValidIndex(loop.upperBound())) {
+      if (!isValidIndex(loop.getUpperBound())) {
         return failure();
       }
 
       AffineForOp affineLoop = rewriter.create<AffineForOp>(
-          loop.getLoc(), loop.lowerBound(), builder.getSymbolIdentityMap(),
-          loop.upperBound(), builder.getSymbolIdentityMap(),
-          getStep(loop.step()), loop.getIterOperands());
+          loop.getLoc(), loop.getLowerBound(), builder.getSymbolIdentityMap(),
+          loop.getUpperBound(), builder.getSymbolIdentityMap(),
+          getStep(loop.getStep()), loop.getIterOperands());
 
       canonicalizeLoopBounds(affineLoop);
 
       auto mergedYieldOp =
-          cast<scf::YieldOp>(loop.region().front().getTerminator());
+          cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
 
       Block &newBlock = affineLoop.region().front();
 
@@ -97,10 +97,10 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       rewriter.updateRootInPlace(loop, [&] {
         affineLoop.region().front().getOperations().splice(
             affineLoop.region().front().getOperations().begin(),
-            loop.region().front().getOperations());
+            loop.getRegion().front().getOperations());
 
         for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
-                                   loop.region().front().getArguments())) {
+                                   loop.getRegion().front().getArguments())) {
           std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
         }
       });

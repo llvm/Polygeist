@@ -1047,7 +1047,7 @@ void AffineCFGPass::runOnFunction() {
       OpBuilder b(ifOp);
       AffineIfOp affineIfOp;
       std::vector<mlir::Type> types;
-      for (auto v : ifOp.results()) {
+      for (auto v : ifOp.getResults()) {
         types.push_back(v.getType());
       }
 
@@ -1055,7 +1055,7 @@ void AffineCFGPass::runOnFunction() {
       SmallVector<bool, 2> eqflags;
       SmallVector<Value, 4> applies;
 
-      std::deque<Value> todo = {ifOp.condition()};
+      std::deque<Value> todo = {ifOp.getCondition()};
       while (todo.size()) {
         auto cur = todo.front();
         todo.pop_front();
@@ -1077,20 +1077,20 @@ void AffineCFGPass::runOnFunction() {
                                   eqflags);
       affineIfOp = b.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
                                         /*elseBlock=*/true);
-      affineIfOp.thenRegion().takeBody(ifOp.thenRegion());
-      affineIfOp.elseRegion().takeBody(ifOp.elseRegion());
+      affineIfOp.thenRegion().takeBody(ifOp.getThenRegion());
+      affineIfOp.elseRegion().takeBody(ifOp.getElseRegion());
 
       for (auto &blk : affineIfOp.thenRegion()) {
         if (auto yop = dyn_cast<scf::YieldOp>(blk.getTerminator())) {
           OpBuilder b(yop);
-          b.create<AffineYieldOp>(yop.getLoc(), yop.results());
+          b.create<AffineYieldOp>(yop.getLoc(), yop.getResults());
           yop.erase();
         }
       }
       for (auto &blk : affineIfOp.elseRegion()) {
         if (auto yop = dyn_cast<scf::YieldOp>(blk.getTerminator())) {
           OpBuilder b(yop);
-          b.create<AffineYieldOp>(yop.getLoc(), yop.results());
+          b.create<AffineYieldOp>(yop.getLoc(), yop.getResults());
           yop.erase();
         }
       }

@@ -693,6 +693,9 @@ public:
     if (src.source().getType().cast<MemRefType>().getElementType() !=
             op.getType().cast<MemRefType>().getElementType())
       return failure();
+    if (src.source().getType().cast<MemRefType>().getMemorySpace() !=
+            op.getType().cast<MemRefType>().getMemorySpace())
+      return failure();
 
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), src.source());
     return success();
@@ -731,6 +734,11 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
     if (auto mc = source().getDefiningOp<memref::CastOp>()) {
         sourceMutable().assign(mc.source());
         return result();
+    }
+    if (auto mc = source().getDefiningOp<polygeist::Pointer2MemrefOp>()) {
+        if (mc.source().getType() == getType()) {
+            return mc.source();
+        }
     }
     return nullptr;
 }
@@ -867,6 +875,11 @@ OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
     if (auto mc = source().getDefiningOp<LLVM::BitcastOp>()) {
         sourceMutable().assign(mc.getArg());
         return result();
+    }
+    if (auto mc = source().getDefiningOp<polygeist::Memref2PointerOp>()) {
+        if (mc.source().getType() == getType()) {
+            return mc.source();
+        }
     }
     return nullptr;
 }
