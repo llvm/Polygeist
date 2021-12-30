@@ -835,8 +835,11 @@ public:
     auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
     if (!src)
       return failure();
-
+    
     Value val = src.source();
+    if (val.getType().cast<LLVM::LLVMPointerType>().getElementType() != 
+        src.getType().cast<MemRefType>().getElementType())
+      return failure();
     Value idx = nullptr;
     for (size_t i = 0; i < op.indices().size(); i++) {
       auto cur = rewriter.create<IndexCastOp>(

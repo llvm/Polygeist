@@ -367,6 +367,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
     } else {
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
+      if (memspace != 0) {
+        alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+                    mlir::MemRefType::get(-1, t, {}, memspace),
+                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    varLoc, LLVM::LLVMPointerType::get(t, 0), alloc));
+      }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
       if (t.isa<mlir::IntegerType>()) {
@@ -392,6 +398,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         len = builder.create<IndexCastOp>(varLoc, len, builder.getIndexType());
         alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
         builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
+        if (memspace != 0) {
+          alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+                    mlir::MemRefType::get(shape, mt.getElementType()),
+                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0), alloc));
+        }
       }
 
     if (!alloc) {
@@ -401,6 +413,12 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
           shape, mt.getElementType(), MemRefLayoutAttrInterface(),
           wrapIntegerMemorySpace(memspace, mt.getContext()));
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
+        if (memspace != 0) {
+          alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+                    mlir::MemRefType::get(shape, mt.getElementType()),
+                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0), alloc));
+        }
       shape[0] = pshape;
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc,
