@@ -2259,6 +2259,30 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(args[0], /*isReference*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "memset" ||
+           sr->getDecl()->getName() == "__builtin_memset")) {
+        std::vector<mlir::Value> args = {
+            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
+            getLLVM(expr->getArg(2)), /*isVolatile*/
+            builder.create<ConstantIntOp>(loc, false, 1)};
+    
+        args[1] = builder.create<TruncIOp>(loc, builder.getI8Type(), args[1]);
+        builder.create<LLVM::MemsetOp>(loc, args[0], args[1], args[2],
+                                        args[3]);
+        return ValueCategory(args[0], /*isReference*/ false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "memcpy" ||
+           sr->getDecl()->getName() == "__builtin_memcpy")) {
+            std::vector<mlir::Value> args = {
+                getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
+                getLLVM(expr->getArg(2)), /*isVolatile*/
+                builder.create<ConstantIntOp>(loc, false, 1)};
+            builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2],
+                                           args[3]);
+            return ValueCategory(args[0], /*isReference*/ false);
+          }
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
            sr->getDecl()->getName() == "cudaMemcpyAsync" ||
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
@@ -2271,16 +2295,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         while (auto BC = dyn_cast<clang::CastExpr>(srcSub))
           srcSub = BC->getSubExpr();
         
-        if (sr->getDecl()->getName() == "memcpy" ||
-              sr->getDecl()->getName() == "__builtin_memcpy") {
-            std::vector<mlir::Value> args = {
-                getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-                getLLVM(expr->getArg(2)), /*isVolatile*/
-                builder.create<ConstantIntOp>(loc, false, 1)};
-            builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2],
-                                           args[3]);
-            return ValueCategory(args[0], /*isReference*/ false);
-          }
 #if 0
         auto dstst = dstSub->getType()->getUnqualifiedDesugaredType();
         if (isa<clang::PointerType>(dstst) || isa<clang::ArrayType>(dstst)) {
