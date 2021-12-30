@@ -417,7 +417,7 @@ int main(int argc, char **argv) {
     llvm::errs() << "</immediate: mlir>\n";
   }
 
-  bool LinkOMP = false;
+  bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
   if (true) {

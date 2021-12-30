@@ -448,6 +448,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         for (auto &a : block) {
           ops.push_back(&a);
         }
+        LLVM_DEBUG( llvm::dbgs() << " starting block: "; block.print(llvm::dbgs()); llvm::dbgs() << " with ";
+                if (lastVal) llvm::dbgs() << lastVal << "\n"; else llvm::dbgs() << " null\n"; );
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
@@ -455,6 +457,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
               lastVal = nullptr;
               seenSubStore = true;
+              LLVM_DEBUG( llvm::dbgs() << " zeroing val due to " << exOp << "\n"; );
               continue;
 
               bool needsAfter = false;
@@ -470,8 +473,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                     });
                 }
               }
-              if (!needsAfter)
+              if (!needsAfter) {
                 continue;
+              }
 
               Block &then = exOp.region().back();
               OpBuilder B(exOp.getContext());
@@ -550,7 +554,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 else
                   newLoad = B.create<LLVM::LoadOp>(ifOp.getLoc(), AI);
 
-                loadOps.insert(newLoad);
+                if (!seenSubStore)
+                  loadOps.insert(newLoad);
                 lastVal = newLoad->getResult(0);
               }
 
@@ -813,6 +818,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             });
           }
         }
+        LLVM_DEBUG( llvm::dbgs() << " ending block: "; block.print(llvm::dbgs()); llvm::dbgs() << " with ";
+                if (lastVal) llvm::dbgs() << lastVal << "\n"; else llvm::dbgs() << " null\n"; );
         return lastStoreInBlock[&block] = lastVal;
       };
 

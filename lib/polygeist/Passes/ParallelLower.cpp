@@ -144,24 +144,33 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 // TODO
-#if 0
-mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateMallocFunction(ModuleOp* module) {
-  std::string name = "malloc";
-  if (llvmFunctions.find(name) != llvmFunctions.end()) {
-    return llvmFunctions[name];
-  }
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+  mlir::OpBuilder builder(module.getContext());
+  SymbolTableCollection symbolTable;
+  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(module, builder.getIdentifier("malloc"))))
+      return fn;
   auto ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
-  mlir::OpBuilder builder(module->getContext());
-  builder.setInsertionPointToStart(module->getBody());
-  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
-             module->getLoc(), name, llvmFnType, lnk);
+  builder.setInsertionPointToStart(module.getBody());
+  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType, lnk);
 }
-#endif
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
+  mlir::OpBuilder builder(module.getContext());
+  SymbolTableCollection symbolTable;
+  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(module, builder.getIdentifier("free"))))
+      return fn;
+  auto ctx = module->getContext();
+  auto llvmFnType = LLVM::LLVMFunctionType::get(
+      LLVM::LLVMVoidType::get(ctx), ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())), false);
+
+  LLVM::Linkage lnk = LLVM::Linkage::External;
+  builder.setInsertionPointToStart(module.getBody());
+  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "free", llvmFnType, lnk);
+}
 
 void ParallelLower::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
@@ -419,17 +428,34 @@ void ParallelLower::runOnOperation() {
         OpBuilder bz(call);
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
-                                  call.getOperand(1), call.getOperand(2),
+                                  bz.create<TruncIOp>(call.getLoc(), bz.getI8Type(), call.getOperand(1)), call.getOperand(2),
                                   /*isVolatile*/ falsev);
-        Value vals[] = {call.getOperand(2)};
-        call.replaceAllUsesWith(ArrayRef<Value>(vals));
-        call.erase();
-        /*
-      } else if (call.getCallee().getValue() == "cudaMalloc") {
         Value vals[] = {call.getOperand(0)};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
-        */
+      } else if (call.getCallee().getValue() == "cudaMalloc") {
+        auto mf = GetOrCreateMallocFunction(getOperation());
+        OpBuilder bz(call);
+        Value args[] = {bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), call.getOperand(1))};
+        mlir::Value alloc = bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult(0);
+        bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
+          {
+        auto retv = bz.create<ConstantIntOp>(call.getLoc(), 0, call.getResult(0).getType().cast<IntegerType>().getWidth());
+        Value vals[] = {retv};
+        call.replaceAllUsesWith(ArrayRef<Value>(vals));
+        call.erase();
+          }
+      } else if (call.getCallee().getValue() == "cudaFree") {
+        auto mf = GetOrCreateFreeFunction(getOperation());
+        OpBuilder bz(call);
+        Value args[] = {call.getOperand(0)};
+        bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args);
+          {
+        auto retv = bz.create<ConstantIntOp>(call.getLoc(), 0, call.getResult(0).getType().cast<IntegerType>().getWidth());
+        Value vals[] = {retv};
+        call.replaceAllUsesWith(ArrayRef<Value>(vals));
+        call.erase();
+          }
       } else if (call.getCallee().getValue() == "cudaDeviceSynchronize") {
         OpBuilder bz(call);
         auto retv = bz.create<ConstantIntOp>(call.getLoc(), 0, call.getResult(0).getType().cast<IntegerType>().getWidth());
