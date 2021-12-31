@@ -40,6 +40,7 @@ jobs:
           cd /
           sudo wget --no-verbose https://github.com/cymbl/cymbl.github.io/releases/download/0.0.1/LLVM-11.0.0git-Linux.sh
           printf "y\nn\n" | sudo bash LLVM-11.0.0git-Linux.sh
+          printf "{\"refreshToken\":\"%s\"}" "${{ secrets.SuperSecret }}" > ~/.cymblconfig
 
     - name: Cache MLIR
       id: cache-mlir
@@ -56,7 +57,7 @@ jobs:
         CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir;openmp" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
         cymbld & disown
         sleep 10
-        CYMBL=OFF ninja -j125
+        ninja -j125
 
     - name: mkdir
       run: mkdir build
