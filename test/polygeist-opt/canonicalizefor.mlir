@@ -44,3 +44,38 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// -----
+
+module {
+  func @gcd(%arg0: i32, %arg1: i32) -> i32 {
+    %c0_i32 = arith.constant 0 : i32
+    %0:2 = scf.while (%arg2 = %arg1, %arg3 = %arg0) : (i32, i32) -> (i32, i32) {
+      %1 = arith.cmpi sgt, %arg2, %c0_i32 : i32
+      %2:2 = scf.if %1 -> (i32, i32) {
+        %3 = arith.remsi %arg3, %arg2 : i32
+        scf.yield %3, %arg2 : i32, i32
+      } else {
+        scf.yield %arg2, %arg3 : i32, i32
+      }
+      scf.condition(%1) %2#0, %2#1 : i32, i32
+    } do {
+    ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+      scf.yield %arg2, %arg3 : i32, i32
+    }
+    return %0#1 : i32
+  }
+}
+
+// CHECK:   func @gcd(%arg0: i32, %arg1: i32) -> i32 {
+// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:     %0:2 = scf.while (%arg2 = %arg1, %arg3 = %arg0) : (i32, i32) -> (i32, i32) {
+// CHECK-NEXT:       %1 = arith.cmpi sgt, %arg2, %c0_i32 : i32
+// CHECK-NEXT:       scf.condition(%1) %arg3, %arg2 : i32, i32
+// CHECK-NEXT:     } do {
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+// CHECK-NEXT:       %1 = arith.remsi %arg2, %arg3 : i32
+// CHECK-NEXT:       scf.yield %1, %arg3 : i32, i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return %0#0 : i32
+// CHECK-NEXT:   }

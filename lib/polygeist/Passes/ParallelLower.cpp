@@ -184,7 +184,7 @@ void ParallelLower::runOnOperation() {
       bidx.erase();
   });
 
-  SmallPtrSet<Operation *, 2> toErase;
+  SmallPtrSet<Operation*, 2> toErase;
 
   // Only supports single block functions at the moment.
   SmallVector<gpu::LaunchOp> toHandle;
@@ -197,9 +197,7 @@ void ParallelLower::runOnOperation() {
       // Build the inliner interface.
       AlwaysInlinerInterface interface(&getContext());
 
-      auto callable =
-          caller
-              .getCallableForCallee(); //.resolveCallable(symbolTableOp->getTrait<OpTrait::SymbolTable>());//.getCallableRegion();
+      auto callable = caller.getCallableForCallee();
       CallableOpInterface callableOp;
       if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
         if (!symRef.isa<FlatSymbolRefAttr>())
@@ -482,10 +480,13 @@ void ParallelLower::runOnOperation() {
       }
     });
 
-
-  for (auto f : toErase)
-    if (f->use_empty())
+  auto ST = symbolTable.getSymbolTable(getOperation());
+  for (auto f : toErase) {
+    bool empty = ST.symbolKnownUseEmpty(f, getOperation());
+    if (empty) {
       f->erase();
+    }
+  }
 
   // Fold the copy memtype cast
   {

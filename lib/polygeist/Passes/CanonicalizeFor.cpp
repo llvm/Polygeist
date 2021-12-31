@@ -841,6 +841,21 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
   }
 };
 
+
+// Given code of the structure
+// scf.while () 
+//    ...
+//    %z = if (%c) {
+//       %i1 = ..
+//       ..
+//    } else {
+//    }
+//    condition (%c) %z#0 ..
+//  } loop {
+//    ...
+//  }
+// Move the body of the if into the lower loo
+
 struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
 
@@ -888,8 +903,11 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
         return failure();
 
       SmallVector<std::pair<BlockArgument, Value>, 2> m;
+      // The return results of the while which are used
+      SmallVector<Value, 2> prevResults;
+      // The corresponding value in the before which
+      // is to be returned
       SmallVector<Value, 2> condArgs;
-      SmallVector<Value, 2> prevArgs;
 
       SmallVector<std::pair<size_t, Value>, 2> afterYieldRewrites;
       auto afterYield = cast<YieldOp>(op.getAfter().front().back());
@@ -909,6 +927,18 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
           assert(thenYielded);
           assert(elseYielded);
 
+          // If one of the if results is returned, only handle the case
+          // where the value yielded is a block argument
+          // %out-i:pair<0> = scf.while (... i:%blockArg=... ) {
+          //   %z:j = scf.if (%c) {
+          //      ...
+          //   } else {
+          //      yield ... j:%blockArg
+          //   }
+          //   condition %c ... i:pair<1>=%z:j
+          // } loop ( ... i:) {
+          //    yield   i:pair<2>
+          // }
           if (!std::get<0>(pair).use_empty()) {
             if (auto blockArg = elseYielded.dyn_cast<BlockArgument>())
               if (blockArg.getOwner() == &op.getBefore().front()) {
@@ -916,7 +946,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
                         std::get<2>(pair) &&
                     op.getResults()[blockArg.getArgNumber()] ==
                         std::get<0>(pair)) {
-                  prevArgs.push_back(std::get<0>(pair));
+                  prevResults.push_back(std::get<0>(pair));
                   condArgs.push_back(blockArg);
                   afterYieldRewrites.emplace_back(blockArg.getArgNumber(),
                                                   thenYielded);
@@ -927,8 +957,8 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
           }
           m.emplace_back(std::get<2>(pair), thenYielded);
         } else {
-          assert(prevArgs.size() == condArgs.size());
-          prevArgs.push_back(std::get<0>(pair));
+          assert(prevResults.size() == condArgs.size());
+          prevResults.push_back(std::get<0>(pair));
           condArgs.push_back(std::get<1>(pair));
         }
       }
@@ -950,7 +980,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
         condArgs.push_back(v);
         auto arg = afterB->addArgument(v.getType());
         for (OpOperand &use : llvm::make_early_inc_range(v.getUses())) {
-          if (ifOp->isAncestor(use.getOwner()))
+          if (ifOp->isAncestor(use.getOwner()) || use.getOwner() == afterYield)
             rewriter.updateRootInPlace(use.getOwner(), [&]() { use.set(arg); });
         }
       }
@@ -982,7 +1012,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       nop.getAfter().takeBody(op.getAfter());
 
       rewriter.updateRootInPlace(op, [&] {
-        for (auto pair : llvm::enumerate(prevArgs)) {
+        for (auto pair : llvm::enumerate(prevResults)) {
           pair.value().replaceAllUsesWith(nop.getResult(pair.index()));
         }
       });
