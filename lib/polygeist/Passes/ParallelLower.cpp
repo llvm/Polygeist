@@ -215,7 +215,9 @@ void ParallelLower::runOnOperation() {
         return;
       if (targetRegion->empty())
         return;
-      callableOp.walk(callInliner);
+      SmallVector<CallOp> ops;
+      callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops) callInliner(op);
       if (inlineCall(interface, caller, callableOp, targetRegion,
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {
@@ -223,7 +225,9 @@ void ParallelLower::runOnOperation() {
         toErase.insert(callableOp);
       }
     };
-    launchOp.walk(callInliner);
+    SmallVector<CallOp> ops;
+    launchOp.walk([&](CallOp caller) { ops.push_back(caller); });
+    for (auto op : ops) callInliner(op);
 
     Block *nb = &launchOp.getRegion().front();
     mlir::OpBuilder builder(launchOp.getContext());

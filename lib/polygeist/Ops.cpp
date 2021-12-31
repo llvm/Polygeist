@@ -784,25 +784,38 @@ public:
 };
 
 /// Simplify load (pointer2memref(x)) to llvm.load x
-class Pointer2MemrefLoad final : public OpRewritePattern<memref::LoadOp> {
+template<typename Op>
+class MetaPointer2Memref final : public OpRewritePattern<Op> {
 public:
-  using OpRewritePattern<memref::LoadOp>::OpRewritePattern;
+  using OpRewritePattern<Op>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(memref::LoadOp op,
+  Value computeIndex(Op op, size_t idx, PatternRewriter &rewriter) const;
+
+  void rewrite(Op op, Value ptr) const;
+
+  LogicalResult matchAndRewrite(Op op,
                                 PatternRewriter &rewriter) const override {
     auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
     if (!src)
       return failure();
 
+    auto mt = src.getType().cast<MemRefType>();
+    for (auto i=1; i<mt.getShape().size(); i++)
+        if (mt.getShape()[i] == ShapedType::kDynamicSize)
+            return failure();
+
     Value val = src.source();
     if (val.getType().cast<LLVM::LLVMPointerType>().getElementType() != 
-        src.getType().cast<MemRefType>().getElementType())
-      return failure();
+        mt.getElementType())
+      val = rewriter.create<LLVM::BitcastOp>(op.getLoc(), LLVM::LLVMPointerType::get(mt.getElementType(), 
+              val.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()), val);
 
     Value idx = nullptr;
-    for (size_t i = 0; i < op.indices().size(); i++) {
+    auto shape = mt.getShape();
+    for (size_t i = 0; i < shape.size(); i++) {
+      auto off = computeIndex(op, i, rewriter);
       auto cur = rewriter.create<IndexCastOp>(
-          op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
+          op.getLoc(), rewriter.getI32Type(), off);
       if (idx == nullptr) {
         idx = cur;
       } else {
@@ -812,71 +825,95 @@ public:
                 op.getLoc(), idx,
                 rewriter.create<ConstantIntOp>(
                     op.getLoc(),
-                    op.memref().getType().cast<MemRefType>().getShape()[i],
+                    shape[i],
                     32)),
             cur);
       }
     }
-    Value idxs[] = {idx};
-    if (idx)
+
+    if (idx) {
+      Value idxs[] = {idx};
       val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
-    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), val);
-    return success();
-  }
-};
-
-/// Simplify store (pointer2memref(x)) to llvm.store x
-class Pointer2MemrefStore final : public OpRewritePattern<memref::StoreOp> {
-public:
-  using OpRewritePattern<memref::StoreOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(memref::StoreOp op,
-                                PatternRewriter &rewriter) const override {
-    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
-    if (!src)
-      return failure();
-    
-    Value val = src.source();
-    if (val.getType().cast<LLVM::LLVMPointerType>().getElementType() != 
-        src.getType().cast<MemRefType>().getElementType())
-      return failure();
-    Value idx = nullptr;
-    for (size_t i = 0; i < op.indices().size(); i++) {
-      auto cur = rewriter.create<IndexCastOp>(
-          op.getLoc(), rewriter.getI32Type(), op.indices()[i]);
-      if (idx == nullptr) {
-        idx = cur;
-      } else {
-        idx = rewriter.create<AddIOp>(
-            op.getLoc(),
-            rewriter.create<MulIOp>(
-                op.getLoc(), idx,
-                rewriter.create<ConstantIntOp>(
-                    op.getLoc(),
-                    op.memref().getType().cast<MemRefType>().getShape()[i],
-                    32)),
-            cur);
-      }
     }
-    Value idxs[] = {idx};
-    if (idx)
-      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
-    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), val);
+    rewrite(op, ptr, rewriter);
     return success();
   }
 };
+
+template<>
+Value MetaPointer2Memref<memref::LoadOp>::computeIndex(memref::LoadOp op, size_t idx, PatternRewriter &rewriter) {
+    return op.indices()[i];
+}
+
+template<>
+void MetaPointer2Memref<memref::LoadOp>::rewrite(memref::LoadOp op, Value ptr, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
+}
+
+template<>
+Value MetaPointer2Memref<memref::StoreOp>::computeIndex(memref::StoreOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+    return op.indices()[i];
+}
+
+template<>
+void MetaPointer2Memref<memref::StoreOp>::rewrite(memref::StoreOp op, Value ptr, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getType(), op.value(), ptr);
+}
+
+template<>
+Value MetaPointer2Memref<AffineLoadOp>::computeIndex(AffineLoadOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+    auto map = op.getAffineMap();
+    auto apply = rewriter.create<AffineApplyOp>(
+                  op.getLoc(), map.getSliceMap(i, 1),
+                  op.getMapOperands());
+    return apply->getResult(0);
+}
+
+template<>
+void MetaPointer2Memref<AffineLoadOp>::rewrite(AffineLoadOp op, Value ptr, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
+}
+
+template<>
+Value MetaPointer2Memref<AffineStoreOp>::computeIndex(AffineStoreOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+    auto map = op.getAffineMap();
+    auto apply = rewriter.create<AffineApplyOp>(
+                  op.getLoc(), map.getSliceMap(i, 1),
+                  op.getMapOperands());
+    return apply->getResult(0);
+}
+
+template<>
+void MetaPointer2Memref<AffineStoreOp>::rewrite(AffineStoreOp op, Value ptr, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getType(), op.value(), ptr);
+}
 
 void Pointer2MemrefOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<Pointer2MemrefCast, Pointer2Memref2PointerCast,
-                 Pointer2MemrefLoad, Pointer2MemrefStore>(
-      context);
+                 MetaPointer2Memref<memref::LoadOp>,
+                 MetaPointer2Memref<memref::StoreOp>,
+                 MetaPointer2Memref<AffineLoadOp>,
+                 MetaPointer2Memref<AffineStoreOp>
+                >(context);
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
     /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
     if (auto mc = source().getDefiningOp<LLVM::BitcastOp>()) {
         sourceMutable().assign(mc.getArg());
+        return result();
+    }
+    if (auto mc = source().getDefiningOp<LLVM::AddrSpaceCastOp>()) {
+        sourceMutable().assign(mc.getArg());
+        return result();
+    }
+    if (auto mc = source().getDefiningOp<LLVM::GEPOp>()) {
+        for (auto idx : mc.getIndices()) {
+            if (!matchPattern(idx, m_Zero()))
+                    return nullptr;
+        }
+        sourceMutable().assign(mc.getBase());
         return result();
     }
     if (auto mc = source().getDefiningOp<polygeist::Memref2PointerOp>()) {

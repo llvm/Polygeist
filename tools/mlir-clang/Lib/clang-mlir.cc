@@ -368,13 +368,13 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       mr = mlir::MemRefType::get(1, t, {}, memspace);
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
       if (memspace != 0) {
-        alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+        alloc = abuilder.create<polygeist::Pointer2MemrefOp>(varLoc,
                     mlir::MemRefType::get(-1, t, {}, memspace),
-                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    abuilder.create<polygeist::Memref2PointerOp>(
                     varLoc, LLVM::LLVMPointerType::get(t, 0), alloc));
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
-          varLoc, alloc, mlir::MemRefType::get(-1, t, {}, memspace));
+          varLoc, alloc, mlir::MemRefType::get(-1, t, {}, 0));
       if (t.isa<mlir::IntegerType>()) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
@@ -399,9 +399,9 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
         builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
         if (memspace != 0) {
-          alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+          alloc = abuilder.create<polygeist::Pointer2MemrefOp>(varLoc,
                     mlir::MemRefType::get(shape, mt.getElementType()),
-                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    abuilder.create<polygeist::Memref2PointerOp>(
                     varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0), alloc));
         }
       }
@@ -414,17 +414,16 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
           wrapIntegerMemorySpace(memspace, mt.getContext()));
       alloc = abuilder.create<mlir::memref::AllocaOp>(varLoc, mr);
         if (memspace != 0) {
-          alloc = abuilder.create<polygeist::Memref2PointerOp>(varLoc,
+          alloc = abuilder.create<polygeist::Pointer2MemrefOp>(varLoc,
                     mlir::MemRefType::get(shape, mt.getElementType()),
-                    abuilder.create<polygeist::Pointer2MemrefOp>(
+                    abuilder.create<polygeist::Memref2PointerOp>(
                     varLoc, LLVM::LLVMPointerType::get(mt.getElementType(), 0), alloc));
         }
       shape[0] = pshape;
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc,
           mlir::MemRefType::get(
-              shape, mt.getElementType(), MemRefLayoutAttrInterface(),
-              wrapIntegerMemorySpace(memspace, mt.getContext())));
+              shape, mt.getElementType()));
     }
   }
   assert(alloc);
