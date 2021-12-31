@@ -746,6 +746,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
           }
           u.set(buf);
         }
+      } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
+          llvm_unreachable("split around llvm alloca unhandled\n");
       } else
         rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
                                          op.getInductionVars());
