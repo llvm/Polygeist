@@ -24,6 +24,7 @@ jobs:
           - compiler: clang
             cxxcompiler: g++
 
+    timeout-minutes: 240 
     steps:
     - name: add dependencies
       run: sudo apt-get install -y ninja-build #cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
