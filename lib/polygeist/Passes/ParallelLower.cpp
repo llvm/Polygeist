@@ -218,6 +218,14 @@ void ParallelLower::runOnOperation() {
       SmallVector<CallOp> ops;
       callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
       for (auto op : ops) callInliner(op);
+      OpBuilder b(caller);
+      auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(), caller.getResultTypes());
+      Block *blk = new Block();
+      exOp.getRegion().push_back(blk);
+      caller->moveBefore(blk, blk->begin());
+      caller.replaceAllUsesWith(exOp.getResults());
+      b.setInsertionPointToEnd(blk);
+      b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
       if (inlineCall(interface, caller, callableOp, targetRegion,
                      /*shouldCloneInlinedRegion=*/true)
               .succeeded()) {

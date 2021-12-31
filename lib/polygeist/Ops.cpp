@@ -791,16 +791,17 @@ public:
 
   Value computeIndex(Op op, size_t idx, PatternRewriter &rewriter) const;
 
-  void rewrite(Op op, Value ptr) const;
+  void rewrite(Op op, Value ptr, PatternRewriter &rewriter) const;
 
   LogicalResult matchAndRewrite(Op op,
                                 PatternRewriter &rewriter) const override {
-    auto src = op.memref().getDefiningOp<Pointer2MemrefOp>();
+    Value opPtr = op.memref();
+    Pointer2MemrefOp src = opPtr.getDefiningOp<polygeist::Pointer2MemrefOp>();
     if (!src)
       return failure();
 
     auto mt = src.getType().cast<MemRefType>();
-    for (auto i=1; i<mt.getShape().size(); i++)
+    for (size_t i=1; i<mt.getShape().size(); i++)
         if (mt.getShape()[i] == ShapedType::kDynamicSize)
             return failure();
 
@@ -835,33 +836,33 @@ public:
       Value idxs[] = {idx};
       val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
     }
-    rewrite(op, ptr, rewriter);
+    rewrite(op, val, rewriter);
     return success();
   }
 };
 
 template<>
-Value MetaPointer2Memref<memref::LoadOp>::computeIndex(memref::LoadOp op, size_t idx, PatternRewriter &rewriter) {
+Value MetaPointer2Memref<memref::LoadOp>::computeIndex(memref::LoadOp op, size_t i, PatternRewriter &rewriter) const {
     return op.indices()[i];
 }
 
 template<>
-void MetaPointer2Memref<memref::LoadOp>::rewrite(memref::LoadOp op, Value ptr, PatternRewriter &rewriter) {
+void MetaPointer2Memref<memref::LoadOp>::rewrite(memref::LoadOp op, Value ptr, PatternRewriter &rewriter) const {
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
 }
 
 template<>
-Value MetaPointer2Memref<memref::StoreOp>::computeIndex(memref::StoreOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+Value MetaPointer2Memref<memref::StoreOp>::computeIndex(memref::StoreOp op, size_t i, PatternRewriter &rewriter) const {
     return op.indices()[i];
 }
 
 template<>
-void MetaPointer2Memref<memref::StoreOp>::rewrite(memref::StoreOp op, Value ptr, PatternRewriter &rewriter) {
-    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getType(), op.value(), ptr);
+void MetaPointer2Memref<memref::StoreOp>::rewrite(memref::StoreOp op, Value ptr, PatternRewriter &rewriter) const {
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
 }
 
 template<>
-Value MetaPointer2Memref<AffineLoadOp>::computeIndex(AffineLoadOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+Value MetaPointer2Memref<AffineLoadOp>::computeIndex(AffineLoadOp op, size_t i, PatternRewriter &rewriter) const {
     auto map = op.getAffineMap();
     auto apply = rewriter.create<AffineApplyOp>(
                   op.getLoc(), map.getSliceMap(i, 1),
@@ -870,12 +871,12 @@ Value MetaPointer2Memref<AffineLoadOp>::computeIndex(AffineLoadOp op, ArrayRef<V
 }
 
 template<>
-void MetaPointer2Memref<AffineLoadOp>::rewrite(AffineLoadOp op, Value ptr, PatternRewriter &rewriter) {
+void MetaPointer2Memref<AffineLoadOp>::rewrite(AffineLoadOp op, Value ptr, PatternRewriter &rewriter) const {
     rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
 }
 
 template<>
-Value MetaPointer2Memref<AffineStoreOp>::computeIndex(AffineStoreOp op, ArrayRef<Value> shape, PatternRewriter &rewriter) {
+Value MetaPointer2Memref<AffineStoreOp>::computeIndex(AffineStoreOp op, size_t i, PatternRewriter &rewriter) const {
     auto map = op.getAffineMap();
     auto apply = rewriter.create<AffineApplyOp>(
                   op.getLoc(), map.getSliceMap(i, 1),
@@ -884,8 +885,8 @@ Value MetaPointer2Memref<AffineStoreOp>::computeIndex(AffineStoreOp op, ArrayRef
 }
 
 template<>
-void MetaPointer2Memref<AffineStoreOp>::rewrite(AffineStoreOp op, Value ptr, PatternRewriter &rewriter) {
-    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getType(), op.value(), ptr);
+void MetaPointer2Memref<AffineStoreOp>::rewrite(AffineStoreOp op, Value ptr, PatternRewriter &rewriter) const {
+    rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
 }
 
 void Pointer2MemrefOp::getCanonicalizationPatterns(
