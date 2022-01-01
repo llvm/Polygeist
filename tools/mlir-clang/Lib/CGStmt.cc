@@ -291,24 +291,22 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
 
   SmallVector<mlir::Value> inits;
   for (auto f : fors->inits()) {
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    if (auto ce = dyn_cast<CastExpr>(f))
+      f = ce->getSubExpr();
     auto initV =
-        cast<OMPCapturedExprDecl>(
-            cast<DeclRefExpr>(
-                cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())
-                    ->getSubExpr())
-                ->getDecl())
-            ->getInit();
+        cast<OMPCapturedExprDecl>(cast<DeclRefExpr>(f)->getDecl())->getInit();
     inits.push_back(builder.create<IndexCastOp>(
         loc, Visit(initV).getValue(builder), builder.getIndexType()));
   }
 
   SmallVector<mlir::Value> finals;
   for (auto f : fors->finals()) {
-    auto bo = cast<clang::BinaryOperator>(
-        cast<clang::BinaryOperator>(
-            cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())
-                ->getSubExpr())
-            ->getRHS());
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    if (auto ce = dyn_cast<CastExpr>(f))
+      f = ce->getSubExpr();
+    auto bo =
+        cast<clang::BinaryOperator>(cast<clang::BinaryOperator>(f)->getRHS());
     auto bo2 = cast<clang::BinaryOperator>(
         cast<clang::BinaryOperator>(
             cast<clang::BinaryOperator>(
@@ -533,7 +531,8 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   auto oldpoint = builder.getInsertionPoint();
   auto oldblock = builder.getInsertionBlock();
   if (auto LT = cond.getType().dyn_cast<MemRefType>()) {
-    cond = builder.create<polygeist::Memref2PointerOp>(loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
+    cond = builder.create<polygeist::Memref2PointerOp>(
+        loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
   }
   if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
@@ -541,8 +540,8 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
         loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
   }
   if (!cond.getType().isa<mlir::IntegerType>()) {
-      stmt->dump();
-      llvm::errs() << " cond: " << cond << " ct: " << cond.getType() << "\n";
+    stmt->dump();
+    llvm::errs() << " cond: " << cond << " ct: " << cond.getType() << "\n";
   }
   auto prevTy = cond.getType().cast<mlir::IntegerType>();
   if (!prevTy.isInteger(1)) {

@@ -339,6 +339,8 @@ int main(int argc, char **argv) {
         } else if (ref.startswith("-I")) {
           MLIRArgs.push_back("-I");
           MLIRArgs.push_back(&argv[i][2]);
+        } else if (ref == "-g") {
+          LinkageArgs.push_back(argv[i]);
         } else {
           MLIRArgs.push_back(argv[i]);
         }

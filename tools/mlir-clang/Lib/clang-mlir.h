@@ -110,8 +110,9 @@ struct MLIRASTConsumer : public ASTConsumer {
                                           mlir::OpBuilder &builder,
                                           StringRef value);
 
-  std::pair<mlir::memref::GlobalOp, bool> GetOrCreateGlobal(const ValueDecl *VD,
-                                                            std::string prefix, bool tryInit=true);
+  std::pair<mlir::memref::GlobalOp, bool>
+  GetOrCreateGlobal(const ValueDecl *VD, std::string prefix,
+                    bool tryInit = true);
 
   std::deque<const FunctionDecl *> functionsToEmit;
 
@@ -213,12 +214,12 @@ public:
 
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
-  
+
   void init(mlir::FuncOp function, const FunctionDecl *fd);
 
-  void setEntryAndAllocBlock(mlir::Block* B) {
-      allocationScope = entryBlock = B;
-      builder.setInsertionPointToStart(B);
+  void setEntryAndAllocBlock(mlir::Block *B) {
+    allocationScope = entryBlock = B;
+    builder.setInsertionPointToStart(B);
   }
 
   mlir::OpBuilder &getBuilder();
@@ -345,7 +346,8 @@ public:
 
   ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr);
 
-  mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit, clang::Expr *expr);
+  mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
+                                                clang::Expr *expr);
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
 
   ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,

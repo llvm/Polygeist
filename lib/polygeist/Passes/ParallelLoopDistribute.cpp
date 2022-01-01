@@ -110,7 +110,8 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
 
     SmallVector<Value, 8> forArgs;
     for (auto a : op.getResults()) {
-        forArgs.push_back(rewriter.create<LLVM::UndefOp>(op.getLoc(), a.getType()));
+      forArgs.push_back(
+          rewriter.create<LLVM::UndefOp>(op.getLoc(), a.getType()));
     }
 
     Location loc = op.getLoc();
@@ -127,19 +128,22 @@ struct ReplaceIfWithFors : public OpRewritePattern<scf::IfOp> {
     rewriter.mergeBlocks(op.getBody(0), thenLoop.getBody(0));
 
     SmallVector<Value> vals;
-    
+
     if (!op.getElseRegion().empty()) {
       auto negCondition = rewriter.create<SubIOp>(loc, one, cond);
-      scf::ForOp elseLoop = rewriter.create<scf::ForOp>(loc, zero, negCondition, one, forArgs);
+      scf::ForOp elseLoop =
+          rewriter.create<scf::ForOp>(loc, zero, negCondition, one, forArgs);
       if (forArgs.size() == 0)
         rewriter.eraseOp(&elseLoop.getBody()->back());
       rewriter.mergeBlocks(op.getBody(1), elseLoop.getBody(0));
-      
+
       for (auto tup : llvm::zip(thenLoop.getResults(), elseLoop.getResults())) {
-        vals.push_back(rewriter.create<SelectOp>(op.getLoc(), op.getCondition(), std::get<0>(tup), std::get<1>(tup)));
+        vals.push_back(rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
+                                                 std::get<0>(tup),
+                                                 std::get<1>(tup)));
       }
     }
-    
+
     rewriter.replaceOp(op, vals);
     return success();
   }
@@ -153,7 +157,8 @@ static bool isDefinedAbove(Value value, Operation *user) {
 
 /// Returns `true` if the loop has a form expected by interchange patterns.
 static bool isNormalized(scf::ForOp op) {
-  return isDefinedAbove(op.getLowerBound(), op) && isDefinedAbove(op.getStep(), op);
+  return isDefinedAbove(op.getLowerBound(), op) &&
+         isDefinedAbove(op.getStep(), op);
 }
 
 /// Transforms a loop to the normal form expected by interchange patterns, i.e.
@@ -178,8 +183,8 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
     Value one = rewriter.create<ConstantIndexOp>(op.getLoc(), 1);
     rewriter.restoreInsertionPoint(point);
 
-    Value difference =
-        rewriter.create<SubIOp>(op.getLoc(), op.getUpperBound(), op.getLowerBound());
+    Value difference = rewriter.create<SubIOp>(op.getLoc(), op.getUpperBound(),
+                                               op.getLowerBound());
     Value tripCount =
         rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.getStep());
     auto newForOp =
@@ -562,7 +567,8 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
       LLVM_DEBUG(DBGS() << "[interchange-while] loop-carried values\n");
       return failure();
     }
-    if (!llvm::hasSingleElement(whileOp.getAfter().front()) || !isNormalized(op)) {
+    if (!llvm::hasSingleElement(whileOp.getAfter().front()) ||
+        !isNormalized(op)) {
       LLVM_DEBUG(DBGS() << "[interchange-while] non-normalized loop\n");
       return failure();
     }
@@ -580,7 +586,8 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
     auto newParallelOp = rewriter.create<scf::ParallelOp>(
         op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
 
-    auto conditionOp = cast<scf::ConditionOp>(whileOp.getBefore().front().back());
+    auto conditionOp =
+        cast<scf::ConditionOp>(whileOp.getBefore().front().back());
     rewriter.mergeBlockBefore(op.getBody(), &newParallelOp.getBody()->back(),
                               newParallelOp.getInductionVars());
     rewriter.eraseOp(newParallelOp.getBody()->back().getPrevNode());
@@ -747,7 +754,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
           u.set(buf);
         }
       } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
-          llvm_unreachable("split around llvm alloca unhandled\n");
+        llvm_unreachable("split around llvm alloca unhandled\n");
       } else
         rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
                                          op.getInductionVars());
@@ -914,7 +921,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     SmallVector<Value> newBeforeArguments;
     loadValues(op.getLoc(), beforeAllocated, zero, rewriter,
                newBeforeArguments);
-    rewriter.mergeBlocks(&op.getBefore().front(), newBefore, newBeforeArguments);
+    rewriter.mergeBlocks(&op.getBefore().front(), newBefore,
+                         newBeforeArguments);
 
     auto beforeTerminator =
         cast<scf::ConditionOp>(newOp.getBefore().front().getTerminator());
@@ -922,8 +930,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     storeValues(op.getLoc(), beforeTerminator.getArgs(), afterAllocated, zero,
                 rewriter);
 
-    rewriter.updateRootInPlace(beforeTerminator,
-                               [&] { beforeTerminator.getArgsMutable().clear(); });
+    rewriter.updateRootInPlace(
+        beforeTerminator, [&] { beforeTerminator.getArgsMutable().clear(); });
 
     Block *newAfter =
         rewriter.createBlock(&newOp.getAfter(), newOp.getAfter().begin());
@@ -934,8 +942,8 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     auto afterTerminator =
         cast<scf::YieldOp>(newOp.getAfter().front().getTerminator());
     rewriter.setInsertionPoint(afterTerminator);
-    storeValues(op.getLoc(), afterTerminator.getResults(), beforeAllocated, zero,
-                rewriter);
+    storeValues(op.getLoc(), afterTerminator.getResults(), beforeAllocated,
+                zero, rewriter);
 
     rewriter.updateRootInPlace(
         afterTerminator, [&] { afterTerminator.getResultsMutable().clear(); });

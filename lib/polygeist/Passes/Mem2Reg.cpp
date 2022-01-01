@@ -448,8 +448,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         for (auto &a : block) {
           ops.push_back(&a);
         }
-        LLVM_DEBUG( llvm::dbgs() << " starting block: "; block.print(llvm::dbgs()); llvm::dbgs() << " with ";
-                if (lastVal) llvm::dbgs() << lastVal << "\n"; else llvm::dbgs() << " null\n"; );
+        LLVM_DEBUG(llvm::dbgs() << " starting block: ";
+                   block.print(llvm::dbgs()); llvm::dbgs() << " with ";
+                   if (lastVal) llvm::dbgs() << lastVal << "\n";
+                   else llvm::dbgs() << " null\n";);
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
@@ -457,7 +459,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
               lastVal = nullptr;
               seenSubStore = true;
-              LLVM_DEBUG( llvm::dbgs() << " zeroing val due to " << exOp << "\n"; );
+              LLVM_DEBUG(llvm::dbgs()
+                             << " zeroing val due to " << exOp << "\n";);
               continue;
 
               bool needsAfter = false;
@@ -597,7 +600,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 if (ifOp.getElseRegion().getBlocks().size()) {
                   nextIf.getElseRegion().getBlocks().clear();
                   SmallVector<mlir::Value, 4> elseVals =
-                      cast<mlir::scf::YieldOp>(ifOp.getElseRegion().back().back())
+                      cast<mlir::scf::YieldOp>(
+                          ifOp.getElseRegion().back().back())
                           .getResults();
                   elseVals.push_back(elseVal);
                   nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
@@ -634,8 +638,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   llvm::errs()
                       << AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
                   llvm::errs() << loadOp << " - " << lastVal << "\n";
-                  llvm::errs()
-                      << loadOp.getType() << " - " << lastVal.getType() << " :: " << loadOp.getLoc() << " - " << lastVal.getLoc() << "\n";
+                  llvm::errs() << loadOp.getType() << " - " << lastVal.getType()
+                               << " :: " << loadOp.getLoc() << " - "
+                               << lastVal.getLoc() << "\n";
                 }
                 assert(loadOp.getType() == lastVal.getType() &&
                        "mismatched load type");
@@ -814,8 +819,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             });
           }
         }
-        LLVM_DEBUG( llvm::dbgs() << " ending block: "; block.print(llvm::dbgs()); llvm::dbgs() << " with ";
-                if (lastVal) llvm::dbgs() << lastVal << "\n"; else llvm::dbgs() << " null\n"; );
+        LLVM_DEBUG(llvm::dbgs() << " ending block: "; block.print(llvm::dbgs());
+                   llvm::dbgs() << " with ";
+                   if (lastVal) llvm::dbgs() << lastVal << "\n";
+                   else llvm::dbgs() << " null\n";);
         return lastStoreInBlock[&block] = lastVal;
       };
 
@@ -1006,9 +1013,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   Type elType;
   if (auto MT = AI.getType().dyn_cast<MemRefType>())
-      elType = MT.getElementType();
+    elType = MT.getElementType();
   else
-      elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
+    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
 
   // Remove block arguments if possible
   {

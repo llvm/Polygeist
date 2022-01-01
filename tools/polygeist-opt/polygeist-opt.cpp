@@ -13,11 +13,11 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/MlirOptMain.h"
@@ -58,17 +58,17 @@ int main(int argc, char **argv) {
   mlir::registerSCCPPass();
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
- 
-  auto f = [](MLIRContext &context) { 
-	  LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
-	  LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
-	  MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
-	  LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
-		  context);
-	  LLVM::LLVMPointerType::attachInterface<
-		  PtrElementModel<LLVM::LLVMPointerType>>(context);
-	  LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
-		  context);
+
+  auto f = [](MLIRContext &context) {
+    LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
+    LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
+    MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
+    LLVM::LLVMStructType::attachInterface<
+        PtrElementModel<LLVM::LLVMStructType>>(context);
+    LLVM::LLVMPointerType::attachInterface<
+        PtrElementModel<LLVM::LLVMPointerType>>(context);
+    LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
+        context);
   };
 
   return mlir::failed(mlir::MlirOptMain(
