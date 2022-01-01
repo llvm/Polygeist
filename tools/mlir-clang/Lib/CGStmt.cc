@@ -10,6 +10,7 @@
 #include "clang-mlir.h"
 #include "mlir/IR/Diagnostics.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/OpenMP/OpenMPDialect.h>
 #include <mlir/Dialect/SCF/SCF.h>
 
 #define DEBUG_TYPE "CGStmt"
@@ -283,67 +284,249 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitOMPParallelForDirective(
-    clang::OMPParallelForDirective *fors) {
+ValueCategory
+MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *par) {
   IfScope scope(*this);
 
-  Visit(fors->getPreInits());
+  builder.create<omp::BarrierOp>(loc);
+  auto affineOp = builder.create<omp::MasterOp>(loc);
+  builder.create<omp::BarrierOp>(loc);
+
+  auto oldpoint = builder.getInsertionPoint();
+  auto oldblock = builder.getInsertionBlock();
+
+  affineOp.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+
+  auto executeRegion =
+      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  executeRegion.getRegion().push_back(new Block());
+  builder.create<omp::TerminatorOp>(loc);
+  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+
+  auto oldScope = allocationScope;
+  allocationScope = &executeRegion.getRegion().back();
+
+  Visit(cast<CapturedStmt>(par->getAssociatedStmt())
+            ->getCapturedDecl()
+            ->getBody());
+
+  builder.create<scf::YieldOp>(loc);
+  allocationScope = oldScope;
+  builder.setInsertionPoint(oldblock, oldpoint);
+  return nullptr;
+}
+
+ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
+  IfScope scope(*this);
+
+  if (fors->getPreInits()) {
+    Visit(fors->getPreInits());
+  }
 
   SmallVector<mlir::Value> inits;
   for (auto f : fors->inits()) {
+    assert(f);
     f = cast<clang::BinaryOperator>(f)->getRHS();
-    if (auto ce = dyn_cast<CastExpr>(f))
-      f = ce->getSubExpr();
-    auto initV =
-        cast<OMPCapturedExprDecl>(cast<DeclRefExpr>(f)->getDecl())->getInit();
-    inits.push_back(builder.create<IndexCastOp>(
-        loc, Visit(initV).getValue(builder), builder.getIndexType()));
+    inits.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder),
+                                                builder.getIndexType()));
   }
 
   SmallVector<mlir::Value> finals;
   for (auto f : fors->finals()) {
     f = cast<clang::BinaryOperator>(f)->getRHS();
-    if (auto ce = dyn_cast<CastExpr>(f))
-      f = ce->getSubExpr();
-    auto bo =
-        cast<clang::BinaryOperator>(cast<clang::BinaryOperator>(f)->getRHS());
-    auto bo2 = cast<clang::BinaryOperator>(
-        cast<clang::BinaryOperator>(
-            cast<clang::BinaryOperator>(
-                cast<ParenExpr>(cast<clang::BinaryOperator>(
-                                    cast<ParenExpr>(bo->getLHS())->getSubExpr())
-                                    ->getLHS())
-                    ->getSubExpr())
-                ->getLHS())
-            ->getLHS());
-    auto rhs = cast<OMPCapturedExprDecl>(
-        cast<DeclRefExpr>(
-            cast<clang::CastExpr>(
-                cast<ParenExpr>(
-                    cast<clang::CastExpr>(bo2->getLHS())->getSubExpr())
-                    ->getSubExpr())
-                ->getSubExpr())
-            ->getDecl());
     finals.push_back(builder.create<IndexCastOp>(
-        loc, Visit(rhs->getInit()).getValue(builder), builder.getIndexType()));
+        loc, Visit(f).getValue(builder), builder.getIndexType()));
   }
 
   SmallVector<mlir::Value> incs;
   for (auto f : fors->updates()) {
-    auto bo = cast<clang::BinaryOperator>(
-        cast<clang::CastExpr>(cast<clang::BinaryOperator>(f)->getRHS())
-            ->getSubExpr());
-    auto rhs = cast<OMPCapturedExprDecl>(
-        cast<DeclRefExpr>(
-            cast<clang::CastExpr>(
-                cast<clang::CastExpr>(
-                    cast<clang::BinaryOperator>(bo->getRHS())->getRHS())
-                    ->getSubExpr())
-                ->getSubExpr())
-            ->getDecl());
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    while (auto ce = dyn_cast<clang::CastExpr>(f))
+      f = ce->getSubExpr();
+    auto bo = cast<clang::BinaryOperator>(f);
+    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    f = bo->getRHS();
+    while (auto ce = dyn_cast<clang::CastExpr>(f))
+      f = ce->getSubExpr();
+    bo = cast<clang::BinaryOperator>(f);
+    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    f = bo->getRHS();
+    incs.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder),
+                                               builder.getIndexType()));
+  }
 
-    incs.push_back(builder.create<IndexCastOp>(
-        loc, Visit(rhs->getInit()).getValue(builder), builder.getIndexType()));
+  auto affineOp = builder.create<omp::WsLoopOp>(loc, inits, finals, incs);
+  affineOp.getRegion().push_back(new Block());
+  for (auto init : inits)
+    affineOp.getRegion().front().addArgument(init.getType());
+  auto inds = affineOp.getRegion().front().getArguments();
+
+  auto oldpoint = builder.getInsertionPoint();
+  auto oldblock = builder.getInsertionBlock();
+
+  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+
+  auto executeRegion =
+      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  builder.create<omp::YieldOp>(loc, ValueRange());
+  executeRegion.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+
+  auto oldScope = allocationScope;
+  allocationScope = &executeRegion.getRegion().back();
+
+  std::map<VarDecl *, ValueCategory> prevInduction;
+  for (auto zp : zip(inds, fors->counters())) {
+    auto idx = builder.create<IndexCastOp>(
+        loc, std::get<0>(zp),
+        getMLIRType(fors->getIterationVariable()->getType()));
+    VarDecl *name =
+        cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
+
+    if (params.find(name) != params.end()) {
+      prevInduction[name] = params[name];
+      params.erase(name);
+    }
+
+    bool LLVMABI = false;
+    bool isArray = false;
+    if (Glob.getMLIRType(
+                Glob.CGM.getContext().getLValueReferenceType(name->getType()))
+            .isa<mlir::LLVM::LLVMPointerType>())
+      LLVMABI = true;
+    else
+      Glob.getMLIRType(name->getType(), &isArray);
+
+    auto allocop = createAllocOp(idx.getType(), name, /*memtype*/ 0,
+                                 /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
+    params[name] = ValueCategory(allocop, true);
+    params[name].store(builder, idx);
+  }
+
+  // TODO: set loop context.
+  Visit(fors->getBody());
+
+  builder.create<scf::YieldOp>(loc, ValueRange());
+
+  allocationScope = oldScope;
+
+  // TODO: set the value of the iteration value to the final bound at the
+  // end of the loop.
+  builder.setInsertionPoint(oldblock, oldpoint);
+
+  for (auto pair : prevInduction)
+    params[pair.first] = pair.second;
+
+  return nullptr;
+}
+
+ValueCategory
+MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
+  IfScope scope(*this);
+
+  auto affineOp = builder.create<omp::ParallelOp>(loc);
+
+  auto oldpoint = builder.getInsertionPoint();
+  auto oldblock = builder.getInsertionBlock();
+
+  affineOp.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+
+  auto executeRegion =
+      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  executeRegion.getRegion().push_back(new Block());
+  builder.create<omp::TerminatorOp>(loc);
+  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+
+  auto oldScope = allocationScope;
+  allocationScope = &executeRegion.getRegion().back();
+
+  std::map<VarDecl *, ValueCategory> prevInduction;
+  for (auto f : par->clauses()) {
+    switch (f->getClauseKind()) {
+    case llvm::omp::OMPC_private:
+      for (auto stmt : f->children()) {
+        VarDecl *name = cast<VarDecl>(cast<DeclRefExpr>(stmt)->getDecl());
+
+        prevInduction[name] = params[name];
+        params.erase(name);
+
+        bool LLVMABI = false;
+        bool isArray = false;
+        mlir::Type ty;
+        if (Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+                                 name->getType()))
+                .isa<mlir::LLVM::LLVMPointerType>()) {
+          LLVMABI = true;
+          bool undef;
+          ty = Glob.getMLIRType(name->getType(), &undef);
+        } else
+          ty = Glob.getMLIRType(name->getType(), &isArray);
+
+        auto allocop = createAllocOp(ty, name, /*memtype*/ 0,
+                                     /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
+        params[name] = ValueCategory(allocop, true);
+        params[name].store(builder, prevInduction[name], isArray);
+      }
+      break;
+    default:
+      llvm::errs() << "may not handle omp clause " << (int)f->getClauseKind()
+                   << "\n";
+    }
+  }
+
+  Visit(cast<CapturedStmt>(par->getAssociatedStmt())
+            ->getCapturedDecl()
+            ->getBody());
+
+  builder.create<scf::YieldOp>(loc);
+  allocationScope = oldScope;
+  builder.setInsertionPoint(oldblock, oldpoint);
+
+  for (auto pair : prevInduction)
+    params[pair.first] = pair.second;
+  return nullptr;
+}
+
+ValueCategory MLIRScanner::VisitOMPParallelForDirective(
+    clang::OMPParallelForDirective *fors) {
+  IfScope scope(*this);
+
+  if (fors->getPreInits()) {
+    Visit(fors->getPreInits());
+  }
+
+  SmallVector<mlir::Value> inits;
+  for (auto f : fors->inits()) {
+    assert(f);
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    inits.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder),
+                                                builder.getIndexType()));
+  }
+
+  SmallVector<mlir::Value> finals;
+  for (auto f : fors->finals()) {
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    finals.push_back(builder.create<IndexCastOp>(
+        loc, Visit(f).getValue(builder), builder.getIndexType()));
+  }
+
+  SmallVector<mlir::Value> incs;
+  for (auto f : fors->updates()) {
+    f = cast<clang::BinaryOperator>(f)->getRHS();
+    while (auto ce = dyn_cast<clang::CastExpr>(f))
+      f = ce->getSubExpr();
+    auto bo = cast<clang::BinaryOperator>(f);
+    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Add);
+    f = bo->getRHS();
+    while (auto ce = dyn_cast<clang::CastExpr>(f))
+      f = ce->getSubExpr();
+    bo = cast<clang::BinaryOperator>(f);
+    assert(bo->getOpcode() == clang::BinaryOperator::Opcode::BO_Mul);
+    f = bo->getRHS();
+    incs.push_back(builder.create<IndexCastOp>(loc, Visit(f).getValue(builder),
+                                               builder.getIndexType()));
   }
 
   auto affineOp = builder.create<scf::ParallelOp>(loc, inits, finals, incs);
@@ -363,14 +546,18 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   auto oldScope = allocationScope;
   allocationScope = &executeRegion.getRegion().back();
 
+  std::map<VarDecl *, ValueCategory> prevInduction;
   for (auto zp : zip(inds, fors->counters())) {
     auto idx = builder.create<IndexCastOp>(
         loc, std::get<0>(zp),
         getMLIRType(fors->getIterationVariable()->getType()));
     VarDecl *name =
         cast<VarDecl>(cast<DeclRefExpr>(std::get<1>(zp))->getDecl());
-    assert(params.find(name) == params.end() &&
-           "OpenMP induction variable is dual initialized");
+
+    if (params.find(name) != params.end()) {
+      prevInduction[name] = params[name];
+      params.erase(name);
+    }
 
     bool LLVMABI = false;
     bool isArray = false;
@@ -397,6 +584,10 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
   builder.setInsertionPoint(oldblock, oldpoint);
+
+  for (auto pair : prevInduction)
+    params[pair.first] = pair.second;
+
   return nullptr;
 }
 

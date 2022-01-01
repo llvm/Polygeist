@@ -253,6 +253,12 @@ public:
 
   ValueCategory VisitForStmt(clang::ForStmt *fors);
 
+  ValueCategory VisitOMPSingleDirective(clang::OMPSingleDirective *);
+
+  ValueCategory VisitOMPForDirective(clang::OMPForDirective *);
+
+  ValueCategory VisitOMPParallelDirective(clang::OMPParallelDirective *);
+
   ValueCategory
   VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
 
