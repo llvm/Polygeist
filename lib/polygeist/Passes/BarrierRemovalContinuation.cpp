@@ -295,8 +295,9 @@ emitContinuationCase(Value condition, Value storage, scf::ParallelOp parallel,
 
   auto thenBuilder = [&](OpBuilder &nested, Location loc) {
     ImplicitLocOpBuilder bn(loc, nested);
-    bn.create<scf::ParallelOp>(parallel.getLowerBound(), parallel.getUpperBound(),
-                               parallel.getStep(), parallelBuilder);
+    bn.create<scf::ParallelOp>(parallel.getLowerBound(),
+                               parallel.getUpperBound(), parallel.getStep(),
+                               parallelBuilder);
     bn.create<scf::YieldOp>();
   };
 

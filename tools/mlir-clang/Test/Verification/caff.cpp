@@ -37,10 +37,10 @@ unsigned long long int div_kernel_cuda(ASmallVectorTemplateCommon<AOperandInfo> 
 // CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<ptr<i8>>
 // CHECK-NEXT:     %2 = llvm.bitcast %1 : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i8>, i8, i8)>>
 // CHECK-NEXT:     %3 = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%arg0) : (!llvm.ptr<struct<(ptr<i8>, ptr<i8>)>>) -> !llvm.ptr<struct<(ptr<i8>, i8, i8)>>
-// CHECK-NEXT:     %4 = llvm.ptrtoint %3 : !llvm.ptr<struct<(ptr<i8>, i8, i8)>> to i64
-// CHECK-NEXT:     %5 = llvm.ptrtoint %2 : !llvm.ptr<struct<(ptr<i8>, i8, i8)>> to i64
-// CHECK-NEXT:     %6 = arith.subi %5, %4 : i64
-// CHECK-NEXT:     return %6 : i64
+// CHECK-DAG:     %[[i4:.+]] = llvm.ptrtoint %3 : !llvm.ptr<struct<(ptr<i8>, i8, i8)>> to i64
+// CHECK-DAG:     %[[i5:.+]] = llvm.ptrtoint %2 : !llvm.ptr<struct<(ptr<i8>, i8, i8)>> to i64
+// CHECK-DAG:     %[[i6:.+]] = arith.subi %[[i5]], %[[i4]] : i64
+// CHECK-NEXT:     return %[[i6]] : i64
 // CHECK-NEXT:   }
 // CHECK:   func @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%arg0: !llvm.ptr<struct<(ptr<i8>, ptr<i8>)>>) -> !llvm.ptr<struct<(ptr<i8>, i8, i8)>> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32

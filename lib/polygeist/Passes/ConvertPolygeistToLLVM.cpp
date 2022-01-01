@@ -42,7 +42,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   matchAndRewrite(SubIndexOp subViewOp, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = subViewOp.getLoc();
-    
+
     auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
 
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
@@ -50,36 +50,41 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     MemRefDescriptor targetMemRef(transformed.source());
     Value prev = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {transformed.index()};
-    
+
     SmallVector<Value, 4> sizes;
     SmallVector<Value, 4> strides;
-    
-    if (sourceMemRefType.getShape().size() != viewMemRefType.getShape().size()) {
-      if (sourceMemRefType.getShape().size() != viewMemRefType.getShape().size() + 1) {
+
+    if (sourceMemRefType.getShape().size() !=
+        viewMemRefType.getShape().size()) {
+      if (sourceMemRefType.getShape().size() !=
+          viewMemRefType.getShape().size() + 1) {
         return failure();
       }
       size_t sz = 1;
-      for (size_t i=1; i<sourceMemRefType.getShape().size(); i++) {
-          if (sourceMemRefType.getShape()[i] == ShapedType::kDynamicSize) return failure();
-          sz *= sourceMemRefType.getShape()[i];
+      for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
+        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamicSize)
+          return failure();
+        sz *= sourceMemRefType.getShape()[i];
       }
-      Value cop = rewriter.create<LLVM::ConstantOp>(loc, idxs[0].getType(), rewriter.getIntegerAttr(idxs[0].getType(), sz));
+      Value cop = rewriter.create<LLVM::ConstantOp>(
+          loc, idxs[0].getType(),
+          rewriter.getIntegerAttr(idxs[0].getType(), sz));
       idxs[0] = rewriter.create<LLVM::MulOp>(loc, idxs[0], cop);
-      for (size_t i=1; i<sourceMemRefType.getShape().size(); i++) {
+      for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
         sizes.push_back(targetMemRef.size(rewriter, loc, i));
         strides.push_back(targetMemRef.stride(rewriter, loc, i));
       }
     } else {
-      for (size_t i=0; i<sourceMemRefType.getShape().size(); i++) {
+      for (size_t i = 0; i < sourceMemRefType.getShape().size(); i++) {
         sizes.push_back(targetMemRef.size(rewriter, loc, i));
         strides.push_back(targetMemRef.stride(rewriter, loc, i));
       }
     }
 
-    //nexRef.setOffset(targetMemRef.offset());
-    //nexRef.setSize(targetMemRef.size());
-    //nexRef.setStride(targetMemRef.stride());
-    
+    // nexRef.setOffset(targetMemRef.offset());
+    // nexRef.setSize(targetMemRef.size());
+    // nexRef.setStride(targetMemRef.stride());
+
     if (false) {
       Value baseOffset = targetMemRef.offset(rewriter, loc);
       Value stride = targetMemRef.stride(rewriter, loc, 0);
@@ -88,13 +93,11 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       baseOffset = rewriter.create<LLVM::AddOp>(loc, baseOffset, mul);
       targetMemRef.setOffset(rewriter, loc, baseOffset);
     }
- 
-    MemRefDescriptor nexRef = createMemRefDescriptor(loc, subViewOp.getType(),
-        targetMemRef.allocatedPtr(rewriter, loc),
-        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs),
-        sizes,
-        strides,
-        rewriter);
+
+    MemRefDescriptor nexRef = createMemRefDescriptor(
+        loc, subViewOp.getType(), targetMemRef.allocatedPtr(rewriter, loc),
+        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
+        strides, rewriter);
 
     rewriter.replaceOp(subViewOp, {nexRef});
     return success();

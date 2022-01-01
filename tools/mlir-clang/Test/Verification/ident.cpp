@@ -59,11 +59,10 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:   }
 // CHECK:   func @_ZNK15MTensorIterator11input_dtypeEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>, i32, i32) -> !llvm.ptr<!llvm.struct<(memref<?x2xi8>)>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<!llvm.struct<(memref<?x2xi8>)>>) -> memref<?x1xmemref<?x2xi8>>
-// CHECK-NEXT:     %2 = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%1, %c0_i32) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
-// CHECK-NEXT:     %3 = affine.load %2[0, 1] : memref<?x2xi8>
-// CHECK-NEXT:     return %3 : i8
+// CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> memref<?x1xmemref<?x2xi8>>
+// CHECK-NEXT:     %1 = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%0, %c0_i32) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
+// CHECK-NEXT:     %2 = affine.load %1[0, 1] : memref<?x2xi8>
+// CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
 // CHECK:   func private @_ZZ14lt_kernel_cudaENK3$_0clEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
@@ -85,10 +84,9 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @_ZNK15MTensorIterator6deviceEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>, i32, i32) -> !llvm.ptr<!llvm.struct<(memref<?x2xi8>)>>
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<!llvm.struct<(memref<?x2xi8>)>>) -> memref<?x1xmemref<?x2xi8>>
-// CHECK-NEXT:     %2 = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%1, %c0_i32) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
-// CHECK-NEXT:     %3 = affine.load %2[0, 0] : memref<?x2xi8>
-// CHECK-NEXT:     return %3 : i8
+// CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> memref<?x1xmemref<?x2xi8>>
+// CHECK-NEXT:     %1 = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%0, %c0_i32) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
+// CHECK-NEXT:     %2 = affine.load %1[0, 0] : memref<?x2xi8>
+// CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
 
