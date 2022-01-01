@@ -17,6 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Pass/PassRegistry.h"
@@ -48,6 +49,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::scf::SCFDialect>();
   registry.insert<mlir::gpu::GPUDialect>();
   registry.insert<mlir::NVVM::NVVMDialect>();
+  registry.insert<mlir::omp::OpenMPDialect>();
 
   registry.insert<mlir::polygeist::PolygeistDialect>();
 
