@@ -2748,8 +2748,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                   args)
               .getResult(0);
     }
-    return ValueCategory(called,
-                         /*isReference*/ expr->isLValue() || expr->isXValue());
+    bool isReference = expr->isLValue() || expr->isXValue();
+    if (isReference) {
+      if (!(called.getType().isa<LLVM::LLVMPointerType>() ||
+            called.getType().isa<MemRefType>())) {
+        expr->dump();
+        llvm::errs() << " call: " << called << "\n";
+      }
+    }
+    return ValueCategory(called, isReference);
   }
 #if 0
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))

@@ -579,6 +579,17 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               }
 
               if (thenVal != nullptr && elseVal != nullptr) {
+                if (ifOp.getElseRegion().getBlocks().size()) {
+                  for (auto tup : llvm::reverse(llvm::zip(
+                           ifOp.getResults(), ifOp.thenYield().getOperands(),
+                           ifOp.elseYield().getOperands()))) {
+                    if (std::get<1>(tup) == thenVal &&
+                        std::get<2>(tup) == elseVal) {
+                      lastVal = std::get<0>(tup);
+                      continue;
+                    }
+                  }
+                }
                 OpBuilder B(ifOp.getContext());
                 B.setInsertionPoint(ifOp);
                 SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),

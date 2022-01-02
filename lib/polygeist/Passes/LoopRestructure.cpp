@@ -14,6 +14,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
@@ -338,12 +339,8 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
                                           oldTerm->getOperands());
             oldTerm->erase();
 
-            SmallVector<Value, 4> res;
-            for (size_t i = 1; i < ifOp->getNumResults(); ++i) {
-              res.push_back(ifOp->getResult(i));
-            }
-            builder.create<scf::ConditionOp>(builder.getUnknownLoc(),
-                                             ifOp->getResult(0), res);
+            builder.create<scf::YieldOp>(builder.getUnknownLoc(),
+                                         ifOp->getResults());
             condBr->erase();
 
             pseudoExit->erase();
@@ -386,14 +383,12 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       mlir::OpBuilder builder(wrapper, wrapper->begin());
 
       // Copy the arguments across
-      SmallVector<Type, 4> headerArgumentTypes;
-      for (auto arg : header->getArguments()) {
-        headerArgumentTypes.push_back(arg.getType());
-      }
+      SmallVector<Type, 4> headerArgumentTypes(header->getArgumentTypes());
       wrapper->addArguments(headerArgumentTypes);
 
-      SmallVector<Value> valsCallingLoop(wrapper->getArguments().begin(),
-                                         wrapper->getArguments().end());
+      SmallVector<Value> valsCallingLoop;
+      for (auto a : wrapper->getArguments())
+        valsCallingLoop.push_back(a);
 
       SmallVector<std::pair<Value, size_t>> preservedVals;
       for (auto B : L->getBlocks()) {
@@ -415,15 +410,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         }
       }
 
-      // TODO values used outside loop should be wrapped.
-
-      SmallVector<Type, 4> combinedTypes(headerArgumentTypes.begin(),
-                                         headerArgumentTypes.end());
-      SmallVector<Type, 4> returns;
-      for (auto arg : target->getArguments()) {
-        returns.push_back(arg.getType());
-        combinedTypes.push_back(arg.getType());
-      }
+      SmallVector<Type, 4> combinedTypes = headerArgumentTypes;
+      SmallVector<Type, 4> returns(target->getArgumentTypes());
+      combinedTypes.append(returns);
 
       auto loop = builder.create<mlir::scf::WhileOp>(
           builder.getUnknownLoc(), combinedTypes, valsCallingLoop);
@@ -451,28 +440,45 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           Preds.push_back(block);
       }
 
-      loop.getBefore().getBlocks().splice(loop.getBefore().getBlocks().begin(),
-                                          region.getBlocks(), header);
+      Block *loopEntry = new Block();
+      loop.getBefore().push_back(loopEntry);
+      builder.setInsertionPointToEnd(loopEntry);
+      SmallVector<Type, 4> tys = {builder.getI1Type()};
+      for (auto t : combinedTypes)
+        tys.push_back(t);
+      auto exec =
+          builder.create<scf::ExecuteRegionOp>(builder.getUnknownLoc(), tys);
+
+      {
+        SmallVector<Value> yields;
+        for (auto a : exec.getResults())
+          yields.push_back(a);
+        yields.erase(yields.begin());
+        builder.create<scf::ConditionOp>(builder.getUnknownLoc(),
+                                         exec.getResult(0), yields);
+      }
+
+      Region &insertRegion = exec.getRegion();
+
+      insertRegion.getBlocks().splice(insertRegion.getBlocks().begin(),
+                                      region.getBlocks(), header);
+      assert(header->getParent() == &insertRegion);
       for (auto *w : L->getBlocks()) {
         Block *b = &**w;
         if (b != header) {
-          loop.getBefore().getBlocks().splice(
-              loop.getBefore().getBlocks().end(), region.getBlocks(), b);
+          insertRegion.getBlocks().splice(insertRegion.getBlocks().end(),
+                                          region.getBlocks(), b);
         }
       }
 
       Block *pseudoExit = new Block();
-      auto i1Ty = builder.getI1Type();
       {
-        loop.getBefore().push_back(pseudoExit);
-        SmallVector<Type, 4> tys = {i1Ty};
-        for (auto t : combinedTypes)
-          tys.push_back(t);
+        insertRegion.push_back(pseudoExit);
         pseudoExit->addArguments(tys);
         OpBuilder builder(pseudoExit, pseudoExit->begin());
         tys.clear();
-        builder.create<scf::ConditionOp>(builder.getUnknownLoc(), tys,
-                                         pseudoExit->getArguments());
+        builder.create<scf::YieldOp>(builder.getUnknownLoc(), tys,
+                                     pseudoExit->getArguments());
       }
 
       for (auto *w : exitingBlocks) {
@@ -486,7 +492,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             auto vfalse = builder.create<arith::ConstantIntOp>(
                 builder.getUnknownLoc(), false, 1);
 
-            std::vector<Value> args = {vfalse};
+            SmallVector<Value> args = {vfalse};
             for (auto arg : header->getArguments())
               args.push_back(arg);
             for (auto v : preservedVals)
@@ -541,11 +547,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 builder.getUnknownLoc(), true, 1);
 
             if (auto op = dyn_cast<BranchOp>(terminator)) {
-              std::vector<Value> args(op.getOperands().begin(),
-                                      op.getOperands().end());
+              SmallVector<Value> args(op.getOperands());
               args.insert(args.begin(), vtrue);
-              for (auto pair : preservedVals)
-                args.push_back(pair.first);
+              for (auto p : preservedVals)
+                args.push_back(p.first);
               for (auto ty : returns) {
                 args.push_back(builder.create<mlir::LLVM::UndefOp>(
                     builder.getUnknownLoc(), ty));
@@ -618,41 +623,38 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             });
       }
 
+      for (auto pair :
+           llvm::zip(header->getArguments(),
+                     loopEntry->addArguments(header->getArgumentTypes()))) {
+        std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
+      }
+      header->eraseArguments([](BlockArgument) { return true; });
+
       builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
-      domInfo.invalidate(&loop.getBefore());
-      runOnRegion(domInfo, loop.getBefore());
-      if (!removeIfFromRegion(domInfo, loop.getBefore(), pseudoExit)) {
+      domInfo.invalidate(&insertRegion);
+
+      assert(header->getParent() == &insertRegion);
+
+      runOnRegion(domInfo, insertRegion);
+
+      if (!removeIfFromRegion(domInfo, insertRegion, pseudoExit)) {
         attemptToFoldIntoPredecessor(pseudoExit);
       }
 
       attemptToFoldIntoPredecessor(wrapper);
       attemptToFoldIntoPredecessor(target);
-      if (loop.getBefore().getBlocks().size() != 1) {
-        Block *blk = new Block();
-        OpBuilder B(loop.getContext());
-        B.setInsertionPointToEnd(blk);
-        auto cop =
-            cast<scf::ConditionOp>(loop.getBefore().getBlocks().back().back());
-        auto er = B.create<scf::ExecuteRegionOp>(loop.getLoc(),
-                                                 cop.getOperandTypes());
-        er.getRegion().getBlocks().splice(er.getRegion().getBlocks().begin(),
-                                          loop.getBefore().getBlocks());
-        loop.getBefore().push_back(blk);
-        SmallVector<Value> yields;
-        for (auto a : er.getResults())
-          yields.push_back(a);
-        yields.erase(yields.begin());
-        B.create<scf::ConditionOp>(cop.getLoc(), er.getResult(0), yields);
-        B.setInsertionPoint(&*cop);
-        for (auto arg : er.getRegion().front().getArguments()) {
-          auto na = blk->addArgument(arg.getType());
-          arg.replaceAllUsesWith(na);
-        }
-        er.getRegion().front().eraseArguments(
-            [](BlockArgument) { return true; });
-        B.create<scf::YieldOp>(cop.getLoc(), cop.getOperands());
-        cop.erase();
+
+      if (llvm::hasSingleElement(insertRegion)) {
+        Block *block = &insertRegion.front();
+        IRRewriter B(exec->getContext());
+        Operation *terminator = block->getTerminator();
+        ValueRange results = terminator->getOperands();
+        terminator->erase();
+        B.mergeBlockBefore(block, exec);
+        exec.replaceAllUsesWith(results);
+        exec.erase();
       }
+
       assert(loop.getBefore().getBlocks().size() == 1);
       runOnRegion(domInfo, loop.getAfter());
       assert(loop.getAfter().getBlocks().size() == 1);
