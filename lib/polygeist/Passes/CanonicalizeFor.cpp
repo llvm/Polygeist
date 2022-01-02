@@ -592,6 +592,13 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     if (!step)
       return failure();
 
+    // Cannot transform for if step is not loop-invariant
+    if (auto op = step.getDefiningOp()) {
+      if (loop->isAncestor(op)) {
+        return failure();
+      }
+    }
+
     bool negativeStep = false;
     if (auto cop = step.getDefiningOp<ConstantIntOp>()) {
       if (cop.value() < 0) {
@@ -905,6 +912,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
         return failure();
 
       SmallVector<std::pair<BlockArgument, Value>, 2> m;
+
       // The return results of the while which are used
       SmallVector<Value, 2> prevResults;
       // The corresponding value in the before which
@@ -958,7 +966,17 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
               }
             return failure();
           }
-          m.emplace_back(std::get<2>(pair), thenYielded);
+          // If the value yielded from then then is defined in the while before
+          // but not being moved down with the if, don't change anything.
+          if (!ifOp.getThenRegion().isAncestor(thenYielded.getParentRegion()) &&
+              op.getBefore().isAncestor(thenYielded.getParentRegion())) {
+            prevResults.push_back(std::get<0>(pair));
+            condArgs.push_back(thenYielded);
+          } else {
+            // Otherwise, mark the corresponding after argument to be replaced
+            // with the value yielded in the if statement.
+            m.emplace_back(std::get<2>(pair), thenYielded);
+          }
         } else {
           assert(prevResults.size() == condArgs.size());
           prevResults.push_back(std::get<0>(pair));
@@ -974,18 +992,21 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       rewriter.updateRootInPlace(afterYield, [&] {
         afterYield.getResultsMutable().assign(yieldArgs);
       });
-
-      llvm::SetVector<Value> sv;
-      findValuesUsedBelow(ifOp, sv);
-
       Block *afterB = &op.getAfter().front();
 
-      for (auto v : sv) {
-        condArgs.push_back(v);
-        auto arg = afterB->addArgument(v.getType());
-        for (OpOperand &use : llvm::make_early_inc_range(v.getUses())) {
-          if (ifOp->isAncestor(use.getOwner()) || use.getOwner() == afterYield)
-            rewriter.updateRootInPlace(use.getOwner(), [&]() { use.set(arg); });
+      {
+        llvm::SetVector<Value> sv;
+        findValuesUsedBelow(ifOp, sv);
+
+        for (auto v : sv) {
+          condArgs.push_back(v);
+          auto arg = afterB->addArgument(v.getType());
+          for (OpOperand &use : llvm::make_early_inc_range(v.getUses())) {
+            if (ifOp->isAncestor(use.getOwner()) ||
+                use.getOwner() == afterYield)
+              rewriter.updateRootInPlace(use.getOwner(),
+                                         [&]() { use.set(arg); });
+          }
         }
       }
 
@@ -993,10 +1014,13 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                                condArgs);
 
+      SmallVector<unsigned> indices;
       for (int i = m.size() - 1; i >= 0; i--) {
+        assert(m[i].first.getType() == m[i].second.getType());
         m[i].first.replaceAllUsesWith(m[i].second);
-        afterB->eraseArgument(m[i].first.getArgNumber());
+        indices.push_back(m[i].first.getArgNumber());
       }
+      afterB->eraseArguments(indices);
 
       rewriter.eraseOp(ifOp.thenYield());
       Block *thenB = ifOp.thenBlock();
@@ -1266,7 +1290,10 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
 struct WhileLICM : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
   static bool canBeHoisted(Operation *op,
-                           function_ref<bool(Value)> definedOutside) {
+                           function_ref<bool(Value)> definedOutside,
+                           bool isSpeculatable) {
+    // TODO consider requirement of isSpeculatable
+
     // Check that dependencies are defined outside of loop.
     if (!llvm::all_of(op->getOperands(), definedOutside))
       return false;
@@ -1293,7 +1320,7 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
         for (auto &innerOp : block.without_terminator())
-          if (!canBeHoisted(&innerOp, definedOutside))
+          if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable))
             return false;
       }
     }
@@ -1311,10 +1338,14 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // properties.
     auto isDefinedOutsideOfBody = [&](Value value) {
       auto definingOp = value.getDefiningOp();
-      bool definedOutside =
-          (definingOp && !!willBeMovedSet.count(definingOp)) ||
-          !op.getBefore().isAncestor(value.getParentRegion());
-      return definedOutside;
+      if (!definingOp) {
+        if (auto ba = value.dyn_cast<BlockArgument>())
+          definingOp = ba.getOwner()->getParentOp();
+        assert(definingOp);
+      }
+      if (willBeMovedSet.count(definingOp))
+        return true;
+      return op != definingOp && !op->isAncestor(definingOp);
     };
 
     // Do not use walk here, as we do not want to go into nested regions and
@@ -1323,7 +1354,17 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // processed.
     for (auto &block : op.getBefore()) {
       for (auto &op : block.without_terminator()) {
-        bool legal = canBeHoisted(&op, isDefinedOutsideOfBody);
+        bool legal = canBeHoisted(&op, isDefinedOutsideOfBody, false);
+        if (legal) {
+          opsToMove.push_back(&op);
+          willBeMovedSet.insert(&op);
+        }
+      }
+    }
+
+    for (auto &block : op.getAfter()) {
+      for (auto &op : block.without_terminator()) {
+        bool legal = canBeHoisted(&op, isDefinedOutsideOfBody, true);
         if (legal) {
           opsToMove.push_back(&op);
           willBeMovedSet.insert(&op);
