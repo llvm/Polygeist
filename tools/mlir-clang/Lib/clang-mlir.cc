@@ -1564,6 +1564,11 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         builder.create<mlir::NVVM::Barrier0Op>(loc);
         return make_pair(ValueCategory(), true);
       }
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
+        llvm::errs() << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
+        return make_pair(ValueCategory(), true);
+      }
       // TODO move free out.
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "free" ||
@@ -2728,6 +2733,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 
   if (!callee || callee->isVariadic()) {
+    bool isReference = expr->isLValue() || expr->isXValue();
     std::vector<mlir::Value> args;
     for (auto a : expr->arguments()) {
       args.push_back(getLLVM(a));
@@ -2739,91 +2745,31 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult(0);
     } else {
       args.insert(args.begin(), getLLVM(expr->getCallee()));
-      called =
-          builder
-              .create<mlir::LLVM::CallOp>(
-                  loc,
-                  std::vector<mlir::Type>({Glob.typeTranslator.translateType(
-                      anonymize(getLLVMType(expr->getType())))}),
-                  args)
-              .getResult(0);
+      auto CT = expr->getType();
+      if (isReference)
+        CT = Glob.CGM.getContext().getLValueReferenceType(CT);
+      auto rt = Glob.typeTranslator.translateType(anonymize(getLLVMType(CT)));
+      auto ft = args[0]
+                    .getType()
+                    .cast<LLVM::LLVMPointerType>()
+                    .getElementType()
+                    .cast<LLVM::LLVMFunctionType>();
+      assert(rt == ft.getReturnType());
+      called = builder
+                   .create<mlir::LLVM::CallOp>(
+                       loc, std::vector<mlir::Type>({rt}), args)
+                   .getResult(0);
     }
-    bool isReference = expr->isLValue() || expr->isXValue();
     if (isReference) {
       if (!(called.getType().isa<LLVM::LLVMPointerType>() ||
             called.getType().isa<MemRefType>())) {
         expr->dump();
+        expr->getType()->dump();
         llvm::errs() << " call: " << called << "\n";
       }
     }
     return ValueCategory(called, isReference);
   }
-#if 0
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "gettimeofday") {
-        auto tocall = EmitCallee(expr->getCallee());
-        auto fprintfF = Glob.GetOrCreateLLVMFunction(tocall);
-        std::vector<mlir::Value> args;
-        size_t i = 0;
-        mlir::Value tostore = nullptr;
-        mlir::Value alloc;
-        for (auto a : expr->arguments()) {
-
-          if (i == 0) {
-            tostore = Visit(a).getValue(builder);
-            auto mt = tostore.getType().cast<MemRefType>();
-            auto shape = std::vector<int64_t>(mt.getShape());
-            mlir::Value res;
-            shape.erase(shape.begin());
-            auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                             MemRefLayoutAttrInterface(),
-                                             mt.getMemorySpace());
-            tostore = builder.create<polygeist::SubIndexOp>(
-                loc, mt0, tostore, getConstantIndex(0));
-            i++;
-            auto indexType = mlir::IntegerType::get(module->getContext(), 64);
-            OpBuilder abuilder(builder.getContext());
-            abuilder.setInsertionPointToStart(allocationScope);
-            auto one = abuilder.create<ConstantIntOp>(loc, 1, indexType);
-            alloc = abuilder.create<mlir::LLVM::AllocaOp>(
-                loc,
-                Glob.typeTranslator.translateType(
-                    anonymize(getLLVMType(a->getType()))),
-                one, 0);
-            args.push_back(alloc);
-            continue;
-          }
-          auto llvmType = Glob.typeTranslator.translateType(
-              anonymize(getLLVMType(a->getType())));
-
-          if (auto IC1 = dyn_cast<ImplicitCastExpr>(a)) {
-            if (IC1->getCastKind() == clang::CastKind::CK_NullToPointer) {
-              args.push_back(builder.create<mlir::LLVM::NullOp>(loc, llvmType));
-              i++;
-              continue;
-            }
-          }
-          mlir::Value val = Visit(a).getValue(builder);
-          args.push_back(val);
-          i++;
-        }
-        assert(alloc);
-
-        auto co = builder.create<mlir::LLVM::CallOp>(loc, fprintfF, args)
-                      .getResult(0);
-        // co = builder.create<IndexCastOp>( // was DialectCastOp
-        //   loc, getMLIRType(expr->getType()), co);
-        auto ret = co;
-
-        auto allV = ValueCategory(alloc, /*isReference*/ true);
-        ValueCategory(tostore, /*isReference*/ true)
-            .store(builder, allV, /*isArray*/ true);
-        return ValueCategory(ret, /*isReference*/ false);
-      }
-    }
-#endif
 
   auto tocall = EmitDirectCallee(callee);
 
@@ -4911,7 +4857,9 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
     lnk = LLVM::Linkage::External;
     break;
   case llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage:
-    lnk = LLVM::Linkage::AvailableExternally;
+    // Available Externally not supported in MLIR LLVM Dialect
+    // lnk = LLVM::Linkage::AvailableExternally;
+    lnk = LLVM::Linkage::External;
     break;
   case llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage:
     lnk = LLVM::Linkage::Linkonce;
@@ -5782,6 +5730,15 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     return mlir::MemRefType::get({size}, ET);
   }
 
+  if (auto FT = dyn_cast<clang::FunctionProtoType>(t)) {
+    auto RT = getMLIRType(FT->getReturnType());
+    SmallVector<mlir::Type> Args;
+    for (auto T : FT->getParamTypes()) {
+      Args.push_back(getMLIRType(T));
+    }
+    return LLVM::LLVMFunctionType::get(RT, Args, FT->isVariadic());
+  }
+
   if (isa<clang::PointerType, clang::ReferenceType>(t)) {
     int64_t outer = (isa<clang::PointerType>(t)) ? -1 : -1;
     auto PTT = isa<clang::PointerType>(t) ? cast<clang::PointerType>(t)
@@ -5791,7 +5748,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                                 ->getPointeeType()
                                                 ->getUnqualifiedDesugaredType();
 
-    if (PTT->isCharType() || PTT->isVoidType() || PTT->isFunctionType()) {
+    if (PTT->isCharType() || PTT->isVoidType()) {
       llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
       return typeTranslator.translateType(T);
     }
@@ -5803,7 +5760,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                     &subRef, /*allowMerge*/ true);
 
     if (subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
-                    LLVM::LLVMPointerType>())
+                    LLVM::LLVMPointerType, LLVM::LLVMFunctionType>())
       return LLVM::LLVMPointerType::get(subType);
 
     if (isa<clang::ArrayType>(PTT)) {
