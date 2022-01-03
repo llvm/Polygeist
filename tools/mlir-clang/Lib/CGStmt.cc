@@ -252,8 +252,9 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
       }
       auto ty = cond.getType().cast<mlir::IntegerType>();
       if (ty.getWidth() != 1) {
-        ty = builder.getIntegerType(1);
-        cond = builder.create<arith::TruncIOp>(loc, cond, ty);
+        cond = builder.create<arith::CmpIOp>(
+            loc, CmpIPredicate::ne, cond,
+            builder.create<ConstantIntOp>(loc, 0, ty));
       }
       auto nb = builder.create<mlir::memref::LoadOp>(
           loc, lctx.noBreak, std::vector<mlir::Value>());
@@ -626,8 +627,9 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
     }
     auto ty = cond.getType().cast<mlir::IntegerType>();
     if (ty.getWidth() != 1) {
-      ty = builder.getIntegerType(1);
-      cond = builder.create<arith::TruncIOp>(loc, cond, ty);
+      cond = builder.create<arith::CmpIOp>(
+          loc, CmpIPredicate::ne, cond,
+          builder.create<ConstantIntOp>(loc, 0, ty));
     }
     auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
                                                    std::vector<mlir::Value>());
@@ -687,8 +689,9 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
     }
     auto ty = cond.getType().cast<mlir::IntegerType>();
     if (ty.getWidth() != 1) {
-      ty = builder.getIntegerType(1);
-      cond = builder.create<arith::TruncIOp>(loc, cond, ty);
+      cond = builder.create<arith::CmpIOp>(
+          loc, CmpIPredicate::ne, cond,
+          builder.create<ConstantIntOp>(loc, 0, ty));
     }
     auto nb = builder.create<mlir::memref::LoadOp>(loc, loops.back().noBreak,
                                                    std::vector<mlir::Value>());
@@ -736,8 +739,9 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   }
   auto prevTy = cond.getType().cast<mlir::IntegerType>();
   if (!prevTy.isInteger(1)) {
-    auto postTy = builder.getI1Type();
-    cond = builder.create<arith::TruncIOp>(loc, cond, postTy);
+    cond = builder.create<arith::CmpIOp>(
+        loc, CmpIPredicate::ne, cond,
+        builder.create<ConstantIntOp>(loc, 0, prevTy));
   }
   bool hasElseRegion = stmt->getElse();
   auto ifOp = builder.create<mlir::scf::IfOp>(loc, cond, hasElseRegion);

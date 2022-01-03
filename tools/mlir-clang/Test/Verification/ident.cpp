@@ -42,12 +42,13 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 }
 
 // CHECK:   func @lt_kernel_cuda(%arg0: !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)> : (i64) -> !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)> : (i64) -> !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
 // CHECK-NEXT:     %2 = call @_ZNK15MTensorIterator11input_dtypeEv(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
-// CHECK-NEXT:     %3 = arith.trunci %2 : i8 to i1
+// CHECK-NEXT:     %3 = arith.cmpi ne, %2, %c0_i8 : i8
 // CHECK-NEXT:     scf.if %3 {
 // CHECK-NEXT:       %4 = llvm.getelementptr %1[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:       llvm.store %arg0, %4 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>

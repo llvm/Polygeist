@@ -535,17 +535,6 @@ findNearestPostDominatingInsertionPoint(
   return insertPoint;
 }
 
-static std::pair<Block *, Block::iterator>
-findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
-  // Find the earliest insertion point where loop bounds are fully defined.
-  PostDominanceInfo postDominanceInfo(op->getParentOfType<FuncOp>());
-  SmallVector<Value> operands;
-  llvm::append_range(operands, op.getLowerBound());
-  llvm::append_range(operands, op.getUpperBound());
-  llvm::append_range(operands, op.getStep());
-  return findNearestPostDominatingInsertionPoint(operands, postDominanceInfo);
-}
-
 /// Interchanges a parallel for loop with a while loop it contains. The while
 /// loop is expected to have an empty "after" region.
 struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
@@ -597,23 +586,33 @@ struct InterchangeWhilePFor : public OpRewritePattern<scf::ParallelOp> {
     Operation *conditionDefiningOp = conditionOp.getCondition().getDefiningOp();
     if (conditionDefiningOp &&
         !isDefinedAbove(conditionOp.getCondition(), conditionOp)) {
-      std::pair<Block *, Block::iterator> insertionPoint =
-          findInsertionPointAfterLoopOperands(op);
-      rewriter.setInsertionPoint(insertionPoint.first, insertionPoint.second);
+      rewriter.setInsertionPoint(newParallelOp);
       SmallVector<Value> iterationCounts = emitIterationCounts(rewriter, op);
-      Value allocated = allocateTemporaryBuffer<memref::AllocaOp>(
-          rewriter, conditionOp.getCondition(), iterationCounts);
-      Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
-
+      Value allocated = rewriter.create<memref::AllocaOp>(
+          conditionDefiningOp->getLoc(),
+          MemRefType::get({}, rewriter.getI1Type()));
       rewriter.setInsertionPointAfter(conditionDefiningOp);
+      Value cond = rewriter.create<ConstantIntOp>(conditionDefiningOp->getLoc(),
+                                                  true, 1);
+      for (auto tup : llvm::zip(newParallelOp.getLowerBound(),
+                                newParallelOp.getInductionVars())) {
+        cond = rewriter.create<AndIOp>(
+            conditionDefiningOp->getLoc(),
+            rewriter.create<CmpIOp>(conditionDefiningOp->getLoc(),
+                                    CmpIPredicate::eq, std::get<0>(tup),
+                                    std::get<1>(tup)),
+            cond);
+      }
+      auto ifOp =
+          rewriter.create<scf::IfOp>(conditionDefiningOp->getLoc(), cond);
+      rewriter.setInsertionPointToStart(ifOp.thenBlock());
       rewriter.create<memref::StoreOp>(conditionDefiningOp->getLoc(),
-                                       conditionOp.getCondition(), allocated,
-                                       newParallelOp.getInductionVars());
+                                       conditionOp.getCondition(), allocated);
 
       rewriter.setInsertionPointToEnd(&newWhileOp.getBefore().front());
-      SmallVector<Value> zeros(iterationCounts.size(), zero);
+
       Value reloaded = rewriter.create<memref::LoadOp>(
-          conditionDefiningOp->getLoc(), allocated, zeros);
+          conditionDefiningOp->getLoc(), allocated);
       rewriter.create<scf::ConditionOp>(conditionOp.getLoc(), reloaded,
                                         ValueRange());
       rewriter.eraseOp(conditionOp);
@@ -716,18 +715,23 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
 
     llvm::SetVector<Value> crossing;
     findValuesUsedBelow(barrier, crossing);
-    // std::pair<Block *, Block::iterator> insertPoint =
-    //     findInsertionPointAfterLoopOperands(op);
-    // rewriter.setInsertionPoint(insertPoint.first, insertPoint.second);
     rewriter.setInsertionPoint(op);
     SmallVector<Value> iterationCounts = emitIterationCounts(rewriter, op);
 
     // Allocate space for values crossing the barrier.
-    SmallVector<memref::AllocOp> allocations;
+    SmallVector<Value> allocations;
     allocations.reserve(crossing.size());
+    auto mod = barrier->getParentOfType<ModuleOp>();
+    DataLayout DLI(mod);
     for (Value v : crossing) {
-      allocations.push_back(allocateTemporaryBuffer<memref::AllocOp>(
-          rewriter, v, iterationCounts));
+      if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
+        allocations.push_back(allocateTemporaryBuffer<LLVM::CallOp>(
+                                  rewriter, v, iterationCounts, true, &DLI)
+                                  .getResult(0));
+      } else {
+        allocations.push_back(allocateTemporaryBuffer<memref::AllocOp>(
+            rewriter, v, iterationCounts));
+      }
     }
 
     // Store values crossing the barrier in caches immediately when ready.
@@ -754,9 +758,33 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
           u.set(buf);
         }
       } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
-        llvm::errs() << ao->getParentOfType<FuncOp>() << "\n";
-        llvm::errs() << ao << "\n";
-        llvm_unreachable("split around llvm alloca unhandled\n");
+        Value sz = ao.getArraySize();
+        llvm::errs() << "wanring alloca\n";
+        rewriter.setInsertionPointAfter(alloc.getDefiningOp());
+        alloc =
+            rewriter.create<LLVM::BitcastOp>(ao.getLoc(), ao.getType(), alloc);
+        for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
+          rewriter.setInsertionPoint(u.getOwner());
+          Value idx = nullptr;
+          // i0
+          // i0 * s1 + i1
+          // ( i0 * s1 + i1 ) * s2 + i2
+          for (auto pair : llvm::zip(iterationCounts, op.getInductionVars())) {
+            if (idx) {
+              idx = rewriter.create<arith::MulIOp>(ao.getLoc(), idx,
+                                                   std::get<0>(pair));
+              idx = rewriter.create<arith::AddIOp>(ao.getLoc(), idx,
+                                                   std::get<1>(pair));
+            } else
+              idx = std::get<1>(pair);
+          }
+          idx = rewriter.create<MulIOp>(ao.getLoc(), sz,
+                                        rewriter.create<arith::IndexCastOp>(
+                                            ao.getLoc(), idx, sz.getType()));
+          SmallVector<Value> vec = {idx};
+          u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
+                                             idx));
+        }
       } else
         rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
                                          op.getInductionVars());
@@ -772,8 +800,14 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
         op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
     rewriter.eraseOp(&newLoop.getBody()->back());
 
-    for (auto alloc : allocations)
-      rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
+    auto freefn = GetOrCreateFreeFunction(mod);
+    for (auto alloc : allocations) {
+      if (alloc.getType().isa<LLVM::LLVMPointerType>()) {
+        Value args[1] = {alloc};
+        rewriter.create<LLVM::CallOp>(alloc.getLoc(), freefn, args);
+      } else
+        rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
+    }
 
     // Recreate the operations in the new loop with new values.
     rewriter.setInsertionPointToStart(newLoop.getBody());

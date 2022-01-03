@@ -810,6 +810,31 @@ public:
       return failure();
 
     auto mt = src.getType().cast<MemRefType>();
+
+    // Fantastic optimization, disabled for now to make a hard debug case easier
+    // to find.
+    if (auto before =
+            src.source().getDefiningOp<polygeist::Memref2PointerOp>()) {
+      auto mt0 = before.source().getType().cast<MemRefType>();
+      if (mt0.getElementType() == mt.getElementType()) {
+        auto sh0 = mt0.getShape();
+        auto sh = mt.getShape();
+        if (sh.size() == sh0.size()) {
+          bool eq = true;
+          for (size_t i = 1; i < sh.size(); i++) {
+            if (sh[i] != sh0[i]) {
+              eq = false;
+              break;
+            }
+          }
+          if (eq) {
+            op.memrefMutable().assign(before.source());
+            return success();
+          }
+        }
+      }
+    }
+
     for (size_t i = 1; i < mt.getShape().size(); i++)
       if (mt.getShape()[i] == ShapedType::kDynamicSize)
         return failure();
@@ -905,10 +930,35 @@ void MetaPointer2Memref<AffineStoreOp>::rewrite(
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
 }
 
+// and(x, y) != 0  -> and(x != 0, y != 0)
+class CmpAnd final : public OpRewritePattern<arith::CmpIOp> {
+public:
+  using OpRewritePattern<arith::CmpIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::CmpIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.getLhs().getDefiningOp<AndIOp>();
+    if (!src)
+      return failure();
+
+    if (!matchPattern(op.getRhs(), m_Zero()))
+      return failure();
+    if (op.getPredicate() != arith::CmpIPredicate::ne)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<arith::AndIOp>(
+        op,
+        rewriter.create<arith::CmpIOp>(op.getLoc(), CmpIPredicate::ne,
+                                       src.getLhs(), op.getRhs()),
+        rewriter.create<arith::CmpIOp>(op.getLoc(), CmpIPredicate::ne,
+                                       src.getRhs(), op.getRhs()));
+    return success();
+  }
+};
 void Pointer2MemrefOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<
-      Pointer2MemrefCast, Pointer2Memref2PointerCast,
+      CmpAnd, Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>>(
       context);

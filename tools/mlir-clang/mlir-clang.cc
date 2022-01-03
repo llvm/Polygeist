@@ -493,6 +493,11 @@ int main(int argc, char **argv) {
       noptPM.addPass(polygeist::replaceAffineCFGPass());
       noptPM.addPass(mlir::createCanonicalizerPass());
       pm.addPass(mlir::createInlinerPass());
+
+      noptPM.addPass(polygeist::createCanonicalizeForPass());
+      noptPM.addPass(mlir::createCanonicalizerPass());
+      noptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+      noptPM.addPass(mlir::createCanonicalizerPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 4;

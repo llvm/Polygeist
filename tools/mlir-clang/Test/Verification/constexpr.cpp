@@ -18,7 +18,7 @@ int foo() {
 // CHECK-NEXT:     %1 = memref.get_global @_ZL3num : memref<1xi32>
 // CHECK-NEXT:     %2 = scf.while (%arg0 = %c0_i32) : (i32) -> i32 {
 // CHECK-NEXT:       %5 = affine.load %1[0] : memref<1xi32>
-// CHECK-NEXT:       %6 = arith.cmpi ult, %arg0, %5 : i32
+// CHECK-NEXT:       %6 = arith.cmpi slt, %arg0, %5 : i32
 // CHECK-NEXT:       scf.condition(%6) %arg0 : i32
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg0: i32):  // no predecessors
