@@ -10,14 +10,20 @@ void square(double* x) {
     }
 }
 
-// CHECK:   func @square(%arg0: memref<?xf64>, %arg1: i32, %arg2: i32, %arg3: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %1 = arith.index_cast %arg2 : i32 to index
-// CHECK-NEXT:     %2 = arith.index_cast %arg3 : i32 to index
-// CHECK-NEXT:     scf.parallel (%arg4) = (%0) to (%1) step (%2) {
-// CHECK-NEXT:       %3 = arith.index_cast %arg4 : index to i32
-// CHECK-NEXT:       %4 = arith.sitofp %3 : i32 to f64
-// CHECK-NEXT:       memref.store %4, %arg0[%arg4] : memref<?xf64>
+// CHECK:   func @square(%arg0: memref<?xf64>)
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-NEXT:     %c2 = arith.constant 2 : index
+// CHECK-NEXT:     %c11 = arith.constant 11 : index
+// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+// CHECK-NEXT:     %c3 = arith.constant 3 : index
+// CHECK-NEXT:     scf.parallel (%arg1) = (%c3) to (%c11) step (%c2) {
+// CHECK-NEXT:       %0 = arith.index_cast %arg1 : index to i32
+// CHECK-NEXT:       %1 = arith.sitofp %0 : i32 to f64
+// CHECK-NEXT:       memref.store %1, %arg0[%arg1] : memref<?xf64>
+// CHECK-NEXT:       %2 = arith.addi %0, %c1_i32 : i32
+// CHECK-NEXT:       %3 = arith.addi %arg1, %c1 : index
+// CHECK-NEXT:       %4 = arith.sitofp %2 : i32 to f64
+// CHECK-NEXT:       memref.store %4, %arg0[%3] : memref<?xf64>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
