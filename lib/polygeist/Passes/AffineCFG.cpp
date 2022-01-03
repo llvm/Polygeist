@@ -595,6 +595,30 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
                                  op.getType()));
       return success();
     }
+    if (auto iadd = op.getOperand().getDefiningOp<DivUIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
+      rewriter.replaceOpWithNewOp<DivUIOp>(
+          op,
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
+          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+                                 op.getType()));
+      return success();
+    }
+    if (auto iadd = op.getOperand().getDefiningOp<DivSIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
+      rewriter.replaceOpWithNewOp<DivSIOp>(
+          op,
+          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
+          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
+                                 op.getType()));
+      return success();
+    }
     return failure();
   }
 };
