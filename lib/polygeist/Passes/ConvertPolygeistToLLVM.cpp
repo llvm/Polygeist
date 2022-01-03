@@ -43,6 +43,11 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = subViewOp.getLoc();
 
+    if (!subViewOp.source().getType().isa<MemRefType>()) {
+      llvm::errs() << " func: " << subViewOp->getParentOfType<FuncOp>() << "\n";
+      llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.source()
+                   << "\n";
+    }
     auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
 
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();

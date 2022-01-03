@@ -237,7 +237,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   while (list.size()) {
     auto pair = list.front();
     auto val = pair.first;
-    auto changed = pair.second;
+    auto modified = pair.second;
     list.pop_front();
     for (auto *user : val.getUsers()) {
       if (auto co = dyn_cast<mlir::memref::CastOp>(user)) {
@@ -272,7 +272,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           continue;
         }
       }
-      if (!changed) {
+      if (!modified) {
         if (auto loadOp = dyn_cast<mlir::LLVM::LoadOp>(user)) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
@@ -436,9 +436,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   // Start by setting lastStoreInBlock to the last store directly in that block
   // Note that this may miss a store within a region of an operation in that
   // block
-  std::function<mlir::Value(Block &, mlir::Value)> handleBlock =
-      [&](Block &block, mlir::Value lastVal) {
-        if (!storeBlocks.count(&block)) {
+  // endRequires denotes whether this value is needed at the end of the block
+  // (yield)
+  std::function<mlir::Value(Block &, mlir::Value, bool endRequires)>
+      handleBlock = [&](Block &block, mlir::Value lastVal, bool endRequires) {
+        if (!storeBlocks.count(&block) && !endRequires) {
           assert(lastStoreInBlock.find(&block) != lastStoreInBlock.end());
           return lastStoreInBlock[&block];
         }
@@ -522,6 +524,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               StoringOperations.insert(nextIf);
               exOp.erase();
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
+              Operation *newLoad = nullptr;
               if (!lastVal) {
 
                 bool needsAfter = false;
@@ -532,6 +535,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                       needsAfter = true;
                     else if (StoringOperations.count(n))
                       break;
+                    else if (dyn_cast<scf::YieldOp>(n) && endRequires)
+                      needsAfter = true;
                     else
                       n->walk([&](Operation *a) {
                         if (loadOps.count(a))
@@ -551,7 +556,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 for (auto i : idx) {
                   nidx.push_back(B.create<ConstantIndexOp>(ifOp.getLoc(), i));
                 }
-                Operation *newLoad;
                 if (AI.getType().isa<MemRefType>())
                   newLoad = B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
                 else
@@ -563,14 +567,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               }
 
               valueAtStartOfBlock[&*ifOp.getThenRegion().begin()] = lastVal;
-              mlir::Value thenVal =
-                  handleBlock(*ifOp.getThenRegion().begin(), lastVal);
+              mlir::Value thenVal = handleBlock(*ifOp.getThenRegion().begin(),
+                                                lastVal, /*endRequires*/ true);
 
               if (lastVal && ifOp.getElseRegion().getBlocks().size())
                 valueAtStartOfBlock[&*ifOp.getElseRegion().begin()] = lastVal;
               mlir::Value elseVal =
                   (ifOp.getElseRegion().getBlocks().size())
-                      ? handleBlock(*ifOp.getElseRegion().begin(), lastVal)
+                      ? handleBlock(*ifOp.getElseRegion().begin(), lastVal,
+                                    /*endRequires*/ true)
                       : lastVal;
 
               if (thenVal == elseVal && thenVal != nullptr) {
@@ -636,6 +641,24 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 StoringOperations.insert(nextIf);
                 ifOp.erase();
                 continue;
+              } else if (newLoad) {
+                // If added load was not used and not able to result
+                // in a simplification for the if statement, delete it.
+                if (newLoad->getResult(0).use_empty()) {
+                  loadOps.insert(newLoad);
+                  newLoad->erase();
+                  for (auto &pair : lastStoreInBlock) {
+                    if (pair.second == newLoad->getResult(0))
+                      pair.second = nullptr;
+                  }
+                  SmallVector<Block *> toErase;
+                  for (auto &pair : valueAtStartOfBlock) {
+                    if (pair.second == newLoad->getResult(0))
+                      toErase.push_back(pair.first);
+                  }
+                  for (auto blk : toErase)
+                    valueAtStartOfBlock.erase(blk);
+                }
               }
             }
             lastVal = nullptr;
@@ -655,6 +678,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 }
                 assert(loadOp.getType() == lastVal.getType() &&
                        "mismatched load type");
+                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                        << lastVal << "\n");
                 loadOp.replaceAllUsesWith(lastVal);
                 for (auto &pair : lastStoreInBlock) {
                   if (pair.second == loadOp)
@@ -694,6 +719,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                     pair.second = lastVal;
                 }
                 // Record this to erase later.
+                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                        << lastVal << "\n");
                 loadOpsToErase.push_back(loadOp);
                 loadOps.erase(loadOp);
               } else if (seenSubStore) {
@@ -712,6 +739,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 }
                 assert(loadOp.getType() == lastVal.getType() &&
                        "mismatched load type");
+                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                        << lastVal << "\n");
                 loadOp.replaceAllUsesWith(lastVal);
                 for (auto &pair : lastStoreInBlock) {
                   if (pair.second == loadOp)
@@ -760,6 +789,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   assert(loadOp.getType() == lastVal.getType() &&
                          "mismatched load type");
                   loadOp.replaceAllUsesWith(lastVal);
+                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                          << lastVal << "\n");
                   for (auto &pair : lastStoreInBlock) {
                     if (pair.second == loadOp)
                       pair.second = lastVal;
@@ -786,6 +817,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   assert(loadOp.getType() == lastVal.getType() &&
                          "mismatched load type");
                   loadOp.replaceAllUsesWith(lastVal);
+                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                          << lastVal << "\n");
                   for (auto &pair : lastStoreInBlock) {
                     if (pair.second == loadOp)
                       pair.second = lastVal;
@@ -812,6 +845,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   assert(loadOp.getType() == lastVal.getType() &&
                          "mismatched load type");
                   loadOp.replaceAllUsesWith(lastVal);
+                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                          << lastVal << "\n");
                   for (auto &pair : lastStoreInBlock) {
                     if (pair.second == loadOp)
                       pair.second = lastVal;
@@ -839,7 +874,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   while (storeBlocks.size()) {
     auto blk = storeBlocks.begin();
-    handleBlock(**blk, nullptr);
+    handleBlock(**blk, nullptr, /*endRequires*/ false);
   }
 
   if (loadOps.size() == 0)
@@ -935,6 +970,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(loadOp->getResult(0).getType() ==
              valueAtStartOfBlock[blk].getType());
       loadOp->getResult(0).replaceAllUsesWith(valueAtStartOfBlock[blk]);
+      LLVM_DEBUG(llvm::dbgs() << " replaced " << *loadOp << " with "
+                              << valueAtStartOfBlock[blk] << "\n");
       for (auto &pair : lastStoreInBlock) {
         if (pair.second && pair.second.getDefiningOp() == loadOp)
           pair.second = valueAtStartOfBlock[blk];
@@ -1262,7 +1299,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   }
   LLVM_DEBUG(llvm::dbgs() << "End forwarding store of " << AI << " to load\n"
                           << *AI.getDefiningOp()->getParentOfType<FuncOp>()
-                          << "\n");
+                          << " - changed=" << (int)changed << "\n");
   return changed;
 }
 

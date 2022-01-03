@@ -1100,36 +1100,67 @@ struct WhileLogicalNegation : public OpRewritePattern<WhileOp> {
 
   LogicalResult matchAndRewrite(WhileOp op,
                                 PatternRewriter &rewriter) const override {
-    SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(),
-                                                op.getAfterArguments().end());
     bool changed = false;
     scf::ConditionOp term =
         cast<scf::ConditionOp>(op.getBefore().front().getTerminator());
-    assert(origAfterArgs.size() == op.getResults().size());
-    assert(origAfterArgs.size() == term.getArgs().size());
 
-    if (auto condCmp = term.getCondition().getDefiningOp<CmpIOp>()) {
-      for (auto pair :
-           llvm::zip(op.getResults(), term.getArgs(), origAfterArgs)) {
-        if (!std::get<0>(pair).use_empty()) {
-          if (auto termCmp = std::get<1>(pair).getDefiningOp<CmpIOp>()) {
-            if (termCmp.getLhs() == condCmp.getLhs() &&
-                termCmp.getRhs() == condCmp.getRhs()) {
-              // TODO generalize to logical negation of
-              if (condCmp.getPredicate() == CmpIPredicate::slt &&
-                  termCmp.getPredicate() == CmpIPredicate::sge) {
+    SmallPtrSet<Value, 1> condOps;
+    SmallVector<Value> todo = {term.getCondition()};
+    while (todo.size()) {
+      Value val = todo.back();
+      todo.pop_back();
+      condOps.insert(val);
+      if (auto ao = val.getDefiningOp<AndIOp>()) {
+        todo.push_back(ao.getLhs());
+        todo.push_back(ao.getRhs());
+      }
+    }
 
-                rewriter.updateRootInPlace(op, [&] {
-                  rewriter.setInsertionPoint(op);
-                  auto truev =
-                      rewriter.create<ConstantIntOp>(termCmp.getLoc(), true, 1);
-                  std::get<0>(pair).replaceAllUsesWith(truev);
-                });
-                changed = true;
+    for (auto pair :
+         llvm::zip(op.getResults(), term.getArgs(), op.getAfterArguments())) {
+      auto termArg = std::get<1>(pair);
+      bool afterValue;
+      if (condOps.count(termArg)) {
+        afterValue = true;
+      } else {
+        bool found = false;
+        if (auto termCmp = termArg.getDefiningOp<arith::CmpIOp>()) {
+          for (auto cond : condOps) {
+            if (auto condCmp = cond.getDefiningOp<CmpIOp>()) {
+              if (termCmp.getLhs() == condCmp.getLhs() &&
+                  termCmp.getRhs() == condCmp.getRhs()) {
+                // TODO generalize to logical negation of
+                if (condCmp.getPredicate() == CmpIPredicate::slt &&
+                    termCmp.getPredicate() == CmpIPredicate::sge) {
+                  found = true;
+                  afterValue = false;
+                  break;
+                }
               }
             }
           }
         }
+        if (!found)
+          continue;
+      }
+
+      if (!std::get<0>(pair).use_empty()) {
+        rewriter.updateRootInPlace(op, [&] {
+          rewriter.setInsertionPoint(op);
+          auto truev =
+              rewriter.create<ConstantIntOp>(op.getLoc(), !afterValue, 1);
+          std::get<0>(pair).replaceAllUsesWith(truev);
+        });
+        changed = true;
+      }
+      if (!std::get<2>(pair).use_empty()) {
+        rewriter.updateRootInPlace(op, [&] {
+          rewriter.setInsertionPointToStart(&op.getAfter().front());
+          auto truev =
+              rewriter.create<ConstantIntOp>(op.getLoc(), afterValue, 1);
+          std::get<2>(pair).replaceAllUsesWith(truev);
+        });
+        changed = true;
       }
     }
 

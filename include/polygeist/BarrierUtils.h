@@ -9,6 +9,8 @@
 #ifndef MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
 #define MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_
 
+#include "mlir/Analysis/DataLayoutAnalysis.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -42,10 +44,14 @@ emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   return iterationCounts;
 }
 
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(mlir::ModuleOp module);
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
+
 template <typename T>
 static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
                                  mlir::ValueRange iterationCounts,
-                                 bool alloca = true) {
+                                 bool alloca = true,
+                                 mlir::DataLayout *DLI = nullptr) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
                                   ShapedType::kDynamicSize);
@@ -69,5 +75,31 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
     }
   auto type = MemRefType::get(bufferSize, ty);
   return rewriter.create<T>(value.getLoc(), type, iterationCounts);
+}
+
+template <>
+mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+    mlir::OpBuilder &rewriter, mlir::Value value,
+    mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
+  using namespace mlir;
+  auto val = value.getDefiningOp<LLVM::AllocaOp>();
+  auto sz = val.getArraySize();
+  assert(DLI);
+  sz = rewriter.create<arith::MulIOp>(
+      value.getLoc(), sz,
+      rewriter.create<arith::ConstantIntOp>(
+          value.getLoc(),
+          DLI->getTypeSize(
+              val.getType().cast<LLVM::LLVMPointerType>().getElementType()),
+          sz.getType().cast<IntegerType>().getWidth()));
+  for (auto iter : iterationCounts) {
+    sz =
+        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
+                                       rewriter.create<arith::IndexCastOp>(
+                                           value.getLoc(), sz.getType(), iter));
+  }
+  auto m = val->getParentOfType<ModuleOp>();
+  auto allocfn = GetOrCreateMallocFunction(m);
+  return rewriter.create<LLVM::CallOp>(value.getLoc(), allocfn, sz);
 }
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_

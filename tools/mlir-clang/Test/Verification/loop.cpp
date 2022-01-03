@@ -23,7 +23,7 @@ void div_(int* sizes) {
 // CHECK-NEXT:     %2 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<array<25 x struct<(i32, f64)>>>, i32, i32) -> !llvm.ptr<struct<(i32, f64)>>
 // CHECK-NEXT:     %3 = scf.while (%arg1 = %c0_i32) : (i32) -> i32 {
 // CHECK-NEXT:       %4 = affine.load %1[0] : memref<1xi32>
-// CHECK-NEXT:       %5 = arith.cmpi ult, %arg1, %4 : i32
+// CHECK-NEXT:       %5 = arith.cmpi slt, %arg1, %4 : i32
 // CHECK-NEXT:       scf.condition(%5) %arg1 : i32
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg1: i32):  // no predecessors
