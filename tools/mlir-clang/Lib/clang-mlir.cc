@@ -192,6 +192,10 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     const CXXRecordDecl *ClassDecl = CC->getParent();
     for (auto expr : CC->inits()) {
       if (ShowAST) {
+        llvm::errs() << " init: - baseInit:" << (int)expr->isBaseInitializer() << " memberInit:" << (int)expr->isMemberInitializer()
+            << " anyMember:" << (int)expr->isAnyMemberInitializer() << " indirectMember:" << (int)expr->isIndirectMemberInitializer()
+            << " isinClass:" << (int)expr->isInClassMemberInitializer() << " delegating:" << (int)expr->isDelegatingInitializer()
+            << " isPack:" << (int)expr->isPackExpansion() << "\n";
         if (expr->getMember())
           expr->getMember()->dump();
         if (expr->getInit())
@@ -252,6 +256,14 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
           VisitConstructCommon(cast<clang::CXXConstructExpr>(expr->getInit()),
                                /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
           continue;
+        }
+        if (expr->isDelegatingInitializer()) {
+            auto clean = cast<ExprWithCleanups>(expr->getInit());
+            llvm::errs() << "TODO: cleanup\n";
+            
+            VisitConstructCommon(cast<clang::CXXConstructExpr>(clean->getSubExpr()),
+                               /*name*/ nullptr, /*space*/ 0, /*mem*/ ThisVal.val);
+            continue;
         }
       }
       assert(field && "initialiation expression must apply to a field");
@@ -1822,6 +1834,28 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               builder.create<arith::ConstantIntOp>(loc, LC == RC, postTy),
               false);
         }
+      }
+    }
+  }
+  if (auto oc = dyn_cast<CXXMemberCallExpr>(expr)) {
+    if (auto lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
+        expr->getCallee()->dump();
+        if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+            if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "name") {
+          QualType LT = lhs->isTypeOperand()
+                            ? lhs->getTypeOperand(Glob.CGM.getContext())
+                            : lhs->getExprOperand()->getType();
+          llvm::Constant *LC = Glob.CGM.GetAddrOfRTTIDescriptor(LT);
+          while (auto CE = dyn_cast<llvm::ConstantExpr>(LC)) LC = CE->getOperand(0);
+          LC->dump();
+          assert(0 && "unhandled");
+          std::string val;
+        return ValueCategory(
+      Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
+      /*isReference*/ true);
+      }
       }
     }
   }
