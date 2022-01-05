@@ -1035,8 +1035,13 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
                postTy.isa<MemRefType>())
         val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
       if (postTy != val.getType()) {
-          stmt->dump();
-          llvm::errs() << " val: " << val << " postTy: " << postTy << " rv.val: " << rv.val << " rv.isRef" << (int)rv.isReference << " mm: " << (int)(stmt->getRetValue()->isLValue() || stmt->getRetValue()->isXValue()) << "\n";
+        stmt->dump();
+        llvm::errs() << " val: " << val << " postTy: " << postTy
+                     << " rv.val: " << rv.val << " rv.isRef"
+                     << (int)rv.isReference << " mm: "
+                     << (int)(stmt->getRetValue()->isLValue() ||
+                              stmt->getRetValue()->isXValue())
+                     << "\n";
       }
       assert(postTy == val.getType());
       builder.create<mlir::memref::StoreOp>(loc, val, returnVal);
