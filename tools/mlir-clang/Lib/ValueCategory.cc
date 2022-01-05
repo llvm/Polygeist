@@ -54,12 +54,23 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   assert(val && "expect not-null");
   auto loc = builder.getUnknownLoc();
   if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+    if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
+        if (pt.getElementType() == p2m.source().getType())
+            toStore = p2m.source();
+        else if (auto nt = p2m.source().getDefiningOp<LLVM::NullOp>()) {
+            toStore = builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());
+        }
+    }
     if (toStore.getType() != pt.getElementType()) {
       if (auto mt = toStore.getType().dyn_cast<MemRefType>()) {
         if (auto spt =
                 pt.getElementType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-          assert(mt.getElementType() == spt.getElementType() &&
-                 "expect same type");
+          if (mt.getElementType() != spt.getElementType()) {
+              //llvm::errs() << " func: " << val.getDefiningOp()->getParentOfType<FuncOp>() << "\n"; 
+              llvm::errs() << "warning potential store type mismatch:\n";
+              llvm::errs() << "val: " << val << " tosval: " << toStore << "\n";
+              llvm::errs() << "mt: " << mt << "spt: " << spt << "\n";
+          }
           toStore =
               builder.create<polygeist::Memref2PointerOp>(loc, spt, toStore);
         }

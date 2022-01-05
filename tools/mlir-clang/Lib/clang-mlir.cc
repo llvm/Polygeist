@@ -157,13 +157,6 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     assert(i != function.getNumArguments());
     // function.getArgument(i).setName(name);
     bool isArray = false;
-    auto LLTy = getLLVMType(parm->getType());
-    while (auto ST = dyn_cast<llvm::StructType>(LLTy)) {
-      if (ST->getNumElements() == 1)
-        LLTy = ST->getTypeAtIndex(0U);
-      else
-        break;
-    }
     bool LLVMABI = false;
 
     if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(parm->getType()))
@@ -173,8 +166,7 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     if (!LLVMABI) {
       Glob.getMLIRType(parm->getType(), &isArray);
     }
-    if (!isArray && (isa<clang::RValueReferenceType>(parm->getType()) ||
-                     isa<clang::LValueReferenceType>(parm->getType())))
+    if (!isArray && isa<clang::ReferenceType>(parm->getType()->getUnqualifiedDesugaredType()))
       isArray = true;
     mlir::Value val = function.getArgument(i);
     assert(val);
@@ -253,15 +245,28 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
           if (subType2.isa<MemRefType>())
             V = builder.create<polygeist::Pointer2MemrefOp>(loc, subType2, V);
 
-          VisitConstructCommon(cast<clang::CXXConstructExpr>(expr->getInit()),
+          if (!isa<clang::CXXConstructExpr>(expr->getInit()))
+              expr->getInit()->dump();
+
+          Expr* init = expr->getInit();
+          if (auto clean = dyn_cast<ExprWithCleanups>(init)) {
+            llvm::errs() << "TODO: cleanup\n";
+            init = clean->getSubExpr();
+          }
+
+          VisitConstructCommon(cast<clang::CXXConstructExpr>(init),
                                /*name*/ nullptr, /*space*/ 0, /*mem*/ V);
           continue;
         }
         if (expr->isDelegatingInitializer()) {
-            auto clean = cast<ExprWithCleanups>(expr->getInit());
+          
+          Expr* init = expr->getInit();
+          if (auto clean = dyn_cast<ExprWithCleanups>(init)) {
             llvm::errs() << "TODO: cleanup\n";
+            init = clean->getSubExpr();
+          }
             
-            VisitConstructCommon(cast<clang::CXXConstructExpr>(clean->getSubExpr()),
+            VisitConstructCommon(cast<clang::CXXConstructExpr>(init),
                                /*name*/ nullptr, /*space*/ 0, /*mem*/ ThisVal.val);
             continue;
         }
@@ -545,7 +550,19 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
     return ValueCategory(builder.create<ConstantFloatOp>(
                              loc, APFloat(FT.getFloatSemantics(), "0"), FT),
                          /*isReference*/ false);
-  ;
+  if (auto IT = Mty.dyn_cast<mlir::IntegerType>())
+    return ValueCategory(builder.create<ConstantIntOp>(
+                             loc, 0, IT), /*isReference*/ false);
+  if (auto MT = Mty.dyn_cast<mlir::MemRefType>())
+    return ValueCategory(
+          builder.create<polygeist::Pointer2MemrefOp>(
+              loc, MT,
+              builder.create<mlir::LLVM::NullOp>(
+                  loc, LLVM::LLVMPointerType::get(builder.getI8Type()))), false);
+  if (auto PT = Mty.dyn_cast<mlir::LLVM::LLVMPointerType>())
+    return ValueCategory(
+              builder.create<mlir::LLVM::NullOp>(
+                  loc, PT), false);
   for (auto child : decl->children()) {
     child->dump();
   }
@@ -1174,12 +1191,31 @@ MLIRScanner::VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr) {
 
   if (melem.isa<mlir::IntegerType>())
     return ValueCategory(builder.create<ConstantIntOp>(loc, 0, melem), false);
+  else if (auto MT = melem.dyn_cast<mlir::MemRefType>())
+    return ValueCategory(
+          builder.create<polygeist::Pointer2MemrefOp>(
+              loc, MT,
+              builder.create<mlir::LLVM::NullOp>(
+                  loc, LLVM::LLVMPointerType::get(builder.getI8Type()))), false);
+  else if (auto PT = melem.dyn_cast<mlir::LLVM::LLVMPointerType>())
+    return ValueCategory(
+              builder.create<mlir::LLVM::NullOp>(
+                  loc, PT), false);
   else {
+    if (!melem.isa<FloatType>())
+        expr->dump();
     auto ft = melem.cast<FloatType>();
     return ValueCategory(builder.create<ConstantFloatOp>(
                              loc, APFloat(ft.getFloatSemantics(), "0"), ft),
                          false);
   }
+}
+
+ValueCategory
+MLIRScanner::VisitCXXPseudoDestructorExpr(clang::CXXPseudoDestructorExpr *expr) {
+  Visit(expr->getBase());
+  llvm::errs() << "not running pseudo destructor\n";
+  return nullptr;
 }
 
 ValueCategory
@@ -1360,7 +1396,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
 
   auto mt = dref.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(mt.getShape());
-  if (shape.size() == 1 || shape.size() == 2 && isImplicitRefResult) {
+  if (shape.size() == 1 || (shape.size() == 2 && isImplicitRefResult)) {
     shape[0] = -1;
   } else {
     shape.erase(shape.begin());
@@ -1840,24 +1876,26 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto oc = dyn_cast<CXXMemberCallExpr>(expr)) {
     if (auto lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
         expr->getCallee()->dump();
-        if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-            if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "name") {
+        if (auto ic = dyn_cast<MemberExpr>(expr->getCallee()))
+            if (auto sr = dyn_cast<NamedDecl>(ic->getMemberDecl())) {
+      if (sr->getIdentifier() &&
+          sr->getName() == "name") {
           QualType LT = lhs->isTypeOperand()
                             ? lhs->getTypeOperand(Glob.CGM.getContext())
                             : lhs->getExprOperand()->getType();
           llvm::Constant *LC = Glob.CGM.GetAddrOfRTTIDescriptor(LT);
           while (auto CE = dyn_cast<llvm::ConstantExpr>(LC)) LC = CE->getOperand(0);
-          LC->dump();
-          assert(0 && "unhandled");
-          std::string val;
-        return ValueCategory(
+          std::string val = cast<llvm::GlobalVariable>(LC)->getName().str();
+        return CommonArrayToPointer(ValueCategory(
       Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
-      /*isReference*/ true);
+      /*isReference*/ true));
       }
       }
     }
+  }
+  
+  if (auto ps = dyn_cast<CXXPseudoDestructorExpr>(expr->getCallee())) {
+      return Visit(ps);
   }
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
@@ -1975,7 +2013,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      // TODO add pow to standard dialect
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__powf" ||
            sr->getDecl()->getName() == "pow" ||
@@ -1997,8 +2034,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               /*isReference*/ false);
         else
           return ValueCategory(
-              builder.create<LLVM::PowOp>(loc, mlirType, args[0], args[1]),
+              builder.create<math::PowFOp>(loc, mlirType, args[0], args[1]),
               /*isReference*/ false);
+      }
+    }
+  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
+           sr->getDecl()->getName() == "__builtin_address") {
+        auto V = Visit(expr->getArg(0));
+        assert(V.isReference);
+        return ValueCategory(V.val, /*isRef*/ false);
       }
     }
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
@@ -2027,6 +2073,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               V, builder.create<arith::SubIOp>(loc, zero, V));
         }
         return ValueCategory(Fabs, /*isRef*/ false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__nv_mul24") {
+        mlir::Value V0 = getLLVM(expr->getArg(0));
+        mlir::Value V1 = getLLVM(expr->getArg(1));
+        auto c8 = builder.create<arith::ConstantIntOp>(loc, 8, 32);
+        V0 = builder.create<arith::ShLIOp>(loc, V0, c8);
+        V0 = builder.create<arith::ShRUIOp>(loc, V0, c8);
+        V1 = builder.create<arith::ShLIOp>(loc, V1, c8);
+        V1 = builder.create<arith::ShRUIOp>(loc, V1, c8);
+        return ValueCategory(builder.create<MulIOp>(loc, V0, V1), false);
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__builtin_isfinite" ||
@@ -2820,12 +2877,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       CC->getImplicitObjectArgument()->dump();
     }
     if (cast<MemberExpr>(CC->getCallee()->IgnoreParens())->isArrow()) {
-      /*
-    function.dump();
-    llvm::errs() << " tav: " << arg.val << "\n";
-    expr->dump();
-    CC->getImplicitObjectArgument()->dump();
-    */
       obj = obj.dereference(builder);
     }
     assert(obj.val);
@@ -3180,9 +3231,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   case clang::UnaryOperator::Opcode::UO_PreInc:
   case clang::UnaryOperator::Opcode::UO_PostInc: {
-    auto ty = getMLIRType(U->getType());
     assert(sub.isReference);
     auto prev = sub.getValue(builder);
+    auto ty = prev.getType();
 
     mlir::Value next;
     if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
@@ -4025,18 +4076,10 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   size_t fnum = 0;
 
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
-  bool recursive = false;
-  SmallPtrSet<llvm::Type *, 4> Seen;
-  for (size_t i = 0; i < ST->getNumElements(); i++) {
-    if (isRecursiveStruct(ST->getTypeAtIndex(i), ST, Seen)) {
-      recursive = true;
-    }
-  }
 
   if (rd->isUnion() ||
       (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                 CXRD->getDefinition()->getNumBases() > 0)) ||
-      recursive ||
       (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                             ST->getName() == "class.std::basic_ifstream" ||
                             ST->getName() == "class.std::basic_istream" ||
@@ -4124,7 +4167,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
       FieldDecl *field = Captures[VD];
       auto res = CommonFieldLookup(
           cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(), field,
-          ThisVal.val, isa<LValueReferenceType>(field->getType()));
+          ThisVal.val, isa<clang::ReferenceType>(field->getType()->getUnqualifiedDesugaredType()));
       assert(CaptureKinds.find(VD) != CaptureKinds.end());
       return res;
     }
@@ -4260,7 +4303,7 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
   assert(base.isReference);
   const FieldDecl *field = cast<FieldDecl>(ME->getMemberDecl());
   return CommonFieldLookup(OT, field, base.val,
-                           isa<LValueReferenceType>(field->getType()));
+                           isa<clang::ReferenceType>(field->getType()->getUnqualifiedDesugaredType()));
 }
 
 ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
@@ -4338,7 +4381,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
       if (auto ic = dyn_cast<ImplicitCastExpr>(CI->getCallee()))
         if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-          if (sr->getDecl()->getName() == "polybench_alloc_data") {
+          if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "polybench_alloc_data") {
             if (auto mt =
                     getMLIRType(E->getType()).dyn_cast<mlir::MemRefType>()) {
               auto shape = std::vector<int64_t>(mt.getShape());
@@ -4356,8 +4399,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (auto CI = dyn_cast<clang::CallExpr>(E->getSubExpr()))
       if (auto ic = dyn_cast<ImplicitCastExpr>(CI->getCallee()))
         if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-          if (sr->getDecl()->getName() == "malloc" ||
-              sr->getDecl()->getName() == "calloc")
+          if (sr->getDecl()->getIdentifier() && (sr->getDecl()->getName() == "malloc" ||
+              sr->getDecl()->getName() == "calloc"))
             if (auto mt =
                     getMLIRType(E->getType()).dyn_cast<mlir::MemRefType>()) {
               auto shape = std::vector<int64_t>(mt.getShape());
@@ -4468,7 +4511,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_LValueToRValue: {
     if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
-      if (dr->getDecl()->getName() == "warpSize") {
+      if (dr->getDecl()->getIdentifier() && dr->getDecl()->getName() == "warpSize") {
         auto mlirType = getMLIRType(E->getType());
         return ValueCategory(
             builder.create<mlir::NVVM::WarpSizeOp>(loc, mlirType),
@@ -4799,6 +4842,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
       assert(trueExpr.isReference);
       truev = trueExpr.val;
     } else {
+      if (trueExpr.isReference)
       if (auto mt = trueExpr.val.getType().dyn_cast<MemRefType>())
         if (mt.getShape().size() != 1) {
           E->dump();
@@ -5222,13 +5266,17 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     break;
   }
 
+  const FunctionDecl *Def = nullptr;
+  if (!FD->isDefined(Def, /*checkforfriend*/ true))
+    Def = FD;
+  
   if (functions.find(name) != functions.end()) {
     auto function = functions[name];
 
-    if (FD->hasBody()) {
+    if (Def->isThisDeclarationADefinition()) {
       if (LV == llvm::GlobalValue::InternalLinkage ||
-          LV == llvm::GlobalValue::PrivateLinkage || !FD->isDefined() ||
-          FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
+          LV == llvm::GlobalValue::PrivateLinkage || !Def->isDefined() ||
+          Def->hasAttr<CUDAGlobalAttr>() || Def->hasAttr<CUDADeviceAttr>()) {
         SymbolTable::setSymbolVisibility(function,
                                          SymbolTable::Visibility::Private);
       } else {
@@ -5240,6 +5288,7 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       attrs.set("llvm.linkage",
                 mlir::LLVM::LinkageAttr::get(builder.getContext(), lnk));
       function->setAttrs(attrs.getDictionary(builder.getContext()));
+      functionsToEmit.push_back(Def);
     }
     assert(function->getParentOp() == module.get());
     return function;
@@ -5294,13 +5343,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       bool ArrayStruct = false;
       auto t = getMLIRType(parm->getType(), &ArrayStruct);
       if (ArrayStruct) {
-        auto mt = getMLIRType(
-                      CGM.getContext().getLValueReferenceType(parm->getType()))
-                      .cast<MemRefType>();
-        t = mt; // auto shape = std::vector<int64_t>(mt.getShape());
-        // t = mlir::MemRefType::get(shape, mt.getElementType(),
-        //                                mt.getLayout(),
-        //                                mt.getMemorySpace());
+        t = getMLIRType(
+                      CGM.getContext().getLValueReferenceType(parm->getType()));
       }
 
       types.push_back(t);
@@ -5348,8 +5392,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
 
   functions[name] = function;
   module->push_back(function);
-  const FunctionDecl *Def = nullptr;
-  if (FD->isDefined(Def, /*checkforfriend*/ true) && Def->getBody()) {
+
+  if (Def->isThisDeclarationADefinition()) {
     assert(Def->getTemplatedKind() !=
            FunctionDecl::TemplatedKind::TK_FunctionTemplate);
     assert(Def->getTemplatedKind() !=
@@ -5536,9 +5580,13 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     }
   }
 
-  run();
-
   return true;
+}
+
+// Wait until Sema has instantiated all the relevant code
+// before running codegen on the selected functions.
+void MLIRASTConsumer::HandleTranslationUnit(ASTContext &C) {
+  run();
 }
 
 mlir::Location MLIRASTConsumer::getMLIRLocation(clang::SourceLocation loc) {
@@ -5635,6 +5683,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     return mlir::LLVM::LLVMStructType::getLiteral(module->getContext(), types);
   }
   if (auto RT = dyn_cast<clang::RecordType>(qt)) {
+    if (RT->getDecl()->isInvalidDecl()) {
+        RT->getDecl()->dump();
+        RT->dump();
+    }
+    assert(!RT->getDecl()->isInvalidDecl());
+    if (typeCache.find(RT) != typeCache.end()) return typeCache[RT];
     llvm::Type *LT = CGM.getTypes().ConvertType(qt);
     if (!isa<llvm::StructType>(LT)) {
       qt->dump();
@@ -5662,7 +5716,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT->getDecl()->isUnion() ||
         (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
                   CXRD->getDefinition()->getNumBases() > 0)) ||
-        recursive ||
         (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
                               ST->getName() == "class.std::basic_istream" ||
@@ -5679,6 +5732,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     allowMerge); return subT;
     }
     */
+    if (recursive)
+      typeCache[RT] = LLVM::LLVMStructType::getIdentified(module->getContext(), ("polygeist@mlir@"+ST->getName()).str());
 
     SmallVector<mlir::Type, 4> types;
 
@@ -5690,6 +5745,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
       types.push_back(ty);
+    }
+
+    if (recursive) {
+        auto LR = typeCache[RT].setBody(types, /*isPacked*/false);
+        assert(LR.succeeded());
+        return typeCache[RT];
     }
 
     if (notAllSame || !allowMerge || innerLLVM) {
@@ -5854,7 +5915,24 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       return builder.getIntegerType(8);
     }
     llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
-    return getMLIRType(T);
+  mlir::OpBuilder builder(module->getContext());
+  if (T->isVoidTy()) {
+    return builder.getNoneType();
+  }
+  if (T->isFloatTy()) {
+    return builder.getF32Type();
+  }
+  if (T->isDoubleTy()) {
+    return builder.getF64Type();
+  }
+  if (T->isX86_FP80Ty())
+    return builder.getF80Type();
+  if (T->isFP128Ty())
+    return builder.getF128Type();
+
+  if (auto IT = dyn_cast<llvm::IntegerType>(T)) {
+    return builder.getIntegerType(IT->getBitWidth());
+  }
   }
   qt->dump();
   assert(0 && "unhandled type");
@@ -5868,6 +5946,7 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   return T;
 }
 
+#if 0
 mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   mlir::OpBuilder builder(module->getContext());
   if (t->isVoidTy()) {
@@ -5997,6 +6076,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(llvm::Type *t) {
   assert(0 && "unknown type to convert");
   return nullptr;
 }
+#endif
 
 #include "llvm/Support/Host.h"
 

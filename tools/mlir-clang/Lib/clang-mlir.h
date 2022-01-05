@@ -118,16 +118,17 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   void run();
 
+  void HandleTranslationUnit(clang::ASTContext &Context) override;
+  
   bool HandleTopLevelDecl(DeclGroupRef dg) override;
 
   void HandleDeclContext(DeclContext *DC);
 
+  std::map<const clang::RecordType*, mlir::LLVM::LLVMStructType> typeCache;
   mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
                          bool allowMerge = true);
 
   llvm::Type *getLLVMType(clang::QualType t);
-
-  mlir::Type getMLIRType(llvm::Type *t);
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);
 };
@@ -280,6 +281,7 @@ public:
 
   ValueCategory
   VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr);
+  ValueCategory VisitCXXPseudoDestructorExpr(clang::CXXPseudoDestructorExpr *expr);
   ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
