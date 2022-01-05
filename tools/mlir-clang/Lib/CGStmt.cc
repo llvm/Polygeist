@@ -902,7 +902,7 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
     if (auto vd = dyn_cast<VarDecl>(sub)) {
       VisitVarDecl(vd);
     } else if (isa<TypeAliasDecl, RecordDecl, StaticAssertDecl, TypedefDecl,
-                   UsingDecl>(sub)) {
+                   UsingDecl, UsingDirectiveDecl>(sub)) {
     } else {
       emitError(getMLIRLocation(decl->getBeginLoc()))
           << " + visiting unknonwn sub decl stmt\n";
@@ -1034,6 +1034,16 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       else if (val.getType().isa<LLVM::LLVMPointerType>() &&
                postTy.isa<MemRefType>())
         val = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, val);
+      if (postTy != val.getType()) {
+        stmt->dump();
+        llvm::errs() << " val: " << val << " postTy: " << postTy
+                     << " rv.val: " << rv.val << " rv.isRef"
+                     << (int)rv.isReference << " mm: "
+                     << (int)(stmt->getRetValue()->isLValue() ||
+                              stmt->getRetValue()->isXValue())
+                     << "\n";
+      }
+      assert(postTy == val.getType());
       builder.create<mlir::memref::StoreOp>(loc, val, returnVal);
     }
   }
