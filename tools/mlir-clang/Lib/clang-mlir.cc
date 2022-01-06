@@ -250,9 +250,6 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
           if (subType2.isa<MemRefType>())
             V = builder.create<polygeist::Pointer2MemrefOp>(loc, subType2, V);
 
-          if (!isa<clang::CXXConstructExpr>(expr->getInit()))
-            expr->getInit()->dump();
-
           Expr *init = expr->getInit();
           if (auto clean = dyn_cast<ExprWithCleanups>(init)) {
             llvm::errs() << "TODO: cleanup\n";
@@ -4551,28 +4548,22 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                   builder.create<ConstantIndexOp>(loc, elemSize))};
               auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
               if (sr->getDecl()->getName() == "calloc") {
-                mlir::Value toStore;
-                auto melem = mt.getElementType();
-                if (melem.isa<mlir::IntegerType>())
-                  toStore = builder.create<ConstantIntOp>(loc, 0, melem);
-                else {
-                  auto ty = melem.cast<FloatType>();
-                  APFloat zerov(ty.getFloatSemantics(), "0");
-                  toStore = builder.create<ConstantFloatOp>(loc, zerov, ty);
+                mlir::Value val = alloc;
+                if (val.getType().isa<MemRefType>()) {
+                  val = builder.create<polygeist::Memref2PointerOp>(
+                      loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+                } else {
+                  val = builder.create<LLVM::BitcastOp>(
+                      loc,
+                      LLVM::LLVMPointerType::get(
+                          builder.getI8Type(),
+                          val.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
+                      val);
                 }
-                auto affineOp = builder.create<scf::ForOp>(
-                    loc, getConstantIndex(0), args[0], getConstantIndex(1));
-
-                auto oldpoint = builder.getInsertionPoint();
-                auto oldblock = builder.getInsertionBlock();
-
-                std::vector<mlir::Value> stargs = {affineOp.getInductionVar()};
-
-                builder.setInsertionPointToStart(
-                    &affineOp.getLoopBody().front());
-                builder.create<memref::StoreOp>(loc, toStore, alloc, stargs);
-
-                builder.setInsertionPoint(oldblock, oldpoint);
+                auto i8_0 = builder.create<ConstantIntOp>(loc, 0, 8);
+                auto sizev = builder.create<IndexCastOp>(loc, allocSize, builder.getIndexType());
+                auto falsev = builder.create<ConstantIntOp>(loc, false, 1);
+                builder.create<LLVM::MemsetOp>(loc, val, i8_0, sizev, falsev);
               }
               return ValueCategory(alloc, /*isReference*/ false);
             }
@@ -5745,6 +5736,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                         bool allowMerge) {
   if (auto ET = dyn_cast<clang::ElaboratedType>(qt)) {
     return getMLIRType(ET->getNamedType(), implicitRef, allowMerge);
+  }
+  if (auto ET = dyn_cast<clang::UsingType>(qt)) {
+    return getMLIRType(ET->getUnderlyingType(), implicitRef, allowMerge);
   }
   if (auto ET = dyn_cast<clang::DeducedType>(qt)) {
     return getMLIRType(ET->getDeducedType(), implicitRef, allowMerge);
