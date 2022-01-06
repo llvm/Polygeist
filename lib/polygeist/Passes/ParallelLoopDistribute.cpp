@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -33,15 +34,32 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
+static bool couldWrite(Operation *op) {
+  if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    SmallVector<MemoryEffects::EffectInstance> localEffects;
+    iface.getEffects<MemoryEffects::Write>(localEffects);
+    return localEffects.size() > 0;
+  }
+  return true;
+}
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
 /// below `op`. Uses may be in nested regions.
 static void findValuesUsedBelow(Operation *op,
                                 llvm::SetVector<Value> &crossing) {
+  llvm::SetVector<Operation *> descendantsUsed;
+
+  // A set of pre-barrier operations which are potentially captured by a
+  // subsequent pre-barrier operation.
+  SmallVector<Operation *> Allocas;
+
   for (Operation *it = op->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
+    if (isa<memref::AllocaOp, LLVM::AllocaOp>(it))
+      Allocas.push_back(it);
     for (Value value : it->getResults()) {
       for (Operation *user : value.getUsers()) {
+
         // If the user is nested in another op, find its ancestor op that lives
         // in the same block as the barrier.
         while (user->getBlock() != op->getBlock())
@@ -49,14 +67,49 @@ static void findValuesUsedBelow(Operation *op,
 
         if (op->isBeforeInBlock(user)) {
           crossing.insert(value);
-          break;
         }
       }
     }
   }
 
-  // No need to process block arguments, they are assumed to be induction
-  // variables and will be replicated.
+  llvm::SmallVector<std::pair<Operation *, Operation *>> todo;
+  for (auto A : Allocas)
+    todo.emplace_back(A, A);
+
+  llvm::SetVector<Operation *> preserveAllocas;
+
+  std::map<Operation *, SmallPtrSet<Operation *, 2>> descendants;
+  while (todo.size()) {
+    auto current = todo.back();
+    todo.pop_back();
+    if (descendants[current.first].count(current.second))
+      continue;
+    descendants[current.first].insert(current.second);
+    for (Value value : current.first->getResults()) {
+      for (Operation *user : value.getUsers()) {
+        Operation *origUser = user;
+        while (user->getBlock() != op->getBlock())
+          user = user->getBlock()->getParentOp();
+
+        if (!op->isBeforeInBlock(user)) {
+          if (couldWrite(origUser) ||
+              origUser->hasTrait<OpTrait::IsTerminator>()) {
+            preserveAllocas.insert(current.second);
+          }
+          if (!isa<LLVM::LoadOp, memref::LoadOp, AffineLoadOp>(origUser)) {
+            for (auto res : origUser->getResults()) {
+              if (crossing.contains(res)) {
+                preserveAllocas.insert(current.second);
+              }
+            }
+            todo.emplace_back(user, current.second);
+          }
+        }
+      }
+    }
+  }
+  for (auto op : preserveAllocas)
+    crossing.insert(op->getResult(0));
 }
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
@@ -738,7 +791,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
     for (auto pair : llvm::zip(crossing, allocations)) {
       Value v = std::get<0>(pair);
       Value alloc = std::get<1>(pair);
-      rewriter.setInsertionPointAfter(v.getDefiningOp());
       if (auto ao = v.getDefiningOp<memref::AllocaOp>()) {
         for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
           rewriter.setInsertionPoint(u.getOwner());
@@ -757,9 +809,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
           }
           u.set(buf);
         }
+        rewriter.eraseOp(ao);
       } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
         Value sz = ao.getArraySize();
-        llvm::errs() << "wanring alloca\n";
         rewriter.setInsertionPointAfter(alloc.getDefiningOp());
         alloc =
             rewriter.create<LLVM::BitcastOp>(ao.getLoc(), ao.getType(), alloc);
@@ -785,9 +837,26 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
           u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
                                              idx));
         }
-      } else
+      } else {
+
+        for (auto &u : llvm::make_early_inc_range(v.getUses())) {
+          auto user = u.getOwner();
+          while (user->getBlock() != barrier->getBlock())
+            user = user->getBlock()->getParentOp();
+
+          if (barrier->isBeforeInBlock(user)) {
+            rewriter.setInsertionPoint(u.getOwner());
+            Value reloaded = rewriter.create<memref::LoadOp>(
+                user->getLoc(), alloc, op.getInductionVars());
+            rewriter.startRootUpdate(user);
+            u.set(reloaded);
+            rewriter.finalizeRootUpdate(user);
+          }
+        }
+        rewriter.setInsertionPointAfter(v.getDefiningOp());
         rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
                                          op.getInductionVars());
+      }
     }
 
     // Insert the terminator for the new loop immediately before the barrier.
@@ -825,28 +894,10 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
-    // Replace uses of values defined above the barrier (now, in a different
-    // loop) with fresh loads from scratchpad. This may not be the most
-    // efficient IR, but this avoids creating new crossing values for the
-    // following barriers as opposed to putting loads at the start of the new
-    // loop. We expect mem2reg and repeated load elimitation to improve the IR.
-    newLoop.getBody()->walk([&](Operation *nested) {
-      for (OpOperand &operand : nested->getOpOperands()) {
-        auto it = llvm::find(crossing, operand.get());
-        if (it == crossing.end())
-          continue;
-
-        size_t pos = std::distance(crossing.begin(), it);
-        rewriter.setInsertionPoint(nested);
-
-        Value reloaded = rewriter.create<memref::LoadOp>(
-            operand.getOwner()->getLoc(), allocations[pos],
-            newLoop.getInductionVars());
-        rewriter.startRootUpdate(nested);
-        operand.set(reloaded);
-        rewriter.finalizeRootUpdate(nested);
-      }
-    });
+    for (auto ao : allocations)
+      if (ao.getDefiningOp<LLVM::AllocaOp>() ||
+          ao.getDefiningOp<memref::AllocaOp>())
+        rewriter.eraseOp(ao.getDefiningOp());
 
     LLVM_DEBUG(DBGS() << "[distribute] distributed arround a barrier\n");
     return success();
