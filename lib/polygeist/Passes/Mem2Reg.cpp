@@ -202,7 +202,7 @@ struct Analyzer {
           }
         }
         if (currentlyLegal) {
-          Legal.insert(O);
+          Legal.insert(AssumeLegal.Legal.begin(), AssumeLegal.Legal.end());
           assert(!Illegal.count(O));
           changed = true;
           break;
