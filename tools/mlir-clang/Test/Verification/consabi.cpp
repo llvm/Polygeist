@@ -27,21 +27,19 @@ QStream ilaunch_kernel(QStream x) {
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     %2 = llvm.load %1 : !llvm.ptr<f64>
-// CHECK-NEXT:     %3 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
-// CHECK-NEXT:     %4 = llvm.getelementptr %3[%c0_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %2, %4 : !llvm.ptr<f64>
-// CHECK-NEXT:     %5 = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
-// CHECK-NEXT:     %6 = llvm.getelementptr %5[%c1_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     %7 = llvm.load %6 : !llvm.ptr<f64>
-// CHECK-NEXT:     %8 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
-// CHECK-NEXT:     %9 = llvm.getelementptr %8[%c1_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %7, %9 : !llvm.ptr<f64>
-// CHECK-NEXT:     %10 = llvm.getelementptr %arg1[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %11 = llvm.load %10 : !llvm.ptr<i32>
-// CHECK-NEXT:     %12 = llvm.getelementptr %arg0[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %11, %12 : !llvm.ptr<i32>
+// CHECK-NEXT:     %1 = llvm.load %0 : !llvm.ptr<f64>
+// CHECK-NEXT:     %2 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
+// CHECK-NEXT:     llvm.store %1, %2 : !llvm.ptr<f64>
+// CHECK-NEXT:     %3 = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
+// CHECK-NEXT:     %4 = llvm.getelementptr %3[%c1_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:     %5 = llvm.load %4 : !llvm.ptr<f64>
+// CHECK-NEXT:     %6 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
+// CHECK-NEXT:     %7 = llvm.getelementptr %6[%c1_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:     llvm.store %5, %7 : !llvm.ptr<f64>
+// CHECK-NEXT:     %8 = llvm.getelementptr %arg1[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %9 = llvm.load %8 : !llvm.ptr<i32>
+// CHECK-NEXT:     %10 = llvm.getelementptr %arg0[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %9, %10 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK-NEXT:   func @_ZN1DC1EOS_(%arg0: memref<?x2xf64>, %arg1: memref<?x2xf64>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
