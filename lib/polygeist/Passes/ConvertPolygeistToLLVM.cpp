@@ -200,10 +200,11 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
     auto type = getTypeConverter()->convertType(op.getType());
 
     if (NT.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(NT)) {
+      DataLayout DLI(op->getParentOfType<ModuleOp>());
       rewriter.replaceOpWithNewOp<LLVM::ConstantOp>(
           op, type,
           rewriter.getIntegerAttr(
-              type, getTypeConverter()->getDataLayout().getTypeSize(NT)));
+              type, DLI.getTypeSize(NT)));
       return success();
     }
 
