@@ -215,11 +215,11 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
           if (smt.getShape().size() == 2)
             idx.push_back(zeroIndex);
           idx.push_back(builder.create<ConstantIndexOp>(loc, i));
-          mlir::Value lidx[] = {val, zero32,
+          mlir::Value lidx[] = {zero32,
                                 builder.create<ConstantIntOp>(loc, i, 32)};
           builder.create<mlir::LLVM::StoreOp>(
               loc, builder.create<mlir::memref::LoadOp>(loc, toStore.val, idx),
-              builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx));
+              builder.create<mlir::LLVM::GEPOp>(loc, elty, val, lidx));
         }
       }
     } else if (auto smt = val.getType().dyn_cast<mlir::MemRefType>()) {
@@ -244,12 +244,12 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         if (smt.getShape().size() == 2)
           idx.push_back(zeroIndex);
         idx.push_back(builder.create<ConstantIndexOp>(loc, i));
-        mlir::Value lidx[] = {toStore.val, zero32,
+        mlir::Value lidx[] = {zero32,
                               builder.create<ConstantIntOp>(loc, i, 32)};
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(
-                loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, lidx)),
+                loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, toStore.val, lidx)),
             val, idx);
       }
     } else

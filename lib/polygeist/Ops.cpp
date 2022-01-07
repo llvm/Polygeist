@@ -1001,6 +1001,15 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     rewriter.startRootUpdate(nextIf);
     nextIf->moveBefore(prevIf.thenYield());
     nextIf.getConditionMutable().assign(nextIfCondition);
+    for (auto it :
+         llvm::zip(prevIf.getResults(), 
+                   prevIf.thenYield().getOperands())) {
+      for (OpOperand &use :
+           llvm::make_early_inc_range(std::get<0>(it).getUses()))
+        if (nextIf.getThenRegion().isAncestor(
+                use.getOwner()->getParentRegion()))
+          use.set(std::get<1>(it));
+    }
     rewriter.finalizeRootUpdate(nextIf);
     return success();
   }

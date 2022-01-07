@@ -1291,7 +1291,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
   if (auto PT = scalar.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     if (PT.getElementType().isa<mlir::LLVM::LLVMPointerType>())
       return ValueCategory(scalar.val, /*isRef*/ false);
-    mlir::Value vec[3] = {scalar.val, builder.create<ConstantIntOp>(loc, 0, 32),
+    mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
                           builder.create<ConstantIntOp>(loc, 0, 32)};
     if (!PT.getElementType().isa<mlir::LLVM::LLVMArrayType>()) {
       EmittingFunctionDecl->dump();
@@ -1304,6 +1304,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
     return ValueCategory(
         builder.create<mlir::LLVM::GEPOp>(
             loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+            scalar.val,
             vec),
         /*isReference*/ false);
   }
@@ -1332,12 +1333,10 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
 
   if (val.getType().isa<LLVM::LLVMPointerType>()) {
 
-    std::vector<mlir::Value> vals = {val};
-    idx = builder.create<IndexCastOp>(loc, idx, builder.getIntegerType(64));
-    vals.push_back(idx);
+    mlir::Value vals[] = {builder.create<IndexCastOp>(loc, idx, builder.getIntegerType(64))};
     // TODO sub
     return ValueCategory(
-        builder.create<mlir::LLVM::GEPOp>(loc, val.getType(), vals),
+        builder.create<mlir::LLVM::GEPOp>(loc, val.getType(), val, vals),
         /*isReference*/ true);
   }
   if (!val.getType().isa<MemRefType>()) {
@@ -3311,9 +3310,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     } else if (auto pt = ty.dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto ity = mlir::IntegerType::get(builder.getContext(), 64);
       next = builder.create<LLVM::GEPOp>(
-          loc, pt,
+          loc, pt, prev,
           std::vector<mlir::Value>(
-              {prev, builder.create<ConstantIntOp>(loc, 1, ity)}));
+              {builder.create<ConstantIntOp>(loc, 1, ity)}));
     } else {
       if (!ty.isa<mlir::IntegerType>()) {
         llvm::errs() << ty << " - " << prev << "\n";
@@ -3350,9 +3349,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     } else if (auto pt = ty.dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto ity = mlir::IntegerType::get(builder.getContext(), 64);
       next = builder.create<LLVM::GEPOp>(
-          loc, pt,
+          loc, pt, prev,
           std::vector<mlir::Value>(
-              {prev, builder.create<ConstantIntOp>(loc, -1, ity)}));
+              {builder.create<ConstantIntOp>(loc, -1, ity)}));
     } else if (auto mt = ty.dyn_cast<MemRefType>()) {
       auto shape = std::vector<int64_t>(mt.getShape());
       shape[0] = -1;
@@ -3402,11 +3401,12 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
                  .cast<mlir::LLVM::LLVMArrayType>()
                  .getElementType();
       }
-      mlir::Value vec[3] = {lhs_v, builder.create<ConstantIntOp>(loc, 0, 32),
+      mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
                             builder.create<ConstantIntOp>(loc, fnum, 32)};
       return ValueCategory(
           builder.create<mlir::LLVM::GEPOp>(
               loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+              lhs_v,
               vec),
           /*isReference*/ true);
     }
@@ -3851,8 +3851,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else if (auto pt =
                    lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       return ValueCategory(
-          builder.create<LLVM::GEPOp>(loc, pt,
-                                      std::vector<mlir::Value>({lhs_v, rhs_v})),
+          builder.create<LLVM::GEPOp>(loc, pt, lhs_v,
+                                      std::vector<mlir::Value>({rhs_v})),
           /*isReference*/ false);
     } else {
       if (auto lhs_c = lhs_v.getDefiningOp<ConstantIntOp>()) {
@@ -3962,7 +3962,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else if (auto pt =
                    prev.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       result = builder.create<LLVM::GEPOp>(
-          loc, pt, std::vector<mlir::Value>({prev, rhs.getValue(builder)}));
+          loc, pt, prev, std::vector<mlir::Value>({rhs.getValue(builder)}));
     } else {
       auto postTy = prev.getType().dyn_cast<mlir::IntegerType>();
       mlir::Value rhsV = rhs.getValue(builder);
@@ -4182,7 +4182,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   }
 
   if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-    mlir::Value vec[3] = {val, builder.create<ConstantIntOp>(loc, 0, 32),
+    mlir::Value vec[] = {builder.create<ConstantIntOp>(loc, 0, 32),
                           builder.create<ConstantIntOp>(loc, fnum, 32)};
     if (!PT.getElementType()
              .isa<mlir::LLVM::LLVMStructType, mlir::LLVM::LLVMArrayType>()) {
@@ -4202,7 +4202,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                .getElementType();
     }
     mlir::Value commonGEP = builder.create<mlir::LLVM::GEPOp>(
-        loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), vec);
+        loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), val, vec);
     if (rd->isUnion()) {
       auto subType =
           Glob.typeTranslator.translateType(getLLVMType(FD->getType()));
