@@ -11,8 +11,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
-#include "polygeist/Dialect.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "polygeist/Dialect.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define GET_OP_CLASSES
@@ -971,7 +971,6 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     if (!prevIf)
       return failure();
 
-
     if (nextIf.getCondition().getDefiningOp() != prevIf)
       return failure();
 
@@ -984,23 +983,25 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     //         yield false
     //      }
     //  if %c {
-    //    
+    //
     //  }
 
     Value nextIfCondition = nullptr;
-        for (auto it : llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(), prevIf.thenYield().getOperands())) {
-            if (std::get<0>(it) == nextIf.getCondition()) {
-                if (matchPattern(std::get<1>(it), m_Zero())) {
-                  nextIfCondition = std::get<2>(it);
-                } else
-                    return failure();
-            }
-        }
+    for (auto it :
+         llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(),
+                   prevIf.thenYield().getOperands())) {
+      if (std::get<0>(it) == nextIf.getCondition()) {
+        if (matchPattern(std::get<1>(it), m_Zero())) {
+          nextIfCondition = std::get<2>(it);
+        } else
+          return failure();
+      }
+    }
 
-	rewriter.startRootUpdate(nextIf);
+    rewriter.startRootUpdate(nextIf);
     nextIf->moveBefore(prevIf.thenYield());
     nextIf.getConditionMutable().assign(nextIfCondition);
-	rewriter.finalizeRootUpdate(nextIf);
+    rewriter.finalizeRootUpdate(nextIf);
     return success();
   }
 };
@@ -1020,19 +1021,25 @@ struct CombineIfs : public OpRewritePattern<scf::IfOp> {
       return failure();
 
     if (nextIf.getCondition() != prevIf.getCondition())
-        return failure();
+      return failure();
 
     //* Changed*//
     SmallVector<Value> prevElseYielded;
-    if (!prevIf.getElseRegion().empty()) prevElseYielded = prevIf.elseYield().getOperands();
-    // Replace all uses of return values of op within nextIf with the corresponding yields
-    for (auto it : llvm::zip(prevIf.getResults(), prevIf.thenYield().getOperands(), prevElseYielded))
-	  for (OpOperand &use : llvm::make_early_inc_range(std::get<0>(it).getUses())) {
-		if (nextIf.getThenRegion().isAncestor(use.getOwner()->getParentRegion()))
-			use.set(std::get<1>(it));
-		else if (nextIf.getElseRegion().isAncestor(use.getOwner()->getParentRegion()))
-			use.set(std::get<2>(it));
-    }
+    if (!prevIf.getElseRegion().empty())
+      prevElseYielded = prevIf.elseYield().getOperands();
+    // Replace all uses of return values of op within nextIf with the
+    // corresponding yields
+    for (auto it : llvm::zip(prevIf.getResults(),
+                             prevIf.thenYield().getOperands(), prevElseYielded))
+      for (OpOperand &use :
+           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
+        if (nextIf.getThenRegion().isAncestor(
+                use.getOwner()->getParentRegion()))
+          use.set(std::get<1>(it));
+        else if (nextIf.getElseRegion().isAncestor(
+                     use.getOwner()->getParentRegion()))
+          use.set(std::get<2>(it));
+      }
     //* End Changed*//
 
     SmallVector<Type> mergedTypes(prevIf.getResultTypes());
@@ -1108,32 +1115,39 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
       return failure();
 
     auto prevOp = nextIf->getPrevNode();
-	
-	// Only move if op doesn't write or free memory (only read)
-	if (!wouldOpBeTriviallyDead(prevOp)) return failure();
 
-	bool thenUse = false;
-	bool elseUse = false;
-	bool outsideUse = false;
-	for (auto &use : prevOp->getUses()) {
-		if (nextIf.getThenRegion().isAncestor(use.getOwner()->getParentRegion()))
-			thenUse = true;
-		else if (nextIf.getElseRegion().isAncestor(use.getOwner()->getParentRegion()))
-			elseUse = true;
-		else outsideUse = true;
-	}
-	// Do not move if the op is used outside the if, or used in both branches
-	if (outsideUse) return failure();
-	if (thenUse && elseUse) return failure();
-	// If no use, this should've been folded / eliminated
-	if (!thenUse && !elseUse) return failure();
-	
-	rewriter.startRootUpdate(nextIf);
-	rewriter.startRootUpdate(prevOp);
-	prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front() : &nextIf.elseBlock()->front());
-	rewriter.finalizeRootUpdate(prevOp);
-	rewriter.finalizeRootUpdate(nextIf);
-	return success();
+    // Only move if op doesn't write or free memory (only read)
+    if (!wouldOpBeTriviallyDead(prevOp))
+      return failure();
+
+    bool thenUse = false;
+    bool elseUse = false;
+    bool outsideUse = false;
+    for (auto &use : prevOp->getUses()) {
+      if (nextIf.getThenRegion().isAncestor(use.getOwner()->getParentRegion()))
+        thenUse = true;
+      else if (nextIf.getElseRegion().isAncestor(
+                   use.getOwner()->getParentRegion()))
+        elseUse = true;
+      else
+        outsideUse = true;
+    }
+    // Do not move if the op is used outside the if, or used in both branches
+    if (outsideUse)
+      return failure();
+    if (thenUse && elseUse)
+      return failure();
+    // If no use, this should've been folded / eliminated
+    if (!thenUse && !elseUse)
+      return failure();
+
+    rewriter.startRootUpdate(nextIf);
+    rewriter.startRootUpdate(prevOp);
+    prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front()
+                               : &nextIf.elseBlock()->front());
+    rewriter.finalizeRootUpdate(prevOp);
+    rewriter.finalizeRootUpdate(nextIf);
+    return success();
   }
 };
 
@@ -1143,8 +1157,7 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(
       CmpAnd, Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
-	  CombineIfs, MoveIntoIfs, IfAndLazy>(
-      context);
+      CombineIfs, MoveIntoIfs, IfAndLazy>(context);
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
@@ -1187,4 +1200,34 @@ OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
     }
   }
   return nullptr;
+}
+
+OpFoldResult TypeSizeOp::fold(ArrayRef<Attribute> operands) {
+  Type T = sourceAttr().getValue();
+  if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
+    DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
+    return IntegerAttr::get(getResult().getType(),
+                            APInt(64, DLI.getTypeSize(T)));
+  }
+  return nullptr;
+}
+struct TypeSizeCanonicalize : public OpRewritePattern<TypeSizeOp> {
+  using OpRewritePattern<TypeSizeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TypeSizeOp op,
+                                PatternRewriter &rewriter) const override {
+    Type T = op.sourceAttr().getValue();
+    if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
+      DataLayout DLI(op->getParentOfType<ModuleOp>());
+      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(op,
+                                                          DLI.getTypeSize(T));
+      return success();
+    }
+    return failure();
+  }
+};
+
+void TypeSizeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+                                             MLIRContext *context) {
+  results.insert<TypeSizeCanonicalize>(context);
 }

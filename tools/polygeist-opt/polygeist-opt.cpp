@@ -14,9 +14,9 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
-#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -63,9 +63,12 @@ int main(int argc, char **argv) {
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
 
-  registry.addTypeInterface<polygeist::PolygeistDialect,LLVM::LLVMPointerType,MemRefInsider>();
-  registry.addTypeInterface<polygeist::PolygeistDialect,LLVM::LLVMStructType,MemRefInsider>();
-  registry.addTypeInterface<polygeist::PolygeistDialect,MemRefType,PtrElementModel<MemRefType>>();
+  registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMPointerType,
+                            MemRefInsider>();
+  registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMStructType,
+                            MemRefInsider>();
+  registry.addTypeInterface<polygeist::PolygeistDialect, MemRefType,
+                            PtrElementModel<MemRefType>>();
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,

@@ -184,9 +184,41 @@ struct Pointer2MemrefOpLowering
   }
 };
 
+struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
+  using ConvertOpToLLVMPattern<TypeSizeOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(TypeSizeOp op, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Type NT = op.sourceAttr().getValue();
+    if (auto T = getTypeConverter()->convertType(NT)) {
+      NT = T;
+    }
+    assert(NT);
+
+    auto type = getTypeConverter()->convertType(op.getType());
+
+    if (NT.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(NT)) {
+      rewriter.replaceOpWithNewOp<LLVM::ConstantOp>(
+          op, type,
+          rewriter.getIntegerAttr(
+              type, getTypeConverter()->getDataLayout().getTypeSize(NT)));
+      return success();
+    }
+
+    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+      rewriter.replaceOpWithNewOp<TypeSizeOp>(op, type, NT);
+      return success();
+    }
+    return failure();
+  }
+};
+
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   // clang-format off
+  patterns.add<TypeSizeOpLowering>(converter);
   patterns.add<SubIndexOpLowering>(converter);
   patterns.add<Memref2PointerOpLowering>(converter);
   patterns.add<Pointer2MemrefOpLowering>(converter);

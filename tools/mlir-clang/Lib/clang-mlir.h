@@ -156,8 +156,7 @@ private:
     mlir::OpBuilder subbuilder(builder.getContext());
     subbuilder.setInsertionPointToStart(allocationScope);
 
-    auto one = subbuilder.create<arith::ConstantIntOp>(
-        loc, 1, 64);
+    auto one = subbuilder.create<arith::ConstantIntOp>(loc, 1, 64);
     auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
     vec.push_back(rs);
     return rs;
@@ -168,7 +167,7 @@ private:
   llvm::Type *getLLVMType(clang::QualType t);
   mlir::Type getMLIRType(clang::QualType t);
 
-  size_t getTypeSize(clang::QualType t);
+  mlir::Value getTypeSize(clang::QualType t);
 
   mlir::Value createAllocOp(mlir::Type t, VarDecl *name, uint64_t memspace,
                             bool isArray, bool LLVMABI);

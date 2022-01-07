@@ -475,23 +475,22 @@ ValueCategory MLIRScanner::VisitTypeTraitExpr(clang::TypeTraitExpr *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
       builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
-                                    expr->getValue(), ty),
+                                           expr->getValue(), ty),
       /*isReference*/ false);
 }
 
 ValueCategory MLIRScanner::VisitGNUNullExpr(clang::GNUNullExpr *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
-  return ValueCategory(
-      builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
-                                    0, ty),
-      /*isReference*/ false);
+  return ValueCategory(builder.create<arith::ConstantIntOp>(
+                           getMLIRLocation(expr->getExprLoc()), 0, ty),
+                       /*isReference*/ false);
 }
 
 ValueCategory MLIRScanner::VisitIntegerLiteral(clang::IntegerLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
       builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
-                                    expr->getValue().getSExtValue(), ty),
+                                           expr->getValue().getSExtValue(), ty),
       /*isReference*/ false);
 }
 
@@ -500,7 +499,7 @@ MLIRScanner::VisitCharacterLiteral(clang::CharacterLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
       builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
-                                    expr->getValue(), ty),
+                                           expr->getValue(), ty),
       /*isReference*/ false);
 }
 
@@ -1091,10 +1090,10 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
     alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
   } else {
     auto i64 = mlir::IntegerType::get(count.getContext(), 64);
-    auto typeSize = builder.create<ConstantIntOp>(
-        loc, getTypeSize(expr->getAllocatedType()), i64);
+    auto typeSize = getTypeSize(expr->getAllocatedType());
     count = builder.create<IndexCastOp>(loc, count, i64);
-    mlir::Value args[1] = {builder.create<arith::MulIOp>(loc, count, typeSize)};
+    mlir::Value args[1] = {builder.create<arith::MulIOp>(loc, typeSize, count)};
+    args[0] = builder.create<IndexCastOp>(loc, args[0], i64);
     alloc = builder.create<mlir::LLVM::BitcastOp>(
         loc, ty,
         builder
@@ -1648,13 +1647,9 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
               } else
                 allocSize = Visit(expr->getArg(1)).getValue(builder);
               auto idxType = mlir::IndexType::get(builder.getContext());
-              mlir::Value args[1] = {builder.create<IndexCastOp>(
-                  loc,
-                  builder.create<DivUIOp>(
-                      loc, allocSize,
-                      builder.create<ConstantIntOp>(loc, elemSize,
-                                                    allocSize.getType())),
-                  idxType)};
+              mlir::Value args[1] = {builder.create<DivUIOp>(
+                  loc, builder.create<IndexCastOp>(loc, allocSize, idxType),
+                  elemSize)};
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
@@ -2703,6 +2698,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
+#if 0
   if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
@@ -2782,6 +2778,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           }
       }
     }
+#endif
 
   auto callee = EmitCallee(expr->getCallee());
 
@@ -3435,8 +3432,8 @@ MLIRScanner::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop) {
   switch (Uop->getKind()) {
   case UETT_SizeOf: {
     auto value = getTypeSize(Uop->getTypeOfArgument());
-    auto ty = getMLIRType(Uop->getType()).cast<mlir::IntegerType>();
-    return ValueCategory(builder.create<ConstantIntOp>(loc, value, ty),
+    auto retTy = getMLIRType(Uop->getType()).cast<mlir::IntegerType>();
+    return ValueCategory(builder.create<arith::IndexCastOp>(loc, value, retTy),
                          /*isReference*/ false);
   }
   default:
@@ -4512,25 +4509,28 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                         loc, Visit(CI->getArg(1)).getValue(builder),
                         mlir::IndexType::get(builder.getContext())));
               }
-              mlir::Value args[1] = {builder.create<DivUIOp>(
-                  loc, allocSize,
-                  builder.create<ConstantIndexOp>(loc, elemSize))};
+              mlir::Value args[1] = {
+                  builder.create<DivUIOp>(loc, allocSize, elemSize)};
               auto alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
               if (sr->getDecl()->getName() == "calloc") {
                 mlir::Value val = alloc;
                 if (val.getType().isa<MemRefType>()) {
                   val = builder.create<polygeist::Memref2PointerOp>(
-                      loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+                      loc, LLVM::LLVMPointerType::get(builder.getI8Type()),
+                      val);
                 } else {
                   val = builder.create<LLVM::BitcastOp>(
                       loc,
                       LLVM::LLVMPointerType::get(
                           builder.getI8Type(),
-                          val.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
+                          val.getType()
+                              .cast<LLVM::LLVMPointerType>()
+                              .getAddressSpace()),
                       val);
                 }
                 auto i8_0 = builder.create<ConstantIntOp>(loc, 0, 8);
-                auto sizev = builder.create<IndexCastOp>(loc, allocSize, builder.getIndexType());
+                auto sizev = builder.create<IndexCastOp>(loc, allocSize,
+                                                         builder.getI64Type());
                 auto falsev = builder.create<ConstantIntOp>(loc, false, 1);
                 builder.create<LLVM::MemsetOp>(loc, val, i8_0, sizev, falsev);
               }
@@ -4879,7 +4879,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_IntegralToPointer: {
     auto vc = Visit(E->getSubExpr());
     if (!vc.val) {
-        E->dump();
+      E->dump();
     }
     assert(vc.val);
     auto res = vc.getValue(builder);
@@ -4888,7 +4888,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       res = builder.create<LLVM::BitcastOp>(loc, postTy, res);
     else {
       assert(postTy.isa<MemRefType>());
-      res = builder.create<LLVM::BitcastOp>(loc, LLVM::LLVMPointerType::get(builder.getI8Type()), res);
+      res = builder.create<LLVM::BitcastOp>(
+          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), res);
       res = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, res);
     }
     return ValueCategory(res, /*isReference*/ false);
@@ -6091,9 +6092,29 @@ llvm::Type *MLIRScanner::getLLVMType(clang::QualType t) {
   return Glob.getLLVMType(t);
 }
 
-size_t MLIRScanner::getTypeSize(clang::QualType t) {
-  llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
-  return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
+mlir::Value MLIRScanner::getTypeSize(clang::QualType t) {
+  // llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
+  // return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
+  bool isArray = false;
+  auto innerTy = Glob.getMLIRType(t, &isArray);
+  if (isArray) {
+    auto MT = innerTy.cast<MemRefType>();
+    size_t num = 1;
+    for (auto n : MT.getShape()) {
+      assert(n > 0);
+      num *= n;
+    }
+    return builder.create<arith::MulIOp>(
+        loc,
+        builder.create<polygeist::TypeSizeOp>(
+            loc, builder.getIndexType(),
+            mlir::TypeAttr::get(MT.getElementType())),
+        builder.create<arith::ConstantIndexOp>(loc, num));
+  }
+  assert(!isArray);
+  return builder.create<polygeist::TypeSizeOp>(
+      loc, builder.getIndexType(),
+      mlir::TypeAttr::get(innerTy)); // DLI.getTypeSize(innerTy);
 }
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"
