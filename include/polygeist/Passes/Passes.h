@@ -24,6 +24,7 @@ std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
+std::unique_ptr<Pass> createLowerPolygeistOpsPass();
 
 } // namespace polygeist
 } // namespace mlir
