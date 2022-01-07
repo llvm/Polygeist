@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -50,6 +51,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::gpu::GPUDialect>();
   registry.insert<mlir::NVVM::NVVMDialect>();
   registry.insert<mlir::omp::OpenMPDialect>();
+  registry.insert<mlir::math::MathDialect>();
 
   registry.insert<mlir::polygeist::PolygeistDialect>();
 
@@ -61,17 +63,9 @@ int main(int argc, char **argv) {
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
 
-  auto f = [](MLIRContext &context) {
-    LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
-    LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
-    MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
-    LLVM::LLVMStructType::attachInterface<
-        PtrElementModel<LLVM::LLVMStructType>>(context);
-    LLVM::LLVMPointerType::attachInterface<
-        PtrElementModel<LLVM::LLVMPointerType>>(context);
-    LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
-        context);
-  };
+  registry.addTypeInterface<polygeist::PolygeistDialect,LLVM::LLVMPointerType,MemRefInsider>();
+  registry.addTypeInterface<polygeist::PolygeistDialect,LLVM::LLVMStructType,MemRefInsider>();
+  registry.addTypeInterface<polygeist::PolygeistDialect,MemRefType,PtrElementModel<MemRefType>>();
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,

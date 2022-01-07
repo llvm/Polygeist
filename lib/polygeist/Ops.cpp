@@ -12,7 +12,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "polygeist/Dialect.h"
-
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define GET_OP_CLASSES
@@ -955,12 +955,195 @@ public:
     return success();
   }
 };
+
+#include "mlir/Dialect/SCF/SCF.h"
+struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    using namespace scf;
+    Block *parent = nextIf->getBlock();
+    if (nextIf == &parent->front())
+      return failure();
+
+    auto prevIf = dyn_cast<scf::IfOp>(nextIf->getPrevNode());
+    if (!prevIf)
+      return failure();
+
+
+    if (nextIf.getCondition().getDefiningOp() != prevIf)
+      return failure();
+
+    if (!nextIf.getElseRegion().empty())
+      return failure();
+
+    // %c = if %x {
+    //         yield %y
+    //      } else {
+    //         yield false
+    //      }
+    //  if %c {
+    //    
+    //  }
+
+    Value nextIfCondition = nullptr;
+        for (auto it : llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(), prevIf.thenYield().getOperands())) {
+            if (std::get<0>(it) == nextIf.getCondition()) {
+                if (matchPattern(std::get<1>(it), m_Zero())) {
+                  nextIfCondition = std::get<2>(it);
+                } else
+                    return failure();
+            }
+        }
+
+	rewriter.startRootUpdate(nextIf);
+    nextIf->moveBefore(prevIf.thenYield());
+    nextIf.getConditionMutable().assign(nextIfCondition);
+	rewriter.finalizeRootUpdate(nextIf);
+    return success();
+  }
+};
+
+struct CombineIfs : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    using namespace scf;
+    Block *parent = nextIf->getBlock();
+    if (nextIf == &parent->front())
+      return failure();
+
+    auto prevIf = dyn_cast<scf::IfOp>(nextIf->getPrevNode());
+    if (!prevIf)
+      return failure();
+
+    if (nextIf.getCondition() != prevIf.getCondition())
+        return failure();
+
+    //* Changed*//
+    SmallVector<Value> prevElseYielded;
+    if (!prevIf.getElseRegion().empty()) prevElseYielded = prevIf.elseYield().getOperands();
+    // Replace all uses of return values of op within nextIf with the corresponding yields
+    for (auto it : llvm::zip(prevIf.getResults(), prevIf.thenYield().getOperands(), prevElseYielded))
+	  for (OpOperand &use : llvm::make_early_inc_range(std::get<0>(it).getUses())) {
+		if (nextIf.getThenRegion().isAncestor(use.getOwner()->getParentRegion()))
+			use.set(std::get<1>(it));
+		else if (nextIf.getElseRegion().isAncestor(use.getOwner()->getParentRegion()))
+			use.set(std::get<2>(it));
+    }
+    //* End Changed*//
+
+    SmallVector<Type> mergedTypes(prevIf.getResultTypes());
+    llvm::append_range(mergedTypes, nextIf.getResultTypes());
+
+    //* Changed nextIf cond to nextIf cond*//
+    scf::IfOp combinedIf = rewriter.create<scf::IfOp>(
+        nextIf.getLoc(), mergedTypes, prevIf.getCondition(), /*hasElse=*/false);
+    rewriter.eraseBlock(&combinedIf.getThenRegion().back());
+
+    scf::YieldOp thenYield = prevIf.thenYield();
+    scf::YieldOp thenYield2 = nextIf.thenYield();
+
+    combinedIf.getThenRegion().getBlocks().splice(
+        combinedIf.getThenRegion().getBlocks().begin(),
+        prevIf.getThenRegion().getBlocks());
+
+    rewriter.mergeBlocks(nextIf.thenBlock(), combinedIf.thenBlock());
+    rewriter.setInsertionPointToEnd(combinedIf.thenBlock());
+
+    SmallVector<Value> mergedYields(thenYield.getOperands());
+    llvm::append_range(mergedYields, thenYield2.getOperands());
+    rewriter.create<scf::YieldOp>(thenYield2.getLoc(), mergedYields);
+    rewriter.eraseOp(thenYield);
+    rewriter.eraseOp(thenYield2);
+
+    combinedIf.getElseRegion().getBlocks().splice(
+        combinedIf.getElseRegion().getBlocks().begin(),
+        prevIf.getElseRegion().getBlocks());
+
+    if (!nextIf.getElseRegion().empty()) {
+      if (combinedIf.getElseRegion().empty()) {
+        combinedIf.getElseRegion().getBlocks().splice(
+            combinedIf.getElseRegion().getBlocks().begin(),
+            nextIf.getElseRegion().getBlocks());
+      } else {
+        scf::YieldOp elseYield = combinedIf.elseYield();
+        scf::YieldOp elseYield2 = nextIf.elseYield();
+        rewriter.mergeBlocks(nextIf.elseBlock(), combinedIf.elseBlock());
+
+        rewriter.setInsertionPointToEnd(combinedIf.elseBlock());
+
+        SmallVector<Value> mergedElseYields(elseYield.getOperands());
+        llvm::append_range(mergedElseYields, elseYield2.getOperands());
+
+        rewriter.create<scf::YieldOp>(elseYield2.getLoc(), mergedElseYields);
+        rewriter.eraseOp(elseYield);
+        rewriter.eraseOp(elseYield2);
+      }
+    }
+
+    SmallVector<Value> prevValues;
+    SmallVector<Value> nextValues;
+    for (const auto &pair : llvm::enumerate(combinedIf.getResults())) {
+      if (pair.index() < prevIf.getNumResults())
+        prevValues.push_back(pair.value());
+      else
+        nextValues.push_back(pair.value());
+    }
+    rewriter.replaceOp(prevIf, prevValues);
+    rewriter.replaceOp(nextIf, nextValues);
+    return success();
+  }
+};
+struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    using namespace scf;
+    Block *parent = nextIf->getBlock();
+    if (nextIf == &parent->front())
+      return failure();
+
+    auto prevOp = nextIf->getPrevNode();
+	
+	// Only move if op doesn't write or free memory (only read)
+	if (!wouldOpBeTriviallyDead(prevOp)) return failure();
+
+	bool thenUse = false;
+	bool elseUse = false;
+	bool outsideUse = false;
+	for (auto &use : prevOp->getUses()) {
+		if (nextIf.getThenRegion().isAncestor(use.getOwner()->getParentRegion()))
+			thenUse = true;
+		else if (nextIf.getElseRegion().isAncestor(use.getOwner()->getParentRegion()))
+			elseUse = true;
+		else outsideUse = true;
+	}
+	// Do not move if the op is used outside the if, or used in both branches
+	if (outsideUse) return failure();
+	if (thenUse && elseUse) return failure();
+	// If no use, this should've been folded / eliminated
+	if (!thenUse && !elseUse) return failure();
+	
+	rewriter.startRootUpdate(nextIf);
+	rewriter.startRootUpdate(prevOp);
+	prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front() : &nextIf.elseBlock()->front());
+	rewriter.finalizeRootUpdate(prevOp);
+	rewriter.finalizeRootUpdate(nextIf);
+	return success();
+  }
+};
+
 void Pointer2MemrefOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<
       CmpAnd, Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
-      MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>>(
+      MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
+	  CombineIfs, MoveIntoIfs, IfAndLazy>(
       context);
 }
 

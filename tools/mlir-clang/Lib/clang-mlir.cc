@@ -373,7 +373,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       if (!alloc) {
         alloc = abuilder.create<mlir::LLVM::AllocaOp>(
             varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
-            abuilder.create<ConstantIntOp>(varLoc, 1, 64), 0);
+            abuilder.create<arith::ConstantIntOp>(varLoc, 1, 64), 0);
         if (t.isa<mlir::IntegerType>()) {
           abuilder.create<LLVM::StoreOp>(
               varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
@@ -461,7 +461,7 @@ ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
   auto sv = Visit(expr->getSubExpr());
   if (auto ty = getMLIRType(expr->getType()).dyn_cast<mlir::IntegerType>()) {
     if (expr->hasAPValueResult()) {
-      return ValueCategory(builder.create<ConstantIntOp>(
+      return ValueCategory(builder.create<arith::ConstantIntOp>(
                                getMLIRLocation(expr->getExprLoc()),
                                expr->getResultAsAPSInt().getExtValue(), ty),
                            /*isReference*/ false);
@@ -474,15 +474,23 @@ ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
 ValueCategory MLIRScanner::VisitTypeTraitExpr(clang::TypeTraitExpr *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
-      builder.create<ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+      builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
                                     expr->getValue(), ty),
+      /*isReference*/ false);
+}
+
+ValueCategory MLIRScanner::VisitGNUNullExpr(clang::GNUNullExpr *expr) {
+  auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+  return ValueCategory(
+      builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+                                    0, ty),
       /*isReference*/ false);
 }
 
 ValueCategory MLIRScanner::VisitIntegerLiteral(clang::IntegerLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
-      builder.create<ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+      builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
                                     expr->getValue().getSExtValue(), ty),
       /*isReference*/ false);
 }
@@ -491,7 +499,7 @@ ValueCategory
 MLIRScanner::VisitCharacterLiteral(clang::CharacterLiteral *expr) {
   auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
   return ValueCategory(
-      builder.create<ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+      builder.create<arith::ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
                                     expr->getValue(), ty),
       /*isReference*/ false);
 }
@@ -925,46 +933,7 @@ MLIRScanner::VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr) {
     return Visit(expr->getSubExpr());
   if (expr->getCastKind() == clang::CastKind::CK_ConstructorConversion)
     return Visit(expr->getSubExpr());
-  if (expr->getCastKind() == clang::CastKind::CK_IntegralCast) {
-    auto scalar = Visit(expr->getSubExpr()).getValue(builder);
-    assert(scalar);
-    auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
-    if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
-      return ValueCategory(
-          builder.create<mlir::LLVM::PtrToIntOp>(loc, postTy, scalar),
-          /*isReference*/ false);
-    }
-    if (!scalar.getType().isa<mlir::IntegerType>()) {
-      expr->dump();
-      llvm::errs() << " scalar: " << scalar << "\n";
-    }
-    auto prevTy = scalar.getType().cast<mlir::IntegerType>();
-    bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*expr->getType())) {
-      if (bit->isUnsignedInteger())
-        signedType = false;
-      if (bit->isSignedInteger())
-        signedType = true;
-    }
-
-    if (prevTy == postTy)
-      return ValueCategory(scalar, /*isReference*/ false);
-    if (prevTy.getWidth() < postTy.getWidth()) {
-      if (signedType) {
-        return ValueCategory(builder.create<ExtSIOp>(loc, scalar, postTy),
-                             /*isReference*/ false);
-      } else {
-        return ValueCategory(builder.create<ExtUIOp>(loc, scalar, postTy),
-                             /*isReference*/ false);
-      }
-    } else {
-      return ValueCategory(
-          builder.create<mlir::arith::TruncIOp>(loc, scalar, postTy),
-          /*isReference*/ false);
-    }
-  }
-  expr->dump();
-  assert(0 && "unhandled functional cast type");
+  return VisitCastExpr(expr);
 }
 
 ValueCategory
@@ -4908,9 +4877,20 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return ValueCategory(res, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToPointer: {
-    auto res = Visit(E->getSubExpr()).getValue(builder);
-    auto postTy = getMLIRType(E->getType()).cast<LLVM::LLVMPointerType>();
-    res = builder.create<LLVM::BitcastOp>(loc, postTy, res);
+    auto vc = Visit(E->getSubExpr());
+    if (!vc.val) {
+        E->dump();
+    }
+    assert(vc.val);
+    auto res = vc.getValue(builder);
+    auto postTy = getMLIRType(E->getType());
+    if (postTy.isa<LLVM::LLVMPointerType>())
+      res = builder.create<LLVM::BitcastOp>(loc, postTy, res);
+    else {
+      assert(postTy.isa<MemRefType>());
+      res = builder.create<LLVM::BitcastOp>(loc, LLVM::LLVMPointerType::get(builder.getI8Type()), res);
+      res = builder.create<polygeist::Pointer2MemrefOp>(loc, postTy, res);
+    }
     return ValueCategory(res, /*isReference*/ false);
   }
 
