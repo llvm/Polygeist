@@ -1523,8 +1523,25 @@ void Mem2Reg::runOnFunction() {
         list.pop_front();
 
         for (auto U : val.getUsers()) {
-          if (isa<LLVM::StoreOp, memref::StoreOp, AffineStoreOp,
-                  memref::DeallocOp>(U)) {
+          if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
+            if (SO.getValue() == val) {
+                error = true;
+                break;
+            }
+            toErase.push_back(U);
+          } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
+            if (SO.value() == val) {
+                error = true;
+                break;
+            }
+            toErase.push_back(U);
+          } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+            if (SO.value() == val) {
+                error = true;
+                break;
+            }
+            toErase.push_back(U);
+          } else if (isa<memref::DeallocOp>(U)) {
             toErase.push_back(U);
           } else if (isa<CallOp>(U) && cast<CallOp>(U).getCallee() == "free") {
             toErase.push_back(U);

@@ -552,10 +552,10 @@ int main(int argc, char **argv) {
       pm3.addPass(mlir::createLowerToCFGPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
-      pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
-      pm3.addPass(createConvertOpenMPToLLVMPass());
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
+      pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
+      pm3.addPass(createConvertOpenMPToLLVMPass());
       pm3.addPass(mlir::createLowerToLLVMPass(options));
       if (mlir::failed(pm3.run(module.get()))) {
         module->dump();

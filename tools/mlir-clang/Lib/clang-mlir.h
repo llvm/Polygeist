@@ -156,10 +156,8 @@ private:
     mlir::OpBuilder subbuilder(builder.getContext());
     subbuilder.setInsertionPointToStart(allocationScope);
 
-    auto indexType = subbuilder.getIntegerType(64);
-    auto one = subbuilder.create<mlir::ConstantOp>(
-        loc, indexType,
-        subbuilder.getIntegerAttr(subbuilder.getIntegerType(64), 1));
+    auto one = subbuilder.create<arith::ConstantIntOp>(
+        loc, 1, 64);
     auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
     vec.push_back(rs);
     return rs;
@@ -235,6 +233,7 @@ public:
 
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
 
+  ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *expr);
   ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
 
   ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);

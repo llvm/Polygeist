@@ -14,3 +14,19 @@ module {
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     return %arg0 : !llvm.ptr<i8>
 // CHECK-NEXT:   }
+
+// -----
+
+module {
+  func @mixed(%mr : !llvm.ptr<memref<2xf32>>) {
+    %2 = memref.alloc() : memref<2xf32>
+    llvm.store %2, %mr : !llvm.ptr<memref<2xf32>>
+    return
+  }
+}
+
+// CHECK:   func @mixed(%arg0: !llvm.ptr<memref<2xf32>>)
+// CHECK-NEXT:     %0 = memref.alloc() : memref<2xf32>
+// CHECK-NEXT:     llvm.store %0, %arg0 : !llvm.ptr<memref<2xf32>>
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
