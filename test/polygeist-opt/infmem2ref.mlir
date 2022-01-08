@@ -136,4 +136,42 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+  func @bpnn_train_cuda(%arg0: memref<11xf32>, %arg1: i1) {
+    %c0 = arith.constant 0 : index
+    %c0_i32 = arith.constant 0 : i32
+    %c10 = arith.constant 10 : index
+    %cst = arith.constant 0.000000e+00 : f32
+    %c1_i32 = arith.constant 1 : i32
+    %c1 = arith.constant 1 : index
+    %1 = llvm.mlir.undef : i32
+    %2 = memref.alloca() : memref<i32>
+    memref.store %1, %2[] : memref<i32>
+    br ^bb3
+  ^bb3:  // pred: ^bb1
+    scf.if %arg1 {
+      memref.store %c1_i32, %2[] : memref<i32>
+      scf.execute_region {
+        br ^bb1(%c0 : index)
+      ^bb1(%11 : index):  // 2 preds: ^bb0, ^bb2
+        %12 = arith.cmpi slt, %11, %c10 : index
+        cond_br %12, ^bb2, ^bb3
+      ^bb2:  // pred: ^bb1
+        %14 = memref.load %arg0[%11] : memref<11xf32>
+        %15 = arith.cmpf ugt, %14, %cst : f32
+        scf.if %15 {
+          memref.store %c0_i32, %2[] : memref<i32>
+        }
+        %16 = arith.addi %11, %c1 : index
+        br ^bb1(%16 : index)
+      ^bb3:  // pred: ^bb1
+        scf.yield
+      }
+      %9 = memref.load %2[] : memref<i32>
+      call @put(%9) : (i32) -> ()
+    }
+    return
+  }
+  func private @put(%a : i32)
 }
+

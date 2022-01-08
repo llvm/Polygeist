@@ -525,13 +525,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               exOp.erase();
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
               Operation *newLoad = nullptr;
+              bool needsAfter = false;
               if (!lastVal) {
 
-                bool needsAfter = false;
+                
+                bool needsDuring = false;
                 // If the preload could be useful here, do it.
                 ifOp->walk([&](Operation *a) {
                   if (loadOps.count(a))
-                    needsAfter = true;
+                    needsDuring = true;
                 });
                 {
                   for (auto n = ifOp->getNextNode(); n != nullptr;
@@ -549,7 +551,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                       });
                   }
                 }
-                if (!needsAfter) {
+                if (!needsAfter && !needsDuring) {
                   lastVal = nullptr;
                   seenSubStore = true;
                   continue;
@@ -585,8 +587,28 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
               if (thenVal == elseVal && thenVal != nullptr) {
                 lastVal = thenVal;
+                assert(!newLoad);
                 continue;
               }
+                    
+              // If added load was not used and not able to result
+              // in a simplification for the if statement, delete it.
+              if (newLoad && newLoad->getResult(0).use_empty() && !needsAfter && (thenVal == newLoad->getResult(0) || elseVal == newLoad->getResult(0))) {
+                      loadOps.insert(newLoad);
+                      newLoad->erase();
+                      for (auto &pair : lastStoreInBlock) {
+                        if (pair.second == newLoad->getResult(0))
+                          pair.second = nullptr;
+                      }
+                      SmallVector<Block *> toErase;
+                      for (auto &pair : valueAtStartOfBlock) {
+                        if (pair.second == newLoad->getResult(0))
+                          toErase.push_back(pair.first);
+                      }
+                      for (auto blk : toErase)
+                        valueAtStartOfBlock.erase(blk);
+                    continue;
+                }
 
               if (thenVal != nullptr && elseVal != nullptr) {
                 if (ifOp.getElseRegion().getBlocks().size()) {
@@ -596,6 +618,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                     if (std::get<1>(tup) == thenVal &&
                         std::get<2>(tup) == elseVal) {
                       lastVal = std::get<0>(tup);
+                
                       continue;
                     }
                   }
@@ -645,6 +668,25 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 StoringOperations.erase(ifOp);
                 StoringOperations.insert(nextIf);
                 ifOp.erase();
+                if (newLoad) {
+                    // If added load was not used and not able to result
+                    // in a simplification for the if statement, delete it.
+                    if (newLoad->getResult(0).use_empty()) {
+                      loadOps.insert(newLoad);
+                      newLoad->erase();
+                      for (auto &pair : lastStoreInBlock) {
+                        if (pair.second == newLoad->getResult(0))
+                          pair.second = nullptr;
+                      }
+                      SmallVector<Block *> toErase;
+                      for (auto &pair : valueAtStartOfBlock) {
+                        if (pair.second == newLoad->getResult(0))
+                          toErase.push_back(pair.first);
+                      }
+                      for (auto blk : toErase)
+                        valueAtStartOfBlock.erase(blk);
+                    }
+                  }
                 continue;
               } else if (newLoad) {
                 // If added load was not used and not able to result
