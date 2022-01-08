@@ -387,6 +387,28 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     return changed;
   }
   */
+  assert(AI.getDefiningOp());
+  Region *parentAI = AI.getDefiningOp()->getParentRegion();
+  assert(parentAI);
+
+  // A list of all regions which contain loads to be replaced.
+  SmallPtrSet<Region *, 4> ContainsLoadingOperation;
+  {
+    SmallVector<Region *> todo;
+    for (auto load : loadOps) {
+        todo.push_back(load->getParentRegion());
+    }
+    while (todo.size()) {
+        auto op = todo.back();
+        todo.pop_back();
+        if (ContainsLoadingOperation.contains(op)) continue;
+        if (op == parentAI) continue;
+        ContainsLoadingOperation.insert(op);
+        auto parent = op->getParentRegion();
+        assert(parent);
+        todo.push_back(parent);
+    }
+  }
 
   // List of operations which may store that are not storeops
   SmallPtrSet<Operation *, 4> StoringOperations;
@@ -421,14 +443,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     }
   }
 
-  llvm::SetVector<mlir::Block *> storeBlocks;
-  for (auto &B : *AI.getDefiningOp()->getParentRegion()) {
-    storeBlocks.insert(&B);
-  };
-  AI.getDefiningOp()->getParentRegion()->walk(
-      [&](Block *B) { storeBlocks.insert(B); });
-  // Do not include entry to region
-  // storeBlocks.remove(&AI.getDefiningOp()->getParentRegion()->front());
 
   // Last value stored in an individual block and the operation which stored it
   std::map<mlir::Block *, mlir::Value> lastStoreInBlock;
@@ -443,17 +457,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   // (yield)
   std::function<mlir::Value(Block &, mlir::Value, bool endRequires)>
       handleBlock = [&](Block &block, mlir::Value lastVal, bool endRequires) {
-        if (!storeBlocks.count(&block) && !endRequires) {
-          assert(lastStoreInBlock.find(&block) != lastStoreInBlock.end());
-          return lastStoreInBlock[&block];
-        }
-        storeBlocks.remove(&block);
         bool seenSubStore = false;
         SmallVector<Operation *, 10> ops;
         for (auto &a : block) {
           ops.push_back(&a);
         }
-        LLVM_DEBUG(llvm::dbgs() << " starting block: ";
+        LLVM_DEBUG(llvm::dbgs() << "\nstarting block: endRequires=" << (int) endRequires << "\n";
                    block.print(llvm::dbgs()); llvm::dbgs() << " with ";
                    if (lastVal) llvm::dbgs() << lastVal << "\n";
                    else llvm::dbgs() << " null\n";);
@@ -466,66 +475,21 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               seenSubStore = true;
               LLVM_DEBUG(llvm::dbgs()
                              << " zeroing val due to " << exOp << "\n";);
-              continue;
-
-              bool needsAfter = false;
-              {
-                for (auto n = exOp->getNextNode(); n != nullptr;
-                     n = n->getNextNode()) {
-                  if (loadOps.count(n))
-                    needsAfter = true;
-                  else
-                    n->walk([&](Operation *a) {
-                      if (loadOps.count(a))
-                        needsAfter = true;
-                    });
+              
+              if (ContainsLoadingOperation.contains(&exOp.getRegion())) {
+                SmallPtrSet<Value,2> endVals;
+                for (auto &B : exOp.getRegion()) {
+                    Value post = handleBlock(B, (&B == &exOp.getRegion().front()) ? lastVal : nullptr , /*endRequires*/ false);
+                    if (isa<scf::YieldOp>(B.getTerminator()))
+                        endVals.insert(post);
+                }
+                // Must contain only region invariant results.
+                if (false && endVals.size() == 1) {
+                    lastVal = *endVals.begin();
                 }
               }
-              if (!needsAfter) {
-                continue;
-              }
+              continue;
 
-              Block &then = exOp.getRegion().back();
-              OpBuilder B(exOp.getContext());
-              auto yieldOp = cast<mlir::scf::YieldOp>(then.back());
-              B.setInsertionPoint(yieldOp);
-
-              SmallVector<mlir::Value, 4> nidx;
-              for (auto i : idx) {
-                nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
-              }
-              Operation *newLoad;
-              if (AI.getType().isa<MemRefType>())
-                newLoad = B.create<memref::LoadOp>(exOp.getLoc(), AI, nidx);
-              else
-                newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
-
-              loadOps.insert(newLoad);
-              thenVal = newLoad->getResult(0);
-
-              B.setInsertionPoint(exOp);
-              SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
-                                             exOp.getResultTypes().end());
-              tys.push_back(thenVal.getType());
-              auto nextIf =
-                  B.create<mlir::scf::ExecuteRegionOp>(exOp.getLoc(), tys);
-
-              SmallVector<mlir::Value, 4> thenVals = yieldOp.getResults();
-              thenVals.push_back(thenVal);
-              yieldOp->setOperands(thenVals);
-              nextIf.getRegion().getBlocks().clear();
-              nextIf.getRegion().getBlocks().splice(
-                  nextIf.getRegion().getBlocks().begin(),
-                  exOp.getRegion().getBlocks());
-
-              SmallVector<mlir::Value, 3> resvals = (nextIf.getResults());
-              lastVal = resvals.back();
-              resvals.pop_back();
-              exOp.replaceAllUsesWith(resvals);
-
-              StoringOperations.erase(exOp);
-              StoringOperations.insert(nextIf);
-              exOp.erase();
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
               Operation *newLoad = nullptr;
               bool needsAfter = false;
@@ -569,6 +533,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                   newLoad = B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
                 else
                   newLoad = B.create<LLVM::LoadOp>(ifOp.getLoc(), AI);
+
+
+                LLVM_DEBUG(llvm::dbgs() << " needsAfter: " << (int)needsAfter << " needsDuring: " << (int)needsDuring << " subStore: " << seenSubStore << " - new load: " << *newLoad << "\n");
 
                 if (!seenSubStore)
                   loadOps.insert(newLoad);
@@ -729,6 +696,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             lastVal = nullptr;
             seenSubStore = true;
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
+            
+            for (auto &R : a->getRegions())
+                if (ContainsLoadingOperation.contains(&R)) {
+                    for (auto &B : R) {
+                        handleBlock(B, nullptr, /*endRequires*/ false);
+                    }
+                }
+
           } else if (loadOps.count(a)) {
             Value loadOp = a->getResult(0);
             if (lastVal) {
@@ -820,10 +795,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         return lastStoreInBlock[&block] = lastVal;
       };
 
-  while (storeBlocks.size()) {
-    auto blk = storeBlocks.begin();
-    handleBlock(**blk, nullptr, /*endRequires*/ false);
-  }
+  for (auto &B : *AI.getDefiningOp()->getParentRegion()) {
+    handleBlock(B, nullptr, /*endRequires*/ false);
+  };
 
   if (loadOps.size() == 0)
     return changed;

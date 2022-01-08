@@ -173,5 +173,29 @@ module {
     return
   }
   func private @put(%a : i32)
+  
+  func private @_Z12findIndexBinPdiid(%arg0: i1, %arg1: i32, %arg2 : i1) -> i32 {
+    %true = arith.constant true
+    %c2_i32 = arith.constant 2 : i32
+    %c1_i32 = arith.constant 1 : i32
+    %0 = memref.alloca() : memref<i32>
+    scf.execute_region {
+      memref.store %arg1, %0[] : memref<i32>
+      scf.if %arg0 {
+        scf.execute_region {
+          memref.store %c2_i32, %0[] : memref<i32>
+          scf.yield
+        }
+        scf.if %arg2 {
+          %2 = memref.load %0[] : memref<i32>
+          %3 = arith.addi %2, %c1_i32 : i32
+          memref.store %c1_i32, %0[] : memref<i32>
+        }
+      }
+      scf.yield
+    }
+    %1 = memref.load %0[] : memref<i32>
+    return %1 : i32
+  }
 }
 
