@@ -36,9 +36,9 @@ QStream ilaunch_kernel(QStream x) {
 // CHECK-NEXT:     %6 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
 // CHECK-NEXT:     %7 = llvm.getelementptr %6[%c1_i32] : (!llvm.ptr<f64>, i32) -> !llvm.ptr<f64>
 // CHECK-NEXT:     llvm.store %5, %7 : !llvm.ptr<f64>
-// CHECK-NEXT:     %8 = llvm.getelementptr %arg1[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %8 = llvm.getelementptr %arg1[%c0_i32, 1] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32) -> !llvm.ptr<i32>
 // CHECK-NEXT:     %9 = llvm.load %8 : !llvm.ptr<i32>
-// CHECK-NEXT:     %10 = llvm.getelementptr %arg0[%c0_i32, %c1_i32] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %10 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<(struct<(f64, f64)>, i32)>>, i32) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %9, %10 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

@@ -5,8 +5,8 @@ module  {
 	%c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c0_i32 = arith.constant 0 : i32
-    %0 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(struct<(i32, i32)>)>>, i32, i32) -> !llvm.ptr<struct<(i32, i32)>>
-    %1 = llvm.getelementptr %arg1[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(struct<(i32, i32)>)>>, i32, i32) -> !llvm.ptr<struct<(i32, i32)>>
+    %0 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<struct<(struct<(i32, i32)>)>>, i32) -> !llvm.ptr<struct<(i32, i32)>>
+    %1 = llvm.getelementptr %arg1[%c0_i32, 0] : (!llvm.ptr<struct<(struct<(i32, i32)>)>>, i32) -> !llvm.ptr<struct<(i32, i32)>>
     %2 = "polygeist.pointer2memref"(%0) : (!llvm.ptr<struct<(i32, i32)>>) -> memref<?x2xi32>
     %3 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<struct<(i32, i32)>>) -> memref<?x2xi32>
 	%a0 = memref.load %3[%c0, %c0] : memref<?x2xi32>

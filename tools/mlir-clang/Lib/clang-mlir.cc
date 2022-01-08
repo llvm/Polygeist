@@ -2132,7 +2132,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__builtin_isfinite" ||
-           sr->getDecl()->getName() == "__builtin_isinf")) {
+           sr->getDecl()->getName() == "__builtin_isinf" ||
+           sr->getDecl()->getName() == "__nv_isinff")) {
         // isinf(x)    --> fabs(x) == infinity
         // isfinite(x) --> fabs(x) != infinity
         // x != NaN via the ordered compare in either case.
@@ -2141,7 +2142,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         mlir::Value Fabs = builder.create<math::AbsOp>(loc, V);
         auto Infinity = builder.create<ConstantFloatOp>(
             loc, APFloat::getInf(Ty.getFloatSemantics()), Ty);
-        auto Pred = (sr->getDecl()->getName() == "__builtin_isinf")
+        auto Pred = (sr->getDecl()->getName() == "__builtin_isinf" ||
+                     sr->getDecl()->getName() == "__nv_isinff")
                         ? CmpFPredicate::OEQ
                         : CmpFPredicate::ONE;
         mlir::Value FCmp = builder.create<CmpFOp>(loc, Pred, Fabs, Infinity);
@@ -2150,7 +2152,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(res, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "__builtin_isnan")) {
+          (sr->getDecl()->getName() == "__builtin_isnan" ||
+           sr->getDecl()->getName() == "__nv_isnanf")) {
         mlir::Value V = getLLVM(expr->getArg(0));
         mlir::Value Eq = builder.create<CmpFOp>(loc, CmpFPredicate::UNO, V, V);
         auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
@@ -2255,6 +2258,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(V, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "__nv_fmodf")) {
+        mlir::Value V = getLLVM(expr->getArg(0));
+        mlir::Value V2 = getLLVM(expr->getArg(1));
+        V = builder.create<mlir::LLVM::FRemOp>(loc, V.getType(), V, V2);
+        return ValueCategory(V, /*isRef*/ false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__builtin_atanh" ||
            sr->getDecl()->getName() == "__builtin_atanhf" ||
            sr->getDecl()->getName() == "__builtin_atanhl")) {
@@ -2317,6 +2327,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "__nv_log2l")) {
         mlir::Value V = getLLVM(expr->getArg(0));
         V = builder.create<math::Log2Op>(loc, V);
+        return ValueCategory(V, /*isRef*/ false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "__builtin_log10" ||
+           sr->getDecl()->getName() == "__builtin_log10f" ||
+           sr->getDecl()->getName() == "__builtin_log10l" ||
+           sr->getDecl()->getName() == "__nv_log10" ||
+           sr->getDecl()->getName() == "__nv_log10f" ||
+           sr->getDecl()->getName() == "__nv_log10l")) {
+        mlir::Value V = getLLVM(expr->getArg(0));
+        V = builder.create<math::Log10Op>(loc, V);
         return ValueCategory(V, /*isRef*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
@@ -5721,6 +5742,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   if (auto ET = dyn_cast<clang::UsingType>(qt)) {
     return getMLIRType(ET->getUnderlyingType(), implicitRef, allowMerge);
   }
+  if (auto ET = dyn_cast<clang::ParenType>(qt)) {
+    return getMLIRType(ET->getInnerType(), implicitRef, allowMerge);
+  }
   if (auto ET = dyn_cast<clang::DeducedType>(qt)) {
     return getMLIRType(ET->getDeducedType(), implicitRef, allowMerge);
   }
@@ -5951,6 +5975,13 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       Args.push_back(getMLIRType(T));
     }
     return LLVM::LLVMFunctionType::get(RT, Args, FT->isVariadic());
+  }
+  if (auto FT = dyn_cast<clang::FunctionNoProtoType>(t)) {
+    auto RT = getMLIRType(FT->getReturnType());
+    if (RT.isa<mlir::NoneType>())
+      RT = LLVM::LLVMVoidType::get(RT.getContext());
+    SmallVector<mlir::Type> Args;
+    return LLVM::LLVMFunctionType::get(RT, Args, /*isVariadic*/true);
   }
 
   if (isa<clang::PointerType, clang::ReferenceType>(t)) {

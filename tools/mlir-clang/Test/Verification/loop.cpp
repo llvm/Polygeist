@@ -30,7 +30,7 @@ void div_(int* sizes) {
 // CHECK-NEXT:       %4 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:       %5 = arith.index_cast %4 : index to i64
 // CHECK-NEXT:       %6 = llvm.getelementptr %2[%5] : (!llvm.ptr<struct<(i32, f64)>>, i64) -> !llvm.ptr<struct<(i32, f64)>>
-// CHECK-NEXT:       %7 = llvm.getelementptr %6[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(i32, f64)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:       %7 = llvm.getelementptr %6[%c0_i32, 0] : (!llvm.ptr<struct<(i32, f64)>>, i32) -> !llvm.ptr<i32>
 // CHECK-NEXT:       %8 = memref.load %arg0[%4] : memref<?xi32>
 // CHECK-NEXT:       llvm.store %8, %7 : !llvm.ptr<i32>
 // CHECK-NEXT:       %9 = arith.addi %arg1, %c1_i32 : i32

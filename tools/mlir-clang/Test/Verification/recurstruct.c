@@ -11,7 +11,6 @@ double sum(struct Node* n) {
 }
 
 // CHECK:   func @sum(%arg0: !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:     %true = arith.constant true
@@ -27,9 +26,9 @@ double sum(struct Node* n) {
 // CHECK-NEXT:       scf.yield %1 : f64
 // CHECK-NEXT:     }
 // CHECK-NEXT:     %6 = scf.if %4 -> (f64) {
-// CHECK-NEXT:       %7 = llvm.getelementptr %arg0[%c0_i32, %c1_i32] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>, i32, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:       %7 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>, i32) -> !llvm.ptr<f64>
 // CHECK-NEXT:       %8 = llvm.load %7 : !llvm.ptr<f64>
-// CHECK-NEXT:       %9 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>, i32, i32) -> !llvm.ptr<ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>>
+// CHECK-NEXT:       %9 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>, i32) -> !llvm.ptr<ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>>
 // CHECK-NEXT:       %10 = llvm.load %9 : !llvm.ptr<ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>>
 // CHECK-NEXT:       %11 = call @sum(%10) : (!llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> f64
 // CHECK-NEXT:       %12 = arith.addf %8, %11 : f64
