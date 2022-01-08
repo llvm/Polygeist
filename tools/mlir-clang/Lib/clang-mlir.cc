@@ -1304,8 +1304,7 @@ ValueCategory MLIRScanner::CommonArrayToPointer(ValueCategory scalar) {
     return ValueCategory(
         builder.create<mlir::LLVM::GEPOp>(
             loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-            scalar.val,
-            vec),
+            scalar.val, vec),
         /*isReference*/ false);
   }
 
@@ -1333,7 +1332,8 @@ ValueCategory MLIRScanner::CommonArrayLookup(ValueCategory array,
 
   if (val.getType().isa<LLVM::LLVMPointerType>()) {
 
-    mlir::Value vals[] = {builder.create<IndexCastOp>(loc, idx, builder.getIntegerType(64))};
+    mlir::Value vals[] = {
+        builder.create<IndexCastOp>(loc, idx, builder.getIntegerType(64))};
     // TODO sub
     return ValueCategory(
         builder.create<mlir::LLVM::GEPOp>(loc, val.getType(), val, vals),
@@ -3427,8 +3427,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
       return ValueCategory(
           builder.create<mlir::LLVM::GEPOp>(
               loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-              lhs_v,
-              vec),
+              lhs_v, vec),
           /*isReference*/ true);
     }
 
@@ -4204,7 +4203,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     mlir::Value vec[] = {builder.create<ConstantIntOp>(loc, 0, 32),
-                          builder.create<ConstantIntOp>(loc, fnum, 32)};
+                         builder.create<ConstantIntOp>(loc, fnum, 32)};
     if (!PT.getElementType()
              .isa<mlir::LLVM::LLVMStructType, mlir::LLVM::LLVMArrayType>()) {
       llvm::errs() << "function: " << function << "\n";
@@ -4223,7 +4222,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                .getElementType();
     }
     mlir::Value commonGEP = builder.create<mlir::LLVM::GEPOp>(
-        loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), val, vec);
+        loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), val,
+        vec);
     if (rd->isUnion()) {
       auto subType =
           Glob.typeTranslator.translateType(getLLVMType(FD->getType()));
@@ -5981,7 +5981,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (RT.isa<mlir::NoneType>())
       RT = LLVM::LLVMVoidType::get(RT.getContext());
     SmallVector<mlir::Type> Args;
-    return LLVM::LLVMFunctionType::get(RT, Args, /*isVariadic*/true);
+    return LLVM::LLVMFunctionType::get(RT, Args, /*isVariadic*/ true);
   }
 
   if (isa<clang::PointerType, clang::ReferenceType>(t)) {

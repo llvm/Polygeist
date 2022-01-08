@@ -530,8 +530,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 bool needsAfter = false;
                 // If the preload could be useful here, do it.
                 ifOp->walk([&](Operation *a) {
-                        if (loadOps.count(a))
-                          needsAfter = true;
+                  if (loadOps.count(a))
+                    needsAfter = true;
                 });
                 {
                   for (auto n = ifOp->getNextNode(); n != nullptr;
@@ -934,7 +934,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   Analyzer A(Good, Bad, Other, {}, {});
   A.analyze();
-  
+
   SmallPtrSet<Block *, 4> blocksWithAddedArgs;
   for (auto block : A.Legal) {
     // llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
@@ -1001,7 +1001,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     assert(blockArg && blockArg.getOwner() == block);
 
     SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                 block->getPredecessors().end());
+                               block->getPredecessors().end());
     for (auto pred : prepred) {
       assert(pred && "Null predecessor");
       mlir::Value pval = lastStoreInBlock[pred];
@@ -1088,7 +1088,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       mlir::Value val = nullptr;
       bool legal = true;
 
-      SetVector<Block *> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+      SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                 block->getPredecessors().end());
       for (auto pred : prepred) {
         mlir::Value pval = nullptr;
 
@@ -1241,7 +1242,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         }
         valueAtStartOfBlock.erase(block);
 
-        SetVector<Block *> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+        SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                   block->getPredecessors().end());
         for (auto pred : prepred) {
           if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
             mlir::OpBuilder subbuilder(op.getOperation());
