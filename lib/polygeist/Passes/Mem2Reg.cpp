@@ -338,6 +338,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   if (captured) {
     AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
       bool opMayHaveEffect = false;
+      if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+        return;
       MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
       if (!interface)
         opMayHaveEffect = true;
@@ -351,7 +353,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           if (isa<MemoryEffects::Write>(effect.getEffect())) {
             if (effect.getValue() &&
                 (effect.getValue().getDefiningOp<memref::AllocaOp>() ||
-                 effect.getValue().getDefiningOp<memref::AllocOp>())) {
+                 effect.getValue().getDefiningOp<memref::AllocOp>() ||
+                 effect.getValue().getDefiningOp<LLVM::AllocaOp>())) {
               if (effect.getValue() != AI)
                 continue;
             }
@@ -528,7 +531,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               bool needsAfter = false;
               if (!lastVal) {
 
-                
                 bool needsDuring = false;
                 // If the preload could be useful here, do it.
                 ifOp->walk([&](Operation *a) {
@@ -587,41 +589,57 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
               if (thenVal == elseVal && thenVal != nullptr) {
                 lastVal = thenVal;
+                if (newLoad) {
+                  a->getParentOfType<FuncOp>().dump();
+                  llvm::errs() << " storing op:\n";
+                  for (auto o : StoringOperations)
+                    o->dump();
+                  llvm::errs() << " ifOp:\n";
+                  a->dump();
+                  llvm::errs() << "AI: " << AI << "\n";
+                }
                 assert(!newLoad);
                 continue;
               }
-                    
+
               // If added load was not used and not able to result
               // in a simplification for the if statement, delete it.
-              if (newLoad && newLoad->getResult(0).use_empty() && !needsAfter && (thenVal == newLoad->getResult(0) || elseVal == newLoad->getResult(0))) {
-                      loadOps.insert(newLoad);
-                      newLoad->erase();
-                      for (auto &pair : lastStoreInBlock) {
-                        if (pair.second == newLoad->getResult(0))
-                          pair.second = nullptr;
-                      }
-                      SmallVector<Block *> toErase;
-                      for (auto &pair : valueAtStartOfBlock) {
-                        if (pair.second == newLoad->getResult(0))
-                          toErase.push_back(pair.first);
-                      }
-                      for (auto blk : toErase)
-                        valueAtStartOfBlock.erase(blk);
-                    continue;
+              if (newLoad && newLoad->getResult(0).use_empty() && !needsAfter &&
+                  (thenVal == newLoad->getResult(0) ||
+                   elseVal == newLoad->getResult(0))) {
+                loadOps.insert(newLoad);
+                newLoad->erase();
+                for (auto &pair : lastStoreInBlock) {
+                  if (pair.second == newLoad->getResult(0))
+                    pair.second = nullptr;
                 }
+                SmallVector<Block *> toErase;
+                for (auto &pair : valueAtStartOfBlock) {
+                  if (pair.second == newLoad->getResult(0))
+                    toErase.push_back(pair.first);
+                }
+                for (auto blk : toErase)
+                  valueAtStartOfBlock.erase(blk);
+                lastVal = nullptr;
+                seenSubStore = true;
+                continue;
+              }
 
               if (thenVal != nullptr && elseVal != nullptr) {
                 if (ifOp.getElseRegion().getBlocks().size()) {
+                  bool found = false;
                   for (auto tup : llvm::reverse(llvm::zip(
                            ifOp.getResults(), ifOp.thenYield().getOperands(),
                            ifOp.elseYield().getOperands()))) {
                     if (std::get<1>(tup) == thenVal &&
                         std::get<2>(tup) == elseVal) {
                       lastVal = std::get<0>(tup);
-                
-                      continue;
+                      found = true;
+                      break;
                     }
                   }
+                  if (found)
+                    continue;
                 }
                 OpBuilder B(ifOp.getContext());
                 B.setInsertionPoint(ifOp);
@@ -669,24 +687,24 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 StoringOperations.insert(nextIf);
                 ifOp.erase();
                 if (newLoad) {
-                    // If added load was not used and not able to result
-                    // in a simplification for the if statement, delete it.
-                    if (newLoad->getResult(0).use_empty()) {
-                      loadOps.insert(newLoad);
-                      newLoad->erase();
-                      for (auto &pair : lastStoreInBlock) {
-                        if (pair.second == newLoad->getResult(0))
-                          pair.second = nullptr;
-                      }
-                      SmallVector<Block *> toErase;
-                      for (auto &pair : valueAtStartOfBlock) {
-                        if (pair.second == newLoad->getResult(0))
-                          toErase.push_back(pair.first);
-                      }
-                      for (auto blk : toErase)
-                        valueAtStartOfBlock.erase(blk);
+                  // If added load was not used and not able to result
+                  // in a simplification for the if statement, delete it.
+                  if (newLoad->getResult(0).use_empty()) {
+                    loadOps.insert(newLoad);
+                    newLoad->erase();
+                    for (auto &pair : lastStoreInBlock) {
+                      if (pair.second == newLoad->getResult(0))
+                        pair.second = nullptr;
                     }
+                    SmallVector<Block *> toErase;
+                    for (auto &pair : valueAtStartOfBlock) {
+                      if (pair.second == newLoad->getResult(0))
+                        toErase.push_back(pair.first);
+                    }
+                    for (auto blk : toErase)
+                      valueAtStartOfBlock.erase(blk);
                   }
+                }
                 continue;
               } else if (newLoad) {
                 // If added load was not used and not able to result
@@ -711,102 +729,40 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             lastVal = nullptr;
             seenSubStore = true;
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
-          } else if (auto loadOp = dyn_cast<memref::LoadOp>(a)) {
-            if (loadOps.count(loadOp)) {
-              if (lastVal) {
-                changed = true;
-                if (loadOp.getType() != lastVal.getType()) {
-                  llvm::errs()
-                      << AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-                  llvm::errs() << loadOp << " - " << lastVal << "\n";
-                  llvm::errs() << loadOp.getType() << " - " << lastVal.getType()
-                               << " :: " << loadOp.getLoc() << " - "
-                               << lastVal.getLoc() << "\n";
-                }
-                assert(loadOp.getType() == lastVal.getType() &&
-                       "mismatched load type");
-                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                        << lastVal << "\n");
-                loadOp.replaceAllUsesWith(lastVal);
-                for (auto &pair : lastStoreInBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                for (auto &pair : valueAtStartOfBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                // Record this to erase later.
-                loadOpsToErase.push_back(loadOp);
-                loadOps.erase(loadOp);
-              } else if (seenSubStore) {
-                // llvm::errs() << "no lastval found for: " << loadOp << "\n";
-                loadOps.erase(loadOp);
-                lastVal = loadOp;
-              } else {
-                lastVal = loadOp;
+          } else if (loadOps.count(a)) {
+            Value loadOp = a->getResult(0);
+            if (lastVal) {
+              changed = true;
+              if (loadOp.getType() != lastVal.getType()) {
+                llvm::errs()
+                    << AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
+                llvm::errs() << loadOp << " - " << lastVal << "\n";
+                llvm::errs() << loadOp.getType() << " - " << lastVal.getType()
+                             << " :: " << loadOp.getLoc() << " - "
+                             << lastVal.getLoc() << "\n";
               }
-            }
-          } else if (auto loadOp = dyn_cast<LLVM::LoadOp>(a)) {
-            if (loadOps.count(loadOp)) {
-              if (lastVal) {
-                changed = true;
-                if (loadOp.getType() != lastVal.getType()) {
-                  llvm::errs() << loadOp << " - " << lastVal << "\n";
-                }
-                assert(loadOp.getType() == lastVal.getType() &&
-                       "mismatched load type");
-                loadOp.replaceAllUsesWith(lastVal);
-                for (auto &pair : lastStoreInBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                for (auto &pair : valueAtStartOfBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                // Record this to erase later.
-                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                        << lastVal << "\n");
-                loadOpsToErase.push_back(loadOp);
-                loadOps.erase(loadOp);
-              } else if (seenSubStore) {
-                loadOps.erase(loadOp);
-                lastVal = loadOp;
-              } else {
-                lastVal = loadOp;
+              assert(loadOp.getType() == lastVal.getType() &&
+                     "mismatched load type");
+              LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
+                                      << lastVal << "\n");
+              loadOp.replaceAllUsesWith(lastVal);
+              for (auto &pair : lastStoreInBlock) {
+                if (pair.second == loadOp)
+                  pair.second = lastVal;
               }
-            }
-          } else if (auto loadOp = dyn_cast<AffineLoadOp>(a)) {
-            if (loadOps.count(loadOp)) {
-              if (lastVal) {
-                changed = true;
-                if (loadOp.getType() != lastVal.getType()) {
-                  llvm::errs() << loadOp << " - " << lastVal << "\n";
-                }
-                assert(loadOp.getType() == lastVal.getType() &&
-                       "mismatched load type");
-                LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                        << lastVal << "\n");
-                loadOp.replaceAllUsesWith(lastVal);
-                for (auto &pair : lastStoreInBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                for (auto &pair : valueAtStartOfBlock) {
-                  if (pair.second == loadOp)
-                    pair.second = lastVal;
-                }
-                // Record this to erase later.
-                loadOpsToErase.push_back(loadOp);
-                loadOps.erase(loadOp);
-              } else if (seenSubStore) {
-                // llvm::errs() << "no lastval found for: " << loadOp << "\n";
-                loadOps.erase(loadOp);
-                lastVal = loadOp;
-              } else {
-                lastVal = loadOp;
+              for (auto &pair : valueAtStartOfBlock) {
+                if (pair.second == loadOp)
+                  pair.second = lastVal;
               }
+              // Record this to erase later.
+              loadOpsToErase.push_back(a);
+              loadOps.erase(a);
+            } else if (seenSubStore) {
+              // llvm::errs() << "no lastval found for: " << loadOp << "\n";
+              loadOps.erase(a);
+              lastVal = loadOp;
+            } else {
+              lastVal = loadOp;
             }
           } else if (auto storeOp = dyn_cast<memref::StoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
@@ -826,8 +782,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           } else {
             // since not storing operation the value at the start and end of
             // block is lastVal
-            a->walk([&](memref::LoadOp loadOp) {
-              if (loadOps.count(loadOp)) {
+            a->walk([&](Operation *op) {
+              if (loadOps.count(op)) {
+                mlir::Value loadOp = op->getResult(0);
                 if (lastVal) {
                   changed = true;
                   if (loadOp.getType() != lastVal.getType()) {
@@ -847,66 +804,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                       pair.second = lastVal;
                   }
                   // Record this to erase later.
-                  loadOpsToErase.push_back(loadOp);
-                  loadOps.erase(loadOp);
+                  loadOpsToErase.push_back(op);
+                  loadOps.erase(op);
                 } else if (seenSubStore) {
-                  loadOps.erase(loadOp);
-                }
-              }
-            });
-            a->walk([&](LLVM::LoadOp loadOp) {
-              if (loadOps.count(loadOp)) {
-                if (lastVal) {
-                  changed = true;
-                  if (loadOp.getType() != lastVal.getType()) {
-                    llvm::errs() << loadOp << " - " << lastVal << "\n";
-                  }
-                  assert(loadOp.getType() == lastVal.getType() &&
-                         "mismatched load type");
-                  loadOp.replaceAllUsesWith(lastVal);
-                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                          << lastVal << "\n");
-                  for (auto &pair : lastStoreInBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  for (auto &pair : valueAtStartOfBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  // Record this to erase later.
-                  loadOpsToErase.push_back(loadOp);
-                  loadOps.erase(loadOp);
-                } else if (seenSubStore) {
-                  loadOps.erase(loadOp);
-                }
-              }
-            });
-            a->walk([&](AffineLoadOp loadOp) {
-              if (loadOps.count(loadOp)) {
-                if (lastVal) {
-                  changed = true;
-                  if (loadOp.getType() != lastVal.getType()) {
-                    llvm::errs() << loadOp << " - " << lastVal << "\n";
-                  }
-                  assert(loadOp.getType() == lastVal.getType() &&
-                         "mismatched load type");
-                  loadOp.replaceAllUsesWith(lastVal);
-                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                          << lastVal << "\n");
-                  for (auto &pair : lastStoreInBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  for (auto &pair : valueAtStartOfBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  // Record this to erase later.
-                  loadOpsToErase.push_back(loadOp);
-                  loadOps.erase(loadOp);
-                } else if (seenSubStore) {
-                  loadOps.erase(loadOp);
+                  loadOps.erase(op);
                 }
               }
             });

@@ -38,11 +38,10 @@ int solver(	float** y,
 // CHECK-NEXT:         %5 = arith.sitofp %arg1 : i32 to f32
 // CHECK-NEXT:         %6 = arith.cmpf ugt, %arg3, %arg2 : f32
 // CHECK-NEXT:         %7 = arith.xori %6, %true : i1
-// CHECK-NEXT:         %8 = arith.xori %6, %true : i1
 // CHECK-NEXT:         scf.if %7 {
 // CHECK-NEXT:           call @use(%5) : (f32) -> ()
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield %8 : i1
+// CHECK-NEXT:         scf.yield %7 : i1
 // CHECK-NEXT:       } else {
 // CHECK-NEXT:         scf.yield %false : i1
 // CHECK-NEXT:       }
