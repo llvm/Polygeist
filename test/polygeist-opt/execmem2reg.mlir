@@ -34,23 +34,23 @@ module  {
 // CHECK-NEXT:     %0 = memref.alloca() : memref<i32>
 // CHECK-NEXT:     %1 = llvm.mlir.undef : i32
 // CHECK-NEXT:     memref.store %1, %0[] : memref<i32>
-// CHECK-NEXT:     %2:2 = scf.if %arg1 -> (i32, i32) {
+// CHECK-NEXT:     %2 = scf.if %arg1 -> (i32) {
 // CHECK-NEXT:       memref.store %c-1_i32, %0[] : memref<i32>
 // CHECK-NEXT:       scf.execute_region {
 // CHECK-NEXT:         memref.store %c0_i32, %0[] : memref<i32>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:       %3 = memref.load %0[] : memref<i32>
-// CHECK-NEXT:       %4:2 = scf.if %arg2 -> (i32, i32) {
+// CHECK-NEXT:       %4 = scf.if %arg2 -> (i32) {
 // CHECK-NEXT:         memref.store %c5_i32, %0[] : memref<i32>
-// CHECK-NEXT:         scf.yield %c5_i32, %c5_i32 : i32, i32
+// CHECK-NEXT:         scf.yield %c5_i32 : i32
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %3, %3 : i32, i32
+// CHECK-NEXT:         scf.yield %3 : i32
 // CHECK-NEXT:       }
-// CHECK-NEXT:       llvm.call @print(%4#0) : (i32) -> ()
-// CHECK-NEXT:       scf.yield %4#0, %4#1 : i32, i32
+// CHECK-NEXT:       llvm.call @print(%4) : (i32) -> ()
+// CHECK-NEXT:       scf.yield %4 : i32
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %1, %1 : i32, i32
+// CHECK-NEXT:       scf.yield %1 : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
