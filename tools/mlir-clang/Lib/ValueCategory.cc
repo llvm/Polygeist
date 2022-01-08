@@ -249,7 +249,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
         builder.create<mlir::memref::StoreOp>(
             loc,
             builder.create<mlir::LLVM::LoadOp>(
-                loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, toStore.val, lidx)),
+                loc, builder.create<mlir::LLVM::GEPOp>(loc, elty, toStore.val,
+                                                       lidx)),
             val, idx);
       }
     } else
