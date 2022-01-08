@@ -528,6 +528,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
               if (!lastVal) {
 
                 bool needsAfter = false;
+                // If the preload could be useful here, do it.
+                ifOp->walk([&](Operation *a) {
+                        if (loadOps.count(a))
+                          needsAfter = true;
+                });
                 {
                   for (auto n = ifOp->getNextNode(); n != nullptr;
                        n = n->getNextNode()) {
@@ -929,7 +934,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   Analyzer A(Good, Bad, Other, {}, {});
   A.analyze();
-
+  
   SmallPtrSet<Block *, 4> blocksWithAddedArgs;
   for (auto block : A.Legal) {
     // llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
@@ -995,9 +1000,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
     assert(blockArg && blockArg.getOwner() == block);
 
-    SmallVector<Block *> prepred(block->getPredecessors().begin(),
+    SetVector<Block *> prepred(block->getPredecessors().begin(),
                                  block->getPredecessors().end());
-
     for (auto pred : prepred) {
       assert(pred && "Null predecessor");
       mlir::Value pval = lastStoreInBlock[pred];
@@ -1083,7 +1087,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
       mlir::Value val = nullptr;
       bool legal = true;
-      for (auto pred : block->getPredecessors()) {
+
+      SetVector<Block *> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+      for (auto pred : prepred) {
         mlir::Value pval = nullptr;
 
         if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
@@ -1235,11 +1241,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         }
         valueAtStartOfBlock.erase(block);
 
-        SmallVector<Block *, 4> preds;
-        for (auto pred : block->getPredecessors()) {
-          preds.push_back(pred);
-        }
-        for (auto pred : preds) {
+        SetVector<Block *> prepred(block->getPredecessors().begin(), block->getPredecessors().end());
+        for (auto pred : prepred) {
           if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
             mlir::OpBuilder subbuilder(op.getOperation());
             std::vector<Value> args(op.getOperands().begin(),
@@ -1277,8 +1280,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             SmallVector<SmallVector<Value>> cases;
             SmallVector<ValueRange> vrange;
             for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
-              cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
-                                 op.getCaseOperands(pair.index()).end());
+              cases.emplace_back(op.getCaseOperands(pair.index()));
               if (pair.value() == block) {
                 cases.back().erase(cases.back().begin() +
                                    blockArg.getArgNumber());

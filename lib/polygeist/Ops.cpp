@@ -1007,8 +1007,11 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
       for (OpOperand &use :
            llvm::make_early_inc_range(std::get<0>(it).getUses()))
         if (nextIf.getThenRegion().isAncestor(
-                use.getOwner()->getParentRegion()))
+                use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
           use.set(std::get<1>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        }
     }
     rewriter.finalizeRootUpdate(nextIf);
     return success();
@@ -1043,11 +1046,16 @@ struct CombineIfs : public OpRewritePattern<scf::IfOp> {
       for (OpOperand &use :
            llvm::make_early_inc_range(std::get<0>(it).getUses())) {
         if (nextIf.getThenRegion().isAncestor(
-                use.getOwner()->getParentRegion()))
+                use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
           use.set(std::get<1>(it));
-        else if (nextIf.getElseRegion().isAncestor(
-                     use.getOwner()->getParentRegion()))
+          rewriter.finalizeRootUpdate(use.getOwner());
+        } else if (nextIf.getElseRegion().isAncestor(
+                     use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
           use.set(std::get<2>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        }
       }
     //* End Changed*//
 

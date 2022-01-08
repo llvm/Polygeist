@@ -50,7 +50,7 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     %2 = call @_ZNK15MTensorIterator11input_dtypeEv(%arg0) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
 // CHECK-NEXT:     %3 = arith.cmpi ne, %2, %c0_i8 : i8
 // CHECK-NEXT:     scf.if %3 {
-// CHECK-NEXT:       %4 = llvm.getelementptr %1[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:       %4 = llvm.getelementptr %1[%c0_i32, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:       llvm.store %arg0, %4 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:       %5 = llvm.load %1 : !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
 // CHECK-NEXT:       llvm.store %5, %0 : !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>
@@ -70,7 +70,7 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:     %2 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK-NEXT:     %2 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
 // CHECK-NEXT:     %4 = llvm.load %1 : !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     llvm.store %4, %0 : !llvm.ptr<struct<(i8)>>

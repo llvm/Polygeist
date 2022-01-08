@@ -28,7 +28,7 @@ void kern() {
 // CHECK:   func @_ZN11AIntDividerC1Ev(%arg0: !llvm.ptr<struct<(i32, f64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(i32, f64)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<struct<(i32, f64)>>, i32) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %c3_i32, %0 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

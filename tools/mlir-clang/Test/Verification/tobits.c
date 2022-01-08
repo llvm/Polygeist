@@ -13,7 +13,7 @@ float fp32_from_bits(uint32_t w) {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i32)> : (i64) -> !llvm.ptr<struct<(i32)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32, %c0_i32] : (!llvm.ptr<struct<(i32)>>, i32, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[%c0_i32, 0] : (!llvm.ptr<struct<(i32)>>, i32) -> !llvm.ptr<i32>
 // CHECK-NEXT:     llvm.store %arg0, %1 : !llvm.ptr<i32>
 // CHECK-NEXT:     %2 = llvm.bitcast %1 : !llvm.ptr<i32> to !llvm.ptr<f32>
 // CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<f32>
