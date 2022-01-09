@@ -13,7 +13,7 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
-
+#include <iostream>
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -26,6 +26,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "mlir/Support/LLVM.h"
 #include <algorithm>
 #include <deque>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
@@ -123,6 +124,386 @@ bool matchesIndices(ArrayRef<AffineExpr> ops, const std::vector<ssize_t> &idx) {
   return true;
 }
 
+class ValueOrPlaceholder;
+
+static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                            ValueOrPlaceholder& PH);
+
+using BlockMap = std::map<Block*, std::shared_ptr<ValueOrPlaceholder>>;
+
+class ValueOrPlaceholder {
+	Type elType;
+  	std::map<Block*, BlockArgument>& blocksWithAddedArgs;
+  	BlockMap &valueAtEndOfBlock;
+  	BlockMap &valueAtStartOfBlock;
+  public:
+    bool overwritten;
+	Value val;
+	Block *valueAtStart;
+	scf::ExecuteRegionOp exOp;
+	scf::IfOp ifOp;
+	std::shared_ptr<ValueOrPlaceholder> ifLastValue;
+	ValueOrPlaceholder(ValueOrPlaceholder&&) = delete;
+	ValueOrPlaceholder(const ValueOrPlaceholder&) = delete;
+	/*
+	ValueOrPlaceholder& operator=(std::nullptr_t) {
+		this->overwritten = true;
+		this->val = nullptr;
+		this->valueAtStart = nullptr;
+		this->exOp = nullptr;
+		this->ifOp = nullptr;
+		this->ifLastValue = nullptr;
+		return *this;
+	}
+	ValueOrPlaceholder& operator=(Value v) {
+		assert(v);
+		this->overwritten = false;
+		this->val = v;
+		this->valueAtStart = nullptr;
+		this->exOp = nullptr;
+		this->ifOp = nullptr;
+		this->ifLastValue = nullptr;
+		return *this;
+	}
+	*/
+	/*
+	ValueOrPlaceholder& operator=(const ValueOrPlaceholder& rhs) {
+		this->overwritten = rhs.overwritten;
+		this->val = rhs.val;
+		this->valueAtStart = rhs.valueAtStart;
+		this->exOp = rhs.exOp;
+		this->ifOp = rhs.ifOp;
+		this->ifLastValue = rhs.ifLastValue;
+		return *this;
+	}
+	*/
+	ValueOrPlaceholder(nullptr_t, Type elType, std::map<Block*, BlockArgument>& blocksWithAddedArgs, BlockMap &valueAtEndOfBlock, BlockMap &valueAtStartOfBlock) : 
+		elType(elType),
+		blocksWithAddedArgs(blocksWithAddedArgs),
+		valueAtEndOfBlock(valueAtEndOfBlock),
+		valueAtStartOfBlock(valueAtStartOfBlock),
+		overwritten(true), val(nullptr), valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr), ifLastValue() {
+	}
+	ValueOrPlaceholder(Value val, Type elType, std::map<Block*, BlockArgument>& blocksWithAddedArgs, BlockMap &valueAtEndOfBlock, BlockMap &valueAtStartOfBlock) : 
+		elType(elType),
+		blocksWithAddedArgs(blocksWithAddedArgs),
+		valueAtEndOfBlock(valueAtEndOfBlock),
+		valueAtStartOfBlock(valueAtStartOfBlock),
+		overwritten(false), val(val), valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr), ifLastValue() {
+		assert(val);
+	}
+	ValueOrPlaceholder(Block* valueAtStart, Type elType, std::map<Block*, BlockArgument>& blocksWithAddedArgs, BlockMap &valueAtEndOfBlock, BlockMap &valueAtStartOfBlock) : 
+		elType(elType),
+		blocksWithAddedArgs(blocksWithAddedArgs),
+		valueAtEndOfBlock(valueAtEndOfBlock),
+		valueAtStartOfBlock(valueAtStartOfBlock),
+		overwritten(false), val(nullptr), valueAtStart(valueAtStart), exOp(nullptr), ifOp(nullptr), ifLastValue() {
+		assert(valueAtStart);
+	}
+	ValueOrPlaceholder(scf::ExecuteRegionOp exOp, Type elType, std::map<Block*, BlockArgument>& blocksWithAddedArgs, BlockMap &valueAtEndOfBlock, BlockMap &valueAtStartOfBlock) : 
+		elType(elType),
+		blocksWithAddedArgs(blocksWithAddedArgs),
+		valueAtEndOfBlock(valueAtEndOfBlock),
+		valueAtStartOfBlock(valueAtStartOfBlock),
+		overwritten(false), val(nullptr), valueAtStart(nullptr), exOp(exOp), ifOp(nullptr), ifLastValue() {
+		assert(exOp);
+	}
+	ValueOrPlaceholder(scf::IfOp ifOp, std::shared_ptr<ValueOrPlaceholder> ifLastVal, Type elType, std::map<Block*, BlockArgument>& blocksWithAddedArgs, BlockMap &valueAtEndOfBlock, BlockMap&valueAtStartOfBlock) : 
+		elType(elType),
+		blocksWithAddedArgs(blocksWithAddedArgs),
+		valueAtEndOfBlock(valueAtEndOfBlock),
+		valueAtStartOfBlock(valueAtStartOfBlock),
+		overwritten(false), val(nullptr), valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp), ifLastValue(ifLastVal) {
+		assert(ifOp);
+	}
+    // Return true if this represents a full expression if the arg "block" is defined
+    // If Block is null, return only if it is defined without any argument.
+    bool definedWithArg(Block* block) {
+		if (val) return true;
+		if (overwritten) return false;
+		if (valueAtStart) {
+            if (valueAtStart == block) return true;
+			auto found = valueAtStartOfBlock.find(valueAtStart);
+			if (found != valueAtStartOfBlock.end()) {
+                if (found->second->valueAtStart != valueAtStart)
+                    return found->second->definedWithArg(block);
+			}
+			return false;
+		}
+		if (ifOp) {
+			auto thenFind = valueAtEndOfBlock.find(ifOp.thenBlock());
+			assert(thenFind != valueAtEndOfBlock.end());
+            assert(thenFind->second);
+			if (!thenFind->second->definedWithArg(block)) return false;
+			
+			if (ifOp.getElseRegion().getBlocks().size()) {
+				auto elseFind = valueAtEndOfBlock.find(ifOp.thenBlock());
+				assert(elseFind != valueAtEndOfBlock.end());
+                assert(elseFind->second);
+				if (!elseFind->second->definedWithArg(block)) return false;
+			} else {
+				if (!ifLastValue->definedWithArg(block)) return false;
+			}
+			return true;
+		}
+		if (exOp) {
+			for (auto &B : exOp.getRegion()) {
+				if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+					auto found = valueAtEndOfBlock.find(&B);
+					assert(found != valueAtEndOfBlock.end());
+                    assert(found->second);
+					if (!found->second->definedWithArg(block)) return false;
+				}
+			}
+			return true;
+		}
+		assert(0 && "unhandled");
+	}
+	Value materialize(bool full=true) {
+		if (overwritten) return nullptr;
+		if (val) return val;
+		if (valueAtStart) {
+			auto found = valueAtStartOfBlock.find(valueAtStart);
+			if (found != valueAtStartOfBlock.end()) {
+				if (found->second->valueAtStart != valueAtStart)
+					return found->second->materialize(full);
+				//valueAtStart = nullptr;
+				//return this->val = found->second;
+			}
+			//auto found2 = blocksWithAddedArgs.find(valueAtStart);
+			//if (found2 != blocksWithAddedArgs.end())
+			//	return found2->second;//->materialize();
+			if (!full) return nullptr;
+			llvm::errs() << " could not get valueAtStart: " << valueAtStart << "; ";
+			if (found != valueAtStartOfBlock.end()) {
+                llvm::errs() << " map vas: " << *found->second << "\n";
+            } else {
+                llvm::errs() << " no map\n";
+            }
+			Block* blk = valueAtStart;
+			blk->dump();
+    		assert(0 && "no null");
+		}
+		if (exOp) return materializeEx(full);
+		if (ifOp) return materializeIf(full);
+		assert(0 && "");
+	}
+
+	Value materializeEx(bool full=true) {
+		assert(exOp);
+                
+		SmallVector<scf::YieldOp> yields;
+		SmallVector<Value>        values;
+		std::set<size_t> equivalent;
+		for(size_t i=0, num=exOp.getNumResults(); i<num; i++)
+			equivalent.insert(i);
+		for (auto &B : exOp.getRegion()) {
+			if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+				auto found = valueAtEndOfBlock.find(&B);
+				assert(found != valueAtEndOfBlock.end());
+                assert(found->second);
+				Value post = found->second->materialize(full);
+				if (found->second->overwritten) {
+					this->overwritten = true;
+					this->exOp = nullptr;
+					return nullptr;
+				}
+				if (!post) {
+					if (full) {
+						this->overwritten = true;
+						this->exOp = nullptr;
+					}
+					return nullptr;
+				}
+				yields.push_back(yield);
+				values.push_back(post);
+				for(auto pair : llvm::enumerate(yield.getOperands()))
+					if (pair.value() != post)
+						equivalent.erase(pair.index());
+			}
+		}
+
+		// Must contain only region invariant results.
+		bool allSame = true;
+		for (auto v : values)
+			allSame &= v == values[0];
+
+		// If all all paths are the same, and the value is not defined within the 
+		// execute region, simply return that single value, rather than creating a new return.
+		if (allSame) {
+			if (values[0].getDefiningOp() && !exOp->isAncestor(values[0].getDefiningOp())) {
+				this->exOp = nullptr;
+				return this->val = values[0];
+			}
+			if (auto ba = values[0].dyn_cast<BlockArgument>())
+				if (!exOp->isAncestor(ba.getOwner()->getParentOp())) {
+					this->exOp = nullptr;
+					return this->val = values[0];
+				}
+		}
+		// If there's an equivalent return, don't create a new return and instead use that result.
+		if (equivalent.size() > 0) {
+			this->val = exOp.getResult(*equivalent.begin());
+			this->exOp = nullptr;
+			return this->val;
+		}
+
+		OpBuilder B(exOp.getContext());
+		B.setInsertionPoint(exOp);
+		SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
+									   exOp.getResultTypes().end());
+		tys.push_back(elType);
+		auto nextEx = B.create<mlir::scf::ExecuteRegionOp>(
+			exOp.getLoc(), tys);
+
+		nextEx.getRegion().takeBody(exOp.getRegion());
+		for (auto pair : llvm::zip(yields, values)) {
+		  SmallVector<Value, 4> vals = std::get<0>(pair).getOperands();
+		  vals.push_back(std::get<1>(pair));
+		  std::get<0>(pair)->setOperands(vals);
+		}
+		
+		SmallVector<mlir::Value, 3> resvals = nextEx.getResults();
+		this->val = resvals.back();
+		resvals.pop_back();
+		exOp.replaceAllUsesWith(resvals);
+		//StoringOperations.erase(exOp);
+		//StoringOperations.insert(nextEx);
+		exOp.erase();
+		this->exOp = nullptr;
+		return this->val;
+	}
+	Value materializeIf(bool full=true) {
+		auto thenFind = valueAtEndOfBlock.find(ifOp.thenBlock());
+		assert(thenFind != valueAtEndOfBlock.end());
+		assert(thenFind->second);
+		Value thenVal = thenFind->second->materialize(full);
+		if (thenFind->second->overwritten) {
+				this->overwritten = true;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+				return nullptr;
+		}
+		if (!thenVal) {
+			if (full) {
+				this->overwritten = true;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+			}
+			return nullptr;
+		}
+        Value elseVal;
+
+        if (ifOp.getElseRegion().getBlocks().size()) {
+			auto elseFind = valueAtEndOfBlock.find(ifOp.thenBlock());
+			assert(elseFind != valueAtEndOfBlock.end());
+            assert(elseFind->second);
+			elseVal = elseFind->second->materialize(full);
+			if (elseFind->second->overwritten) {
+				this->overwritten = true;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+				return nullptr;
+			}
+        } else {
+ 			elseVal = ifLastValue->materialize(full);
+			if (ifLastValue->overwritten) {
+				this->overwritten = true;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+				return nullptr;
+			}
+		}
+		
+		if (!elseVal) {
+			if (full) {
+				this->overwritten = true;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+			}
+			return nullptr;
+		}
+              
+              if (thenVal == elseVal) {
+				this->overwritten = false;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+                return this->val = thenVal;
+              }
+
+                if (ifOp.getElseRegion().getBlocks().size()) {
+                  for (auto tup : llvm::reverse(llvm::zip(
+                           ifOp.getResults(), ifOp.thenYield().getOperands(),
+                           ifOp.elseYield().getOperands()))) {
+                    if (std::get<1>(tup) == thenVal &&
+                        std::get<2>(tup) == elseVal) {
+				this->overwritten = false;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+                return this->val = thenVal;
+                    }
+                  }
+                }
+
+                OpBuilder B(ifOp.getContext());
+                B.setInsertionPoint(ifOp);
+                SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
+                                               ifOp.getResultTypes().end());
+                tys.push_back(thenVal.getType());
+                auto nextIf = B.create<mlir::scf::IfOp>(
+                    ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
+
+                SmallVector<mlir::Value, 4> thenVals = ifOp.thenYield().getResults();
+                thenVals.push_back(thenVal);
+                nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
+				nextIf.thenYield()->setOperands(thenVals);
+
+                if (ifOp.getElseRegion().getBlocks().size()) {
+                  nextIf.getElseRegion().getBlocks().clear();
+                  SmallVector<mlir::Value, 4> elseVals =
+					ifOp.elseYield().getResults();
+                  elseVals.push_back(elseVal);
+                  nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
+                  nextIf.elseYield()->setOperands(elseVals);
+                } else {
+                  B.setInsertionPoint(&nextIf.getElseRegion().back(),
+                                      nextIf.getElseRegion().back().begin());
+                  SmallVector<mlir::Value, 4> elseVals = {elseVal};
+                  B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
+                }
+
+                SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
+                this->val = resvals.back();
+                resvals.pop_back();
+                ifOp.replaceAllUsesWith(resvals);
+
+                //StoringOperations.erase(ifOp);
+                //StoringOperations.insert(nextIf);
+                ifOp.erase();
+				this->overwritten = false;
+				this->ifLastValue = nullptr;
+				this->ifOp = nullptr;
+                return this->val;
+	}
+};
+static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
+                                            ValueOrPlaceholder& PH) {
+  if (PH.overwritten)
+	return os << "<overwritten>";
+  if (PH.val)
+	return os << PH.val;
+  if (PH.valueAtStart) {
+	PH.valueAtStart->print(os);
+	return os;;
+	}
+  if (PH.ifOp)
+	return os << PH.ifOp << " -<lastVal:" << *PH.ifLastValue << ">";
+  if (PH.exOp)
+	return os << PH.exOp;
+  return os;
+}
+
+
 struct Analyzer {
 
   const std::set<Block *> &Good;
@@ -146,7 +527,6 @@ struct Analyzer {
         todo.pop_front();
         if (Legal.count(block) || Illegal.count(block))
           continue;
-
         bool currentlyLegal = !block->hasNoPredecessors();
         for (auto pred : block->getPredecessors()) {
           if (Bad.count(pred)) {
@@ -216,6 +596,28 @@ struct Analyzer {
     }
   }
 };
+			  /*
+			  Operation* newLoad = nullptr;
+              if (lastVal == nullptr && lastValIsStartOfBlock) {
+                OpBuilder B(exOp.getContext());
+                B.setInsertionPoint(exOp);
+                SmallVector<mlir::Value, 4> nidx;
+                for (auto i : idx) {
+                  nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
+                }
+                if (AI.getType().isa<MemRefType>()) {
+				  SmallVector<AffineExpr> exprs;
+				  for (auto i : idx)
+					exprs.push_back(B.getAffineConstantExpr(i));
+                  AffineMap m = AffineMap::get(0, 0, exprs, B.getContext());
+				  newLoad = B.create<AffineLoadOp>(exOp.getLoc(), AI, m, ValueRange());
+                } else
+                  newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
+			    lastVal = newLoad->getResult(0);
+				lastValIsStartOfBlock = false;
+				newLoads.insert(newLoad);
+              }
+			  */
 
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
@@ -443,361 +845,154 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     }
   }
 
+  Type elType;
+  if (auto MT = AI.getType().dyn_cast<MemRefType>())
+    elType = MT.getElementType();
+  else
+    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
 
   // Last value stored in an individual block and the operation which stored it
-  std::map<mlir::Block *, mlir::Value> lastStoreInBlock;
+  BlockMap valueAtEndOfBlock;
 
   // Last value stored in an individual block and the operation which stored it
-  std::map<mlir::Block *, mlir::Value> valueAtStartOfBlock;
+  BlockMap valueAtStartOfBlock;
 
-  // Start by setting lastStoreInBlock to the last store directly in that block
+  std::map<Block*, BlockArgument> blocksWithAddedArgs;
+
+  SmallVector<std::pair<Value, std::shared_ptr<ValueOrPlaceholder>>> replaceableValues;
+
+  DenseMap<Value, std::shared_ptr<ValueOrPlaceholder>> metaMap;
+  auto getValue = [&](Value orig) {
+	assert(orig);
+	auto found = metaMap.find(orig);
+	if (found != metaMap.end()) return found->second;
+	return metaMap.try_emplace(orig, std::make_shared<ValueOrPlaceholder>(orig, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock)).first->second;
+  };
+  auto emptyValue = std::make_shared<ValueOrPlaceholder>(nullptr, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock); 
+
+  auto replaceValue = [&](Value orig, std::shared_ptr<ValueOrPlaceholder> replacement) -> std::shared_ptr<ValueOrPlaceholder> {
+    assert(replacement);
+	replacement->materialize(/*full*/false);
+    assert(orig.getType() == elType);
+	if (replacement->overwritten) {
+        loadOps.erase(orig.getDefiningOp()); 
+		return getValue(orig);
+	} else if (replacement->val) {
+	  changed = true;
+	  assert(orig != replacement->val);
+      assert(replacement->val.getType() == elType);
+      assert(orig.getType() == replacement->val.getType() &&
+             "mismatched load type");
+      LLVM_DEBUG(llvm::dbgs() << " replaced " << orig << " with "
+                              << replacement->val << "\n");
+      orig.replaceAllUsesWith(replacement->val);
+
+	  // This doesn't replace all things.
+	  if (metaMap.find(orig) != metaMap.end()) {
+		metaMap.find(orig)->second->val = replacement->val;
+		metaMap.erase(orig);
+      } else {
+	  }
+      // Record this to erase later.
+      loadOpsToErase.push_back(orig.getDefiningOp());
+      loadOps.erase(orig.getDefiningOp());
+      return replacement;
+    } else {
+      assert(replacement);
+	  replaceableValues.push_back(std::pair<Value,std::shared_ptr<ValueOrPlaceholder>>(orig, replacement));
+      assert(replaceableValues.back().second);
+      return getValue(orig);
+    }
+  };
+
+  // Start by setting valueAtEndOfBlock to the last store directly in that block
   // Note that this may miss a store within a region of an operation in that
   // block
   // endRequires denotes whether this value is needed at the end of the block
   // (yield)
-  std::function<mlir::Value(Block &, mlir::Value, bool endRequires)>
-      handleBlock = [&](Block &block, mlir::Value lastVal, bool endRequires) {
-        bool seenSubStore = false;
+  std::function<void(Block &, std::shared_ptr<ValueOrPlaceholder>)>
+      handleBlock = [&](Block &block, std::shared_ptr<ValueOrPlaceholder> lastVal) {
+        valueAtStartOfBlock.emplace(&block, lastVal);
         SmallVector<Operation *, 10> ops;
         for (auto &a : block) {
           ops.push_back(&a);
         }
-        LLVM_DEBUG(llvm::dbgs() << "\nstarting block: endRequires=" << (int) endRequires << "\n";
-                   block.print(llvm::dbgs()); llvm::dbgs() << " with ";
-                   if (lastVal) llvm::dbgs() << lastVal << "\n";
-                   else llvm::dbgs() << " null\n";);
+        LLVM_DEBUG(llvm::dbgs() << "\nstarting block: lastVal="<< *lastVal << "\n";
+                   block.print(llvm::dbgs()); llvm::dbgs() << "\n";
+                   );
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
-              valueAtStartOfBlock[&*exOp.getRegion().begin()] = lastVal;
-              Value thenVal; // = handleBlock(exOp.region().front(), lastVal);
-              lastVal = nullptr;
-              seenSubStore = true;
-              LLVM_DEBUG(llvm::dbgs()
-                             << " zeroing val due to " << exOp << "\n";);
-              
-              if (ContainsLoadingOperation.contains(&exOp.getRegion())) {
-                SmallPtrSet<Value,2> endVals;
-                for (auto &B : exOp.getRegion()) {
-                    Value post = handleBlock(B, (&B == &exOp.getRegion().front()) ? lastVal : nullptr , /*endRequires*/ false);
-                    if (isa<scf::YieldOp>(B.getTerminator()))
-                        endVals.insert(post);
-                }
-                // Must contain only region invariant results.
-                if (false && endVals.size() == 1) {
-                    lastVal = *endVals.begin();
-                }
-              }
+			  for (auto &B : exOp.getRegion())
+				handleBlock(B, (&B == &exOp.getRegion().front()) ? lastVal : std::make_shared<ValueOrPlaceholder>(&B, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock));
+			  lastVal = std::make_shared<ValueOrPlaceholder>(exOp, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock);
               continue;
-
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
-              Operation *newLoad = nullptr;
-              bool needsAfter = false;
-              if (!lastVal) {
-
-                bool needsDuring = false;
-                // If the preload could be useful here, do it.
-                ifOp->walk([&](Operation *a) {
-                  if (loadOps.count(a))
-                    needsDuring = true;
-                });
-                {
-                  for (auto n = ifOp->getNextNode(); n != nullptr;
-                       n = n->getNextNode()) {
-                    if (loadOps.count(n))
-                      needsAfter = true;
-                    else if (StoringOperations.count(n))
-                      break;
-                    else if (dyn_cast<scf::YieldOp>(n) && endRequires)
-                      needsAfter = true;
-                    else
-                      n->walk([&](Operation *a) {
-                        if (loadOps.count(a))
-                          needsAfter = true;
-                      });
-                  }
-                }
-                if (!needsAfter && !needsDuring) {
-                  lastVal = nullptr;
-                  seenSubStore = true;
-                  continue;
-                }
-
-                OpBuilder B(ifOp.getContext());
-                B.setInsertionPoint(ifOp);
-                SmallVector<mlir::Value, 4> nidx;
-                for (auto i : idx) {
-                  nidx.push_back(B.create<ConstantIndexOp>(ifOp.getLoc(), i));
-                }
-                if (AI.getType().isa<MemRefType>())
-                  newLoad = B.create<memref::LoadOp>(ifOp.getLoc(), AI, nidx);
-                else
-                  newLoad = B.create<LLVM::LoadOp>(ifOp.getLoc(), AI);
-
-
-                LLVM_DEBUG(llvm::dbgs() << " needsAfter: " << (int)needsAfter << " needsDuring: " << (int)needsDuring << " subStore: " << seenSubStore << " - new load: " << *newLoad << "\n");
-
-                if (!seenSubStore)
-                  loadOps.insert(newLoad);
-                lastVal = newLoad->getResult(0);
+			  handleBlock(*ifOp.getThenRegion().begin(), lastVal);
+			  if (ifOp.getElseRegion().getBlocks().size()) {
+                handleBlock(*ifOp.getElseRegion().begin(), lastVal);
               }
-
-              valueAtStartOfBlock[&*ifOp.getThenRegion().begin()] = lastVal;
-              mlir::Value thenVal = handleBlock(*ifOp.getThenRegion().begin(),
-                                                lastVal, /*endRequires*/ true);
-
-              if (lastVal && ifOp.getElseRegion().getBlocks().size())
-                valueAtStartOfBlock[&*ifOp.getElseRegion().begin()] = lastVal;
-              mlir::Value elseVal =
-                  (ifOp.getElseRegion().getBlocks().size())
-                      ? handleBlock(*ifOp.getElseRegion().begin(), lastVal,
-                                    /*endRequires*/ true)
-                      : lastVal;
-
-              if (thenVal == elseVal && thenVal != nullptr) {
-                lastVal = thenVal;
-                if (newLoad) {
-                  a->getParentOfType<FuncOp>().dump();
-                  llvm::errs() << " storing op:\n";
-                  for (auto o : StoringOperations)
-                    o->dump();
-                  llvm::errs() << " ifOp:\n";
-                  a->dump();
-                  llvm::errs() << "AI: " << AI << "\n";
-                }
-                assert(!newLoad);
-                continue;
-              }
-
-              // If added load was not used and not able to result
-              // in a simplification for the if statement, delete it.
-              if (newLoad && newLoad->getResult(0).use_empty() && !needsAfter &&
-                  (thenVal == newLoad->getResult(0) ||
-                   elseVal == newLoad->getResult(0))) {
-                loadOps.insert(newLoad);
-                newLoad->erase();
-                for (auto &pair : lastStoreInBlock) {
-                  if (pair.second == newLoad->getResult(0))
-                    pair.second = nullptr;
-                }
-                SmallVector<Block *> toErase;
-                for (auto &pair : valueAtStartOfBlock) {
-                  if (pair.second == newLoad->getResult(0))
-                    toErase.push_back(pair.first);
-                }
-                for (auto blk : toErase)
-                  valueAtStartOfBlock.erase(blk);
-                lastVal = nullptr;
-                seenSubStore = true;
-                continue;
-              }
-
-              if (thenVal != nullptr && elseVal != nullptr) {
-                if (ifOp.getElseRegion().getBlocks().size()) {
-                  bool found = false;
-                  for (auto tup : llvm::reverse(llvm::zip(
-                           ifOp.getResults(), ifOp.thenYield().getOperands(),
-                           ifOp.elseYield().getOperands()))) {
-                    if (std::get<1>(tup) == thenVal &&
-                        std::get<2>(tup) == elseVal) {
-                      lastVal = std::get<0>(tup);
-                      found = true;
-                      break;
-                    }
-                  }
-                  if (found)
-                    continue;
-                }
-                OpBuilder B(ifOp.getContext());
-                B.setInsertionPoint(ifOp);
-                SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
-                                               ifOp.getResultTypes().end());
-                tys.push_back(thenVal.getType());
-                auto nextIf = B.create<mlir::scf::IfOp>(
-                    ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
-
-                Block &then = ifOp.getThenRegion().back();
-                SmallVector<mlir::Value, 4> thenVals =
-                    cast<mlir::scf::YieldOp>(then.back()).getResults();
-                thenVals.push_back(thenVal);
-                nextIf.getThenRegion().getBlocks().clear();
-                nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
-                cast<mlir::scf::YieldOp>(
-                    nextIf.getThenRegion().back().getTerminator())
-                    ->setOperands(thenVals);
-
-                if (ifOp.getElseRegion().getBlocks().size()) {
-                  nextIf.getElseRegion().getBlocks().clear();
-                  SmallVector<mlir::Value, 4> elseVals =
-                      cast<mlir::scf::YieldOp>(
-                          ifOp.getElseRegion().back().back())
-                          .getResults();
-                  elseVals.push_back(elseVal);
-                  nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
-                  cast<mlir::scf::YieldOp>(
-                      nextIf.getElseRegion().back().getTerminator())
-                      ->setOperands(elseVals);
-                } else {
-                  B.setInsertionPoint(&nextIf.getElseRegion().back(),
-                                      nextIf.getElseRegion().back().begin());
-                  SmallVector<mlir::Value, 4> elseVals;
-                  elseVals.push_back(elseVal);
-                  B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
-                }
-
-                SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
-                lastVal = resvals.back();
-                resvals.pop_back();
-                ifOp.replaceAllUsesWith(resvals);
-
-                StoringOperations.erase(ifOp);
-                StoringOperations.insert(nextIf);
-                ifOp.erase();
-                if (newLoad) {
-                  // If added load was not used and not able to result
-                  // in a simplification for the if statement, delete it.
-                  if (newLoad->getResult(0).use_empty()) {
-                    loadOps.insert(newLoad);
-                    newLoad->erase();
-                    for (auto &pair : lastStoreInBlock) {
-                      if (pair.second == newLoad->getResult(0))
-                        pair.second = nullptr;
-                    }
-                    SmallVector<Block *> toErase;
-                    for (auto &pair : valueAtStartOfBlock) {
-                      if (pair.second == newLoad->getResult(0))
-                        toErase.push_back(pair.first);
-                    }
-                    for (auto blk : toErase)
-                      valueAtStartOfBlock.erase(blk);
-                  }
-                }
-                continue;
-              } else if (newLoad) {
-                // If added load was not used and not able to result
-                // in a simplification for the if statement, delete it.
-                if (newLoad->getResult(0).use_empty()) {
-                  loadOps.insert(newLoad);
-                  newLoad->erase();
-                  for (auto &pair : lastStoreInBlock) {
-                    if (pair.second == newLoad->getResult(0))
-                      pair.second = nullptr;
-                  }
-                  SmallVector<Block *> toErase;
-                  for (auto &pair : valueAtStartOfBlock) {
-                    if (pair.second == newLoad->getResult(0))
-                      toErase.push_back(pair.first);
-                  }
-                  for (auto blk : toErase)
-                    valueAtStartOfBlock.erase(blk);
-                }
-              }
+			  lastVal = std::make_shared<ValueOrPlaceholder>(ifOp, lastVal, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock);
+              continue;
             }
-            lastVal = nullptr;
-            seenSubStore = true;
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
             
             for (auto &R : a->getRegions())
                 if (ContainsLoadingOperation.contains(&R)) {
                     for (auto &B : R) {
-                        handleBlock(B, nullptr, /*endRequires*/ false);
+                        handleBlock(B, (&B == &R.front()) ? emptyValue :
+														    std::make_shared<ValueOrPlaceholder>(&B, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock));
                     }
                 }
-
+            lastVal = emptyValue;
           } else if (loadOps.count(a)) {
             Value loadOp = a->getResult(0);
-            if (lastVal) {
-              changed = true;
-              if (loadOp.getType() != lastVal.getType()) {
-                llvm::errs()
-                    << AI.getDefiningOp()->getParentOfType<FuncOp>() << "\n";
-                llvm::errs() << loadOp << " - " << lastVal << "\n";
-                llvm::errs() << loadOp.getType() << " - " << lastVal.getType()
-                             << " :: " << loadOp.getLoc() << " - "
-                             << lastVal.getLoc() << "\n";
-              }
-              assert(loadOp.getType() == lastVal.getType() &&
-                     "mismatched load type");
-              LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                      << lastVal << "\n");
-              loadOp.replaceAllUsesWith(lastVal);
-              for (auto &pair : lastStoreInBlock) {
-                if (pair.second == loadOp)
-                  pair.second = lastVal;
-              }
-              for (auto &pair : valueAtStartOfBlock) {
-                if (pair.second == loadOp)
-                  pair.second = lastVal;
-              }
-              // Record this to erase later.
-              loadOpsToErase.push_back(a);
-              loadOps.erase(a);
-            } else if (seenSubStore) {
-              // llvm::errs() << "no lastval found for: " << loadOp << "\n";
-              loadOps.erase(a);
-              lastVal = loadOp;
-            } else {
-              lastVal = loadOp;
-            }
+            lastVal = replaceValue(loadOp, lastVal);
           } else if (auto storeOp = dyn_cast<memref::StoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
-              lastVal = storeOp.getValueToStore();
-              seenSubStore = false;
+              lastVal = getValue(storeOp.getValueToStore());
             }
           } else if (auto storeOp = dyn_cast<LLVM::StoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
-              lastVal = storeOp.getValue();
-              seenSubStore = false;
+              lastVal = getValue(storeOp.getValue());
             }
           } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
-              lastVal = storeOp.getValueToStore();
-              seenSubStore = false;
+              lastVal = getValue(storeOp.getValueToStore());
             }
           } else {
             // since not storing operation the value at the start and end of
             // block is lastVal
             a->walk([&](Operation *op) {
               if (loadOps.count(op)) {
-                mlir::Value loadOp = op->getResult(0);
-                if (lastVal) {
-                  changed = true;
-                  if (loadOp.getType() != lastVal.getType()) {
-                    llvm::errs() << loadOp << " - " << lastVal << "\n";
-                  }
-                  assert(loadOp.getType() == lastVal.getType() &&
-                         "mismatched load type");
-                  loadOp.replaceAllUsesWith(lastVal);
-                  LLVM_DEBUG(llvm::dbgs() << " replaced " << loadOp << " with "
-                                          << lastVal << "\n");
-                  for (auto &pair : lastStoreInBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  for (auto &pair : valueAtStartOfBlock) {
-                    if (pair.second == loadOp)
-                      pair.second = lastVal;
-                  }
-                  // Record this to erase later.
-                  loadOpsToErase.push_back(op);
-                  loadOps.erase(op);
-                } else if (seenSubStore) {
-                  loadOps.erase(op);
-                }
+                replaceValue(op->getResult(0), lastVal);
               }
             });
           }
         }
         LLVM_DEBUG(llvm::dbgs() << " ending block: "; block.print(llvm::dbgs());
-                   llvm::dbgs() << " with ";
-                   if (lastVal) llvm::dbgs() << lastVal << "\n";
-                   else llvm::dbgs() << " null\n";);
-        return lastStoreInBlock[&block] = lastVal;
+                   llvm::dbgs() << " with val:" << *lastVal << "\n";);
+        assert(lastVal);
+        valueAtEndOfBlock.emplace(&block, lastVal);
       };
 
-  for (auto &B : *AI.getDefiningOp()->getParentRegion()) {
-    handleBlock(B, nullptr, /*endRequires*/ false);
-  };
+  {
+	assert(AI.getDefiningOp());
+	SmallVector<Block*> todo = {AI.getDefiningOp()->getBlock()};
+	SmallPtrSet<Block*, 2> done;
+	while (todo.size()) {
+		Block* cur = todo.back();
+		todo.pop_back();
+		if (done.contains(cur)) continue;
+		done.insert(cur);
+		if (cur == AI.getDefiningOp()->getBlock())
+	        handleBlock(*cur, emptyValue);
+		else
+        	handleBlock(*cur, std::make_shared<ValueOrPlaceholder>(cur, elType, blocksWithAddedArgs, valueAtEndOfBlock, valueAtStartOfBlock));
+		for (auto B : cur->getSuccessors())
+			todo.push_back(B);
+	}
+  }
 
   if (loadOps.size() == 0)
     return changed;
@@ -806,13 +1001,16 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   std::set<Block *> Bad;
   std::set<Block *> Other;
 
-  for (auto &pair : lastStoreInBlock) {
-    if (pair.second != nullptr) {
+  for (auto &pair : valueAtEndOfBlock) {
+    assert(pair.second);
+    if (pair.second->definedWithArg(nullptr)) {
       Good.insert(pair.first);
       // llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
       // pair.first->dump();
       // llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
-    } else if (StoringBlocks.count(pair.first)) {
+    } else if (pair.second->definedWithArg(pair.first)) {
+      Other.insert(pair.first);
+    } else if (pair.second->overwritten) {//StoringBlocks.count(pair.first)) {
       // llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
       // pair.first->dump();
       // llvm::errs() << "</BAD: " << " - " << AI << ">\n";
@@ -852,68 +1050,83 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   Analyzer A(Good, Bad, Other, {}, {});
   A.analyze();
 
-  SmallPtrSet<Block *, 4> blocksWithAddedArgs;
   for (auto block : A.Legal) {
-    // llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
-    // block->dump();
-    // llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
-    if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end())
+     //llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
+     //block->dump();
+	 //llvm::errs() << " startofblock: " << (int)(valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end() ) << "\n";
+	 //if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end() ) llvm::errs() << " found: " << * valueAtStartOfBlock.find(block)->second << "\n";
+     //llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
+    if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end() || valueAtStartOfBlock.find(block)->second->valueAtStart != block)
       continue;
+     //llvm::errs() << "<SLEGAL: " << " - " << AI << " " << block << ">\n";
+     //block->dump();
+     //llvm::errs() << "</SLEGAL: " << " - " << AI << ">\n";
     auto arg = block->addArgument(subType);
-    valueAtStartOfBlock[block] = arg;
-    blocksWithAddedArgs.insert(block);
-    for (Operation &op : *block) {
+	std::shared_ptr<ValueOrPlaceholder> argVal = getValue(arg);
+    valueAtStartOfBlock[block] = argVal;
+    blocksWithAddedArgs[block] = arg;
+    /*
+	for (Operation &op : *block) {
       if (!StoringOperations.count(&op)) {
         op.walk([&](Block *blk) {
           if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end()) {
             valueAtStartOfBlock[blk] = arg;
-            if (lastStoreInBlock.find(blk) == lastStoreInBlock.end() ||
+            if (valueAtEndOfBlock.find(blk) == valueAtEndOfBlock.end() ||
                 StoringBlocks.count(blk) == 0) {
-              lastStoreInBlock[blk] = arg;
+              valueAtEndOfBlock[blk] = arg;
             }
           }
         });
       } else
         break;
     }
-    if (lastStoreInBlock.find(block) == lastStoreInBlock.end() ||
+	*/
+    if (valueAtEndOfBlock.find(block) == valueAtEndOfBlock.end() ||
         StoringBlocks.count(block) == 0) {
-      lastStoreInBlock[block] = arg;
+      assert(argVal);
+      valueAtEndOfBlock.insert(std::make_pair(block, argVal));
     }
   }
-
-  for (auto loadOp : loadOps) {
-    assert(loadOp);
-    auto blk = loadOp->getBlock();
-    if (valueAtStartOfBlock.find(blk) != valueAtStartOfBlock.end() &&
-        valueAtStartOfBlock[blk]) {
-      changed = true;
-      assert(loadOp->getResult(0));
-      assert(loadOp->getResult(0).getType() ==
-             valueAtStartOfBlock[blk].getType());
-      loadOp->getResult(0).replaceAllUsesWith(valueAtStartOfBlock[blk]);
-      LLVM_DEBUG(llvm::dbgs() << " replaced " << *loadOp << " with "
-                              << valueAtStartOfBlock[blk] << "\n");
-      for (auto &pair : lastStoreInBlock) {
-        if (pair.second && pair.second.getDefiningOp() == loadOp)
-          pair.second = valueAtStartOfBlock[blk];
-      }
-      for (auto &pair : valueAtStartOfBlock) {
-        if (pair.second && pair.second.getDefiningOp() == loadOp)
-          pair.second = valueAtStartOfBlock[blk];
-      }
-      loadOpsToErase.push_back(loadOp);
-    } else {
-      // TODO inter-op
-      // llvm::errs() << "no value at start of block:\n";
-      // loadOp.dump();
-    }
+  for (auto block : A.Illegal) {
+      valueAtStartOfBlock[block] = emptyValue;
   }
 
-  for (auto block : blocksWithAddedArgs) {
+  for (auto& pair : replaceableValues) {
+    assert(pair.first);
+    assert(pair.second);
+	Value val = pair.second->materialize(false);
+    if (!val) {
+        loadOps.erase(pair.first.getDefiningOp()); 
+        continue;
+    }
+	assert(val);
+	  
+        changed = true;
+	  assert(pair.first != val);
+      assert(val.getType() == elType);
+      assert(pair.first.getType() == val.getType() &&
+             "mismatched load type");
+      LLVM_DEBUG(llvm::dbgs() << " replaced " << pair.first << " with "
+                              << val << "\n");
+      pair.first.replaceAllUsesWith(val);
+
+	  // This doesn't replace all things.
+	  if (metaMap.find(pair.first) != metaMap.end()) {
+		metaMap.find(pair.first)->second->val = val;
+		metaMap.erase(pair.first);
+      } else {
+	  }
+      // Record this to erase later.
+      loadOpsToErase.push_back(pair.first.getDefiningOp());
+      loadOps.erase(pair.first.getDefiningOp());
+  }
+  replaceableValues.clear();
+
+  for (auto &pair : blocksWithAddedArgs) {
+	Block* block = pair.first;
     assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
-    auto maybeblockArg = valueAtStartOfBlock[block];
+    Value maybeblockArg = valueAtStartOfBlock.find(block)->second->materialize(false);
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
     assert(blockArg && blockArg.getOwner() == block);
 
@@ -921,7 +1134,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                block->getPredecessors().end());
     for (auto pred : prepred) {
       assert(pred && "Null predecessor");
-      mlir::Value pval = lastStoreInBlock[pred];
+	  assert(valueAtEndOfBlock.find(pred) != valueAtEndOfBlock.end());
+      assert(valueAtEndOfBlock.find(pred)->second);
+      mlir::Value pval = valueAtEndOfBlock.find(pred)->second->materialize(true);
+      if (!pval) {
+        AI.getDefiningOp()->getParentOfType<FuncOp>().dump();
+        pred->dump();
+        llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second << "\n";
+      }
       assert(pval && "Null last stored");
       assert(pred->getTerminator());
 
@@ -980,16 +1200,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     }
   }
 
-  Type elType;
-  if (auto MT = AI.getType().dyn_cast<MemRefType>())
-    elType = MT.getElementType();
-  else
-    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
-
   // Remove block arguments if possible
   {
-    std::deque<Block *> todo(blocksWithAddedArgs.begin(),
-                             blocksWithAddedArgs.end());
+    std::deque<Block *> todo;
+	for(auto & p : blocksWithAddedArgs)
+		todo.push_back(p.first);
     while (todo.size()) {
       auto block = todo.front();
       todo.pop_front();
@@ -997,9 +1212,12 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         continue;
       assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
-      auto maybeblockArg = valueAtStartOfBlock[block];
-      auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-      assert(blockArg && blockArg.getOwner() == block);
+      Value maybeblockArg = valueAtStartOfBlock.find(block)->second->materialize();
+	  assert(maybeblockArg);
+      BlockArgument blockArg = maybeblockArg.dyn_cast<BlockArgument>();
+      if (!blockArg) continue;
+      assert(blockArg);
+      if (blockArg.getOwner() != block) continue;
       assert(blockArg.getOwner() == block);
 
       mlir::Value val = nullptr;
@@ -1147,14 +1365,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           assert(blockArg.getType() == val.getType());
           blockArg.replaceAllUsesWith(val);
-          for (auto &pair : lastStoreInBlock) {
-            if (pair.second == blockArg)
-              pair.second = val;
-          }
-          for (auto &pair : valueAtStartOfBlock) {
-            if (pair.second == blockArg)
-              pair.second = val;
-          }
+		  if (metaMap.find(val) != metaMap.end())
+			metaMap.find(val)->second->val = blockArg;
         } else {
         }
         valueAtStartOfBlock.erase(block);
@@ -1218,9 +1430,13 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       }
     }
   }
-  LLVM_DEBUG(llvm::dbgs() << "End forwarding store of " << AI << " to load\n"
-                          << *AI.getDefiningOp()->getParentOfType<FuncOp>()
-                          << " - changed=" << (int)changed << "\n");
+  for (auto loadOp : llvm::make_early_inc_range(loadOps)) {
+    assert(loadOp);
+	if (loadOp->getResult(0).use_empty()) {
+      loadOpsToErase.push_back(loadOp);
+      loadOps.erase(loadOp);
+    }
+  }
   return changed;
 }
 

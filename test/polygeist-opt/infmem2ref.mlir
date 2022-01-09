@@ -42,32 +42,28 @@ module {
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %false = arith.constant false
-// CHECK-NEXT:     %0 = memref.alloca() : memref<i1>
-// CHECK-NEXT:     memref.store %true, %0[] : memref<i1>
 // CHECK-NEXT:     scf.execute_region {
-// CHECK-NEXT:       br ^bb1(%c0_i32 : i32)
-// CHECK:     ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:       %2 = arith.cmpi slt, %1, %c2_i32 : i32
-// CHECK-NEXT:       %3 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       %4 = arith.andi %2, %3 : i1
-// CHECK-NEXT:       cond_br %4, ^bb2, ^bb3
-// CHECK:     ^bb2:  // pred: ^bb1
-// CHECK-NEXT:       %5 = scf.if %arg0 -> (i1) {
-// CHECK-NEXT:         %7 = arith.cmpi eq, %1, %c1_i32 : i32
-// CHECK-NEXT:         %8 = scf.if %7 -> (i1) {
-// CHECK-NEXT:           memref.store %false, %0[] : memref<i1>
+// CHECK-NEXT:       br ^bb1(%c0_i32, %true : i32, i1)
+// CHECK-NEXT:     ^bb1(%0: i32, %1: i1):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:       %2 = arith.cmpi slt, %0, %c2_i32 : i32
+// CHECK-NEXT:       %3 = arith.andi %2, %1 : i1
+// CHECK-NEXT:       cond_br %3, ^bb2, ^bb3
+// CHECK-NEXT:     ^bb2:  // pred: ^bb1
+// CHECK-NEXT:       %4 = scf.if %arg0 -> (i1) {
+// CHECK-NEXT:         %6 = arith.cmpi eq, %0, %c1_i32 : i32
+// CHECK-NEXT:         %7 = scf.if %6 -> (i1) {
 // CHECK-NEXT:           scf.yield %false : i1
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           scf.yield %3 : i1
+// CHECK-NEXT:           scf.yield %1 : i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield %8 : i1
+// CHECK-NEXT:         scf.yield %7 : i1
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %3 : i1
+// CHECK-NEXT:         scf.yield %1 : i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       call @use(%5) : (i1) -> ()
-// CHECK-NEXT:       %6 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:       br ^bb1(%6 : i32)
-// CHECK:     ^bb3:  // pred: ^bb1
+// CHECK-NEXT:       call @use(%4) : (i1) -> ()
+// CHECK-NEXT:       %5 = arith.addi %0, %c1_i32 : i32
+// CHECK-NEXT:       br ^bb1(%5, %4 : i32, i1)
+// CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
