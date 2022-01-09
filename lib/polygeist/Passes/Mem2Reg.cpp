@@ -395,7 +395,7 @@ class ValueOrPlaceholder {
         Value elseVal;
 
         if (ifOp.getElseRegion().getBlocks().size()) {
-			auto elseFind = valueAtEndOfBlock.find(ifOp.thenBlock());
+			auto elseFind = valueAtEndOfBlock.find(ifOp.elseBlock());
 			assert(elseFind != valueAtEndOfBlock.end());
             assert(elseFind->second);
 			elseVal = elseFind->second->materialize(full);
