@@ -1229,8 +1229,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     if (pair.second->definedWithArg(requirements)) {
       if (requirements.size() == 0)
         Good.insert(pair.first);
-      else
+      else if (requirements.size() == 1 && requirements.contains(pair.first)) {
         Other.insert(pair.first);
+      }
       // llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
       // pair.first->dump();
       // llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
@@ -1364,7 +1365,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       if (!pval) {
         AI.getDefiningOp()->getParentOfType<FuncOp>().dump();
         pred->dump();
-        llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second << "\n";
+        llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second << " AI: " << AI << "\n";
       }
       assert(pval && "Null last stored");
       assert(pred->getTerminator());
