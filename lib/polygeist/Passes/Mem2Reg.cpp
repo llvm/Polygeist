@@ -216,19 +216,19 @@ class ValueOrPlaceholder {
 		overwritten(false), val(nullptr), valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp), ifLastValue(ifLastVal) {
 		assert(ifOp);
 	}
-    // Return true if this represents a full expression if the arg "block" is defined
-    // If Block is null, return only if it is defined without any argument.
-    bool definedWithArg(Block* block) {
+    // Return true if this represents a full expression if all block argsare defined at start
+    // Append the list of blocks requiring definition to block.
+    bool definedWithArg(SmallPtrSetImpl<Block*>& block) {
 		if (val) return true;
 		if (overwritten) return false;
 		if (valueAtStart) {
-            if (valueAtStart == block) return true;
 			auto found = valueAtStartOfBlock.find(valueAtStart);
 			if (found != valueAtStartOfBlock.end()) {
                 if (found->second->valueAtStart != valueAtStart)
                     return found->second->definedWithArg(block);
 			}
-			return false;
+            block.insert(valueAtStart);
+            return true;
 		}
 		if (ifOp) {
 			auto thenFind = valueAtEndOfBlock.find(ifOp.thenBlock());
@@ -619,6 +619,228 @@ struct Analyzer {
               }
 			  */
 
+// Remove block arguments if possible
+void removeRedundantBlockArgs(Value AI, Type elType, std::map<Block*, BlockArgument> &blocksWithAddedArgs) {
+    std::deque<Block *> todo;
+	for(auto & p : blocksWithAddedArgs)
+		todo.push_back(p.first);
+    while (todo.size()) {
+      auto block = todo.front();
+      todo.pop_front();
+      if (!blocksWithAddedArgs.count(block))
+        continue;
+
+      BlockArgument blockArg = blocksWithAddedArgs.find(block)->second;
+      if (blockArg.getOwner() != block) continue;
+      assert(blockArg.getOwner() == block);
+
+      mlir::Value val = nullptr;
+      bool legal = true;
+
+      SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                 block->getPredecessors().end());
+      for (auto pred : prepred) {
+        mlir::Value pval = nullptr;
+
+        if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+          pval = op.getOperands()[blockArg.getArgNumber()];
+          if (pval.getType() != elType) {
+            pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+            llvm::errs() << pval << " - " << AI << "\n";
+          }
+          assert(pval.getType() == elType);
+          if (pval == blockArg)
+            pval = nullptr;
+        } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+          if (op.getTrueDest() == block) {
+            if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
+              block->dump();
+              llvm::errs() << op << " ba: " << blockArg.getArgNumber() << "\n";
+            }
+            assert(blockArg.getArgNumber() < op.getTrueOperands().size());
+            pval = op.getTrueOperands()[blockArg.getArgNumber()];
+            assert(pval.getType() == elType);
+            if (pval == blockArg)
+              pval = nullptr;
+          }
+          if (op.getFalseDest() == block) {
+            assert(blockArg.getArgNumber() < op.getFalseOperands().size());
+            auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
+            assert(pval2.getType() == elType);
+            if (pval2 != blockArg) {
+              if (pval == nullptr) {
+                pval = pval2;
+              } else if (pval != pval2) {
+                legal = false;
+                break;
+              }
+            }
+            if (pval == blockArg)
+              pval = nullptr;
+          }
+        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+          mlir::OpBuilder subbuilder(op.getOperation());
+          if (op.getDefaultDestination() == block) {
+            pval = op.getDefaultOperands()[blockArg.getArgNumber()];
+            if (pval == blockArg)
+              pval = nullptr;
+          }
+          for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
+            if (pair.value() == block) {
+              auto pval2 =
+                  op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
+              if (pval2 != blockArg) {
+                if (pval == nullptr)
+                  pval = pval2;
+                else if (pval != pval2) {
+                  legal = false;
+                  break;
+                }
+              }
+            }
+          }
+          if (legal == false)
+            break;
+        } else {
+          llvm::errs() << *pred->getParent()->getParentOp() << "\n";
+          pred->dump();
+          block->dump();
+          assert(0 && "unknown branch");
+        }
+
+        assert(pval != blockArg);
+        if (val == nullptr) {
+          val = pval;
+          if (pval)
+            assert(val.getType() == elType);
+        } else {
+          if (pval != nullptr && val != pval) {
+            legal = false;
+            break;
+          }
+        }
+      }
+      if (legal)
+        assert(val || block->hasNoPredecessors());
+
+      bool used = false;
+      for (auto U : blockArg.getUsers()) {
+
+        if (auto op = dyn_cast<BranchOp>(U)) {
+          size_t i = 0;
+          for (auto V : op.getOperands()) {
+            if (V == blockArg &&
+                !(i == blockArg.getArgNumber() && op.getDest() == block)) {
+              used = true;
+              break;
+            }
+          }
+          if (used)
+            break;
+        } else if (auto op = dyn_cast<CondBranchOp>(U)) {
+          size_t i = 0;
+          for (auto V : op.getTrueOperands()) {
+            if (V == blockArg &&
+                !(i == blockArg.getArgNumber() && op.getTrueDest() == block)) {
+              used = true;
+              break;
+            }
+          }
+          if (used)
+            break;
+          i = 0;
+          for (auto V : op.getFalseOperands()) {
+            if (V == blockArg &&
+                !(i == blockArg.getArgNumber() && op.getFalseDest() == block)) {
+              used = true;
+              break;
+            }
+          }
+        } else
+          used = true;
+      }
+      if (!used) {
+        legal = true;
+      }
+
+      if (legal) {
+        for (auto U : blockArg.getUsers()) {
+          if (auto block = U->getBlock()) {
+            todo.push_back(block);
+            for (auto succ : block->getSuccessors())
+              todo.push_back(succ);
+          }
+        }
+        if (val != nullptr) {
+          if (blockArg.getType() != val.getType()) {
+            block->dump();
+            llvm::errs() << " AI: " << AI << "\n";
+            llvm::errs() << blockArg << " val " << val << "\n";
+          }
+          assert(blockArg.getType() == val.getType());
+          blockArg.replaceAllUsesWith(val);
+        } else {
+        }
+
+        SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                   block->getPredecessors().end());
+        for (auto pred : prepred) {
+          if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+            mlir::OpBuilder subbuilder(op.getOperation());
+            std::vector<Value> args(op.getOperands().begin(),
+                                    op.getOperands().end());
+            args.erase(args.begin() + blockArg.getArgNumber());
+            assert(args.size() == op.getOperands().size() - 1);
+            subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+            op.erase();
+          } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+
+            mlir::OpBuilder subbuilder(op.getOperation());
+            std::vector<Value> trueargs(op.getTrueOperands().begin(),
+                                        op.getTrueOperands().end());
+            std::vector<Value> falseargs(op.getFalseOperands().begin(),
+                                         op.getFalseOperands().end());
+            if (op.getTrueDest() == block) {
+              trueargs.erase(trueargs.begin() + blockArg.getArgNumber());
+            }
+            if (op.getFalseDest() == block) {
+              falseargs.erase(falseargs.begin() + blockArg.getArgNumber());
+            }
+            assert(trueargs.size() < op.getTrueOperands().size() ||
+                   falseargs.size() < op.getFalseOperands().size());
+            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest(), trueargs,
+                                            op.getFalseDest(), falseargs);
+            op.erase();
+          } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+            mlir::OpBuilder builder(op.getOperation());
+            SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
+                                          op.getDefaultOperands().end());
+            if (op.getDefaultDestination() == block)
+              defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
+
+            SmallVector<SmallVector<Value>> cases;
+            SmallVector<ValueRange> vrange;
+            for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
+              cases.emplace_back(op.getCaseOperands(pair.index()));
+              if (pair.value() == block) {
+                cases.back().erase(cases.back().begin() +
+                                   blockArg.getArgNumber());
+              }
+              vrange.push_back(cases.back());
+            }
+            builder.create<mlir::SwitchOp>(op.getLoc(), op.getFlag(),
+                                           op.getDefaultDestination(),
+                                           defaultOps, op.getCaseValuesAttr(),
+                                           op.getCaseDestinations(), vrange);
+            op.erase();
+          }
+        }
+        block->eraseArgument(blockArg.getArgNumber());
+        blocksWithAddedArgs.erase(block);
+      }
+    }
+  }
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
@@ -1003,13 +1225,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   for (auto &pair : valueAtEndOfBlock) {
     assert(pair.second);
-    if (pair.second->definedWithArg(nullptr)) {
-      Good.insert(pair.first);
+    SmallPtrSet<Block*, 1> requirements;
+    if (pair.second->definedWithArg(requirements)) {
+      if (requirements.size() == 0)
+        Good.insert(pair.first);
+      else
+        Other.insert(pair.first);
       // llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
       // pair.first->dump();
       // llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
-    } else if (pair.second->definedWithArg(pair.first)) {
-      Other.insert(pair.first);
     } else if (pair.second->overwritten) {//StoringBlocks.count(pair.first)) {
       // llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
       // pair.first->dump();
@@ -1200,236 +1424,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     }
   }
 
-  // Remove block arguments if possible
-  {
-    std::deque<Block *> todo;
-	for(auto & p : blocksWithAddedArgs)
-		todo.push_back(p.first);
-    while (todo.size()) {
-      auto block = todo.front();
-      todo.pop_front();
-      if (!blocksWithAddedArgs.count(block))
-        continue;
-      assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
+  removeRedundantBlockArgs(AI, elType, blocksWithAddedArgs);
 
-      Value maybeblockArg = valueAtStartOfBlock.find(block)->second->materialize();
-	  assert(maybeblockArg);
-      BlockArgument blockArg = maybeblockArg.dyn_cast<BlockArgument>();
-      if (!blockArg) continue;
-      assert(blockArg);
-      if (blockArg.getOwner() != block) continue;
-      assert(blockArg.getOwner() == block);
-
-      mlir::Value val = nullptr;
-      bool legal = true;
-
-      SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                 block->getPredecessors().end());
-      for (auto pred : prepred) {
-        mlir::Value pval = nullptr;
-
-        if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-          pval = op.getOperands()[blockArg.getArgNumber()];
-          if (pval.getType() != elType) {
-            pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
-            llvm::errs() << pval << " - " << AI << "\n";
-          }
-          assert(pval.getType() == elType);
-          if (pval == blockArg)
-            pval = nullptr;
-        } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-          if (op.getTrueDest() == block) {
-            if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
-              block->dump();
-              llvm::errs() << op << " ba: " << blockArg.getArgNumber() << "\n";
-            }
-            assert(blockArg.getArgNumber() < op.getTrueOperands().size());
-            pval = op.getTrueOperands()[blockArg.getArgNumber()];
-            assert(pval.getType() == elType);
-            if (pval == blockArg)
-              pval = nullptr;
-          }
-          if (op.getFalseDest() == block) {
-            assert(blockArg.getArgNumber() < op.getFalseOperands().size());
-            auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
-            assert(pval2.getType() == elType);
-            if (pval2 != blockArg) {
-              if (pval == nullptr) {
-                pval = pval2;
-              } else if (pval != pval2) {
-                legal = false;
-                break;
-              }
-            }
-            if (pval == blockArg)
-              pval = nullptr;
-          }
-        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
-          mlir::OpBuilder subbuilder(op.getOperation());
-          if (op.getDefaultDestination() == block) {
-            pval = op.getDefaultOperands()[blockArg.getArgNumber()];
-            if (pval == blockArg)
-              pval = nullptr;
-          }
-          for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
-            if (pair.value() == block) {
-              auto pval2 =
-                  op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
-              if (pval2 != blockArg) {
-                if (pval == nullptr)
-                  pval = pval2;
-                else if (pval != pval2) {
-                  legal = false;
-                  break;
-                }
-              }
-            }
-          }
-          if (legal == false)
-            break;
-        } else {
-          llvm::errs() << *pred->getParent()->getParentOp() << "\n";
-          pred->dump();
-          block->dump();
-          assert(0 && "unknown branch");
-        }
-
-        assert(pval != blockArg);
-        if (val == nullptr) {
-          val = pval;
-          if (pval)
-            assert(val.getType() == elType);
-        } else {
-          if (pval != nullptr && val != pval) {
-            legal = false;
-            break;
-          }
-        }
-      }
-      if (legal)
-        assert(val || block->hasNoPredecessors());
-
-      bool used = false;
-      for (auto U : blockArg.getUsers()) {
-
-        if (auto op = dyn_cast<BranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-        } else if (auto op = dyn_cast<CondBranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getTrueOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getTrueDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-          i = 0;
-          for (auto V : op.getFalseOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getFalseDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-        } else
-          used = true;
-      }
-      if (!used) {
-        legal = true;
-      }
-
-      if (legal) {
-        for (auto U : blockArg.getUsers()) {
-          if (auto block = U->getBlock()) {
-            todo.push_back(block);
-            for (auto succ : block->getSuccessors())
-              todo.push_back(succ);
-          }
-        }
-        if (val != nullptr) {
-          if (blockArg.getType() != val.getType()) {
-            block->dump();
-            llvm::errs() << " AI: " << AI << "\n";
-            llvm::errs() << blockArg << " val " << val << "\n";
-          }
-          assert(blockArg.getType() == val.getType());
-          blockArg.replaceAllUsesWith(val);
-		  if (metaMap.find(val) != metaMap.end())
-			metaMap.find(val)->second->val = blockArg;
-        } else {
-        }
-        valueAtStartOfBlock.erase(block);
-
-        SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                   block->getPredecessors().end());
-        for (auto pred : prepred) {
-          if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> args(op.getOperands().begin(),
-                                    op.getOperands().end());
-            args.erase(args.begin() + blockArg.getArgNumber());
-            assert(args.size() == op.getOperands().size() - 1);
-            subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-            op.erase();
-          } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> trueargs(op.getTrueOperands().begin(),
-                                        op.getTrueOperands().end());
-            std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                         op.getFalseOperands().end());
-            if (op.getTrueDest() == block) {
-              trueargs.erase(trueargs.begin() + blockArg.getArgNumber());
-            }
-            if (op.getFalseDest() == block) {
-              falseargs.erase(falseargs.begin() + blockArg.getArgNumber());
-            }
-            assert(trueargs.size() < op.getTrueOperands().size() ||
-                   falseargs.size() < op.getFalseOperands().size());
-            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                            op.getTrueDest(), trueargs,
-                                            op.getFalseDest(), falseargs);
-            op.erase();
-          } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
-            mlir::OpBuilder builder(op.getOperation());
-            SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
-                                          op.getDefaultOperands().end());
-            if (op.getDefaultDestination() == block)
-              defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
-
-            SmallVector<SmallVector<Value>> cases;
-            SmallVector<ValueRange> vrange;
-            for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
-              cases.emplace_back(op.getCaseOperands(pair.index()));
-              if (pair.value() == block) {
-                cases.back().erase(cases.back().begin() +
-                                   blockArg.getArgNumber());
-              }
-              vrange.push_back(cases.back());
-            }
-            builder.create<mlir::SwitchOp>(op.getLoc(), op.getFlag(),
-                                           op.getDefaultDestination(),
-                                           defaultOps, op.getCaseValuesAttr(),
-                                           op.getCaseDestinations(), vrange);
-            op.erase();
-          }
-        }
-        block->eraseArgument(blockArg.getArgNumber());
-        blocksWithAddedArgs.erase(block);
-      }
-    }
-  }
   for (auto loadOp : llvm::make_early_inc_range(loadOps)) {
     assert(loadOp);
 	if (loadOp->getResult(0).use_empty()) {
