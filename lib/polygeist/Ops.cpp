@@ -930,7 +930,9 @@ void MetaPointer2Memref<AffineStoreOp>::rewrite(
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
 }
 
-// and(x, y) != 0  -> and(x != 0, y != 0)
+// Below is actually wrong as and(40, 1) != 0   !=== and(40 != 0, 1 != 0) =
+// and(true, true) = true and(x, y) != 0  -> and(x != 0, y != 0)
+/*
 class CmpAnd final : public OpRewritePattern<arith::CmpIOp> {
 public:
   using OpRewritePattern<arith::CmpIOp>::OpRewritePattern;
@@ -955,6 +957,7 @@ public:
     return success();
   }
 };
+*/
 
 #include "mlir/Dialect/SCF/SCF.h"
 struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
@@ -1198,7 +1201,7 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
 void Pointer2MemrefOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<
-      CmpAnd, Pointer2MemrefCast, Pointer2Memref2PointerCast,
+      Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
       CombineIfs, MoveIntoIfs, IfAndLazy>(context);
