@@ -79,7 +79,7 @@ static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
 static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
                                    cl::desc("Raise SCF to Affine"));
 
-static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(false),
+static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
 static cl::opt<bool>
