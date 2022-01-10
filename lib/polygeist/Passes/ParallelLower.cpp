@@ -460,8 +460,8 @@ void ParallelLower::runOnOperation() {
                                                     call.getOperand(1)),
                                 call.getOperand(2),
                                 /*isVolatile*/ falsev);
-      Value vals[] = {call.getOperand(0)};
-      call.replaceAllUsesWith(ArrayRef<Value>(vals));
+      call.replaceAllUsesWith(
+          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
     } else if (call.getCallee().getValue() == "cudaMalloc") {
       auto mf = GetOrCreateMallocFunction(getOperation());

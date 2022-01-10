@@ -1135,6 +1135,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     // Only move if op doesn't write or free memory (only read)
     if (!wouldOpBeTriviallyDead(prevOp))
       return failure();
+    if (isa<arith::ConstantOp>(prevOp))
+      return failure();
 
     bool thenUse = false;
     bool elseUse = false;
@@ -1161,6 +1163,32 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     rewriter.startRootUpdate(prevOp);
     prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front()
                                : &nextIf.elseBlock()->front());
+    for (OpOperand &use : llvm::make_early_inc_range(prevOp->getUses())) {
+      rewriter.setInsertionPoint(use.getOwner());
+      if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+        std::vector<Value> indices;
+        auto map = storeOp.getAffineMap();
+        for (size_t i = 0; i < map.getNumResults(); i++) {
+          auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(),
+                                                      map.getSliceMap(i, 1),
+                                                      storeOp.getMapOperands());
+          indices.push_back(apply->getResult(0));
+        }
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+                                                    indices);
+      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+        std::vector<Value> indices;
+        auto map = storeOp.getAffineMap();
+        for (size_t i = 0; i < map.getNumResults(); i++) {
+          auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(),
+                                                      map.getSliceMap(i, 1),
+                                                      storeOp.getMapOperands());
+          indices.push_back(apply->getResult(0));
+        }
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
+                                                     storeOp.memref(), indices);
+      }
+    }
     rewriter.finalizeRootUpdate(prevOp);
     rewriter.finalizeRootUpdate(nextIf);
     return success();

@@ -13,7 +13,6 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
-#include <iostream>
 #include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -22,13 +21,14 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/Passes.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "mlir/Support/LLVM.h"
 #include <algorithm>
 #include <deque>
+#include <iostream>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <set>
 
@@ -127,431 +127,444 @@ bool matchesIndices(ArrayRef<AffineExpr> ops, const std::vector<ssize_t> &idx) {
 class ValueOrPlaceholder;
 
 static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                            ValueOrPlaceholder& PH);
-
+                                            ValueOrPlaceholder &PH);
 
 class ValueOrPlaceholder;
 
-using ReplaceableUse = ValueOrPlaceholder*;
+using ReplaceableUse = ValueOrPlaceholder *;
 
-using BlockMap = std::map<Block*, ReplaceableUse>;
+using BlockMap = std::map<Block *, ReplaceableUse>;
 
 class ReplacementHandler {
-    public:
-        Type elType; 
-        std::vector<std::unique_ptr<ValueOrPlaceholder>> allocs;
-    DenseMap<Value, ValueOrPlaceholder*> valueMap;
-    DenseMap<Operation*, ValueOrPlaceholder*> opOperands;
-    
-    BlockMap valueAtStartOfBlock;
-    BlockMap valueAtEndOfBlock;
-    SmallVector<std::pair<Value, ValueOrPlaceholder*>> replaceableValues; 
-    ReplacementHandler(Type elType) : elType(elType) {}
+public:
+  Type elType;
+  std::vector<std::unique_ptr<ValueOrPlaceholder>> allocs;
+  DenseMap<Value, ValueOrPlaceholder *> valueMap;
+  DenseMap<Operation *, ValueOrPlaceholder *> opOperands;
 
-    ValueOrPlaceholder* get(nullptr_t);
-    ValueOrPlaceholder* get(Value val);
-    ValueOrPlaceholder* get(Block* val);
-    ValueOrPlaceholder* get(scf::IfOp val, ValueOrPlaceholder *ifVal);
-    ValueOrPlaceholder* get(scf::ExecuteRegionOp val);
+  BlockMap valueAtStartOfBlock;
+  BlockMap valueAtEndOfBlock;
+  SmallVector<std::pair<Value, ValueOrPlaceholder *>> replaceableValues;
+  ReplacementHandler(Type elType) : elType(elType) {}
 
-    void replaceValue(Value orig, Value post);
-    void replaceOpWithValue(Operation* orig, ValueOrPlaceholder *ph, Value post) {
-        assert(valueMap.find(post) == valueMap.end());
-        valueMap[post] = ph;
-    }
+  ValueOrPlaceholder *get(nullptr_t);
+  ValueOrPlaceholder *get(Value val);
+  ValueOrPlaceholder *get(Block *val);
+  ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
+  ValueOrPlaceholder *get(scf::ExecuteRegionOp val);
+
+  void replaceValue(Value orig, Value post);
+  void replaceOpWithValue(Operation *orig, ValueOrPlaceholder *ph, Value post) {
+    assert(valueMap.find(post) == valueMap.end());
+    valueMap[post] = ph;
+  }
 };
 
 class ValueOrPlaceholder {
-    ReplacementHandler &metaMap;
-  public:
-    bool overwritten;
-	Value val;
-	Block *valueAtStart;
-	scf::ExecuteRegionOp exOp;
-	scf::IfOp ifOp;
-	ValueOrPlaceholder(ValueOrPlaceholder&&) = delete;
-	ValueOrPlaceholder(const ValueOrPlaceholder&) = delete;
-	ValueOrPlaceholder(nullptr_t, ReplacementHandler &metaMap) : 
-		metaMap(metaMap),
-		overwritten(true), val(nullptr), valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr) {
-	}
-	ValueOrPlaceholder(Value val, ReplacementHandler &metaMap) : 
-		metaMap(metaMap),
-		overwritten(false), val(val), valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr) {
-		assert(val);
-	}
-	ValueOrPlaceholder(Block* valueAtStart, ReplacementHandler &metaMap) :
-		metaMap(metaMap),
-		overwritten(false), val(nullptr), valueAtStart(valueAtStart), exOp(nullptr), ifOp(nullptr) {
-		assert(valueAtStart);
-	}
-	ValueOrPlaceholder(scf::ExecuteRegionOp exOp, ReplacementHandler &metaMap) :
-		metaMap(metaMap),
-		overwritten(false), val(nullptr), valueAtStart(nullptr), exOp(exOp), ifOp(nullptr) {
-		assert(exOp);
-	}
-	ValueOrPlaceholder(scf::IfOp ifOp, ReplaceableUse ifLastVal, ReplacementHandler &metaMap) :
-		metaMap(metaMap),
-		overwritten(false), val(nullptr), valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
-		assert(ifOp);
-        if (ifLastVal) metaMap.opOperands[ifOp] = ifLastVal;
-	}
-    // Return true if this represents a full expression if all block argsare defined at start
-    // Append the list of blocks requiring definition to block.
-    bool definedWithArg(SmallPtrSetImpl<Block*>& block) {
-		if (val) return true;
-		if (overwritten) return false;
-		if (valueAtStart) {
-			auto found = metaMap.valueAtStartOfBlock.find(valueAtStart);
-			if (found != metaMap.valueAtStartOfBlock.end()) {
-                if (found->second->valueAtStart != valueAtStart)
-                    return found->second->definedWithArg(block);
-			}
-            block.insert(valueAtStart);
-            return true;
-		}
-		if (ifOp) {
-			auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
-			assert(thenFind != metaMap.valueAtEndOfBlock.end());
-            assert(thenFind->second);
-			if (!thenFind->second->definedWithArg(block)) return false;
-			
-			if (ifOp.getElseRegion().getBlocks().size()) {
-				auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
-				assert(elseFind != metaMap.valueAtEndOfBlock.end());
-                assert(elseFind->second);
-				if (!elseFind->second->definedWithArg(block)) return false;
-			} else {
-                auto opFound = metaMap.opOperands.find(ifOp);
-                assert(opFound != metaMap.opOperands.end());
-                auto ifLastValue = opFound->second;
-				if (!ifLastValue->definedWithArg(block)) return false;
-			}
-			return true;
-		}
-		if (exOp) {
-			for (auto &B : exOp.getRegion()) {
-				if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
-					auto found = metaMap.valueAtEndOfBlock.find(&B);
-					assert(found != metaMap.valueAtEndOfBlock.end());
-                    assert(found->second);
-					if (!found->second->definedWithArg(block)) return false;
-				}
-			}
-			return true;
-		}
-		assert(0 && "unhandled");
-	}
-	Value materialize(bool full=true) {
-		if (overwritten) return nullptr;
-		if (val) return val;
-		if (valueAtStart) {
-			auto found = metaMap.valueAtStartOfBlock.find(valueAtStart);
-			if (found != metaMap.valueAtStartOfBlock.end()) {
-				if (found->second->valueAtStart != valueAtStart)
-					return found->second->materialize(full);
-				//valueAtStart = nullptr;
-				//return this->val = found->second;
-			}
-			if (!full) return nullptr;
-			llvm::errs() << " could not get valueAtStart: " << valueAtStart << "; ";
-			if (found != metaMap.valueAtStartOfBlock.end()) {
-                llvm::errs() << " map vas: " << *found->second << "\n";
-            } else {
-                llvm::errs() << " no map\n";
-            }
-			Block* blk = valueAtStart;
-			blk->dump();
-    		assert(0 && "no null");
-		}
-		if (exOp) return materializeEx(full);
-		if (ifOp) return materializeIf(full);
-		assert(0 && "");
-	}
+  ReplacementHandler &metaMap;
 
-	Value materializeEx(bool full=true) {
-		assert(exOp);
-                
-		SmallVector<scf::YieldOp> yields;
-		SmallVector<Value>        values;
-		std::set<size_t> equivalent;
-		for(size_t i=0, num=exOp.getNumResults(); i<num; i++)
-			equivalent.insert(i);
+public:
+  bool overwritten;
+  Value val;
+  Block *valueAtStart;
+  scf::ExecuteRegionOp exOp;
+  scf::IfOp ifOp;
+  ValueOrPlaceholder(ValueOrPlaceholder &&) = delete;
+  ValueOrPlaceholder(const ValueOrPlaceholder &) = delete;
+  ValueOrPlaceholder(nullptr_t, ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(true), val(nullptr),
+        valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr) {}
+  ValueOrPlaceholder(Value val, ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(false), val(val), valueAtStart(nullptr),
+        exOp(nullptr), ifOp(nullptr) {
+    assert(val);
+  }
+  ValueOrPlaceholder(Block *valueAtStart, ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(false), val(nullptr),
+        valueAtStart(valueAtStart), exOp(nullptr), ifOp(nullptr) {
+    assert(valueAtStart);
+  }
+  ValueOrPlaceholder(scf::ExecuteRegionOp exOp, ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(false), val(nullptr),
+        valueAtStart(nullptr), exOp(exOp), ifOp(nullptr) {
+    assert(exOp);
+  }
+  ValueOrPlaceholder(scf::IfOp ifOp, ReplaceableUse ifLastVal,
+                     ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(false), val(nullptr),
+        valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
+    assert(ifOp);
+    if (ifLastVal)
+      metaMap.opOperands[ifOp] = ifLastVal;
+  }
+  // Return true if this represents a full expression if all block argsare
+  // defined at start Append the list of blocks requiring definition to block.
+  bool definedWithArg(SmallPtrSetImpl<Block *> &block) {
+    if (val)
+      return true;
+    if (overwritten)
+      return false;
+    if (valueAtStart) {
+      auto found = metaMap.valueAtStartOfBlock.find(valueAtStart);
+      if (found != metaMap.valueAtStartOfBlock.end()) {
+        if (found->second->valueAtStart != valueAtStart)
+          return found->second->definedWithArg(block);
+      }
+      block.insert(valueAtStart);
+      return true;
+    }
+    if (ifOp) {
+      auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
+      assert(thenFind != metaMap.valueAtEndOfBlock.end());
+      assert(thenFind->second);
+      if (!thenFind->second->definedWithArg(block))
+        return false;
 
-		// Force early materialization in case any materializations
-        // overwrite subsequent ones.
-        for (auto &B : exOp.getRegion()) {
-			if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
-				auto found = metaMap.valueAtEndOfBlock.find(&B);
-				assert(found != metaMap.valueAtEndOfBlock.end());
-                assert(found->second);
-				Value post = found->second->materialize(full);
-				if (found->second->overwritten) {
-					this->overwritten = true;
-					this->exOp = nullptr;
-					return nullptr;
-				}
-				if (!post) {
-					if (full) {
-						this->overwritten = true;
-						this->exOp = nullptr;
-					}
-					return nullptr;
-				}
-            }
+      if (ifOp.getElseRegion().getBlocks().size()) {
+        auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
+        assert(elseFind != metaMap.valueAtEndOfBlock.end());
+        assert(elseFind->second);
+        if (!elseFind->second->definedWithArg(block))
+          return false;
+      } else {
+        auto opFound = metaMap.opOperands.find(ifOp);
+        assert(opFound != metaMap.opOperands.end());
+        auto ifLastValue = opFound->second;
+        if (!ifLastValue->definedWithArg(block))
+          return false;
+      }
+      return true;
+    }
+    if (exOp) {
+      for (auto &B : exOp.getRegion()) {
+        if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+          auto found = metaMap.valueAtEndOfBlock.find(&B);
+          assert(found != metaMap.valueAtEndOfBlock.end());
+          assert(found->second);
+          if (!found->second->definedWithArg(block))
+            return false;
         }
-		for (auto &B : exOp.getRegion()) {
-			if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
-				auto found = metaMap.valueAtEndOfBlock.find(&B);
-				assert(found != metaMap.valueAtEndOfBlock.end());
-                assert(found->second);
-				Value post = found->second->materialize(full);
-                assert(post);
-				yields.push_back(yield);
-				values.push_back(post);
-				for(auto pair : llvm::enumerate(yield.getOperands()))
-					if (pair.value() != post)
-						equivalent.erase(pair.index());
-			}
-		}
+      }
+      return true;
+    }
+    assert(0 && "unhandled");
+  }
+  Value materialize(bool full = true) {
+    if (overwritten)
+      return nullptr;
+    if (val)
+      return val;
+    if (valueAtStart) {
+      auto found = metaMap.valueAtStartOfBlock.find(valueAtStart);
+      if (found != metaMap.valueAtStartOfBlock.end()) {
+        if (found->second->valueAtStart != valueAtStart)
+          return found->second->materialize(full);
+        // valueAtStart = nullptr;
+        // return this->val = found->second;
+      }
+      if (!full)
+        return nullptr;
+      llvm::errs() << " could not get valueAtStart: " << valueAtStart << "; ";
+      if (found != metaMap.valueAtStartOfBlock.end()) {
+        llvm::errs() << " map vas: " << *found->second << "\n";
+      } else {
+        llvm::errs() << " no map\n";
+      }
+      Block *blk = valueAtStart;
+      blk->dump();
+      assert(0 && "no null");
+    }
+    if (exOp)
+      return materializeEx(full);
+    if (ifOp)
+      return materializeIf(full);
+    assert(0 && "");
+  }
 
-		// Must contain only region invariant results.
-		bool allSame = true;
-		for (auto v : values)
-			allSame &= v == values[0];
+  Value materializeEx(bool full = true) {
+    assert(exOp);
 
-		// If all all paths are the same, and the value is not defined within the 
-		// execute region, simply return that single value, rather than creating a new return.
-		if (allSame) {
-			if (values[0].getDefiningOp() && !exOp->isAncestor(values[0].getDefiningOp())) {
-				return values[0];
-			}
-			if (auto ba = values[0].dyn_cast<BlockArgument>())
-				if (!exOp->isAncestor(ba.getOwner()->getParentOp())) {
-					return values[0];
-				}
-		}
-		// If there's an equivalent return, don't create a new return and instead use that result.
-		if (equivalent.size() > 0) {
-			return exOp.getResult(*equivalent.begin());
-		}
+    SmallVector<scf::YieldOp> yields;
+    SmallVector<Value> values;
+    std::set<size_t> equivalent;
+    for (size_t i = 0, num = exOp.getNumResults(); i < num; i++)
+      equivalent.insert(i);
 
-		OpBuilder B(exOp.getContext());
-		B.setInsertionPoint(exOp);
-		SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
-									   exOp.getResultTypes().end());
-		tys.push_back(metaMap.elType);
-		auto nextEx = B.create<mlir::scf::ExecuteRegionOp>(
-			exOp.getLoc(), tys);
-
-		nextEx.getRegion().takeBody(exOp.getRegion());
-		for (auto pair : llvm::zip(yields, values)) {
-		  SmallVector<Value, 4> vals = std::get<0>(pair).getOperands();
-		  vals.push_back(std::get<1>(pair));
-		  std::get<0>(pair)->setOperands(vals);
-		}
-		
-		SmallVector<mlir::Value, 3> resvals = nextEx.getResults();
-		this->val = resvals.back();
-		resvals.pop_back();
-                
-        for (auto pair : llvm::zip(exOp.getResults(), resvals)) {
-            metaMap.replaceValue(std::get<0>(pair), std::get<1>(pair));
+    // Force early materialization in case any materializations
+    // overwrite subsequent ones.
+    for (auto &B : exOp.getRegion()) {
+      if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+        auto found = metaMap.valueAtEndOfBlock.find(&B);
+        assert(found != metaMap.valueAtEndOfBlock.end());
+        assert(found->second);
+        Value post = found->second->materialize(full);
+        if (found->second->overwritten) {
+          this->overwritten = true;
+          this->exOp = nullptr;
+          return nullptr;
         }
-        metaMap.replaceOpWithValue(exOp, this, this->val);
-		//StoringOperations.erase(exOp);
-		//StoringOperations.insert(nextEx);
-		exOp.erase();
-		this->exOp = nullptr;
-		return this->val;
-	}
-	Value materializeIf(bool full=true) {
-		auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
-		assert(thenFind != metaMap.valueAtEndOfBlock.end());
-		assert(thenFind->second);
-		Value thenVal = thenFind->second->materialize(full);
-		if (thenFind->second->overwritten) {
-			this->overwritten = true;
-            metaMap.opOperands.erase(ifOp);
-			this->ifOp = nullptr;
-			return nullptr;
-		}
-		if (!thenVal) {
-			if (full) {
-				this->overwritten = true;
-                metaMap.opOperands.erase(ifOp);
-				this->ifOp = nullptr;
-			}
-			return nullptr;
-		}
-        Value elseVal;
+        if (!post) {
+          if (full) {
+            this->overwritten = true;
+            this->exOp = nullptr;
+          }
+          return nullptr;
+        }
+      }
+    }
+    for (auto &B : exOp.getRegion()) {
+      if (auto yield = dyn_cast<scf::YieldOp>(B.getTerminator())) {
+        auto found = metaMap.valueAtEndOfBlock.find(&B);
+        assert(found != metaMap.valueAtEndOfBlock.end());
+        assert(found->second);
+        Value post = found->second->materialize(full);
+        assert(post);
+        yields.push_back(yield);
+        values.push_back(post);
+        for (auto pair : llvm::enumerate(yield.getOperands()))
+          if (pair.value() != post)
+            equivalent.erase(pair.index());
+      }
+    }
 
-        if (ifOp.getElseRegion().getBlocks().size()) {
-			auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
-			assert(elseFind != metaMap.valueAtEndOfBlock.end());
-            assert(elseFind->second);
-			elseVal = elseFind->second->materialize(full);
-			if (elseFind->second->overwritten) {
-				this->overwritten = true;
-                metaMap.opOperands.erase(ifOp);
-				this->ifOp = nullptr;
-				return nullptr;
-			}
-        } else {
-            auto opFound = metaMap.opOperands.find(ifOp);
-            assert(opFound != metaMap.opOperands.end());
-            auto ifLastValue = opFound->second;
- 			elseVal = ifLastValue->materialize(full);
-			if (ifLastValue->overwritten) {
-				this->overwritten = true;
-                metaMap.opOperands.erase(ifOp);
-				this->ifOp = nullptr;
-				return nullptr;
-			}
-		}
-		
-		if (!elseVal) {
-			if (full) {
-				this->overwritten = true;
-                metaMap.opOperands.erase(ifOp);
-				this->ifOp = nullptr;
-			}
-			return nullptr;
-		}
-		
-        // Rematerialize thenVal in case it was overwritten by the elseRegion
-        //  materialization.
-        thenVal = thenFind->second->materialize(full);
-              
-              if (thenVal == elseVal) {
-                return thenVal;
-              }
+    // Must contain only region invariant results.
+    bool allSame = true;
+    for (auto v : values)
+      allSame &= v == values[0];
 
-                if (ifOp.getElseRegion().getBlocks().size()) {
-                  for (auto tup : llvm::reverse(llvm::zip(
-                           ifOp.getResults(), ifOp.thenYield().getOperands(),
-                           ifOp.elseYield().getOperands()))) {
-                    if (std::get<1>(tup) == thenVal &&
-                        std::get<2>(tup) == elseVal) {
-                return thenVal;
-                    }
-                  }
-                }
+    // If all all paths are the same, and the value is not defined within the
+    // execute region, simply return that single value, rather than creating a
+    // new return.
+    if (allSame) {
+      if (values[0].getDefiningOp() &&
+          !exOp->isAncestor(values[0].getDefiningOp())) {
+        return values[0];
+      }
+      if (auto ba = values[0].dyn_cast<BlockArgument>())
+        if (!exOp->isAncestor(ba.getOwner()->getParentOp())) {
+          return values[0];
+        }
+    }
+    // If there's an equivalent return, don't create a new return and instead
+    // use that result.
+    if (equivalent.size() > 0) {
+      return exOp.getResult(*equivalent.begin());
+    }
 
-                OpBuilder B(ifOp.getContext());
-                B.setInsertionPoint(ifOp);
-                SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
-                                               ifOp.getResultTypes().end());
-                tys.push_back(thenVal.getType());
-                auto nextIf = B.create<mlir::scf::IfOp>(
-                    ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
+    OpBuilder B(exOp.getContext());
+    B.setInsertionPoint(exOp);
+    SmallVector<mlir::Type, 4> tys(exOp.getResultTypes().begin(),
+                                   exOp.getResultTypes().end());
+    tys.push_back(metaMap.elType);
+    auto nextEx = B.create<mlir::scf::ExecuteRegionOp>(exOp.getLoc(), tys);
 
-                SmallVector<mlir::Value, 4> thenVals = ifOp.thenYield().getResults();
-                thenVals.push_back(thenVal);
-                nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
-				nextIf.thenYield()->setOperands(thenVals);
+    nextEx.getRegion().takeBody(exOp.getRegion());
+    for (auto pair : llvm::zip(yields, values)) {
+      SmallVector<Value, 4> vals = std::get<0>(pair).getOperands();
+      vals.push_back(std::get<1>(pair));
+      std::get<0>(pair)->setOperands(vals);
+    }
 
-                if (ifOp.getElseRegion().getBlocks().size()) {
-                  nextIf.getElseRegion().getBlocks().clear();
-                  SmallVector<mlir::Value, 4> elseVals =
-					ifOp.elseYield().getResults();
-                  elseVals.push_back(elseVal);
-                  nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
-                  nextIf.elseYield()->setOperands(elseVals);
-                } else {
-                  B.setInsertionPoint(&nextIf.getElseRegion().back(),
-                                      nextIf.getElseRegion().back().begin());
-                  SmallVector<mlir::Value, 4> elseVals = {elseVal};
-                  B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
-                }
+    SmallVector<mlir::Value, 3> resvals = nextEx.getResults();
+    this->val = resvals.back();
+    resvals.pop_back();
 
-                SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
-                this->val = resvals.back();
-                resvals.pop_back();
+    for (auto pair : llvm::zip(exOp.getResults(), resvals)) {
+      metaMap.replaceValue(std::get<0>(pair), std::get<1>(pair));
+    }
+    metaMap.replaceOpWithValue(exOp, this, this->val);
+    // StoringOperations.erase(exOp);
+    // StoringOperations.insert(nextEx);
+    exOp.erase();
+    this->exOp = nullptr;
+    return this->val;
+  }
+  Value materializeIf(bool full = true) {
+    auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
+    assert(thenFind != metaMap.valueAtEndOfBlock.end());
+    assert(thenFind->second);
+    Value thenVal = thenFind->second->materialize(full);
+    if (thenFind->second->overwritten) {
+      this->overwritten = true;
+      metaMap.opOperands.erase(ifOp);
+      this->ifOp = nullptr;
+      return nullptr;
+    }
+    if (!thenVal) {
+      if (full) {
+        this->overwritten = true;
+        metaMap.opOperands.erase(ifOp);
+        this->ifOp = nullptr;
+      }
+      return nullptr;
+    }
+    Value elseVal;
 
-                for (auto pair : llvm::zip(ifOp.getResults(), resvals)) {
-                    metaMap.replaceValue(std::get<0>(pair), std::get<1>(pair));
-                }
-                metaMap.replaceOpWithValue(ifOp, this, this->val);
+    if (ifOp.getElseRegion().getBlocks().size()) {
+      auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
+      assert(elseFind != metaMap.valueAtEndOfBlock.end());
+      assert(elseFind->second);
+      elseVal = elseFind->second->materialize(full);
+      if (elseFind->second->overwritten) {
+        this->overwritten = true;
+        metaMap.opOperands.erase(ifOp);
+        this->ifOp = nullptr;
+        return nullptr;
+      }
+    } else {
+      auto opFound = metaMap.opOperands.find(ifOp);
+      assert(opFound != metaMap.opOperands.end());
+      auto ifLastValue = opFound->second;
+      elseVal = ifLastValue->materialize(full);
+      if (ifLastValue->overwritten) {
+        this->overwritten = true;
+        metaMap.opOperands.erase(ifOp);
+        this->ifOp = nullptr;
+        return nullptr;
+      }
+    }
 
-                //StoringOperations.erase(ifOp);
-                //StoringOperations.insert(nextIf);
-                ifOp.erase();
-                metaMap.opOperands.erase(ifOp);
-				this->ifOp = nullptr;
-                return this->val;
-	}
+    if (!elseVal) {
+      if (full) {
+        this->overwritten = true;
+        metaMap.opOperands.erase(ifOp);
+        this->ifOp = nullptr;
+      }
+      return nullptr;
+    }
+
+    // Rematerialize thenVal in case it was overwritten by the elseRegion
+    //  materialization.
+    thenVal = thenFind->second->materialize(full);
+
+    if (thenVal == elseVal) {
+      return thenVal;
+    }
+
+    if (ifOp.getElseRegion().getBlocks().size()) {
+      for (auto tup : llvm::reverse(
+               llvm::zip(ifOp.getResults(), ifOp.thenYield().getOperands(),
+                         ifOp.elseYield().getOperands()))) {
+        if (std::get<1>(tup) == thenVal && std::get<2>(tup) == elseVal) {
+          return thenVal;
+        }
+      }
+    }
+
+    OpBuilder B(ifOp.getContext());
+    B.setInsertionPoint(ifOp);
+    SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
+                                   ifOp.getResultTypes().end());
+    tys.push_back(thenVal.getType());
+    auto nextIf = B.create<mlir::scf::IfOp>(
+        ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
+
+    SmallVector<mlir::Value, 4> thenVals = ifOp.thenYield().getResults();
+    thenVals.push_back(thenVal);
+    nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
+    nextIf.thenYield()->setOperands(thenVals);
+
+    if (ifOp.getElseRegion().getBlocks().size()) {
+      nextIf.getElseRegion().getBlocks().clear();
+      SmallVector<mlir::Value, 4> elseVals = ifOp.elseYield().getResults();
+      elseVals.push_back(elseVal);
+      nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
+      nextIf.elseYield()->setOperands(elseVals);
+    } else {
+      B.setInsertionPoint(&nextIf.getElseRegion().back(),
+                          nextIf.getElseRegion().back().begin());
+      SmallVector<mlir::Value, 4> elseVals = {elseVal};
+      B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
+    }
+
+    SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
+    this->val = resvals.back();
+    resvals.pop_back();
+
+    for (auto pair : llvm::zip(ifOp.getResults(), resvals)) {
+      metaMap.replaceValue(std::get<0>(pair), std::get<1>(pair));
+    }
+    metaMap.replaceOpWithValue(ifOp, this, this->val);
+
+    // StoringOperations.erase(ifOp);
+    // StoringOperations.insert(nextIf);
+    ifOp.erase();
+    metaMap.opOperands.erase(ifOp);
+    this->ifOp = nullptr;
+    return this->val;
+  }
 };
 static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
-                                            ValueOrPlaceholder& PH) {
+                                            ValueOrPlaceholder &PH) {
   if (PH.overwritten)
-	return os << "<overwritten>";
+    return os << "<overwritten>";
   if (PH.val)
-	return os << "val:" << PH.val;
+    return os << "val:" << PH.val;
   if (PH.valueAtStart) {
-	PH.valueAtStart->print(os);
-	return os;;
-	}
+    PH.valueAtStart->print(os);
+    return os;
+    ;
+  }
   if (PH.ifOp)
-	return os << "ifOp:" << PH.ifOp;
+    return os << "ifOp:" << PH.ifOp;
   if (PH.exOp)
-	return os << "exOp:" << PH.exOp;
+    return os << "exOp:" << PH.exOp;
   return os;
 }
-    ValueOrPlaceholder* ReplacementHandler::get(std::nullptr_t val) {
-        ValueOrPlaceholder *PH;
-        allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
-        return PH;
+ValueOrPlaceholder *ReplacementHandler::get(std::nullptr_t val) {
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
+  return PH;
+}
+ValueOrPlaceholder *ReplacementHandler::get(Value val) {
+  auto found = valueMap.find(val);
+  if (found != valueMap.end())
+    return found->second;
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
+  valueMap.insert(std::make_pair(val, PH));
+  return PH;
+}
+ValueOrPlaceholder *ReplacementHandler::get(Block *val) {
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
+  return PH;
+}
+ValueOrPlaceholder *ReplacementHandler::get(scf::IfOp val,
+                                            ValueOrPlaceholder *ifVal) {
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
+  return PH;
+}
+ValueOrPlaceholder *ReplacementHandler::get(scf::ExecuteRegionOp val) {
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
+  return PH;
+}
+void ReplacementHandler::replaceValue(Value orig, Value post) {
+  orig.replaceAllUsesWith(post);
+  auto found = valueMap.find(orig);
+  if (found != valueMap.end()) {
+    auto pfound = valueMap.find(post);
+    if (pfound == valueMap.end()) {
+      found->second->val = post;
+    } else {
+      for (auto &pair : valueAtStartOfBlock)
+        if (pair.second == found->second)
+          pair.second = pfound->second;
+      for (auto &pair : valueAtEndOfBlock)
+        if (pair.second == found->second)
+          pair.second = pfound->second;
+      for (auto &pair : replaceableValues)
+        if (pair.second == found->second)
+          pair.second = pfound->second;
+      for (auto &pair : opOperands)
+        if (pair.second == found->second)
+          pair.second = pfound->second;
+      valueMap.erase(found);
     }
-    ValueOrPlaceholder* ReplacementHandler::get(Value val) {
-        auto found = valueMap.find(val);
-        if (found != valueMap.end())
-            return found->second;
-        ValueOrPlaceholder *PH;
-        allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
-        valueMap.insert(std::make_pair(val, PH));
-        return PH;
-    }
-    ValueOrPlaceholder* ReplacementHandler::get(Block* val) {
-        ValueOrPlaceholder *PH;
-        allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
-        return PH;
-    }
-    ValueOrPlaceholder* ReplacementHandler::get(scf::IfOp val, ValueOrPlaceholder* ifVal) {
-        ValueOrPlaceholder *PH;
-        allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
-        return PH;
-    }
-    ValueOrPlaceholder* ReplacementHandler::get(scf::ExecuteRegionOp val) {
-        ValueOrPlaceholder *PH;
-        allocs.emplace_back(PH = new ValueOrPlaceholder(val, *this));
-        return PH;
-    }
-    void ReplacementHandler::replaceValue(Value orig, Value post) {
-        orig.replaceAllUsesWith(post);
-        auto found = valueMap.find(orig);
-        if (found != valueMap.end()) {
-            auto pfound = valueMap.find(post);
-            if (pfound == valueMap.end()) {
-                found->second->val = post;
-            } else {
-                for (auto &pair : valueAtStartOfBlock)
-                    if (pair.second == found->second)
-                        pair.second = pfound->second;
-                for (auto &pair : valueAtEndOfBlock)
-                    if (pair.second == found->second)
-                        pair.second = pfound->second;
-                for (auto &pair : replaceableValues)
-                    if (pair.second == found->second)
-                        pair.second = pfound->second;
-                for (auto &pair : opOperands)
-                    if (pair.second == found->second)
-                        pair.second = pfound->second;
-                valueMap.erase(found);
-            }
-        }
-    }
-
+  }
+}
 
 struct Analyzer {
 
@@ -645,251 +658,253 @@ struct Analyzer {
     }
   }
 };
-			  /*
-			  Operation* newLoad = nullptr;
-              if (lastVal == nullptr && lastValIsStartOfBlock) {
-                OpBuilder B(exOp.getContext());
-                B.setInsertionPoint(exOp);
-                SmallVector<mlir::Value, 4> nidx;
-                for (auto i : idx) {
-                  nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
-                }
-                if (AI.getType().isa<MemRefType>()) {
-				  SmallVector<AffineExpr> exprs;
-				  for (auto i : idx)
-					exprs.push_back(B.getAffineConstantExpr(i));
-                  AffineMap m = AffineMap::get(0, 0, exprs, B.getContext());
-				  newLoad = B.create<AffineLoadOp>(exOp.getLoc(), AI, m, ValueRange());
-                } else
-                  newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
-			    lastVal = newLoad->getResult(0);
-				lastValIsStartOfBlock = false;
-				newLoads.insert(newLoad);
-              }
-			  */
+/*
+Operation* newLoad = nullptr;
+if (lastVal == nullptr && lastValIsStartOfBlock) {
+OpBuilder B(exOp.getContext());
+B.setInsertionPoint(exOp);
+SmallVector<mlir::Value, 4> nidx;
+for (auto i : idx) {
+nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
+}
+if (AI.getType().isa<MemRefType>()) {
+        SmallVector<AffineExpr> exprs;
+        for (auto i : idx)
+              exprs.push_back(B.getAffineConstantExpr(i));
+AffineMap m = AffineMap::get(0, 0, exprs, B.getContext());
+        newLoad = B.create<AffineLoadOp>(exOp.getLoc(), AI, m, ValueRange());
+} else
+newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
+  lastVal = newLoad->getResult(0);
+      lastValIsStartOfBlock = false;
+      newLoads.insert(newLoad);
+}
+*/
 
 // Remove block arguments if possible
-void removeRedundantBlockArgs(Value AI, Type elType, std::map<Block*, BlockArgument> &blocksWithAddedArgs) {
-    std::deque<Block *> todo;
-	for(auto & p : blocksWithAddedArgs)
-		todo.push_back(p.first);
-    while (todo.size()) {
-      auto block = todo.front();
-      todo.pop_front();
-      if (!blocksWithAddedArgs.count(block))
-        continue;
+void removeRedundantBlockArgs(
+    Value AI, Type elType,
+    std::map<Block *, BlockArgument> &blocksWithAddedArgs) {
+  std::deque<Block *> todo;
+  for (auto &p : blocksWithAddedArgs)
+    todo.push_back(p.first);
+  while (todo.size()) {
+    auto block = todo.front();
+    todo.pop_front();
+    if (!blocksWithAddedArgs.count(block))
+      continue;
 
-      BlockArgument blockArg = blocksWithAddedArgs.find(block)->second;
-      if (blockArg.getOwner() != block) continue;
-      assert(blockArg.getOwner() == block);
+    BlockArgument blockArg = blocksWithAddedArgs.find(block)->second;
+    if (blockArg.getOwner() != block)
+      continue;
+    assert(blockArg.getOwner() == block);
 
-      mlir::Value val = nullptr;
-      bool legal = true;
+    mlir::Value val = nullptr;
+    bool legal = true;
 
-      SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                 block->getPredecessors().end());
-      for (auto pred : prepred) {
-        mlir::Value pval = nullptr;
+    SetVector<Block *> prepred(block->getPredecessors().begin(),
+                               block->getPredecessors().end());
+    for (auto pred : prepred) {
+      mlir::Value pval = nullptr;
 
-        if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-          pval = op.getOperands()[blockArg.getArgNumber()];
-          if (pval.getType() != elType) {
-            pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
-            llvm::errs() << pval << " - " << AI << "\n";
+      if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+        pval = op.getOperands()[blockArg.getArgNumber()];
+        if (pval.getType() != elType) {
+          pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
+          llvm::errs() << pval << " - " << AI << "\n";
+        }
+        assert(pval.getType() == elType);
+        if (pval == blockArg)
+          pval = nullptr;
+      } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+        if (op.getTrueDest() == block) {
+          if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
+            block->dump();
+            llvm::errs() << op << " ba: " << blockArg.getArgNumber() << "\n";
           }
+          assert(blockArg.getArgNumber() < op.getTrueOperands().size());
+          pval = op.getTrueOperands()[blockArg.getArgNumber()];
           assert(pval.getType() == elType);
           if (pval == blockArg)
             pval = nullptr;
-        } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-          if (op.getTrueDest() == block) {
-            if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
-              block->dump();
-              llvm::errs() << op << " ba: " << blockArg.getArgNumber() << "\n";
+        }
+        if (op.getFalseDest() == block) {
+          assert(blockArg.getArgNumber() < op.getFalseOperands().size());
+          auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
+          assert(pval2.getType() == elType);
+          if (pval2 != blockArg) {
+            if (pval == nullptr) {
+              pval = pval2;
+            } else if (pval != pval2) {
+              legal = false;
+              break;
             }
-            assert(blockArg.getArgNumber() < op.getTrueOperands().size());
-            pval = op.getTrueOperands()[blockArg.getArgNumber()];
-            assert(pval.getType() == elType);
-            if (pval == blockArg)
-              pval = nullptr;
           }
-          if (op.getFalseDest() == block) {
-            assert(blockArg.getArgNumber() < op.getFalseOperands().size());
-            auto pval2 = op.getFalseOperands()[blockArg.getArgNumber()];
-            assert(pval2.getType() == elType);
+          if (pval == blockArg)
+            pval = nullptr;
+        }
+      } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+        mlir::OpBuilder subbuilder(op.getOperation());
+        if (op.getDefaultDestination() == block) {
+          pval = op.getDefaultOperands()[blockArg.getArgNumber()];
+          if (pval == blockArg)
+            pval = nullptr;
+        }
+        for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
+          if (pair.value() == block) {
+            auto pval2 =
+                op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
             if (pval2 != blockArg) {
-              if (pval == nullptr) {
+              if (pval == nullptr)
                 pval = pval2;
-              } else if (pval != pval2) {
+              else if (pval != pval2) {
                 legal = false;
                 break;
               }
             }
-            if (pval == blockArg)
-              pval = nullptr;
-          }
-        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
-          mlir::OpBuilder subbuilder(op.getOperation());
-          if (op.getDefaultDestination() == block) {
-            pval = op.getDefaultOperands()[blockArg.getArgNumber()];
-            if (pval == blockArg)
-              pval = nullptr;
-          }
-          for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
-            if (pair.value() == block) {
-              auto pval2 =
-                  op.getCaseOperands(pair.index())[blockArg.getArgNumber()];
-              if (pval2 != blockArg) {
-                if (pval == nullptr)
-                  pval = pval2;
-                else if (pval != pval2) {
-                  legal = false;
-                  break;
-                }
-              }
-            }
-          }
-          if (legal == false)
-            break;
-        } else {
-          llvm::errs() << *pred->getParent()->getParentOp() << "\n";
-          pred->dump();
-          block->dump();
-          assert(0 && "unknown branch");
-        }
-
-        assert(pval != blockArg);
-        if (val == nullptr) {
-          val = pval;
-          if (pval)
-            assert(val.getType() == elType);
-        } else {
-          if (pval != nullptr && val != pval) {
-            legal = false;
-            break;
           }
         }
-      }
-      if (legal)
-        assert(val || block->hasNoPredecessors());
-
-      bool used = false;
-      for (auto U : blockArg.getUsers()) {
-
-        if (auto op = dyn_cast<BranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-        } else if (auto op = dyn_cast<CondBranchOp>(U)) {
-          size_t i = 0;
-          for (auto V : op.getTrueOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getTrueDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-          if (used)
-            break;
-          i = 0;
-          for (auto V : op.getFalseOperands()) {
-            if (V == blockArg &&
-                !(i == blockArg.getArgNumber() && op.getFalseDest() == block)) {
-              used = true;
-              break;
-            }
-          }
-        } else
-          used = true;
-      }
-      if (!used) {
-        legal = true;
+        if (legal == false)
+          break;
+      } else {
+        llvm::errs() << *pred->getParent()->getParentOp() << "\n";
+        pred->dump();
+        block->dump();
+        assert(0 && "unknown branch");
       }
 
-      if (legal) {
-        for (auto U : blockArg.getUsers()) {
-          if (auto block = U->getBlock()) {
-            todo.push_back(block);
-            for (auto succ : block->getSuccessors())
-              todo.push_back(succ);
-          }
+      assert(pval != blockArg);
+      if (val == nullptr) {
+        val = pval;
+        if (pval)
+          assert(val.getType() == elType);
+      } else {
+        if (pval != nullptr && val != pval) {
+          legal = false;
+          break;
         }
-        if (val != nullptr) {
-          if (blockArg.getType() != val.getType()) {
-            block->dump();
-            llvm::errs() << " AI: " << AI << "\n";
-            llvm::errs() << blockArg << " val " << val << "\n";
-          }
-          assert(blockArg.getType() == val.getType());
-          blockArg.replaceAllUsesWith(val);
-        } else {
-        }
-
-        SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                   block->getPredecessors().end());
-        for (auto pred : prepred) {
-          if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> args(op.getOperands().begin(),
-                                    op.getOperands().end());
-            args.erase(args.begin() + blockArg.getArgNumber());
-            assert(args.size() == op.getOperands().size() - 1);
-            subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-            op.erase();
-          } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
-
-            mlir::OpBuilder subbuilder(op.getOperation());
-            std::vector<Value> trueargs(op.getTrueOperands().begin(),
-                                        op.getTrueOperands().end());
-            std::vector<Value> falseargs(op.getFalseOperands().begin(),
-                                         op.getFalseOperands().end());
-            if (op.getTrueDest() == block) {
-              trueargs.erase(trueargs.begin() + blockArg.getArgNumber());
-            }
-            if (op.getFalseDest() == block) {
-              falseargs.erase(falseargs.begin() + blockArg.getArgNumber());
-            }
-            assert(trueargs.size() < op.getTrueOperands().size() ||
-                   falseargs.size() < op.getFalseOperands().size());
-            subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                            op.getTrueDest(), trueargs,
-                                            op.getFalseDest(), falseargs);
-            op.erase();
-          } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
-            mlir::OpBuilder builder(op.getOperation());
-            SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
-                                          op.getDefaultOperands().end());
-            if (op.getDefaultDestination() == block)
-              defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
-
-            SmallVector<SmallVector<Value>> cases;
-            SmallVector<ValueRange> vrange;
-            for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
-              cases.emplace_back(op.getCaseOperands(pair.index()));
-              if (pair.value() == block) {
-                cases.back().erase(cases.back().begin() +
-                                   blockArg.getArgNumber());
-              }
-              vrange.push_back(cases.back());
-            }
-            builder.create<mlir::SwitchOp>(op.getLoc(), op.getFlag(),
-                                           op.getDefaultDestination(),
-                                           defaultOps, op.getCaseValuesAttr(),
-                                           op.getCaseDestinations(), vrange);
-            op.erase();
-          }
-        }
-        block->eraseArgument(blockArg.getArgNumber());
-        blocksWithAddedArgs.erase(block);
       }
     }
+    if (legal)
+      assert(val || block->hasNoPredecessors());
+
+    bool used = false;
+    for (auto U : blockArg.getUsers()) {
+
+      if (auto op = dyn_cast<BranchOp>(U)) {
+        size_t i = 0;
+        for (auto V : op.getOperands()) {
+          if (V == blockArg &&
+              !(i == blockArg.getArgNumber() && op.getDest() == block)) {
+            used = true;
+            break;
+          }
+        }
+        if (used)
+          break;
+      } else if (auto op = dyn_cast<CondBranchOp>(U)) {
+        size_t i = 0;
+        for (auto V : op.getTrueOperands()) {
+          if (V == blockArg &&
+              !(i == blockArg.getArgNumber() && op.getTrueDest() == block)) {
+            used = true;
+            break;
+          }
+        }
+        if (used)
+          break;
+        i = 0;
+        for (auto V : op.getFalseOperands()) {
+          if (V == blockArg &&
+              !(i == blockArg.getArgNumber() && op.getFalseDest() == block)) {
+            used = true;
+            break;
+          }
+        }
+      } else
+        used = true;
+    }
+    if (!used) {
+      legal = true;
+    }
+
+    if (legal) {
+      for (auto U : blockArg.getUsers()) {
+        if (auto block = U->getBlock()) {
+          todo.push_back(block);
+          for (auto succ : block->getSuccessors())
+            todo.push_back(succ);
+        }
+      }
+      if (val != nullptr) {
+        if (blockArg.getType() != val.getType()) {
+          block->dump();
+          llvm::errs() << " AI: " << AI << "\n";
+          llvm::errs() << blockArg << " val " << val << "\n";
+        }
+        assert(blockArg.getType() == val.getType());
+        blockArg.replaceAllUsesWith(val);
+      } else {
+      }
+
+      SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                 block->getPredecessors().end());
+      for (auto pred : prepred) {
+        if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+          mlir::OpBuilder subbuilder(op.getOperation());
+          std::vector<Value> args(op.getOperands().begin(),
+                                  op.getOperands().end());
+          args.erase(args.begin() + blockArg.getArgNumber());
+          assert(args.size() == op.getOperands().size() - 1);
+          subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+          op.erase();
+        } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+
+          mlir::OpBuilder subbuilder(op.getOperation());
+          std::vector<Value> trueargs(op.getTrueOperands().begin(),
+                                      op.getTrueOperands().end());
+          std::vector<Value> falseargs(op.getFalseOperands().begin(),
+                                       op.getFalseOperands().end());
+          if (op.getTrueDest() == block) {
+            trueargs.erase(trueargs.begin() + blockArg.getArgNumber());
+          }
+          if (op.getFalseDest() == block) {
+            falseargs.erase(falseargs.begin() + blockArg.getArgNumber());
+          }
+          assert(trueargs.size() < op.getTrueOperands().size() ||
+                 falseargs.size() < op.getFalseOperands().size());
+          subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
+                                          op.getTrueDest(), trueargs,
+                                          op.getFalseDest(), falseargs);
+          op.erase();
+        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+          mlir::OpBuilder builder(op.getOperation());
+          SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
+                                        op.getDefaultOperands().end());
+          if (op.getDefaultDestination() == block)
+            defaultOps.erase(defaultOps.begin() + blockArg.getArgNumber());
+
+          SmallVector<SmallVector<Value>> cases;
+          SmallVector<ValueRange> vrange;
+          for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
+            cases.emplace_back(op.getCaseOperands(pair.index()));
+            if (pair.value() == block) {
+              cases.back().erase(cases.back().begin() +
+                                 blockArg.getArgNumber());
+            }
+            vrange.push_back(cases.back());
+          }
+          builder.create<mlir::SwitchOp>(
+              op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
+              op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
+          op.erase();
+        }
+      }
+      block->eraseArgument(blockArg.getArgNumber());
+      blocksWithAddedArgs.erase(block);
+    }
   }
+}
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
@@ -1069,17 +1084,19 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   {
     SmallVector<Region *> todo;
     for (auto load : loadOps) {
-        todo.push_back(load->getParentRegion());
+      todo.push_back(load->getParentRegion());
     }
     while (todo.size()) {
-        auto op = todo.back();
-        todo.pop_back();
-        if (ContainsLoadingOperation.contains(op)) continue;
-        if (op == parentAI) continue;
-        ContainsLoadingOperation.insert(op);
-        auto parent = op->getParentRegion();
-        assert(parent);
-        todo.push_back(parent);
+      auto op = todo.back();
+      todo.pop_back();
+      if (ContainsLoadingOperation.contains(op))
+        continue;
+      if (op == parentAI)
+        continue;
+      ContainsLoadingOperation.insert(op);
+      auto parent = op->getParentRegion();
+      assert(parent);
+      todo.push_back(parent);
     }
   }
 
@@ -1123,30 +1140,31 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
 
   ReplacementHandler metaMap(elType);
-  
+
   // Last value stored in an individual block and the operation which stored it
   BlockMap &valueAtEndOfBlock = metaMap.valueAtEndOfBlock;
 
   // Last value stored in an individual block and the operation which stored it
   BlockMap &valueAtStartOfBlock = metaMap.valueAtStartOfBlock;
-  
-  SmallVector<std::pair<Value, ValueOrPlaceholder*>> &replaceableValues = metaMap.replaceableValues;
-  
 
-  std::map<Block*, BlockArgument> blocksWithAddedArgs;
-  
+  SmallVector<std::pair<Value, ValueOrPlaceholder *>> &replaceableValues =
+      metaMap.replaceableValues;
+
+  std::map<Block *, BlockArgument> blocksWithAddedArgs;
+
   auto emptyValue = metaMap.get(nullptr);
 
-  auto replaceValue = [&](Value orig, ValueOrPlaceholder* replacement) -> ValueOrPlaceholder* {
+  auto replaceValue =
+      [&](Value orig, ValueOrPlaceholder *replacement) -> ValueOrPlaceholder * {
     assert(replacement);
-	replacement->materialize(/*full*/false);
+    replacement->materialize(/*full*/ false);
     assert(orig.getType() == elType);
-	if (replacement->overwritten) {
-        loadOps.erase(orig.getDefiningOp()); 
-		return metaMap.get(orig);
-	} else if (replacement->val) {
-	  changed = true;
-	  assert(orig != replacement->val);
+    if (replacement->overwritten) {
+      loadOps.erase(orig.getDefiningOp());
+      return metaMap.get(orig);
+    } else if (replacement->val) {
+      changed = true;
+      assert(orig != replacement->val);
       assert(replacement->val.getType() == elType);
       assert(orig.getType() == replacement->val.getType() &&
              "mismatched load type");
@@ -1159,9 +1177,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       return replacement;
     } else {
       assert(replacement);
-      SmallPtrSet<Block*, 1> requirements;
+      SmallPtrSet<Block *, 1> requirements;
       if (replacement->definedWithArg(requirements)) {
-	    replaceableValues.push_back(std::make_pair(orig, replacement));
+        replaceableValues.push_back(std::make_pair(orig, replacement));
         assert(replaceableValues.back().second);
       }
       return metaMap.get(orig);
@@ -1173,40 +1191,43 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   // block
   // endRequires denotes whether this value is needed at the end of the block
   // (yield)
-  std::function<void(Block &, ValueOrPlaceholder*)>
-      handleBlock = [&](Block &block, ValueOrPlaceholder* lastVal) {
+  std::function<void(Block &, ValueOrPlaceholder *)> handleBlock =
+      [&](Block &block, ValueOrPlaceholder *lastVal) {
         valueAtStartOfBlock.emplace(&block, lastVal);
         SmallVector<Operation *, 10> ops;
         for (auto &a : block) {
           ops.push_back(&a);
         }
-        LLVM_DEBUG(llvm::dbgs() << "\nstarting block: lastVal="<< *lastVal << "\n";
-                   block.print(llvm::dbgs()); llvm::dbgs() << "\n";
-                   );
+        LLVM_DEBUG(llvm::dbgs()
+                       << "\nstarting block: lastVal=" << *lastVal << "\n";
+                   block.print(llvm::dbgs()); llvm::dbgs() << "\n";);
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
             // erase a, in case overwritten later in metamap replacement/lookup.
             StoringOperations.erase(a);
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
-			  for (auto &B : exOp.getRegion())
-				handleBlock(B, (&B == &exOp.getRegion().front()) ? lastVal : metaMap.get(&B));
-			  lastVal = metaMap.get(exOp);
+              for (auto &B : exOp.getRegion())
+                handleBlock(B, (&B == &exOp.getRegion().front())
+                                   ? lastVal
+                                   : metaMap.get(&B));
+              lastVal = metaMap.get(exOp);
               continue;
             } else if (auto ifOp = dyn_cast<mlir::scf::IfOp>(a)) {
-			  handleBlock(*ifOp.getThenRegion().begin(), lastVal);
-			  if (ifOp.getElseRegion().getBlocks().size()) {
+              handleBlock(*ifOp.getThenRegion().begin(), lastVal);
+              if (ifOp.getElseRegion().getBlocks().size()) {
                 handleBlock(*ifOp.getElseRegion().begin(), lastVal);
-			    lastVal = metaMap.get(ifOp, emptyValue);
+                lastVal = metaMap.get(ifOp, emptyValue);
               } else {
-			    lastVal = metaMap.get(ifOp, lastVal);
+                lastVal = metaMap.get(ifOp, lastVal);
               }
               continue;
             }
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
-            
+
             for (auto &R : a->getRegions())
-                for (auto &B : R)
-                    handleBlock(B, (&B == &R.front()) ? emptyValue : metaMap.get(&B));
+              for (auto &B : R)
+                handleBlock(B,
+                            (&B == &R.front()) ? emptyValue : metaMap.get(&B));
             lastVal = emptyValue;
           } else if (loadOps.count(a)) {
             Value loadOp = a->getResult(0);
@@ -1240,166 +1261,174 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       };
 
   {
-	assert(AI.getDefiningOp());
-	SmallVector<Block*> todo = {AI.getDefiningOp()->getBlock()};
-	SmallPtrSet<Block*, 2> done;
-	while (todo.size()) {
-		Block* cur = todo.back();
-		todo.pop_back();
-		if (done.contains(cur)) continue;
-		done.insert(cur);
-		if (cur == AI.getDefiningOp()->getBlock())
-	        handleBlock(*cur, emptyValue);
-		else
-        	handleBlock(*cur, metaMap.get(cur));
-		for (auto B : cur->getSuccessors())
-			todo.push_back(B);
-	}
+    assert(AI.getDefiningOp());
+    SmallVector<Block *> todo = {AI.getDefiningOp()->getBlock()};
+    SmallPtrSet<Block *, 2> done;
+    while (todo.size()) {
+      Block *cur = todo.back();
+      todo.pop_back();
+      if (done.contains(cur))
+        continue;
+      done.insert(cur);
+      if (cur == AI.getDefiningOp()->getBlock())
+        handleBlock(*cur, emptyValue);
+      else
+        handleBlock(*cur, metaMap.get(cur));
+      for (auto B : cur->getSuccessors())
+        todo.push_back(B);
+    }
   }
 
   if (replaceableValues.size() == 0)
     return changed;
- 
+
   // Preserve only values which could inductively be replaced
   // by injecting relevant block arguments
-  SmallPtrSet<Block*, 1> PotentiallyHelpfulArgs;
+  SmallPtrSet<Block *, 1> PotentiallyHelpfulArgs;
   for (auto &pair : replaceableValues) {
-    SmallPtrSet<Block*, 1> requirements;
+    SmallPtrSet<Block *, 1> requirements;
     bool _tmp = pair.second->definedWithArg(requirements);
     assert(_tmp);
     PotentiallyHelpfulArgs.insert(requirements.begin(), requirements.end());
   }
 
-     enum class Legality {
-        Unknown = 0,
-        Illegal = 2,
-        Required = 1,
-    };
-    // Map of block with potential arg added to the legality of adding that argument
-    std::map<Block*, Legality> PotentialArgs;
-    // Map of block with potential arg added to the users which would require it to compute their end value.
-    std::map<Block*, std::set<Block*>> UserMap;
-    
-    // Map of block with potential arg added to the blocks it itself would require.
-    std::map<Block*, std::set<Block*>> RequirementMap;
-    
-    std::deque<Block *> todo(PotentiallyHelpfulArgs.begin(), PotentiallyHelpfulArgs.end());
-    while (todo.size()) {
-      auto block = todo.back();
-      todo.pop_back();
+  enum class Legality {
+    Unknown = 0,
+    Illegal = 2,
+    Required = 1,
+  };
+  // Map of block with potential arg added to the legality of adding that
+  // argument
+  std::map<Block *, Legality> PotentialArgs;
+  // Map of block with potential arg added to the users which would require it
+  // to compute their end value.
+  std::map<Block *, std::set<Block *>> UserMap;
 
-      if (PotentialArgs.find(block) != PotentialArgs.end()) continue;
-      PotentialArgs[block] = Legality::Unknown;
-    
-      SetVector<Block *> prepred(block->getPredecessors().begin(),
-                                 block->getPredecessors().end());
-      assert(prepred.size());
+  // Map of block with potential arg added to the blocks it itself would
+  // require.
+  std::map<Block *, std::set<Block *>> RequirementMap;
 
-      for (auto Pred : prepred) {
-      
-          auto endFind = valueAtEndOfBlock.find(Pred);
-          assert(endFind != valueAtEndOfBlock.end());
-      
-          // Only handle known termination blocks
-          if (!isa<BranchOp, CondBranchOp, SwitchOp>(Pred->getTerminator())) {
-            PotentialArgs[block] = Legality::Illegal;
-            break;
-          }
-        
-          SmallPtrSet<Block*, 1> requirements;
-          if (endFind->second->definedWithArg(requirements)) {
-            for(auto r : requirements) {
-                todo.push_back(r);
-                UserMap[r].insert(block);
-                RequirementMap[block].insert(r);
-            }
-          } else {
-            PotentialArgs[block] = Legality::Illegal;
-            break;
-          }
+  std::deque<Block *> todo(PotentiallyHelpfulArgs.begin(),
+                           PotentiallyHelpfulArgs.end());
+  while (todo.size()) {
+    auto block = todo.back();
+    todo.pop_back();
+
+    if (PotentialArgs.find(block) != PotentialArgs.end())
+      continue;
+    PotentialArgs[block] = Legality::Unknown;
+
+    SetVector<Block *> prepred(block->getPredecessors().begin(),
+                               block->getPredecessors().end());
+    assert(prepred.size());
+
+    for (auto Pred : prepred) {
+
+      auto endFind = valueAtEndOfBlock.find(Pred);
+      assert(endFind != valueAtEndOfBlock.end());
+
+      // Only handle known termination blocks
+      if (!isa<BranchOp, CondBranchOp, SwitchOp>(Pred->getTerminator())) {
+        PotentialArgs[block] = Legality::Illegal;
+        break;
+      }
+
+      SmallPtrSet<Block *, 1> requirements;
+      if (endFind->second->definedWithArg(requirements)) {
+        for (auto r : requirements) {
+          todo.push_back(r);
+          UserMap[r].insert(block);
+          RequirementMap[block].insert(r);
+        }
+      } else {
+        PotentialArgs[block] = Legality::Illegal;
+        break;
       }
     }
+  }
 
-    // Mark all blocks which may have an illegal predecessor
-    for(auto & pair : PotentialArgs)
-        if (pair.second == Legality::Illegal)
-            for (auto next : UserMap[pair.first])
-                todo.push_back(next);
-
-    while (todo.size()) {
-      auto block = todo.back();
-      todo.pop_back();
-      if (PotentialArgs[block] == Legality::Illegal) continue;
-      PotentialArgs[block] = Legality::Illegal;
-      for (auto next : UserMap[block])
-        todo.push_back(next);
-    }
-  
-    // Go through all loading ops and confirm that all the requirements are met
-    SmallVector<std::pair<Value, ValueOrPlaceholder*>> nextReplacements;
-    for (auto pair : replaceableValues) {
-      SmallPtrSet<Block*, 1> requirements;
-      bool _tmp = pair.second->definedWithArg(requirements);
-      assert(_tmp);
-      bool illegal = false;
-      for (auto r : requirements) {
-          if (PotentialArgs[r] == Legality::Illegal) {
-              illegal = true;
-              break;
-          }
-      }
-      // If illegal, remove this from the list of things to update.
-      if (illegal) {
-          continue;
-      }
-      // Otherwise mark that block arg, and all of its dependencies as required.
-      for (auto r : requirements)
-        todo.push_back(r);
-      
-      while (todo.size()) {
-        auto block = todo.back();
-        todo.pop_back();
-        if (PotentialArgs[block] == Legality::Required) continue;
-        PotentialArgs[block] = Legality::Required;
-        for (auto prev : RequirementMap[block])
-            todo.push_back(prev);
-      }
-      nextReplacements.push_back(pair);
-    }
-    replaceableValues = nextReplacements;
-
-    if (replaceableValues.size() == 0) return changed;
-
-  SmallVector<Block*, 1> Legal;
+  // Mark all blocks which may have an illegal predecessor
   for (auto &pair : PotentialArgs)
-      if (pair.second == Legality::Required) {
-          Legal.push_back(pair.first);
+    if (pair.second == Legality::Illegal)
+      for (auto next : UserMap[pair.first])
+        todo.push_back(next);
+
+  while (todo.size()) {
+    auto block = todo.back();
+    todo.pop_back();
+    if (PotentialArgs[block] == Legality::Illegal)
+      continue;
+    PotentialArgs[block] = Legality::Illegal;
+    for (auto next : UserMap[block])
+      todo.push_back(next);
+  }
+
+  // Go through all loading ops and confirm that all the requirements are met
+  SmallVector<std::pair<Value, ValueOrPlaceholder *>> nextReplacements;
+  for (auto pair : replaceableValues) {
+    SmallPtrSet<Block *, 1> requirements;
+    bool _tmp = pair.second->definedWithArg(requirements);
+    assert(_tmp);
+    bool illegal = false;
+    for (auto r : requirements) {
+      if (PotentialArgs[r] == Legality::Illegal) {
+        illegal = true;
+        break;
       }
+    }
+    // If illegal, remove this from the list of things to update.
+    if (illegal) {
+      continue;
+    }
+    // Otherwise mark that block arg, and all of its dependencies as required.
+    for (auto r : requirements)
+      todo.push_back(r);
+
+    while (todo.size()) {
+      auto block = todo.back();
+      todo.pop_back();
+      if (PotentialArgs[block] == Legality::Required)
+        continue;
+      PotentialArgs[block] = Legality::Required;
+      for (auto prev : RequirementMap[block])
+        todo.push_back(prev);
+    }
+    nextReplacements.push_back(pair);
+  }
+  replaceableValues = nextReplacements;
+
+  if (replaceableValues.size() == 0)
+    return changed;
+
+  SmallVector<Block *, 1> Legal;
+  for (auto &pair : PotentialArgs)
+    if (pair.second == Legality::Required) {
+      Legal.push_back(pair.first);
+    }
 
   for (auto block : Legal) {
     auto startFound = valueAtStartOfBlock.find(block);
 
-    assert (startFound != valueAtStartOfBlock.end());
-    assert (startFound->second->valueAtStart == block);
+    assert(startFound != valueAtStartOfBlock.end());
+    assert(startFound->second->valueAtStart == block);
     auto arg = block->addArgument(subType);
-	auto argVal = metaMap.get(arg);
+    auto argVal = metaMap.get(arg);
     valueAtStartOfBlock[block] = argVal;
     blocksWithAddedArgs[block] = arg;
   }
 
-  for (auto& pair : replaceableValues) {
+  for (auto &pair : replaceableValues) {
     assert(pair.first);
     assert(pair.second);
-	Value val = pair.second->materialize(true);
+    Value val = pair.second->materialize(true);
     assert(val);
-	  
+
     changed = true;
-	assert(pair.first != val);
+    assert(pair.first != val);
     assert(val.getType() == elType);
-    assert(pair.first.getType() == val.getType() &&
-             "mismatched load type");
-    LLVM_DEBUG(llvm::dbgs() << " replaced " << pair.first << " with "
-                              << val << "\n");
+    assert(pair.first.getType() == val.getType() && "mismatched load type");
+    LLVM_DEBUG(llvm::dbgs()
+               << " replaced " << pair.first << " with " << val << "\n");
     metaMap.replaceValue(pair.first, val);
 
     // Record this to erase later.
@@ -1409,10 +1438,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   replaceableValues.clear();
 
   for (auto &pair : blocksWithAddedArgs) {
-	Block* block = pair.first;
+    Block *block = pair.first;
     assert(valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end());
 
-    Value maybeblockArg = valueAtStartOfBlock.find(block)->second->materialize(false);
+    Value maybeblockArg =
+        valueAtStartOfBlock.find(block)->second->materialize(false);
     auto blockArg = maybeblockArg.dyn_cast<BlockArgument>();
     assert(blockArg && blockArg.getOwner() == block);
 
@@ -1420,13 +1450,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                block->getPredecessors().end());
     for (auto pred : prepred) {
       assert(pred && "Null predecessor");
-	  assert(valueAtEndOfBlock.find(pred) != valueAtEndOfBlock.end());
+      assert(valueAtEndOfBlock.find(pred) != valueAtEndOfBlock.end());
       assert(valueAtEndOfBlock.find(pred)->second);
-      mlir::Value pval = valueAtEndOfBlock.find(pred)->second->materialize(true);
+      mlir::Value pval =
+          valueAtEndOfBlock.find(pred)->second->materialize(true);
       if (!pval) {
         AI.getDefiningOp()->getParentOfType<FuncOp>().dump();
         pred->dump();
-        llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second << " AI: " << AI << "\n";
+        llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second
+                     << " AI: " << AI << "\n";
       }
       assert(pval && "Null last stored");
       assert(pred->getTerminator());
@@ -1488,7 +1520,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   for (auto loadOp : llvm::make_early_inc_range(loadOps)) {
     assert(loadOp);
-	if (loadOp->getResult(0).use_empty()) {
+    if (loadOp->getResult(0).use_empty()) {
       loadOpsToErase.push_back(loadOp);
       loadOps.erase(loadOp);
     }
