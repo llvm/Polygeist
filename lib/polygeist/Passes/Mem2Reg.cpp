@@ -217,7 +217,7 @@ class ValueOrPlaceholder {
 			if (!thenFind->second->definedWithArg(block)) return false;
 			
 			if (ifOp.getElseRegion().getBlocks().size()) {
-				auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
+				auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
 				assert(elseFind != metaMap.valueAtEndOfBlock.end());
                 assert(elseFind->second);
 				if (!elseFind->second->definedWithArg(block)) return false;
@@ -1159,8 +1159,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       return replacement;
     } else {
       assert(replacement);
-	  replaceableValues.push_back(std::make_pair(orig, replacement));
-      assert(replaceableValues.back().second);
+      SmallPtrSet<Block*, 1> requirements;
+      if (replacement->definedWithArg(requirements)) {
+	    replaceableValues.push_back(std::make_pair(orig, replacement));
+        assert(replaceableValues.back().second);
+      }
       return metaMap.get(orig);
     }
   };
@@ -1182,6 +1185,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                    );
         for (auto a : ops) {
           if (StoringOperations.count(a)) {
+            // erase a, in case overwritten later in metamap replacement/lookup.
+            StoringOperations.erase(a);
             if (auto exOp = dyn_cast<mlir::scf::ExecuteRegionOp>(a)) {
 			  for (auto &B : exOp.getRegion())
 				handleBlock(B, (&B == &exOp.getRegion().front()) ? lastVal : metaMap.get(&B));
@@ -1200,11 +1205,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
             
             for (auto &R : a->getRegions())
-                if (ContainsLoadingOperation.contains(&R)) {
-                    for (auto &B : R) {
-                        handleBlock(B, (&B == &R.front()) ? emptyValue : metaMap.get(&B));
-                    }
-                }
+                for (auto &B : R)
+                    handleBlock(B, (&B == &R.front()) ? emptyValue : metaMap.get(&B));
             lastVal = emptyValue;
           } else if (loadOps.count(a)) {
             Value loadOp = a->getResult(0);
@@ -1255,128 +1257,154 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 	}
   }
 
-  if (loadOps.size() == 0)
+  if (replaceableValues.size() == 0)
     return changed;
-
-  std::set<Block *> Good;
-  std::set<Block *> Bad;
-  std::set<Block *> Other;
-
-  for (auto &pair : valueAtEndOfBlock) {
-    assert(pair.second);
+ 
+  // Preserve only values which could inductively be replaced
+  // by injecting relevant block arguments
+  SmallPtrSet<Block*, 1> PotentiallyHelpfulArgs;
+  for (auto &pair : replaceableValues) {
     SmallPtrSet<Block*, 1> requirements;
-    if (pair.second->definedWithArg(requirements)) {
-      if (requirements.size() == 0)
-        Good.insert(pair.first);
-      else if (requirements.size() == 1 && requirements.contains(pair.first)) {
-        Other.insert(pair.first);
-      }
-      // llvm::errs() << "<GOOD: " << " - " << AI << " " << pair.first << ">\n";
-      // pair.first->dump();
-      // llvm::errs() << "</GOOD: " << " - " << AI << ">\n";
-    } else if (pair.second->overwritten) {//StoringBlocks.count(pair.first)) {
-      // llvm::errs() << "<BAD: " << " - " << AI << " " << pair.first << ">\n";
-      // pair.first->dump();
-      // llvm::errs() << "</BAD: " << " - " << AI << ">\n";
-      Bad.insert(pair.first);
-    }
+    bool _tmp = pair.second->definedWithArg(requirements);
+    assert(_tmp);
+    PotentiallyHelpfulArgs.insert(requirements.begin(), requirements.end());
   }
 
-  {
-    std::deque<Block *> todo;
-    for (auto B : Good)
-      for (auto succ : B->getSuccessors())
-        todo.push_back(succ);
+     enum class Legality {
+        Unknown = 0,
+        Illegal = 2,
+        Required = 1,
+    };
+    // Map of block with potential arg added to the legality of adding that argument
+    std::map<Block*, Legality> PotentialArgs;
+    // Map of block with potential arg added to the users which would require it to compute their end value.
+    std::map<Block*, std::set<Block*>> UserMap;
+    
+    // Map of block with potential arg added to the blocks it itself would require.
+    std::map<Block*, std::set<Block*>> RequirementMap;
+    
+    std::deque<Block *> todo(PotentiallyHelpfulArgs.begin(), PotentiallyHelpfulArgs.end());
     while (todo.size()) {
-      auto block = todo.front();
-      todo.pop_front();
-      if (Good.count(block) || Bad.count(block) || Other.count(block))
-        continue;
-      if (StoringBlocks.count(block)) {
-        // llvm::errs() << "<BAD2: " << " - " << AI << " " << block << ">\n";
-        // block->dump();
-        // llvm::errs() << "</BAD2: " << " - " << AI << ">\n";
-        Bad.insert(block);
-        continue;
-      }
-      Other.insert(block);
-      // llvm::errs() << "<OTHER2: " << " - " << AI << " " << block << ">\n";
-      // block->dump();
-      // llvm::errs() << "</OTHER2: " << " - " << AI << ">\n";
-      if (isa<BranchOp, CondBranchOp, SwitchOp>(block->getTerminator())) {
-        for (auto succ : block->getSuccessors()) {
-          todo.push_back(succ);
-        }
+      auto block = todo.back();
+      todo.pop_back();
+
+      if (PotentialArgs.find(block) != PotentialArgs.end()) continue;
+      PotentialArgs[block] = Legality::Unknown;
+    
+      SetVector<Block *> prepred(block->getPredecessors().begin(),
+                                 block->getPredecessors().end());
+      assert(prepred.size());
+
+      for (auto Pred : prepred) {
+      
+          auto endFind = valueAtEndOfBlock.find(Pred);
+          assert(endFind != valueAtEndOfBlock.end());
+      
+          // Only handle known termination blocks
+          if (!isa<BranchOp, CondBranchOp, SwitchOp>(Pred->getTerminator())) {
+            PotentialArgs[block] = Legality::Illegal;
+            break;
+          }
+        
+          SmallPtrSet<Block*, 1> requirements;
+          if (endFind->second->definedWithArg(requirements)) {
+            for(auto r : requirements) {
+                todo.push_back(r);
+                UserMap[r].insert(block);
+                RequirementMap[block].insert(r);
+            }
+          } else {
+            PotentialArgs[block] = Legality::Illegal;
+            break;
+          }
       }
     }
-  }
 
-  Analyzer A(Good, Bad, Other, {}, {});
-  A.analyze();
+    // Mark all blocks which may have an illegal predecessor
+    for(auto & pair : PotentialArgs)
+        if (pair.second == Legality::Illegal)
+            for (auto next : UserMap[pair.first])
+                todo.push_back(next);
 
-  for (auto block : A.Legal) {
-     //llvm::errs() << "<LEGAL: " << " - " << AI << " " << block << ">\n";
-     //block->dump();
-	 //llvm::errs() << " startofblock: " << (int)(valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end() ) << "\n";
-	 //if (valueAtStartOfBlock.find(block) != valueAtStartOfBlock.end() ) llvm::errs() << " found: " << * valueAtStartOfBlock.find(block)->second << "\n";
-     //llvm::errs() << "</LEGAL: " << " - " << AI << ">\n";
-    if (valueAtStartOfBlock.find(block) == valueAtStartOfBlock.end() || valueAtStartOfBlock.find(block)->second->valueAtStart != block)
-      continue;
-     //llvm::errs() << "<SLEGAL: " << " - " << AI << " " << block << ">\n";
-     //block->dump();
-     //llvm::errs() << "</SLEGAL: " << " - " << AI << ">\n";
+    while (todo.size()) {
+      auto block = todo.back();
+      todo.pop_back();
+      if (PotentialArgs[block] == Legality::Illegal) continue;
+      PotentialArgs[block] = Legality::Illegal;
+      for (auto next : UserMap[block])
+        todo.push_back(next);
+    }
+  
+    // Go through all loading ops and confirm that all the requirements are met
+    SmallVector<std::pair<Value, ValueOrPlaceholder*>> nextReplacements;
+    for (auto pair : replaceableValues) {
+      SmallPtrSet<Block*, 1> requirements;
+      bool _tmp = pair.second->definedWithArg(requirements);
+      assert(_tmp);
+      bool illegal = false;
+      for (auto r : requirements) {
+          if (PotentialArgs[r] == Legality::Illegal) {
+              illegal = true;
+              break;
+          }
+      }
+      // If illegal, remove this from the list of things to update.
+      if (illegal) {
+          continue;
+      }
+      // Otherwise mark that block arg, and all of its dependencies as required.
+      for (auto r : requirements)
+        todo.push_back(r);
+      
+      while (todo.size()) {
+        auto block = todo.back();
+        todo.pop_back();
+        if (PotentialArgs[block] == Legality::Required) continue;
+        PotentialArgs[block] = Legality::Required;
+        for (auto prev : RequirementMap[block])
+            todo.push_back(prev);
+      }
+      nextReplacements.push_back(pair);
+    }
+    replaceableValues = nextReplacements;
+
+    if (replaceableValues.size() == 0) return changed;
+
+  SmallVector<Block*, 1> Legal;
+  for (auto &pair : PotentialArgs)
+      if (pair.second == Legality::Required) {
+          Legal.push_back(pair.first);
+      }
+
+  for (auto block : Legal) {
+    auto startFound = valueAtStartOfBlock.find(block);
+
+    assert (startFound != valueAtStartOfBlock.end());
+    assert (startFound->second->valueAtStart == block);
     auto arg = block->addArgument(subType);
 	auto argVal = metaMap.get(arg);
     valueAtStartOfBlock[block] = argVal;
     blocksWithAddedArgs[block] = arg;
-    /*
-	for (Operation &op : *block) {
-      if (!StoringOperations.count(&op)) {
-        op.walk([&](Block *blk) {
-          if (valueAtStartOfBlock.find(blk) == valueAtStartOfBlock.end()) {
-            valueAtStartOfBlock[blk] = arg;
-            if (valueAtEndOfBlock.find(blk) == valueAtEndOfBlock.end() ||
-                StoringBlocks.count(blk) == 0) {
-              valueAtEndOfBlock[blk] = arg;
-            }
-          }
-        });
-      } else
-        break;
-    }
-	*/
-    if (valueAtEndOfBlock.find(block) == valueAtEndOfBlock.end() ||
-        StoringBlocks.count(block) == 0) {
-      assert(argVal);
-      valueAtEndOfBlock.insert(std::make_pair(block, argVal));
-    }
-  }
-  for (auto block : A.Illegal) {
-      valueAtStartOfBlock[block] = emptyValue;
   }
 
   for (auto& pair : replaceableValues) {
     assert(pair.first);
     assert(pair.second);
-	Value val = pair.second->materialize(false);
-    if (!val) {
-        loadOps.erase(pair.first.getDefiningOp()); 
-        continue;
-    }
-	assert(val);
+	Value val = pair.second->materialize(true);
+    assert(val);
 	  
-        changed = true;
-	  assert(pair.first != val);
-      assert(val.getType() == elType);
-      assert(pair.first.getType() == val.getType() &&
+    changed = true;
+	assert(pair.first != val);
+    assert(val.getType() == elType);
+    assert(pair.first.getType() == val.getType() &&
              "mismatched load type");
-      LLVM_DEBUG(llvm::dbgs() << " replaced " << pair.first << " with "
+    LLVM_DEBUG(llvm::dbgs() << " replaced " << pair.first << " with "
                               << val << "\n");
-      metaMap.replaceValue(pair.first, val);
+    metaMap.replaceValue(pair.first, val);
 
-      // Record this to erase later.
-      loadOpsToErase.push_back(pair.first.getDefiningOp());
-      loadOps.erase(pair.first.getDefiningOp());
+    // Record this to erase later.
+    loadOpsToErase.push_back(pair.first.getDefiningOp());
+    loadOps.erase(pair.first.getDefiningOp());
   }
   replaceableValues.clear();
 
@@ -1410,7 +1438,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                 op.getOperands().end());
         args.push_back(pval);
         subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
-        // op.replaceAllUsesWith(op2);
         op.erase();
       } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
 
@@ -1428,7 +1455,6 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
                                         op.getTrueDest(), trueargs,
                                         op.getFalseDest(), falseargs);
-        // op.replaceAllUsesWith(op2);
         op.erase();
       } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder builder(op.getOperation());
