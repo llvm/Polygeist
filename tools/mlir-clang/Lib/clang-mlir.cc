@@ -325,7 +325,7 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     auto type =
         mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
     returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
-    if (type.getElementType().isa<mlir::IntegerType>()) {
+    if (type.getElementType().isa<mlir::IntegerType, mlir::FloatType>()) {
       builder.create<mlir::memref::StoreOp>(
           loc, builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
           returnVal, std::vector<mlir::Value>({}));
@@ -374,7 +374,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         alloc = abuilder.create<mlir::LLVM::AllocaOp>(
             varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
             abuilder.create<arith::ConstantIntOp>(varLoc, 1, 64), 0);
-        if (t.isa<mlir::IntegerType>()) {
+        if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
           abuilder.create<LLVM::StoreOp>(
               varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
         }
@@ -392,7 +392,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, alloc, mlir::MemRefType::get(-1, t, {}, 0));
-      if (t.isa<mlir::IntegerType>()) {
+      if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
             varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
