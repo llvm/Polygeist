@@ -124,6 +124,28 @@ bool matchesIndices(ArrayRef<AffineExpr> ops, const std::vector<ssize_t> &idx) {
   return true;
 }
 
+bool constantIndices(mlir::OperandRange ops) {
+  for (size_t i = 0; i < ops.size(); i++) {
+    if (auto op = ops[i].getDefiningOp<ConstantIntOp>())
+      continue;
+    else if (auto op = ops[i].getDefiningOp<ConstantIndexOp>())
+      continue;
+    else return false;
+  }
+  return true;
+}
+
+bool constantIndices(ArrayRef<AffineExpr> ops) {
+  for (size_t i = 0; i < ops.size(); i++) {
+    if (auto op = ops[i].dyn_cast<AffineConstantExpr>()) {
+      continue;
+    } else {
+      return false;
+    }
+  }
+  return true;
+}
+
 class ValueOrPlaceholder;
 
 static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
@@ -905,6 +927,15 @@ void removeRedundantBlockArgs(
     }
   }
 }
+
+std::set<std::string> NonCapturingFunctions = {
+    "free", "printf", "fprintf", "scanf", "fscanf", "gettimeofday", "clock_gettime", "getenv","strrchr",
+    "strlen","sprintf","sscanf","mkdir", "fwrite", "fread", "memcpy", "cudaMemcpy", "memset", "cudaMemset"
+};
+// fopen, fclose
+std::set<std::string> NoWriteFunctions = {
+        "exit", "__errno_location"
+};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
@@ -921,7 +952,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   LLVM_DEBUG(llvm::dbgs() << "Begin forwarding store of " << AI << " to load\n"
                           << *AI.getDefiningOp()->getParentOfType<FuncOp>()
                           << "\n");
-  bool captured = false;
+  bool captured = AI.getDefiningOp<memref::GetGlobalOp>();
   while (list.size()) {
     auto pair = list.front();
     auto val = pair.first;
@@ -929,15 +960,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     list.pop_front();
     for (auto *user : val.getUsers()) {
       if (auto co = dyn_cast<mlir::memref::CastOp>(user)) {
-        list.emplace_back((Value)co, false);
+        list.emplace_back((Value)co, modified);
         continue;
       }
       if (auto co = dyn_cast<polygeist::Memref2PointerOp>(user)) {
-        list.emplace_back((Value)co, false);
+        list.emplace_back((Value)co, modified);
         continue;
       }
       if (auto co = dyn_cast<polygeist::Pointer2MemrefOp>(user)) {
-        list.emplace_back((Value)co, false);
+        list.emplace_back((Value)co, modified);
         continue;
       }
       if (auto co = dyn_cast<polygeist::SubIndexOp>(user)) {
@@ -949,77 +980,125 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         continue;
       }
       if (auto co = dyn_cast<mlir::LLVM::BitcastOp>(user)) {
-        list.emplace_back((Value)co, false);
+        list.emplace_back((Value)co, modified);
+        continue;
+      }
+      if (auto co = dyn_cast<mlir::LLVM::AddrSpaceCastOp>(user)) {
+        list.emplace_back((Value)co, modified);
         continue;
       }
       if (auto loadOp = dyn_cast<mlir::memref::LoadOp>(user)) {
-        if (matchesIndices(loadOp.getIndices(), idx)) {
+        if (!modified && matchesIndices(loadOp.getIndices(), idx)) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
           LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
-          continue;
         }
+        continue;
       }
-      if (!modified) {
-        if (auto loadOp = dyn_cast<mlir::LLVM::LoadOp>(user)) {
+      if (auto loadOp = dyn_cast<mlir::LLVM::LoadOp>(user)) {
+        if (!modified) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
           LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
-          continue;
         }
-        if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
-          if (matchesIndices(loadOp.getAffineMapAttr().getValue().getResults(),
+        continue;
+      }
+      if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+          if (!modified && matchesIndices(loadOp.getAffineMapAttr().getValue().getResults(),
                              idx)) {
             subType = loadOp.getType();
             loadOps.insert(loadOp);
             LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
-            continue;
           }
-        }
+        continue;
+      }
         if (auto storeOp = dyn_cast<mlir::memref::StoreOp>(user)) {
-          if (storeOp.getMemRef() == val &&
-              matchesIndices(storeOp.getIndices(), idx)) {
-            LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
-            allStoreOps.insert(storeOp);
-            continue;
-          }
-        }
-        if (auto storeOp = dyn_cast<LLVM::StoreOp>(user)) {
-          if (storeOp.getAddr() == val) {
-            LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
-            allStoreOps.insert(storeOp);
-            continue;
-          } else {
+          if (storeOp.value() == val)
             captured = true;
-          }
-        }
-        if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
-          if (storeOp.getMemRef() == val) {
-            if (matchesIndices(
-                    storeOp.getAffineMapAttr().getValue().getResults(), idx)) {
+          else if (!modified) {
+            if (matchesIndices(storeOp.getIndices(), idx)) {
               LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
               allStoreOps.insert(storeOp);
-              continue;
+            } else if (!constantIndices(storeOp.getIndices())) {
+              AliasingStoreOperations.insert(storeOp);
             }
-          } else {
-            captured = true;
-          }
+          } else
+            AliasingStoreOperations.insert(storeOp);
+          continue;
         }
-      }
+        if (auto storeOp = dyn_cast<LLVM::StoreOp>(user)) {
+          
+          if (storeOp.getValue() == val) {
+            captured = true;
+          } else if (!modified) {
+            LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
+            allStoreOps.insert(storeOp);
+          } else
+            AliasingStoreOperations.insert(storeOp);
+          continue;
+        }
+
+        if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
+          if (storeOp.value() == val) {
+            captured = true;
+          } else if (!modified) {
+              if (matchesIndices(
+                    storeOp.getAffineMapAttr().getValue().getResults(), idx)) {
+                LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
+                allStoreOps.insert(storeOp);
+              } else if (!constantIndices(storeOp.getAffineMapAttr().getValue().getResults())) {
+                AliasingStoreOperations.insert(storeOp);
+              }
+          } else
+            AliasingStoreOperations.insert(storeOp);
+          continue;
+        }
       if (auto callOp = dyn_cast<mlir::CallOp>(user)) {
         if (callOp.getCallee() != "free") {
           LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << callOp << "\n");
           AliasingStoreOperations.insert(callOp);
-          captured = true;
+          if (!NonCapturingFunctions.count(callOp.getCallee().str()))
+            captured = true;
         }
+        continue;
       }
       if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(user)) {
-        if (*callOp.getCallee() != "free") {
+        if (!callOp.getCallee() || *callOp.getCallee() != "free") {
           LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << callOp << "\n");
           AliasingStoreOperations.insert(callOp);
-          captured = true;
+          if (!callOp.getCallee() || !NonCapturingFunctions.count(callOp.getCallee()->str()))
+            captured = true;
         }
+        continue;
       }
+      if (auto op = dyn_cast<mlir::LLVM::MemsetOp>(user)) {
+          if (op.getDst() == val) {
+          LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << op << "\n");
+          AliasingStoreOperations.insert(op);
+          }
+          continue;
+      }
+      if (auto op = dyn_cast<mlir::LLVM::MemmoveOp>(user)) {
+          if (op.getDst() == val) {
+          LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << op << "\n");
+          AliasingStoreOperations.insert(op);
+          }
+          continue;
+      }
+      if (auto op = dyn_cast<mlir::LLVM::MemcpyOp>(user)) {
+          if (op.getDst() == val) {
+          LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << op << "\n");
+          AliasingStoreOperations.insert(op);
+          }
+          continue;
+      }
+      if (isa<mlir::memref::DeallocOp>(user)) {
+          continue;
+      }
+
+      LLVM_DEBUG(llvm::dbgs() << "Unknown, potential store: " << *user << "\n");
+      AliasingStoreOperations.insert(user);
+      captured = true;
     }
   }
 
@@ -1039,12 +1118,37 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           // If op causes EffectType on a potentially aliasing location for
           // memOp, mark as having the effect.
           if (isa<MemoryEffects::Write>(effect.getEffect())) {
-            if (effect.getValue() &&
-                (effect.getValue().getDefiningOp<memref::AllocaOp>() ||
-                 effect.getValue().getDefiningOp<memref::AllocOp>() ||
-                 effect.getValue().getDefiningOp<LLVM::AllocaOp>())) {
-              if (effect.getValue() != AI)
-                continue;
+            if (Value val = effect.getValue()) {
+                while (true) {
+                    if (auto co = val.getDefiningOp<memref::CastOp>())
+                        val = co.source();
+                    else if (auto co = val.getDefiningOp<polygeist::SubIndexOp>())
+                        val = co.source();
+                    else if (auto co = val.getDefiningOp<polygeist::Memref2PointerOp>())
+                        val = co.source();
+                    else if (auto co = val.getDefiningOp<polygeist::Pointer2MemrefOp>())
+                        val = co.source();
+                    else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
+                        val = co.getArg();
+                    else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
+                        val = co.getArg();
+                    else if (auto co = val.getDefiningOp<LLVM::GEPOp>())
+                        val = co.getBase();
+                    else break;
+                }
+                if (val.getDefiningOp<memref::AllocaOp>() ||
+                    val.getDefiningOp<memref::AllocOp>() ||
+                    val.getDefiningOp<LLVM::AllocaOp>()) {
+                  if (val != AI)
+                    continue;
+                }
+                if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
+                    if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
+                        if (glob.name() != Aglob.name())
+                            continue;
+                    } else
+                        continue;
+                }
             }
             opMayHaveEffect = true;
             break;
@@ -1701,6 +1805,11 @@ void Mem2Reg::runOnFunction() {
         toPromote.push_back(AI);
       }
     });
+    f.walk([&](memref::GetGlobalOp AI) {
+      if (isPromotable(AI)) {
+        toPromote.push_back(AI);
+      }
+    });
 
     for (auto AI : toPromote) {
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
@@ -1717,7 +1826,8 @@ void Mem2Reg::runOnFunction() {
         // llvm::errs() << " POST " << AI << "\n";
         // f.dump();
       }
-      memrefsToErase.insert(AI);
+      if (!AI.getDefiningOp<memref::GetGlobalOp>())
+        memrefsToErase.insert(AI);
     }
 
     // Erase all load op's whose results were replaced with store fwd'ed ones.
