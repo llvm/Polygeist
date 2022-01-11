@@ -1104,6 +1104,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   if (captured) {
     AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
+      if (allStoreOps.count(op)) return;
       bool opMayHaveEffect = false;
       if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
         return;
