@@ -502,6 +502,17 @@ void ParallelLower::runOnOperation() {
       call.erase();
     }
   });
+  getOperation().walk([&](CallOp call) {
+    if (call.getCallee() == "cudaDeviceSynchronize") {
+      OpBuilder bz(call);
+      auto retv = bz.create<ConstantIntOp>(
+          call.getLoc(), 0,
+          call.getResult(0).getType().cast<IntegerType>().getWidth());
+      Value vals[] = {retv};
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
+      call.erase();
+    }
+  });
 
   auto ST = symbolTable.getSymbolTable(getOperation());
   for (auto f : toErase) {
