@@ -1219,9 +1219,17 @@ OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   }
   if (auto mc = source().getDefiningOp<LLVM::GEPOp>()) {
     for (auto idx : mc.getIndices()) {
+      assert(idx);
       if (!matchPattern(idx, m_Zero()))
         return nullptr;
     }
+    auto staticIndices = mc.getStructIndices().getValues<int32_t>();
+    for (auto pair : llvm::enumerate(staticIndices)) {
+      if (pair.value() != LLVM::GEPOp::kDynamicIndex)
+        if (pair.value() != 0)
+          return nullptr;
+    }
+
     sourceMutable().assign(mc.getBase());
     return result();
   }
