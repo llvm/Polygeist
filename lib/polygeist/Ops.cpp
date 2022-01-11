@@ -21,7 +21,9 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include <mlir/Dialect/SCF/SCF.h>
 #include "mlir/Dialect/StandardOps/Utils/Utils.h"
+#include "mlir/IR/BlockAndValueMapping.h"
 
 using namespace mlir;
 using namespace polygeist;
@@ -730,6 +732,90 @@ public:
   }
 };
 
+/// Simplify pointer2memref(memref2pointer(x)) to cast(x)
+template<typename T>
+class CopySimplification final : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+
+    Value dstv = op.getDst();
+    auto dst = dstv.getDefiningOp<polygeist::Memref2PointerOp>();
+    if (!dst)
+      return failure();
+
+    auto dstTy = dst.source().getType().cast<MemRefType>();
+    
+    Value srcv = op.getSrc();
+    auto src = srcv.getDefiningOp<polygeist::Memref2PointerOp>();
+    if (!src)
+      return failure();
+    auto srcTy = src.source().getType().cast<MemRefType>();
+    if (srcTy.getShape().size() != dstTy.getShape().size()) return failure();
+
+    if (dstTy.getElementType() != srcTy.getElementType()) return failure();
+    Type elTy = dstTy.getElementType();
+
+    size_t width = 1;
+    if (auto IT = elTy.dyn_cast<IntegerType>())
+        width = IT.getWidth() / 8;
+    else if (auto FT = elTy.dyn_cast<FloatType>())
+        width = FT.getWidth() / 8;
+    else {
+        // TODO extend to llvm compatible type
+        return failure();
+    }
+    bool first = true;
+    SmallVector<size_t> bounds;
+    for (auto pair : llvm::zip(dstTy.getShape(), srcTy.getShape())) {
+        if (first) { first = false; continue; }
+        if (std::get<0>(pair) != std::get<1>(pair)) return failure();
+        bounds.push_back(std::get<0>(pair));
+        width *= std::get<0>(pair);
+    }
+
+    Value len = op.getLen();
+    size_t factor = 1;
+    while (factor % width != 0) {
+        IntegerAttr constValue;
+        if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
+            len = ext.getIn();
+        else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
+            len = ext.getIn();
+        else if (auto mul = len.getDefiningOp<arith::MulIOp>())
+            len = mul.getRhs();
+        else if (matchPattern(len, m_Constant(&constValue))) {
+            factor *= constValue.getValue().getLimitedValue();
+        }
+        else return failure();
+    }
+
+    if (factor % width != 0) return failure();
+    
+
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+    SmallVector<Value> idxs;
+    auto forOp = rewriter.create<scf::ForOp>(op.getLoc(), c0, rewriter.create<arith::DivUIOp>(op.getLoc(), rewriter.create<arith::IndexCastOp>(op.getLoc(), op.getLen(), rewriter.getIndexType()), rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)), c1);
+    
+    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    idxs.push_back(forOp.getInductionVar());
+    
+    for (auto bound : bounds) {
+        auto forOp = rewriter.create<scf::ForOp>(op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound), c1);
+        rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+        idxs.push_back(forOp.getInductionVar());
+    }
+    
+    rewriter.create<memref::StoreOp>(op.getLoc(), rewriter.create<memref::LoadOp>(op.getLoc(), src.source(), idxs), dst.source(), idxs);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
   if (auto subindex = source().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.index().getDefiningOp<ConstantIndexOp>()) {
@@ -754,7 +840,8 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
 
 void Memref2PointerOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
-  results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex>(context);
+  results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
+                 CopySimplification<LLVM::MemcpyOp>, CopySimplification<LLVM::MemmoveOp>>(context);
 }
 
 /// Simplify cast(pointer2memref(x)) to pointer2memref(x)
@@ -977,9 +1064,6 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     if (nextIf.getCondition().getDefiningOp() != prevIf)
       return failure();
 
-    if (!nextIf.getElseRegion().empty())
-      return failure();
-
     // %c = if %x {
     //         yield %y
     //      } else {
@@ -987,6 +1071,8 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     //      }
     //  if %c {
     //
+    //  } {
+    //    yield s
     //  }
 
     Value nextIfCondition = nullptr;
@@ -1000,6 +1086,10 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
           return failure();
       }
     }
+
+    // Only permit else-less or a block with only a yield
+    if (!(nextIf.getElseRegion().empty() || (nextIf.elseBlock()->getOperations().size() == 1 && prevIf.elseBlock()->getOperations().size() == 1)))
+      return failure();
 
     rewriter.startRootUpdate(nextIf);
     nextIf->moveBefore(prevIf.thenYield());
@@ -1016,6 +1106,54 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
         }
     }
     rewriter.finalizeRootUpdate(nextIf);
+
+    // Handle else region
+    if (!nextIf.getElseRegion().empty()) {
+        SmallVector<Type> resTys;
+        for (auto T : prevIf.getResultTypes())
+            resTys.push_back(T);
+        for (auto T : nextIf.getResultTypes())
+            resTys.push_back(T);
+        {
+        SmallVector<Value> elseVals = prevIf.elseYield().getOperands();
+        BlockAndValueMapping elseMapping;
+        elseMapping.map(prevIf.getResults(), prevIf.elseYield().getOperands());
+        SmallVector<Value> nextElseVals;
+        for (auto v : nextIf.elseYield().getOperands())
+            nextElseVals.push_back(elseMapping.lookupOrDefault(v));
+        elseVals.append(nextElseVals);
+        prevIf.elseYield()->setOperands(elseVals);
+        nextIf.elseYield()->setOperands(nextElseVals);
+        }
+        
+        SmallVector<Type> postTys;
+        for(auto T : prevIf.thenYield().getOperands())
+            postTys.push_back(T.getType());
+        for(auto T : nextIf.thenYield().getOperands())
+            postTys.push_back(T.getType());
+        
+        rewriter.setInsertionPoint(prevIf);
+        auto postIf = rewriter.create<scf::IfOp>(prevIf.getLoc(), postTys, prevIf.getCondition(), false);
+        postIf.getThenRegion().takeBody(prevIf.getThenRegion());
+        postIf.getElseRegion().takeBody(prevIf.getElseRegion());
+
+        SmallVector<Value> res;
+        SmallVector<Value> postRes;
+        for (auto R : postIf.getResults())
+            if (res.size() < prevIf.getNumResults())
+                res.push_back(R);
+            else
+                postRes.push_back(R);
+
+        
+        rewriter.replaceOp(prevIf, res);
+        nextIf->replaceAllUsesWith(postRes);
+        
+        SmallVector<Value> thenVals = postIf.thenYield().getOperands();
+        thenVals.append(nextIf.getResults().begin(), nextIf.getResults().end());
+        postIf.thenYield()->setOperands(thenVals);
+
+    }
     return success();
   }
 };

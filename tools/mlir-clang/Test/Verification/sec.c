@@ -18,13 +18,13 @@ int compute_tran_temp(int total_iterations, int num_iterations)
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %0 = arith.sitofp %arg0 : i32 to f32
 // CHECK-NEXT:     %1 = arith.sitofp %arg1 : i32 to f32
-// CHECK-NEXT:     %2:3 = scf.while (%arg2 = %cst, %arg3 = %c0_i32, %arg4 = %c1_i32) : (f32, i32, i32) -> (i32, f32, i32) {
-// CHECK-NEXT:       %3 = arith.cmpf ult, %arg2, %0 : f32
-// CHECK-NEXT:       scf.condition(%3) %arg3, %arg2, %arg4 : i32, f32, i32
+// CHECK-NEXT:     %2:3 = scf.while (%arg2 = %c0_i32, %arg3 = %c1_i32, %arg4 = %cst) : (i32, i32, f32) -> (i32, i32, f32) {
+// CHECK-NEXT:       %3 = arith.cmpf ult, %arg4, %0 : f32
+// CHECK-NEXT:       scf.condition(%3) %arg2, %arg3, %arg4 : i32, i32, f32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: f32, %arg4: i32):  // no predecessors
-// CHECK-NEXT:       %3 = arith.addf %arg3, %1 : f32
-// CHECK-NEXT:       scf.yield %3, %arg4, %arg2 : f32, i32, i32
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32, %arg4: f32):  // no predecessors
+// CHECK-NEXT:       %3 = arith.addf %arg4, %1 : f32
+// CHECK-NEXT:       scf.yield %arg3, %arg2, %3 : i32, i32, f32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %2#0 : i32
 // CHECK-NEXT:   }

@@ -26,10 +26,10 @@ int solver(	float** y,
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %0 = scf.while (%arg4 = %true, %arg5 = %c0_i32) : (i1, i32) -> i32 {
-// CHECK-NEXT:       %1 = arith.cmpi slt, %arg5, %c1_i32 : i32
-// CHECK-NEXT:       %2 = arith.andi %1, %arg4 : i1
-// CHECK-NEXT:       scf.condition(%2) %arg5 : i32
+// CHECK-NEXT:     %0 = scf.while (%arg4 = %c0_i32, %arg5 = %true) : (i32, i1) -> i32 {
+// CHECK-NEXT:       %1 = arith.cmpi slt, %arg4, %c1_i32 : i32
+// CHECK-NEXT:       %2 = arith.andi %1, %arg5 : i1
+// CHECK-NEXT:       scf.condition(%2) %arg4 : i32
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg4: i32):  // no predecessors
 // CHECK-NEXT:       %1 = arith.cmpf ugt, %arg3, %cst : f32
@@ -46,7 +46,7 @@ int solver(	float** y,
 // CHECK-NEXT:         scf.yield %false : i1
 // CHECK-NEXT:       }
 // CHECK-NEXT:       %4 = arith.addi %arg4, %c1_i32 : i32
-// CHECK-NEXT:       scf.yield %3, %4 : i1, i32
+// CHECK-NEXT:       scf.yield %4, %3 : i32, i1
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
