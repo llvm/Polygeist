@@ -285,6 +285,42 @@ struct URLLVMOpLowering
     return success();
   }
 };
+  
+struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
+  explicit GlobalOpTypeConversion(LLVMTypeConverter &converter)
+      : OpConversionPattern<LLVM::GlobalOp>(converter,
+                                            &converter.getContext()) {}
+
+  LogicalResult
+  matchAndRewrite(LLVM::GlobalOp op, LLVM::GlobalOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *converter = getTypeConverter();
+    Type globalType = adaptor.getGlobalType();
+    Type convertedType = converter->convertType(globalType);
+    if (!convertedType)
+      return failure();
+    if (convertedType == globalType)
+      return failure();
+
+    rewriter.updateRootInPlace(
+        op, [&]() { op.setGlobalTypeAttr(TypeAttr::get(convertedType)); });
+    return success();
+  }
+};
+
+struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
+  using ConvertOpToLLVMPattern<LLVM::ReturnOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(LLVM::ReturnOp op, LLVM::ReturnOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto replacement =
+        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArgs());
+    replacement->setAttrs(adaptor.getAttributes());
+    return success();
+  }
+};
+
 
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
@@ -319,7 +355,8 @@ struct ConvertPolygeistToLLVMPass
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
-    patterns.add<LLVMOpLowering>(converter);
+    patterns.add<LLVMOpLowering, GlobalOpTypeConversion,
+        ReturnOpTypeConversion>(converter);
     patterns.add<URLLVMOpLowering>(converter);
 
     LLVMConversionTarget target(getContext());
@@ -339,6 +376,23 @@ struct ConvertPolygeistToLLVMPass
             return llvm::None;
           return convertedResultTypes == op->getResultTypes() &&
                  convertedOperandTypes == op->getOperandTypes();
+        });
+    target.addDynamicallyLegalOp<LLVM::GlobalOp>(
+        [&](LLVM::GlobalOp op) -> Optional<bool> {
+          if (typeConverter.convertType(op.getGlobalType()) ==
+              op.getGlobalType())
+            return true;
+          return llvm::None;
+        });
+    target.addDynamicallyLegalOp<LLVM::ReturnOp>(
+        [&](LLVM::ReturnOp op) -> Optional<bool> {
+          if (!isa<LLVM::GlobalOp>(op->getParentOp()))
+            return llvm::None;
+          SmallVector<Type> convertedOperandTypes;
+          if (failed(typeConverter.convertTypes(op->getOperandTypes(),
+                                                convertedOperandTypes)))
+            return llvm::None;
+          return convertedOperandTypes == op->getOperandTypes();
         });
     target.addIllegalOp<UnrealizedConversionCastOp>();
     /*
