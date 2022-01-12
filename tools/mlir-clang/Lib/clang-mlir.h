@@ -61,7 +61,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
   llvm::Module llvmMod;
-  CodeGenOptions codegenops;
+  CodeGenOptions &codegenops;
   CodeGen::CodeGenModule CGM;
   bool error;
   ScopLocList scopLocList;
@@ -79,13 +79,14 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP, ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM)
+      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
+      CodeGenOptions &codegenops)
       : emitIfFound(emitIfFound), done(done),
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), llvmGlobals(llvmGlobals),
         llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
         module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
-        codegenops(),
+        codegenops(codegenops),
         CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module->getContext()),
@@ -102,7 +103,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
 
-  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD);
+  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD,
+                                             std::string prefix = "");
 
   /// Return a value representing an access into a global string with the given
   /// name, creating the string if necessary.
@@ -340,6 +342,7 @@ public:
   VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
 
   ValueCategory VisitCXXNewExpr(clang::CXXNewExpr *expr);
+  ValueCategory VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr);
 
   ValueCategory VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
 
