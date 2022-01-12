@@ -285,7 +285,7 @@ struct URLLVMOpLowering
     return success();
   }
 };
-  
+
 struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
   explicit GlobalOpTypeConversion(LLVMTypeConverter &converter)
       : OpConversionPattern<LLVM::GlobalOp>(converter,
@@ -321,7 +321,6 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   }
 };
 
-
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
@@ -355,8 +354,9 @@ struct ConvertPolygeistToLLVMPass
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
-    patterns.add<LLVMOpLowering, GlobalOpTypeConversion,
-        ReturnOpTypeConversion>(converter);
+    patterns
+        .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
+            converter);
     patterns.add<URLLVMOpLowering>(converter);
 
     LLVMConversionTarget target(getContext());
@@ -379,8 +379,7 @@ struct ConvertPolygeistToLLVMPass
         });
     target.addDynamicallyLegalOp<LLVM::GlobalOp>(
         [&](LLVM::GlobalOp op) -> Optional<bool> {
-          if (typeConverter.convertType(op.getGlobalType()) ==
-              op.getGlobalType())
+          if (converter.convertType(op.getGlobalType()) == op.getGlobalType())
             return true;
           return llvm::None;
         });
@@ -389,8 +388,8 @@ struct ConvertPolygeistToLLVMPass
           if (!isa<LLVM::GlobalOp>(op->getParentOp()))
             return llvm::None;
           SmallVector<Type> convertedOperandTypes;
-          if (failed(typeConverter.convertTypes(op->getOperandTypes(),
-                                                convertedOperandTypes)))
+          if (failed(converter.convertTypes(op->getOperandTypes(),
+                                            convertedOperandTypes)))
             return llvm::None;
           return convertedOperandTypes == op->getOperandTypes();
         });
