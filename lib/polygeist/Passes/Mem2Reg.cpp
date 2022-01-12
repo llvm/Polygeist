@@ -170,7 +170,7 @@ public:
   SmallVector<std::pair<Value, ValueOrPlaceholder *>> replaceableValues;
   ReplacementHandler(Type elType) : elType(elType) {}
 
-  ValueOrPlaceholder *get(nullptr_t);
+  ValueOrPlaceholder *get(std::nullptr_t);
   ValueOrPlaceholder *get(Value val);
   ValueOrPlaceholder *get(Block *val);
   ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
@@ -194,7 +194,7 @@ public:
   scf::IfOp ifOp;
   ValueOrPlaceholder(ValueOrPlaceholder &&) = delete;
   ValueOrPlaceholder(const ValueOrPlaceholder &) = delete;
-  ValueOrPlaceholder(nullptr_t, ReplacementHandler &metaMap)
+  ValueOrPlaceholder(std::nullptr_t, ReplacementHandler &metaMap)
       : metaMap(metaMap), overwritten(true), val(nullptr),
         valueAtStart(nullptr), exOp(nullptr), ifOp(nullptr) {}
   ValueOrPlaceholder(Value val, ReplacementHandler &metaMap)
