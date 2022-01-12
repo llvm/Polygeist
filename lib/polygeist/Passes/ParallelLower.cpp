@@ -466,8 +466,10 @@ void ParallelLower::runOnOperation() {
     } else if (call.getCallee().getValue() == "cudaMalloc") {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
-      Value args[] = {bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(),
-                                                call.getOperand(1))};
+      Value args[] = {call.getOperand(1)};
+      if (args[0].getType().cast<IntegerType>().getWidth() < 64)
+        args[0] =
+            bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
       mlir::Value alloc =
           bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult(0);
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));

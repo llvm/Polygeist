@@ -3128,22 +3128,54 @@ ValueCategory MLIRScanner::CallHelper(
     assert(l0.isReference);
     mlir::Value blocks[3];
     for (int i = 0; i < 3; i++) {
-      std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
-      assert(l0.val.getType().cast<MemRefType>().getShape().size() == 2);
-      blocks[i] = builder.create<IndexCastOp>(
-          loc, builder.create<mlir::memref::LoadOp>(loc, l0.val, idx),
-          mlir::IndexType::get(builder.getContext()));
+      mlir::Value val = l0.val;
+      if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+        mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
+        assert(MT.getShape().size() == 2);
+        blocks[i] = builder.create<IndexCastOp>(
+            loc, builder.create<mlir::memref::LoadOp>(loc, val, idx),
+            mlir::IndexType::get(builder.getContext()));
+      } else {
+        mlir::Value idx[] = {builder.create<arith::ConstantIntOp>(loc, 0, 32),
+                             builder.create<arith::ConstantIntOp>(loc, i, 32)};
+        auto PT = val.getType().cast<LLVM::LLVMPointerType>();
+        auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[i];
+        blocks[i] = builder.create<IndexCastOp>(
+            loc,
+            builder.create<LLVM::LoadOp>(
+                loc,
+                builder.create<LLVM::GEPOp>(
+                    loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                    val, idx)),
+            mlir::IndexType::get(builder.getContext()));
+      }
     }
 
     auto t0 = Visit(CU->getConfig()->getArg(1));
     assert(t0.isReference);
     mlir::Value threads[3];
     for (int i = 0; i < 3; i++) {
-      std::vector<mlir::Value> idx = {getConstantIndex(0), getConstantIndex(i)};
-      assert(t0.val.getType().cast<MemRefType>().getShape().size() == 2);
-      threads[i] = builder.create<IndexCastOp>(
-          loc, builder.create<mlir::memref::LoadOp>(loc, t0.val, idx),
-          mlir::IndexType::get(builder.getContext()));
+      mlir::Value val = t0.val;
+      if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+        mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
+        assert(MT.getShape().size() == 2);
+        threads[i] = builder.create<IndexCastOp>(
+            loc, builder.create<mlir::memref::LoadOp>(loc, val, idx),
+            mlir::IndexType::get(builder.getContext()));
+      } else {
+        mlir::Value idx[] = {builder.create<arith::ConstantIntOp>(loc, 0, 32),
+                             builder.create<arith::ConstantIntOp>(loc, i, 32)};
+        auto PT = val.getType().cast<LLVM::LLVMPointerType>();
+        auto ET = PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[i];
+        threads[i] = builder.create<IndexCastOp>(
+            loc,
+            builder.create<LLVM::LoadOp>(
+                loc,
+                builder.create<LLVM::GEPOp>(
+                    loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                    val, idx)),
+            mlir::IndexType::get(builder.getContext()));
+      }
     }
     auto op = builder.create<mlir::gpu::LaunchOp>(loc, blocks[0], blocks[1],
                                                   blocks[2], threads[0],
