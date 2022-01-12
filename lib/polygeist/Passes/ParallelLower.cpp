@@ -428,6 +428,8 @@ void ParallelLower::runOnOperation() {
   }
 
   getOperation().walk([&](LLVM::CallOp call) {
+    if (!call.getCallee())
+      return;
     if (call.getCallee().getValue() == "cudaMemcpy" ||
         call.getCallee().getValue() == "cudaMemcpyAsync") {
       OpBuilder bz(call);
