@@ -1,5 +1,7 @@
 // RUN: mlir-clang %s --function=* -S | FileCheck %s
 
+// TODO remove unused cyclic phi
+
 void use(float);
 
 int solver(	float** y,
@@ -26,27 +28,27 @@ int solver(	float** y,
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %0 = scf.while (%arg4 = %c0_i32, %arg5 = %true) : (i32, i1) -> i32 {
-// CHECK-NEXT:       %1 = arith.cmpi slt, %arg4, %c1_i32 : i32
-// CHECK-NEXT:       %2 = arith.andi %1, %arg5 : i1
-// CHECK-NEXT:       scf.condition(%2) %arg4 : i32
+// CHECK-NEXT:     %0 = llvm.mlir.undef : f32
+// CHECK-NEXT:     %1:2 = scf.while (%arg4 = %0, %arg5 = %c0_i32, %arg6 = %true) : (f32, i32, i1) -> (f32, i32) {
+// CHECK-NEXT:       %2 = arith.cmpi slt, %arg5, %c1_i32 : i32
+// CHECK-NEXT:       %3 = arith.andi %2, %arg6 : i1
+// CHECK-NEXT:       scf.condition(%3) %arg4, %arg5 : f32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg4: i32):  // no predecessors
-// CHECK-NEXT:       %1 = arith.cmpf ugt, %arg3, %cst : f32
-// CHECK-NEXT:       %2 = arith.xori %1, %true : i1
-// CHECK-NEXT:       %3 = scf.if %2 -> (i1) {
+// CHECK-NEXT:     ^bb0(%arg4: f32, %arg5: i32):  // no predecessors
+// CHECK-NEXT:       %2 = arith.cmpf ugt, %arg3, %cst : f32
+// CHECK-NEXT:       %3:2 = scf.if %2 -> (f32, i1) {
+// CHECK-NEXT:         scf.yield %arg4, %false : f32, i1
+// CHECK-NEXT:       } else {
 // CHECK-NEXT:         %5 = arith.sitofp %arg1 : i32 to f32
 // CHECK-NEXT:         %6 = arith.cmpf ugt, %arg3, %arg2 : f32
 // CHECK-NEXT:         %7 = arith.xori %6, %true : i1
 // CHECK-NEXT:         scf.if %7 {
 // CHECK-NEXT:           call @use(%5) : (f32) -> ()
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield %7 : i1
-// CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %false : i1
+// CHECK-NEXT:         scf.yield %5, %7 : f32, i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %4 = arith.addi %arg4, %c1_i32 : i32
-// CHECK-NEXT:       scf.yield %4, %3 : i32, i1
+// CHECK-NEXT:       %4 = arith.addi %arg5, %c1_i32 : i32
+// CHECK-NEXT:       scf.yield %3#0, %4, %3#1 : f32, i32, i1
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }

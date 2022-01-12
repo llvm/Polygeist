@@ -49,6 +49,9 @@ static cl::opt<bool>
     memRefFullRank("memref-fullrank", cl::init(false),
                    cl::desc("Get the full rank of the memref."));
 
+static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
+                               cl::desc("Use memrefs when possible"));
+
 mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   if (memorySpace == 0)
     return nullptr;
@@ -5764,7 +5767,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   if (auto DT = dyn_cast<clang::DecayedType>(qt)) {
     bool assumeRef = false;
     auto mlirty = getMLIRType(DT->getOriginalType(), &assumeRef, allowMerge);
-    if (assumeRef) {
+    if (memRefABI && assumeRef) {
       // Constant array types like `int A[30][20]` will be converted to LLVM
       // type `[20 x i32]* %0`, which has the outermost dimension size erased,
       // and we can only recover to `memref<?x20xi32>` from there. This prevents
@@ -5798,7 +5801,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     bool assumeRef = false;
     auto subType =
         getMLIRType(CT->getElementType(), &assumeRef, /*allowMerge*/ false);
-    if (allowMerge) {
+    if (!memRefABI && allowMerge) {
       assert(!assumeRef);
       if (implicitRef)
         *implicitRef = true;
@@ -5880,7 +5883,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       return typeCache[RT];
     }
 
-    if (notAllSame || !allowMerge || innerLLVM) {
+    if (!memRefABI || notAllSame || !allowMerge || innerLLVM) {
       return mlir::LLVM::LLVMStructType::getLiteral(module->getContext(),
                                                     types);
     }
@@ -5926,7 +5929,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     int64_t size = -1;
     if (auto CAT = dyn_cast<clang::ConstantArrayType>(AT))
       size = CAT->getSize().getZExtValue();
-    if (subRef) {
+    if (memRefABI && subRef) {
       auto mt = ET.cast<MemRefType>();
       auto shape2 = std::vector<int64_t>(mt.getShape());
       shape2.insert(shape2.begin(), size);
@@ -5936,8 +5939,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                    MemRefLayoutAttrInterface(),
                                    mt.getMemorySpace());
     }
-    if (!allowMerge || ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-                              LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
+    if (!memRefABI || !allowMerge ||
+        ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
+               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMArrayType::get(ET, (size == -1) ? 0 : size);
     if (implicitRef)
       *implicitRef = true;
@@ -5948,7 +5952,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     bool subRef = false;
     auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge);
     int64_t size = AT->getNumElements();
-    if (subRef) {
+    if (memRefABI && subRef) {
       auto mt = ET.cast<MemRefType>();
       auto shape2 = std::vector<int64_t>(mt.getShape());
       shape2.insert(shape2.begin(), size);
@@ -5958,8 +5962,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                    MemRefLayoutAttrInterface(),
                                    mt.getMemorySpace());
     }
-    if (!allowMerge || ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-                              LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
+    if (!memRefABI || !allowMerge ||
+        ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
+               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
       return LLVM::LLVMFixedVectorType::get(ET, size);
     if (implicitRef)
       *implicitRef = true;
@@ -6004,7 +6009,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                         : cast<clang::ReferenceType>(t)->getPointeeType(),
                     &subRef, /*allowMerge*/ true);
 
-    if (subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
+    if (!memRefABI ||
+        subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
                     LLVM::LLVMPointerType, LLVM::LLVMFunctionType>())
       return LLVM::LLVMPointerType::get(subType);
 
