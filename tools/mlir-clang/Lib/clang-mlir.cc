@@ -1093,19 +1093,19 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
 ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr) {
   auto loc = getMLIRLocation(expr->getExprLoc());
+  expr->dump();
+  llvm::errs() << "warning not calling destructor on delete\n";
 
   mlir::Value toDelete = Visit(expr->getArgument()).getValue(builder);
 
   if (toDelete.getType().isa<mlir::MemRefType>()) {
     builder.create<mlir::memref::DeallocOp>(loc, toDelete);
   } else {
-    mlir::Value args[1] = {
-      builder.create<LLVM::BitcastOp>(
-          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), toDelete)};
+    mlir::Value args[1] = {builder.create<LLVM::BitcastOp>(
+        loc, LLVM::LLVMPointerType::get(builder.getI8Type()), toDelete)};
     builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateFreeFunction(),
                                        args);
   }
-  assert(!expr->getOperatorDelete());
 
   return nullptr;
 }
@@ -1305,7 +1305,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
 
     builder.setInsertionPointToStart(&forOp.getLoopBody().front());
     assert(obj.isReference);
-    obj = CommonArrayToPointer(obj);
+    obj.isReference = false;
     obj = CommonArrayLookup(obj, forOp.getInductionVar(),
                             /*isImplicitRef*/ false, /*removeIndex*/ false);
     assert(obj.isReference);
@@ -5091,6 +5091,23 @@ mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateMallocFunction() {
   return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
              module->getLoc(), name, llvmFnType, lnk);
 }
+mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
+  std::string name = "free";
+  if (llvmFunctions.find(name) != llvmFunctions.end()) {
+    return llvmFunctions[name];
+  }
+  auto ctx = module->getContext();
+  mlir::Type types[] = {
+      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8))};
+  auto llvmFnType =
+      LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), types, false);
+
+  LLVM::Linkage lnk = LLVM::Linkage::External;
+  mlir::OpBuilder builder(module->getContext());
+  builder.setInsertionPointToStart(module->getBody());
+  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
+             module->getLoc(), name, llvmFnType, lnk);
+}
 
 mlir::LLVM::LLVMFuncOp
 MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
@@ -5342,14 +5359,15 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
           initial_value = A;
         }
       } else {
-        mlir::Value val =
-            ms.Visit(const_cast<clang::Expr *>(init)).getValue(builder);
-        if (auto cop = val.getDefiningOp<arith::ConstantOp>()) {
-          initial_value = cop.getValue();
-          initial_value = SplatElementsAttr::get(
-              RankedTensorType::get(mr.getShape(), mr.getElementType()),
-              initial_value);
-          initialized = true;
+        auto VC = ms.Visit(const_cast<clang::Expr *>(init));
+        if (!VC.isReference) {
+          if (auto cop = VC.val.getDefiningOp<arith::ConstantOp>()) {
+            initial_value = cop.getValue();
+            initial_value = SplatElementsAttr::get(
+                RankedTensorType::get(mr.getShape(), mr.getElementType()),
+                initial_value);
+            initialized = true;
+          }
         }
       }
 
