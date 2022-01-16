@@ -1126,10 +1126,11 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   auto ty = getMLIRType(expr->getType());
 
   mlir::Value alloc;
+  mlir::Value arrayCons;
   if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
     auto shape = std::vector<int64_t>(mt.getShape());
     mlir::Value args[1] = {count};
-    alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+    arrayCons = alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
   } else {
     auto i64 = mlir::IntegerType::get(count.getContext(), 64);
     auto typeSize = getTypeSize(expr->getAllocatedType());
@@ -1141,13 +1142,14 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
             .create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(),
                                         args)
             ->getResult(0));
+    arrayCons = builder.create<mlir::LLVM::BitcastOp>(loc, LLVM::LLVMArrayType::get(ty, 0), alloc);
   }
   assert(alloc);
 
   if (expr->getConstructExpr()) {
     VisitConstructCommon(
         const_cast<CXXConstructExpr *>(expr->getConstructExpr()),
-        /*name*/ nullptr, /*memtype*/ 0, alloc, count);
+        /*name*/ nullptr, /*memtype*/ 0, arrayCons, count);
   }
   return ValueCategory(alloc, /*isRefererence*/ false);
 }
@@ -1305,7 +1307,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
 
     builder.setInsertionPointToStart(&forOp.getLoopBody().front());
     assert(obj.isReference);
-    obj.isReference = false;
+    obj = CommonArrayToPointer(obj);
     obj = CommonArrayLookup(obj, forOp.getInductionVar(),
                             /*isImplicitRef*/ false, /*removeIndex*/ false);
     assert(obj.isReference);

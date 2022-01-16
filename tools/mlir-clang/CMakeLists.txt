@@ -17,7 +17,7 @@ set( LLVM_LINK_COMPONENTS
   Vectorize
 )
 
-add_clang_tool(mlir-clang
+add_clang_executable(mlir-clang
   mlir-clang.cc
   Lib/CGStmt.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
