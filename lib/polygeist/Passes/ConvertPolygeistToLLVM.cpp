@@ -157,7 +157,7 @@ struct Pointer2MemrefOpLowering
     auto result = getStridesAndOffset(op.getType(), strides, offset);
     (void)result;
     assert(succeeded(result) && "unexpected failure in stride computation");
-    assert(!MemRefType::isDynamicStrideOrOffset(offset) &&
+    assert(offset != ShapedType::kDynamicStrideOrOffset &&
            "expected static offset");
 
     bool first = true;
@@ -166,7 +166,7 @@ struct Pointer2MemrefOpLowering
         first = false;
         return false;
       }
-      return MemRefType::isDynamicStrideOrOffset(stride);
+      return stride == ShapedType::kDynamicStrideOrOffset;
     }) && "expected static strides except first element");
 
     descr.setAllocatedPtr(rewriter, loc, ptr);

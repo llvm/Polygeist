@@ -148,7 +148,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getIdentifier("malloc"))))
+          symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc"))))
     return fn;
   auto ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
@@ -164,7 +164,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getIdentifier("free"))))
+          symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
     return fn;
   auto ctx = module->getContext();
   auto llvmFnType = LLVM::LLVMFunctionType::get(
