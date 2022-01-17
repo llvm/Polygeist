@@ -238,8 +238,9 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 
     Value difference = rewriter.create<SubIOp>(op.getLoc(), op.getUpperBound(),
                                                op.getLowerBound());
-    Value tripCount =
-        rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.getStep());
+    Value tripCount = rewriter.create<AddIOp>(op.getLoc(), rewriter.create<DivUIOp>(op.getLoc(),
+        rewriter.create<SubIOp>(op.getLoc(), difference, one), op.getStep()), one);
+       // rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.getStep());
     auto newForOp =
         rewriter.create<scf::ForOp>(op.getLoc(), zero, tripCount, one);
     rewriter.setInsertionPointToStart(newForOp.getBody());
@@ -373,9 +374,34 @@ static LogicalResult wrapWithBarriers(
   return success();
 }
 
+/// Puts a barrier before and/or after an "if" operation if there isn't already
+/// one, potentially with a single load that supplies the upper bound of a
+/// (normalized) loop.
+struct WrapIfWithBarrier : public OpRewritePattern<scf::IfOp> {
+  WrapIfWithBarrier(MLIRContext *ctx) : OpRewritePattern<scf::IfOp>(ctx) {}
+  LogicalResult matchAndRewrite(scf::IfOp op,
+                                PatternRewriter &rewriter) const override {
+    if (failed(canWrapWithBarriers(op)))
+      return failure();
+
+    return wrapWithBarriers(op, rewriter, [&](Operation *prevOp) {
+      if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
+        if (loadOp.result() == op.getCondition() &&
+            loadOp.indices() ==
+                cast<scf::ParallelOp>(op->getParentOp()).getInductionVars()) {
+          prevOp = prevOp->getPrevNode();
+          return prevOp == nullptr || isa<polygeist::BarrierOp>(prevOp);
+        }
+      }
+      return false;
+    });
+  }
+};
+
 /// Puts a barrier before and/or after a "for" operation if there isn't already
 /// one, potentially with a single load that supplies the upper bound of a
 /// (normalized) loop.
+
 struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
   WrapForWithBarrier(MLIRContext *ctx) : OpRewritePattern<scf::ForOp>(ctx) {}
 
@@ -420,6 +446,128 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
       return failure();
 
     return wrapWithBarriers(op, rewriter);
+  }
+};
+
+/// Moves the body from `ifOp` contained in `op` to a parallel op newly
+/// created at the start of `newIf`.
+static void moveBodies(PatternRewriter &rewriter, scf::ParallelOp op,
+                       scf::IfOp ifOp, scf::IfOp newIf) {
+  rewriter.startRootUpdate(op);
+  {
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPointToStart(newIf.thenBlock());
+  auto newParallel = rewriter.create<scf::ParallelOp>(
+      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
+
+  for (auto tup : llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
+      std::get<1>(tup).replaceUsesWithIf(std::get<0>(tup), [&](OpOperand &op) {
+        return ifOp.getThenRegion().isAncestor(op.getOwner()->getParentRegion());
+      });
+  }
+
+  rewriter.mergeBlockBefore(ifOp.thenBlock(), &newParallel.getBody()->back());
+  rewriter.eraseOp(&newParallel.getBody()->back());
+  }
+
+  if (ifOp.getElseRegion().getBlocks().size() > 0) {
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPointToStart(newIf.elseBlock());
+  auto newParallel = rewriter.create<scf::ParallelOp>(
+      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
+
+  for (auto tup : llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
+      std::get<1>(tup).replaceUsesWithIf(std::get<0>(tup), [&](OpOperand &op) {
+        return ifOp.getElseRegion().isAncestor(op.getOwner()->getParentRegion());
+      });
+  }
+  rewriter.mergeBlockBefore(ifOp.elseBlock(), &newParallel.getBody()->back());
+  rewriter.eraseOp(&newParallel.getBody()->back());
+  }
+
+  rewriter.eraseOp(ifOp);
+  rewriter.eraseOp(op);
+  rewriter.finalizeRootUpdate(op);
+}
+
+/// Interchanges a parallel for loop with a for loop perfectly nested within it.
+struct InterchangeIfPFor : public OpRewritePattern<scf::ParallelOp> {
+  InterchangeIfPFor(MLIRContext *ctx)
+      : OpRewritePattern<scf::ParallelOp>(ctx) {}
+
+  LogicalResult matchAndRewrite(scf::ParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    // A perfect nest must have two operations in the outermost body: an "if"
+    // and a terminator.
+    if (std::next(op.getBody()->begin(), 2) != op.getBody()->end() ||
+        !isa<scf::IfOp>(op.getBody()->front())) {
+      LLVM_DEBUG(DBGS() << "[interchange] not a perfect pfor(if) nest\n");
+      return failure();
+    }
+
+    // We shouldn't have parallel reduction loops coming from GPU anyway, and
+    // sequential reduction loops can be transformed by reg2mem.
+    auto ifOp = cast<scf::IfOp>(op.getBody()->front());
+    if (op.getNumResults() != 0 || ifOp.getNumResults() != 0) {
+      LLVM_DEBUG(DBGS() << "[interchange] not matching reduction loops\n");
+      return failure();
+    }
+
+    if (!hasNestedBarrier(ifOp)) {
+      LLVM_DEBUG(DBGS() << "[interchange] no nested barrier\n";);
+      return failure();
+    }
+
+    auto newIf =
+        rewriter.create<scf::IfOp>(ifOp.getLoc(), TypeRange(), ifOp.getCondition(), ifOp.getElseRegion().getBlocks().size() > 0);
+    moveBodies(rewriter, op, ifOp, newIf);
+    return success();
+  }
+};
+
+/// Interchanges a parallel for loop with a normalized (zero lower bound and
+/// unit step) for loop nested within it. The for loop must have a barrier
+/// inside and is preceeded by a load operation that supplies its upper bound.
+/// The barrier semantics implies that all threads must executed the same number
+/// of times, which means that the inner loop must have the same trip count in
+/// all iterations of the outer loop. Therefore, the load of the upper bound can
+/// be hoisted and read any value, because all values are identical in a
+/// semantically valid program.
+struct InterchangeIfPForLoad : public OpRewritePattern<scf::ParallelOp> {
+  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::ParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    if (std::next(op.getBody()->begin(), 2) == op.getBody()->end() ||
+        std::next(op.getBody()->begin(), 3) != op.getBody()->end()) {
+      LLVM_DEBUG(DBGS() << "[interchange-load-if] expected two nested ops\n");
+      return failure();
+    }
+    auto loadOp = dyn_cast<memref::LoadOp>(op.getBody()->front());
+    auto ifOp = dyn_cast<scf::IfOp>(op.getBody()->front().getNextNode());
+    if (!loadOp || !ifOp || loadOp.result() != ifOp.getCondition() ||
+        loadOp.indices() != op.getInductionVars()) {
+      LLVM_DEBUG(DBGS() << "[interchange-load-if] expected pfor(load, for/if)");
+      return failure();
+    }
+
+    if (!hasNestedBarrier(ifOp)) {
+      LLVM_DEBUG(DBGS() << "[interchange-load-if] no nested barrier\n");
+      return failure();
+    }
+
+    // In the GPU model, the trip count of the inner sequential containing a
+    // barrier must be the same for all threads. So read the value written by
+    // the first thread outside of the loop to enable interchange.
+    Value zero = rewriter.create<ConstantIndexOp>(ifOp.getLoc(), 0);
+    Value condition = rewriter.create<memref::LoadOp>(
+        loadOp.getLoc(), loadOp.getMemRef(),
+        SmallVector<Value>(loadOp.getMemRefType().getRank(), zero));
+    
+    auto newIf =
+        rewriter.create<scf::IfOp>(ifOp.getLoc(), TypeRange(), condition, ifOp.getElseRegion().getBlocks().size() > 0);
+    moveBodies(rewriter, op, ifOp, newIf);
+    return success();
   }
 };
 
@@ -506,7 +654,7 @@ struct InterchangeForPForLoad : public OpRewritePattern<scf::ParallelOp> {
     auto forOp = dyn_cast<scf::ForOp>(op.getBody()->front().getNextNode());
     if (!loadOp || !forOp || loadOp.result() != forOp.getUpperBound() ||
         loadOp.indices() != op.getInductionVars()) {
-      LLVM_DEBUG(DBGS() << "[interchange-load] expected pfor(load, for)");
+      LLVM_DEBUG(DBGS() << "[interchange-load] expected pfor(load, for/if)");
       return failure();
     }
 
@@ -904,12 +1052,12 @@ struct DistributeAroundBarrier : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
-static void loadValues(Location loc, ArrayRef<Value> pointers, Value zero,
+static void loadValues(Location loc, ArrayRef<Value> pointers,
                        PatternRewriter &rewriter,
                        SmallVectorImpl<Value> &loaded) {
   loaded.reserve(loaded.size() + pointers.size());
   for (Value alloc : pointers)
-    loaded.push_back(rewriter.create<memref::LoadOp>(loc, alloc, zero));
+    loaded.push_back(rewriter.create<memref::LoadOp>(loc, alloc, ValueRange()));
 }
 
 struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
@@ -920,17 +1068,13 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     if (!op.hasIterOperands() || !hasNestedBarrier(op))
       return failure();
 
-    // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
-    //    op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
-    Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumIterOperands());
     for (Value operand : op.getIterOperands()) {
-      Value alloc = rewriter.create<memref::AllocOp>(
-          op.getLoc(), MemRefType::get(1, operand.getType()), ValueRange());
+      Value alloc = rewriter.create<memref::AllocaOp>(
+          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()), ValueRange());
       allocated.push_back(alloc);
-
-      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc, zero);
+      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc, ValueRange());
     }
 
     auto newOp = rewriter.create<scf::ForOp>(op.getLoc(), op.getLowerBound(),
@@ -938,7 +1082,7 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     rewriter.setInsertionPointToStart(newOp.getBody());
     SmallVector<Value> newRegionArguments;
     newRegionArguments.push_back(newOp.getInductionVar());
-    loadValues(op.getLoc(), allocated, zero, rewriter, newRegionArguments);
+    loadValues(op.getLoc(), allocated, rewriter, newRegionArguments);
 
     auto oldTerminator = cast<scf::YieldOp>(op.getBody()->getTerminator());
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
@@ -947,37 +1091,82 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     rewriter.setInsertionPoint(newOp.getBody()->getTerminator());
     for (auto en : llvm::enumerate(oldTerminator.getResults())) {
       rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], zero);
+                                       allocated[en.index()], ValueRange());
     }
     rewriter.eraseOp(oldTerminator);
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
-    loadValues(op.getLoc(), allocated, zero, rewriter, loaded);
     for (Value alloc : allocated) {
-      rewriter.create<mlir::memref::DeallocOp>(op.getLoc(), alloc);
+      loaded.push_back(rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
     }
-    // rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
+    rewriter.replaceOp(op, loaded);
+    return success();
+  }
+};
+
+struct Reg2MemIf : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getResults().size() || !hasNestedBarrier(op))
+      return failure();
+    
+
+    SmallVector<Value> allocated;
+    allocated.reserve(op.getNumResults());
+    for (Type opType : op.getResultTypes()) {
+      Value alloc = rewriter.create<memref::AllocaOp>(
+          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType), ValueRange());
+      allocated.push_back(alloc);
+    }
+    
+    auto newOp = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(), op.getCondition(), true);
+
+    rewriter.setInsertionPoint(op.thenYield());
+    for (auto en : llvm::enumerate(op.thenYield().getOperands())) {
+      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                       allocated[en.index()], ValueRange());
+    }
+    op.thenYield()->setOperands(ValueRange());
+    
+    rewriter.setInsertionPoint(op.elseYield());
+    for (auto en : llvm::enumerate(op.elseYield().getOperands())) {
+      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                       allocated[en.index()], ValueRange());
+    }
+    op.elseYield()->setOperands(ValueRange());
+
+    rewriter.eraseOp(&newOp.thenBlock()->back());
+    rewriter.mergeBlocks(op.thenBlock(), newOp.thenBlock());
+    
+    rewriter.eraseOp(&newOp.elseBlock()->back());
+    rewriter.mergeBlocks(op.elseBlock(), newOp.elseBlock());
+
+    rewriter.setInsertionPointAfter(op);
+    SmallVector<Value> loaded;
+    for (Value alloc : allocated) {
+      loaded.push_back(rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+    }
     rewriter.replaceOp(op, loaded);
     return success();
   }
 };
 
 static void storeValues(Location loc, ValueRange values, ValueRange pointers,
-                        Value zero, PatternRewriter &rewriter) {
+                        PatternRewriter &rewriter) {
   for (auto pair : llvm::zip(values, pointers)) {
-    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair),
-                                     zero);
+    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair), ValueRange());
   }
 }
 
-static void allocaValues(Location loc, ValueRange values, Value zero,
-                         PatternRewriter &rewriter,
+static void allocaValues(Location loc, ValueRange values, PatternRewriter &rewriter,
                          SmallVector<Value> &allocated) {
   allocated.reserve(values.size());
   for (Value value : values) {
     Value alloc = rewriter.create<memref::AllocaOp>(
-        loc, MemRefType::get(1, value.getType()), ValueRange());
+        loc, MemRefType::get(ArrayRef<int64_t>(), value.getType()), ValueRange());
     allocated.push_back(alloc);
   }
 }
@@ -994,19 +1183,18 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 
     // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
     //     op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
-    Value zero = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     SmallVector<Value> beforeAllocated, afterAllocated;
-    allocaValues(op.getLoc(), op.getOperands(), zero, rewriter,
+    allocaValues(op.getLoc(), op.getOperands(), rewriter,
                  beforeAllocated);
-    storeValues(op.getLoc(), op.getOperands(), beforeAllocated, zero, rewriter);
-    allocaValues(op.getLoc(), op.getResults(), zero, rewriter, afterAllocated);
+    storeValues(op.getLoc(), op.getOperands(), beforeAllocated, rewriter);
+    allocaValues(op.getLoc(), op.getResults(), rewriter, afterAllocated);
 
     auto newOp =
         rewriter.create<scf::WhileOp>(op.getLoc(), TypeRange(), ValueRange());
     Block *newBefore =
         rewriter.createBlock(&newOp.getBefore(), newOp.getBefore().begin());
     SmallVector<Value> newBeforeArguments;
-    loadValues(op.getLoc(), beforeAllocated, zero, rewriter,
+    loadValues(op.getLoc(), beforeAllocated, rewriter,
                newBeforeArguments);
     rewriter.mergeBlocks(&op.getBefore().front(), newBefore,
                          newBeforeArguments);
@@ -1014,7 +1202,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     auto beforeTerminator =
         cast<scf::ConditionOp>(newOp.getBefore().front().getTerminator());
     rewriter.setInsertionPoint(beforeTerminator);
-    storeValues(op.getLoc(), beforeTerminator.getArgs(), afterAllocated, zero,
+    storeValues(op.getLoc(), beforeTerminator.getArgs(), afterAllocated,
                 rewriter);
 
     rewriter.updateRootInPlace(
@@ -1023,21 +1211,21 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     Block *newAfter =
         rewriter.createBlock(&newOp.getAfter(), newOp.getAfter().begin());
     SmallVector<Value> newAfterArguments;
-    loadValues(op.getLoc(), afterAllocated, zero, rewriter, newAfterArguments);
+    loadValues(op.getLoc(), afterAllocated, rewriter, newAfterArguments);
     rewriter.mergeBlocks(&op.getAfter().front(), newAfter, newAfterArguments);
 
     auto afterTerminator =
         cast<scf::YieldOp>(newOp.getAfter().front().getTerminator());
     rewriter.setInsertionPoint(afterTerminator);
     storeValues(op.getLoc(), afterTerminator.getResults(), beforeAllocated,
-                zero, rewriter);
+                rewriter);
 
     rewriter.updateRootInPlace(
         afterTerminator, [&] { afterTerminator.getResultsMutable().clear(); });
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> results;
-    loadValues(op.getLoc(), afterAllocated, zero, rewriter, results);
+    loadValues(op.getLoc(), afterAllocated, rewriter, results);
     // rewriter.create<LLVM::StackRestoreOp>(op.getLoc(), stackPtr);
     rewriter.replaceOp(op, results);
     return success();
@@ -1051,9 +1239,13 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method == "distribute") {
       OwningRewritePatternList patterns(&getContext());
       patterns
-          .insert<Reg2MemFor, Reg2MemWhile, ReplaceIfWithFors,
-                  WrapForWithBarrier, WrapWhileWithBarrier, InterchangeForPFor,
-                  InterchangeForPForLoad, InterchangeWhilePFor, NormalizeLoop,
+          .insert<Reg2MemFor, Reg2MemWhile, Reg2MemIf,
+                  //ReplaceIfWithFors,
+                  WrapForWithBarrier, WrapIfWithBarrier,
+                  WrapWhileWithBarrier,
+                  InterchangeForPFor, InterchangeForPForLoad, 
+                  InterchangeIfPFor, InterchangeIfPForLoad, 
+                  InterchangeWhilePFor, NormalizeLoop,
                   NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
               &getContext());
       GreedyRewriteConfig config;
