@@ -286,6 +286,41 @@ struct URLLVMOpLowering
   }
 };
 
+struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
+  explicit GlobalOpTypeConversion(LLVMTypeConverter &converter)
+      : OpConversionPattern<LLVM::GlobalOp>(converter,
+                                            &converter.getContext()) {}
+
+  LogicalResult
+  matchAndRewrite(LLVM::GlobalOp op, LLVM::GlobalOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *converter = getTypeConverter();
+    Type globalType = adaptor.getGlobalType();
+    Type convertedType = converter->convertType(globalType);
+    if (!convertedType)
+      return failure();
+    if (convertedType == globalType)
+      return failure();
+
+    rewriter.updateRootInPlace(
+        op, [&]() { op.setGlobalTypeAttr(TypeAttr::get(convertedType)); });
+    return success();
+  }
+};
+
+struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
+  using ConvertOpToLLVMPattern<LLVM::ReturnOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(LLVM::ReturnOp op, LLVM::ReturnOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto replacement =
+        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArgs());
+    replacement->setAttrs(adaptor.getAttributes());
+    return success();
+  }
+};
+
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
@@ -319,26 +354,51 @@ struct ConvertPolygeistToLLVMPass
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
     populateStdExpandOpsPatterns(patterns);
-    patterns.add<LLVMOpLowering>(converter);
+    patterns
+        .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
+            converter);
     patterns.add<URLLVMOpLowering>(converter);
+
+    // Legality callback for operations that checks whether their operand and
+    // results types are converted.
+    auto areAllTypesConverted = [&](Operation *op) -> Optional<bool> {
+      SmallVector<Type> convertedResultTypes;
+      if (failed(converter.convertTypes(op->getResultTypes(),
+                                        convertedResultTypes)))
+        return llvm::None;
+      SmallVector<Type> convertedOperandTypes;
+      if (failed(converter.convertTypes(op->getOperandTypes(),
+                                        convertedOperandTypes)))
+        return llvm::None;
+      return convertedResultTypes == op->getResultTypes() &&
+             convertedOperandTypes == op->getOperandTypes();
+    };
 
     LLVMConversionTarget target(getContext());
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
         [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
     target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                       omp::BarrierOp, omp::TaskwaitOp>();
-    target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(
-        [&](Operation *op) -> Optional<bool> {
-          SmallVector<Type> convertedResultTypes;
-          if (failed(converter.convertTypes(op->getResultTypes(),
-                                            convertedResultTypes)))
-            return llvm::None;
+    target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(areAllTypesConverted);
+    target.addDynamicallyLegalOp<LLVM::GlobalOp>(
+        [&](LLVM::GlobalOp op) -> Optional<bool> {
+          if (converter.convertType(op.getGlobalType()) == op.getGlobalType())
+            return true;
+          return llvm::None;
+        });
+    target.addDynamicallyLegalOp<LLVM::ReturnOp>(
+        [&](LLVM::ReturnOp op) -> Optional<bool> {
+          // Outside global ops, defer to the normal type-based check. Note that
+          // the infrastructure will not do it automatically because per-op
+          // checks override dialect-level checks unconditionally.
+          if (!isa<LLVM::GlobalOp>(op->getParentOp()))
+            return areAllTypesConverted(op);
+
           SmallVector<Type> convertedOperandTypes;
           if (failed(converter.convertTypes(op->getOperandTypes(),
                                             convertedOperandTypes)))
             return llvm::None;
-          return convertedResultTypes == op->getResultTypes() &&
-                 convertedOperandTypes == op->getOperandTypes();
+          return convertedOperandTypes == op->getOperandTypes();
         });
     target.addIllegalOp<UnrealizedConversionCastOp>();
     /*
