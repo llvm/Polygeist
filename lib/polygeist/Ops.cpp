@@ -676,8 +676,7 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
 };
 
 /// Simplify select subindex(x), subindex(y) to subindex(select x, y)
-template<typename T>
-struct LoadSelect : public OpRewritePattern<T> {
+template <typename T> struct LoadSelect : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   static Value ptr(T op);
@@ -691,14 +690,15 @@ struct LoadSelect : public OpRewritePattern<T> {
       return failure();
 
     Type tys[] = {op.getType()};
-    auto iop = rewriter.create<scf::IfOp>(mem.getLoc(), tys, mem.getCondition(), /*hasElse*/true);
+    auto iop = rewriter.create<scf::IfOp>(mem.getLoc(), tys, mem.getCondition(),
+                                          /*hasElse*/ true);
 
     auto vop = cast<T>(op->clone());
     iop.thenBlock()->push_front(vop);
     ptrMutable(vop).assign(mem.getTrueValue());
     rewriter.setInsertionPointToEnd(iop.thenBlock());
     rewriter.create<scf::YieldOp>(op.getLoc(), vop->getResults());
-    
+
     auto eop = cast<T>(op->clone());
     iop.elseBlock()->push_front(eop);
     ptrMutable(eop).assign(mem.getFalseValue());
@@ -710,38 +710,34 @@ struct LoadSelect : public OpRewritePattern<T> {
   }
 };
 
-template<>
-  Value LoadSelect<memref::LoadOp>::ptr(memref::LoadOp op) {
-      return op.memref();
-  }
-template<>
-  MutableOperandRange LoadSelect<memref::LoadOp>::ptrMutable(memref::LoadOp op) {
-      return op.memrefMutable();
-  }
-template<>
-  Value LoadSelect<AffineLoadOp>::ptr(AffineLoadOp op) {
-      return op.memref();
-  }
-template<>
-  MutableOperandRange LoadSelect<AffineLoadOp>::ptrMutable(AffineLoadOp op) {
-      return op.memrefMutable();
-  }
-template<>
-  Value LoadSelect<LLVM::LoadOp>::ptr(LLVM::LoadOp op) {
-      return op.getAddr();
-  }
-template<>
-  MutableOperandRange LoadSelect<LLVM::LoadOp>::ptrMutable(LLVM::LoadOp op) {
-      return op.getAddrMutable();
-  }
+template <> Value LoadSelect<memref::LoadOp>::ptr(memref::LoadOp op) {
+  return op.memref();
+}
+template <>
+MutableOperandRange LoadSelect<memref::LoadOp>::ptrMutable(memref::LoadOp op) {
+  return op.memrefMutable();
+}
+template <> Value LoadSelect<AffineLoadOp>::ptr(AffineLoadOp op) {
+  return op.memref();
+}
+template <>
+MutableOperandRange LoadSelect<AffineLoadOp>::ptrMutable(AffineLoadOp op) {
+  return op.memrefMutable();
+}
+template <> Value LoadSelect<LLVM::LoadOp>::ptr(LLVM::LoadOp op) {
+  return op.getAddr();
+}
+template <>
+MutableOperandRange LoadSelect<LLVM::LoadOp>::ptrMutable(LLVM::LoadOp op) {
+  return op.getAddrMutable();
+}
 
 void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                              MLIRContext *context) {
   results.insert<CastOfSubIndex, SubIndex2, SubToCast, SimplifySubViewUsers,
                  SimplifySubIndexUsers, SelectOfCast, SelectOfSubIndex,
                  RedundantDynSubIndex, LoadSelect<memref::LoadOp>,
-                 LoadSelect<AffineLoadOp>, LoadSelect<LLVM::LoadOp>
-                 >(context);
+                 LoadSelect<AffineLoadOp>, LoadSelect<LLVM::LoadOp>>(context);
   // Disabled: SubToSubView
 }
 

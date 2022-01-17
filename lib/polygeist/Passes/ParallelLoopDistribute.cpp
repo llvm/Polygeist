@@ -238,9 +238,13 @@ struct NormalizeLoop : public OpRewritePattern<scf::ForOp> {
 
     Value difference = rewriter.create<SubIOp>(op.getLoc(), op.getUpperBound(),
                                                op.getLowerBound());
-    Value tripCount = rewriter.create<AddIOp>(op.getLoc(), rewriter.create<DivUIOp>(op.getLoc(),
-        rewriter.create<SubIOp>(op.getLoc(), difference, one), op.getStep()), one);
-       // rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.getStep());
+    Value tripCount = rewriter.create<AddIOp>(
+        op.getLoc(),
+        rewriter.create<DivUIOp>(
+            op.getLoc(), rewriter.create<SubIOp>(op.getLoc(), difference, one),
+            op.getStep()),
+        one);
+    // rewriter.create<CeilDivSIOp>(op.getLoc(), difference, op.getStep());
     auto newForOp =
         rewriter.create<scf::ForOp>(op.getLoc(), zero, tripCount, one);
     rewriter.setInsertionPointToStart(newForOp.getBody());
@@ -455,34 +459,38 @@ static void moveBodies(PatternRewriter &rewriter, scf::ParallelOp op,
                        scf::IfOp ifOp, scf::IfOp newIf) {
   rewriter.startRootUpdate(op);
   {
-  OpBuilder::InsertionGuard guard(rewriter);
-  rewriter.setInsertionPointToStart(newIf.thenBlock());
-  auto newParallel = rewriter.create<scf::ParallelOp>(
-      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(newIf.thenBlock());
+    auto newParallel = rewriter.create<scf::ParallelOp>(
+        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
 
-  for (auto tup : llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
+    for (auto tup :
+         llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
       std::get<1>(tup).replaceUsesWithIf(std::get<0>(tup), [&](OpOperand &op) {
-        return ifOp.getThenRegion().isAncestor(op.getOwner()->getParentRegion());
+        return ifOp.getThenRegion().isAncestor(
+            op.getOwner()->getParentRegion());
       });
-  }
+    }
 
-  rewriter.mergeBlockBefore(ifOp.thenBlock(), &newParallel.getBody()->back());
-  rewriter.eraseOp(&newParallel.getBody()->back());
+    rewriter.mergeBlockBefore(ifOp.thenBlock(), &newParallel.getBody()->back());
+    rewriter.eraseOp(&newParallel.getBody()->back());
   }
 
   if (ifOp.getElseRegion().getBlocks().size() > 0) {
-  OpBuilder::InsertionGuard guard(rewriter);
-  rewriter.setInsertionPointToStart(newIf.elseBlock());
-  auto newParallel = rewriter.create<scf::ParallelOp>(
-      op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(newIf.elseBlock());
+    auto newParallel = rewriter.create<scf::ParallelOp>(
+        op.getLoc(), op.getLowerBound(), op.getUpperBound(), op.getStep());
 
-  for (auto tup : llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
+    for (auto tup :
+         llvm::zip(newParallel.getInductionVars(), op.getInductionVars())) {
       std::get<1>(tup).replaceUsesWithIf(std::get<0>(tup), [&](OpOperand &op) {
-        return ifOp.getElseRegion().isAncestor(op.getOwner()->getParentRegion());
+        return ifOp.getElseRegion().isAncestor(
+            op.getOwner()->getParentRegion());
       });
-  }
-  rewriter.mergeBlockBefore(ifOp.elseBlock(), &newParallel.getBody()->back());
-  rewriter.eraseOp(&newParallel.getBody()->back());
+    }
+    rewriter.mergeBlockBefore(ifOp.elseBlock(), &newParallel.getBody()->back());
+    rewriter.eraseOp(&newParallel.getBody()->back());
   }
 
   rewriter.eraseOp(ifOp);
@@ -518,8 +526,9 @@ struct InterchangeIfPFor : public OpRewritePattern<scf::ParallelOp> {
       return failure();
     }
 
-    auto newIf =
-        rewriter.create<scf::IfOp>(ifOp.getLoc(), TypeRange(), ifOp.getCondition(), ifOp.getElseRegion().getBlocks().size() > 0);
+    auto newIf = rewriter.create<scf::IfOp>(
+        ifOp.getLoc(), TypeRange(), ifOp.getCondition(),
+        ifOp.getElseRegion().getBlocks().size() > 0);
     moveBodies(rewriter, op, ifOp, newIf);
     return success();
   }
@@ -563,9 +572,10 @@ struct InterchangeIfPForLoad : public OpRewritePattern<scf::ParallelOp> {
     Value condition = rewriter.create<memref::LoadOp>(
         loadOp.getLoc(), loadOp.getMemRef(),
         SmallVector<Value>(loadOp.getMemRefType().getRank(), zero));
-    
+
     auto newIf =
-        rewriter.create<scf::IfOp>(ifOp.getLoc(), TypeRange(), condition, ifOp.getElseRegion().getBlocks().size() > 0);
+        rewriter.create<scf::IfOp>(ifOp.getLoc(), TypeRange(), condition,
+                                   ifOp.getElseRegion().getBlocks().size() > 0);
     moveBodies(rewriter, op, ifOp, newIf);
     return success();
   }
@@ -1072,9 +1082,11 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     allocated.reserve(op.getNumIterOperands());
     for (Value operand : op.getIterOperands()) {
       Value alloc = rewriter.create<memref::AllocaOp>(
-          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()), ValueRange());
+          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()),
+          ValueRange());
       allocated.push_back(alloc);
-      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc, ValueRange());
+      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
+                                       ValueRange());
     }
 
     auto newOp = rewriter.create<scf::ForOp>(op.getLoc(), op.getLowerBound(),
@@ -1098,7 +1110,8 @@ struct Reg2MemFor : public OpRewritePattern<scf::ForOp> {
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
     for (Value alloc : allocated) {
-      loaded.push_back(rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+      loaded.push_back(
+          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
     }
     rewriter.replaceOp(op, loaded);
     return success();
@@ -1112,17 +1125,18 @@ struct Reg2MemIf : public OpRewritePattern<scf::IfOp> {
                                 PatternRewriter &rewriter) const override {
     if (!op.getResults().size() || !hasNestedBarrier(op))
       return failure();
-    
 
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumResults());
     for (Type opType : op.getResultTypes()) {
       Value alloc = rewriter.create<memref::AllocaOp>(
-          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType), ValueRange());
+          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType),
+          ValueRange());
       allocated.push_back(alloc);
     }
-    
-    auto newOp = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(), op.getCondition(), true);
+
+    auto newOp = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(),
+                                            op.getCondition(), true);
 
     rewriter.setInsertionPoint(op.thenYield());
     for (auto en : llvm::enumerate(op.thenYield().getOperands())) {
@@ -1130,7 +1144,7 @@ struct Reg2MemIf : public OpRewritePattern<scf::IfOp> {
                                        allocated[en.index()], ValueRange());
     }
     op.thenYield()->setOperands(ValueRange());
-    
+
     rewriter.setInsertionPoint(op.elseYield());
     for (auto en : llvm::enumerate(op.elseYield().getOperands())) {
       rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
@@ -1140,14 +1154,15 @@ struct Reg2MemIf : public OpRewritePattern<scf::IfOp> {
 
     rewriter.eraseOp(&newOp.thenBlock()->back());
     rewriter.mergeBlocks(op.thenBlock(), newOp.thenBlock());
-    
+
     rewriter.eraseOp(&newOp.elseBlock()->back());
     rewriter.mergeBlocks(op.elseBlock(), newOp.elseBlock());
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
     for (Value alloc : allocated) {
-      loaded.push_back(rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+      loaded.push_back(
+          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
     }
     rewriter.replaceOp(op, loaded);
     return success();
@@ -1157,16 +1172,19 @@ struct Reg2MemIf : public OpRewritePattern<scf::IfOp> {
 static void storeValues(Location loc, ValueRange values, ValueRange pointers,
                         PatternRewriter &rewriter) {
   for (auto pair : llvm::zip(values, pointers)) {
-    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair), ValueRange());
+    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair),
+                                     ValueRange());
   }
 }
 
-static void allocaValues(Location loc, ValueRange values, PatternRewriter &rewriter,
+static void allocaValues(Location loc, ValueRange values,
+                         PatternRewriter &rewriter,
                          SmallVector<Value> &allocated) {
   allocated.reserve(values.size());
   for (Value value : values) {
     Value alloc = rewriter.create<memref::AllocaOp>(
-        loc, MemRefType::get(ArrayRef<int64_t>(), value.getType()), ValueRange());
+        loc, MemRefType::get(ArrayRef<int64_t>(), value.getType()),
+        ValueRange());
     allocated.push_back(alloc);
   }
 }
@@ -1184,8 +1202,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     // Value stackPtr = rewriter.create<LLVM::StackSaveOp>(
     //     op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getIntegerType(8)));
     SmallVector<Value> beforeAllocated, afterAllocated;
-    allocaValues(op.getLoc(), op.getOperands(), rewriter,
-                 beforeAllocated);
+    allocaValues(op.getLoc(), op.getOperands(), rewriter, beforeAllocated);
     storeValues(op.getLoc(), op.getOperands(), beforeAllocated, rewriter);
     allocaValues(op.getLoc(), op.getResults(), rewriter, afterAllocated);
 
@@ -1194,8 +1211,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     Block *newBefore =
         rewriter.createBlock(&newOp.getBefore(), newOp.getBefore().begin());
     SmallVector<Value> newBeforeArguments;
-    loadValues(op.getLoc(), beforeAllocated, rewriter,
-               newBeforeArguments);
+    loadValues(op.getLoc(), beforeAllocated, rewriter, newBeforeArguments);
     rewriter.mergeBlocks(&op.getBefore().front(), newBefore,
                          newBeforeArguments);
 
@@ -1240,12 +1256,10 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
       OwningRewritePatternList patterns(&getContext());
       patterns
           .insert<Reg2MemFor, Reg2MemWhile, Reg2MemIf,
-                  //ReplaceIfWithFors,
-                  WrapForWithBarrier, WrapIfWithBarrier,
-                  WrapWhileWithBarrier,
-                  InterchangeForPFor, InterchangeForPForLoad, 
-                  InterchangeIfPFor, InterchangeIfPForLoad, 
-                  InterchangeWhilePFor, NormalizeLoop,
+                  // ReplaceIfWithFors,
+                  WrapForWithBarrier, WrapIfWithBarrier, WrapWhileWithBarrier,
+                  InterchangeForPFor, InterchangeForPForLoad, InterchangeIfPFor,
+                  InterchangeIfPForLoad, InterchangeWhilePFor, NormalizeLoop,
                   NormalizeParallel, RotateWhile, DistributeAroundBarrier>(
               &getContext());
       GreedyRewriteConfig config;
