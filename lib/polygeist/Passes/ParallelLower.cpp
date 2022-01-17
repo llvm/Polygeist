@@ -516,14 +516,6 @@ void ParallelLower::runOnOperation() {
     }
   });
 
-  auto ST = symbolTable.getSymbolTable(getOperation());
-  for (auto f : toErase) {
-    bool empty = ST.symbolKnownUseEmpty(f, getOperation());
-    if (empty) {
-      f->erase();
-    }
-  }
-
   // Fold the copy memtype cast
   {
     mlir::RewritePatternSet rpl(getOperation()->getContext());
