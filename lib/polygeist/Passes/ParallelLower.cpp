@@ -463,7 +463,8 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMalloc") {
+    } else if (call.getCallee().getValue() == "cudaMalloc" ||
+               call.getCallee().getValue() == "cudaMallocHost") {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(),
@@ -479,7 +480,8 @@ void ParallelLower::runOnOperation() {
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaFree") {
+    } else if (call.getCallee().getValue() == "cudaFree" ||
+               call.getCallee().getValue() == "cudaFreeHost") {
       auto mf = GetOrCreateFreeFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
