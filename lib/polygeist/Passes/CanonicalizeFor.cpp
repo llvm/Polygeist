@@ -1498,8 +1498,7 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
 void CanonicalizeFor::runOnFunction() {
   mlir::RewritePatternSet rpl(getFunction().getContext());
   rpl.add<PropagateInLoopBody, DetectTrivialIndVarInArgs,
-          ForOpInductionReplacement, 
-          RemoveUnusedArgs, MoveWhileToFor,
+          ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
 
           MoveWhileDown, MoveWhileDown2
 

@@ -1142,7 +1142,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
             .create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(),
                                         args)
             ->getResult(0));
-    arrayCons = builder.create<mlir::LLVM::BitcastOp>(loc, LLVM::LLVMArrayType::get(ty, 0), alloc);
+    arrayCons = builder.create<mlir::LLVM::BitcastOp>(
+        loc, LLVM::LLVMArrayType::get(ty, 0), alloc);
   }
   assert(alloc);
 
