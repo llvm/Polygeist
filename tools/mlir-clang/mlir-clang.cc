@@ -487,6 +487,7 @@ int main(int argc, char **argv) {
       mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
       optPM.addPass(mlir::createCanonicalizerPass());
       pm.addPass(polygeist::createParallelLowerPass());
+      pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::FuncOp>();
       noptPM.addPass(mlir::createCanonicalizerPass());
       noptPM.addPass(polygeist::createMem2RegPass());
