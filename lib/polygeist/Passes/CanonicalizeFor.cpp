@@ -501,8 +501,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Type extType = nullptr;
     // todo handle ext
     if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-        indVar = ext.getIn().dyn_cast<BlockArgument>();
-        extType = ext.getType();
+      indVar = ext.getIn().dyn_cast<BlockArgument>();
+      extType = ext.getType();
     }
     if (!indVar)
       return failure();
@@ -510,11 +510,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       return failure();
 
     size_t size = loop.getBefore().front().getOperations().size();
-    if (extType) size--;
+    if (extType)
+      size--;
     if (size != 2) {
       return failure();
     }
-
 
     SmallVector<size_t, 2> afterArgs;
     for (auto pair : llvm::enumerate(condOp.getArgs())) {
@@ -578,8 +578,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
         // TODO: f32 likely not always true.
-        auto one =
-            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
+        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
+                                                  cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.ub = addIOp.getResult();
@@ -594,8 +594,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ugt:
       case CmpIPredicate::sgt: {
         // TODO: f32 likely not always true.
-        auto one =
-            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
+        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
+                                                  cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.lb = addIOp.getResult();
