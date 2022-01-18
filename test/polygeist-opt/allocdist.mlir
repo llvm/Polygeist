@@ -21,7 +21,7 @@ module {
       %e2 = memref.cast %e1 : memref<1xf32> to memref<?xf32>
       %e3 = memref.load %e2[%c0] : memref<?xf32>
 
-      "polygeist.barrier"() : () -> ()
+      "polygeist.barrier"(%arg2) : (index) -> ()
       
       %d3 = memref.load %d2[%c0] : memref<?xi32>
       call @use(%a2, %b2, %d3, %e3) : (memref<?xi32>, f32, i32, f32) -> ()

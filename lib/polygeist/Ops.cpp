@@ -32,15 +32,7 @@ using namespace mlir::arith;
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
-void print(OpAsmPrinter &out, BarrierOp) {
-  out << BarrierOp::getOperationName();
-}
-
 LogicalResult verify(BarrierOp) { return success(); }
-
-ParseResult parseBarrierOp(OpAsmParser &, OperationState &) {
-  return success();
-}
 
 /// Collect the memory effects of the given op in 'effects'. Returns 'true' it
 /// could extract the effect information from the op, otherwise returns 'false'

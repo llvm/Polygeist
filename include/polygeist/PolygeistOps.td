@@ -20,6 +20,8 @@ include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 def BarrierOp
     : Polygeist_Op<"barrier",
                    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+
+  let arguments = (ins Variadic<Index>:$indices);
   let summary = "barrier for parallel loops";
   let description = [{}];
 }

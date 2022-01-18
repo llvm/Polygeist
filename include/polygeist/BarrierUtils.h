@@ -19,9 +19,6 @@
 #include "llvm/ADT/SetVector.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
-void findValuesUsedBelow(mlir::polygeist::BarrierOp barrier,
-                         llvm::SetVector<mlir::Value> &crossing);
-
 std::pair<mlir::Block *, mlir::Block::iterator>
 findInsertionPointAfterLoopOperands(mlir::scf::ParallelOp op);
 

@@ -12,7 +12,7 @@ module {
       scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
           %26 = scf.if %c -> i1 {
             memref.store %c0_i32, %23[%c0] : memref<256xi32>
-            "polygeist.barrier"() : () -> ()
+            "polygeist.barrier"(%arg4) : (index) -> ()
             scf.yield %true : i1
           } else {
             scf.yield %false : i1

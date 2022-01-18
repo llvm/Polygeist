@@ -1142,8 +1142,10 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
             .create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(),
                                         args)
             ->getResult(0));
-    arrayCons = builder.create<mlir::LLVM::BitcastOp>(
-        loc, LLVM::LLVMArrayType::get(ty, 0), alloc);
+    auto PT = ty.cast<LLVM::LLVMPointerType>();
+    if (expr->isArray())
+      arrayCons = builder.create<mlir::LLVM::BitcastOp>(
+          loc, LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(PT.getElementType(), 0), PT.getAddressSpace()), alloc);
   }
   assert(alloc);
 
@@ -1260,7 +1262,6 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   auto decl = cons->getConstructor();
   if (cons->requiresZeroInitialization()) {
     mlir::Value val = op;
-    size_t size;
     if (val.getType().isa<MemRefType>()) {
       val = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
@@ -1271,13 +1272,11 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
               builder.getI8Type(),
               val.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
           val);
-      size = Glob.CGM.getContext()
-                 .getTypeSizeInChars(cons->getType())
-                 .getQuantity();
     }
+    mlir::Value size = getTypeSize(cons->getType());
 
     auto i8_0 = builder.create<ConstantIntOp>(loc, 0, 8);
-    auto sizev = builder.create<ConstantIntOp>(loc, size, 32);
+    auto sizev = builder.create<arith::IndexCastOp>(loc, size, builder.getI64Type());
 
     auto falsev = builder.create<ConstantIntOp>(loc, false, 1);
     builder.create<LLVM::MemsetOp>(loc, val, i8_0, sizev, falsev);
@@ -2874,6 +2873,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "cudaFuncGetAttributes",
       "cudaGetDevice",
       "cudaGetDeviceCount",
+      "cudaMemGetInfo",
       "clock_gettime",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
