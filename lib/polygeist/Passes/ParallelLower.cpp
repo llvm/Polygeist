@@ -365,7 +365,7 @@ void ParallelLower::runOnOperation() {
     container.walk([&](mlir::NVVM::Barrier0Op op) {
       mlir::OpBuilder bz(launchOp.getContext());
       bz.setInsertionPoint(op);
-      bz.create<mlir::polygeist::BarrierOp>(loc);
+      bz.create<mlir::polygeist::BarrierOp>(loc, threadB->getArguments());
       op.erase();
     });
 
