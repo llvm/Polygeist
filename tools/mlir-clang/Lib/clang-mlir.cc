@@ -1715,7 +1715,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       }
     }
 
-    auto createBlockIdOp = [&](string str, mlir::Type mlirType) -> mlir::Value {
+    auto createBlockIdOp = [&](gpu::Dimension str, mlir::Type mlirType) -> mlir::Value {
       return builder.create<IndexCastOp>(
           loc,
           builder.create<mlir::gpu::BlockIdOp>(
@@ -1723,7 +1723,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           mlirType);
     };
 
-    auto createBlockDimOp = [&](string str,
+    auto createBlockDimOp = [&](gpu::Dimension str,
                                 mlir::Type mlirType) -> mlir::Value {
       return builder.create<IndexCastOp>(
           loc,
@@ -1732,7 +1732,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           mlirType);
     };
 
-    auto createThreadIdOp = [&](string str,
+    auto createThreadIdOp = [&](gpu::Dimension str,
                                 mlir::Type mlirType) -> mlir::Value {
       return builder.create<IndexCastOp>(
           loc,
@@ -1741,7 +1741,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           mlirType);
     };
 
-    auto createGridDimOp = [&](string str, mlir::Type mlirType) -> mlir::Value {
+    auto createGridDimOp = [&](gpu::Dimension str, mlir::Type mlirType) -> mlir::Value {
       return builder.create<IndexCastOp>(
           loc,
           builder.create<mlir::gpu::GridDimOp>(
@@ -1757,17 +1757,17 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(ValueCategory(createBlockIdOp("x", mlirType),
+              return make_pair(ValueCategory(createBlockIdOp(gpu::Dimension::x, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(ValueCategory(createBlockIdOp("y", mlirType),
+              return make_pair(ValueCategory(createBlockIdOp(gpu::Dimension::y, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(ValueCategory(createBlockIdOp("z", mlirType),
+              return make_pair(ValueCategory(createBlockIdOp(gpu::Dimension::z, mlirType),
                                              /*isReference*/ false),
                                true);
             }
@@ -1775,17 +1775,17 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "blockDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(ValueCategory(createBlockDimOp("x", mlirType),
+              return make_pair(ValueCategory(createBlockDimOp(gpu::Dimension::x, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(ValueCategory(createBlockDimOp("y", mlirType),
+              return make_pair(ValueCategory(createBlockDimOp(gpu::Dimension::y, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(ValueCategory(createBlockDimOp("z", mlirType),
+              return make_pair(ValueCategory(createBlockDimOp(gpu::Dimension::z, mlirType),
                                              /*isReference*/ false),
                                true);
             }
@@ -1793,17 +1793,17 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "threadIdx") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(ValueCategory(createThreadIdOp("x", mlirType),
+              return make_pair(ValueCategory(createThreadIdOp(gpu::Dimension::x, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(ValueCategory(createThreadIdOp("y", mlirType),
+              return make_pair(ValueCategory(createThreadIdOp(gpu::Dimension::y, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(ValueCategory(createThreadIdOp("z", mlirType),
+              return make_pair(ValueCategory(createThreadIdOp(gpu::Dimension::z, mlirType),
                                              /*isReference*/ false),
                                true);
             }
@@ -1811,17 +1811,17 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           if (sr->getDecl()->getName() == "gridDim") {
             auto mlirType = getMLIRType(expr->getType());
             if (memberName == "__fetch_builtin_x") {
-              return make_pair(ValueCategory(createGridDimOp("x", mlirType),
+              return make_pair(ValueCategory(createGridDimOp(gpu::Dimension::x, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_y") {
-              return make_pair(ValueCategory(createGridDimOp("x", mlirType),
+              return make_pair(ValueCategory(createGridDimOp(gpu::Dimension::y, mlirType),
                                              /*isReference*/ false),
                                true);
             }
             if (memberName == "__fetch_builtin_z") {
-              return make_pair(ValueCategory(createGridDimOp("z", mlirType),
+              return make_pair(ValueCategory(createGridDimOp(gpu::Dimension::z, mlirType),
                                              /*isReference*/ false),
                                true);
             }

@@ -296,11 +296,11 @@ void ParallelLower::runOnOperation() {
       mlir::OpBuilder bz(launchOp.getContext());
       bz.setInsertionPoint(bidx);
       int idx = -1;
-      if (bidx.dimension() == "x")
+      if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == "y")
+      else if (bidx.dimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == "z")
+      else if (bidx.dimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -343,11 +343,11 @@ void ParallelLower::runOnOperation() {
       mlir::OpBuilder bz(launchOp.getContext());
       bz.setInsertionPoint(bidx);
       int idx = -1;
-      if (bidx.dimension() == "x")
+      if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == "y")
+      else if (bidx.dimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == "z")
+      else if (bidx.dimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -371,11 +371,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::GridDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == "x")
+      if (bidx.dimension() == gpu::Dimension::x)
         val = launchOp.gridSizeX();
-      else if (bidx.dimension() == "y")
+      else if (bidx.dimension() == gpu::Dimension::y)
         val = launchOp.gridSizeY();
-      else if (bidx.dimension() == "z")
+      else if (bidx.dimension() == gpu::Dimension::z)
         val = launchOp.gridSizeZ();
       else
         assert(0 && "illegal dimension");
@@ -385,11 +385,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::BlockDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == "x")
+      if (bidx.dimension() == gpu::Dimension::x)
         val = launchOp.blockSizeX();
-      else if (bidx.dimension() == "y")
+      else if (bidx.dimension() == gpu::Dimension::y)
         val = launchOp.blockSizeY();
-      else if (bidx.dimension() == "z")
+      else if (bidx.dimension() == gpu::Dimension::z)
         val = launchOp.blockSizeZ();
       else
         assert(0 && "illegal dimension");
