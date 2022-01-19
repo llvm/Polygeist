@@ -113,10 +113,8 @@ module  {
 // CHECK-NEXT:     %0 = arith.muli %arg1, %c2_i32 : i32
 // CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     %2 = arith.index_cast %0 : i32 to index
-// CHECK-NEXT:     %3 = scf.for %arg2 = %c0 to %1 step %2 iter_args(%arg3 = %c0_i32) -> (i32) {
+// CHECK-NEXT:     scf.for %arg2 = %c0 to %1 step %2 {
 // CHECK-NEXT:       call @histo_kernel() : () -> ()
-// CHECK-NEXT:       %4 = arith.addi %arg3, %0 : i32
-// CHECK-NEXT:       scf.yield %4 : i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
@@ -159,3 +157,25 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %0#0 : i32
 // CHECK-NEXT:   }
+
+// -----
+  
+module {
+  func @_Z8lud_cudaPfi(%arg0: memref<?xf32>, %arg1: index, %0 : memref<16x16xf32>) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c16 = arith.constant 16 : index
+    %2 = scf.for %arg2 = %c0 to %c16 step %c1 iter_args(%arg3 = %c0) -> (index) {
+      %4 = memref.load %arg0[%arg3] : memref<?xf32>
+      memref.store %4, %0[%arg2, %c0] : memref<16x16xf32>
+      %5 = arith.addi %arg3, %arg1 : index
+      scf.yield %5 : index
+    }
+    return
+  }
+}
+// CHECK:     scf.for %arg3 = %c0 to %c16 step %c1 {
+// CHECK-NEXT:       %0 = arith.muli %arg3, %arg1 : index
+// CHECK-NEXT:       %1 = memref.load %arg0[%0] : memref<?xf32>
+// CHECK-NEXT:       memref.store %1, %arg2[%arg3, %c0] : memref<16x16xf32>
+// CHECK-NEXT:     }
