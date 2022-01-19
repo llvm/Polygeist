@@ -80,21 +80,24 @@ static bool isAffineForArg(Value val) {
   if (!val.isa<BlockArgument>())
     return false;
   Operation *parentOp = val.cast<BlockArgument>().getOwner()->getParentOp();
-  return (parentOp && isa<AffineForOp>(parentOp));
+  return (parentOp && isa<AffineForOp, AffineParallelOp>(parentOp));
 }
 
 static bool legalCondition(Value en, bool outer = true, bool dim = false) {
-  if (en.getDefiningOp<AffineApplyOp>() || en.getDefiningOp<ExtUIOp>() ||
-      en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
+  if (en.getDefiningOp<AffineApplyOp>() || en.getDefiningOp<ExtUIOp>())
+      return true;
+
+  if (!isValidSymbol(en))
+    if (en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
       en.getDefiningOp<MulIOp>()) {
-    return true;
-  }
+      return true;
+    }
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
   //	if (!outer || legalCondition(IC.getOperand(), false)) return true;
   //}
   if (!dim)
     if (auto BA = en.dyn_cast<BlockArgument>()) {
-      if (isa<AffineForOp>(BA.getOwner()->getParentOp()))
+      if (isa<AffineForOp, AffineParallelOp>(BA.getOwner()->getParentOp()))
         return true;
     }
   return false;
@@ -235,8 +238,8 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     for (unsigned i = 0, e = operands.size(); i < e; ++i) {
       auto t = operands[i];
 
-      if (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-          t.getDefiningOp<MulIOp>()) {
+      if (!isValidSymbol(t) && (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+          (t.getDefiningOp<MulIOp>()))) {
 
         AffineMap affineApplyMap;
         SmallVector<Value, 8> affineApplyOperands;
@@ -471,26 +474,8 @@ static void composeIntegerSetAndOperands(IntegerSet *set,
 
 void fully2ComposeIntegerSetAndOperands(IntegerSet *set,
                                         SmallVectorImpl<Value> *operands) {
-
-  // llvm::errs() << "tpre: ";
-  // set->dump(); llvm::errs() << "\n";
-
-  // for(auto op : *operands) {
-  //  llvm::errs() << " -- operands: " << op << "\n";
-  //}
   while (need(set, operands)) {
-    // llvm::errs() << "pre: ";
-    // set->dump(); llvm::errs() << "\n";
-
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
     composeIntegerSetAndOperands(set, operands);
-    // llvm::errs() << "post: ";
-    // set->dump(); llvm::errs() << "\n";
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
   }
 }
 
@@ -499,16 +484,6 @@ struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
   void runOnFunction() override;
 };
 } // namespace
-
-static bool inAffine(Operation *op) {
-  auto *curOp = op;
-  while (auto *parentOp = curOp->getParentOp()) {
-    if (isa<AffineForOp, AffineParallelOp>(parentOp))
-      return true;
-    curOp = parentOp;
-  }
-  return false;
-}
 
 static void setLocationAfter(OpBuilder &b, mlir::Value val) {
   if (val.getDefiningOp()) {
@@ -700,7 +675,8 @@ bool isValidIndex(Value val) {
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
 
   if (auto bop = val.getDefiningOp<MulIOp>())
-    return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
+    return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1))) ||
+           (isValidIndex(bop.getOperand(1)) && isValidSymbol(bop.getOperand(0)));
 
   if (auto bop = val.getDefiningOp<SubIOp>())
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
@@ -720,9 +696,6 @@ bool isValidIndex(Value val) {
       return af.getInductionVar() == ba;
 
     // TODO ensure not a reduced var
-    if (isa<AffineParallelOp>(parentOp))
-      return true;
-
     if (isa<AffineParallelOp>(parentOp))
       return true;
 
@@ -801,7 +774,9 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   case CmpIPredicate::ule:
   case CmpIPredicate::ugt:
   case CmpIPredicate::uge:
-    llvm_unreachable("unhandled icmp");
+    LLVM_DEBUG(llvm::dbgs()
+               << "illegal icmp: " << cmpi << "\n");
+    return false;
   }
   return true;
 }
@@ -857,7 +832,7 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
     SmallVector<Value, 4> operands = load.getIndices();
 
     if (map.getNumInputs() != operands.size()) {
-      load->getParentOfType<FuncOp>().dump();
+      //load->getParentOfType<FuncOp>().dump();
       llvm::errs() << " load: " << load << "\n";
     }
     assert(map.getNumInputs() == operands.size());
@@ -1065,11 +1040,11 @@ struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
   }
 };
 
-void AffineCFGPass::runOnFunction() {
-  getFunction().walk([&](scf::IfOp ifOp) {
-    if (inAffine(ifOp)) {
-      OpBuilder b(ifOp);
-      AffineIfOp affineIfOp;
+struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp ifOp,
+                                PatternRewriter &rewriter) const override {
       std::vector<mlir::Type> types;
       for (auto v : ifOp.getResults()) {
         types.push_back(v.getType());
@@ -1084,8 +1059,8 @@ void AffineCFGPass::runOnFunction() {
         auto cur = todo.front();
         todo.pop_front();
         if (auto cmpi = cur.getDefiningOp<CmpIOp>()) {
-          if (!handle(b, cmpi, exprs, eqflags, applies)) {
-            return;
+          if (!handle(rewriter, cmpi, exprs, eqflags, applies)) {
+            return failure();
           }
           continue;
         }
@@ -1094,97 +1069,42 @@ void AffineCFGPass::runOnFunction() {
           todo.push_back(andi.getOperand(1));
           continue;
         }
-        return;
+        return failure();
       }
 
       auto iset = IntegerSet::get(/*dim*/ 2 * exprs.size(), /*symbol*/ 0, exprs,
                                   eqflags);
-      affineIfOp = b.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
+      fully2ComposeIntegerSetAndOperands(&iset, &applies);
+      canonicalizeSetAndOperands(&iset, &applies);
+      AffineIfOp affineIfOp = rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
                                         /*elseBlock=*/true);
+
+      rewriter.setInsertionPoint(ifOp.thenYield());
+      rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(), ifOp.thenYield().getOperands());
+
+      if (ifOp.getElseRegion().getBlocks().size()) {
+        rewriter.setInsertionPoint(ifOp.elseYield());
+        rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.elseYield(), ifOp.elseYield().getOperands());
+      }
+
       affineIfOp.thenRegion().takeBody(ifOp.getThenRegion());
       affineIfOp.elseRegion().takeBody(ifOp.getElseRegion());
 
-      for (auto &blk : affineIfOp.thenRegion()) {
-        if (auto yop = dyn_cast<scf::YieldOp>(blk.getTerminator())) {
-          OpBuilder b(yop);
-          b.create<AffineYieldOp>(yop.getLoc(), yop.getResults());
-          yop.erase();
-        }
-      }
-      for (auto &blk : affineIfOp.elseRegion()) {
-        if (auto yop = dyn_cast<scf::YieldOp>(blk.getTerminator())) {
-          OpBuilder b(yop);
-          b.create<AffineYieldOp>(yop.getLoc(), yop.getResults());
-          yop.erase();
-        }
-      }
-      ifOp.replaceAllUsesWith(affineIfOp);
-      ifOp.erase();
-    }
-  });
+      rewriter.replaceOp(ifOp, affineIfOp.getResults());
+    return success();
+  }
+};
 
-  /*
-  getFunction().walk([](memref::StoreOp store) {
-    if (!inAffine(store) && !llvm::all_of(store.getIndices(), [](mlir::Value V)
-  { return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
-      return;
-    if (!llvm::all_of(store.getIndices(),
-                      [](Value index) { return isValidIndex(index); }))
-      return;
-    LLVM_DEBUG(llvm::dbgs() << "  affine store checks -> ok\n");
-    SmallVector<Value, 2> newIndices;
-    newIndices.reserve(store.getIndices().size());
-    OpBuilder b(store);
-    for (auto idx : store.getIndices()) {
-      AffineMap idxmap =
-          AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
-      if (!idx.getType().isa<IndexType>())
-        idx = b.create<IndexCastOp>(
-            idx.getLoc(), idx, IndexType::get(idx.getContext()));
-      Value idxpack[1] = {idx};
-      newIndices.push_back(
-          b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
-    }
-    replaceStore(store, newIndices);
-  });
-  getFunction().walk([](memref::LoadOp load) {
-    if (!inAffine(load) && !llvm::all_of(load.getIndices(), [](mlir::Value V) {
-      return V.getDefiningOp<mlir::ConstantOp>() != nullptr;
-    }))
-      return;
-    if (!llvm::all_of(load.getIndices(),
-                      [](Value index) { return isValidIndex(index); }))
-      return;
-    LLVM_DEBUG(llvm::dbgs() << "  affine load checks -> ok\n");
-    SmallVector<Value, 2> newIndices;
-    newIndices.reserve(load.getIndices().size());
-    OpBuilder b(load);
-    for (auto idx : load.getIndices()) {
-      AffineMap idxmap =
-          AffineMap::get(0, 1, getAffineSymbolExpr(0, idx.getContext()));
-      if (!idx.getType().isa<IndexType>())
-        idx = b.create<IndexCastOp>(
-            idx.getLoc(), idx, IndexType::get(idx.getContext()));
-      Value idxpack[1] = {idx};
-      newIndices.push_back(
-          b.create<mlir::AffineApplyOp>(idx.getLoc(), idxmap, idxpack));
-    }
-    replaceLoad(load, newIndices);
-  });
-  */
-
-  {
-
+void AffineCFGPass::runOnFunction() {
     mlir::RewritePatternSet rpl(getFunction().getContext());
     rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
             CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
             AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
+            MoveIfToAffine,
             MoveLoadToAffine, CanonicalieForBounds>(getFunction().getContext());
     GreedyRewriteConfig config;
     (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
                                        std::move(rpl), config);
-  }
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {
