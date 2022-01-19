@@ -166,75 +166,38 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       if (addOp.getOperand(0) != std::get<1>(it))
         continue;
 
-      bool negateStep = false;
-      bool legalStep = false;
-
-      bool isOne = false;
-
-      if (addOp.getOperand(1) == forOp.getStep()) {
-        legalStep = true;
-      } else if (auto iter_step =
-                     forOp.getStep().getDefiningOp<ConstantIndexOp>()) {
-        isOne |= iter_step.value() == 1;
-        if (auto op = addOp.getOperand(1).getDefiningOp<ConstantIntOp>()) {
-          if (op.value() == iter_step.value()) {
-            legalStep = true;
-          } else if (-op.value() == iter_step.value()) {
-            legalStep = true;
-            negateStep = true;
-          }
-        } else if (auto op =
-                       addOp.getOperand(1).getDefiningOp<ConstantIndexOp>()) {
-          if (op.value() == iter_step.value()) {
-            legalStep = true;
-          } else if (-op.value() == iter_step.value()) {
-            legalStep = true;
-            negateStep = true;
-          }
-        }
-      }
-
-      if (!legalStep)
-        continue;
-
       Value init = std::get<0>(it);
 
       if (!std::get<1>(it).use_empty()) {
         rewriter.setInsertionPointToStart(&forOp.getRegion().front());
-        Value replacement = rewriter.create<SubIOp>(
-            forOp.getLoc(), forOp.getInductionVar(), forOp.getLowerBound());
+        Value replacement = 
+            rewriter.create<DivUIOp>(forOp.getLoc(), rewriter.create<SubIOp>(
+            forOp.getLoc(), forOp.getInductionVar(), forOp.getLowerBound()), forOp.getStep());
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), replacement, std::get<1>(it).getType());
         }
 
-        if (!negateStep)
-          replacement =
-              rewriter.create<AddIOp>(forOp.getLoc(), replacement, init);
-        else
-          replacement =
-              rewriter.create<SubIOp>(forOp.getLoc(), init, replacement);
+        replacement = rewriter.create<AddIOp>(forOp.getLoc(), init,
+                                rewriter.create<MulIOp>(forOp.getLoc(), replacement, addOp.getOperand(1)));
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<1>(it).replaceAllUsesWith(replacement); });
         canonicalize = true;
       }
 
-      if (isOne && !std::get<2>(it).use_empty()) {
+      if (!std::get<2>(it).use_empty() && addOp.getOperand(1).getParentRegion()->isAncestor(forOp->getParentRegion())) {
         rewriter.setInsertionPoint(forOp);
-        Value replacement = rewriter.create<SubIOp>(
-            forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound());
+        Value replacement = 
+            rewriter.create<DivUIOp>(forOp.getLoc(), rewriter.create<SubIOp>(
+            forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound()), forOp.getStep());
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), replacement, std::get<1>(it).getType());
         }
 
-        if (!negateStep)
-          replacement =
-              rewriter.create<AddIOp>(forOp.getLoc(), replacement, init);
-        else
-          replacement =
-              rewriter.create<SubIOp>(forOp.getLoc(), init, replacement);
+        replacement = rewriter.create<AddIOp>(forOp.getLoc(), init,
+                                rewriter.create<MulIOp>(forOp.getLoc(), replacement, addOp.getOperand(1)));
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<2>(it).replaceAllUsesWith(replacement); });
@@ -501,8 +464,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Type extType = nullptr;
     // todo handle ext
     if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-      indVar = ext.getIn().dyn_cast<BlockArgument>();
-      extType = ext.getType();
+        indVar = ext.getIn().dyn_cast<BlockArgument>();
+        extType = ext.getType();
     }
     if (!indVar)
       return failure();
@@ -510,11 +473,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       return failure();
 
     size_t size = loop.getBefore().front().getOperations().size();
-    if (extType)
-      size--;
+    if (extType) size--;
     if (size != 2) {
       return failure();
     }
+
 
     SmallVector<size_t, 2> afterArgs;
     for (auto pair : llvm::enumerate(condOp.getArgs())) {
@@ -578,8 +541,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
         // TODO: f32 likely not always true.
-        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
-                                                  cmpIOp.getRhs().getType());
+        auto one =
+            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.ub = addIOp.getResult();
@@ -594,8 +557,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ugt:
       case CmpIPredicate::sgt: {
         // TODO: f32 likely not always true.
-        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
-                                                  cmpIOp.getRhs().getType());
+        auto one =
+            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.lb = addIOp.getResult();

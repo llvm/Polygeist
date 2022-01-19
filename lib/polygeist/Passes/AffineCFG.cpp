@@ -87,11 +87,15 @@ static bool legalCondition(Value en, bool outer = true, bool dim = false) {
   if (en.getDefiningOp<AffineApplyOp>() || en.getDefiningOp<ExtUIOp>())
       return true;
 
-  if (!isValidSymbol(en))
+  if (!isValidSymbol(en)) {
     if (en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
       en.getDefiningOp<MulIOp>()) {
       return true;
     }
+    if (auto m = en.getDefiningOp<DivSIOp>()) {
+        return m.getRhs().getDefiningOp<ConstantIndexOp>();
+    }
+  }
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
   //	if (!outer || legalCondition(IC.getOperand(), false)) return true;
   //}
@@ -239,7 +243,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       auto t = operands[i];
 
       if (!isValidSymbol(t) && (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-          (t.getDefiningOp<MulIOp>()))) {
+          t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>())) {
 
         AffineMap affineApplyMap;
         SmallVector<Value, 8> affineApplyOperands;
@@ -265,6 +269,13 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
               AffineMap::get(0, 2,
                              getAffineSymbolExpr(0, op.getContext()) *
                                  getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else if (auto op = t.getDefiningOp<DivSIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()).floorDiv(
+                                 getAffineSymbolExpr(1, op.getContext())));
           affineApplyOperands.append(op.getOperands().begin(),
                                      op.getOperands().end());
         } else {
@@ -677,6 +688,9 @@ bool isValidIndex(Value val) {
   if (auto bop = val.getDefiningOp<MulIOp>())
     return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1))) ||
            (isValidIndex(bop.getOperand(1)) && isValidSymbol(bop.getOperand(0)));
+
+  if (auto bop = val.getDefiningOp<DivSIOp>())
+    return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1)));
 
   if (auto bop = val.getDefiningOp<SubIOp>())
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
