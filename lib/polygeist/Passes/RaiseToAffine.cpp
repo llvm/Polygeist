@@ -124,8 +124,8 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
   // TODO: remove me or rename me.
   bool isAffine(scf::ParallelOp loop) const {
     for (auto step : loop.getStep())
-        if (!step.getDefiningOp<ConstantIndexOp>())
-            return false;
+      if (!step.getDefiningOp<ConstantIndexOp>())
+        return false;
     return true;
   }
 
@@ -152,69 +152,70 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 
   LogicalResult matchAndRewrite(scf::ParallelOp loop,
                                 PatternRewriter &rewriter) const final {
-      OpBuilder builder(loop);
+    OpBuilder builder(loop);
 
-      if (loop.getResults().size()) return failure();
+    if (loop.getResults().size())
+      return failure();
 
-      if (!llvm::all_of(loop.getLowerBound(), isValidIndex)) {
+    if (!llvm::all_of(loop.getLowerBound(), isValidIndex)) {
+      return failure();
+    }
+
+    if (!llvm::all_of(loop.getUpperBound(), isValidIndex)) {
+      return failure();
+    }
+
+    SmallVector<int64_t> steps;
+    for (auto step : loop.getStep())
+      if (auto cst = step.getDefiningOp<ConstantIndexOp>())
+        steps.push_back(cst.value());
+      else
         return failure();
+
+    ArrayRef<AtomicRMWKind> reductions;
+    SmallVector<AffineMap> bounds;
+    for (size_t i = 0; i < loop.getLowerBound().size(); i++)
+      bounds.push_back(AffineMap::get(
+          /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
+          builder.getAffineSymbolExpr(i)));
+    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+        loop.getLoc(), loop.getResultTypes(), reductions, bounds,
+        loop.getLowerBound(), bounds, loop.getUpperBound(),
+        steps); //, loop.getInitVals());
+
+    canonicalizeLoopBounds(affineLoop);
+
+    auto mergedYieldOp =
+        cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
+
+    Block &newBlock = affineLoop.region().front();
+
+    // The terminator is added if the iterator args are not provided.
+    // see the ::build method.
+    if (affineLoop.getResults().size() == 0) {
+      auto affineYieldOp = newBlock.getTerminator();
+      rewriter.eraseOp(affineYieldOp);
+    }
+
+    rewriter.updateRootInPlace(loop, [&] {
+      affineLoop.region().front().getOperations().splice(
+          affineLoop.region().front().getOperations().begin(),
+          loop.getRegion().front().getOperations());
+
+      for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
+                                 loop.getRegion().front().getArguments())) {
+        std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
       }
+    });
 
-      if (!llvm::all_of(loop.getUpperBound(), isValidIndex)) {
-        return failure();
-      }
+    rewriter.setInsertionPoint(mergedYieldOp);
+    rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
+                                   mergedYieldOp.getOperands());
+    rewriter.eraseOp(mergedYieldOp);
 
-      SmallVector<int64_t> steps;
-      for (auto step : loop.getStep())
-          if (auto cst = step.getDefiningOp<ConstantIndexOp>())
-              steps.push_back(cst.value());
-          else
-              return failure();
+    rewriter.replaceOp(loop, affineLoop.getResults());
 
-      ArrayRef<AtomicRMWKind> reductions;
-      SmallVector<AffineMap> bounds;
-      for (size_t i=0; i<loop.getLowerBound().size(); i++)
-          bounds.push_back(AffineMap::get(/*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
-                                                builder.getAffineSymbolExpr(i)));
-      AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-          loop.getLoc(), loop.getResultTypes(), reductions,
-          bounds, loop.getLowerBound(),
-          bounds, loop.getUpperBound(), 
-          steps);//, loop.getInitVals());
-
-      canonicalizeLoopBounds(affineLoop);
-
-      auto mergedYieldOp =
-          cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
-
-      Block &newBlock = affineLoop.region().front();
-
-      // The terminator is added if the iterator args are not provided.
-      // see the ::build method.
-      if (affineLoop.getResults().size() == 0) {
-        auto affineYieldOp = newBlock.getTerminator();
-        rewriter.eraseOp(affineYieldOp);
-      }
-
-      rewriter.updateRootInPlace(loop, [&] {
-        affineLoop.region().front().getOperations().splice(
-            affineLoop.region().front().getOperations().begin(),
-            loop.getRegion().front().getOperations());
-
-        for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
-                                   loop.getRegion().front().getArguments())) {
-          std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
-        }
-      });
-
-      rewriter.setInsertionPoint(mergedYieldOp);
-      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
-                                     mergedYieldOp.getOperands());
-      rewriter.eraseOp(mergedYieldOp);
-
-      rewriter.replaceOp(loop, affineLoop.getResults());
-
-      return success();
+    return success();
   }
 };
 

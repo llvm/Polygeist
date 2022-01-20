@@ -5,9 +5,9 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
-#include "mlir/IR/Matchers.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
@@ -55,8 +55,8 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
                                 PatternRewriter &rewriter) const final {
     // Defer until after the step is a constant, if possible
     if (auto icast = forOp.getStep().getDefiningOp<IndexCastOp>())
-        if (matchPattern(icast.getIn(), m_Constant()))
-            return failure();
+      if (matchPattern(icast.getIn(), m_Constant()))
+        return failure();
     bool canonicalize = false;
     Block &block = forOp.getRegion().front();
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
@@ -74,7 +74,6 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       if (addOp.getOperand(0) != std::get<1>(it))
         continue;
 
-
       Value init = std::get<0>(it);
 
       bool sameValue = addOp.getOperand(1) == forOp.getStep();
@@ -83,8 +82,10 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       APInt sattr;
       if (matchPattern(addOp.getOperand(1), m_ConstantInt(&rattr)))
         if (matchPattern(forOp.getStep(), m_ConstantInt(&sattr))) {
-            size_t maxWidth = (rattr.getBitWidth() > sattr.getBitWidth()) ? rattr.getBitWidth() : sattr.getBitWidth();
-            sameValue |= rattr.zextOrSelf(maxWidth) == sattr.zextOrSelf(maxWidth);
+          size_t maxWidth = (rattr.getBitWidth() > sattr.getBitWidth())
+                                ? rattr.getBitWidth()
+                                : sattr.getBitWidth();
+          sameValue |= rattr.zextOrSelf(maxWidth) == sattr.zextOrSelf(maxWidth);
         }
 
       if (!std::get<1>(it).use_empty()) {
@@ -93,7 +94,8 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
             forOp.getLoc(), forOp.getInductionVar(), forOp.getLowerBound());
 
         if (!sameValue)
-          replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement, forOp.getStep());
+          replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement,
+                                                 forOp.getStep());
 
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
@@ -101,21 +103,26 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         }
 
         if (!sameValue)
-          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement, addOp.getOperand(1));
-        replacement = rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
+          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement,
+                                                addOp.getOperand(1));
+        replacement =
+            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<1>(it).replaceAllUsesWith(replacement); });
         canonicalize = true;
       }
 
-      if (!std::get<2>(it).use_empty() && addOp.getOperand(1).getParentRegion()->isAncestor(forOp->getParentRegion())) {
+      if (!std::get<2>(it).use_empty() &&
+          addOp.getOperand(1).getParentRegion()->isAncestor(
+              forOp->getParentRegion())) {
         rewriter.setInsertionPoint(forOp);
         Value replacement = rewriter.create<SubIOp>(
             forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound());
 
         if (!sameValue)
-          replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement, forOp.getStep());
+          replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement,
+                                                 forOp.getStep());
 
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
@@ -123,8 +130,10 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         }
 
         if (!sameValue)
-          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement, addOp.getOperand(1));
-        replacement = rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
+          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement,
+                                                addOp.getOperand(1));
+        replacement =
+            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<2>(it).replaceAllUsesWith(replacement); });
@@ -391,8 +400,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     Type extType = nullptr;
     // todo handle ext
     if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-        indVar = ext.getIn().dyn_cast<BlockArgument>();
-        extType = ext.getType();
+      indVar = ext.getIn().dyn_cast<BlockArgument>();
+      extType = ext.getType();
     }
     if (!indVar)
       return failure();
@@ -400,11 +409,11 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       return failure();
 
     size_t size = loop.getBefore().front().getOperations().size();
-    if (extType) size--;
+    if (extType)
+      size--;
     if (size != 2) {
       return failure();
     }
-
 
     SmallVector<size_t, 2> afterArgs;
     for (auto pair : llvm::enumerate(condOp.getArgs())) {
@@ -468,8 +477,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
         // TODO: f32 likely not always true.
-        auto one =
-            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
+        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
+                                                  cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.ub = addIOp.getResult();
@@ -484,8 +493,8 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       case CmpIPredicate::ugt:
       case CmpIPredicate::sgt: {
         // TODO: f32 likely not always true.
-        auto one =
-            rewriter.create<ConstantIntOp>(loop.getLoc(), 1, cmpIOp.getRhs().getType());
+        auto one = rewriter.create<ConstantIntOp>(loop.getLoc(), 1,
+                                                  cmpIOp.getRhs().getType());
         auto addIOp =
             rewriter.create<AddIOp>(loop.getLoc(), cmpIOp.getRhs(), one);
         loopInfo.lb = addIOp.getResult();
@@ -1396,8 +1405,8 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
 };
 void CanonicalizeFor::runOnFunction() {
   mlir::RewritePatternSet rpl(getFunction().getContext());
-  rpl.add<PropagateInLoopBody, 
-          ForOpInductionReplacement, RemoveUnusedArgs, MoveWhileToFor,
+  rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
+          MoveWhileToFor,
 
           MoveWhileDown, MoveWhileDown2
 

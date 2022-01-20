@@ -85,15 +85,15 @@ static bool isAffineForArg(Value val) {
 
 static bool legalCondition(Value en, bool outer = true, bool dim = false) {
   if (en.getDefiningOp<AffineApplyOp>() || en.getDefiningOp<ExtUIOp>())
-      return true;
+    return true;
 
   if (!isValidSymbol(en)) {
     if (en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
-      en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
+        en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
       return true;
     }
     if (auto m = en.getDefiningOp<DivSIOp>()) {
-        return m.getRhs().getDefiningOp<ConstantIndexOp>();
+      return m.getRhs().getDefiningOp<ConstantIndexOp>();
     }
   }
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
@@ -242,8 +242,10 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     for (unsigned i = 0, e = operands.size(); i < e; ++i) {
       auto t = operands[i];
 
-      if (!isValidSymbol(t) && (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-          t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() || t.getDefiningOp<DivUIOp>())) {
+      if (!isValidSymbol(t) &&
+          (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+           t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
+           t.getDefiningOp<DivUIOp>())) {
 
         AffineMap affineApplyMap;
         SmallVector<Value, 8> affineApplyOperands;
@@ -272,17 +274,17 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           affineApplyOperands.append(op.getOperands().begin(),
                                      op.getOperands().end());
         } else if (auto op = t.getDefiningOp<DivSIOp>()) {
-          affineApplyMap =
-              AffineMap::get(0, 2,
-                             getAffineSymbolExpr(0, op.getContext()).floorDiv(
-                                 getAffineSymbolExpr(1, op.getContext())));
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
           affineApplyOperands.append(op.getOperands().begin(),
                                      op.getOperands().end());
         } else if (auto op = t.getDefiningOp<DivUIOp>()) {
-          affineApplyMap =
-              AffineMap::get(0, 2,
-                             getAffineSymbolExpr(0, op.getContext()).floorDiv(
-                                 getAffineSymbolExpr(1, op.getContext())));
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
           affineApplyOperands.append(op.getOperands().begin(),
                                      op.getOperands().end());
         } else {
@@ -693,14 +695,18 @@ bool isValidIndex(Value val) {
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
 
   if (auto bop = val.getDefiningOp<MulIOp>())
-    return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1))) ||
-           (isValidIndex(bop.getOperand(1)) && isValidSymbol(bop.getOperand(0)));
+    return (isValidIndex(bop.getOperand(0)) &&
+            isValidSymbol(bop.getOperand(1))) ||
+           (isValidIndex(bop.getOperand(1)) &&
+            isValidSymbol(bop.getOperand(0)));
 
   if (auto bop = val.getDefiningOp<DivSIOp>())
-    return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1)));
-  
+    return (isValidIndex(bop.getOperand(0)) &&
+            isValidSymbol(bop.getOperand(1)));
+
   if (auto bop = val.getDefiningOp<DivUIOp>())
-    return (isValidIndex(bop.getOperand(0)) && isValidSymbol(bop.getOperand(1)));
+    return (isValidIndex(bop.getOperand(0)) &&
+            isValidSymbol(bop.getOperand(1)));
 
   if (auto bop = val.getDefiningOp<SubIOp>())
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
@@ -798,8 +804,7 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   case CmpIPredicate::ule:
   case CmpIPredicate::ugt:
   case CmpIPredicate::uge:
-    LLVM_DEBUG(llvm::dbgs()
-               << "illegal icmp: " << cmpi << "\n");
+    LLVM_DEBUG(llvm::dbgs() << "illegal icmp: " << cmpi << "\n");
     return false;
   }
   return true;
@@ -856,7 +861,7 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
     SmallVector<Value, 4> operands = load.getIndices();
 
     if (map.getNumInputs() != operands.size()) {
-      //load->getParentOfType<FuncOp>().dump();
+      // load->getParentOfType<FuncOp>().dump();
       llvm::errs() << " load: " << load << "\n";
     }
     assert(map.getNumInputs() == operands.size());
@@ -1069,66 +1074,73 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
 
   LogicalResult matchAndRewrite(scf::IfOp ifOp,
                                 PatternRewriter &rewriter) const override {
-      std::vector<mlir::Type> types;
-      for (auto v : ifOp.getResults()) {
-        types.push_back(v.getType());
-      }
+    if (!ifOp->getParentOfType<AffineForOp>() &&
+        !ifOp->getParentOfType<AffineParallelOp>())
+      return failure();
 
-      SmallVector<AffineExpr, 2> exprs;
-      SmallVector<bool, 2> eqflags;
-      SmallVector<Value, 4> applies;
+    std::vector<mlir::Type> types;
+    for (auto v : ifOp.getResults()) {
+      types.push_back(v.getType());
+    }
 
-      std::deque<Value> todo = {ifOp.getCondition()};
-      while (todo.size()) {
-        auto cur = todo.front();
-        todo.pop_front();
-        if (auto cmpi = cur.getDefiningOp<CmpIOp>()) {
-          if (!handle(rewriter, cmpi, exprs, eqflags, applies)) {
-            return failure();
-          }
-          continue;
+    SmallVector<AffineExpr, 2> exprs;
+    SmallVector<bool, 2> eqflags;
+    SmallVector<Value, 4> applies;
+
+    std::deque<Value> todo = {ifOp.getCondition()};
+    while (todo.size()) {
+      auto cur = todo.front();
+      todo.pop_front();
+      if (auto cmpi = cur.getDefiningOp<CmpIOp>()) {
+        if (!handle(rewriter, cmpi, exprs, eqflags, applies)) {
+          return failure();
         }
-        if (auto andi = cur.getDefiningOp<AndIOp>()) {
-          todo.push_back(andi.getOperand(0));
-          todo.push_back(andi.getOperand(1));
-          continue;
-        }
-        return failure();
+        continue;
       }
-
-      auto iset = IntegerSet::get(/*dim*/ 2 * exprs.size(), /*symbol*/ 0, exprs,
-                                  eqflags);
-      fully2ComposeIntegerSetAndOperands(&iset, &applies);
-      canonicalizeSetAndOperands(&iset, &applies);
-      AffineIfOp affineIfOp = rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
-                                        /*elseBlock=*/true);
-
-      rewriter.setInsertionPoint(ifOp.thenYield());
-      rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(), ifOp.thenYield().getOperands());
-
-      if (ifOp.getElseRegion().getBlocks().size()) {
-        rewriter.setInsertionPoint(ifOp.elseYield());
-        rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.elseYield(), ifOp.elseYield().getOperands());
+      if (auto andi = cur.getDefiningOp<AndIOp>()) {
+        todo.push_back(andi.getOperand(0));
+        todo.push_back(andi.getOperand(1));
+        continue;
       }
+      return failure();
+    }
 
-      affineIfOp.thenRegion().takeBody(ifOp.getThenRegion());
-      affineIfOp.elseRegion().takeBody(ifOp.getElseRegion());
+    auto iset =
+        IntegerSet::get(/*dim*/ 2 * exprs.size(), /*symbol*/ 0, exprs, eqflags);
+    fully2ComposeIntegerSetAndOperands(&iset, &applies);
+    canonicalizeSetAndOperands(&iset, &applies);
+    AffineIfOp affineIfOp =
+        rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
+                                    /*elseBlock=*/true);
 
-      rewriter.replaceOp(ifOp, affineIfOp.getResults());
+    rewriter.setInsertionPoint(ifOp.thenYield());
+    rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(),
+                                               ifOp.thenYield().getOperands());
+
+    if (ifOp.getElseRegion().getBlocks().size()) {
+      rewriter.setInsertionPoint(ifOp.elseYield());
+      rewriter.replaceOpWithNewOp<AffineYieldOp>(
+          ifOp.elseYield(), ifOp.elseYield().getOperands());
+    }
+
+    affineIfOp.thenRegion().takeBody(ifOp.getThenRegion());
+    affineIfOp.elseRegion().takeBody(ifOp.getElseRegion());
+
+    rewriter.replaceOp(ifOp, affineIfOp.getResults());
     return success();
   }
 };
 
 void AffineCFGPass::runOnFunction() {
-    mlir::RewritePatternSet rpl(getFunction().getContext());
-    rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
-            CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
-            AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
-            MoveIfToAffine,
-            MoveLoadToAffine, CanonicalieForBounds>(getFunction().getContext());
-    GreedyRewriteConfig config;
-    (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
-                                       std::move(rpl), config);
+  mlir::RewritePatternSet rpl(getFunction().getContext());
+  rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
+          CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
+          AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
+          MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
+      getFunction().getContext());
+  GreedyRewriteConfig config;
+  (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
+                                     std::move(rpl), config);
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {
