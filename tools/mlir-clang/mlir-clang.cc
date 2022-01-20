@@ -434,8 +434,7 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createLoopRestructurePass());
-    if (!CudaLower)
-      optPM.addPass(polygeist::replaceAffineCFGPass());
+    optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     if (ScalarReplacement)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
@@ -443,7 +442,7 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass());
-    if (RaiseToAffine && !CudaLower) {
+    if (RaiseToAffine) {
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
@@ -485,6 +484,7 @@ int main(int argc, char **argv) {
     if (CudaLower) {
       mlir::PassManager pm(&context);
       mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+      optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass());
       pm.addPass(polygeist::createParallelLowerPass());
       pm.addPass(mlir::createSymbolDCEPass());
@@ -499,6 +499,14 @@ int main(int argc, char **argv) {
       noptPM.addPass(mlir::createCanonicalizerPass());
       noptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       noptPM.addPass(mlir::createCanonicalizerPass());
+      if (RaiseToAffine) {
+        noptPM.addPass(polygeist::createRaiseSCFToAffinePass());
+        noptPM.addPass(mlir::createCanonicalizerPass());
+        noptPM.addPass(polygeist::replaceAffineCFGPass());
+        noptPM.addPass(mlir::createCanonicalizerPass());
+        if (ScalarReplacement)
+          noptPM.addPass(mlir::createAffineScalarReplacementPass());
+      }
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 4;
@@ -520,7 +528,9 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::createCanonicalizerPass());
         optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+        optPM.addPass(mlir::createCanonicalizerPass());
         optPM.addPass(polygeist::replaceAffineCFGPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
         if (ScalarReplacement)
           optPM.addPass(mlir::createAffineScalarReplacementPass());
       }
