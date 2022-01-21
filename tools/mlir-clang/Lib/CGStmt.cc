@@ -600,9 +600,8 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-  loops.push_back(
-      (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                    builder.create<mlir::memref::AllocaOp>(loc, type)});
+  loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
+                   builder.create<mlir::memref::AllocaOp>(loc, type)});
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
 
   auto toadd = builder.getInsertionBlock()->getParent();
@@ -662,9 +661,8 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-  loops.push_back(
-      (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                    builder.create<mlir::memref::AllocaOp>(loc, type)});
+  loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
+                   builder.create<mlir::memref::AllocaOp>(loc, type)});
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
 
   auto toadd = builder.getInsertionBlock()->getParent();
@@ -814,9 +812,8 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       auto i1Ty = builder.getIntegerType(1);
       auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
       auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-      loops.push_back(
-          (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                        builder.create<mlir::memref::AllocaOp>(loc, type)});
+      loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
+                       builder.create<mlir::memref::AllocaOp>(loc, type)});
       builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
       builder.create<mlir::memref::StoreOp>(loc, truev,
                                             loops.back().keepRunning);
@@ -838,9 +835,8 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
       auto i1Ty = builder.getIntegerType(1);
       auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
       auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-      loops.push_back(
-          (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                        builder.create<mlir::memref::AllocaOp>(loc, type)});
+      loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
+                       builder.create<mlir::memref::AllocaOp>(loc, type)});
       builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
       builder.create<mlir::memref::StoreOp>(loc, truev,
                                             loops.back().keepRunning);
