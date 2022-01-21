@@ -9,12 +9,12 @@
 #ifndef CLANG_MLIR_H
 #define CLANG_MLIR_H
 
+#include "clang/AST/ASTConsumer.h"
 #include "clang/AST/StmtVisitor.h"
-#include <clang/AST/ASTConsumer.h>
-#include <clang/Lex/HeaderSearch.h>
-#include <clang/Lex/HeaderSearchOptions.h>
-#include <clang/Lex/Preprocessor.h>
-#include <clang/Lex/PreprocessorOptions.h>
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 
 #include "AffineUtils.h"
 #include "ValueCategory.h"

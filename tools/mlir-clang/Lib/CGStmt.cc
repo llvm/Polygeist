@@ -8,10 +8,10 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/Diagnostics.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
-#include <mlir/Dialect/OpenMP/OpenMPDialect.h>
-#include <mlir/Dialect/SCF/SCF.h>
 
 #define DEBUG_TYPE "CGStmt"
 
@@ -153,6 +153,7 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
   LLVM_DEBUG(llvm::dbgs() << "isTrivialAffineLoop -> true\n");
   return true;
 }
+
 void MLIRScanner::buildAffineLoopImpl(
     clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
     const mlirclang::AffineLoopDescriptor &descr) {
@@ -204,7 +205,6 @@ void MLIRScanner::buildAffineLoop(
   mlir::Value lb = descr.getLowerBound();
   mlir::Value ub = descr.getUpperBound();
   buildAffineLoopImpl(fors, loc, lb, ub, descr);
-  return;
 }
 
 ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {

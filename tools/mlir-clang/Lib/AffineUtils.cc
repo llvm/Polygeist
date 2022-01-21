@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "AffineUtils.h"
-
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "clang/AST/Decl.h"
