@@ -7,33 +7,33 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang-mlir.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "utils.h"
-#include <clang/AST/Attr.h>
-#include <clang/AST/Decl.h>
-#include <clang/Basic/DiagnosticOptions.h>
-#include <clang/Basic/FileManager.h>
-#include <clang/Basic/FileSystemOptions.h>
-#include <clang/Basic/LangStandard.h>
-#include <clang/Basic/OperatorKinds.h>
-#include <clang/Basic/TargetInfo.h>
-#include <clang/Basic/TargetOptions.h>
-#include <clang/Basic/Version.h>
-#include <clang/Driver/Compilation.h>
-#include <clang/Driver/Driver.h>
-#include <clang/Driver/Tool.h>
-#include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/CompilerInvocation.h>
-#include <clang/Frontend/FrontendOptions.h>
-#include <clang/Frontend/TextDiagnosticPrinter.h>
-#include <clang/Frontend/Utils.h>
-#include <clang/Parse/ParseAST.h>
-#include <clang/Parse/Parser.h>
-#include <clang/Sema/Sema.h>
-#include <clang/Sema/SemaDiagnostic.h>
-#include <llvm/Support/Debug.h>
-#include <llvm/Support/raw_ostream.h>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
-#include <mlir/Dialect/SCF/SCF.h>
+#include "clang/AST/Attr.h"
+#include "clang/AST/Decl.h"
+#include "clang/Basic/DiagnosticOptions.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/FileSystemOptions.h"
+#include "clang/Basic/LangStandard.h"
+#include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/Version.h"
+#include "clang/Driver/Compilation.h"
+#include "clang/Driver/Driver.h"
+#include "clang/Driver/Tool.h"
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/FrontendOptions.h"
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include "clang/Frontend/Utils.h"
+#include "clang/Parse/ParseAST.h"
+#include "clang/Parse/Parser.h"
+#include "clang/Sema/Sema.h"
+#include "clang/Sema/SemaDiagnostic.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace std;
 using namespace clang;
