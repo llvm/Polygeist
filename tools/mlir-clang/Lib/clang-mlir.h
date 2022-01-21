@@ -245,6 +245,7 @@ public:
   ValueCategory VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
 
   ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+
   ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
   ValueCategory VisitStringLiteral(clang::StringLiteral *expr);
@@ -271,6 +272,7 @@ public:
   ValueCategory VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
 
   ValueCategory VisitCallExpr(clang::CallExpr *expr);
+
   ValueCategory
   CallHelper(mlir::FuncOp tocall, QualType objType,
              ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
@@ -282,8 +284,10 @@ public:
 
   ValueCategory
   VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr);
+
   ValueCategory
   VisitCXXPseudoDestructorExpr(clang::CXXPseudoDestructorExpr *expr);
+
   ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
 
   ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
@@ -333,6 +337,7 @@ public:
 
   std::map<LabelStmt *, Block *> labels;
   ValueCategory VisitLabelStmt(clang::LabelStmt *stmt);
+
   ValueCategory VisitGotoStmt(clang::GotoStmt *stmt);
 
   ValueCategory VisitStmtExpr(clang::StmtExpr *stmt);
@@ -343,6 +348,7 @@ public:
   VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
 
   ValueCategory VisitCXXNewExpr(clang::CXXNewExpr *expr);
+
   ValueCategory VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr);
 
   ValueCategory VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
