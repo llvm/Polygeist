@@ -43,7 +43,7 @@ void AffineLoopDescriptor::setUpperBound(mlir::Value value) {
 }
 
 int AffineLoopDescriptor::getStep() const { return impl->step; }
-void AffineLoopDescriptor::setStep(int value) { impl->step = value; };
+void AffineLoopDescriptor::setStep(int value) { impl->step = value; }
 
 clang::VarDecl *AffineLoopDescriptor::getName() const { return impl->indVar; }
 void AffineLoopDescriptor::setName(clang::VarDecl *value) {
