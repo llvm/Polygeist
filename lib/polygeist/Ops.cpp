@@ -772,12 +772,24 @@ public:
     if (src.source().getType().cast<MemRefType>().getShape().size() != 1)
       return failure();
 
+    Value idx[] = {src.index()};
+    auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
+    auto MET = src.source().getType().cast<MemRefType>().getElementType();
+    if (PET != MET) {
+      auto ps = rewriter.create<polygeist::TypeSizeOp>(
+          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
+      auto ms = rewriter.create<polygeist::TypeSizeOp>(
+          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
+      idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
+      idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
+    }
+    idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                                 rewriter.getI64Type(), idx[0]);
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
         op, op.getType(),
         rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
                                           src.source()),
-        std::vector<Value>({rewriter.create<arith::IndexCastOp>(
-            op.getLoc(), rewriter.getI64Type(), src.index())}));
+        idx);
     return success();
   }
 };
