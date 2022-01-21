@@ -74,6 +74,10 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       if (addOp.getOperand(0) != std::get<1>(it))
         continue;
 
+      if (!addOp.getOperand(1).getParentRegion()->isAncestor(
+              forOp->getParentRegion()))
+        continue;
+
       Value init = std::get<0>(it);
 
       bool sameValue = addOp.getOperand(1) == forOp.getStep();
@@ -113,9 +117,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         canonicalize = true;
       }
 
-      if (!std::get<2>(it).use_empty() &&
-          addOp.getOperand(1).getParentRegion()->isAncestor(
-              forOp->getParentRegion())) {
+      if (!std::get<2>(it).use_empty()) {
         rewriter.setInsertionPoint(forOp);
         Value replacement = rewriter.create<SubIOp>(
             forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound());

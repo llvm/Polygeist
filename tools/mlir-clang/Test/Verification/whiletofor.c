@@ -35,7 +35,7 @@ void whiletofor() {
 // CHECK-NEXT:      %1 = scf.for %arg0 = %c0 to %c100 step %c1 iter_args(%arg1 = %c7_i32) -> (i32) {
 // CHECK-NEXT:        %3 = scf.for %arg2 = %c0 to %c100 step %c1 iter_args(%arg3 = %arg1) -> (i32) {
 // CHECK-NEXT:          %4 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:          %5 = arith.addi %4, %arg1 : i32
+// CHECK-NEXT:          %5 = arith.addi %arg1, %4 : i32
 // CHECK-NEXT:          %[[i4:.+]] = arith.remsi %5, %c20_i32 : i32
 // CHECK-NEXT:          %[[i5:.+]] = arith.cmpi eq, %[[i4]], %c0_i32 : i32
 // CHECK-NEXT:          scf.if %[[i5]] {

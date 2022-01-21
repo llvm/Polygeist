@@ -17,10 +17,11 @@ int runHisto(int totalNum, int partialNum) {
 // CHECK-NEXT:     %0 = arith.muli %arg1, %c2_i32 : i32
 // CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     %2 = arith.index_cast %0 : i32 to index
-// CHECK-NEXT:     %3 = scf.for %arg2 = %c0 to %1 step %2 iter_args(%arg3 = %c0_i32) -> (i32) {
-// CHECK-NEXT:       call @histo_kernel(%arg3) : (i32) -> ()
-// CHECK-NEXT:       %4 = arith.addi %arg3, %0 : i32
-// CHECK-NEXT:       scf.yield %4 : i32
+// CHECK-NEXT:     scf.for %arg2 = %c0 to %1 step %2 {
+// CHECK-NEXT:       %3 = arith.divui %arg2, %2 : index
+// CHECK-NEXT:       %4 = arith.index_cast %3 : index to i32
+// CHECK-NEXT:       %5 = arith.muli %4, %0 : i32
+// CHECK-NEXT:       call @histo_kernel(%5) : (i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }

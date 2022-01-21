@@ -14,15 +14,18 @@ void kernel_correlation(int start, int end) {
   }
 }
 
-// CHECK:   #map = affine_map<()[s0] -> (s0 + 1)>
-// CHECK:   func @kernel_correlation(%arg0: i32, %arg1: i32)
+// CHECK: kernel_correlation
+// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
-// CHECK-NEXT:     affine.for %arg2 = %1 to #map()[%0] {
-// CHECK-NEXT:       %2 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:       %3 = arith.subi %2, %arg0 : i32
-// CHECK-NEXT:       %4 = arith.subi %arg1, %3 : i32
-// CHECK-NEXT:       call @use(%4) : (i32) -> ()
+// CHECK-NEXT:     %1 = arith.addi %0, %c1 : index
+// CHECK-NEXT:     %2 = arith.index_cast %arg0 : i32 to index
+// CHECK-NEXT:     affine.for %arg2 = %2 to %1 {
+// CHECK-NEXT:       %3 = arith.index_cast %arg2 : index to i32
+// CHECK-NEXT:       %4 = arith.subi %3, %arg0 : i32
+// CHECK-NEXT:       %5 = arith.muli %4, %c-1_i32 : i32
+// CHECK-NEXT:       %6 = arith.addi %arg1, %5 : i32
+// CHECK-NEXT:       call @use(%6) : (i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
