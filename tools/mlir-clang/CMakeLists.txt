@@ -28,6 +28,8 @@ add_clang_executable(mlir-clang
   Lib/ValueCategory.cc
   Lib/utils.cc
   Lib/IfScope.cc
+  Lib/TypeUtils.cc
+  Lib/CGCall.cc 
 )
 
 target_include_directories(mlir-clang PRIVATE
