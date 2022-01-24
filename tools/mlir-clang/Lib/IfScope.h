@@ -8,7 +8,7 @@
 #ifndef IF_SCOPE_H_
 #define IF_SCOPE_H_
 
-#include "mlir/IR/Builders.h"
+#include "mlir/IR/Block.h"
 
 class MLIRScanner;
 
