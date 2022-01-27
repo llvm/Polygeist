@@ -105,7 +105,7 @@ struct MatchIfElsePass : PassWrapper<MatchIfElsePass, OperationPass<FuncOp>> {
 
       // If there is no else block, initialize one with a terminating yield.
       if (!ifOp.elseBlock()) {
-        ifOp.elseRegion().emplaceBlock();
+        ifOp.getElseRegion().emplaceBlock();
 
         b.setInsertionPointToStart(ifOp.elseBlock());
         b.create<scf::YieldOp>(loc);
@@ -212,7 +212,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   SmallVector<Type> resultTypes(ifOp.getResultTypes());
   resultTypes.append(storeTypes);
 
-  scf::IfOp newIfOp = b.create<scf::IfOp>(loc, resultTypes, ifOp.condition(),
+  scf::IfOp newIfOp = b.create<scf::IfOp>(loc, resultTypes, ifOp.getCondition(),
                                           /*withElseRegion=*/true);
 
   auto cloneBlock = [&](Block *target, Block *source) {
@@ -334,7 +334,7 @@ static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
     cloneAfter(ifOp.elseBlock(), elseResults);
 
     for (auto ifResult : enumerate(ifOp.getResults())) {
-      Value newResult = b.create<SelectOp>(loc, ifOp.condition(),
+      Value newResult = b.create<SelectOp>(loc, ifOp.getCondition(),
                                            thenResults[ifResult.index()],
                                            elseResults[ifResult.index()]);
       ifResult.value().replaceAllUsesWith(newResult);
