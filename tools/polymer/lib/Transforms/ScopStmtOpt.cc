@@ -283,7 +283,7 @@ static CallOp findCallOpForFunc(ModuleOp m, FuncOp func) {
 
   // Find the corresponding call op.
   m.walk([&](CallOp callOp) {
-    if (callOp.callee() == func.getName()) {
+    if (callOp.getCallee() == func.getName()) {
       // TODO: implement the support for multiple calls.
       assert(!call && "There should be only one call to the target function.");
       call = callOp;
