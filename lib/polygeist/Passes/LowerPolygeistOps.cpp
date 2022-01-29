@@ -46,9 +46,11 @@ struct SubIndexToReinterpretCast
         rewriter.create<ConstantIndexOp>(op.getLoc(), innerSize));
 
     llvm::SmallVector<OpFoldResult> sizes, strides;
-    for (auto dim : shape.drop_front()) {
-      sizes.push_back(rewriter.getIndexAttr(dim));
-      strides.push_back(rewriter.getIndexAttr(1));
+    int64_t strideAcc = 1;
+    for (auto dim : llvm::reverse(shape.drop_front())) {
+      sizes.insert(sizes.begin(), rewriter.getIndexAttr(dim));
+      strides.insert(strides.begin(), rewriter.getIndexAttr(strideAcc));
+      strideAcc *= dim;
     }
 
     rewriter.replaceOpWithNewOp<memref::ReinterpretCastOp>(
