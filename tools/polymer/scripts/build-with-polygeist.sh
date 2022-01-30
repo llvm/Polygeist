@@ -29,42 +29,65 @@ git fetch origin "${POLYGEIST_VERSION}"
 git checkout "${POLYGEIST_VERSION}"
 cd - &>/dev/null
 
-echo ">>> Linking Polymer to Polygeist ..."
-rm -r "${POLYGEIST_DIR}/mlir/tools/polymer"
-ln -s "${POLYMER_DIR}" "${POLYGEIST_DIR}/mlir/tools/polymer"
-
-echo ">>> Building Polygeist ..."
 cd "${POLYGEIST_DIR}"
-mkdir -p build
-cd build
 
-if [ ! -f CMakeCache.txt ]; then
+
+echo ">>> Building LLVM ..."
+if [ ! -d "${POLYGEIST_DIR}/llvm-project/build" ]; then
+  git submodule init
+  git submodule update
+
+  mkdir -p llvm-project/build
+  cd llvm-project/build
+
   # Comment out -G Ninja if you don't want to use that.
   cmake ../llvm \
     -G Ninja \
-    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DLLVM_BUILD_EXAMPLES=OFF \
     -DLLVM_TARGETS_TO_BUILD="host" \
     -DLLVM_ENABLE_PROJECTS="llvm;mlir;clang" \
     -DLLVM_OPTIMIZED_TABLEGEN=ON \
     -DLLVM_ENABLE_OCAMLDOC=OFF \
     -DLLVM_ENABLE_BINDINGS=OFF \
     -DLLVM_INSTALL_UTILS=ON \
-    -DLLVM_ENABLE_ASSERTIONS=ON \
-    -DLLVM_BUILD_EXAMPLES=OFF \
-    -DBUILD_POLYMER=ON \
-    -DPLUTO_LIBCLANG_PREFIX="$(llvm-config --prefix)"
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLVM_ENABLE_ASSERTIONS=ON 
+  cmake --build . 
+  cmake --build . --target check-mlir
 else
-  echo "-- CMakeCache.txt file has been found. CMake generation is therefore skipped."
+  echo "-- LLVM build is skipped."
 fi
 
-# Build
+
+
+# Build Polygeist
+mkdir -p "${POLYGEIST_DIR}/build"
+cd "${POLYGEIST_DIR}/build"
+
+# Comment out -G Ninja if you don't want to use that.
+cmake .. \
+  -G Ninja \
+  -DMLIR_DIR="${POLYGEIST_DIR}/llvm-project/build/lib/cmake/mlir" \
+  -DCLANG_DIR="${POLYGEIST_DIR}/llvm-project/build/lib/cmake/clang" \
+  -DLLVM_TARGETS_TO_BUILD="host" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DCMAKE_BUILD_TYPE=DEBUG
 cmake --build . --target check-mlir-clang
-LD_LIBRARY_PATH="${POLYGEIST_DIR}/build/tools/mlir/tools/polymer/pluto/lib:${LD_LIBRARY_PATH}" cmake --build . --target check-polymer
+
+# Build polymer
+cd "${POLYMER_DIR}"
+mkdir -p "${POLYMER_DIR}/build"
+cd "${POLYMER_DIR}/build"
+cmake -G Ninja \
+  .. \
+  -DMLIR_DIR="${POLYGEIST_DIR}/llvm-project/build/lib/cmake/mlir" \
+  -DLLVM_DIR="${POLYGEIST_DIR}/llvm-project/build/lib/cmake/llvm" \
+  -DLLVM_EXTERNAL_LIT="${POLYGEIST_DIR}/llvm-project/build/bin/llvm-lit" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DCMAKE_BUILD_TYPE=DEBUG
+LD_LIBRARY_PATH="${POLYMER_DIR}/build/pluto/lib:${LD_LIBRARY_PATH}" cmake --build . --target check-polymer
 
 echo ">>> Done!"
-
-rm "${POLYMER_DIR}/build"
-ln -s "${POLYGEIST_DIR}/build" "${POLYMER_DIR}/build"
 
 echo ""
 echo "    Polymer utilities are built under ${POLYGEIST_DIR}/build,"
