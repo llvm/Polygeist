@@ -136,6 +136,13 @@ static cl::list<std::string> defines("D", cl::desc("defines"),
 static cl::list<std::string> Includes("include", cl::desc("includes"),
                                       cl::cat(toolOptions));
 
+static cl::opt<std::string> TargetTripleOpt("target", cl::init(""),
+                                            cl::desc("Target triple"),
+                                            cl::cat(toolOptions));
+
+static cl::opt<std::string>
+    McpuOpt("mcpu", cl::init(""), cl::desc("Target CPU"), cl::cat(toolOptions));
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 class MemRefInsider
@@ -210,9 +217,14 @@ int emitBinary(char *Argv0, const char *filename,
 
   DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
 
+  string TargetTriple;
+  if (TargetTripleOpt == "")
+    TargetTriple = llvm::sys::getDefaultTargetTriple();
+  else
+    TargetTriple = TargetTripleOpt;
+
   const char *binary = Argv0;
-  const unique_ptr<Driver> driver(
-      new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
+  const unique_ptr<Driver> driver(new Driver(binary, TargetTriple, Diags));
   driver->CC1Main = &ExecuteCC1Tool;
   std::vector<const char *> Argv;
   Argv.push_back(Argv0);

@@ -4773,6 +4773,20 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   if (FOpenMP)
     Argv.push_back("-fopenmp");
+  if (TargetTripleOpt != "") {
+    char *chars = (char *)malloc(TargetTripleOpt.length() + 1);
+    memcpy(chars, TargetTripleOpt.data(), TargetTripleOpt.length());
+    chars[TargetTripleOpt.length()] = 0;
+    Argv.push_back("-target");
+    Argv.push_back(chars);
+  }
+  if (McpuOpt != "") {
+    auto a = "-mcpu=" + McpuOpt;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
   if (Standard != "") {
     auto a = "-std=" + Standard;
     char *chars = (char *)malloc(a.length() + 1);
