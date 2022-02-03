@@ -117,6 +117,9 @@ static cl::opt<std::string> MArch("march", cl::init(""),
 static cl::opt<std::string> ResourceDir("resource-dir", cl::init(""),
                                         cl::desc("Resource-dir"));
 
+static cl::opt<std::string> SysRoot("sysroot", cl::init(""),
+                                    cl::desc("sysroot"));
+
 static cl::opt<bool> EarlyVerifier("early-verifier", cl::init(false),
                                    cl::desc("Enable verifier ASAP"));
 
@@ -284,6 +287,8 @@ int emitBinary(char *Argv0, const char *filename,
 
   if (ResourceDir != "")
     driver->ResourceDir = ResourceDir;
+  if (SysRoot != "")
+    driver->SysRoot = SysRoot;
   SmallVector<std::pair<int, const Command *>, 4> FailingCommands;
   int Res = 0;
 

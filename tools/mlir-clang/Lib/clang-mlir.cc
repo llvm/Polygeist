@@ -4801,6 +4801,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     chars[ResourceDir.length()] = 0;
     Argv.push_back(chars);
   }
+  if (SysRoot != "") {
+    Argv.push_back("--sysroot");
+    char *chars = (char *)malloc(SysRoot.length() + 1);
+    memcpy(chars, SysRoot.data(), SysRoot.length());
+    chars[SysRoot.length()] = 0;
+    Argv.push_back(chars);
+  }
   if (Verbose) {
     Argv.push_back("-v");
   }
