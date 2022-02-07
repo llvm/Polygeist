@@ -1,15 +1,15 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
-
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define DEBUG_TYPE "raise-to-affine"
 
@@ -224,7 +224,7 @@ void RaiseSCFToAffine::runOnFunction() {
   target
       .addLegalDialect<AffineDialect, StandardOpsDialect, LLVM::LLVMDialect>();
 
-  OwningRewritePatternList patterns(&getContext());
+  RewritePatternSet patterns(&getContext());
   patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());
 
   if (failed(

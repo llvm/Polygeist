@@ -30,6 +30,6 @@ int foo(int t) {
 // CHECK-NEXT:       2: ^bb1(%c30_i32, %true, %0 : i32, i1, i32)
 // CHECK-NEXT:     ]
 // CHECK-NEXT:   ^bb1(%1: i32, %2: i1, %3: i32):  // 3 preds: ^bb0, ^bb0, ^bb0
-// CHECK-NEXT:     %4 = select %2, %1, %3 : i32
+// CHECK-NEXT:     %4 = arith.select %2, %1, %3 : i32
 // CHECK-NEXT:     return %4 : i32
 // CHECK-NEXT:   }

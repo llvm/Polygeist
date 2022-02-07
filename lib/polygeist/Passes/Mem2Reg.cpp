@@ -13,9 +13,10 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+//#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -29,7 +30,6 @@
 #include <algorithm>
 #include <deque>
 #include <iostream>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <set>
 
 #include "polygeist/Ops.h"
@@ -943,6 +943,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   bool changed = false;
   std::set<mlir::Operation *> loadOps;
   mlir::Type subType = nullptr;
+  mlir::Location loc = AI.getLoc();
   std::set<mlir::Operation *> allStoreOps;
 
   std::deque<std::pair<mlir::Value, /*indexed*/ bool>> list = {{AI, false}};
@@ -1525,7 +1526,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
     assert(startFound != valueAtStartOfBlock.end());
     assert(startFound->second->valueAtStart == block);
-    auto arg = block->addArgument(subType);
+    auto arg = block->addArgument(subType, loc);
     auto argVal = metaMap.get(arg);
     valueAtStartOfBlock[block] = argVal;
     blocksWithAddedArgs[block] = arg;

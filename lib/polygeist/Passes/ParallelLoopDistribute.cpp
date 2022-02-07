@@ -541,7 +541,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     auto newParallel = rewriter.cloneWithoutRegions<T>(op);
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      newParallel.getBody()->addArgument(a.getType());
+      newParallel.getBody()->addArgument(a.getType(), op->getLoc());
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -565,7 +565,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     auto newParallel = rewriter.cloneWithoutRegions<T>(op);
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      newParallel.getBody()->addArgument(a.getType());
+      newParallel.getBody()->addArgument(a.getType(), op->getLoc());
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -695,7 +695,7 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   auto newParallel = rewriter.cloneWithoutRegions<T>(op);
   newParallel.getRegion().push_back(new Block());
   for (auto a : op.getBody()->getArguments())
-    newParallel.getBody()->addArgument(a.getType());
+    newParallel.getBody()->addArgument(a.getType(), op->getLoc());
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
 
@@ -890,11 +890,11 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
     auto beforeParallelOp = rewriter.cloneWithoutRegions<T>(op);
     beforeParallelOp.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      beforeParallelOp.getBody()->addArgument(a.getType());
+      beforeParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
     auto afterParallelOp = rewriter.cloneWithoutRegions<T>(op);
     afterParallelOp.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      afterParallelOp.getBody()->addArgument(a.getType());
+      afterParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
     rewriter.setInsertionPointToEnd(beforeParallelOp.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
     rewriter.setInsertionPointToEnd(afterParallelOp.getBody());
@@ -1595,7 +1595,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
   void runOnFunction() override {
     if (method == "distribute") {
-      OwningRewritePatternList patterns(&getContext());
+      RewritePatternSet patterns(&getContext());
       patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
                       Reg2MemWhile, Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>,
                       WrapForWithBarrier, WrapAffineForWithBarrier,

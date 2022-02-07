@@ -360,7 +360,7 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
   auto affineOp = builder.create<omp::WsLoopOp>(loc, inits, finals, incs);
   affineOp.getRegion().push_back(new Block());
   for (auto init : inits)
-    affineOp.getRegion().front().addArgument(init.getType());
+    affineOp.getRegion().front().addArgument(init.getType(), init.getLoc());
   auto inds = affineOp.getRegion().front().getArguments();
 
   auto oldpoint = builder.getInsertionPoint();

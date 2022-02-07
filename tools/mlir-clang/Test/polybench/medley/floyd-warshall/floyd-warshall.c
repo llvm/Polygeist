@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:           %3 = affine.load %arg1[%arg2, %arg4] : memref<?x2800xi32>
 // CHECK-NEXT:           %4 = arith.addi %2, %3 : i32
 // CHECK-NEXT:           %5 = arith.cmpi slt, %1, %4 : i32
-// CHECK-NEXT:           %6 = select %5, %1, %4 : i32
+// CHECK-NEXT:           %6 = arith.select %5, %1, %4 : i32
 // CHECK-NEXT:           affine.store %6, %arg1[%arg3, %arg4] : memref<?x2800xi32>
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }

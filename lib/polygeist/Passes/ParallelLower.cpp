@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
-#include "mlir/Analysis/AffineAnalysis.h"
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+//#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"

@@ -673,7 +673,8 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
 
       rewriter.updateRootInPlace(op, [&] {
         for (auto val : todo) {
-          auto na = op.getAfter().front().addArgument(val.getType());
+          auto na =
+              op.getAfter().front().addArgument(val.getType(), op->getLoc());
           val.replaceUsesWithIf(na, [&](OpOperand &u) -> bool {
             return op.getAfter().isAncestor(u.getOwner()->getParentRegion());
           });
@@ -853,7 +854,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
 
         for (auto v : sv) {
           condArgs.push_back(v);
-          auto arg = afterB->addArgument(v.getType());
+          auto arg = afterB->addArgument(v.getType(), ifOp->getLoc());
           for (OpOperand &use : llvm::make_early_inc_range(v.getUses())) {
             if (ifOp->isAncestor(use.getOwner()) ||
                 use.getOwner() == afterYield)
@@ -1124,7 +1125,8 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
                  llvm::make_early_inc_range(cloned->getOpOperands())) {
               {
                 newOps.push_back(o.get());
-                o.set(op.getAfter().front().addArgument(o.get().getType()));
+                o.set(op.getAfter().front().addArgument(o.get().getType(),
+                                                        o.get().getLoc()));
               }
             }
             continue;
@@ -1338,8 +1340,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
     for (auto arg : term.getArgs()) {
       if (auto IC = arg.getDefiningOp<IndexCastOp>()) {
         if (arg.hasOneUse() && op.getResult(i).use_empty()) {
-          auto rep =
-              op.getAfter().front().addArgument(IC->getOperand(0).getType());
+          auto rep = op.getAfter().front().addArgument(
+              IC->getOperand(0).getType(), IC->getOperand(0).getLoc());
           IC->moveBefore(&op.getAfter().front(), op.getAfter().front().begin());
           conds.push_back(IC.getIn());
           IC.getInMutable().assign(rep);

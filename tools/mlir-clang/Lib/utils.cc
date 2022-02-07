@@ -34,7 +34,7 @@ Operation *buildLinalgOp(StringRef name, OpBuilder &b,
   if (name.compare("linalg.copy") == 0) {
     assert(input.size() == 1 && "linalg::copyOp requires 1 input");
     assert(output.size() == 1 && "linalg::CopyOp requires 1 output");
-    return b.create<linalg::CopyOp>(b.getUnknownLoc(), input[0], output[0]);
+    return b.create<memref::CopyOp>(b.getUnknownLoc(), input[0], output[0]);
   } else {
     llvm::report_fatal_error(llvm::Twine("builder not supported for: ") + name);
     return nullptr;

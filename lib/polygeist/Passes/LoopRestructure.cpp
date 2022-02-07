@@ -254,7 +254,7 @@ bool attemptToFoldIntoPredecessor(Block *target) {
       }
 
       for (size_t i = 0; i < target->getNumArguments(); ++i) {
-        auto sel = builder.create<mlir::SelectOp>(
+        auto sel = builder.create<mlir::arith::SelectOp>(
             op.getLoc(), op.getCondition(), op.getTrueOperand(i),
             op.getFalseOperand(i));
         target->getArgument(i).replaceAllUsesWith(sel);
@@ -384,7 +384,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 
       // Copy the arguments across
       SmallVector<Type, 4> headerArgumentTypes(header->getArgumentTypes());
-      wrapper->addArguments(headerArgumentTypes);
+      SmallVector<Location> locs(headerArgumentTypes.size(),
+                                 builder.getUnknownLoc());
+      wrapper->addArguments(headerArgumentTypes, locs);
 
       SmallVector<Value> valsCallingLoop;
       for (auto a : wrapper->getArguments())
@@ -404,7 +406,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               headerArgumentTypes.push_back(V.getType());
               valsCallingLoop.push_back(builder.create<mlir::LLVM::UndefOp>(
                   builder.getUnknownLoc(), V.getType()));
-              header->addArgument(V.getType());
+              header->addArgument(V.getType(), V.getLoc());
             }
           }
         }
@@ -474,7 +476,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       Block *pseudoExit = new Block();
       {
         insertRegion.push_back(pseudoExit);
-        pseudoExit->addArguments(tys);
+        SmallVector<Location> locs(tys.size(), builder.getUnknownLoc());
+        pseudoExit->addArguments(tys, locs);
         OpBuilder builder(pseudoExit, pseudoExit->begin());
         tys.clear();
         builder.create<scf::YieldOp>(builder.getUnknownLoc(), tys,
@@ -596,7 +599,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       }
 
       Block *after = new Block();
-      after->addArguments(combinedTypes);
+      SmallVector<Location> locs2(combinedTypes.size(), region.getLoc());
+      after->addArguments(combinedTypes, locs2);
       loop.getAfter().push_back(after);
       OpBuilder builder2(after, after->begin());
       SmallVector<Value, 4> yieldargs;
@@ -623,9 +627,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             });
       }
 
-      for (auto pair :
-           llvm::zip(header->getArguments(),
-                     loopEntry->addArguments(header->getArgumentTypes()))) {
+      for (auto pair : llvm::zip(
+               header->getArguments(),
+               loopEntry->addArguments(header->getArgumentTypes(), locs))) {
         std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
       }
       header->eraseArguments([](BlockArgument) { return true; });
