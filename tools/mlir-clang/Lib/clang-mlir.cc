@@ -4925,14 +4925,19 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
                                            Clang->getTargetOpts());
 
-    module.get()->setAttr(
-        LLVM::LLVMDialect::getDataLayoutAttrName(),
-        StringAttr::get(module->getContext(),
-                        Clang->getTarget().getDataLayoutString()));
-    module.get()->setAttr(
-        LLVM::LLVMDialect::getTargetTripleAttrName(),
-        StringAttr::get(module->getContext(),
-                        Clang->getTarget().getTriple().getTriple()));
+    llvm::Triple jobTriple = Clang->getTarget().getTriple();
+    if (triple.str() == "" || !jobTriple.isNVPTX()) {
+      triple = jobTriple;
+      module.get()->setAttr(
+          LLVM::LLVMDialect::getTargetTripleAttrName(),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getTriple().getTriple()));
+      DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
+      module.get()->setAttr(
+          LLVM::LLVMDialect::getDataLayoutAttrName(),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getDataLayoutString()));
+    }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
       // Reset the ID tables if we are reusing the SourceManager and parsing
@@ -4951,8 +4956,6 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
         Act.EndSourceFile();
       }
     }
-    DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
-    triple = Clang->getTarget().getTriple();
   }
   return true;
 }
