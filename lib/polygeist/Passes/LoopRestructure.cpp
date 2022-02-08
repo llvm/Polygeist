@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -188,7 +189,7 @@ struct LoopRestructure : public LoopRestructureBase<LoopRestructure> {
   void runOnRegion(DominanceInfo &domInfo, Region &region);
   bool removeIfFromRegion(DominanceInfo &domInfo, Region &region,
                           Block *pseudoExit);
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 } // end anonymous namespace
@@ -220,7 +221,7 @@ public:
 template class llvm::LoopBase<Wrapper, ::mlir::Loop>;
 template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
 
-void LoopRestructure::runOnFunction() {
+void LoopRestructure::runOnOperation() {
   // FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
   if (auto region = getOperation().getCallableRegion()) {
@@ -231,7 +232,7 @@ void LoopRestructure::runOnFunction() {
 bool attemptToFoldIntoPredecessor(Block *target) {
   SmallVector<Block *, 2> P(target->pred_begin(), target->pred_end());
   if (P.size() == 1) {
-    if (auto op = dyn_cast<BranchOp>(P[0]->getTerminator())) {
+    if (auto op = dyn_cast<cf::BranchOp>(P[0]->getTerminator())) {
       assert(target->getNumArguments() == op.getNumOperands());
       for (size_t i = 0; i < target->getNumArguments(); ++i) {
         target->getArgument(i).replaceAllUsesWith(op.getOperand(i));
@@ -243,7 +244,7 @@ bool attemptToFoldIntoPredecessor(Block *target) {
       return true;
     }
   } else if (P.size() == 2) {
-    if (auto op = dyn_cast<CondBranchOp>(P[0]->getTerminator())) {
+    if (auto op = dyn_cast<cf::CondBranchOp>(P[0]->getTerminator())) {
       assert(target->getNumArguments() == op.getNumTrueOperands());
       assert(target->getNumArguments() == op.getNumFalseOperands());
 
@@ -290,7 +291,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
         for (size_t j = 0; j < Succs.size(); ++j) {
           if (Succs[j] == pseudoExit && Succs[1 - j] == Preds[1 - i]) {
             OpBuilder builder(Preds[i]->getTerminator());
-            auto condBr = cast<CondBranchOp>(Preds[i]->getTerminator());
+            auto condBr = cast<cf::CondBranchOp>(Preds[i]->getTerminator());
             auto ifOp = builder.create<scf::IfOp>(
                 builder.getUnknownLoc(), condTys, condBr.getCondition(),
                 /*hasElse*/ true);
@@ -423,7 +424,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         for (size_t i = 0; i < returns.size(); ++i) {
           RetVals.push_back(loop.getResult(i + headerArgumentTypes.size()));
         }
-        builder.create<BranchOp>(builder.getUnknownLoc(), target, RetVals);
+        builder.create<cf::BranchOp>(builder.getUnknownLoc(), target, RetVals);
       }
       for (auto &pair : preservedVals) {
         pair.first.replaceUsesWithIf(loop.getResult(pair.second),
@@ -501,13 +502,13 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             for (auto v : preservedVals)
               args[v.second + 1] = v.first;
 
-            if (auto op = dyn_cast<BranchOp>(terminator)) {
+            if (auto op = dyn_cast<cf::BranchOp>(terminator)) {
               args.insert(args.end(), op.getOperands().begin(),
                           op.getOperands().end());
-              builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
+              builder.create<cf::BranchOp>(op.getLoc(), pseudoExit, args);
               op.erase();
             }
-            if (auto op = dyn_cast<CondBranchOp>(terminator)) {
+            if (auto op = dyn_cast<cf::CondBranchOp>(terminator)) {
               std::vector<Value> trueargs(op.getTrueOperands().begin(),
                                           op.getTrueOperands().end());
               std::vector<Value> falseargs(op.getFalseOperands().begin(),
@@ -518,7 +519,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               if (op.getFalseDest() == target) {
                 falseargs.insert(falseargs.begin(), args.begin(), args.end());
               }
-              builder.create<CondBranchOp>(
+              builder.create<cf::CondBranchOp>(
                   op.getLoc(), op.getCondition(),
                   op.getTrueDest() == target ? pseudoExit : op.getTrueDest(),
                   trueargs,
@@ -549,7 +550,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             auto vtrue = builder.create<arith::ConstantIntOp>(
                 builder.getUnknownLoc(), true, 1);
 
-            if (auto op = dyn_cast<BranchOp>(terminator)) {
+            if (auto op = dyn_cast<cf::BranchOp>(terminator)) {
               SmallVector<Value> args(op.getOperands());
               args.insert(args.begin(), vtrue);
               for (auto p : preservedVals)
@@ -559,9 +560,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                     builder.getUnknownLoc(), ty));
               }
               terminator =
-                  builder.create<BranchOp>(op.getLoc(), pseudoExit, args);
+                  builder.create<cf::BranchOp>(op.getLoc(), pseudoExit, args);
               op.erase();
-            } else if (auto op = dyn_cast<CondBranchOp>(terminator)) {
+            } else if (auto op = dyn_cast<cf::CondBranchOp>(terminator)) {
               std::vector<Value> trueargs(op.getTrueOperands().begin(),
                                           op.getTrueOperands().end());
               std::vector<Value> falseargs(op.getFalseOperands().begin(),
@@ -586,7 +587,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               }
               // Recreate the terminator and store it so that its other
               // successor is visited on the next iteration of the loop.
-              terminator = builder.create<CondBranchOp>(
+              terminator = builder.create<cf::CondBranchOp>(
                   op.getLoc(), op.getCondition(),
                   op.getTrueDest() == header ? pseudoExit : op.getTrueDest(),
                   trueargs,

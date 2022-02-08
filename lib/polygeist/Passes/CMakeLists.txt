@@ -31,6 +31,6 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSideEffectInterfaces
   MLIRStandard
   MLIRStandardOpsTransforms
-  MLIRSCFToStandard
+  MLIRSCFToControlFlow
   MLIRTransformUtils
   )

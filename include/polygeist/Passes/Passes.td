@@ -3,12 +3,12 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AffineCFG : FunctionPass<"affine-cfg"> {
+def AffineCFG : Pass<"affine-cfg", "FuncOp"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def Mem2Reg : FunctionPass<"mem2reg"> {
+def Mem2Reg : Pass<"mem2reg", "FuncOp"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
@@ -20,12 +20,12 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
-def AffineReduction : FunctionPass<"detect-reduction"> {
+def AffineReduction : Pass<"detect-reduction", "FuncOp"> {
   let summary = "Detect reductions in affine.for";
   let constructor = "mlir::polygeist::detectReductionPass()";
 }
 
-def SCFCPUify : FunctionPass<"cpuify"> {
+def SCFCPUify : Pass<"cpuify", "FuncOp"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
@@ -35,29 +35,29 @@ def SCFCPUify : FunctionPass<"cpuify"> {
   ];
 }
 
-def SCFBarrierRemovalContinuation : FunctionPass<"barrier-removal-continuation"> {
+def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation", "FuncOp"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect"];
 }
 
-def SCFRaiseToAffine : FunctionPass<"raise-scf-to-affine"> {
+def SCFRaiseToAffine : Pass<"raise-scf-to-affine", "FuncOp"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
   let dependentDialects = ["AffineDialect"];
 }
 
-def SCFCanonicalizeFor : FunctionPass<"canonicalize-scf-for"> {
+def SCFCanonicalizeFor : Pass<"canonicalize-scf-for", "FuncOp"> {
   let summary = "Run some additional canonicalization for scf::for";
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
 }
 
-def LoopRestructure : FunctionPass<"loop-restructure"> {
+def LoopRestructure : Pass<"loop-restructure", "FuncOp"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
   let dependentDialects = ["::mlir::scf::SCFDialect"];
 }
 
-def RemoveTrivialUse : FunctionPass<"trivialuse"> {
+def RemoveTrivialUse : Pass<"trivialuse", "FuncOp"> {
   let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 

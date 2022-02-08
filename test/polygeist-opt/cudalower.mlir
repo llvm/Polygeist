@@ -26,13 +26,13 @@ module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64
 
 module {
   func private @S(%arg0: i8, %arg1: !llvm.ptr<i8>) -> i8 {
-    switch %arg0 : i8, [
+    cf.switch %arg0 : i8, [
       default: ^bb10(%arg0 : i8),
       0: ^bb1
     ]
   ^bb1:  // 2 preds: ^bb0, ^bb0
     %6 = llvm.load %arg1 : !llvm.ptr<i8>
-    br ^bb10(%6 : i8)
+    cf.br ^bb10(%6 : i8)
   ^bb10(%50: i8):  // 10 preds: ^bb0, ^bb1, ^bb2, ^bb3, ^bb4, ^bb5, ^bb6, ^bb7, ^bb8, ^bb9
     return %50 : i8
   }
@@ -54,15 +54,15 @@ module {
 // CHECK-NEXT:     scf.parallel (%arg2, %arg3, %arg4) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:       scf.parallel (%arg5, %arg6, %arg7) = (%c0, %c0, %c0) to (%c1, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:         %0 = scf.execute_region -> i8 {
-// CHECK-NEXT:           switch %arg1 : i8, [
+// CHECK-NEXT:           cf.switch %arg1 : i8, [
 // CHECK-NEXT:             default: ^bb2(%arg1 : i8),
 // CHECK-NEXT:             0: ^bb1
 // CHECK-NEXT:           ]
 // CHECK-NEXT:         ^bb1:  // pred: ^bb0
 // CHECK-NEXT:           %1 = llvm.load %arg0 : !llvm.ptr<i8>
-// CHECK-NEXT:           br ^bb2(%1 : i8)
+// CHECK-NEXT:           cf.br ^bb2(%1 : i8)
 // CHECK-NEXT:         ^bb2(%2: i8):  // 2 preds: ^bb0, ^bb1
-// CHECK-NEXT:           br ^bb3(%2 : i8)
+// CHECK-NEXT:           cf.br ^bb3(%2 : i8)
 // CHECK-NEXT:         ^bb3(%3: i8):  // pred: ^bb2
 // CHECK-NEXT:           scf.yield %3 : i8
 // CHECK-NEXT:         }

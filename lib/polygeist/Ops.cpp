@@ -161,8 +161,8 @@ public:
       if (cidx.value() != 0)
         return failure();
 
-      rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, subViewOp.source(),
-                                                  post);
+      rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, post,
+                                                  subViewOp.source());
       return success();
     }
 
@@ -870,8 +870,8 @@ public:
         op.getLoc(), c0,
         rewriter.create<arith::DivUIOp>(
             op.getLoc(),
-            rewriter.create<arith::IndexCastOp>(op.getLoc(), op.getLen(),
-                                                rewriter.getIndexType()),
+            rewriter.create<arith::IndexCastOp>(
+                op.getLoc(), rewriter.getIndexType(), op.getLen()),
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
@@ -1021,16 +1021,16 @@ public:
     auto shape = mt.getShape();
     for (size_t i = 0; i < shape.size(); i++) {
       auto off = computeIndex(op, i, rewriter);
-      auto cur =
-          rewriter.create<IndexCastOp>(op.getLoc(), rewriter.getI32Type(), off);
+      auto cur = rewriter.create<arith::IndexCastOp>(
+          op.getLoc(), rewriter.getI32Type(), off);
       if (idx == nullptr) {
         idx = cur;
       } else {
         idx = rewriter.create<AddIOp>(
             op.getLoc(),
-            rewriter.create<MulIOp>(
-                op.getLoc(), idx,
-                rewriter.create<ConstantIntOp>(op.getLoc(), shape[i], 32)),
+            rewriter.create<MulIOp>(op.getLoc(), idx,
+                                    rewriter.create<arith::ConstantIntOp>(
+                                        op.getLoc(), shape[i], 32)),
             cur);
       }
     }

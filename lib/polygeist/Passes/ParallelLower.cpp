@@ -13,8 +13,8 @@
 #include "PassDetails.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
-//#include "mlir/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -125,7 +125,7 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 
     // Replace the return with a branch to the dest.
     OpBuilder builder(op);
-    builder.create<BranchOp>(op->getLoc(), newDest, returnOp.getOperands());
+    builder.create<cf::BranchOp>(op->getLoc(), newDest, returnOp.getOperands());
     op->erase();
   }
 
@@ -290,7 +290,7 @@ void ParallelLower::runOnOperation() {
     // mlir::OpBuilder builder2(f.getContext());
     // builder2.setInsertionPointToStart(threadB);
     // iter++;
-    // builder2.create<mlir::BranchOp>(loc, &*iter);
+    // builder2.create<mlir::cf::BranchOp>(loc, &*iter);
 
     container.walk([&](mlir::gpu::BlockIdOp bidx) {
       mlir::OpBuilder bz(launchOp.getContext());
@@ -320,7 +320,7 @@ void ParallelLower::runOnOperation() {
                               alop.getType().getElementType(),
                               alop.getType().getLayout(), Attribute()));
           alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
-              alop.getLoc(), newAlloca, alop.getType()));
+              alop.getLoc(), alop.getType(), newAlloca));
           alop.erase();
         }
     });

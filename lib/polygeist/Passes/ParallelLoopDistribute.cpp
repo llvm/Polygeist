@@ -197,12 +197,6 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
 
 namespace {
 
-/// Returns `true` if `value` is defined outside of the region that contains
-/// `user`.
-static bool isDefinedAbove(Value value, Operation *user) {
-  return value.getParentRegion()->isProperAncestor(user->getParentRegion());
-}
-
 #if 0
 /// Returns `true` if the loop has a form expected by interchange patterns.
 static bool isNormalized(scf::ForOp op) {
@@ -1167,7 +1161,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
           }
           idx = rewriter.create<MulIOp>(ao.getLoc(), sz,
                                         rewriter.create<arith::IndexCastOp>(
-                                            ao.getLoc(), idx, sz.getType()));
+                                            ao.getLoc(), sz.getType(), idx));
           SmallVector<Value> vec = {idx};
           u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
                                              idx));
@@ -1593,7 +1587,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass() = default;
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
-  void runOnFunction() override {
+  void runOnOperation() override {
     if (method == "distribute") {
       RewritePatternSet patterns(&getContext());
       patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
@@ -1628,12 +1622,12 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
                       DistributeAroundBarrier<AffineParallelOp>>(&getContext());
       GreedyRewriteConfig config;
       config.maxIterations = 142;
-      if (failed(applyPatternsAndFoldGreedily(getFunction(),
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                               std::move(patterns), config)))
         signalPassFailure();
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;
-      getFunction().walk(
+      getOperation().walk(
           [&](polygeist::BarrierOp b) { toReplace.push_back(b); });
       for (auto b : toReplace) {
         OpBuilder Builder(b);

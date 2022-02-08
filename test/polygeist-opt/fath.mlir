@@ -4,13 +4,13 @@ module {
   func @_Z14computeTempCPUPfS_iii(%arg2: i32, %arg3: i32, %arg4: i32) {
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
-    br ^bb1(%c0_i32, %c0_i32 : i32, i32)
+    cf.br ^bb1(%c0_i32, %c0_i32 : i32, i32)
   ^bb1(%0: i32, %1: i32):  // 3 preds: ^bb0, ^bb4, ^bb5
     %2 = arith.cmpi ult, %0, %arg3 : i32
-    cond_br %2, ^bb2, ^bb5
+    cf.cond_br %2, ^bb2, ^bb5
   ^bb2:
     %9 = arith.addi %0, %c1_i32 : i32
-    br ^bb1(%9, %1 : i32, i32)
+    cf.br ^bb1(%9, %1 : i32, i32)
   ^bb5:  // pred: ^bb1
     return
   }

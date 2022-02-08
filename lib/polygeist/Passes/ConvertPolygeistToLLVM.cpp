@@ -353,7 +353,9 @@ struct ConvertPolygeistToLLVMPass
     populateStdToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
-    // populateStdExpandOpsPatterns(patterns);
+    arith::populateArithmeticExpandOpsPatterns(patterns);
+    memref::populateExpandOpsPatterns(patterns);
+
     patterns
         .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
             converter);

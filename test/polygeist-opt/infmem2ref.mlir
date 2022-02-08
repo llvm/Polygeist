@@ -13,12 +13,12 @@ module {
     %6 = memref.alloca() : memref<i1>
     memref.store %true, %6[] : memref<i1>
         scf.execute_region {
-          br ^bb1(%c0_i32 : i32)
+          cf.br ^bb1(%c0_i32 : i32)
         ^bb1(%28 : i32):  // 2 preds: ^bb0, ^bb2
           %29 = arith.cmpi slt, %28, %c2_i32 : i32
           %30 = memref.load %6[] : memref<i1>
           %33 = arith.andi %29, %30 : i1
-          cond_br %33, ^bb2, ^bb3
+          cf.cond_br %33, ^bb2, ^bb3
         ^bb2:  // pred: ^bb1
           scf.if %c {
               %45 = arith.cmpi eq, %28, %c1_i32 : i32
@@ -29,7 +29,7 @@ module {
               %44 = memref.load %6[] : memref<i1>
           call @use(%44) : (i1) -> ()
           %42 = arith.addi %28, %c1_i32 : i32
-          br ^bb1(%42 : i32)
+          cf.br ^bb1(%42 : i32)
         ^bb3:  // pred: ^bb1
           scf.yield
         }
@@ -43,11 +43,11 @@ module {
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %false = arith.constant false
 // CHECK-NEXT:     scf.execute_region {
-// CHECK-NEXT:       br ^bb1(%c0_i32, %true : i32, i1)
+// CHECK-NEXT:       cf.br ^bb1(%c0_i32, %true : i32, i1)
 // CHECK-NEXT:     ^bb1(%0: i32, %1: i1):  // 2 preds: ^bb0, ^bb2
 // CHECK-NEXT:       %2 = arith.cmpi slt, %0, %c2_i32 : i32
 // CHECK-NEXT:       %3 = arith.andi %2, %1 : i1
-// CHECK-NEXT:       cond_br %3, ^bb2, ^bb3
+// CHECK-NEXT:       cf.cond_br %3, ^bb2, ^bb3
 // CHECK-NEXT:     ^bb2:  // pred: ^bb1
 // CHECK-NEXT:       %4 = scf.if %arg0 -> (i1) {
 // CHECK-NEXT:         %6 = arith.cmpi eq, %0, %c1_i32 : i32
@@ -62,7 +62,7 @@ module {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       call @use(%4) : (i1) -> ()
 // CHECK-NEXT:       %5 = arith.addi %0, %c1_i32 : i32
-// CHECK-NEXT:       br ^bb1(%5, %4 : i32, i1)
+// CHECK-NEXT:       cf.br ^bb1(%5, %4 : i32, i1)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
@@ -78,12 +78,12 @@ module {
     %6 = memref.alloca() : memref<i1>
     memref.store %true, %6[] : memref<i1>
         scf.execute_region {
-          br ^bb1(%c0_i32 : i32)
+          cf.br ^bb1(%c0_i32 : i32)
         ^bb1(%28 : i32):  // 2 preds: ^bb0, ^bb2
           %29 = arith.cmpi slt, %28, %c2_i32 : i32
           %30 = memref.load %6[] : memref<i1>
           %33 = arith.andi %29, %30 : i1
-          cond_br %33, ^bb2, ^bb3
+          cf.cond_br %33, ^bb2, ^bb3
         ^bb2:  // pred: ^bb1
           scf.if %true {
               %45 = arith.cmpi eq, %28, %c1_i32 : i32
@@ -94,7 +94,7 @@ module {
           %44 = memref.load %6[] : memref<i1>
           call @use(%44) : (i1) -> ()
           %42 = arith.addi %28, %c1_i32 : i32
-          br ^bb1(%42 : i32)
+          cf.br ^bb1(%42 : i32)
         ^bb3:  // pred: ^bb1
           scf.yield
         }
@@ -110,12 +110,12 @@ module {
 // CHECK-NEXT:     %0 = memref.alloca() : memref<i1>
 // CHECK-NEXT:     memref.store %true, %0[] : memref<i1>
 // CHECK-NEXT:     scf.execute_region {
-// CHECK-NEXT:       br ^bb1(%c0_i32 : i32)
+// CHECK-NEXT:       cf.br ^bb1(%c0_i32 : i32)
 // CHECK-NEXT:     ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb2
 // CHECK-NEXT:       %2 = arith.cmpi slt, %1, %c2_i32 : i32
 // CHECK-NEXT:       %3 = memref.load %0[] : memref<i1>
 // CHECK-NEXT:       %4 = arith.andi %2, %3 : i1
-// CHECK-NEXT:       cond_br %4, ^bb2, ^bb3
+// CHECK-NEXT:       cf.cond_br %4, ^bb2, ^bb3
 // CHECK-NEXT:     ^bb2:  // pred: ^bb1
 // CHECK-NEXT:       scf.if %true {
 // CHECK-NEXT:         %7 = arith.cmpi eq, %1, %c1_i32 : i32
@@ -126,7 +126,7 @@ module {
 // CHECK-NEXT:       %5 = memref.load %0[] : memref<i1>
 // CHECK-NEXT:       call @use(%5) : (i1) -> ()
 // CHECK-NEXT:       %6 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:       br ^bb1(%6 : i32)
+// CHECK-NEXT:       cf.br ^bb1(%6 : i32)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
@@ -143,15 +143,15 @@ module {
     %1 = llvm.mlir.undef : i32
     %2 = memref.alloca() : memref<i32>
     memref.store %1, %2[] : memref<i32>
-    br ^bb3
+    cf.br ^bb3
   ^bb3:  // pred: ^bb1
     scf.if %arg1 {
       memref.store %c1_i32, %2[] : memref<i32>
       scf.execute_region {
-        br ^bb1(%c0 : index)
+        cf.br ^bb1(%c0 : index)
       ^bb1(%11 : index):  // 2 preds: ^bb0, ^bb2
         %12 = arith.cmpi slt, %11, %c10 : index
-        cond_br %12, ^bb2, ^bb3
+        cf.cond_br %12, ^bb2, ^bb3
       ^bb2:  // pred: ^bb1
         %14 = memref.load %arg0[%11] : memref<11xf32>
         %15 = arith.cmpf ugt, %14, %cst : f32
@@ -159,7 +159,7 @@ module {
           memref.store %c0_i32, %2[] : memref<i32>
         }
         %16 = arith.addi %11, %c1 : index
-        br ^bb1(%16 : index)
+        cf.br ^bb1(%16 : index)
       ^bb3:  // pred: ^bb1
         scf.yield
       }

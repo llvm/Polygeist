@@ -19,7 +19,7 @@ using namespace polygeist;
 
 namespace {
 struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 } // namespace
 
@@ -219,7 +219,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
-void RaiseSCFToAffine::runOnFunction() {
+void RaiseSCFToAffine::runOnOperation() {
   ConversionTarget target(getContext());
   target
       .addLegalDialect<AffineDialect, StandardOpsDialect, LLVM::LLVMDialect>();
@@ -228,7 +228,7 @@ void RaiseSCFToAffine::runOnFunction() {
   patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());
 
   if (failed(
-          applyPartialConversion(getFunction(), target, std::move(patterns))))
+          applyPartialConversion(getOperation(), target, std::move(patterns))))
     signalPassFailure();
 }
 

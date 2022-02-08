@@ -4,14 +4,14 @@ module {
 func @kernel_gemm(%arg0: i64) -> i1 {
   %c0_i64 = arith.constant 0 : i64
   %c1_i64 = arith.constant 1 : i64
-  br ^bb1(%c0_i64 : i64)
+  cf.br ^bb1(%c0_i64 : i64)
 ^bb1(%0: i64):  // 2 preds: ^bb0, ^bb2
   %2 = arith.cmpi "slt", %0, %c0_i64 : i64
   %5 = arith.cmpi "sle", %0, %arg0 : i64
-  cond_br %5, ^bb2, ^bb3
+  cf.cond_br %5, ^bb2, ^bb3
 ^bb2:  // pred: ^bb1
   %8 = arith.addi %0, %c1_i64 : i64
-  br ^bb1(%8 : i64)
+  cf.br ^bb1(%8 : i64)
 ^bb3:  // pred: ^bb1
   return %2 : i1
 }
@@ -49,11 +49,11 @@ func @kernel_gemm(%arg0: i64) -> i1 {
     %2 = memref.alloca() : memref<i32>
     memref.store %arg0, %2[] : memref<i32>
     memref.store %arg1, %1[] : memref<i32>
-    br ^bb1
+    cf.br ^bb1
   ^bb1:  // 2 preds: ^bb0, ^bb2
     %3 = memref.load %1[] : memref<i32>
     %4 = arith.cmpi sgt, %3, %c0_i32 : i32
-    cond_br %4, ^bb2, ^bb3
+    cf.cond_br %4, ^bb2, ^bb3
   ^bb2:  // pred: ^bb1
     %5 = memref.load %0[] : memref<i32>
     %8 = memref.load %2[] : memref<i32>
@@ -63,7 +63,7 @@ func @kernel_gemm(%arg0: i64) -> i1 {
     }
     memref.store %3, %2[] : memref<i32>
     memref.store %9, %1[] : memref<i32>
-    br ^bb1
+    cf.br ^bb1
   ^bb3:  // pred: ^bb1
     %7 = memref.load %2[] : memref<i32>
     return %7 : i32

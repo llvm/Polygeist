@@ -21,7 +21,7 @@ using namespace polygeist;
 
 namespace {
 struct RemoveTrivialUse : public RemoveTrivialUseBase<RemoveTrivialUse> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 
 } // end anonymous namespace
@@ -34,6 +34,6 @@ std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass() {
 } // namespace polygeist
 } // namespace mlir
 
-void RemoveTrivialUse::runOnFunction() {
+void RemoveTrivialUse::runOnOperation() {
   getOperation()->walk([&](polygeist::TrivialUseOp bidx) { bidx.erase(); });
 }

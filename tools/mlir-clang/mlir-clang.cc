@@ -23,8 +23,8 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
@@ -577,7 +577,7 @@ int main(int argc, char **argv) {
       }
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
-      pm3.addPass(mlir::createLowerToCFGPass());
+      pm3.addPass(mlir::createConvertSCFToCFPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
