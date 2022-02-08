@@ -627,9 +627,11 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
             });
       }
 
+      SmallVector<Location> locs3(header->getArgumentTypes().size(),
+                                  region.getLoc());
       for (auto pair : llvm::zip(
                header->getArguments(),
-               loopEntry->addArguments(header->getArgumentTypes(), locs))) {
+               loopEntry->addArguments(header->getArgumentTypes(), locs3))) {
         std::get<0>(pair).replaceAllUsesWith(std::get<1>(pair));
       }
       header->eraseArguments([](BlockArgument) { return true; });

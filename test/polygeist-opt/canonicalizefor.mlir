@@ -13,7 +13,7 @@ module {
 		%5 = call @cmp() : () -> i1
 		scf.condition(%5) %arg3, %3, %2 : i32, index, index
 	  } do {
-	  ^bb0(%arg3: i32, %arg4: index, %arg5: index):  // no predecessors
+	  ^bb0(%arg3: i32, %arg4: index, %arg5: index):  
 		%parg3 = arith.addi %arg3, %c1_i32 : i32
 		%3 = memref.load %arg0[%arg5] : memref<?xi32>
 		memref.store %3, %arg1[%arg4] : memref<?xi32>
@@ -33,7 +33,7 @@ module {
 // CHECK-NEXT:       %1 = call @cmp() : () -> i1
 // CHECK-NEXT:       scf.condition(%1) %arg3 : i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg3: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg3: i32):  
 // CHECK-NEXT:       %1 = arith.index_cast %arg3 : i32 to index
 // CHECK-NEXT:       %2 = arith.index_cast %arg3 : i32 to index
 // CHECK-NEXT:       %3 = arith.addi %1, %c3 : index
@@ -60,7 +60,7 @@ module {
       }
       scf.condition(%1) %2#0, %2#1 : i32, i32
     } do {
-    ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+    ^bb0(%arg2: i32, %arg3: i32):  
       scf.yield %arg2, %arg3 : i32, i32
     }
     return %0#1 : i32
@@ -73,7 +73,7 @@ module {
 // CHECK-NEXT:       %1 = arith.cmpi sgt, %arg2, %c0_i32 : i32
 // CHECK-NEXT:       scf.condition(%1) %arg3, %arg2 : i32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32):  
 // CHECK-NEXT:       %1 = arith.remsi %arg2, %arg3 : i32
 // CHECK-NEXT:       scf.yield %1, %arg3 : i32, i32
 // CHECK-NEXT:     }
@@ -98,7 +98,7 @@ module  {
       }
       scf.condition(%1) %2 : i32
     } do {
-    ^bb0(%arg2: i32):  // no predecessors
+    ^bb0(%arg2: i32):  
       scf.yield %arg2 : i32
     }
     return %c0_i32 : i32
@@ -136,7 +136,7 @@ module {
       }
       scf.condition(%2) %3#0, %3#1, %3#2 : f32, i32, i32
     } do {
-    ^bb0(%arg2: f32, %arg3: i32, %arg4: i32):  // no predecessors
+    ^bb0(%arg2: f32, %arg3: i32, %arg4: i32):  
       scf.yield %arg2, %arg3, %arg4 : f32, i32, i32
     }
     return %0#1 : i32
@@ -151,7 +151,7 @@ module {
 // CHECK-NEXT:       %1 = arith.cmpf ult, %arg2, %arg0 : f32
 // CHECK-NEXT:       scf.condition(%1) %arg3, %arg2, %arg4 : i32, f32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: f32, %arg4: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: f32, %arg4: i32):  
 // CHECK-NEXT:       %1 = arith.addf %arg3, %arg1 : f32
 // CHECK-NEXT:       scf.yield %1, %arg4, %arg2 : f32, i32, i32
 // CHECK-NEXT:     }

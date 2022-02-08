@@ -62,7 +62,7 @@ module {
 // CHECK-NEXT:           }
 // CHECK-NEXT:           scf.condition(%12#0) %12#1 : i32
 // CHECK-NEXT:         } do {
-// CHECK-NEXT:         ^bb0(%arg7: i32):  // no predecessors
+// CHECK-NEXT:         ^bb0(%arg7: i32):
 // CHECK-NEXT:           scf.yield %arg7 : i32
 // CHECK-NEXT:         }
 // CHECK-NEXT:         %10 = arith.addi %arg5, %c1_i32 : i32
@@ -71,7 +71,7 @@ module {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.condition(%1#0) %1#1, %1#2 : i32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg5: i32, %arg6: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg5: i32, %arg6: i32):  
 // CHECK-NEXT:       scf.yield %arg5, %arg6 : i32, i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

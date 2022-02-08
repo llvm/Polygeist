@@ -34,7 +34,7 @@ func @kernel_gemm(%arg0: i64) -> i1 {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.condition(%4#0) %4#1, %4#2 : i64, i1
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg1: i64, %arg2: i1):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg1: i64, %arg2: i1):  
 // CHECK-NEXT:       scf.yield %arg1, %arg2 : i64, i1
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %1#1 : i1

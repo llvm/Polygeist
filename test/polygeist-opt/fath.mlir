@@ -31,7 +31,7 @@ module {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.condition(%2#0) %2#1, %2#2 : i32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg3: i32, %arg4: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg3: i32, %arg4: i32):
 // CHECK-NEXT:       scf.yield %arg3, %arg4 : i32, i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
