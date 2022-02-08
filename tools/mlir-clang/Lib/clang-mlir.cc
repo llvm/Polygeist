@@ -4773,6 +4773,20 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   if (FOpenMP)
     Argv.push_back("-fopenmp");
+  if (TargetTripleOpt != "") {
+    char *chars = (char *)malloc(TargetTripleOpt.length() + 1);
+    memcpy(chars, TargetTripleOpt.data(), TargetTripleOpt.length());
+    chars[TargetTripleOpt.length()] = 0;
+    Argv.push_back("-target");
+    Argv.push_back(chars);
+  }
+  if (McpuOpt != "") {
+    auto a = "-mcpu=" + McpuOpt;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
   if (Standard != "") {
     auto a = "-std=" + Standard;
     char *chars = (char *)malloc(a.length() + 1);
@@ -4785,6 +4799,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     char *chars = (char *)malloc(ResourceDir.length() + 1);
     memcpy(chars, ResourceDir.data(), ResourceDir.length());
     chars[ResourceDir.length()] = 0;
+    Argv.push_back(chars);
+  }
+  if (SysRoot != "") {
+    Argv.push_back("--sysroot");
+    char *chars = (char *)malloc(SysRoot.length() + 1);
+    memcpy(chars, SysRoot.data(), SysRoot.length());
+    chars[SysRoot.length()] = 0;
     Argv.push_back(chars);
   }
   if (Verbose) {
@@ -4904,14 +4925,19 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Clang->getTarget().adjustTargetOptions(Clang->getCodeGenOpts(),
                                            Clang->getTargetOpts());
 
-    module.get()->setAttr(
-        LLVM::LLVMDialect::getDataLayoutAttrName(),
-        StringAttr::get(module->getContext(),
-                        Clang->getTarget().getDataLayoutString()));
-    module.get()->setAttr(
-        LLVM::LLVMDialect::getTargetTripleAttrName(),
-        StringAttr::get(module->getContext(),
-                        Clang->getTarget().getTriple().getTriple()));
+    llvm::Triple jobTriple = Clang->getTarget().getTriple();
+    if (triple.str() == "" || !jobTriple.isNVPTX()) {
+      triple = jobTriple;
+      module.get()->setAttr(
+          LLVM::LLVMDialect::getTargetTripleAttrName(),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getTriple().getTriple()));
+      DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
+      module.get()->setAttr(
+          LLVM::LLVMDialect::getDataLayoutAttrName(),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getDataLayoutString()));
+    }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
       // Reset the ID tables if we are reusing the SourceManager and parsing
@@ -4930,8 +4956,6 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
         Act.EndSourceFile();
       }
     }
-    DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
-    triple = Clang->getTarget().getTriple();
   }
   return true;
 }
