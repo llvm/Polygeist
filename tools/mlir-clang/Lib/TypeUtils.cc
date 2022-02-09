@@ -33,7 +33,7 @@ bool isRecursiveStruct(Type *T, Type *Meta, SmallPtrSetImpl<Type *> &seen) {
 
 Type *anonymize(Type *T) {
   if (auto PT = dyn_cast<PointerType>(T))
-    return PointerType::get(anonymize(PT->getElementType()),
+    return PointerType::get(anonymize(PT->getPointerElementType()),
                             PT->getAddressSpace());
   if (auto AT = dyn_cast<ArrayType>(T))
     return ArrayType::get(anonymize(AT->getElementType()),

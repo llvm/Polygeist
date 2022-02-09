@@ -13,6 +13,7 @@
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
@@ -24,7 +25,6 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "polygeist/Ops.h"
-
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
 using namespace mlir;
@@ -349,12 +349,11 @@ struct ConvertPolygeistToLLVMPass
     LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
     RewritePatternSet patterns(&getContext());
     populatePolygeistToLLVMConversionPatterns(converter, patterns);
+    cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
     populateMemRefToLLVMConversionPatterns(converter, patterns);
     populateStdToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
-    arith::populateArithmeticExpandOpsPatterns(patterns);
-    memref::populateExpandOpsPatterns(patterns);
 
     patterns
         .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(

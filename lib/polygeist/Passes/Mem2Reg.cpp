@@ -730,7 +730,7 @@ void removeRedundantBlockArgs(
     for (auto pred : prepred) {
       mlir::Value pval = nullptr;
 
-      if (auto op = dyn_cast<mlir::cf::BranchOp>(pred->getTerminator())) {
+      if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
         pval = op.getOperands()[blockArg.getArgNumber()];
         if (pval.getType() != elType) {
           pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
@@ -739,8 +739,7 @@ void removeRedundantBlockArgs(
         assert(pval.getType() == elType);
         if (pval == blockArg)
           pval = nullptr;
-      } else if (auto op =
-                     dyn_cast<mlir::cf::CondBranchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
         if (op.getTrueDest() == block) {
           if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
             block->dump();
@@ -815,7 +814,7 @@ void removeRedundantBlockArgs(
     bool used = false;
     for (auto U : blockArg.getUsers()) {
 
-      if (auto op = dyn_cast<mlir::cf::BranchOp>(U)) {
+      if (auto op = dyn_cast<cf::BranchOp>(U)) {
         size_t i = 0;
         for (auto V : op.getOperands()) {
           if (V == blockArg &&
@@ -826,7 +825,7 @@ void removeRedundantBlockArgs(
         }
         if (used)
           break;
-      } else if (auto op = dyn_cast<mlir::cf::CondBranchOp>(U)) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(U)) {
         size_t i = 0;
         for (auto V : op.getTrueOperands()) {
           if (V == blockArg &&
@@ -874,17 +873,16 @@ void removeRedundantBlockArgs(
       SetVector<Block *> prepred(block->getPredecessors().begin(),
                                  block->getPredecessors().end());
       for (auto pred : prepred) {
-        if (auto op = dyn_cast<mlir::cf::BranchOp>(pred->getTerminator())) {
+        if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
           std::vector<Value> args(op.getOperands().begin(),
                                   op.getOperands().end());
           args.erase(args.begin() + blockArg.getArgNumber());
           assert(args.size() == op.getOperands().size() - 1);
-          subbuilder.create<mlir::cf::BranchOp>(op.getLoc(), op.getDest(),
-                                                args);
+          subbuilder.create<cf::BranchOp>(op.getLoc(), op.getDest(), args);
           op.erase();
-        } else if (auto op = dyn_cast<mlir::cf::CondBranchOp>(
-                       pred->getTerminator())) {
+        } else if (auto op =
+                       dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
 
           mlir::OpBuilder subbuilder(op.getOperation());
           std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -899,9 +897,9 @@ void removeRedundantBlockArgs(
           }
           assert(trueargs.size() < op.getTrueOperands().size() ||
                  falseargs.size() < op.getFalseOperands().size());
-          subbuilder.create<mlir::cf::CondBranchOp>(
-              op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
-              op.getFalseDest(), falseargs);
+          subbuilder.create<cf::CondBranchOp>(op.getLoc(), op.getCondition(),
+                                              op.getTrueDest(), trueargs,
+                                              op.getFalseDest(), falseargs);
           op.erase();
         } else if (auto op = dyn_cast<cf::SwitchOp>(pred->getTerminator())) {
           mlir::OpBuilder builder(op.getOperation());
@@ -1446,7 +1444,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(endFind != valueAtEndOfBlock.end());
 
       // Only handle known termination blocks
-      if (!isa<mlir::cf::BranchOp, mlir::cf::CondBranchOp, cf::SwitchOp>(
+      if (!isa<cf::BranchOp, cf::CondBranchOp, cf::SwitchOp>(
               Pred->getTerminator())) {
         PotentialArgs[block] = Legality::Illegal;
         break;
@@ -1583,15 +1581,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
-      if (auto op = dyn_cast<mlir::cf::BranchOp>(pred->getTerminator())) {
+      if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> args(op.getOperands().begin(),
                                 op.getOperands().end());
         args.push_back(pval);
-        subbuilder.create<mlir::cf::BranchOp>(op.getLoc(), op.getDest(), args);
+        subbuilder.create<cf::BranchOp>(op.getLoc(), op.getDest(), args);
         op.erase();
-      } else if (auto op =
-                     dyn_cast<mlir::cf::CondBranchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
 
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -1604,9 +1601,9 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (op.getFalseDest() == block) {
           falseargs.push_back(pval);
         }
-        subbuilder.create<mlir::cf::CondBranchOp>(
-            op.getLoc(), op.getCondition(), op.getTrueDest(), trueargs,
-            op.getFalseDest(), falseargs);
+        subbuilder.create<cf::CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest(), trueargs,
+                                            op.getFalseDest(), falseargs);
         op.erase();
       } else if (auto op = dyn_cast<cf::SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder builder(op.getOperation());

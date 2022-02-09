@@ -31,9 +31,9 @@ using namespace clang;
 Operation *buildLinalgOp(StringRef name, OpBuilder &b,
                          SmallVectorImpl<mlir::Value> &input,
                          SmallVectorImpl<mlir::Value> &output) {
-  if (name.compare("linalg.copy") == 0) {
-    assert(input.size() == 1 && "linalg::copyOp requires 1 input");
-    assert(output.size() == 1 && "linalg::CopyOp requires 1 output");
+  if (name.compare("memref.copy") == 0) {
+    assert(input.size() == 1 && "memref::copyOp requires 1 input");
+    assert(output.size() == 1 && "memref::CopyOp requires 1 output");
     return b.create<memref::CopyOp>(b.getUnknownLoc(), input[0], output[0]);
   } else {
     llvm::report_fatal_error(llvm::Twine("builder not supported for: ") + name);
@@ -49,7 +49,7 @@ mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
   assert(ctx->isOperationRegistered(opName) &&
          "Provided lower_to opName should be registered.");
 
-  if (opName.startswith("linalg"))
+  if (opName.startswith("memref"))
     return buildLinalgOp(opName, b, input, output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.
