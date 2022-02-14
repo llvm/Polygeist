@@ -3276,7 +3276,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     auto prevTy = scalar.getType().cast<mlir::IntegerType>();
     bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
+    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())
