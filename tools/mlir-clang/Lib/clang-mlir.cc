@@ -3746,9 +3746,6 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     break;
   }
 
-  if (cast<VarDecl>(FD)->getInit())
-    cast<VarDecl>(FD)->getInit()->dump();
-
   auto rt = getMLIRType(FD->getType());
 
   mlir::OpBuilder builder(module->getContext());
@@ -3757,17 +3754,24 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
   auto glob = builder.create<LLVM::GlobalOp>(
       module->getLoc(), rt, /*constant*/ false, lnk, name, mlir::Attribute());
 
-  if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
+  if (cast<VarDecl>(FD)->getInit() ||
+      cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
           VarDecl::Definition ||
       cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
           VarDecl::TentativeDefinition) {
     Block *blk = new Block();
     glob.getInitializerRegion().push_back(blk);
     builder.setInsertionPointToStart(blk);
-    builder.create<LLVM::ReturnOp>(
-        module->getLoc(),
-        std::vector<mlir::Value>(
-            {builder.create<LLVM::UndefOp>(module->getLoc(), rt)}));
+    mlir::Value res;
+    if (auto init = cast<VarDecl>(FD)->getInit()) {
+      MLIRScanner ms(*this, module, LTInfo);
+      ms.setEntryAndAllocBlock(blk);
+      res = ms.Visit(const_cast<Expr *>(init)).getValue(builder);
+    } else {
+      res = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
+    }
+    builder.create<LLVM::ReturnOp>(module->getLoc(),
+                                   std::vector<mlir::Value>({res}));
   }
   return llvmGlobals[name] = glob;
 }
