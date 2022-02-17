@@ -23,8 +23,8 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
@@ -96,10 +96,6 @@ static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
                                      cl::desc("CUDA Path"));
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
-
-static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
-                                           cl::desc("<Specify input file>"),
-                                           cl::cat(toolOptions));
 
 static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
@@ -370,6 +366,10 @@ int main(int argc, char **argv) {
   }
   using namespace mlir;
 
+  cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
+                                      cl::desc("<Specify input file>"),
+                                      cl::cat(toolOptions));
+
   int size = MLIRArgs.size();
   const char **data = MLIRArgs.data();
   InitLLVM y(size, data);
@@ -383,8 +383,6 @@ int main(int argc, char **argv) {
     }
   }
 
-  // registerDialect<AffineDialect>();
-  // registerDialect<StandardOpsDialect>();
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
@@ -402,7 +400,6 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::memref::MemRefDialect>();
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
-  // MLIRContext context;
 
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
@@ -577,7 +574,7 @@ int main(int argc, char **argv) {
       }
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
-      pm3.addPass(mlir::createLowerToCFGPass());
+      pm3.addPass(mlir::createConvertSCFToCFPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array

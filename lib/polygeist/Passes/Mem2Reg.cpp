@@ -13,9 +13,10 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -29,7 +30,6 @@
 #include <algorithm>
 #include <deque>
 #include <iostream>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 #include <set>
 
 #include "polygeist/Ops.h"
@@ -76,7 +76,7 @@ namespace {
 // than dealloc) remain.
 //
 struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 
   // return if changed
   bool forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
@@ -730,7 +730,7 @@ void removeRedundantBlockArgs(
     for (auto pred : prepred) {
       mlir::Value pval = nullptr;
 
-      if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+      if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
         pval = op.getOperands()[blockArg.getArgNumber()];
         if (pval.getType() != elType) {
           pval.getDefiningOp()->getParentRegion()->getParentOp()->dump();
@@ -739,7 +739,7 @@ void removeRedundantBlockArgs(
         assert(pval.getType() == elType);
         if (pval == blockArg)
           pval = nullptr;
-      } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
         if (op.getTrueDest() == block) {
           if (blockArg.getArgNumber() >= op.getTrueOperands().size()) {
             block->dump();
@@ -766,7 +766,7 @@ void removeRedundantBlockArgs(
           if (pval == blockArg)
             pval = nullptr;
         }
-      } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder subbuilder(op.getOperation());
         if (op.getDefaultDestination() == block) {
           pval = op.getDefaultOperands()[blockArg.getArgNumber()];
@@ -814,7 +814,7 @@ void removeRedundantBlockArgs(
     bool used = false;
     for (auto U : blockArg.getUsers()) {
 
-      if (auto op = dyn_cast<BranchOp>(U)) {
+      if (auto op = dyn_cast<cf::BranchOp>(U)) {
         size_t i = 0;
         for (auto V : op.getOperands()) {
           if (V == blockArg &&
@@ -825,7 +825,7 @@ void removeRedundantBlockArgs(
         }
         if (used)
           break;
-      } else if (auto op = dyn_cast<CondBranchOp>(U)) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(U)) {
         size_t i = 0;
         for (auto V : op.getTrueOperands()) {
           if (V == blockArg &&
@@ -873,15 +873,16 @@ void removeRedundantBlockArgs(
       SetVector<Block *> prepred(block->getPredecessors().begin(),
                                  block->getPredecessors().end());
       for (auto pred : prepred) {
-        if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+        if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
           std::vector<Value> args(op.getOperands().begin(),
                                   op.getOperands().end());
           args.erase(args.begin() + blockArg.getArgNumber());
           assert(args.size() == op.getOperands().size() - 1);
-          subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+          subbuilder.create<cf::BranchOp>(op.getLoc(), op.getDest(), args);
           op.erase();
-        } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+        } else if (auto op =
+                       dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
 
           mlir::OpBuilder subbuilder(op.getOperation());
           std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -896,11 +897,11 @@ void removeRedundantBlockArgs(
           }
           assert(trueargs.size() < op.getTrueOperands().size() ||
                  falseargs.size() < op.getFalseOperands().size());
-          subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                          op.getTrueDest(), trueargs,
-                                          op.getFalseDest(), falseargs);
+          subbuilder.create<cf::CondBranchOp>(op.getLoc(), op.getCondition(),
+                                              op.getTrueDest(), trueargs,
+                                              op.getFalseDest(), falseargs);
           op.erase();
-        } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+        } else if (auto op = dyn_cast<cf::SwitchOp>(pred->getTerminator())) {
           mlir::OpBuilder builder(op.getOperation());
           SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
                                         op.getDefaultOperands().end());
@@ -917,7 +918,7 @@ void removeRedundantBlockArgs(
             }
             vrange.push_back(cases.back());
           }
-          builder.create<mlir::SwitchOp>(
+          builder.create<cf::SwitchOp>(
               op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
               op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
           op.erase();
@@ -943,6 +944,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   bool changed = false;
   std::set<mlir::Operation *> loadOps;
   mlir::Type subType = nullptr;
+  mlir::Location loc = AI.getLoc();
   std::set<mlir::Operation *> allStoreOps;
 
   std::deque<std::pair<mlir::Value, /*indexed*/ bool>> list = {{AI, false}};
@@ -1442,7 +1444,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(endFind != valueAtEndOfBlock.end());
 
       // Only handle known termination blocks
-      if (!isa<BranchOp, CondBranchOp, SwitchOp>(Pred->getTerminator())) {
+      if (!isa<cf::BranchOp, cf::CondBranchOp, cf::SwitchOp>(
+              Pred->getTerminator())) {
         PotentialArgs[block] = Legality::Illegal;
         break;
       }
@@ -1525,7 +1528,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
     assert(startFound != valueAtStartOfBlock.end());
     assert(startFound->second->valueAtStart == block);
-    auto arg = block->addArgument(subType);
+    auto arg = block->addArgument(subType, loc);
     auto argVal = metaMap.get(arg);
     valueAtStartOfBlock[block] = argVal;
     blocksWithAddedArgs[block] = arg;
@@ -1578,14 +1581,14 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
-      if (auto op = dyn_cast<BranchOp>(pred->getTerminator())) {
+      if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> args(op.getOperands().begin(),
                                 op.getOperands().end());
         args.push_back(pval);
-        subbuilder.create<BranchOp>(op.getLoc(), op.getDest(), args);
+        subbuilder.create<cf::BranchOp>(op.getLoc(), op.getDest(), args);
         op.erase();
-      } else if (auto op = dyn_cast<CondBranchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::CondBranchOp>(pred->getTerminator())) {
 
         mlir::OpBuilder subbuilder(op.getOperation());
         std::vector<Value> trueargs(op.getTrueOperands().begin(),
@@ -1598,11 +1601,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (op.getFalseDest() == block) {
           falseargs.push_back(pval);
         }
-        subbuilder.create<CondBranchOp>(op.getLoc(), op.getCondition(),
-                                        op.getTrueDest(), trueargs,
-                                        op.getFalseDest(), falseargs);
+        subbuilder.create<cf::CondBranchOp>(op.getLoc(), op.getCondition(),
+                                            op.getTrueDest(), trueargs,
+                                            op.getFalseDest(), falseargs);
         op.erase();
-      } else if (auto op = dyn_cast<SwitchOp>(pred->getTerminator())) {
+      } else if (auto op = dyn_cast<cf::SwitchOp>(pred->getTerminator())) {
         mlir::OpBuilder builder(op.getOperation());
         SmallVector<Value> defaultOps(op.getDefaultOperands().begin(),
                                       op.getDefaultOperands().end());
@@ -1620,7 +1623,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
           vrange.push_back(cases.back());
         }
-        builder.create<mlir::SwitchOp>(
+        builder.create<cf::SwitchOp>(
             op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
             op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
         op.erase();
@@ -1779,9 +1782,9 @@ StoreMap getLastStored(mlir::Value AI) {
   return lastStored;
 }
 
-void Mem2Reg::runOnFunction() {
+void Mem2Reg::runOnOperation() {
   // Only supports single block functions at the moment.
-  FuncOp f = getFunction();
+  FuncOp f = getOperation();
 
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of

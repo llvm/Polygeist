@@ -15,7 +15,7 @@ int gcd(int m, int n) {
 // CHECK-NEXT:       %1 = arith.cmpi sgt, %arg2, %c0_i32 : i32
 // CHECK-NEXT:       scf.condition(%1) %arg3, %arg2 : i32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32):
 // CHECK-NEXT:       %1 = arith.remsi %arg2, %arg3 : i32
 // CHECK-NEXT:       scf.yield %1, %arg3 : i32, i32
 // CHECK-NEXT:     }

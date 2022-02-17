@@ -26,7 +26,7 @@ void div_(int* sizes) {
 // CHECK-NEXT:       %5 = arith.cmpi slt, %arg1, %4 : i32
 // CHECK-NEXT:       scf.condition(%5) %arg1 : i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg1: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg1: i32):
 // CHECK-NEXT:       %4 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:       %5 = arith.index_cast %4 : index to i64
 // CHECK-NEXT:       %6 = llvm.getelementptr %2[%5] : (!llvm.ptr<struct<(i32, f64)>>, i64) -> !llvm.ptr<struct<(i32, f64)>>

@@ -33,6 +33,6 @@ int foo(char t) {
 // CHECK-NEXT:       65: ^bb1(%c30_i32, %true, %0 : i32, i1, i32)
 // CHECK-NEXT:     ]
 // CHECK-NEXT:   ^bb1(%2: i32, %3: i1, %4: i32):  // 3 preds: ^bb0, ^bb0, ^bb0
-// CHECK-NEXT:     %5 = select %3, %2, %4 : i32
+// CHECK-NEXT:     %5 = arith.select %3, %2, %4 : i32
 // CHECK-NEXT:     return %5 : i32
 // CHECK-NEXT:   }

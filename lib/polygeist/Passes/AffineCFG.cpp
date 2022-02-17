@@ -501,7 +501,7 @@ void fully2ComposeIntegerSetAndOperands(IntegerSet *set,
 
 namespace {
 struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 } // namespace
 
@@ -561,9 +561,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<AddIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
-          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                 op.getType()));
+          b.create<IndexCastOp>(op.getLoc(), op.getType(), iadd.getOperand(0)),
+          b2.create<IndexCastOp>(op.getLoc(), op.getType(),
+                                 iadd.getOperand(1)));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<SubIOp>()) {
@@ -573,9 +573,10 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<SubIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
-          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                 op.getType()));
+          b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                       iadd.getOperand(0)),
+          b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                        iadd.getOperand(1)));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<MulIOp>()) {
@@ -585,9 +586,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<MulIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
-          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                 op.getType()));
+          b.create<IndexCastOp>(op.getLoc(), op.getType(), iadd.getOperand(0)),
+          b2.create<IndexCastOp>(op.getLoc(), op.getType(),
+                                 iadd.getOperand(1)));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<DivUIOp>()) {
@@ -597,9 +598,10 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<DivUIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
-          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                 op.getType()));
+          b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                       iadd.getOperand(0)),
+          b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                        iadd.getOperand(1)));
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<DivSIOp>()) {
@@ -609,9 +611,10 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<DivSIOp>(
           op,
-          b.create<IndexCastOp>(op.getLoc(), iadd.getOperand(0), op.getType()),
-          b2.create<IndexCastOp>(op.getLoc(), iadd.getOperand(1),
-                                 op.getType()));
+          b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                       iadd.getOperand(0)),
+          b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                        iadd.getOperand(1)));
       return success();
     }
     return failure();
@@ -753,8 +756,8 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   }
   SmallVector<Value, 4> lhspack = {cmpi.getLhs()};
   if (!lhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<IndexCastOp>(cmpi.getLoc(), lhspack[0],
-                                    IndexType::get(cmpi.getContext()));
+    auto op = b.create<arith::IndexCastOp>(
+        cmpi.getLoc(), IndexType::get(cmpi.getContext()), lhspack[0]);
     lhspack[0] = op;
   }
 
@@ -762,8 +765,8 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
       AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
   SmallVector<Value, 4> rhspack = {cmpi.getRhs()};
   if (!rhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<IndexCastOp>(cmpi.getLoc(), rhspack[0],
-                                    IndexType::get(cmpi.getContext()));
+    auto op = b.create<arith::IndexCastOp>(
+        cmpi.getLoc(), IndexType::get(cmpi.getContext()), rhspack[0]);
     rhspack[0] = op;
   }
 
@@ -1131,16 +1134,15 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
   }
 };
 
-void AffineCFGPass::runOnFunction() {
-  mlir::RewritePatternSet rpl(getFunction().getContext());
+void AffineCFGPass::runOnOperation() {
+  mlir::RewritePatternSet rpl(getOperation().getContext());
   rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
           CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
           AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
           MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
-      getFunction().getContext());
+      getOperation().getContext());
   GreedyRewriteConfig config;
-  (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
-                                     std::move(rpl), config);
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
 std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {

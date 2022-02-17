@@ -13,7 +13,9 @@
 
 #include "PassDetails.h"
 
-#include "mlir/Conversion/SCFToStandard/SCFToStandard.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -27,7 +29,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/BarrierUtils.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -72,7 +73,7 @@ static void wrapPersistingLoopBodies(FuncOp function) {
 /// Convert SCF constructs except parallel ops with immediate barriers to a CFG.
 static LogicalResult applyCFGConversion(FuncOp function) {
   RewritePatternSet patterns(function.getContext());
-  populateLoopToStdConversionPatterns(patterns);
+  populateSCFToControlFlowConversionPatterns(patterns);
 
   // Configure the target to preserve parallel ops with barriers, unless those
   // barriers are nested in deeper parallel ops.
@@ -104,7 +105,7 @@ static void splitBlocksWithBarrier(Region &region) {
     Block *original = op->getBlock();
     Block *block = original->splitBlock(op->getNextNode());
     auto builder = OpBuilder::atBlockEnd(original);
-    builder.create<BranchOp>(builder.getUnknownLoc(), block);
+    builder.create<cf::BranchOp>(builder.getUnknownLoc(), block);
   }
 }
 
@@ -225,8 +226,8 @@ replicateIntoRegion(Region &region, Value storage, ValueRange ivs,
 
   // Branch from the entry block to the first cloned block.
   builder.setInsertionPointToEnd(entryBlock);
-  builder.create<BranchOp>(builder.getUnknownLoc(),
-                           mapping.lookup(blocks.front()));
+  builder.create<cf::BranchOp>(builder.getUnknownLoc(),
+                               mapping.lookup(blocks.front()));
 
   // Now that the block structure is created, clone the operations and introduce
   // the flow between continuations.
@@ -244,7 +245,7 @@ replicateIntoRegion(Region &region, Value storage, ValueRange ivs,
       // blocks are assumed to branch to the entry block of another subgraph.
       // They are replaced with storing the correspnding continuation ID and a
       // yield.
-      if (auto branch = dyn_cast<BranchOp>(&op)) {
+      if (auto branch = dyn_cast<cf::BranchOp>(&op)) {
         // if (!blocks.contains(branch.dest())) {
         if (isa_and_nonnull<polygeist::BarrierOp>(branch->getPrevNode())) {
           auto it = llvm::find(subgraphEntryPoints, branch.getDest());
@@ -603,8 +604,8 @@ static void createContinuations(FuncOp func) {
 namespace {
 struct BarrierRemoval
     : public SCFBarrierRemovalContinuationBase<BarrierRemoval> {
-  void runOnFunction() override {
-    auto f = getFunction();
+  void runOnOperation() override {
+    FuncOp f = getOperation();
     if (failed(convertToCFG(f)))
       return;
     if (failed(splitBlocksWithBarrier(f)))

@@ -7,23 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #include "polygeist/Ops.h"
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "polygeist/Dialect.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.cpp.inc"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/StandardOps/Utils/Utils.h"
 #include "mlir/IR/BlockAndValueMapping.h"
-#include <mlir/Dialect/SCF/SCF.h>
 
 using namespace mlir;
 using namespace polygeist;
@@ -161,8 +161,8 @@ public:
       if (cidx.value() != 0)
         return failure();
 
-      rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, subViewOp.source(),
-                                                  post);
+      rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, post,
+                                                  subViewOp.source());
       return success();
     }
 
@@ -724,7 +724,7 @@ MutableOperandRange LoadSelect<LLVM::LoadOp>::ptrMutable(LLVM::LoadOp op) {
   return op.getAddrMutable();
 }
 
-void SubIndexOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void SubIndexOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   results.insert<CastOfSubIndex, SubIndex2, SubToCast, SimplifySubViewUsers,
                  SimplifySubIndexUsers, SelectOfCast, SelectOfSubIndex,
@@ -870,8 +870,8 @@ public:
         op.getLoc(), c0,
         rewriter.create<arith::DivUIOp>(
             op.getLoc(),
-            rewriter.create<arith::IndexCastOp>(op.getLoc(), op.getLen(),
-                                                rewriter.getIndexType()),
+            rewriter.create<arith::IndexCastOp>(
+                op.getLoc(), rewriter.getIndexType(), op.getLen()),
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
@@ -918,8 +918,8 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-void Memref2PointerOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void Memref2PointerOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                   MLIRContext *context) {
   results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
                  CopySimplification<LLVM::MemcpyOp>,
                  CopySimplification<LLVM::MemmoveOp>>(context);
@@ -1021,16 +1021,16 @@ public:
     auto shape = mt.getShape();
     for (size_t i = 0; i < shape.size(); i++) {
       auto off = computeIndex(op, i, rewriter);
-      auto cur =
-          rewriter.create<IndexCastOp>(op.getLoc(), rewriter.getI32Type(), off);
+      auto cur = rewriter.create<arith::IndexCastOp>(
+          op.getLoc(), rewriter.getI32Type(), off);
       if (idx == nullptr) {
         idx = cur;
       } else {
         idx = rewriter.create<AddIOp>(
             op.getLoc(),
-            rewriter.create<MulIOp>(
-                op.getLoc(), idx,
-                rewriter.create<ConstantIntOp>(op.getLoc(), shape[i], 32)),
+            rewriter.create<MulIOp>(op.getLoc(), idx,
+                                    rewriter.create<arith::ConstantIntOp>(
+                                        op.getLoc(), shape[i], 32)),
             cur);
       }
     }
@@ -1433,8 +1433,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
   }
 };
 
-void Pointer2MemrefOp::getCanonicalizationPatterns(
-    OwningRewritePatternList &results, MLIRContext *context) {
+void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                   MLIRContext *context) {
   results.insert<
       Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
@@ -1517,7 +1517,7 @@ struct TypeSizeCanonicalize : public OpRewritePattern<TypeSizeOp> {
   }
 };
 
-void TypeSizeOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
+void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   results.insert<TypeSizeCanonicalize>(context);
 }

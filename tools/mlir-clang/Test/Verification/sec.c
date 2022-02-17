@@ -22,7 +22,7 @@ int compute_tran_temp(int total_iterations, int num_iterations)
 // CHECK-NEXT:       %3 = arith.cmpf ult, %arg4, %0 : f32
 // CHECK-NEXT:       scf.condition(%3) %arg2, %arg3, %arg4 : i32, i32, f32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32, %arg4: f32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg2: i32, %arg3: i32, %arg4: f32):
 // CHECK-NEXT:       %3 = arith.addf %arg4, %1 : f32
 // CHECK-NEXT:       scf.yield %arg3, %arg2, %3 : i32, i32, f32
 // CHECK-NEXT:     }

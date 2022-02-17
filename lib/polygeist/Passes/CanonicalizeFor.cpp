@@ -17,7 +17,7 @@ using namespace polygeist;
 
 namespace {
 struct CanonicalizeFor : public SCFCanonicalizeForBase<CanonicalizeFor> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 } // namespace
 
@@ -103,7 +103,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
 
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
-              forOp.getLoc(), replacement, std::get<1>(it).getType());
+              forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
 
         if (!sameValue)
@@ -128,7 +128,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
 
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
-              forOp.getLoc(), replacement, std::get<1>(it).getType());
+              forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
 
         if (!sameValue)
@@ -530,12 +530,12 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       }
     }
 
-    Value ub = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.ub,
-                                            IndexType::get(loop.getContext()));
-    Value lb = rewriter.create<IndexCastOp>(loop.getLoc(), loopInfo.lb,
-                                            IndexType::get(loop.getContext()));
-    step = rewriter.create<IndexCastOp>(loop.getLoc(), step,
-                                        IndexType::get(loop.getContext()));
+    Value ub = rewriter.create<IndexCastOp>(
+        loop.getLoc(), IndexType::get(loop.getContext()), loopInfo.ub);
+    Value lb = rewriter.create<IndexCastOp>(
+        loop.getLoc(), IndexType::get(loop.getContext()), loopInfo.lb);
+    step = rewriter.create<IndexCastOp>(
+        loop.getLoc(), IndexType::get(loop.getContext()), step);
 
     // input of the for goes the input of the scf::while plus the output taken
     // from the conditionOp.
@@ -556,7 +556,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       } else
         res = arg;
       if (cst) {
-        res = rewriter.create<IndexCastOp>(rewriter.getUnknownLoc(), res, cst);
+        res = rewriter.create<IndexCastOp>(rewriter.getUnknownLoc(), cst, res);
       }
       forArgs.push_back(res);
     }
@@ -673,7 +673,8 @@ struct MoveWhileDown : public OpRewritePattern<WhileOp> {
 
       rewriter.updateRootInPlace(op, [&] {
         for (auto val : todo) {
-          auto na = op.getAfter().front().addArgument(val.getType());
+          auto na =
+              op.getAfter().front().addArgument(val.getType(), op->getLoc());
           val.replaceUsesWithIf(na, [&](OpOperand &u) -> bool {
             return op.getAfter().isAncestor(u.getOwner()->getParentRegion());
           });
@@ -853,7 +854,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
 
         for (auto v : sv) {
           condArgs.push_back(v);
-          auto arg = afterB->addArgument(v.getType());
+          auto arg = afterB->addArgument(v.getType(), ifOp->getLoc());
           for (OpOperand &use : llvm::make_early_inc_range(v.getUses())) {
             if (ifOp->isAncestor(use.getOwner()) ||
                 use.getOwner() == afterYield)
@@ -1124,7 +1125,8 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
                  llvm::make_early_inc_range(cloned->getOpOperands())) {
               {
                 newOps.push_back(o.get());
-                o.set(op.getAfter().front().addArgument(o.get().getType()));
+                o.set(op.getAfter().front().addArgument(o.get().getType(),
+                                                        o.get().getLoc()));
               }
             }
             continue;
@@ -1338,8 +1340,8 @@ struct MoveSideEffectFreeWhile : public OpRewritePattern<WhileOp> {
     for (auto arg : term.getArgs()) {
       if (auto IC = arg.getDefiningOp<IndexCastOp>()) {
         if (arg.hasOneUse() && op.getResult(i).use_empty()) {
-          auto rep =
-              op.getAfter().front().addArgument(IC->getOperand(0).getType());
+          auto rep = op.getAfter().front().addArgument(
+              IC->getOperand(0).getType(), IC->getOperand(0).getLoc());
           IC->moveBefore(&op.getAfter().front(), op.getAfter().front().begin());
           conds.push_back(IC.getIn());
           IC.getInMutable().assign(rep);
@@ -1405,8 +1407,8 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
     return success(changed);
   }
 };
-void CanonicalizeFor::runOnFunction() {
-  mlir::RewritePatternSet rpl(getFunction().getContext());
+void CanonicalizeFor::runOnOperation() {
+  mlir::RewritePatternSet rpl(getOperation().getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
           MoveWhileToFor,
 
@@ -1415,11 +1417,10 @@ void CanonicalizeFor::runOnFunction() {
           ,
           MoveWhileDown3, MoveWhileInvariantIfResult, WhileLogicalNegation,
           SubToAdd, WhileCmpOffset, WhileLICM, RemoveUnusedCondVar, ReturnSq,
-          MoveSideEffectFreeWhile>(getFunction().getContext());
+          MoveSideEffectFreeWhile>(getOperation().getContext());
   GreedyRewriteConfig config;
   config.maxIterations = 47;
-  (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
-                                     std::move(rpl), config);
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createCanonicalizeForPass() {

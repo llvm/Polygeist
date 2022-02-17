@@ -9,7 +9,7 @@ module {
     %6 = llvm.mlir.undef : i32
     memref.store %6, %5[] : memref<i32>
         %a9 = scf.execute_region -> (i32) {
-          cond_br %arg0, ^bb1, ^bb3
+          cf.cond_br %arg0, ^bb1, ^bb3
         ^bb1:  // pred: ^bb0
           scf.yield %c20_i32 : i32
         ^bb3:  // 2 preds: ^bb0, ^bb2
@@ -30,7 +30,7 @@ module {
 // CHECK-NEXT:     %c10_i32 = arith.constant 10 : i32
 // CHECK-NEXT:     %0 = llvm.mlir.undef : i32
 // CHECK-NEXT:     %1:2 = scf.execute_region -> (i32, i32) {
-// CHECK-NEXT:       cond_br %arg0, ^bb1, ^bb2
+// CHECK-NEXT:       cf.cond_br %arg0, ^bb1, ^bb2
 // CHECK-NEXT:     ^bb1:  // pred: ^bb0
 // CHECK-NEXT:       scf.yield %c20_i32, %0 : i32, i32
 // CHECK-NEXT:     ^bb2:  // pred: ^bb0

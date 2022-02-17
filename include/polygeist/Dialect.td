@@ -25,7 +25,7 @@ def Polygeist_Dialect : Dialect {
 // Base BFV operation definition.
 //===----------------------------------------------------------------------===//
 
-class Polygeist_Op<string mnemonic, list<OpTrait> traits = []>
+class Polygeist_Op<string mnemonic, list<Trait> traits = []>
     : Op<Polygeist_Dialect, mnemonic, traits>;
 
 #endif // POLYGEIST_DIALECT

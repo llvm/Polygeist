@@ -21,7 +21,7 @@ int foo() {
 // CHECK-NEXT:       %6 = arith.cmpi slt, %arg0, %5 : i32
 // CHECK-NEXT:       scf.condition(%6) %arg0 : i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg0: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg0: i32):
 // CHECK-NEXT:       %5 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:       memref.store %arg0, %0[%5] : memref<14xi32>
 // CHECK-NEXT:       %6 = arith.addi %arg0, %c1_i32 : i32

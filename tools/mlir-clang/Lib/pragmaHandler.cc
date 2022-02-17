@@ -127,7 +127,7 @@ public:
   /// the function decl that lower_to is attached to with that MLIR function
   /// symbol in the class-referenced dictionary.
   ///
-  // #pragma lower_to(copy_op, "linalg.copy") input(a), output(b)
+  // #pragma lower_to(copy_op, "memref.copy") input(a), output(b)
   void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
                     Token &PragmaTok) override {
     Token Tok;

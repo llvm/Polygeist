@@ -197,12 +197,6 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
 
 namespace {
 
-/// Returns `true` if `value` is defined outside of the region that contains
-/// `user`.
-static bool isDefinedAbove(Value value, Operation *user) {
-  return value.getParentRegion()->isProperAncestor(user->getParentRegion());
-}
-
 #if 0
 /// Returns `true` if the loop has a form expected by interchange patterns.
 static bool isNormalized(scf::ForOp op) {
@@ -541,7 +535,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     auto newParallel = rewriter.cloneWithoutRegions<T>(op);
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      newParallel.getBody()->addArgument(a.getType());
+      newParallel.getBody()->addArgument(a.getType(), op->getLoc());
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -565,7 +559,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     auto newParallel = rewriter.cloneWithoutRegions<T>(op);
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      newParallel.getBody()->addArgument(a.getType());
+      newParallel.getBody()->addArgument(a.getType(), op->getLoc());
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -695,7 +689,7 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   auto newParallel = rewriter.cloneWithoutRegions<T>(op);
   newParallel.getRegion().push_back(new Block());
   for (auto a : op.getBody()->getArguments())
-    newParallel.getBody()->addArgument(a.getType());
+    newParallel.getBody()->addArgument(a.getType(), op->getLoc());
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
 
@@ -890,11 +884,11 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
     auto beforeParallelOp = rewriter.cloneWithoutRegions<T>(op);
     beforeParallelOp.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      beforeParallelOp.getBody()->addArgument(a.getType());
+      beforeParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
     auto afterParallelOp = rewriter.cloneWithoutRegions<T>(op);
     afterParallelOp.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
-      afterParallelOp.getBody()->addArgument(a.getType());
+      afterParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
     rewriter.setInsertionPointToEnd(beforeParallelOp.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
     rewriter.setInsertionPointToEnd(afterParallelOp.getBody());
@@ -1167,7 +1161,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
           }
           idx = rewriter.create<MulIOp>(ao.getLoc(), sz,
                                         rewriter.create<arith::IndexCastOp>(
-                                            ao.getLoc(), idx, sz.getType()));
+                                            ao.getLoc(), sz.getType(), idx));
           SmallVector<Value> vec = {idx};
           u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
                                              idx));
@@ -1593,9 +1587,9 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass() = default;
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
-  void runOnFunction() override {
+  void runOnOperation() override {
     if (method == "distribute") {
-      OwningRewritePatternList patterns(&getContext());
+      RewritePatternSet patterns(&getContext());
       patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
                       Reg2MemWhile, Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>,
                       WrapForWithBarrier, WrapAffineForWithBarrier,
@@ -1628,12 +1622,12 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
                       DistributeAroundBarrier<AffineParallelOp>>(&getContext());
       GreedyRewriteConfig config;
       config.maxIterations = 142;
-      if (failed(applyPatternsAndFoldGreedily(getFunction(),
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                               std::move(patterns), config)))
         signalPassFailure();
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;
-      getFunction().walk(
+      getOperation().walk(
           [&](polygeist::BarrierOp b) { toReplace.push_back(b); });
       for (auto b : toReplace) {
         OpBuilder Builder(b);

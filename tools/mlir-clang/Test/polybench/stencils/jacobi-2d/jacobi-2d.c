@@ -150,7 +150,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:            %8 = arith.addf %6, %7 : f64
 // CHECK-NEXT:            %9 = affine.load %arg2[%arg5 - 1, %arg6] : memref<?x1300xf64>
 // CHECK-NEXT:            %10 = arith.addf %8, %9 : f64
-// CHECK-NEXT:            %11 = arith.mulf %cst, %10 : f64
+// CHECK-NEXT:            %11 = arith.mulf %10, %cst : f64
 // CHECK-NEXT:            affine.store %11, %arg3[%arg5, %arg6] : memref<?x1300xf64>
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:            %8 = arith.addf %6, %7 : f64
 // CHECK-NEXT:            %9 = affine.load %arg3[%arg5 - 1, %arg6] : memref<?x1300xf64>
 // CHECK-NEXT:            %10 = arith.addf %8, %9 : f64
-// CHECK-NEXT:            %11 = arith.mulf %cst, %10 : f64
+// CHECK-NEXT:            %11 = arith.mulf %10, %cst : f64
 // CHECK-NEXT:            affine.store %11, %arg2[%arg5, %arg6] : memref<?x1300xf64>
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }

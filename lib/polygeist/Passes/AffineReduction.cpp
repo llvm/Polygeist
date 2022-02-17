@@ -13,7 +13,7 @@ using namespace polygeist;
 
 namespace {
 struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
-  void runOnFunction() override;
+  void runOnOperation() override;
 };
 } // end namespace.
 
@@ -254,12 +254,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 
 } // end namespace.
 
-void AffineReductionPass::runOnFunction() {
-  mlir::RewritePatternSet rpl(getFunction().getContext());
-  rpl.add<AffineForReductionIter>(getFunction().getContext());
+void AffineReductionPass::runOnOperation() {
+  mlir::RewritePatternSet rpl(getOperation().getContext());
+  rpl.add<AffineForReductionIter>(getOperation().getContext());
   GreedyRewriteConfig config;
-  (void)applyPatternsAndFoldGreedily(getFunction().getOperation(),
-                                     std::move(rpl), config);
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
 namespace mlir {

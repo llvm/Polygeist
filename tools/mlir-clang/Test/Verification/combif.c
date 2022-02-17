@@ -34,7 +34,7 @@ int solver(	float** y,
 // CHECK-NEXT:       %3 = arith.andi %2, %arg6 : i1
 // CHECK-NEXT:       scf.condition(%3) %arg4, %arg5 : f32, i32
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg4: f32, %arg5: i32):  // no predecessors
+// CHECK-NEXT:     ^bb0(%arg4: f32, %arg5: i32):
 // CHECK-NEXT:       %2 = arith.cmpf ugt, %arg3, %cst : f32
 // CHECK-NEXT:       %3:2 = scf.if %2 -> (f32, i1) {
 // CHECK-NEXT:         scf.yield %arg4, %false : f32, i1
