@@ -97,10 +97,6 @@ static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
-static cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
-                                           cl::desc("<Specify input file>"),
-                                           cl::cat(toolOptions));
-
 static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
                                       cl::init("main"), cl::cat(toolOptions));
@@ -369,6 +365,10 @@ int main(int argc, char **argv) {
     }
   }
   using namespace mlir;
+
+  cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
+                                      cl::desc("<Specify input file>"),
+                                      cl::cat(toolOptions));
 
   int size = MLIRArgs.size();
   const char **data = MLIRArgs.data();

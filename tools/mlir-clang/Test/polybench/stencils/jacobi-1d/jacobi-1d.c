@@ -144,7 +144,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64
 // CHECK-NEXT:          %5 = affine.load %arg2[%arg5 + 1] : memref<?xf64>
 // CHECK-NEXT:          %6 = arith.addf %4, %5 : f64
-// CHECK-NEXT:          %7 = arith.mulf %cst, %6 : f64
+// CHECK-NEXT:          %7 = arith.mulf %6, %cst : f64
 // CHECK-NEXT:          affine.store %7, %arg3[%arg5] : memref<?xf64>
 // CHECK-NEXT:        }
 // CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64
 // CHECK-NEXT:          %5 = affine.load %arg3[%arg5 + 1] : memref<?xf64>
 // CHECK-NEXT:          %6 = arith.addf %4, %5 : f64
-// CHECK-NEXT:          %7 = arith.mulf %cst, %6 : f64
+// CHECK-NEXT:          %7 = arith.mulf %6, %cst : f64
 // CHECK-NEXT:          affine.store %7, %arg2[%arg5] : memref<?xf64>
 // CHECK-NEXT:        }
 // CHECK-NEXT:      }
