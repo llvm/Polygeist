@@ -63,7 +63,7 @@ struct SubIndexToReinterpretCast
 struct LowerPolygeistOpsPass
     : public LowerPolygeistOpsBase<LowerPolygeistOpsPass> {
 
-  void runOnFunction() override {
+  void runOnOperation() override {
     auto op = getOperation();
     auto ctx = op.getContext();
     RewritePatternSet patterns(ctx);

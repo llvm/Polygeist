@@ -78,7 +78,7 @@ def RemoveTrivialUse : Pass<"trivialuse"> {
   let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 
-def LowerPolygeistOps : FunctionPass<"lower-polygeist-ops"> {
+def LowerPolygeistOps : Pass<"lower-polygeist-ops", "FuncOp"> {
   let summary = "Lower polygeist ops to memref operations";
   let constructor = "mlir::polygeist::createLowerPolygeistOpsPass()";
   let dependentDialects = ["::mlir::memref::MemRefDialect"];
