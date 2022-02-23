@@ -29,6 +29,8 @@
 #include "polygeist/Passes/Utils.h"
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
+#include <deque>
+
 #define DEBUG_TYPE "cpuify"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
 
@@ -44,6 +46,181 @@ static bool couldWrite(Operation *op) {
   }
   return true;
 }
+
+struct Node {
+	Operation *O;
+	Value V;
+	enum Type {
+		NONE,
+		VAL,
+		OP,
+	} type;
+	Node(Operation *O) : O(O), type(OP) {};
+	Node(Value V) : V(V), type(VAL) {};
+	Node(): type(NONE) {};
+	bool operator<(const Node N) const {
+		// TODO are the VAL and OP definitions fine?
+		if (type != N.type)
+			return type < N.type;
+		else if (type == OP)
+			return O < N.O;
+		else if (type == VAL)
+			return V.getAsOpaquePointer() < N.V.getAsOpaquePointer();
+		else
+			return true;
+	}
+	void dump() const {
+		if (type == VAL)
+			llvm::errs() << "[" << V << ", " << "Value" << "]\n";
+		else if (type == OP)
+			llvm::errs() << "[" << *O << ", " << "Operation" << "]\n";
+		else
+			llvm::errs() << "[" << "NULL" << ", " << "None" << "]\n";
+	}
+};
+
+typedef std::map<Node, std::set<Node>> Graph;
+
+void dump(Graph &G) {
+	for (auto &pair : G) {
+		pair.first.dump();
+		for (auto &N : pair.second) {
+			llvm::errs() << "\t";
+			N.dump();
+		}
+	}
+}
+
+namespace mlir {
+  bool operator<(const Value &a, const Value &b) {
+    return a.getAsOpaquePointer() < b.getAsOpaquePointer();
+  }
+}
+
+
+/* Returns true if there is a path from source 's' to sink 't' in
+   residual graph. Also fills parent[] to store the path */
+static inline void bfs(const Graph &G,
+                       const std::set<Value> &Sources,
+                       std::map<Node, Node> &parent) {
+	std::deque<Node> q;
+	for (auto V : Sources) {
+		Node N(V);
+		parent.emplace(N, Node(nullptr));
+		q.push_back(N);
+	}
+
+	// Standard BFS Loop
+	while (!q.empty()) {
+		auto u = q.front();
+		q.pop_front();
+		auto found = G.find(u);
+		if (found == G.end())
+			continue;
+		for (auto v : found->second) {
+			if (parent.find(v) == parent.end()) {
+				q.push_back(v);
+				parent.emplace(v, u);
+			}
+		}
+	}
+}
+
+static bool is_recomputable(Operation &op) {
+	// TODO is this correct?
+	return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
+}
+
+static void minCutCache(polygeist::BarrierOp barrier,
+                        llvm::SetVector<Value> &Required) {
+	std::set<Value> cache;
+	std::set<Value> NonRecomputable;
+	Graph G;
+	//for (Operation &op: loop.getBody()->getOperations()) {
+  for (Operation *it = barrier->getPrevNode(); it != nullptr;
+       it = it->getPrevNode()) {
+	  auto &op = *it;
+	  bool recomputable = is_recomputable(op);
+	  for (Value value : op.getResults()) {
+		  G[Node(&op)].insert(Node(value));
+		  if (!recomputable)
+			  NonRecomputable.insert(value);
+		  for (Operation *user : value.getUsers()) {
+			  // If the user is nested in another op, find its ancestor op that lives
+			  // in the same block as the barrier.
+			  while (user->getBlock() != barrier->getBlock())
+				  user = user->getBlock()->getParentOp();
+
+			  G[Node(value)].insert(Node(user));
+		  }
+	  }
+	  for (Value v: op.getOperands()) {
+		  G[Node(v)].insert(Node(&op));
+		  if (auto res = v.dyn_cast<OpResult>()) {
+			  auto owner = res.getOwner();
+			  // If the operand is defined outside the block
+			  if (owner->getBlock() != op.getBlock())
+				  NonRecomputable.insert(v);
+		  } else {
+			  NonRecomputable.insert(v);
+		  }
+	  }
+  }
+
+	Graph Orig = G;
+
+	// Augment the flow while there is a path from source to sink
+	while (1) {
+		std::map<Node, Node> parent;
+		bfs(G, NonRecomputable, parent);
+		Node end;
+		for (auto req : Required) {
+			if (parent.find(Node(req)) != parent.end()) {
+				end = Node(req);
+				break;
+			}
+		}
+		if (end.type == Node::None)
+			break;
+		// update residual capacities of the edges and reverse edges
+		// along the path
+		Node v = end;
+		while (1) {
+			assert(parent.find(v) != parent.end());
+			Node u = parent.find(v)->second;
+			assert(u.type != Node::NONE);
+			assert(G[u].count(v) == 1);
+			assert(G[v].count(u) == 0);
+			G[u].erase(v);
+			G[v].insert(u);
+			/* TODO fix this
+			if (NonRecomputable.count(u.V) && u.type == Node::OP)
+				break;
+			*/
+			v = u;
+		}
+	}
+	// Flow is maximum now, find vertices reachable from s
+
+	std::map<Node, Node> parent;
+	bfs(G, NonRecomputable, parent);
+
+	// All edges that are from a reachable vertex to non-reachable vertex in the
+	// original graph
+	for (auto &pair : Orig) {
+		if (parent.find(pair.first) != parent.end()) {
+			for (auto N : pair.second) {
+				if (parent.find(N) == parent.end()) {
+					assert(pair.first.type == Node::OP && N.type == Node::VAL);
+					assert(pair.first.O == N.V.dyn_cast<OpResult>().getOwner());
+					cache.insert(N.V);
+				}
+			}
+		}
+	}
+
+}
+
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
 /// below `op`. Uses may be in nested regions.
@@ -1012,6 +1189,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     llvm::SetVector<Value> crossing;
     findValuesUsedBelow(barrier, crossing);
     rewriter.setInsertionPoint(op);
+
+    minCutCache(barrier, crossing);
 
     SmallVector<Value> iterCounts;
     T preLoop;
