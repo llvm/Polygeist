@@ -263,9 +263,8 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
-  loops.push_back(
-      (LoopContext){builder.create<mlir::memref::AllocaOp>(loc, type),
-                    builder.create<mlir::memref::AllocaOp>(loc, type)});
+  loops.push_back({builder.create<mlir::memref::AllocaOp>(loc, type),
+                   builder.create<mlir::memref::AllocaOp>(loc, type)});
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
   if (function.getType().getResults().size()) {
