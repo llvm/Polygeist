@@ -1,4 +1,4 @@
-//===- TrivialUse.cpp - Remove trivial use instruction ---------------- -*-===//
+//===- LowerPolygeistOps.cpp - Lower polygeist ops to upstream MLIR ops -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a pass to lower gpu kernels in NVVM/gpu dialects into
-// a generic parallel for representation
+// This file implements a pass which lowers any remaining Polygeist dialect
+// operations (after canonicalization) to operations found in upstream MLIR
+// dialects.
+//
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
