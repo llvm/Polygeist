@@ -37,19 +37,20 @@ struct SubIndexToReinterpretCast
                   ConversionPatternRewriter &rewriter) const override {
     auto srcMemRefType = op.source().getType().cast<MemRefType>();
     auto resMemRefType = op.result().getType().cast<MemRefType>();
-    auto shape = srcMemRefType.getShape();
+    auto inShape = srcMemRefType.getShape();
+    auto outShape = resMemRefType.getShape();
 
     if (!resMemRefType.hasStaticShape())
       return failure();
 
+    llvm::SmallVector<OpFoldResult> strides, sizes;
     int64_t innerSize = resMemRefType.getNumElements();
     auto offset = rewriter.create<arith::MulIOp>(
         op.getLoc(), op.index(),
         rewriter.create<ConstantIndexOp>(op.getLoc(), innerSize));
 
-    llvm::SmallVector<OpFoldResult> sizes, strides;
     int64_t strideAcc = 1;
-    for (auto dim : llvm::reverse(shape.drop_front())) {
+    for (auto dim : llvm::reverse(outShape)) {
       sizes.insert(sizes.begin(), rewriter.getIndexAttr(dim));
       strides.insert(strides.begin(), rewriter.getIndexAttr(strideAcc));
       strideAcc *= dim;
