@@ -3190,6 +3190,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_LValueToRValue: {
     if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
+      if (auto VD = dyn_cast<VarDecl>(dr->getDecl())) {
+        if (NOUR_Constant == dr->isNonOdrUse()) {
+          auto VarD = cast<VarDecl>(VD);
+          assert(VarD->getInit());
+          return Visit(VarD->getInit());
+        }
+      }
       if (dr->getDecl()->getIdentifier() &&
           dr->getDecl()->getName() == "warpSize") {
         auto mlirType = getMLIRType(E->getType());
