@@ -132,11 +132,10 @@ static bool is_recomputable(Operation &op) {
 }
 
 static void minCutCache(polygeist::BarrierOp barrier,
-                        llvm::SetVector<Value> &Required) {
-	std::set<Value> cache;
-	std::set<Value> NonRecomputable;
+                        llvm::SetVector<Value> &Required,
+                        llvm::SetVector<Value> &Cache,
+                        llvm::SetVector<Value> &NonRecomputable) {
 	Graph G;
-	//for (Operation &op: loop.getBody()->getOperations()) {
   for (Operation *it = barrier->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
 	  auto &op = *it;
@@ -152,17 +151,6 @@ static void minCutCache(polygeist::BarrierOp barrier,
 				  user = user->getBlock()->getParentOp();
 
 			  G[Node(value)].insert(Node(user));
-		  }
-	  }
-	  for (Value v: op.getOperands()) {
-		  G[Node(v)].insert(Node(&op));
-		  if (auto res = v.dyn_cast<OpResult>()) {
-			  auto owner = res.getOwner();
-			  // If the operand is defined outside the block
-			  if (owner->getBlock() != op.getBlock())
-				  NonRecomputable.insert(v);
-		  } else {
-			  NonRecomputable.insert(v);
 		  }
 	  }
   }
@@ -207,16 +195,30 @@ static void minCutCache(polygeist::BarrierOp barrier,
 	// original graph
 	for (auto &pair : Orig) {
 		if (parent.find(pair.first) != parent.end() &&
-		    !(pair.first.type == Node::VAL && NonRecomputable.count(pair.first.V) == 0)) {
+		    !(pair.first.type == Node::VAL && NonRecomputable.count(pair.first.V) > 0)) {
 			for (auto N : pair.second) {
 				if (parent.find(N) == parent.end()) {
 					assert(pair.first.type == Node::OP && N.type == Node::VAL);
 					assert(pair.first.O == N.V.dyn_cast<OpResult>().getOwner());
-					cache.insert(N.V);
+					Cache.insert(N.V);
 				}
 			}
 		}
 	}
+
+  // When ambiguous, push to cache the last value in a computation chain
+  // This should be considered in a cost for the max flow
+	std::deque<Node> todo;
+  for (auto V: Cache)
+	  todo.push_back(Node(V));
+
+  while (todo.size()) {
+    auto N = todo.front();
+    todo.pop_front();
+    auto found = Orig.find(N);
+    // TODO
+    break;
+  }
 
 }
 
@@ -1189,7 +1191,11 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     findValuesUsedBelow(barrier, crossing);
     rewriter.setInsertionPoint(op);
 
-    minCutCache(barrier, crossing);
+    llvm::SetVector<Value> minCache;
+    llvm::SetVector<Value> nonRecomputable;
+    minCutCache(barrier, crossing, minCache, nonRecomputable);
+
+    // TODO recompute
 
     SmallVector<Value> iterCounts;
     T preLoop;
