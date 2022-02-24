@@ -106,7 +106,7 @@ static inline void bfs(const Graph &G,
 	std::deque<Node> q;
 	for (auto V : Sources) {
 		Node N(V);
-		parent.emplace(N, Node(nullptr));
+		parent.emplace(N, Node());
 		q.push_back(N);
 	}
 
@@ -180,7 +180,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
 				break;
 			}
 		}
-		if (end.type == Node::None)
+		if (end.type == Node::NONE)
 			break;
 		// update residual capacities of the edges and reverse edges
 		// along the path
@@ -193,10 +193,8 @@ static void minCutCache(polygeist::BarrierOp barrier,
 			assert(G[v].count(u) == 0);
 			G[u].erase(v);
 			G[v].insert(u);
-			/* TODO fix this
-			if (NonRecomputable.count(u.V) && u.type == Node::OP)
+			if (u.type == Node::VAL && NonRecomputable.count(u.V))
 				break;
-			*/
 			v = u;
 		}
 	}
@@ -208,7 +206,8 @@ static void minCutCache(polygeist::BarrierOp barrier,
 	// All edges that are from a reachable vertex to non-reachable vertex in the
 	// original graph
 	for (auto &pair : Orig) {
-		if (parent.find(pair.first) != parent.end()) {
+		if (parent.find(pair.first) != parent.end() &&
+		    !(pair.first.type == Node::VAL && NonRecomputable.count(pair.first.V) == 0)) {
 			for (auto N : pair.second) {
 				if (parent.find(N) == parent.end()) {
 					assert(pair.first.type == Node::OP && N.type == Node::VAL);
