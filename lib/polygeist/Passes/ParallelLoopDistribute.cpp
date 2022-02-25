@@ -139,9 +139,9 @@ static bool is_recomputable(Operation &op) {
 
 static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Required,
-                        llvm::SetVector<Value> &Cache,
-                        llvm::SetVector<Operation *> &NonRecomputable) {
-	Graph G;
+                        llvm::SetVector<Value> &Cache) {
+  Graph G;
+  llvm::SetVector<Operation *> NonRecomputable;
   for (Operation *it = barrier->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
 	  auto &op = *it;
@@ -230,7 +230,8 @@ static void minCutCache(polygeist::BarrierOp barrier,
 /// block as `op` and above it, and used by at least one op in the same block
 /// below `op`. Uses may be in nested regions.
 static void findValuesUsedBelow(polygeist::BarrierOp op,
-                                llvm::SetVector<Value> &crossing) {
+                                llvm::SetVector<Value> &crossing,
+                                llvm::SetVector<Operation *> &preserveAllocas) {
   llvm::SetVector<Operation *> descendantsUsed;
 
   // A set of pre-barrier operations which are potentially captured by a
@@ -259,8 +260,6 @@ static void findValuesUsedBelow(polygeist::BarrierOp op,
   llvm::SmallVector<std::pair<Operation *, Operation *>> todo;
   for (auto A : Allocas)
     todo.emplace_back(A, A);
-
-  llvm::SetVector<Operation *> preserveAllocas;
 
   std::map<Operation *, SmallPtrSet<Operation *, 2>> descendants;
   while (todo.size()) {
@@ -292,8 +291,6 @@ static void findValuesUsedBelow(polygeist::BarrierOp op,
       }
     }
   }
-  for (auto op : preserveAllocas)
-    crossing.insert(op->getResult(0));
 }
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
@@ -1191,13 +1188,47 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
       barrier = cast<BarrierOp>(&*it);
     }
 
-    llvm::SetVector<Value> crossing;
-    findValuesUsedBelow(barrier, crossing);
+    llvm::SetVector<Value> usedBelow;
+    llvm::SetVector<Operation *> preserveAllocas;
+    findValuesUsedBelow(barrier, usedBelow, preserveAllocas);
     rewriter.setInsertionPoint(op);
 
     llvm::SetVector<Value> minCache;
-    llvm::SetVector<Operation *> nonRecomputable;
-    minCutCache(barrier, crossing, minCache, nonRecomputable);
+    // TODO make it an option I think
+    bool MIN_CUT_OPTIMIZATION = true;
+    if (MIN_CUT_OPTIMIZATION) {
+
+      minCutCache(barrier, usedBelow, minCache);
+
+      BlockAndValueMapping mapping;
+      for (Value v : minCache)
+	      mapping.map(v, v);
+
+      // TODO should we integrate this in minCutCache?
+      for (auto alloca : preserveAllocas)
+	      assert(minCache.remove(alloca->getResult()) && "Alloca used below barrier was not in the min cache");
+
+      // Recalculate values used below the barrier up to available ones
+      rewriter.setInsertionPointAfter(barrier);
+      auto recalculateVal = [&mapping, &rewriter, &avail](Value v) {
+	      if (mapping.contains(v)) {
+		      return mapping.lookup(v);
+	      } else if (auto op = v.getDefiningOp()) {
+	        for (Value operand : v.getOperands()) {
+		        mapping.map(v, recalculateVal(v));
+	        }
+	        rewriter.clone(*o, mapping);
+        } else {
+	        mapping.map(v, v);
+	        return v;
+        }
+      };
+      for (auto v : usedBelow)
+	      recalculateVal(v);
+    } else {
+	    minCache = usedBelow;
+    }
+
 
     SmallVector<Value> iterCounts;
     T preLoop;
@@ -1234,12 +1265,14 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     rewriter.setInsertionPointToStart(outerBlock);
     // Allocate space for values crossing the barrier.
-    SmallVector<Value> allocations;
-    allocations.reserve(crossing.size());
+    SmallVector<Value> usedBelowAllocations;
+    SmallVector<Value> allocaAllocations;
+    minCacheAllocations.reserve(minCache.size());
+    allocaAllocations.reserve(preserveAllocas.size());
     auto mod = ((Operation *)op)->getParentOfType<ModuleOp>();
     assert(mod);
     DataLayout DLI(mod);
-    for (Value v : crossing) {
+    auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
       if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
         allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
             rewriter, v, iterCounts, true, &DLI));
@@ -1247,12 +1280,18 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
         allocations.push_back(
             allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
       }
-    }
+    };
+    for (Value v : minCache)
+	    addToAllocations(v, minCacheAllocations);
+    for (Operation *o : preserveAllocas)
+	    addToAllocations(o->getResult(0), allocaAllocations);
 
-    // Store values crossing the barrier in caches immediately when ready.
-    for (auto pair : llvm::zip(crossing, allocations)) {
-      Value v = std::get<0>(pair);
-      Value alloc = std::get<1>(pair);
+    SmallVector<Value> available;
+
+    // Allocate alloca's we need to preserve outside the loop
+    for (auto pair : llvm::zip(preserveAllocas, allocaAllocations)) {
+	    Value v = std::get<0>(pair);
+	    Value alloc = std::get<1>(pair);
       if (auto ao = v.getDefiningOp<memref::AllocaOp>()) {
         for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
           rewriter.setInsertionPoint(u.getOwner());
@@ -1302,25 +1341,31 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
                                              idx));
         }
       } else {
-
-        for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-          auto user = u.getOwner();
-          while (user->getBlock() != barrier->getBlock())
-            user = user->getBlock()->getParentOp();
-
-          if (barrier->isBeforeInBlock(user)) {
-            rewriter.setInsertionPoint(u.getOwner());
-            Value reloaded = rewriter.create<memref::LoadOp>(
-                user->getLoc(), alloc, preLoop.getBody()->getArguments());
-            rewriter.startRootUpdate(user);
-            u.set(reloaded);
-            rewriter.finalizeRootUpdate(user);
-          }
-        }
-        rewriter.setInsertionPointAfter(v.getDefiningOp());
-        rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
-                                         preLoop.getBody()->getArguments());
+	      assert(false && "Wrong operation type in preserveAllocas");
       }
+    }
+
+    // Store values in the min cache immediately when ready.
+    for (auto pair : llvm::zip(minCache, minCacheAllocations)) {
+	    Value v = std::get<0>(pair);
+	    Value alloc = std::get<1>(pair);
+      for (auto &u : llvm::make_early_inc_range(v.getUses())) {
+	      auto user = u.getOwner();
+	      while (user->getBlock() != barrier->getBlock())
+		      user = user->getBlock()->getParentOp();
+
+	      if (barrier->isBeforeInBlock(user)) {
+		      rewriter.setInsertionPoint(u.getOwner());
+		      Value reloaded = rewriter.create<memref::LoadOp>(
+			      user->getLoc(), alloc, preLoop.getBody()->getArguments());
+		      rewriter.startRootUpdate(user);
+		      u.set(reloaded);
+		      rewriter.finalizeRootUpdate(user);
+	      }
+      }
+      rewriter.setInsertionPointAfter(v.getDefiningOp());
+      rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
+                                       preLoop.getBody()->getArguments());
     }
 
     // Insert the terminator for the new loop immediately before the barrier.
