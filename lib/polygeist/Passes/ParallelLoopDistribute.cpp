@@ -101,12 +101,12 @@ namespace mlir {
 /* Returns true if there is a path from source 's' to sink 't' in
    residual graph. Also fills parent[] to store the path */
 static inline void bfs(const Graph &G,
-                       const std::set<Value> &Sources,
+                       const llvm::SetVector<Operation *> &Sources,
                        std::map<Node, Node> &parent) {
 	std::deque<Node> q;
-	for (auto V : Sources) {
-		Node N(V);
-		parent.emplace(N, Node());
+	for (auto O : Sources) {
+		Node N(O);
+		parent.emplace(N, Node(nullptr));
 		q.push_back(N);
 	}
 
@@ -128,22 +128,27 @@ static inline void bfs(const Graph &G,
 
 static bool is_recomputable(Operation &op) {
 	// TODO is this correct?
-	return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
+  if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(&op)) {
+	  return memInterface.hasNoEffect();
+  } else  {
+    return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
+  }
+
+  //return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
 }
 
 static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Required,
                         llvm::SetVector<Value> &Cache,
-                        llvm::SetVector<Value> &NonRecomputable) {
+                        llvm::SetVector<Operation *> &NonRecomputable) {
 	Graph G;
   for (Operation *it = barrier->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
 	  auto &op = *it;
-	  bool recomputable = is_recomputable(op);
+	  if (!is_recomputable(op))
+		  NonRecomputable.insert(&op);
 	  for (Value value : op.getResults()) {
 		  G[Node(&op)].insert(Node(value));
-		  if (!recomputable)
-			  NonRecomputable.insert(value);
 		  for (Operation *user : value.getUsers()) {
 			  // If the user is nested in another op, find its ancestor op that lives
 			  // in the same block as the barrier.
@@ -181,7 +186,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
 			assert(G[v].count(u) == 0);
 			G[u].erase(v);
 			G[v].insert(u);
-			if (u.type == Node::VAL && NonRecomputable.count(u.V))
+			if (u.type == Node::OP && NonRecomputable.count(u.O))
 				break;
 			v = u;
 		}
@@ -194,8 +199,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
 	// All edges that are from a reachable vertex to non-reachable vertex in the
 	// original graph
 	for (auto &pair : Orig) {
-		if (parent.find(pair.first) != parent.end() &&
-		    !(pair.first.type == Node::VAL && NonRecomputable.count(pair.first.V) > 0)) {
+		if (parent.find(pair.first) != parent.end()) {
 			for (auto N : pair.second) {
 				if (parent.find(N) == parent.end()) {
 					assert(pair.first.type == Node::OP && N.type == Node::VAL);
@@ -1192,10 +1196,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     rewriter.setInsertionPoint(op);
 
     llvm::SetVector<Value> minCache;
-    llvm::SetVector<Value> nonRecomputable;
+    llvm::SetVector<Operation *> nonRecomputable;
     minCutCache(barrier, crossing, minCache, nonRecomputable);
-
-    // TODO recompute
 
     SmallVector<Value> iterCounts;
     T preLoop;
