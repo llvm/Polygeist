@@ -48,93 +48,100 @@ static bool couldWrite(Operation *op) {
 }
 
 struct Node {
-	Operation *O;
-	Value V;
-	enum Type {
-		NONE,
-		VAL,
-		OP,
-	} type;
-	Node(Operation *O) : O(O), type(OP) {};
-	Node(Value V) : V(V), type(VAL) {};
-	Node(): type(NONE) {};
-	bool operator<(const Node N) const {
-		// TODO are the VAL and OP definitions fine?
-		if (type != N.type)
-			return type < N.type;
-		else if (type == OP)
-			return O < N.O;
-		else if (type == VAL)
-			return V.getAsOpaquePointer() < N.V.getAsOpaquePointer();
-		else
-			return true;
-	}
-	void dump() const {
-		if (type == VAL)
-			llvm::errs() << "[" << V << ", " << "Value" << "]\n";
-		else if (type == OP)
-			llvm::errs() << "[" << *O << ", " << "Operation" << "]\n";
-		else
-			llvm::errs() << "[" << "NULL" << ", " << "None" << "]\n";
-	}
+  Operation *O;
+  Value V;
+  enum Type {
+    NONE,
+    VAL,
+    OP,
+  } type;
+  Node(Operation *O) : O(O), type(OP){};
+  Node(Value V) : V(V), type(VAL){};
+  Node() : type(NONE){};
+  bool operator<(const Node N) const {
+    // TODO are the VAL and OP definitions fine?
+    if (type != N.type)
+      return type < N.type;
+    else if (type == OP)
+      return O < N.O;
+    else if (type == VAL)
+      return V.getAsOpaquePointer() < N.V.getAsOpaquePointer();
+    else
+      return true;
+  }
+  void dump() const {
+    if (type == VAL)
+      llvm::errs() << "[" << V << ", "
+                   << "Value"
+                   << "]\n";
+    else if (type == OP)
+      llvm::errs() << "[" << *O << ", "
+                   << "Operation"
+                   << "]\n";
+    else
+      llvm::errs() << "["
+                   << "NULL"
+                   << ", "
+                   << "None"
+                   << "]\n";
+  }
 };
 
 typedef std::map<Node, std::set<Node>> Graph;
 
 void dump(Graph &G) {
-	for (auto &pair : G) {
-		pair.first.dump();
-		for (auto &N : pair.second) {
-			llvm::errs() << "\t";
-			N.dump();
-		}
-	}
-}
-
-namespace mlir {
-  bool operator<(const Value &a, const Value &b) {
-    return a.getAsOpaquePointer() < b.getAsOpaquePointer();
+  for (auto &pair : G) {
+    pair.first.dump();
+    for (auto &N : pair.second) {
+      llvm::errs() << "\t";
+      N.dump();
+    }
   }
 }
 
+namespace mlir {
+bool operator<(const Value &a, const Value &b) {
+  return a.getAsOpaquePointer() < b.getAsOpaquePointer();
+}
+} // namespace mlir
 
 /* Returns true if there is a path from source 's' to sink 't' in
    residual graph. Also fills parent[] to store the path */
 static inline void bfs(const Graph &G,
                        const llvm::SetVector<Operation *> &Sources,
                        std::map<Node, Node> &parent) {
-	std::deque<Node> q;
-	for (auto O : Sources) {
-		Node N(O);
-		parent.emplace(N, Node(nullptr));
-		q.push_back(N);
-	}
+  std::deque<Node> q;
+  for (auto O : Sources) {
+    Node N(O);
+    parent.emplace(N, Node(nullptr));
+    q.push_back(N);
+  }
 
-	// Standard BFS Loop
-	while (!q.empty()) {
-		auto u = q.front();
-		q.pop_front();
-		auto found = G.find(u);
-		if (found == G.end())
-			continue;
-		for (auto v : found->second) {
-			if (parent.find(v) == parent.end()) {
-				q.push_back(v);
-				parent.emplace(v, u);
-			}
-		}
-	}
+  // Standard BFS Loop
+  while (!q.empty()) {
+    auto u = q.front();
+    q.pop_front();
+    auto found = G.find(u);
+    if (found == G.end())
+      continue;
+    for (auto v : found->second) {
+      if (parent.find(v) == parent.end()) {
+        q.push_back(v);
+        parent.emplace(v, u);
+      }
+    }
+  }
 }
 
 static bool is_recomputable(Operation &op) {
-	// TODO is this correct?
+  // TODO is this correct?
   if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(&op)) {
-	  return memInterface.hasNoEffect();
-  } else  {
+    return memInterface.hasNoEffect();
+  } else {
     return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
   }
 
-  //return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
+  // return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
 }
 
 static void minCutCache(polygeist::BarrierOp barrier,
@@ -144,77 +151,77 @@ static void minCutCache(polygeist::BarrierOp barrier,
   llvm::SetVector<Operation *> NonRecomputable;
   for (Operation *it = barrier->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
-	  auto &op = *it;
-	  if (!is_recomputable(op))
-		  NonRecomputable.insert(&op);
-	  for (Value value : op.getResults()) {
-		  G[Node(&op)].insert(Node(value));
-		  for (Operation *user : value.getUsers()) {
-			  // If the user is nested in another op, find its ancestor op that lives
-			  // in the same block as the barrier.
-			  while (user->getBlock() != barrier->getBlock())
-				  user = user->getBlock()->getParentOp();
+    auto &op = *it;
+    if (!is_recomputable(op))
+      NonRecomputable.insert(&op);
+    for (Value value : op.getResults()) {
+      G[Node(&op)].insert(Node(value));
+      for (Operation *user : value.getUsers()) {
+        // If the user is nested in another op, find its ancestor op that lives
+        // in the same block as the barrier.
+        while (user->getBlock() != barrier->getBlock())
+          user = user->getBlock()->getParentOp();
 
-			  G[Node(value)].insert(Node(user));
-		  }
-	  }
+        G[Node(value)].insert(Node(user));
+      }
+    }
   }
 
-	Graph Orig = G;
+  Graph Orig = G;
 
-	// Augment the flow while there is a path from source to sink
-	while (1) {
-		std::map<Node, Node> parent;
-		bfs(G, NonRecomputable, parent);
-		Node end;
-		for (auto req : Required) {
-			if (parent.find(Node(req)) != parent.end()) {
-				end = Node(req);
-				break;
-			}
-		}
-		if (end.type == Node::NONE)
-			break;
-		// update residual capacities of the edges and reverse edges
-		// along the path
-		Node v = end;
-		while (1) {
-			assert(parent.find(v) != parent.end());
-			Node u = parent.find(v)->second;
-			assert(u.type != Node::NONE);
-			assert(G[u].count(v) == 1);
-			assert(G[v].count(u) == 0);
-			G[u].erase(v);
-			G[v].insert(u);
-			if (u.type == Node::OP && NonRecomputable.count(u.O))
-				break;
-			v = u;
-		}
-	}
-	// Flow is maximum now, find vertices reachable from s
+  // Augment the flow while there is a path from source to sink
+  while (1) {
+    std::map<Node, Node> parent;
+    bfs(G, NonRecomputable, parent);
+    Node end;
+    for (auto req : Required) {
+      if (parent.find(Node(req)) != parent.end()) {
+        end = Node(req);
+        break;
+      }
+    }
+    if (end.type == Node::NONE)
+      break;
+    // update residual capacities of the edges and reverse edges
+    // along the path
+    Node v = end;
+    while (1) {
+      assert(parent.find(v) != parent.end());
+      Node u = parent.find(v)->second;
+      assert(u.type != Node::NONE);
+      assert(G[u].count(v) == 1);
+      assert(G[v].count(u) == 0);
+      G[u].erase(v);
+      G[v].insert(u);
+      if (u.type == Node::OP && NonRecomputable.count(u.O))
+        break;
+      v = u;
+    }
+  }
+  // Flow is maximum now, find vertices reachable from s
 
-	std::map<Node, Node> parent;
-	bfs(G, NonRecomputable, parent);
+  std::map<Node, Node> parent;
+  bfs(G, NonRecomputable, parent);
 
-	// All edges that are from a reachable vertex to non-reachable vertex in the
-	// original graph
-	for (auto &pair : Orig) {
-		if (parent.find(pair.first) != parent.end()) {
-			for (auto N : pair.second) {
-				if (parent.find(N) == parent.end()) {
-					assert(pair.first.type == Node::OP && N.type == Node::VAL);
-					assert(pair.first.O == N.V.dyn_cast<OpResult>().getOwner());
-					Cache.insert(N.V);
-				}
-			}
-		}
-	}
+  // All edges that are from a reachable vertex to non-reachable vertex in the
+  // original graph
+  for (auto &pair : Orig) {
+    if (parent.find(pair.first) != parent.end()) {
+      for (auto N : pair.second) {
+        if (parent.find(N) == parent.end()) {
+          assert(pair.first.type == Node::OP && N.type == Node::VAL);
+          assert(pair.first.O == N.V.dyn_cast<OpResult>().getOwner());
+          Cache.insert(N.V);
+        }
+      }
+    }
+  }
 
   // When ambiguous, push to cache the last value in a computation chain
   // This should be considered in a cost for the max flow
-	std::deque<Node> todo;
-  for (auto V: Cache)
-	  todo.push_back(Node(V));
+  std::deque<Node> todo;
+  for (auto V : Cache)
+    todo.push_back(Node(V));
 
   while (todo.size()) {
     auto N = todo.front();
@@ -223,7 +230,6 @@ static void minCutCache(polygeist::BarrierOp barrier,
     // TODO
     break;
   }
-
 }
 
 /// Populates `crossing` with values (op results) that are defined in the same
@@ -1195,39 +1201,41 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     llvm::SetVector<Value> minCache;
     // TODO make it an option I think
-    bool MIN_CUT_OPTIMIZATION = true;
+    bool MIN_CUT_OPTIMIZATION = false;
     if (MIN_CUT_OPTIMIZATION) {
 
       minCutCache(barrier, usedBelow, minCache);
 
       BlockAndValueMapping mapping;
       for (Value v : minCache)
-	      mapping.map(v, v);
-
-      // TODO should we integrate this in minCutCache?
-      for (auto alloca : preserveAllocas)
-	      assert(minCache.remove(alloca->getResult()) && "Alloca used below barrier was not in the min cache");
+        mapping.map(v, v);
 
       // Recalculate values used below the barrier up to available ones
       rewriter.setInsertionPointAfter(barrier);
-      auto recalculateVal = [&mapping, &rewriter, &avail](Value v) {
-	      if (mapping.contains(v)) {
-		      return mapping.lookup(v);
-	      } else if (auto op = v.getDefiningOp()) {
-	        for (Value operand : v.getOperands()) {
-		        mapping.map(v, recalculateVal(v));
-	        }
-	        rewriter.clone(*o, mapping);
+      std::function<void(Value)> recalculateVal;
+      recalculateVal = [&recalculateVal, &mapping, &rewriter](Value v) {
+        if (mapping.contains(v)) {
+          return;
+        } else if (auto op = v.getDefiningOp()) {
+          for (Value operand : op->getOperands()) {
+            recalculateVal(operand);
+          }
+          Operation *clonedOp = rewriter.clone(*op, mapping);
+          for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
+            mapping.map(std::get<0>(pair), std::get<1>(pair));
         } else {
-	        mapping.map(v, v);
-	        return v;
+          mapping.map(v, v);
         }
       };
       for (auto v : usedBelow)
-	      recalculateVal(v);
+        recalculateVal(v);
     } else {
-	    minCache = usedBelow;
+      minCache = usedBelow;
     }
+    // TODO should we integrate this in minCutCache?
+    for (auto alloca : preserveAllocas)
+	    assert(minCache.remove(alloca->getResult(0)) &&
+	           "Alloca used below barrier was not in the min cache");
 
 
     SmallVector<Value> iterCounts;
@@ -1265,7 +1273,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     rewriter.setInsertionPointToStart(outerBlock);
     // Allocate space for values crossing the barrier.
-    SmallVector<Value> usedBelowAllocations;
+    SmallVector<Value> minCacheAllocations;
     SmallVector<Value> allocaAllocations;
     minCacheAllocations.reserve(minCache.size());
     allocaAllocations.reserve(preserveAllocas.size());
@@ -1282,17 +1290,15 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
       }
     };
     for (Value v : minCache)
-	    addToAllocations(v, minCacheAllocations);
+      addToAllocations(v, minCacheAllocations);
     for (Operation *o : preserveAllocas)
-	    addToAllocations(o->getResult(0), allocaAllocations);
-
-    SmallVector<Value> available;
+      addToAllocations(o->getResult(0), allocaAllocations);
 
     // Allocate alloca's we need to preserve outside the loop
     for (auto pair : llvm::zip(preserveAllocas, allocaAllocations)) {
-	    Value v = std::get<0>(pair);
-	    Value alloc = std::get<1>(pair);
-      if (auto ao = v.getDefiningOp<memref::AllocaOp>()) {
+      Operation *o = std::get<0>(pair);
+      Value alloc = std::get<1>(pair);
+      if (auto ao = dyn_cast<memref::AllocaOp>(o)) {
         for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
           rewriter.setInsertionPoint(u.getOwner());
           auto buf = alloc;
@@ -1312,7 +1318,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
           u.set(buf);
         }
         rewriter.eraseOp(ao);
-      } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
+      } else if (auto ao = dyn_cast<LLVM::AllocaOp>(o)) {
         Value sz = ao.getArraySize();
         rewriter.setInsertionPointAfter(alloc.getDefiningOp());
         alloc =
@@ -1341,27 +1347,27 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
                                              idx));
         }
       } else {
-	      assert(false && "Wrong operation type in preserveAllocas");
+        assert(false && "Wrong operation type in preserveAllocas");
       }
     }
 
     // Store values in the min cache immediately when ready.
     for (auto pair : llvm::zip(minCache, minCacheAllocations)) {
-	    Value v = std::get<0>(pair);
-	    Value alloc = std::get<1>(pair);
+      Value v = std::get<0>(pair);
+      Value alloc = std::get<1>(pair);
       for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-	      auto user = u.getOwner();
-	      while (user->getBlock() != barrier->getBlock())
-		      user = user->getBlock()->getParentOp();
+        auto user = u.getOwner();
+        while (user->getBlock() != barrier->getBlock())
+          user = user->getBlock()->getParentOp();
 
-	      if (barrier->isBeforeInBlock(user)) {
-		      rewriter.setInsertionPoint(u.getOwner());
-		      Value reloaded = rewriter.create<memref::LoadOp>(
-			      user->getLoc(), alloc, preLoop.getBody()->getArguments());
-		      rewriter.startRootUpdate(user);
-		      u.set(reloaded);
-		      rewriter.finalizeRootUpdate(user);
-	      }
+        if (barrier->isBeforeInBlock(user)) {
+          rewriter.setInsertionPoint(u.getOwner());
+          Value reloaded = rewriter.create<memref::LoadOp>(
+              user->getLoc(), alloc, preLoop.getBody()->getArguments());
+          rewriter.startRootUpdate(user);
+          u.set(reloaded);
+          rewriter.finalizeRootUpdate(user);
+        }
       }
       rewriter.setInsertionPointAfter(v.getDefiningOp());
       rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
@@ -1376,6 +1382,18 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     // Create the second loop.
     rewriter.setInsertionPointToEnd(outerBlock);
+    auto freefn = GetOrCreateFreeFunction(mod);
+    // TODO do this more efficiently
+    SmallVector<Value> allocations;
+    allocations.append(minCacheAllocations.begin(), minCacheAllocations.end());
+    allocations.append(allocaAllocations.begin(), allocaAllocations.end());
+    for (auto alloc : allocations) {
+      if (alloc.getType().isa<LLVM::LLVMPointerType>()) {
+        Value args[1] = {alloc};
+        rewriter.create<LLVM::CallOp>(alloc.getLoc(), freefn, args);
+      } else
+        rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
+    }
     if (outerLoop) {
       if (isa<scf::ParallelOp>(outerLoop))
         rewriter.create<scf::YieldOp>(op.getLoc());
@@ -1402,6 +1420,17 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
+    for (auto ao : allocaAllocations) {
+      assert((ao.getDefiningOp<LLVM::AllocaOp>() ||
+              ao.getDefiningOp<memref::AllocaOp>()) &&
+             "Wrong operation type in alloca allocations");
+      rewriter.eraseOp(ao.getDefiningOp());
+    }
+
+    if (!outerLoop) {
+      rewriter.mergeBlockBefore(outerBlock, op);
+      rewriter.eraseOp(outerEx);
+    }
     rewriter.eraseOp(op);
 
     LLVM_DEBUG(DBGS() << "[distribute] distributed around a barrier\n");
