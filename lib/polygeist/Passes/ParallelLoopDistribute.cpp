@@ -1200,7 +1200,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     rewriter.setInsertionPoint(op);
 
     llvm::SetVector<Value> minCache;
-    // TODO make it an option I think
+    // TODO make it an option I guess
     bool MIN_CUT_OPTIMIZATION = false;
     if (MIN_CUT_OPTIMIZATION) {
 
@@ -1234,9 +1234,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     }
     // TODO should we integrate this in minCutCache?
     for (auto alloca : preserveAllocas)
-	    assert(minCache.remove(alloca->getResult(0)) &&
-	           "Alloca used below barrier was not in the min cache");
-
+      assert(minCache.remove(alloca->getResult(0)) &&
+             "Alloca used below barrier was not in the min cache");
 
     SmallVector<Value> iterCounts;
     T preLoop;
@@ -1420,11 +1419,12 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
-    for (auto ao : allocaAllocations) {
-      assert((ao.getDefiningOp<LLVM::AllocaOp>() ||
-              ao.getDefiningOp<memref::AllocaOp>()) &&
-             "Wrong operation type in alloca allocations");
-      rewriter.eraseOp(ao.getDefiningOp());
+    for (auto ao : allocations) {
+      if (ao.getDefiningOp<LLVM::AllocaOp>() ||
+          ao.getDefiningOp<memref::AllocaOp>()) {
+        assert(false && "TODO I feel like this never happens, no?");
+        rewriter.eraseOp(ao.getDefiningOp());
+      }
     }
 
     if (!outerLoop) {
