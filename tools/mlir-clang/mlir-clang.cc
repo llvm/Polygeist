@@ -19,6 +19,7 @@
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
 
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
@@ -391,6 +392,7 @@ int main(int argc, char **argv) {
   context.disableMultithreading();
   context.getOrLoadDialect<AffineDialect>();
   context.getOrLoadDialect<StandardOpsDialect>();
+  context.getOrLoadDialect<DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
@@ -598,6 +600,7 @@ int main(int argc, char **argv) {
       return 5;
     }
   }
+  module->dump();
 
   if (EmitLLVM || !EmitAssembly) {
     llvm::LLVMContext llvmContext;
