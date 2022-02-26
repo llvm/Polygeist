@@ -297,6 +297,13 @@ static void findValuesUsedBelow(polygeist::BarrierOp op,
       }
     }
   }
+
+  for (auto v : crossing) {
+	  if (isa<memref::AllocaOp, LLVM::AllocaOp>(v.getDefiningOp())) {
+		  preserveAllocas.insert(v.getDefiningOp());
+    }
+  }
+
 }
 
 /// Returns `true` if the given operation has a BarrierOp transitively nested in
@@ -1232,10 +1239,11 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     } else {
       minCache = usedBelow;
     }
+
     // TODO should we integrate this in minCutCache?
-    for (auto alloca : preserveAllocas)
-      assert(minCache.remove(alloca->getResult(0)) &&
-             "Alloca used below barrier was not in the min cache");
+    for (auto alloca : preserveAllocas) {
+	    minCache.remove(alloca->getResult(0));
+    }
 
     SmallVector<Value> iterCounts;
     T preLoop;
