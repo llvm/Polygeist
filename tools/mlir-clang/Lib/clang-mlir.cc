@@ -672,6 +672,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
 }
 
 ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
+  decl = decl->getCanonicalDecl();
   mlir::Type subType = getMLIRType(decl->getType());
   ValueCategory inite = nullptr;
   unsigned memtype = decl->hasAttr<CUDASharedAttr>() ? 5 : 0;
@@ -3189,6 +3190,17 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_LValueToRValue: {
     if (auto dr = dyn_cast<DeclRefExpr>(E->getSubExpr())) {
+      if (auto VD = dyn_cast<VarDecl>(dr->getDecl()->getCanonicalDecl())) {
+        if (NOUR_Constant == dr->isNonOdrUse()) {
+          auto VarD = cast<VarDecl>(VD);
+          if (!VarD->getInit()) {
+            E->dump();
+            VarD->dump();
+          }
+          assert(VarD->getInit());
+          return Visit(VarD->getInit());
+        }
+      }
       if (dr->getDecl()->getIdentifier() &&
           dr->getDecl()->getName() == "warpSize") {
         auto mlirType = getMLIRType(E->getType());
@@ -3707,10 +3719,12 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
   }
 
   LLVM::Linkage lnk;
-  if (!isa<VarDecl>(FD))
+  auto VD = dyn_cast<VarDecl>(FD);
+  if (!VD)
     FD->dump();
-  auto linkage =
-      CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD), /*isConstant*/ false);
+  VD = VD->getCanonicalDecl();
+
+  auto linkage = CGM.getLLVMLinkageVarDefinition(VD, /*isConstant*/ false);
   switch (linkage) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
@@ -3755,16 +3769,14 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
   auto glob = builder.create<LLVM::GlobalOp>(
       module->getLoc(), rt, /*constant*/ false, lnk, name, mlir::Attribute());
 
-  if (cast<VarDecl>(FD)->getInit() ||
-      cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
-          VarDecl::Definition ||
-      cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
-          VarDecl::TentativeDefinition) {
+  if (VD->getInit() ||
+      VD->isThisDeclarationADefinition() == VarDecl::Definition ||
+      VD->isThisDeclarationADefinition() == VarDecl::TentativeDefinition) {
     Block *blk = new Block();
     glob.getInitializerRegion().push_back(blk);
     builder.setInsertionPointToStart(blk);
     mlir::Value res;
-    if (auto init = cast<VarDecl>(FD)->getInit()) {
+    if (auto init = VD->getInit()) {
       MLIRScanner ms(*this, module, LTInfo);
       ms.setEntryAndAllocBlock(blk);
       res = ms.Visit(const_cast<Expr *>(init)).getValue(builder);
@@ -3806,15 +3818,19 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   mlir::OpBuilder builder(module->getContext());
   builder.setInsertionPointToStart(module->getBody());
 
-  if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
-      VarDecl::Definition) {
+  auto VD = dyn_cast<VarDecl>(FD);
+  if (!VD)
+    FD->dump();
+  VD = VD->getCanonicalDecl();
+
+  if (VD->isThisDeclarationADefinition() == VarDecl::Definition) {
     initial_value = builder.getUnitAttr();
-  } else if (cast<VarDecl>(FD)->isThisDeclarationADefinition() ==
+  } else if (VD->isThisDeclarationADefinition() ==
              VarDecl::TentativeDefinition) {
     initial_value = builder.getUnitAttr();
   }
 
-  switch (CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD),
+  switch (CGM.getLLVMLinkageVarDefinition(VD,
                                           /*isConstant*/ false)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = mlir::SymbolTable::Visibility::Private;
@@ -3860,7 +3876,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   globals[name] = std::make_pair(globalOp, isArray);
 
   if (tryInit)
-    if (auto init = cast<VarDecl>(FD)->getInit()) {
+    if (auto init = VD->getInit()) {
       MLIRScanner ms(*this, module, LTInfo);
       mlir::Block *B = new Block();
       ms.setEntryAndAllocBlock(B);
