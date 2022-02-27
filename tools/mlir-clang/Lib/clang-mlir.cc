@@ -9,8 +9,8 @@
 #include "clang-mlir.h"
 #include "TypeUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -3787,58 +3787,63 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     for (Operation &op : *blk) {
       auto iface = dyn_cast<MemoryEffectOpInterface>(op);
       if (!iface || !iface.hasNoEffect()) {
-		legal = false;
-		break;
+        legal = false;
+        break;
       }
     }
-	if (legal) {
+    if (legal) {
       builder.create<LLVM::ReturnOp>(module->getLoc(),
-                                   std::vector<mlir::Value>({res}));
+                                     std::vector<mlir::Value>({res}));
       glob.getInitializerRegion().push_back(blk);
     } else {
       Block *blk2 = new Block();
-	  builder.setInsertionPointToEnd(blk2);
+      builder.setInsertionPointToEnd(blk2);
       mlir::Value nres = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
       builder.create<LLVM::ReturnOp>(module->getLoc(),
                                      std::vector<mlir::Value>({nres}));
       glob.getInitializerRegion().push_back(blk2);
-      
+
       builder.setInsertionPointToStart(module->getBody());
-	  auto funcName = name + "@init";
-	  LLVM::GlobalCtorsOp ctors = nullptr;
-	  for (auto &op : *module->getBody()) {
-		if (auto c = dyn_cast<LLVM::GlobalCtorsOp>(&op)) {
-			ctors = c;
-		}
-	  }
-	  SmallVector<mlir::Attribute> funcs;
-	  funcs.push_back(FlatSymbolRefAttr::get(module->getContext(), funcName));
-	  SmallVector<mlir::Attribute> idxs;
-	  idxs.push_back(builder.getI32IntegerAttr(0));
-	  if (ctors) {
-		for (auto f : ctors.getCtors())
-			funcs.push_back(f);
-		for (auto v : ctors.getPriorities())
-			idxs.push_back(v);
-		ctors->erase();
-	  }
-	  
-	  builder.create<LLVM::GlobalCtorsOp>(
-        module->getLoc(), builder.getArrayAttr(funcs), builder.getArrayAttr(idxs));
-  
-      auto llvmFnType = LLVM::LLVMFunctionType::get(mlir::LLVM::LLVMVoidType::get(module->getContext()), ArrayRef<mlir::Type>(), false);
-	  
+      auto funcName = name + "@init";
+      LLVM::GlobalCtorsOp ctors = nullptr;
+      for (auto &op : *module->getBody()) {
+        if (auto c = dyn_cast<LLVM::GlobalCtorsOp>(&op)) {
+          ctors = c;
+        }
+      }
+      SmallVector<mlir::Attribute> funcs;
+      funcs.push_back(FlatSymbolRefAttr::get(module->getContext(), funcName));
+      SmallVector<mlir::Attribute> idxs;
+      idxs.push_back(builder.getI32IntegerAttr(0));
+      if (ctors) {
+        for (auto f : ctors.getCtors())
+          funcs.push_back(f);
+        for (auto v : ctors.getPriorities())
+          idxs.push_back(v);
+        ctors->erase();
+      }
+
+      builder.create<LLVM::GlobalCtorsOp>(module->getLoc(),
+                                          builder.getArrayAttr(funcs),
+                                          builder.getArrayAttr(idxs));
+
+      auto llvmFnType = LLVM::LLVMFunctionType::get(
+          mlir::LLVM::LLVMVoidType::get(module->getContext()),
+          ArrayRef<mlir::Type>(), false);
+
       auto func = builder.create<LLVM::LLVMFuncOp>(
-             module->getLoc(), funcName, llvmFnType, LLVM::Linkage::Private);
-	  func.getRegion().push_back(blk);
-	  builder.setInsertionPointToEnd(blk);
-	  builder.create<LLVM::StoreOp>(module->getLoc(), res, builder.create<LLVM::AddressOfOp>(module->getLoc(), glob));
-	  builder.create<LLVM::ReturnOp>(module->getLoc(), ArrayRef<mlir::Value>());
+          module->getLoc(), funcName, llvmFnType, LLVM::Linkage::Private);
+      func.getRegion().push_back(blk);
+      builder.setInsertionPointToEnd(blk);
+      builder.create<LLVM::StoreOp>(
+          module->getLoc(), res,
+          builder.create<LLVM::AddressOfOp>(module->getLoc(), glob));
+      builder.create<LLVM::ReturnOp>(module->getLoc(), ArrayRef<mlir::Value>());
     }
   }
   if (lnk == LLVM::Linkage::Private || lnk == LLVM::Linkage::Internal) {
     SymbolTable::setSymbolVisibility(glob,
-                                       mlir::SymbolTable::Visibility::Private);
+                                     mlir::SymbolTable::Visibility::Private);
   }
   return llvmGlobals[name] = glob;
 }
@@ -4882,13 +4887,15 @@ DataLayoutSpecAttr translateDataLayout(MLIRContext &ctx, StringRef layout) {
       if (!params)
         return nullptr;
       auto entry = DataLayoutEntryAttr::get(
-          mlir::IntegerType::get(&ctx, *params.getValues<int32_t>().begin()), params);
+          mlir::IntegerType::get(&ctx, *params.getValues<int32_t>().begin()),
+          params);
       entries.emplace_back(entry);
     } else if (symbol == 'f') {
       DenseIntElementsAttr params = parseDataLayoutTriple(ctx, parameter, spec);
       if (!params)
         return nullptr;
-      mlir::Type fltType = getDLFloatType(ctx, *params.getValues<int32_t>().begin());
+      mlir::Type fltType =
+          getDLFloatType(ctx, *params.getValues<int32_t>().begin());
       if (!fltType)
         return nullptr;
       auto entry = DataLayoutEntryAttr::get(fltType, params);
@@ -4905,7 +4912,8 @@ DataLayoutSpecAttr translateDataLayout(MLIRContext &ctx, StringRef layout) {
       if (!params)
         return nullptr;
       auto entry = DataLayoutEntryAttr::get(
-          LLVM::LLVMPointerType::get(mlir::IntegerType::get(&ctx, 8), addressSpace),
+          LLVM::LLVMPointerType::get(mlir::IntegerType::get(&ctx, 8),
+                                     addressSpace),
           params);
       entries.emplace_back(entry);
     }
@@ -5105,12 +5113,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
           LLVM::LLVMDialect::getDataLayoutAttrName(),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getDataLayoutString()));
-	  // TODO does not work
-	  /*
-	  module.get()->setAttr(
-		  ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
-		  translateDataLayout(*module->getContext(), Clang->getTarget().getDataLayoutString()));
-	  */
+      // TODO does not work
+      /*
+      module.get()->setAttr(
+              ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
+              translateDataLayout(*module->getContext(),
+      Clang->getTarget().getDataLayoutString()));
+      */
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {

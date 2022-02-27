@@ -19,7 +19,6 @@
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
 
-#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
@@ -28,6 +27,7 @@
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -121,11 +121,6 @@ static cl::opt<bool> EarlyVerifier("early-verifier", cl::init(false),
                                    cl::desc("Enable verifier ASAP"));
 
 static cl::opt<bool> Verbose("v", cl::init(false), cl::desc("Verbose"));
-
-static cl::opt<bool>
-    showDialects("show-dialects",
-                 llvm::cl::desc("Print the list of registered dialects"),
-                 llvm::cl::init(false), cl::cat(toolOptions));
 
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
@@ -367,20 +362,24 @@ int main(int argc, char **argv) {
   }
   using namespace mlir;
 
-  cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
-                                      cl::desc("<Specify input file>"),
-                                      cl::cat(toolOptions));
+  std::vector<std::string> files;
+  {
+    cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
+                                        cl::desc("<Specify input file>"),
+                                        cl::cat(toolOptions));
 
-  int size = MLIRArgs.size();
-  const char **data = MLIRArgs.data();
-  InitLLVM y(size, data);
-  cl::ParseCommandLineOptions(size, data);
-  assert(inputFileName.size());
-  for (auto inp : inputFileName) {
-    std::ifstream inputFile(inp);
-    if (!inputFile.good()) {
-      outs() << "Not able to open file: " << inp << "\n";
-      return -1;
+    int size = MLIRArgs.size();
+    const char **data = MLIRArgs.data();
+    InitLLVM y(size, data);
+    cl::ParseCommandLineOptions(size, data);
+    assert(inputFileName.size());
+    for (auto inp : inputFileName) {
+      std::ifstream inputFile(inp);
+      if (!inputFile.good()) {
+        outs() << "Not able to open file: " << inp << "\n";
+        return -1;
+      }
+      files.push_back(inp);
     }
   }
 
@@ -413,20 +412,13 @@ int main(int argc, char **argv) {
   LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
       context);
 
-  if (showDialects) {
-    outs() << "Registered Dialects:\n";
-    for (Dialect *dialect : context.getLoadedDialects()) {
-      outs() << dialect->getNamespace() << "\n";
-    }
-    return 0;
-  }
   mlir::OwningOpRef<mlir::ModuleOp> module(
       mlir::ModuleOp::create(mlir::OpBuilder(&context).getUnknownLoc()));
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
-  parseMLIR(argv[0], inputFileName, cfunction, includeDirs, defines, module,
-            triple, DL);
+  parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple,
+            DL);
   mlir::PassManager pm(&context);
 
   if (ImmediateMLIR) {
@@ -600,7 +592,6 @@ int main(int argc, char **argv) {
       return 5;
     }
   }
-  module->dump();
 
   if (EmitLLVM || !EmitAssembly) {
     llvm::LLVMContext llvmContext;
