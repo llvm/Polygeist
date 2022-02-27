@@ -2552,8 +2552,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                    prev.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       result = builder.create<LLVM::GEPOp>(
           loc, pt, prev, std::vector<mlir::Value>({rhs.getValue(builder)}));
-    } else {
-      auto postTy = prev.getType().dyn_cast<mlir::IntegerType>();
+    } else if (auto postTy = prev.getType().dyn_cast<mlir::IntegerType>()) {
       mlir::Value rhsV = rhs.getValue(builder);
       auto prevTy = rhsV.getType().cast<mlir::IntegerType>();
       if (prevTy == postTy) {
@@ -2568,6 +2567,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       }
       assert(rhsV.getType() == prev.getType());
       result = builder.create<AddIOp>(loc, prev, rhsV);
+    } else if (auto postTy = prev.getType().dyn_cast<mlir::MemRefType>()) {
+      mlir::Value rhsV = rhs.getValue(builder);
+      auto shape = std::vector<int64_t>(postTy.getShape());
+      shape[0] = -1;
+      postTy = mlir::MemRefType::get(shape, postTy.getElementType(),
+                                     MemRefLayoutAttrInterface(),
+                                     postTy.getMemorySpace());
+      auto ptradd = rhsV;
+      ptradd = castToIndex(loc, ptradd);
+      result = builder.create<polygeist::SubIndexOp>(loc, postTy, prev, ptradd);
+    } else {
+      assert(false && "Unsupported add assign type");
     }
     lhs.store(builder, result);
     return lhs;
