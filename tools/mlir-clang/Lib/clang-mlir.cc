@@ -9,6 +9,7 @@
 #include "clang-mlir.h"
 #include "TypeUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
@@ -3784,7 +3785,6 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
       VD->isThisDeclarationADefinition() == VarDecl::Definition ||
       VD->isThisDeclarationADefinition() == VarDecl::TentativeDefinition) {
     Block *blk = new Block();
-    glob.getInitializerRegion().push_back(blk);
     builder.setInsertionPointToStart(blk);
     mlir::Value res;
     if (auto init = VD->getInit()) {
@@ -3794,8 +3794,67 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     } else {
       res = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
     }
-    builder.create<LLVM::ReturnOp>(module->getLoc(),
-                                   std::vector<mlir::Value>({res}));
+    bool legal = true;
+    for (Operation &op : *blk) {
+      auto iface = dyn_cast<MemoryEffectOpInterface>(op);
+      if (!iface || !iface.hasNoEffect()) {
+        legal = false;
+        break;
+      }
+    }
+    if (legal) {
+      builder.create<LLVM::ReturnOp>(module->getLoc(),
+                                     std::vector<mlir::Value>({res}));
+      glob.getInitializerRegion().push_back(blk);
+    } else {
+      Block *blk2 = new Block();
+      builder.setInsertionPointToEnd(blk2);
+      mlir::Value nres = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
+      builder.create<LLVM::ReturnOp>(module->getLoc(),
+                                     std::vector<mlir::Value>({nres}));
+      glob.getInitializerRegion().push_back(blk2);
+
+      builder.setInsertionPointToStart(module->getBody());
+      auto funcName = name + "@init";
+      LLVM::GlobalCtorsOp ctors = nullptr;
+      for (auto &op : *module->getBody()) {
+        if (auto c = dyn_cast<LLVM::GlobalCtorsOp>(&op)) {
+          ctors = c;
+        }
+      }
+      SmallVector<mlir::Attribute> funcs;
+      funcs.push_back(FlatSymbolRefAttr::get(module->getContext(), funcName));
+      SmallVector<mlir::Attribute> idxs;
+      idxs.push_back(builder.getI32IntegerAttr(0));
+      if (ctors) {
+        for (auto f : ctors.getCtors())
+          funcs.push_back(f);
+        for (auto v : ctors.getPriorities())
+          idxs.push_back(v);
+        ctors->erase();
+      }
+
+      builder.create<LLVM::GlobalCtorsOp>(module->getLoc(),
+                                          builder.getArrayAttr(funcs),
+                                          builder.getArrayAttr(idxs));
+
+      auto llvmFnType = LLVM::LLVMFunctionType::get(
+          mlir::LLVM::LLVMVoidType::get(module->getContext()),
+          ArrayRef<mlir::Type>(), false);
+
+      auto func = builder.create<LLVM::LLVMFuncOp>(
+          module->getLoc(), funcName, llvmFnType, LLVM::Linkage::Private);
+      func.getRegion().push_back(blk);
+      builder.setInsertionPointToEnd(blk);
+      builder.create<LLVM::StoreOp>(
+          module->getLoc(), res,
+          builder.create<LLVM::AddressOfOp>(module->getLoc(), glob));
+      builder.create<LLVM::ReturnOp>(module->getLoc(), ArrayRef<mlir::Value>());
+    }
+  }
+  if (lnk == LLVM::Linkage::Private || lnk == LLVM::Linkage::Internal) {
+    SymbolTable::setSymbolVisibility(glob,
+                                     mlir::SymbolTable::Visibility::Private);
   }
   return llvmGlobals[name] = glob;
 }
@@ -4777,6 +4836,102 @@ mlir::Value MLIRScanner::getTypeSize(clang::QualType t) {
 }
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"
+
+static DenseIntElementsAttr
+parseDataLayoutTriple(MLIRContext &ctx, StringRef first, StringRef rest) {
+  using namespace mlir;
+  auto i32 = mlir::IntegerType::get(&ctx, 32);
+  int bitwidth;
+  if (first.getAsInteger(/*Radix=*/10, bitwidth))
+    return nullptr;
+
+  StringRef abiString, preferredString;
+  std::tie(abiString, preferredString) = rest.split(':');
+  int abi, preferred;
+  if (abiString.getAsInteger(/*Radix=*/10, abi))
+    return nullptr;
+
+  if (preferredString.empty())
+    preferred = abi;
+  else if (preferredString.getAsInteger(/*Radix=*/10, preferred))
+    return nullptr;
+
+  return DenseIntElementsAttr::get(mlir::VectorType::get({3}, i32),
+                                   {bitwidth, abi, preferred});
+}
+
+FloatType getDLFloatType(MLIRContext &ctx, int32_t bitwidth) {
+  switch (bitwidth) {
+  case 16:
+    return mlir::FloatType::getF16(&ctx);
+  case 32:
+    return mlir::FloatType::getF32(&ctx);
+  case 64:
+    return mlir::FloatType::getF64(&ctx);
+  case 80:
+    return mlir::FloatType::getF80(&ctx);
+  case 128:
+    return mlir::FloatType::getF128(&ctx);
+  default:
+    return nullptr;
+  }
+}
+
+DataLayoutSpecAttr translateDataLayout(MLIRContext &ctx, StringRef layout) {
+  using namespace mlir;
+  SmallVector<DataLayoutEntryInterface> entries;
+  while (!layout.empty()) {
+    // Split at '-'.
+    std::pair<StringRef, StringRef> split = layout.split('-');
+    StringRef current;
+    std::tie(current, layout) = split;
+
+    // Split at ':'.
+    StringRef kind, spec;
+    std::tie(kind, spec) = current.split(':');
+
+    char symbol = kind.front();
+    StringRef parameter = kind.substr(1);
+
+    if (symbol == 'i') {
+      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, parameter, spec);
+      if (!params)
+        return nullptr;
+      auto entry = DataLayoutEntryAttr::get(
+          mlir::IntegerType::get(&ctx, *params.getValues<int32_t>().begin()),
+          params);
+      entries.emplace_back(entry);
+    } else if (symbol == 'f') {
+      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, parameter, spec);
+      if (!params)
+        return nullptr;
+      mlir::Type fltType =
+          getDLFloatType(ctx, *params.getValues<int32_t>().begin());
+      if (!fltType)
+        return nullptr;
+      auto entry = DataLayoutEntryAttr::get(fltType, params);
+      entries.emplace_back(entry);
+    } else if (symbol == 'p') {
+      int addressSpace = 0;
+      if (!parameter.empty()) {
+        if (parameter.getAsInteger(/*Radix=*/10, addressSpace))
+          return nullptr;
+      }
+      StringRef head, tail;
+      std::tie(head, tail) = spec.split(':');
+      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, head, tail);
+      if (!params)
+        return nullptr;
+      auto entry = DataLayoutEntryAttr::get(
+          LLVM::LLVMPointerType::get(mlir::IntegerType::get(&ctx, 8),
+                                     addressSpace),
+          params);
+      entries.emplace_back(entry);
+    }
+  }
+  return DataLayoutSpecAttr::get(&ctx, entries);
+}
+
 static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
@@ -4969,6 +5124,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
           LLVM::LLVMDialect::getDataLayoutAttrName(),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getDataLayoutString()));
+      // TODO does not work
+      /*
+      module.get()->setAttr(
+              ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
+              translateDataLayout(*module->getContext(),
+      Clang->getTarget().getDataLayoutString()));
+      */
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
