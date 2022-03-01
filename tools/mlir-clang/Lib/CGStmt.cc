@@ -273,6 +273,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     loops.push_back(lctx);
     Visit(fors->getBody());
     if (auto s = fors->getInc()) {
+      IfScope scope(*this);
       Visit(s);
     }
     loops.pop_back();

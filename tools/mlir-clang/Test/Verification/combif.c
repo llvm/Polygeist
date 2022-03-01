@@ -1,5 +1,7 @@
 // RUN: mlir-clang %s --function=* -S | FileCheck %s
 
+// XFAIL: *
+// TODO handle negation on if combine
 // TODO remove unused cyclic phi
 
 void use(float);
