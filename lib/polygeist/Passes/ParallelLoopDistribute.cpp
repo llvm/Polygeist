@@ -134,6 +134,10 @@ static inline void bfs(const Graph &G,
 }
 
 static bool is_recomputable(Operation &op) {
+  // TODO does this mess with minCutCache's logic? can we somehow come across
+  // another parallel's cache load there and would that be a problem?
+  if (isa<polygeist::CacheLoad>(op))
+    return true;
   // TODO is this correct?
   if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(&op)) {
     return memInterface.hasNoEffect();
@@ -141,8 +145,6 @@ static bool is_recomputable(Operation &op) {
     return false;
     // return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
   }
-
-  // return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
 }
 
 static void minCutCache(polygeist::BarrierOp barrier,
@@ -596,6 +598,7 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
         indVars.insert(var);
 
     return wrapWithBarriers(op, rewriter, vals, [&](Operation *prevOp) {
+      // If it is a load of the for upper bound
       if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
         if (loadOp.result() == op.getUpperBound() &&
             llvm::all_of(loadOp.indices(),
@@ -604,7 +607,15 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
           return prevOp == nullptr || isBarrierContainingAll(prevOp, vals);
         }
       }
-      return false;
+      // If all preceeding ops are recomputable
+      while (prevOp) {
+        // TODO we could check if our cacheload ops have the parallel op indVars
+        // as arguments, is that needed?
+        if (!is_recomputable(*prevOp))
+          return false;
+        prevOp = prevOp->getPrevNode();
+      }
+      return true;
     });
   }
 };
@@ -825,22 +836,23 @@ struct InterchangeIfPForLoad : public OpRewritePattern<T> {
 /// created at the start of `newForLoop`.
 template <typename T, typename ForType>
 static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
-                          ForType newForLoop, bool preserveRecomputes = false) {
+                          ForType newForLoop) {
   OpBuilder::InsertionGuard guard(rewriter);
   rewriter.setInsertionPointToStart(newForLoop.getBody());
   auto newParallel = rewriter.cloneWithoutRegions<T>(op);
   newParallel.getRegion().push_back(new Block());
   for (auto a : op.getBody()->getArguments())
     newParallel.getBody()->addArgument(a.getType(), op->getLoc());
-  if (preserveRecomputes) {
-    BlockAndValueMapping mapping;
-    mapping.map(op.getBody()->getArguments(),
-                newParallel.getBody()->getArguments());
-    rewriter.setInsertionPoinToEnd(newParallel.getBody());
-    for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
-         ++it) {
+
+  // Keep recomputable values in the parallel op
+  BlockAndValueMapping mapping;
+  mapping.map(op.getBody()->getArguments(),
+              newParallel.getBody()->getArguments());
+  rewriter.setInsertionPointToEnd(newParallel.getBody());
+  for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
+       ++it) {
+    if (is_recomputable(*it))
       rewriter.clone(*it, mapping);
-    }
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
@@ -954,7 +966,7 @@ struct InterchangeForPForLoad : public OpRewritePattern<T> {
 /// side effects or polygeist cache loads) and with the last operation of type
 /// LastOpType which has a nested barrier
 template <typename ParallelOpType, typename LastOpType>
-bool canInterchangeParallelWithLastOp(string Pattern, ParallelOpType op) {
+bool canInterchangeParallelWithLastOp(StringRef Pattern, ParallelOpType op) {
   if (std::next(op.getBody()->begin(), 1) == op.getBody()->end()) {
     LLVM_DEBUG(DBGS() << "[" << Pattern
                       << "] expected one or more nested ops\n");
@@ -962,21 +974,21 @@ bool canInterchangeParallelWithLastOp(string Pattern, ParallelOpType op) {
   }
 
   // The actualy last op is a yield, get the one before that
-  auto lastOpIt = op.getBody()->back()->getPrevNode();
-  auto lastOp = dyn_cast<LastOpType>(lastOpIt);
-  if (!forOp) {
+  auto lastOpIt = std::prev(op.getBody()->end(), 2);
+  auto lastOp = dyn_cast<LastOpType>(*lastOpIt);
+  if (!lastOp) {
     LLVM_DEBUG(DBGS() << "[" << Pattern << "] unexpected last op type\n");
     return false;
   }
 
   SmallVector<BlockArgument> args;
-  if (!hasNestedBarrier(containedOp, args)) {
+  if (!hasNestedBarrier(lastOp, args)) {
     LLVM_DEBUG(DBGS() << "[" << Pattern << "] no nested barrier\n");
     return false;
   }
 
-  for (auto it = op.getBody()->begin(); it != containedOpIt; ++it) {
-    if (!is_recomputable(*op) && !isa<polygeist::CacheLoad>(&*op)) {
+  for (auto it = op.getBody()->begin(); it != lastOpIt; ++it) {
+    if (!is_recomputable(*it)) {
       LLVM_DEBUG(DBGS() << "[" << Pattern << "] found a nonrecomputable op\n");
       return false;
     }
@@ -993,17 +1005,16 @@ struct InterchangeForPForRecomputable : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    if (canInterchangeParallelWithLastOp<T, ForType>(
-            "interchange-recomputable-for", op)
-            .failed())
+    if (!canInterchangeParallelWithLastOp<T, ForType>(
+            "interchange-recomputable-for", op))
       return failure();
 
-    auto lastOpIt = op.getBody()->back()->getPrevNode();
+    auto lastOpIt = op.getBody()->back().getPrevNode();
     auto forLoop = dyn_cast<ForType>(lastOpIt);
     assert(forLoop);
 
     auto newForLoop = cloneWithoutResults(forLoop, rewriter);
-    moveBodiesFor(rewriter, op, forLoop, newForLoop, true);
+    moveBodiesFor(rewriter, op, forLoop, newForLoop);
 
     return success();
   }
