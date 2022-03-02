@@ -1400,6 +1400,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : preserveAllocas)
       addToAllocations(o->getResult(0), allocaAllocations);
 
+    // TODO rewrite these alloca loads using cacheload and load only once (not
+    // for all uses)
+
     // Allocate alloca's we need to preserve outside the loop
     for (auto pair : llvm::zip(preserveAllocas, allocaAllocations)) {
       Operation *o = std::get<0>(pair);
@@ -1897,49 +1900,71 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
+struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
+  using OpRewritePattern<polygeist::CacheLoad>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(polygeist::CacheLoad op,
+                                PatternRewriter &rewriter) const override {
+    auto memrefLoad =
+        rewriter.create<memref::LoadOp>(op.getLoc(), op.memref(), op.indices());
+    rewriter.replaceOp(op, memrefLoad.getResult());
+    return success();
+  }
+};
+
 struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass() = default;
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
   void runOnOperation() override {
     if (method == "distribute") {
-      RewritePatternSet patterns(&getContext());
-      patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
-                      Reg2MemWhile, Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>,
-                      WrapForWithBarrier, WrapAffineForWithBarrier,
-                      WrapIfWithBarrier<scf::IfOp>,
-                      WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-                      InterchangeForPFor<scf::ParallelOp, scf::ForOp>,
-                      InterchangeForPFor<AffineParallelOp, scf::ForOp>,
-                      InterchangeForPForLoad<scf::ParallelOp, scf::ForOp>,
-                      InterchangeForPForLoad<AffineParallelOp, scf::ForOp>,
-                      InterchangeForPForRecomputable<scf::ParallelOp, scf::ForOp>,
-                      InterchangeForPForRecomputable<AffineParallelOp, scf::ForOp>,
-                      InterchangeIfPFor<scf::ParallelOp, scf::IfOp>,
-                      InterchangeIfPFor<AffineParallelOp, scf::IfOp>,
-                      InterchangeIfPForLoad<scf::ParallelOp, scf::IfOp>,
-                      InterchangeIfPForLoad<AffineParallelOp, scf::IfOp>,
+      {
+        RewritePatternSet patterns(&getContext());
+        patterns.insert<
+            Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>, Reg2MemWhile,
+            Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
+            WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
+            WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
+            InterchangeForPFor<scf::ParallelOp, scf::ForOp>,
+            InterchangeForPFor<AffineParallelOp, scf::ForOp>,
+            InterchangeForPForLoad<scf::ParallelOp, scf::ForOp>,
+            InterchangeForPForLoad<AffineParallelOp, scf::ForOp>,
+            InterchangeForPForRecomputable<scf::ParallelOp, scf::ForOp>,
+            InterchangeForPForRecomputable<AffineParallelOp, scf::ForOp>,
+            InterchangeIfPFor<scf::ParallelOp, scf::IfOp>,
+            InterchangeIfPFor<AffineParallelOp, scf::IfOp>,
+            InterchangeIfPForLoad<scf::ParallelOp, scf::IfOp>,
+            InterchangeIfPForLoad<AffineParallelOp, scf::IfOp>,
 
-                      InterchangeForPFor<scf::ParallelOp, AffineForOp>,
-                      InterchangeForPFor<AffineParallelOp, AffineForOp>,
-                      InterchangeForPForLoad<scf::ParallelOp, AffineForOp>,
-                      InterchangeForPForLoad<AffineParallelOp, AffineForOp>,
-                      InterchangeIfPFor<scf::ParallelOp, AffineIfOp>,
-                      InterchangeIfPFor<AffineParallelOp, AffineIfOp>,
-                      InterchangeIfPForLoad<scf::ParallelOp, AffineIfOp>,
-                      InterchangeIfPForLoad<AffineParallelOp, AffineIfOp>,
+            InterchangeForPFor<scf::ParallelOp, AffineForOp>,
+            InterchangeForPFor<AffineParallelOp, AffineForOp>,
+            InterchangeForPForLoad<scf::ParallelOp, AffineForOp>,
+            InterchangeForPForLoad<AffineParallelOp, AffineForOp>,
+            InterchangeIfPFor<scf::ParallelOp, AffineIfOp>,
+            InterchangeIfPFor<AffineParallelOp, AffineIfOp>,
+            InterchangeIfPForLoad<scf::ParallelOp, AffineIfOp>,
+            InterchangeIfPForLoad<AffineParallelOp, AffineIfOp>,
 
-                      InterchangeWhilePFor<scf::ParallelOp>,
-                      InterchangeWhilePFor<AffineParallelOp>,
-                      // NormalizeLoop,
-                      NormalizeParallel,
-                      // RotateWhile,
-                      DistributeAroundBarrier<scf::ParallelOp>,
-                      DistributeAroundBarrier<AffineParallelOp>>(&getContext());
-      GreedyRewriteConfig config;
-      config.maxIterations = 142;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                              std::move(patterns), config)))
-        signalPassFailure();
+            InterchangeWhilePFor<scf::ParallelOp>,
+            InterchangeWhilePFor<AffineParallelOp>,
+            // NormalizeLoop,
+            NormalizeParallel,
+            // RotateWhile,
+            DistributeAroundBarrier<scf::ParallelOp>,
+            DistributeAroundBarrier<AffineParallelOp>>(&getContext());
+        GreedyRewriteConfig config;
+        config.maxIterations = 142;
+        if (failed(applyPatternsAndFoldGreedily(getFunction(),
+                                                std::move(patterns), config)))
+          signalPassFailure();
+      }
+      {
+        OwningRewritePatternList patterns(&getContext());
+        GreedyRewriteConfig config;
+        patterns.insert<LowerCacheLoad>(&getContext());
+        if (failed(applyPatternsAndFoldGreedily(getFunction(),
+                                                std::move(patterns), config)))
+          signalPassFailure();
+      }
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;
       getOperation()->walk(

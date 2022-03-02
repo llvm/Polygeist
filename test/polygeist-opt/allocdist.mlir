@@ -31,6 +31,7 @@ module {
   }
 }
 
+<<<<<<< HEAD
 // CHECK:   func @main() {
 // CHECK-NEXT:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     %c1 = arith.constant 1 : index
@@ -72,3 +73,43 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+=======
+// CHECK:  func @main() {
+// CHECK-NEXT:    %c0 = arith.constant 0 : index
+// CHECK-NEXT:    %c1 = arith.constant 1 : index
+// CHECK-NEXT:    %c5 = arith.constant 5 : index
+// CHECK-NEXT:    %0 = memref.alloc(%c5) : memref<?xf32>
+// CHECK-NEXT:    %1 = memref.alloc(%c5) : memref<?xf32>
+// CHECK-NEXT:    %2 = memref.alloc(%c5) : memref<?x2xi32>
+// CHECK-NEXT:    %3 = memref.alloc(%c5) : memref<?xi32>
+// CHECK-NEXT:    %4 = memref.alloc(%c5) : memref<?x1xi32>
+// CHECK-NEXT:    scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
+// CHECK-NEXT:      %5 = memref.alloca() : memref<f32>
+// CHECK-NEXT:      %6 = memref.load %5[] : memref<f32>
+// CHECK-NEXT:      memref.store %6, %1[%arg0] : memref<?xf32>
+// CHECK-NEXT:      %7 = "polygeist.subindex"(%3, %arg0) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:      call @capture(%7) : (memref<i32>) -> ()
+// CHECK-NEXT:      %8 = memref.alloca() : memref<1xf32>
+// CHECK-NEXT:      %9 = memref.load %8[%c0] : memref<1xf32>
+// CHECK-NEXT:      memref.store %9, %0[%arg0] : memref<?xf32>
+// CHECK-NEXT:      scf.yield
+// CHECK-NEXT:    }
+// CHECK-NEXT:    scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
+// CHECK-NEXT:      %5 = memref.load %1[%arg0] : memref<?xf32>
+// CHECK-NEXT:      %6 = memref.load %0[%arg0] : memref<?xf32>
+// CHECK-NEXT:      %7 = "polygeist.subindex"(%4, %arg0) : (memref<?x1xi32>, index) -> memref<1xi32>
+// CHECK-NEXT:      %8 = "polygeist.subindex"(%2, %arg0) : (memref<?x2xi32>, index) -> memref<2xi32>
+// CHECK-NEXT:      %9 = memref.cast %8 : memref<2xi32> to memref<?xi32>
+// CHECK-NEXT:      %10 = memref.load %7[%c0] : memref<1xi32>
+// CHECK-NEXT:      call @use(%9, %5, %10, %6) : (memref<?xi32>, f32, i32, f32) -> ()
+// CHECK-NEXT:      scf.yield
+// CHECK-NEXT:    }
+// CHECK-NEXT:    memref.dealloc %0 : memref<?xf32>
+// CHECK-NEXT:    memref.dealloc %1 : memref<?xf32>
+// CHECK-NEXT:    memref.dealloc %2 : memref<?x2xi32>
+// CHECK-NEXT:    memref.dealloc %3 : memref<?xi32>
+// CHECK-NEXT:    memref.dealloc %4 : memref<?x1xi32>
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
+
+>>>>>>> 4e2fcb797332... Lower polygeist cache load to memref load
