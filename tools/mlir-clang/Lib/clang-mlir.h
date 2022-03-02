@@ -366,6 +366,8 @@ public:
   mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
                                                 clang::Expr *expr);
   ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
+  ValueCategory
+  VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *expr);
 
   ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
                                    ValueCategory tostore);

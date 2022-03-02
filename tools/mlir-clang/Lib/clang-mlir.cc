@@ -841,6 +841,39 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
   return ValueCategory(op, true);
 }
 
+ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
+    clang::CXXStdInitializerListExpr *expr) {
+
+  auto ArrayPtr = Visit(expr->getSubExpr());
+
+  const ConstantArrayType *ArrayType =
+      Glob.CGM.getContext().getAsConstantArrayType(
+          expr->getSubExpr()->getType());
+  assert(ArrayType && "std::initializer_list constructed from non-array");
+
+  // FIXME: Perform the checks on the field types in SemaInit.
+  RecordDecl *Record = expr->getType()->castAs<RecordType>()->getDecl();
+  auto Field = Record->field_begin();
+
+  mlir::Type subType = getMLIRType(expr->getType());
+
+  mlir::Value res = builder.create<LLVM::UndefOp>(loc, subType);
+
+  ArrayPtr = CommonArrayToPointer(ArrayPtr);
+
+  res = builder.create<LLVM::InsertValueOp>(loc, res.getType(), res,
+                                            ArrayPtr.getValue(builder),
+                                            builder.getI64ArrayAttr(0));
+  Field++;
+  auto iTy = getMLIRType(Field->getType()).cast<mlir::IntegerType>();
+  res = builder.create<LLVM::InsertValueOp>(
+      loc, res.getType(), res,
+      builder.create<arith::ConstantIntOp>(
+          loc, ArrayType->getSize().getZExtValue(), iTy.getWidth()),
+      builder.getI64ArrayAttr(1));
+  return ValueCategory(res, /*isRef*/ false);
+}
+
 ValueCategory
 MLIRScanner::VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr) {
   assert(arrayinit.size());
