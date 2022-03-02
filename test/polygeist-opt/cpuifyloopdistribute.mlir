@@ -195,6 +195,7 @@ module {
     }
     return
   }
+}
 
 
 // CHECK:  func @trivial(%arg0: i32, %arg1: i1) attributes {llvm.linkage = #llvm.linkage<external>} {
