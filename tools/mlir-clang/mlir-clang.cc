@@ -570,7 +570,6 @@ int main(int argc, char **argv) {
       }
       module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
       mlir::PassManager pm3(&context);
-      pm3.addPass(mlir::createConvertSCFToCFPass());
       LowerToLLVMOptions options(&context);
       options.dataLayout = DL;
       // invalid for gemm.c init array
