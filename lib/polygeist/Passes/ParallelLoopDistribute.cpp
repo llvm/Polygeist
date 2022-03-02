@@ -743,7 +743,8 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
       if (isRecomputable(&*it)) {
         auto newOp = rewriter.clone(*it, mapping);
         rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
-          return op.getOwner()->getBlock() == getThenBlock(ifOp);
+          return getThenBlock(ifOp)->getParent()->isAncestor(
+	          op.getOwner()->getParentRegion());
         });
       }
     }
@@ -850,9 +851,7 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
        ++it) {
     if (isRecomputable(&*it)) {
       auto newOp = rewriter.clone(*it, mapping);
-      rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
-        return op.getOwner()->getBlock() == forLoop.getBody();
-      });
+      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(), forLoop.getBody());
     }
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
@@ -892,6 +891,9 @@ static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
   moveBodiesFor(rewriter, op, forIf, newForIf);
 }
 
+// TODO Should we have a pattern to hoist loads of if conditions or for bounds
+// before we do any loop distributing transformations?
+
 /// Interchanges a parallel for loop with a for loop perfectly nested within it.
 
 /// Interchanges a parallel for loop with an if perfectly nested within it.
@@ -923,25 +925,25 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     auto lastOpIt = std::prev(op.getBody()->end(), 2);
     auto lastOp = dyn_cast<ForIfType>(*lastOpIt);
     if (!lastOp) {
-      LLVM_DEBUG(DBGS() << "[interchang] unexpected last op type\n");
+      LLVM_DEBUG(DBGS() << "[interchange] unexpected last op type\n");
       return failure();
     }
 
     // We shouldn't have parallel reduction loops coming from GPU anyway, and
     // sequential reduction loops can be transformed by reg2mem.
     if (op.getNumResults() != 0 || lastOp.getNumResults() != 0) {
-      LLVM_DEBUG(DBGS() << "[interchang] not matching reduction loops\n");
+      LLVM_DEBUG(DBGS() << "[interchange] not matching reduction loops\n");
       return failure();
     }
 
     SmallVector<BlockArgument> args;
     if (!hasNestedBarrier(lastOp, args)) {
-      LLVM_DEBUG(DBGS() << "[interchang] no nested barrier\n");
+      LLVM_DEBUG(DBGS() << "[interchange] no nested barrier\n");
       return failure();
     }
 
     if (!arePreceedingOpsRecomputable(&*op, lastOp)) {
-      LLVM_DEBUG(DBGS() << "[interchang] found a nonrecomputable op\n");
+      LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
 
