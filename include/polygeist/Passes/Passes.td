@@ -16,7 +16,7 @@ def Mem2Reg : Pass<"mem2reg", "FuncOp"> {
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary = "Replace scf.if and similar with affine.if";
   let dependentDialects =
-      ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
@@ -29,7 +29,7 @@ def SCFCPUify : Pass<"cpuify", "FuncOp"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
-      ["memref::MemRefDialect", "StandardOpsDialect", "LLVM::LLVMDialect"];
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let options = [
   Option<"method", "method", "std::string", /*default=*/"\"distribute\"", "Method of doing distribution">
   ];
@@ -38,7 +38,7 @@ def SCFCPUify : Pass<"cpuify", "FuncOp"> {
 def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation", "FuncOp"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
-  let dependentDialects = ["memref::MemRefDialect", "StandardOpsDialect"];
+  let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];
 }
 
 def SCFRaiseToAffine : Pass<"raise-scf-to-affine", "FuncOp"> {

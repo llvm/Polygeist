@@ -2,7 +2,7 @@
 
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
@@ -12,6 +12,7 @@
 
 using namespace mlir;
 using namespace mlir::scf;
+using namespace mlir::func;
 using namespace mlir::arith;
 using namespace polygeist;
 

@@ -19,7 +19,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dominance.h"
@@ -78,7 +78,7 @@ static LogicalResult applyCFGConversion(FuncOp function) {
   // Configure the target to preserve parallel ops with barriers, unless those
   // barriers are nested in deeper parallel ops.
   ConversionTarget target(*function.getContext());
-  target.addLegalDialect<StandardOpsDialect>();
+  target.addLegalDialect<func::FuncDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addIllegalOp<scf::ForOp, scf::IfOp, scf::WhileOp>();
   target.addLegalOp<scf::ExecuteRegionOp, FuncOp, ModuleOp>();

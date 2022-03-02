@@ -16,6 +16,7 @@
 using namespace mlir;
 using namespace std;
 using namespace mlir::arith;
+using namespace mlir::func;
 using namespace mlirclang;
 
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
@@ -301,7 +302,7 @@ ValueCategory MLIRScanner::CallHelper(
     auto oldpoint = builder.getInsertionPoint();
     auto oldblock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&op.getRegion().front());
-    builder.create<mlir::CallOp>(loc, tocall, args);
+    builder.create<CallOp>(loc, tocall, args);
     builder.create<gpu::TerminatorOp>(loc);
     builder.setInsertionPoint(oldblock, oldpoint);
     return nullptr;
@@ -310,7 +311,7 @@ ValueCategory MLIRScanner::CallHelper(
   // Try to rescue some mismatched types.
   castCallerArgs(tocall, args, builder);
 
-  auto op = builder.create<mlir::CallOp>(loc, tocall, args);
+  auto op = builder.create<CallOp>(loc, tocall, args);
 
   if (isArrayReturn) {
     // TODO remedy return

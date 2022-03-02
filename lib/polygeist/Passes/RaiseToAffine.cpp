@@ -5,7 +5,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/Passes/Passes.h"
@@ -222,7 +222,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 void RaiseSCFToAffine::runOnOperation() {
   ConversionTarget target(getContext());
   target
-      .addLegalDialect<AffineDialect, StandardOpsDialect, LLVM::LLVMDialect>();
+      .addLegalDialect<AffineDialect, func::FuncDialect, LLVM::LLVMDialect>();
 
   RewritePatternSet patterns(&getContext());
   patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());

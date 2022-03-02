@@ -40,8 +40,11 @@ namespace memref {
 class MemRefDialect;
 } // end namespace memref
 
+namespace func {
+class FuncDialect;
+}
+
 class AffineDialect;
-class StandardOpsDialect;
 namespace LLVM {
 class LLVMDialect;
 }

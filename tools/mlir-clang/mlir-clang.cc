@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
 
   context.disableMultithreading();
   context.getOrLoadDialect<AffineDialect>();
-  context.getOrLoadDialect<StandardOpsDialect>();
+  context.getOrLoadDialect<func::FuncDialect>();
   context.getOrLoadDialect<DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
