@@ -38,6 +38,59 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
+scf::IfOp cloneWithoutResults(scf::IfOp op, PatternRewriter &rewriter,
+                              BlockAndValueMapping mapping = {}) {
+  return rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(),
+                                    mapping.lookupOrDefault(op.getCondition()),
+                                    true);
+}
+
+AffineIfOp cloneWithoutResults(AffineIfOp op, PatternRewriter &rewriter,
+                               BlockAndValueMapping mapping = {}) {
+  SmallVector<Value> lower;
+  for (auto o : op.getOperands())
+    lower.push_back(mapping.lookupOrDefault(o));
+  return rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(),
+                                     op.getIntegerSet(), lower, true);
+}
+
+scf::ForOp cloneWithoutResults(scf::ForOp op, PatternRewriter &rewriter,
+                               BlockAndValueMapping mapping = {}) {
+  return rewriter.create<scf::ForOp>(
+      op.getLoc(), mapping.lookupOrDefault(op.getLowerBound()),
+      mapping.lookupOrDefault(op.getUpperBound()),
+      mapping.lookupOrDefault(op.getStep()));
+}
+AffineForOp cloneWithoutResults(AffineForOp op, PatternRewriter &rewriter,
+                                BlockAndValueMapping mapping = {}) {
+  SmallVector<Value> lower;
+  for (auto o : op.getLowerBoundOperands())
+    lower.push_back(mapping.lookupOrDefault(o));
+  SmallVector<Value> upper;
+  for (auto o : op.getUpperBoundOperands())
+    upper.push_back(mapping.lookupOrDefault(o));
+  return rewriter.create<AffineForOp>(op.getLoc(), lower, op.getLowerBoundMap(),
+                                      upper, op.getUpperBoundMap(),
+                                      op.getStep());
+}
+
+Block *getThenBlock(scf::IfOp op) { return op.thenBlock(); }
+Block *getThenBlock(AffineIfOp op) { return op.getThenBlock(); }
+Block *getElseBlock(scf::IfOp op) { return op.elseBlock(); }
+Block *getElseBlock(AffineIfOp op) { return op.getElseBlock(); }
+bool inBound(scf::IfOp op, Value v) { return op.getCondition() == v; }
+bool inBound(AffineIfOp op, Value v) {
+  return llvm::any_of(op.getOperands(), [&](Value e) { return e == v; });
+}
+bool inBound(scf::ForOp op, Value v) { return op.getUpperBound() == v; }
+bool inBound(AffineForOp op, Value v) {
+  return llvm::any_of(op.getUpperBoundOperands(),
+                      [&](Value e) { return e == v; });
+}
+bool inBound(scf::WhileOp op, Value v) { return false; }
+bool hasElse(scf::IfOp op) { return op.getElseRegion().getBlocks().size() > 0; }
+bool hasElse(AffineIfOp op) { return op.elseRegion().getBlocks().size() > 0; }
+
 static bool couldWrite(Operation *op) {
   if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
     SmallVector<MemoryEffects::EffectInstance> localEffects;
@@ -133,18 +186,73 @@ static inline void bfs(const Graph &G,
   }
 }
 
-static bool is_recomputable(Operation &op) {
+// Checks if an op is recomputable within the context of a parallel operation,
+// i.e. either it has no side effects or it is a polygeist cache load
+static bool isRecomputable(Operation *op) {
   // TODO does this mess with minCutCache's logic? can we somehow come across
   // another parallel's cache load there and would that be a problem?
   if (isa<polygeist::CacheLoad>(op))
     return true;
-  // TODO is this correct?
-  if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(&op)) {
+  // TODO is this correct? do we need to check HasRecursiveSideEffects?
+  if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
     return memInterface.hasNoEffect();
   } else {
     return false;
     // return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
   }
+}
+
+// Get the indices of a parallel op
+static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
+  if (auto pop = dyn_cast<scf::ParallelOp>(op))
+    for (auto var : pop.getInductionVars())
+      indVars.insert(var);
+  else
+    for (auto var : cast<AffineParallelOp>(op).getBody()->getArguments())
+      indVars.insert(var);
+}
+
+// Checks if an op is recomputable within the context of a parallel op `pOp` and
+// a child op `child` with nested barriers (other than the above isRecomputable
+// ops, this includes loads that provide upper loop bounds or an if condition
+template <typename T>
+static bool isRecomputable(Operation *op, Operation *pOp, T child) {
+  if (isRecomputable(op)) {
+    return true;
+  } else if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
+    if (auto pOpc = dyn_cast<scf::ParallelOp>(pOp))
+      return inBound(child, loadOp.result()) &&
+             loadOp.indices() == pOpc.getBody()->getArguments();
+    else if (auto pOpc = dyn_cast<AffineParallelOp>(pOp))
+      return inBound(child, loadOp.result()) &&
+             loadOp.indices() == pOpc.getBody()->getArguments();
+  }
+  return false;
+
+  // TODO do we need to do the 2nd checks below instead of the 1st? (the 1st was
+  // used in the Interchange* patterns and the second in the Wrap* ones
+
+  // loadOp.indices() == pOp.getBody()->getArguments();
+
+  // SmallPtrSet<Value, 3> indVars;
+  // getIndVars(op->getParentOp(), indVars);
+  // llvm::all_of(loadOp.indices(),
+  //              [&](Value v) { return indVars.contains(v); })
+}
+
+// Are all ops preceeding the child `child` with a nested barrier of a parallel
+// operation `pOp` all recomputable?
+template <typename T>
+static bool arePreceedingOpsRecomputable(Operation *pOp, T &child) {
+  auto prevOp = child->getPrevNode();
+  while (prevOp) {
+    // TODO we could check if our cacheload ops have the parallel op indVars
+    // as arguments, is that needed?
+    if (!isRecomputable(prevOp, pOp, child))
+      return false;
+    prevOp = prevOp->getPrevNode();
+  }
+  return true;
 }
 
 static void minCutCache(polygeist::BarrierOp barrier,
@@ -155,7 +263,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
   for (Operation *it = barrier->getPrevNode(); it != nullptr;
        it = it->getPrevNode()) {
     auto &op = *it;
-    if (!is_recomputable(op))
+    if (!isRecomputable(&op))
       NonRecomputable.insert(&op);
     for (Value value : op.getResults()) {
       G[Node(&op)].insert(Node(value));
@@ -501,15 +609,14 @@ bool isBarrierContainingAll(Operation *op, SmallVector<BlockArgument> &args) {
 /// `extraPrevCheck` is called on the operation immediately preceding `op` and
 /// can be used to look further upward if the immediately preceding operation is
 /// not a barrier.
-static LogicalResult wrapWithBarriers(
-    Operation *op, PatternRewriter &rewriter, SmallVector<BlockArgument> &args,
-    llvm::function_ref<bool(Operation *)> extraPrevCheck = nullptr) {
+template <typename T>
+static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
+                                      SmallVector<BlockArgument> &args) {
   Operation *prevOp = op->getPrevNode();
   Operation *nextOp = op->getNextNode();
-  bool hasPrevBarrierLike =
-      prevOp == nullptr || isBarrierContainingAll(prevOp, args);
-  if (extraPrevCheck && !hasPrevBarrierLike)
-    hasPrevBarrierLike = extraPrevCheck(prevOp);
+  bool hasPrevBarrierLike = prevOp == nullptr ||
+                            isBarrierContainingAll(prevOp, args) ||
+                            arePreceedingOpsRecomputable(op->getParentOp(), op);
   bool hasNextBarrierLike =
       nextOp == &op->getBlock()->back() || isBarrierContainingAll(nextOp, args);
 
@@ -552,26 +659,7 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (op.getNumResults() != 0)
       return failure();
 
-    SmallPtrSet<Value, 2> indVars;
-    if (auto pop = dyn_cast<scf::ParallelOp>(op->getParentOp()))
-      for (auto var : pop.getInductionVars())
-        indVars.insert(var);
-    else
-      for (auto var :
-           cast<AffineParallelOp>(op->getParentOp()).getBody()->getArguments())
-        indVars.insert(var);
-
-    return wrapWithBarriers(op, rewriter, vals, [&](Operation *prevOp) {
-      if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
-        if (inBound(op, loadOp.result()) &&
-            llvm::all_of(loadOp.indices(),
-                         [&](Value v) { return indVars.contains(v); })) {
-          prevOp = prevOp->getPrevNode();
-          return prevOp == nullptr || isBarrierContainingAll(prevOp, vals);
-        }
-      }
-      return false;
-    });
+    return wrapWithBarriers(op, rewriter, vals);
   }
 };
 
@@ -588,35 +676,7 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    SmallPtrSet<Value, 2> indVars;
-    if (auto pop = dyn_cast<scf::ParallelOp>(op->getParentOp()))
-      for (auto var : pop.getInductionVars())
-        indVars.insert(var);
-    else
-      for (auto var :
-           cast<AffineParallelOp>(op->getParentOp()).getBody()->getArguments())
-        indVars.insert(var);
-
-    return wrapWithBarriers(op, rewriter, vals, [&](Operation *prevOp) {
-      // If it is a load of the for upper bound
-      if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
-        if (loadOp.result() == op.getUpperBound() &&
-            llvm::all_of(loadOp.indices(),
-                         [&](Value v) { return indVars.contains(v); })) {
-          prevOp = prevOp->getPrevNode();
-          return prevOp == nullptr || isBarrierContainingAll(prevOp, vals);
-        }
-      }
-      // If all preceeding ops are recomputable
-      while (prevOp) {
-        // TODO we could check if our cacheload ops have the parallel op indVars
-        // as arguments, is that needed?
-        if (!is_recomputable(*prevOp))
-          return false;
-        prevOp = prevOp->getPrevNode();
-      }
-      return true;
-    });
+    return wrapWithBarriers(op, rewriter, vals);
   }
 };
 
@@ -630,27 +690,7 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    SmallPtrSet<Value, 2> indVars;
-    if (auto pop = dyn_cast<scf::ParallelOp>(op->getParentOp()))
-      for (auto var : pop.getInductionVars())
-        indVars.insert(var);
-    else
-      for (auto var :
-           cast<AffineParallelOp>(op->getParentOp()).getBody()->getArguments())
-        indVars.insert(var);
-
-    return wrapWithBarriers(op, rewriter, vals, [&](Operation *prevOp) {
-      if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
-        if (llvm::any_of(op.getUpperBoundOperands(),
-                         [&](Value v) { return v == loadOp.result(); }) &&
-            llvm::all_of(loadOp.indices(),
-                         [&](Value v) { return indVars.contains(v); })) {
-          prevOp = prevOp->getPrevNode();
-          return prevOp == nullptr || isBarrierContainingAll(prevOp, vals);
-        }
-      }
-      return false;
-    });
+    return wrapWithBarriers(op, rewriter, vals);
   }
 };
 
@@ -689,6 +729,21 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
       newParallel.getBody()->addArgument(a.getType(), op->getLoc());
+
+    // TODO I just copied over this below from the ForOp case, check if it
+    // actually works
+
+    // Keep recomputable values in the parallel op (explicitly excluding loads
+    // that provide for bounds as those are handles in the caller)
+    BlockAndValueMapping mapping;
+    mapping.map(op.getBody()->getArguments(),
+                newParallel.getBody()->getArguments());
+    rewriter.setInsertionPointToEnd(newParallel.getBody());
+    for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
+      if (isRecomputable(&*it))
+        rewriter.clone(*it, mapping);
+    }
+
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -713,6 +768,21 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
       newParallel.getBody()->addArgument(a.getType(), op->getLoc());
+
+    // TODO I just copied over this below from the ForOp case, check if it
+    // actually works
+
+    // Keep recomputable values in the parallel op (explicitly excluding loads
+    // that provide for bounds as those are handles in the caller)
+    BlockAndValueMapping mapping;
+    mapping.map(op.getBody()->getArguments(),
+                newParallel.getBody()->getArguments());
+    rewriter.setInsertionPointToEnd(newParallel.getBody());
+    for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
+      if (isRecomputable(&*it))
+        rewriter.clone(*it, mapping);
+    }
+
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
 
@@ -734,41 +804,6 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
   rewriter.finalizeRootUpdate(op);
 }
 
-/// Interchanges a parallel for loop with a for loop perfectly nested within it.
-template <typename T, typename IfType>
-struct InterchangeIfPFor : public OpRewritePattern<T> {
-  InterchangeIfPFor(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
-
-  LogicalResult matchAndRewrite(T op,
-                                PatternRewriter &rewriter) const override {
-    // A perfect nest must have two operations in the outermost body: an "if"
-    // and a terminator.
-    if (std::next(op.getBody()->begin(), 2) != op.getBody()->end() ||
-        !isa<IfType>(op.getBody()->front())) {
-      LLVM_DEBUG(DBGS() << "[interchange] not a perfect pfor(if) nest\n");
-      return failure();
-    }
-
-    // We shouldn't have parallel reduction loops coming from GPU anyway, and
-    // sequential reduction loops can be transformed by reg2mem.
-    auto ifOp = cast<IfType>(op.getBody()->front());
-    if (op.getNumResults() != 0 || ifOp.getNumResults() != 0) {
-      LLVM_DEBUG(DBGS() << "[interchange] not matching reduction loops\n");
-      return failure();
-    }
-
-    SmallVector<BlockArgument> blockArgs;
-    if (!hasNestedBarrier(ifOp, blockArgs)) {
-      LLVM_DEBUG(DBGS() << "[interchange] no nested barrier\n";);
-      return failure();
-    }
-
-    auto newIf = cloneWithoutResults(ifOp, rewriter);
-    moveBodiesIf(rewriter, op, ifOp, newIf);
-    return success();
-  }
-};
-
 mlir::OperandRange getLowerBounds(scf::ParallelOp op,
                                   PatternRewriter &rewriter) {
   return op.getLowerBound();
@@ -785,53 +820,6 @@ SmallVector<Value> getLowerBounds(AffineParallelOp op,
   return vals;
 }
 
-/// Interchanges a parallel for loop with a normalized (zero lower bound and
-/// unit step) for loop nested within it. The for loop must have a barrier
-/// inside and is preceeded by a load operation that supplies its upper bound.
-/// The barrier semantics implies that all threads must executed the same number
-/// of times, which means that the inner loop must have the same trip count in
-/// all iterations of the outer loop. Therefore, the load of the upper bound can
-/// be hoisted and read any value, because all values are identical in a
-/// semantically valid program.
-template <typename T, typename IfType>
-struct InterchangeIfPForLoad : public OpRewritePattern<T> {
-  using OpRewritePattern<T>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(T op,
-                                PatternRewriter &rewriter) const override {
-    if (std::next(op.getBody()->begin(), 2) == op.getBody()->end() ||
-        std::next(op.getBody()->begin(), 3) != op.getBody()->end()) {
-      LLVM_DEBUG(DBGS() << "[interchange-load-if] expected two nested ops\n");
-      return failure();
-    }
-    auto loadOp = dyn_cast<memref::LoadOp>(op.getBody()->front());
-    auto ifOp = dyn_cast<IfType>(op.getBody()->front().getNextNode());
-    if (!loadOp || !ifOp || !inBound(ifOp, loadOp.result()) ||
-        loadOp.indices() != op.getBody()->getArguments()) {
-      LLVM_DEBUG(DBGS() << "[interchange-load-if] expected pfor(load, for/if)");
-      return failure();
-    }
-
-    SmallVector<BlockArgument> args;
-    if (!hasNestedBarrier(ifOp, args)) {
-      LLVM_DEBUG(DBGS() << "[interchange-load-if] no nested barrier\n");
-      return failure();
-    }
-
-    // In the GPU model, the trip count of the inner sequential containing a
-    // barrier must be the same for all threads. So read the value written by
-    // the first thread outside of the loop to enable interchange.
-    Value condition = rewriter.create<memref::LoadOp>(
-        loadOp.getLoc(), loadOp.getMemRef(), getLowerBounds(op, rewriter));
-
-    BlockAndValueMapping mapping;
-    mapping.map(loadOp.result(), condition);
-    auto newIf = cloneWithoutResults(ifOp, rewriter, mapping);
-    moveBodiesIf(rewriter, op, ifOp, newIf);
-    return success();
-  }
-};
-
 /// Moves the body from `forLoop` contained in `op` to a parallel op newly
 /// created at the start of `newForLoop`.
 template <typename T, typename ForType>
@@ -844,14 +832,15 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   for (auto a : op.getBody()->getArguments())
     newParallel.getBody()->addArgument(a.getType(), op->getLoc());
 
-  // Keep recomputable values in the parallel op
+  // Keep recomputable values in the parallel op (explicitly excluding loads
+  // that provide for bounds as those are handles in the caller)
   BlockAndValueMapping mapping;
   mapping.map(op.getBody()->getArguments(),
               newParallel.getBody()->getArguments());
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
        ++it) {
-    if (is_recomputable(*it))
+    if (isRecomputable(&*it))
       rewriter.clone(*it, mapping);
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
@@ -869,44 +858,31 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   rewriter.eraseOp(forLoop);
 }
 
+// TODO is this the best way to do this
+template <typename ParallelOpType>
+static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
+                       scf::IfOp forIf, scf::IfOp newForIf) {
+  moveBodiesIf(rewriter, op, forIf, newForIf);
+}
+template <typename ParallelOpType>
+static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
+                       AffineIfOp forIf, AffineIfOp newForIf) {
+  moveBodiesIf(rewriter, op, forIf, newForIf);
+}
+template <typename ParallelOpType>
+static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
+                       scf::ForOp forIf, scf::ForOp newForIf) {
+  moveBodiesFor(rewriter, op, forIf, newForIf);
+}
+template <typename ParallelOpType>
+static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
+                       AffineForOp forIf, AffineForOp newForIf) {
+  moveBodiesFor(rewriter, op, forIf, newForIf);
+}
+
 /// Interchanges a parallel for loop with a for loop perfectly nested within it.
-template <typename T, typename ForType>
-struct InterchangeForPFor : public OpRewritePattern<T> {
-  InterchangeForPFor(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
 
-  LogicalResult matchAndRewrite(T op,
-                                PatternRewriter &rewriter) const override {
-    // A perfect nest must have two operations in the outermost body: a "for"
-    // loop, and a terminator.
-    if (std::next(op.getBody()->begin(), 2) != op.getBody()->end() ||
-        !isa<ForType>(op.getBody()->front())) {
-      LLVM_DEBUG(DBGS() << "[interchange] not a perfect pfor(for) nest\n");
-      return failure();
-    }
-
-    // We shouldn't have parallel reduction loops coming from GPU anyway, and
-    // sequential reduction loops can be transformed by reg2mem.
-    auto forLoop = cast<ForType>(op.getBody()->front());
-    if (op.getNumResults() != 0 || forLoop.getNumResults() != 0) {
-      LLVM_DEBUG(DBGS() << "[interchange] not matching reduction loops\n");
-      return failure();
-    }
-
-    // if (!isNormalized(op)) {
-    //  LLVM_DEBUG(DBGS() << "[interchange] non-normalized loop\n");
-    //}
-
-    SmallVector<BlockArgument> args;
-    if (!hasNestedBarrier(forLoop, args)) {
-      LLVM_DEBUG(DBGS() << "[interchange] no nested barrier\n";);
-      return failure();
-    }
-
-    auto newForLoop = cloneWithoutResults(forLoop, rewriter);
-    moveBodiesFor(rewriter, op, forLoop, newForLoop);
-    return success();
-  }
-};
+/// Interchanges a parallel for loop with an if perfectly nested within it.
 
 /// Interchanges a parallel for loop with a normalized (zero lower bound and
 /// unit step) for loop nested within it. The for loop must have a barrier
@@ -916,106 +892,63 @@ struct InterchangeForPFor : public OpRewritePattern<T> {
 /// all iterations of the outer loop. Therefore, the load of the upper bound can
 /// be hoisted and read any value, because all values are identical in a
 /// semantically valid program.
-template <typename T, typename ForType>
-struct InterchangeForPForLoad : public OpRewritePattern<T> {
-  using OpRewritePattern<T>::OpRewritePattern;
+template <typename ParallelOpType, typename ForIfType>
+struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
+  InterchangeForIfPFor(MLIRContext *ctx)
+      : OpRewritePattern<ParallelOpType>(ctx) {}
 
-  LogicalResult matchAndRewrite(T op,
+  LogicalResult matchAndRewrite(ParallelOpType op,
                                 PatternRewriter &rewriter) const override {
-    if (std::next(op.getBody()->begin(), 2) == op.getBody()->end() ||
-        std::next(op.getBody()->begin(), 3) != op.getBody()->end()) {
-      LLVM_DEBUG(DBGS() << "[interchange-load] expected two nested ops\n");
+    // Check if the block consists of recomputable operations (either ops with
+    // no side effects or polygeist cache loads) and with the last operation of
+    // type ForIfType which has a nested barrier
+    if (std::next(op.getBody()->begin(), 1) == op.getBody()->end()) {
+      LLVM_DEBUG(DBGS() << "[interchange] expected one or more nested ops\n");
       return failure();
     }
-    auto loadOp = dyn_cast<memref::LoadOp>(op.getBody()->front());
-    auto forOp = dyn_cast<ForType>(op.getBody()->front().getNextNode());
-    if (!loadOp || !forOp || !inBound(forOp, loadOp.result()) ||
-        loadOp.indices() != op.getBody()->getArguments()) {
-      LLVM_DEBUG(DBGS() << "[interchange-load] expected pfor(load, for/if)\n");
+
+    // The actual last op is a yield, get the one before that
+    auto lastOpIt = std::prev(op.getBody()->end(), 2);
+    auto lastOp = dyn_cast<ForIfType>(*lastOpIt);
+    if (!lastOp) {
+      LLVM_DEBUG(DBGS() << "[interchang] unexpected last op type\n");
+      return failure();
+    }
+
+    // We shouldn't have parallel reduction loops coming from GPU anyway, and
+    // sequential reduction loops can be transformed by reg2mem.
+    if (op.getNumResults() != 0 || lastOp.getNumResults() != 0) {
+      LLVM_DEBUG(DBGS() << "[interchang] not matching reduction loops\n");
       return failure();
     }
 
     SmallVector<BlockArgument> args;
-    if (!hasNestedBarrier(forOp, args)) {
-      LLVM_DEBUG(DBGS() << "[interchange-load] no nested barrier\n");
+    if (!hasNestedBarrier(lastOp, args)) {
+      LLVM_DEBUG(DBGS() << "[interchang] no nested barrier\n");
+      return failure();
+    }
+
+    if (!arePreceedingOpsRecomputable(&*op, lastOp)) {
+      LLVM_DEBUG(DBGS() << "[interchang] found a nonrecomputable op\n");
       return failure();
     }
 
     // In the GPU model, the trip count of the inner sequential containing a
     // barrier must be the same for all threads. So read the value written by
     // the first thread outside of the loop to enable interchange.
-    /*
-    Value val = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
-    Type mt = loadOp.getMemRef().getType();
-    SmallVector<Value> zeros(mt.cast<MemRefType>().getShape().size(), val);
-    Value tripCount = rewriter.create<memref::LoadOp>(
-        loadOp.getLoc(), loadOp.getMemRef(), zeros);
-    */
-    Value tripCount = rewriter.create<memref::LoadOp>(
-        loadOp.getLoc(), loadOp.getMemRef(), getLowerBounds(op, rewriter));
     BlockAndValueMapping mapping;
-    mapping.map(loadOp.result(), tripCount);
-    auto newForLoop = cloneWithoutResults(forOp, rewriter, mapping);
-
-    moveBodiesFor(rewriter, op, forOp, newForLoop);
-    return success();
-  }
-};
-
-/// Checks if the block consists of recomputable operations (either ops with no
-/// side effects or polygeist cache loads) and with the last operation of type
-/// LastOpType which has a nested barrier
-template <typename ParallelOpType, typename LastOpType>
-bool canInterchangeParallelWithLastOp(StringRef Pattern, ParallelOpType op) {
-  if (std::next(op.getBody()->begin(), 1) == op.getBody()->end()) {
-    LLVM_DEBUG(DBGS() << "[" << Pattern
-                      << "] expected one or more nested ops\n");
-    return false;
-  }
-
-  // The actualy last op is a yield, get the one before that
-  auto lastOpIt = std::prev(op.getBody()->end(), 2);
-  auto lastOp = dyn_cast<LastOpType>(*lastOpIt);
-  if (!lastOp) {
-    LLVM_DEBUG(DBGS() << "[" << Pattern << "] unexpected last op type\n");
-    return false;
-  }
-
-  SmallVector<BlockArgument> args;
-  if (!hasNestedBarrier(lastOp, args)) {
-    LLVM_DEBUG(DBGS() << "[" << Pattern << "] no nested barrier\n");
-    return false;
-  }
-
-  for (auto it = op.getBody()->begin(); it != lastOpIt; ++it) {
-    if (!is_recomputable(*it)) {
-      LLVM_DEBUG(DBGS() << "[" << Pattern << "] found a nonrecomputable op\n");
-      return false;
+    for (auto it = op.getBody()->begin(); it != lastOpIt; ++it) {
+      if (auto loadOp = dyn_cast<memref::LoadOp>(&*it)) {
+        assert(isRecomputable(&*it, op, lastOp) &&
+               "Earlier checks should have guaranteed recomputability");
+        Value condOrTripCount = rewriter.create<memref::LoadOp>(
+            loadOp.getLoc(), loadOp.getMemRef(), getLowerBounds(op, rewriter));
+        mapping.map(loadOp.result(), condOrTripCount);
+      }
     }
-  }
 
-  return true;
-}
-
-/// Interchanges a parallel for loop with a for loop with preceeding value
-/// recomputations
-template <typename T, typename ForType>
-struct InterchangeForPForRecomputable : public OpRewritePattern<T> {
-  using OpRewritePattern<T>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(T op,
-                                PatternRewriter &rewriter) const override {
-    if (!canInterchangeParallelWithLastOp<T, ForType>(
-            "interchange-recomputable-for", op))
-      return failure();
-
-    auto lastOpIt = op.getBody()->back().getPrevNode();
-    auto forLoop = dyn_cast<ForType>(lastOpIt);
-    assert(forLoop);
-
-    auto newForLoop = cloneWithoutResults(forLoop, rewriter);
-    moveBodiesFor(rewriter, op, forLoop, newForLoop);
-
+    auto newOp = cloneWithoutResults(lastOp, rewriter, mapping);
+    moveBodies(rewriter, op, lastOp, newOp);
     return success();
   }
 };
@@ -1072,6 +1005,8 @@ findNearestPostDominatingInsertionPoint(
         insertPoint, getInsertionPointAfterDef(values[i]), postDominanceInfo);
   return insertPoint;
 }
+
+// TODO handle this as well (with recomputes)
 
 /// Interchanges a parallel for loop with a while loop it contains. The while
 /// loop is expected to have an empty "after" region.
@@ -1924,26 +1859,16 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
             WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
             WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-            InterchangeForPFor<scf::ParallelOp, scf::ForOp>,
-            InterchangeForPFor<AffineParallelOp, scf::ForOp>,
-            InterchangeForPForLoad<scf::ParallelOp, scf::ForOp>,
-            InterchangeForPForLoad<AffineParallelOp, scf::ForOp>,
-            InterchangeForPForRecomputable<scf::ParallelOp, scf::ForOp>,
-            InterchangeForPForRecomputable<AffineParallelOp, scf::ForOp>,
-            InterchangeIfPFor<scf::ParallelOp, scf::IfOp>,
-            InterchangeIfPFor<AffineParallelOp, scf::IfOp>,
-            InterchangeIfPForLoad<scf::ParallelOp, scf::IfOp>,
-            InterchangeIfPForLoad<AffineParallelOp, scf::IfOp>,
+            InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+            InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
+            InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+            InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
+            InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
+            InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+            InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
+            InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
 
-            InterchangeForPFor<scf::ParallelOp, AffineForOp>,
-            InterchangeForPFor<AffineParallelOp, AffineForOp>,
-            InterchangeForPForLoad<scf::ParallelOp, AffineForOp>,
-            InterchangeForPForLoad<AffineParallelOp, AffineForOp>,
-            InterchangeIfPFor<scf::ParallelOp, AffineIfOp>,
-            InterchangeIfPFor<AffineParallelOp, AffineIfOp>,
-            InterchangeIfPForLoad<scf::ParallelOp, AffineIfOp>,
-            InterchangeIfPForLoad<AffineParallelOp, AffineIfOp>,
-
+            // TODO
             InterchangeWhilePFor<scf::ParallelOp>,
             InterchangeWhilePFor<AffineParallelOp>,
             // NormalizeLoop,
