@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Target/LLVMIR/Import.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -36,7 +37,6 @@
 #include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Target/LLVMIR/Import.h"
 
 using namespace std;
 using namespace clang;
@@ -5081,10 +5081,9 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
           LLVM::LLVMDialect::getDataLayoutAttrName(),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getDataLayoutString()));
-      
-      module.get()->setAttr(
-              ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
-              translateDataLayout(DL, module->getContext()));
+
+      module.get()->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
+                            translateDataLayout(DL, module->getContext()));
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {

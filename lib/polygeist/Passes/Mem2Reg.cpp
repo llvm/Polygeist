@@ -17,10 +17,10 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/Passes.h"
@@ -1697,7 +1697,8 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
-      } else if (isa<func::CallOp>(U) && cast<func::CallOp>(U).getCallee() == "free") {
+      } else if (isa<func::CallOp>(U) &&
+                 cast<func::CallOp>(U).getCallee() == "free") {
         continue;
       } else if (isa<func::CallOp>(U)) {
         // TODO check "no capture", currently assume as a fallback always
@@ -1891,7 +1892,8 @@ void Mem2Reg::runOnOperation() {
             toErase.push_back(U);
           } else if (isa<memref::DeallocOp>(U)) {
             toErase.push_back(U);
-          } else if (isa<func::CallOp>(U) && cast<func::CallOp>(U).getCallee() == "free") {
+          } else if (isa<func::CallOp>(U) &&
+                     cast<func::CallOp>(U).getCallee() == "free") {
             toErase.push_back(U);
           } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
             toErase.push_back(U);
