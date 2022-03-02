@@ -2059,6 +2059,12 @@ MLIRScanner::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop) {
     return ValueCategory(builder.create<arith::IndexCastOp>(loc, retTy, value),
                          /*isReference*/ false);
   }
+  case UETT_AlignOf: {
+    auto value = getTypeAlign(Uop->getTypeOfArgument());
+    auto retTy = getMLIRType(Uop->getType()).cast<mlir::IntegerType>();
+    return ValueCategory(builder.create<arith::IndexCastOp>(loc, retTy, value),
+                         /*isReference*/ false);
+  }
   default:
     Uop->dump();
     assert(0 && "unhandled VisitUnaryExprOrTypeTraitExpr");
@@ -4864,6 +4870,17 @@ mlir::Value MLIRScanner::getTypeSize(clang::QualType t) {
   }
   assert(!isArray);
   return builder.create<polygeist::TypeSizeOp>(
+      loc, builder.getIndexType(),
+      mlir::TypeAttr::get(innerTy)); // DLI.getTypeSize(innerTy);
+}
+
+mlir::Value MLIRScanner::getTypeAlign(clang::QualType t) {
+  // llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
+  // return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
+  bool isArray = false;
+  auto innerTy = Glob.getMLIRType(t, &isArray);
+  assert(!isArray);
+  return builder.create<polygeist::TypeAlignOp>(
       loc, builder.getIndexType(),
       mlir::TypeAttr::get(innerTy)); // DLI.getTypeSize(innerTy);
 }

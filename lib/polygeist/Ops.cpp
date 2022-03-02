@@ -1521,3 +1521,33 @@ void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                              MLIRContext *context) {
   results.insert<TypeSizeCanonicalize>(context);
 }
+
+OpFoldResult TypeAlignOp::fold(ArrayRef<Attribute> operands) {
+  Type T = sourceAttr().getValue();
+  if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
+    DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
+    return IntegerAttr::get(getResult().getType(),
+                            APInt(64, DLI.getTypeABIAlignment(T)));
+  }
+  return nullptr;
+}
+struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
+  using OpRewritePattern<TypeAlignOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(TypeAlignOp op,
+                                PatternRewriter &rewriter) const override {
+    Type T = op.sourceAttr().getValue();
+    if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
+      DataLayout DLI(op->getParentOfType<ModuleOp>());
+      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(op,
+                                                          DLI.getTypeABIAlignment(T));
+      return success();
+    }
+    return failure();
+  }
+};
+
+void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                             MLIRContext *context) {
+  results.insert<TypeAlignCanonicalize>(context);
+}

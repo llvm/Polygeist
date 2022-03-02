@@ -96,4 +96,12 @@ def TypeSizeOp : Polygeist_Op<"typeSize", [NoSideEffect]> {
   let hasFolder = 1;
   let hasCanonicalizer = 1;
 }
+
+def TypeAlignOp : Polygeist_Op<"typeAlign", [NoSideEffect]> {
+  let summary = "Get alignment of type";
+  let arguments = (ins TypeAttr : $source);
+  let results = (outs AnyType : $result);
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
+}
 #endif // POLYGEIST_OPS
