@@ -575,8 +575,8 @@ int main(int argc, char **argv) {
       // invalid for gemm.c init array
       // options.useBarePtrCallConv = true;
       pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
-      pm3.addPass(createConvertOpenMPToLLVMPass());
       pm3.addPass(mlir::createLowerToLLVMPass(options));
+      pm3.addPass(mlir::createCanonicalizerPass());
       if (mlir::failed(pm3.run(module.get()))) {
         module->dump();
         return 4;
