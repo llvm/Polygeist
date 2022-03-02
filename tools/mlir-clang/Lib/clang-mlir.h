@@ -171,6 +171,7 @@ private:
   mlir::Type getMLIRType(clang::QualType t);
 
   mlir::Value getTypeSize(clang::QualType t);
+  mlir::Value getTypeAlign(clang::QualType t);
 
   mlir::Value createAllocOp(mlir::Type t, VarDecl *name, uint64_t memspace,
                             bool isArray, bool LLVMABI);

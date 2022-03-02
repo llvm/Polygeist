@@ -214,10 +214,41 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
   }
 };
 
+struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
+  using ConvertOpToLLVMPattern<TypeAlignOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(TypeAlignOp op, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Type NT = op.sourceAttr().getValue();
+    if (auto T = getTypeConverter()->convertType(NT)) {
+      NT = T;
+    }
+    assert(NT);
+
+    auto type = getTypeConverter()->convertType(op.getType());
+
+    if (NT.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(NT)) {
+      DataLayout DLI(op->getParentOfType<ModuleOp>());
+      rewriter.replaceOpWithNewOp<LLVM::ConstantOp>(
+          op, type, rewriter.getIntegerAttr(type, DLI.getTypeABIAlignment(NT)));
+      return success();
+    }
+
+    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+      rewriter.replaceOpWithNewOp<TypeAlignOp>(op, type, NT);
+      return success();
+    }
+    return failure();
+  }
+};
+
 void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   // clang-format off
   patterns.add<TypeSizeOpLowering>(converter);
+  patterns.add<TypeAlignOpLowering>(converter);
   patterns.add<SubIndexOpLowering>(converter);
   patterns.add<Memref2PointerOpLowering>(converter);
   patterns.add<Pointer2MemrefOpLowering>(converter);
