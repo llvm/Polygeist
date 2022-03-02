@@ -1539,8 +1539,8 @@ struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
     Type T = op.sourceAttr().getValue();
     if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
       DataLayout DLI(op->getParentOfType<ModuleOp>());
-      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(op,
-                                                          DLI.getTypeABIAlignment(T));
+      rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(
+          op, DLI.getTypeABIAlignment(T));
       return success();
     }
     return failure();
@@ -1548,6 +1548,6 @@ struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
 };
 
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                             MLIRContext *context) {
+                                              MLIRContext *context) {
   results.insert<TypeAlignCanonicalize>(context);
 }
