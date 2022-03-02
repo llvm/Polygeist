@@ -740,8 +740,12 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
                 newParallel.getBody()->getArguments());
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
-      if (isRecomputable(&*it))
-        rewriter.clone(*it, mapping);
+      if (isRecomputable(&*it)) {
+        auto newOp = rewriter.clone(*it, mapping);
+        rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
+          return op.getOwner()->getBlock() == getThenBlock(ifOp);
+        });
+      }
     }
 
     rewriter.setInsertionPointToEnd(newParallel.getBody());
@@ -749,6 +753,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
 
     for (auto tup : llvm::zip(newParallel.getBody()->getArguments(),
                               op.getBody()->getArguments())) {
+      // TODO do we not have to use the rewriter here?
       std::get<1>(tup).replaceUsesWithIf(
           std::get<0>(tup), [&](OpOperand &op) -> bool {
             return getThenBlock(ifOp)->getParent()->isAncestor(
@@ -799,6 +804,9 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
                               &newParallel.getBody()->back());
   }
 
+  // TODO this newIf gets printed as if it has an empty else if the original had
+  // no else, do we have to delete its 'else' block?
+
   rewriter.eraseOp(ifOp);
   rewriter.eraseOp(op);
   rewriter.finalizeRootUpdate(op);
@@ -840,8 +848,12 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
        ++it) {
-    if (isRecomputable(&*it))
-      rewriter.clone(*it, mapping);
+    if (isRecomputable(&*it)) {
+      auto newOp = rewriter.clone(*it, mapping);
+      rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
+        return op.getOwner()->getBlock() == forLoop.getBody();
+      });
+    }
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
