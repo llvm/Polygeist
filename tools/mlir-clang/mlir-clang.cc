@@ -560,8 +560,10 @@ int main(int argc, char **argv) {
         return 4;
       }
       mlir::PassManager pm2(&context);
-      if (SCFOpenMP)
+      if (SCFOpenMP) {
         pm2.addPass(createConvertSCFToOpenMPPass());
+        pm2.addPass(mlir::createCanonicalizerPass());
+      }
       if (mlir::failed(pm2.run(module.get()))) {
         module->dump();
         return 4;
