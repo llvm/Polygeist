@@ -224,8 +224,8 @@ template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
 void LoopRestructure::runOnOperation() {
   // FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
-  if (auto region = getOperation().getCallableRegion()) {
-    runOnRegion(domInfo, *region);
+  for (auto& region : getOperation()->getRegions()) {
+    runOnRegion(domInfo, region);
   }
 }
 
@@ -680,7 +680,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass() {
+std::unique_ptr<Pass> createLoopRestructurePass() {
   return std::make_unique<LoopRestructure>();
 }
 } // namespace polygeist

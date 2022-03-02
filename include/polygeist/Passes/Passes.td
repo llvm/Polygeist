@@ -3,7 +3,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AffineCFG : Pass<"affine-cfg", "FuncOp"> {
+def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
@@ -20,7 +20,7 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
-def AffineReduction : Pass<"detect-reduction", "FuncOp"> {
+def AffineReduction : Pass<"detect-reduction"> {
   let summary = "Detect reductions in affine.for";
   let constructor = "mlir::polygeist::detectReductionPass()";
 }
@@ -41,23 +41,28 @@ def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation", "FuncOp
   let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];
 }
 
-def SCFRaiseToAffine : Pass<"raise-scf-to-affine", "FuncOp"> {
+def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
   let dependentDialects = ["AffineDialect"];
 }
 
-def SCFCanonicalizeFor : Pass<"canonicalize-scf-for", "FuncOp"> {
+def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   let summary = "Run some additional canonicalization for scf::for";
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
 }
 
-def LoopRestructure : Pass<"loop-restructure", "FuncOp"> {
+def OpenMPOptPass : Pass<"openmp-opt"> {
+  let summary = "Optimize OpenMP";
+  let constructor = "mlir::polygeist::createOpenMPOptPass()";
+}
+
+def LoopRestructure : Pass<"loop-restructure"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
   let dependentDialects = ["::mlir::scf::SCFDialect"];
 }
 
-def RemoveTrivialUse : Pass<"trivialuse", "FuncOp"> {
+def RemoveTrivialUse : Pass<"trivialuse"> {
   let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 

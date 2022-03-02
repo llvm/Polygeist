@@ -64,6 +64,8 @@ int main(int argc, char **argv) {
   mlir::registerSCCPPass();
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
+  mlir::registerSymbolDCEPass();
+  mlir::registerLoopInvariantCodeMotionPass();
 
   registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMPointerType,
                             MemRefInsider>();

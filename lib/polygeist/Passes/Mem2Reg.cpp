@@ -87,7 +87,7 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
 
 /// Creates a pass to perform optimizations relying on memref dataflow such as
 /// store to load forwarding, elimination of dead stores, and dead allocs.
-std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::createMem2RegPass() {
+std::unique_ptr<Pass> mlir::polygeist::createMem2RegPass() {
   return std::make_unique<Mem2Reg>();
 }
 
@@ -1792,7 +1792,6 @@ void Mem2Reg::runOnOperation() {
   // memrefs etc, we may need to do multiple passes (first
   // to eliminate the outermost one, then inner ones)
   bool changed;
-  FuncOp freeRemoved = nullptr;
   do {
     changed = false;
 
@@ -1923,9 +1922,4 @@ void Mem2Reg::runOnOperation() {
     }
   } while (changed);
 
-  if (freeRemoved) {
-    if (freeRemoved.use_empty()) {
-      freeRemoved.erase();
-    }
-  }
 }

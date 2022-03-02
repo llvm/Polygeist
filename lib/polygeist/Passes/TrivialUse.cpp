@@ -28,7 +28,7 @@ struct RemoveTrivialUse : public RemoveTrivialUseBase<RemoveTrivialUse> {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<OperationPass<FuncOp>> createRemoveTrivialUsePass() {
+std::unique_ptr<Pass> createRemoveTrivialUsePass() {
   return std::make_unique<RemoveTrivialUse>();
 }
 } // namespace polygeist
