@@ -16,6 +16,7 @@
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
@@ -386,6 +387,7 @@ struct ConvertPolygeistToLLVMPass
     cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
     populateMemRefToLLVMConversionPatterns(converter, patterns);
     populateStdToLLVMConversionPatterns(converter, patterns);
+    populateMathToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
 

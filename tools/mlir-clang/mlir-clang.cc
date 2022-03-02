@@ -62,7 +62,7 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
 
 static cl::opt<bool> EmitOpenMPIR("emit-openmpir", cl::init(false),
-                              cl::desc("Emit OpenMP IR"));
+                                  cl::desc("Emit OpenMP IR"));
 
 static cl::opt<bool> EmitAssembly("S", cl::init(false),
                                   cl::desc("Emit Assembly"));
@@ -591,19 +591,19 @@ int main(int argc, char **argv) {
         return 4;
       }
       if (!EmitOpenMPIR) {
-      module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
-      mlir::PassManager pm3(&context);
-      LowerToLLVMOptions options(&context);
-      options.dataLayout = DL;
-      // invalid for gemm.c init array
-      // options.useBarePtrCallConv = true;
-      pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
-      pm3.addPass(mlir::createLowerToLLVMPass(options));
-      pm3.addPass(mlir::createCanonicalizerPass());
-      if (mlir::failed(pm3.run(module.get()))) {
-        module->dump();
-        return 4;
-      }
+        module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
+        mlir::PassManager pm3(&context);
+        LowerToLLVMOptions options(&context);
+        options.dataLayout = DL;
+        // invalid for gemm.c init array
+        // options.useBarePtrCallConv = true;
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
+        pm3.addPass(mlir::createLowerToLLVMPass(options));
+        pm3.addPass(mlir::createCanonicalizerPass());
+        if (mlir::failed(pm3.run(module.get()))) {
+          module->dump();
+          return 4;
+        }
       }
     } else {
 

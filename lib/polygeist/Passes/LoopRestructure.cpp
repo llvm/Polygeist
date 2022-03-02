@@ -224,7 +224,7 @@ template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
 void LoopRestructure::runOnOperation() {
   // FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
-  for (auto& region : getOperation()->getRegions()) {
+  for (auto &region : getOperation()->getRegions()) {
     runOnRegion(domInfo, region);
   }
 }

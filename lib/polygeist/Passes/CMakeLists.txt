@@ -27,6 +27,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRGPUOps
   MLIRIR
   MLIRLLVMIR
+  MLIRMath
+  MLIRMathToLLVM
   MLIRMemRef
   MLIRNVVMIR
   MLIRPass

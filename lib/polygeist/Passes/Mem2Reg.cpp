@@ -1921,5 +1921,4 @@ void Mem2Reg::runOnOperation() {
       }
     }
   } while (changed);
-
 }
