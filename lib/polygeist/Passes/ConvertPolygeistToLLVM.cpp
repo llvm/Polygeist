@@ -18,7 +18,6 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
-#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -26,6 +25,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "polygeist/Ops.h"
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
@@ -413,7 +413,7 @@ struct ConvertPolygeistToLLVMPass
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
         [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
     target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
-                                  scf::ExecuteRegionOp>();
+                        scf::ExecuteRegionOp>();
     target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                       omp::BarrierOp, omp::TaskwaitOp>();
     target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(areAllTypesConverted);
