@@ -896,6 +896,105 @@ public:
   }
 };
 
+template <typename T>
+class SetSimplification final : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+
+    Value dstv = op.getDst();
+    auto dst = dstv.getDefiningOp<polygeist::Memref2PointerOp>();
+    if (!dst)
+      return failure();
+
+    auto dstTy = dst.source().getType().cast<MemRefType>();
+    Type elTy = dstTy.getElementType();
+
+    if (!elTy.isa<IntegerType, FloatType>())
+      return failure();
+
+    size_t width = 1;
+    if (auto IT = elTy.dyn_cast<IntegerType>())
+      width = IT.getWidth() / 8;
+    else if (auto FT = elTy.dyn_cast<FloatType>())
+      width = FT.getWidth() / 8;
+    else {
+      // TODO extend to llvm compatible type
+      return failure();
+    }
+    bool first = true;
+    SmallVector<size_t> bounds;
+    for (auto pair : dstTy.getShape()) {
+      if (first) {
+        first = false;
+        continue;
+      }
+      bounds.push_back(pair);
+      width *= pair;
+    }
+
+    Value len = op.getLen();
+    size_t factor = 1;
+    while (factor % width != 0) {
+      IntegerAttr constValue;
+      if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
+        len = ext.getIn();
+      else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
+        len = ext.getIn();
+      else if (auto mul = len.getDefiningOp<arith::MulIOp>())
+        len = mul.getRhs();
+      else if (matchPattern(len, m_Constant(&constValue))) {
+        factor *= constValue.getValue().getLimitedValue();
+      } else
+        return failure();
+    }
+
+    if (factor % width != 0)
+      return failure();
+
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+    SmallVector<Value> idxs;
+    Value val;
+
+    if (auto IT = elTy.dyn_cast<IntegerType>())
+      val =
+          rewriter.create<arith::ConstantIntOp>(op.getLoc(), 0, IT.getWidth());
+    else {
+      auto FT = elTy.cast<FloatType>();
+      val = rewriter.create<arith::ConstantFloatOp>(
+          op.getLoc(), APFloat(FT.getFloatSemantics(), "0"), FT);
+    }
+
+    auto forOp = rewriter.create<scf::ForOp>(
+        op.getLoc(), c0,
+        rewriter.create<arith::DivUIOp>(
+            op.getLoc(),
+            rewriter.create<arith::IndexCastOp>(
+                op.getLoc(), rewriter.getIndexType(), op.getLen()),
+            rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
+        c1);
+
+    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    idxs.push_back(forOp.getInductionVar());
+
+    for (auto bound : bounds) {
+      auto forOp = rewriter.create<scf::ForOp>(
+          op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound),
+          c1);
+      rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+      idxs.push_back(forOp.getInductionVar());
+    }
+
+    rewriter.create<memref::StoreOp>(op.getLoc(), val, dst.source(), idxs);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
   if (auto subindex = source().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.index().getDefiningOp<ConstantIndexOp>()) {
@@ -921,6 +1020,7 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
 void Memref2PointerOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
   results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
+                 SetSimplification<LLVM::MemsetOp>,
                  CopySimplification<LLVM::MemcpyOp>,
                  CopySimplification<LLVM::MemmoveOp>>(context);
 }

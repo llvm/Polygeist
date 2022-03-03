@@ -31,16 +31,16 @@ void make() {
 }
 
 // CHECK:   func @_Z4makev() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %cst = arith.constant 3.140000e+00 : f64
-// CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %cst = arith.constant 3.140000e+00 : f64
+// CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(i32)>, struct<(f32)>, f64)> : (i64) -> !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>
 // CHECK-NEXT:     call @_ZN3SubC1Eid(%0, %c3_i32, %cst) : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32, f64) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN3SubC1Eid(%arg0: !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, %arg1: i32, %arg2: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c4_i32 = arith.constant 4 : i32
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c4_i32 = arith.constant 4 : i32
 // CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> memref<?x1xi32>
 // CHECK-NEXT:     call @_ZN4RootC1Ei(%0, %arg1) : (memref<?x1xi32>, i32) -> ()
 // CHECK-NEXT:     %1 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>> to !llvm.ptr<i8>
@@ -63,8 +63,8 @@ void make() {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN5FRootC1Ev(%arg0: memref<?x1xf32>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %cst = arith.constant 2.180000e+00 : f32
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %cst = arith.constant 2.180000e+00 : f32
 // CHECK-NEXT:     affine.store %cst, %arg0[0, 0] : memref<?x1xf32>
 // CHECK-NEXT:     %[[i1:.+]] = llvm.mlir.addressof @str2 : !llvm.ptr<array<14 x i8>>
 // CHECK-NEXT:     %[[i2:.+]] = llvm.getelementptr %[[i1]][%c0_i32, %c0_i32] : (!llvm.ptr<array<14 x i8>>, i32, i32) -> !llvm.ptr<i8>

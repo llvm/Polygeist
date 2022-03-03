@@ -11,9 +11,9 @@ double sum(struct Node* n) {
 }
 
 // CHECK:   func @sum(%arg0: !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:     %0 = llvm.mlir.null : !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %cst = arith.constant 0.000000e+00 : f64
+// CHECK-DAG:     %0 = llvm.mlir.null : !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>
 // CHECK-NEXT:     %1 = llvm.icmp "eq" %arg0, %0 : !llvm.ptr<struct<"polygeist@mlir@struct.Node", (ptr<struct<"polygeist@mlir@struct.Node">>, f64)>>
 // CHECK-NEXT:     %2 = scf.if %1 -> (f64) {
 // CHECK-NEXT:       scf.yield %cst : f64

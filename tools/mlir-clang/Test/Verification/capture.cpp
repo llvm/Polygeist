@@ -12,8 +12,8 @@ double kernel_deriche(int x, float y) {
 }
 
 // CHECK:   func @kernel_deriche(%arg0: i32, %arg1: f32) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(memref<?xf32>, i32)> : (i64) -> !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(memref<?xf32>, i32)> : (i64) -> !llvm.ptr<!llvm.struct<(memref<?xf32>, i32)>>
 // CHECK-NEXT:     %2 = memref.alloca() : memref<1xf32>

@@ -66,8 +66,8 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 // CHECK-NEXT:     return %2 : i8
 // CHECK-NEXT:   }
 // CHECK:   func private @_ZZ14lt_kernel_cudaENK3$_0clEv(%arg0: !llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     %2 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr<!llvm.struct<(!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)>>, i32) -> !llvm.ptr<!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>

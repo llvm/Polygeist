@@ -11,10 +11,10 @@ unsigned int test() {
 }
 
 // CHECK:   func @test() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %0 = scf.while (%arg0 = %c0_i32, %arg1 = %true) : (i32, i1) -> i32 {
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
+// CHECK-DAG:     %true = arith.constant true
+// CHECK-DAG:     %0 = scf.while (%arg0 = %c0_i32, %arg1 = %true) : (i32, i1) -> i32 {
 // CHECK-NEXT:       scf.condition(%arg1) %arg0 : i32
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:     ^bb0(%arg0: i32):

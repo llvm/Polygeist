@@ -37,9 +37,9 @@ int* alloc() {
 // CHECK-NEXT:    %6 = arith.muli %5, %c4 : index
 // CHECK-NEXT:    %7 = arith.divui %6, %c4 : index
 // CHECK-NEXT:    %8 = memref.alloc(%7) : memref<?xi32>
-// CHECK-NEXT:    scf.for %arg0 = %c0 to %5 step %c1 {
 // CHECK-NEXT:      %9 = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
 // CHECK-NEXT:      %10 = llvm.getelementptr %9[%c0_i32, %c0_i32] : (!llvm.ptr<array<4 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:    scf.for %arg0 = %c0 to %5 step %c1 {
 // CHECK-NEXT:      %11 = llvm.call @__isoc99_scanf(%10, %0) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
 // CHECK-NEXT:      %12 = llvm.load %0 : !llvm.ptr<i32>
 // CHECK-NEXT:      memref.store %12, %8[%arg0] : memref<?xi32>

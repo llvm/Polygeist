@@ -485,7 +485,8 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::createCanonicalizerPass());
         optPM.addPass(mlir::createCSEPass());
         // Affine must be lowered to enable inlining
-        optPM.addPass(mlir::createLowerAffinePass());
+        if (RaiseToAffine)
+          optPM.addPass(mlir::createLowerAffinePass());
         optPM.addPass(mlir::createCanonicalizerPass());
         pm.addPass(mlir::createInlinerPass());
         mlir::OpPassManager &optPM2 = pm.nest<mlir::FuncOp>();

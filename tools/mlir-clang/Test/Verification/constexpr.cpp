@@ -11,9 +11,9 @@ int foo() {
 }
 
 // CHECK:   func @_Z3foov() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c14 = arith.constant 14 : index
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c14 = arith.constant 14 : index
 // CHECK-NEXT:     %0 = memref.alloca() : memref<14xi32>
 // CHECK-NEXT:     scf.for %arg0 = %c0 to %c14 step %c1 {
 // CHECK-NEXT:       %3 = arith.index_cast %arg0 : index to i32

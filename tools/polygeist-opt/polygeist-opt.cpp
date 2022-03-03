@@ -25,6 +25,7 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Conversion/Passes.h"
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
@@ -61,11 +62,13 @@ int main(int argc, char **argv) {
 
   // Register the standard passes we want.
   mlir::registerCSEPass();
+  mlir::registerConvertAffineToStandardPass();
   mlir::registerSCCPPass();
   mlir::registerInlinerPass();
   mlir::registerCanonicalizerPass();
   mlir::registerSymbolDCEPass();
   mlir::registerLoopInvariantCodeMotionPass();
+  mlir::registerConvertSCFToOpenMPPass();
 
   registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMPointerType,
                             MemRefInsider>();

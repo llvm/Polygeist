@@ -3059,6 +3059,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
   }
+  case clang::CastKind::CK_Dynamic: {
+    E->dump();
+    assert(0 && "dynamic cast not handled yet\n");
+  }
   case clang::CastKind::CK_BaseToDerived:
   case clang::CastKind::CK_DerivedToBase:
   case clang::CastKind::CK_UncheckedDerivedToBase: {
@@ -3556,7 +3560,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
 
   default:
-    EmittingFunctionDecl->dump();
+    if (EmittingFunctionDecl)
+      EmittingFunctionDecl->dump();
     E->dump();
     assert(0 && "unhandled cast");
   }

@@ -61,9 +61,39 @@ struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
   }
 };
 
+struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
+  using OpRewritePattern<omp::ParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(omp::ParallelOp nextParallel,
+                                PatternRewriter &rewriter) const override {
+    Block *parent = nextParallel->getBlock();
+    if (parent->getOperations().size() != 2)
+      return failure();
+
+    auto prevFor = dyn_cast<scf::ForOp>(nextParallel->getParentOp());
+    if (!prevFor || prevFor->getResults().size())
+      return failure();
+
+    nextParallel->moveBefore(prevFor);
+    auto yield = nextParallel.getRegion().front().getTerminator();
+    auto contents =
+        rewriter.splitBlock(&nextParallel.getRegion().front(),
+                            nextParallel.getRegion().front().begin());
+    rewriter.mergeBlockBefore(contents, &prevFor.getBody()->front());
+    rewriter.setInsertionPoint(prevFor.getBody()->getTerminator());
+    rewriter.create<omp::BarrierOp>(nextParallel.getLoc());
+    rewriter.setInsertionPointToEnd(&nextParallel.getRegion().front());
+    auto newYield = rewriter.clone(*yield);
+    rewriter.eraseOp(yield);
+    prevFor->moveBefore(newYield);
+    return success();
+  }
+};
+
 void OpenMPOpt::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
-  rpl.add<CombineParallel>(getOperation()->getContext());
+  rpl.add<CombineParallel, ParallelForInterchange>(
+      getOperation()->getContext());
   GreedyRewriteConfig config;
   config.maxIterations = 47;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
