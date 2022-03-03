@@ -742,9 +742,10 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
       if (isRecomputable(&*it)) {
         auto newOp = rewriter.clone(*it, mapping);
+        // TODO should this be replaced with replaceOpWithinBlock
         rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
           return getThenBlock(ifOp)->getParent()->isAncestor(
-	          op.getOwner()->getParentRegion());
+              op.getOwner()->getParentRegion());
         });
       }
     }
@@ -851,7 +852,8 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
        ++it) {
     if (isRecomputable(&*it)) {
       auto newOp = rewriter.clone(*it, mapping);
-      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(), forLoop.getBody());
+      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
+                                    forLoop.getBody());
     }
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
@@ -1029,16 +1031,17 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    // A perfect nest must have two operations in the outermost body: a "while"
-    // loop, and a terminator.
-    if (std::next(op.getBody()->begin(), 2) != op.getBody()->end() ||
-        !isa<scf::WhileOp>(op.getBody()->front())) {
+    if (std::next(op.getBody()->begin(), 1) == op.getBody()->end()) {
       LLVM_DEBUG(
-          DBGS() << "[interchange-while] not a perfect pfor(while) nest\n");
+          DBGS() << "[interchange-while] expected one or more nested ops\n");
       return failure();
     }
 
-    auto whileOp = cast<scf::WhileOp>(op.getBody()->front());
+    auto whileOp = dyn_cast<scf::WhileOp>(op.getBody()->back().getPrevNode());
+    if (!whileOp) {
+      LLVM_DEBUG(DBGS() << "[interchange-while] not a while nest\n");
+      return failure();
+    }
     if (whileOp.getNumOperands() != 0 || whileOp.getNumResults() != 0) {
       LLVM_DEBUG(DBGS() << "[interchange-while] loop-carried values\n");
       return failure();
@@ -1052,18 +1055,18 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
     auto conditionOp =
         cast<scf::ConditionOp>(whileOp.getBefore().front().back());
 
-    auto beforeParallelOp = rewriter.cloneWithoutRegions<T>(op);
-    beforeParallelOp.getRegion().push_back(new Block());
-    for (auto a : op.getBody()->getArguments())
-      beforeParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
-    auto afterParallelOp = rewriter.cloneWithoutRegions<T>(op);
-    afterParallelOp.getRegion().push_back(new Block());
-    for (auto a : op.getBody()->getArguments())
-      afterParallelOp.getBody()->addArgument(a.getType(), a.getLoc());
-    rewriter.setInsertionPointToEnd(beforeParallelOp.getBody());
-    rewriter.clone(*op.getBody()->getTerminator());
-    rewriter.setInsertionPointToEnd(afterParallelOp.getBody());
-    rewriter.clone(*op.getBody()->getTerminator());
+    auto makeNewParallelOp = [&]() {
+      rewriter.setInsertionPointAfter(op);
+      auto newParallel = rewriter.cloneWithoutRegions<T>(op);
+      newParallel.getRegion().push_back(new Block());
+      for (auto a : op.getBody()->getArguments())
+	      newParallel.getBody()->addArgument(a.getType(), a.getLoc());
+      rewriter.setInsertionPointToEnd(newParallel.getBody());
+      rewriter.clone(*op.getBody()->getTerminator());
+      return newParallel;
+    };
+    auto beforeParallelOp = makeNewParallelOp();
+    auto afterParallelOp = makeNewParallelOp();
 
     rewriter.mergeBlockBefore(&whileOp.getBefore().front(),
                               beforeParallelOp.getBody()->getTerminator());
@@ -1082,6 +1085,26 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
                         whileOp.getAfter().front().begin());
     afterParallelOp->moveBefore(&whileOp.getAfter().front(),
                                 whileOp.getAfter().front().begin());
+
+    auto insertRecomputables = [&](T newParallel) {
+      rewriter.setInsertionPointToStart(newParallel.getBody());
+      // Keep recomputable values in the parallel op (explicitly excluding loads
+      // that provide for bounds as those are handles in the caller)
+      BlockAndValueMapping mapping;
+      mapping.map(op.getBody()->getArguments(),
+                  newParallel.getBody()->getArguments());
+      rewriter.setInsertionPointToStart(newParallel.getBody());
+      for (auto it = op.getBody()->begin();
+           dyn_cast<scf::WhileOp>(*it) != whileOp; ++it) {
+        if (isRecomputable(&*it)) {
+          auto newOp = rewriter.clone(*it, mapping);
+          rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
+                                        newParallel.getBody());
+        }
+      }
+    };
+    insertRecomputables(beforeParallelOp);
+    insertRecomputables(afterParallelOp);
 
     for (auto tup : llvm::zip(op.getBody()->getArguments(),
                               beforeParallelOp.getBody()->getArguments(),
