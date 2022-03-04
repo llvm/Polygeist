@@ -11,6 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Conversion/Passes.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
@@ -25,7 +26,6 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
-#include "mlir/Conversion/Passes.h"
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
