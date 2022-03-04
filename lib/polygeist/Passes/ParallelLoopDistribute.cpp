@@ -716,6 +716,26 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
+// Clone the recomputable ops from the old parallel to the new one up until the
+// until op (we are excluding load ops that provide bounds conditions)
+template <typename T, typename T2>
+static void insertRecomputables(PatternRewriter &rewriter, T oldParallel,
+                                T newParallel, T2 until) {
+  rewriter.setInsertionPointToStart(newParallel.getBody());
+  BlockAndValueMapping mapping;
+  mapping.map(oldParallel.getBody()->getArguments(),
+              newParallel.getBody()->getArguments());
+  rewriter.setInsertionPointToStart(newParallel.getBody());
+  for (auto it = oldParallel.getBody()->begin(); dyn_cast<T2>(*it) != until;
+       ++it) {
+    if (isRecomputable(&*it)) {
+      auto newOp = rewriter.clone(*it, mapping);
+      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
+                                    newParallel.getBody());
+    }
+  }
+}
+
 /// Moves the body from `ifOp` contained in `op` to a parallel op newly
 /// created at the start of `newIf`.
 template <typename T, typename IfType>
@@ -729,26 +749,6 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
       newParallel.getBody()->addArgument(a.getType(), op->getLoc());
-
-    // TODO I just copied over this below from the ForOp case, check if it
-    // actually works
-
-    // Keep recomputable values in the parallel op (explicitly excluding loads
-    // that provide for bounds as those are handles in the caller)
-    BlockAndValueMapping mapping;
-    mapping.map(op.getBody()->getArguments(),
-                newParallel.getBody()->getArguments());
-    rewriter.setInsertionPointToEnd(newParallel.getBody());
-    for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
-      if (isRecomputable(&*it)) {
-        auto newOp = rewriter.clone(*it, mapping);
-        // TODO should this be replaced with replaceOpWithinBlock
-        rewriter.replaceOpWithIf(&*it, newOp->getResults(), [&](OpOperand &op) {
-          return getThenBlock(ifOp)->getParent()->isAncestor(
-              op.getOwner()->getParentRegion());
-        });
-      }
-    }
 
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
@@ -766,6 +766,8 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     rewriter.eraseOp(&getThenBlock(ifOp)->back());
     rewriter.mergeBlockBefore(getThenBlock(ifOp),
                               &newParallel.getBody()->back());
+
+    insertRecomputables(rewriter, op, newParallel, ifOp);
   }
 
   if (hasElse(ifOp)) {
@@ -775,20 +777,6 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     newParallel.getRegion().push_back(new Block());
     for (auto a : op.getBody()->getArguments())
       newParallel.getBody()->addArgument(a.getType(), op->getLoc());
-
-    // TODO I just copied over this below from the ForOp case, check if it
-    // actually works
-
-    // Keep recomputable values in the parallel op (explicitly excluding loads
-    // that provide for bounds as those are handles in the caller)
-    BlockAndValueMapping mapping;
-    mapping.map(op.getBody()->getArguments(),
-                newParallel.getBody()->getArguments());
-    rewriter.setInsertionPointToEnd(newParallel.getBody());
-    for (auto it = op.getBody()->begin(); dyn_cast<IfType>(*it) != ifOp; ++it) {
-      if (isRecomputable(&*it))
-        rewriter.clone(*it, mapping);
-    }
 
     rewriter.setInsertionPointToEnd(newParallel.getBody());
     rewriter.clone(*op.getBody()->getTerminator());
@@ -804,6 +792,8 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
     rewriter.eraseOp(&getElseBlock(ifOp)->back());
     rewriter.mergeBlockBefore(getElseBlock(ifOp),
                               &newParallel.getBody()->back());
+
+    insertRecomputables(rewriter, op, newParallel, ifOp);
   }
 
   // TODO this newIf gets printed as if it has an empty else if the original had
@@ -1086,25 +1076,8 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
     afterParallelOp->moveBefore(&whileOp.getAfter().front(),
                                 whileOp.getAfter().front().begin());
 
-    auto insertRecomputables = [&](T newParallel) {
-      rewriter.setInsertionPointToStart(newParallel.getBody());
-      // Keep recomputable values in the parallel op (explicitly excluding loads
-      // that provide for bounds as those are handles in the caller)
-      BlockAndValueMapping mapping;
-      mapping.map(op.getBody()->getArguments(),
-                  newParallel.getBody()->getArguments());
-      rewriter.setInsertionPointToStart(newParallel.getBody());
-      for (auto it = op.getBody()->begin();
-           dyn_cast<scf::WhileOp>(*it) != whileOp; ++it) {
-        if (isRecomputable(&*it)) {
-          auto newOp = rewriter.clone(*it, mapping);
-          rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
-                                        newParallel.getBody());
-        }
-      }
-    };
-    insertRecomputables(beforeParallelOp);
-    insertRecomputables(afterParallelOp);
+    insertRecomputables(rewriter, op, beforeParallelOp, whileOp);
+    insertRecomputables(rewriter, op, afterParallelOp, whileOp);
 
     for (auto tup : llvm::zip(op.getBody()->getArguments(),
                               beforeParallelOp.getBody()->getArguments(),
