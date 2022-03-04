@@ -212,43 +212,14 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
       indVars.insert(var);
 }
 
-// Checks if an op is recomputable within the context of a parallel op `pOp` and
-// a child op `child` with nested barriers (other than the above isRecomputable
-// ops, this includes loads that provide upper loop bounds or an if condition
-template <typename T>
-static bool isRecomputable(Operation *op, Operation *pOp, T child) {
-  if (isRecomputable(op)) {
-    return true;
-  } else if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
-    if (auto pOpc = dyn_cast<scf::ParallelOp>(pOp))
-      return inBound(child, loadOp.result()) &&
-             loadOp.indices() == pOpc.getBody()->getArguments();
-    else if (auto pOpc = dyn_cast<AffineParallelOp>(pOp))
-      return inBound(child, loadOp.result()) &&
-             loadOp.indices() == pOpc.getBody()->getArguments();
-  }
-  return false;
-
-  // TODO do we need to do the 2nd checks below instead of the 1st? (the 1st was
-  // used in the Interchange* patterns and the second in the Wrap* ones
-
-  // loadOp.indices() == pOp.getBody()->getArguments();
-
-  // SmallPtrSet<Value, 3> indVars;
-  // getIndVars(op->getParentOp(), indVars);
-  // llvm::all_of(loadOp.indices(),
-  //              [&](Value v) { return indVars.contains(v); })
-}
-
 // Are all ops preceeding the child `child` with a nested barrier of a parallel
 // operation `pOp` all recomputable?
-template <typename T>
-static bool arePreceedingOpsRecomputable(Operation *pOp, T &child) {
-  auto prevOp = child->getPrevNode();
+static bool arePreceedingOpsRecomputable(Operation *op) {
+  auto prevOp = op->getPrevNode();
   while (prevOp) {
     // TODO we could check if our cacheload ops have the parallel op indVars
     // as arguments, is that needed?
-    if (!isRecomputable(prevOp, pOp, child))
+    if (!isRecomputable(prevOp))
       return false;
     prevOp = prevOp->getPrevNode();
   }
@@ -616,7 +587,7 @@ static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
   Operation *nextOp = op->getNextNode();
   bool hasPrevBarrierLike = prevOp == nullptr ||
                             isBarrierContainingAll(prevOp, args) ||
-                            arePreceedingOpsRecomputable(op->getParentOp(), op);
+                            arePreceedingOpsRecomputable(op);
   bool hasNextBarrierLike =
       nextOp == &op->getBlock()->back() || isBarrierContainingAll(nextOp, args);
 
@@ -934,7 +905,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
       return failure();
     }
 
-    if (!arePreceedingOpsRecomputable(&*op, lastOp)) {
+    if (!arePreceedingOpsRecomputable(lastOp)) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
@@ -942,16 +913,18 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     // In the GPU model, the trip count of the inner sequential containing a
     // barrier must be the same for all threads. So read the value written by
     // the first thread outside of the loop to enable interchange.
+
+    // Replicate the recomputable ops in case the condition or bound of lastOp
+    // is getting "recomputed" TODO dead code elimination should get rid of
+    // unneeded ops here, but is it better to do the check if it is needed
+    // ourselves?
     BlockAndValueMapping mapping;
-    for (auto it = op.getBody()->begin(); it != lastOpIt; ++it) {
-      if (auto loadOp = dyn_cast<memref::LoadOp>(&*it)) {
-        assert(isRecomputable(&*it, op, lastOp) &&
-               "Earlier checks should have guaranteed recomputability");
-        Value condOrTripCount = rewriter.create<memref::LoadOp>(
-            loadOp.getLoc(), loadOp.getMemRef(), getLowerBounds(op, rewriter));
-        mapping.map(loadOp.result(), condOrTripCount);
-      }
-    }
+    rewriter.setInsertionPoint(op);
+    mapping.map(op.getBody()->getArguments(), getLowerBounds(op, rewriter));
+    rewriter.setInsertionPoint(op);
+    for (auto it = op.getBody()->begin(); dyn_cast<ForIfType>(*it) != lastOp;
+         ++it)
+      rewriter.clone(*it, mapping);
 
     auto newOp = cloneWithoutResults(lastOp, rewriter, mapping);
     moveBodies(rewriter, op, lastOp, newOp);
