@@ -17,10 +17,10 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/Passes.h"
@@ -87,7 +87,7 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
 
 /// Creates a pass to perform optimizations relying on memref dataflow such as
 /// store to load forwarding, elimination of dead stores, and dead allocs.
-std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::createMem2RegPass() {
+std::unique_ptr<Pass> mlir::polygeist::createMem2RegPass() {
   return std::make_unique<Mem2Reg>();
 }
 
@@ -1057,7 +1057,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           AliasingStoreOperations.insert(storeOp);
         continue;
       }
-      if (auto callOp = dyn_cast<mlir::CallOp>(user)) {
+      if (auto callOp = dyn_cast<func::CallOp>(user)) {
         if (callOp.getCallee() != "free") {
           LLVM_DEBUG(llvm::dbgs() << "Aliasing Store: " << callOp << "\n");
           AliasingStoreOperations.insert(callOp);
@@ -1697,9 +1697,10 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
-      } else if (isa<CallOp>(U) && cast<CallOp>(U).getCallee() == "free") {
+      } else if (isa<func::CallOp>(U) &&
+                 cast<func::CallOp>(U).getCallee() == "free") {
         continue;
-      } else if (isa<CallOp>(U)) {
+      } else if (isa<func::CallOp>(U)) {
         // TODO check "no capture", currently assume as a fallback always
         // nocapture
         continue;
@@ -1791,7 +1792,6 @@ void Mem2Reg::runOnOperation() {
   // memrefs etc, we may need to do multiple passes (first
   // to eliminate the outermost one, then inner ones)
   bool changed;
-  FuncOp freeRemoved = nullptr;
   do {
     changed = false;
 
@@ -1891,7 +1891,8 @@ void Mem2Reg::runOnOperation() {
             toErase.push_back(U);
           } else if (isa<memref::DeallocOp>(U)) {
             toErase.push_back(U);
-          } else if (isa<CallOp>(U) && cast<CallOp>(U).getCallee() == "free") {
+          } else if (isa<func::CallOp>(U) &&
+                     cast<func::CallOp>(U).getCallee() == "free") {
             toErase.push_back(U);
           } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
             toErase.push_back(U);
@@ -1920,10 +1921,4 @@ void Mem2Reg::runOnOperation() {
       }
     }
   } while (changed);
-
-  if (freeRemoved) {
-    if (freeRemoved.use_empty()) {
-      freeRemoved.erase();
-    }
-  }
 }

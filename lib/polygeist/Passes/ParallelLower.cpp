@@ -15,11 +15,11 @@
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -33,6 +33,7 @@
 
 using namespace mlir;
 using namespace mlir::arith;
+using namespace mlir::func;
 using namespace polygeist;
 
 namespace {
@@ -119,7 +120,7 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   /// as necessary.
   void handleTerminator(Operation *op, Block *newDest) const final {
     // Only "std.return" needs to be handled here.
-    auto returnOp = dyn_cast<ReturnOp>(op);
+    auto returnOp = dyn_cast<func::ReturnOp>(op);
     if (!returnOp)
       return;
 
@@ -134,7 +135,7 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   void handleTerminator(Operation *op,
                         ArrayRef<Value> valuesToRepl) const final {
     // Only "std.return" needs to be handled here.
-    auto returnOp = cast<ReturnOp>(op);
+    auto returnOp = cast<func::ReturnOp>(op);
 
     // Replace the values directly with the return operands.
     assert(returnOp.getNumOperands() == valuesToRepl.size());
@@ -185,7 +186,7 @@ void ParallelLower::runOnOperation() {
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
 
-  getOperation()->walk([&](mlir::CallOp bidx) {
+  getOperation()->walk([&](CallOp bidx) {
     if (bidx.getCallee() == "cudaThreadSynchronize")
       bidx.erase();
   });

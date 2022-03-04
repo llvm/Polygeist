@@ -16,14 +16,17 @@
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
+#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "polygeist/Ops.h"
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
@@ -380,9 +383,11 @@ struct ConvertPolygeistToLLVMPass
     LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
     RewritePatternSet patterns(&getContext());
     populatePolygeistToLLVMConversionPatterns(converter, patterns);
+    populateSCFToControlFlowConversionPatterns(patterns);
     cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
     populateMemRefToLLVMConversionPatterns(converter, patterns);
     populateStdToLLVMConversionPatterns(converter, patterns);
+    populateMathToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
 
@@ -409,6 +414,8 @@ struct ConvertPolygeistToLLVMPass
     LLVMConversionTarget target(getContext());
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
         [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
+    target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
+                        scf::ExecuteRegionOp>();
     target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                       omp::BarrierOp, omp::TaskwaitOp>();
     target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(areAllTypesConverted);

@@ -10,9 +10,9 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
@@ -224,8 +224,8 @@ template class llvm::LoopInfoBase<Wrapper, ::mlir::Loop>;
 void LoopRestructure::runOnOperation() {
   // FuncOp f = getFunction();
   DominanceInfo &domInfo = getAnalysis<DominanceInfo>();
-  if (auto region = getOperation().getCallableRegion()) {
-    runOnRegion(domInfo, *region);
+  for (auto &region : getOperation()->getRegions()) {
+    runOnRegion(domInfo, region);
   }
 }
 
@@ -680,7 +680,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<OperationPass<FuncOp>> createLoopRestructurePass() {
+std::unique_ptr<Pass> createLoopRestructurePass() {
   return std::make_unique<LoopRestructure>();
 }
 } // namespace polygeist

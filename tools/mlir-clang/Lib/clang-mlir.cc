@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Target/LLVMIR/Import.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
@@ -44,6 +45,7 @@ using namespace clang::driver;
 using namespace llvm::opt;
 using namespace mlir;
 using namespace mlir::arith;
+using namespace mlir::func;
 using namespace mlirclang;
 
 #define DEBUG_TYPE "clang-mlir"
@@ -283,9 +285,9 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
   if (function.getType().getResults().size()) {
     mlir::Value vals[1] = {
         builder.create<mlir::memref::LoadOp>(loc, returnVal)};
-    builder.create<mlir::ReturnOp>(loc, vals);
+    builder.create<ReturnOp>(loc, vals);
   } else
-    builder.create<mlir::ReturnOp>(loc);
+    builder.create<ReturnOp>(loc);
 
   assert(function->getParentOp() == Glob.module.get() &&
          "New function must be inserted into global module");
@@ -3057,6 +3059,10 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   case clang::CastKind::CK_UserDefinedConversion: {
     return Visit(E->getSubExpr());
   }
+  case clang::CastKind::CK_Dynamic: {
+    E->dump();
+    assert(0 && "dynamic cast not handled yet\n");
+  }
   case clang::CastKind::CK_BaseToDerived:
   case clang::CastKind::CK_DerivedToBase:
   case clang::CastKind::CK_UncheckedDerivedToBase: {
@@ -3554,7 +3560,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
 
   default:
-    EmittingFunctionDecl->dump();
+    if (EmittingFunctionDecl)
+      EmittingFunctionDecl->dump();
     E->dump();
     assert(0 && "unhandled cast");
   }
@@ -4887,101 +4894,6 @@ mlir::Value MLIRScanner::getTypeAlign(clang::QualType t) {
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"
 
-static DenseIntElementsAttr
-parseDataLayoutTriple(MLIRContext &ctx, StringRef first, StringRef rest) {
-  using namespace mlir;
-  auto i32 = mlir::IntegerType::get(&ctx, 32);
-  int bitwidth;
-  if (first.getAsInteger(/*Radix=*/10, bitwidth))
-    return nullptr;
-
-  StringRef abiString, preferredString;
-  std::tie(abiString, preferredString) = rest.split(':');
-  int abi, preferred;
-  if (abiString.getAsInteger(/*Radix=*/10, abi))
-    return nullptr;
-
-  if (preferredString.empty())
-    preferred = abi;
-  else if (preferredString.getAsInteger(/*Radix=*/10, preferred))
-    return nullptr;
-
-  return DenseIntElementsAttr::get(mlir::VectorType::get({3}, i32),
-                                   {bitwidth, abi, preferred});
-}
-
-FloatType getDLFloatType(MLIRContext &ctx, int32_t bitwidth) {
-  switch (bitwidth) {
-  case 16:
-    return mlir::FloatType::getF16(&ctx);
-  case 32:
-    return mlir::FloatType::getF32(&ctx);
-  case 64:
-    return mlir::FloatType::getF64(&ctx);
-  case 80:
-    return mlir::FloatType::getF80(&ctx);
-  case 128:
-    return mlir::FloatType::getF128(&ctx);
-  default:
-    return nullptr;
-  }
-}
-
-DataLayoutSpecAttr translateDataLayout(MLIRContext &ctx, StringRef layout) {
-  using namespace mlir;
-  SmallVector<DataLayoutEntryInterface> entries;
-  while (!layout.empty()) {
-    // Split at '-'.
-    std::pair<StringRef, StringRef> split = layout.split('-');
-    StringRef current;
-    std::tie(current, layout) = split;
-
-    // Split at ':'.
-    StringRef kind, spec;
-    std::tie(kind, spec) = current.split(':');
-
-    char symbol = kind.front();
-    StringRef parameter = kind.substr(1);
-
-    if (symbol == 'i') {
-      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, parameter, spec);
-      if (!params)
-        return nullptr;
-      auto entry = DataLayoutEntryAttr::get(
-          mlir::IntegerType::get(&ctx, *params.getValues<int32_t>().begin()),
-          params);
-      entries.emplace_back(entry);
-    } else if (symbol == 'f') {
-      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, parameter, spec);
-      if (!params)
-        return nullptr;
-      mlir::Type fltType =
-          getDLFloatType(ctx, *params.getValues<int32_t>().begin());
-      if (!fltType)
-        return nullptr;
-      auto entry = DataLayoutEntryAttr::get(fltType, params);
-      entries.emplace_back(entry);
-    } else if (symbol == 'p') {
-      int addressSpace = 0;
-      if (!parameter.empty()) {
-        if (parameter.getAsInteger(/*Radix=*/10, addressSpace))
-          return nullptr;
-      }
-      StringRef head, tail;
-      std::tie(head, tail) = spec.split(':');
-      DenseIntElementsAttr params = parseDataLayoutTriple(ctx, head, tail);
-      if (!params)
-        return nullptr;
-      auto entry = DataLayoutEntryAttr::get(
-          LLVM::LLVMPointerType::get(mlir::IntegerType::get(&ctx, 8),
-                                     addressSpace),
-          params);
-      entries.emplace_back(entry);
-    }
-  }
-  return DataLayoutSpecAttr::get(&ctx, entries);
-}
-
 static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
@@ -5174,13 +5086,9 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
           LLVM::LLVMDialect::getDataLayoutAttrName(),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getDataLayoutString()));
-      // TODO does not work
-      /*
-      module.get()->setAttr(
-              ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
-              translateDataLayout(*module->getContext(),
-      Clang->getTarget().getDataLayoutString()));
-      */
+
+      module.get()->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
+                            translateDataLayout(DL, module->getContext()));
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {

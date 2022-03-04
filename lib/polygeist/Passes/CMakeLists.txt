@@ -5,6 +5,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LoopRestructure.cpp
   Mem2Reg.cpp
   ParallelLoopDistribute.cpp
+  OpenMPOpt.cpp
   BarrierRemovalContinuation.cpp
   RaiseToAffine.cpp
   ParallelLower.cpp
@@ -21,16 +22,18 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   LINK_LIBS PUBLIC
   MLIRAffine
   MLIRAffineUtils
+  MLIRFunc
+  MLIRFuncTransforms
   MLIRGPUOps
   MLIRIR
   MLIRLLVMIR
+  MLIRMath
+  MLIRMathToLLVM
   MLIRMemRef
   MLIRNVVMIR
   MLIRPass
   MLIRPolygeist
   MLIRSideEffectInterfaces
-  MLIRStandard
-  MLIRStandardOpsTransforms
   MLIRSCFToControlFlow
   MLIRTransformUtils
   )

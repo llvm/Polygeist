@@ -28,9 +28,9 @@ void make() {
 }
 
 // CHECK:   func @_Z4makev() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %cst = arith.constant 3.140000e+00 : f64
-// CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %cst = arith.constant 3.140000e+00 : f64
+// CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(i8)> : (i64) -> !llvm.ptr<struct<(i8)>>
 // CHECK-NEXT:     call @_ZN3SubC1Eid(%0, %c3_i32, %cst) : (!llvm.ptr<struct<(i8)>>, i32, f64) -> ()
 // CHECK-NEXT:     return

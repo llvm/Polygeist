@@ -12,10 +12,10 @@ void square(double* x, int ss) {
 }
 
 // CHECK:   func @square(%arg0: memref<?xf64>, %arg1: i32)
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c11 = arith.constant 11 : index
-// CHECK-NEXT:     %c2 = arith.constant 2 : index
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c11 = arith.constant 11 : index
+// CHECK-DAG:     %c2 = arith.constant 2 : index
+// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %0 = call @get(%arg1) : (i32) -> i32
 // CHECK-NEXT:     %1 = arith.index_cast %0 : i32 to index
 // CHECK-NEXT:     %2 = arith.subi %c11, %1 : index

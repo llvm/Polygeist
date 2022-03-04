@@ -255,15 +255,15 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 } // end namespace.
 
 void AffineReductionPass::runOnOperation() {
-  mlir::RewritePatternSet rpl(getOperation().getContext());
-  rpl.add<AffineForReductionIter>(getOperation().getContext());
+  mlir::RewritePatternSet rpl(getOperation()->getContext());
+  rpl.add<AffineForReductionIter>(getOperation()->getContext());
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<OperationPass<FuncOp>> detectReductionPass() {
+std::unique_ptr<Pass> detectReductionPass() {
   return std::make_unique<AffineReductionPass>();
 }
 } // namespace polygeist

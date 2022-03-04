@@ -1135,16 +1135,16 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
 };
 
 void AffineCFGPass::runOnOperation() {
-  mlir::RewritePatternSet rpl(getOperation().getContext());
+  mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
           CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
           AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
           MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
-      getOperation().getContext());
+      getOperation()->getContext());
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
-std::unique_ptr<OperationPass<FuncOp>> mlir::polygeist::replaceAffineCFGPass() {
+std::unique_ptr<Pass> mlir::polygeist::replaceAffineCFGPass() {
   return std::make_unique<AffineCFGPass>();
 }
