@@ -1050,7 +1050,7 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
       auto newParallel = rewriter.cloneWithoutRegions<T>(op);
       newParallel.getRegion().push_back(new Block());
       for (auto a : op.getBody()->getArguments())
-	      newParallel.getBody()->addArgument(a.getType(), a.getLoc());
+        newParallel.getBody()->addArgument(a.getType(), a.getLoc());
       rewriter.setInsertionPointToEnd(newParallel.getBody());
       rewriter.clone(*op.getBody()->getTerminator());
       return newParallel;
@@ -1888,15 +1888,15 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             DistributeAroundBarrier<AffineParallelOp>>(&getContext());
         GreedyRewriteConfig config;
         config.maxIterations = 142;
-        if (failed(applyPatternsAndFoldGreedily(getFunction(),
+        if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                                 std::move(patterns), config)))
           signalPassFailure();
       }
       {
-        OwningRewritePatternList patterns(&getContext());
+        RewritePatternSet patterns(&getContext());
         GreedyRewriteConfig config;
         patterns.insert<LowerCacheLoad>(&getContext());
-        if (failed(applyPatternsAndFoldGreedily(getFunction(),
+        if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                                 std::move(patterns), config)))
           signalPassFailure();
       }
