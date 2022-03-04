@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute.mincut" --split-input-file %s | FileCheck %s
 
 module {
   func private @capture(%a : memref<i32>) 

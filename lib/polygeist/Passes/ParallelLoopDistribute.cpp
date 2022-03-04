@@ -1189,17 +1189,161 @@ struct RotateWhile : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
+static LogicalResult
+splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
+             SmallVector<Value> &iterCounts, scf::ParallelOp &preLoop,
+             scf::ParallelOp &postLoop, Block *&outerBlock,
+             scf::ParallelOp &outerLoop, scf::ExecuteRegionOp &outerEx) {
+
+  SmallVector<Value> outerLower;
+  SmallVector<Value> outerUpper;
+  SmallVector<Value> outerStep;
+  SmallVector<Value> innerLower;
+  SmallVector<Value> innerUpper;
+  SmallVector<Value> innerStep;
+  for (auto en : llvm::zip(op.getBody()->getArguments(), op.getLowerBound(),
+                           op.getUpperBound(), op.getStep())) {
+    bool found = false;
+    for (auto v : barrier.getOperands())
+      if (v == std::get<0>(en))
+        found = true;
+    if (found) {
+      innerLower.push_back(std::get<1>(en));
+      innerUpper.push_back(std::get<2>(en));
+      innerStep.push_back(std::get<3>(en));
+    } else {
+      outerLower.push_back(std::get<1>(en));
+      outerUpper.push_back(std::get<2>(en));
+      outerStep.push_back(std::get<3>(en));
+    }
+  }
+  if (!innerLower.size())
+    return failure();
+  if (outerLower.size()) {
+    outerLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), outerLower,
+                                                 outerUpper, outerStep);
+    rewriter.eraseOp(&outerLoop.getBody()->back());
+    outerBlock = outerLoop.getBody();
+  } else {
+    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerBlock = new Block();
+    outerEx.getRegion().push_back(outerBlock);
+  }
+
+  rewriter.setInsertionPointToEnd(outerBlock);
+  for (auto tup : llvm::zip(innerLower, innerUpper, innerStep)) {
+    iterCounts.push_back(rewriter.create<DivUIOp>(
+        op.getLoc(),
+        rewriter.create<SubIOp>(op.getLoc(), std::get<1>(tup),
+                                std::get<0>(tup)),
+        std::get<2>(tup)));
+  }
+  preLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
+                                             innerUpper, innerStep);
+  rewriter.eraseOp(&preLoop.getBody()->back());
+  postLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
+                                              innerUpper, innerStep);
+  rewriter.eraseOp(&postLoop.getBody()->back());
+  return success();
+}
+
+static LogicalResult
+splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
+             SmallVector<Value> &iterCounts, AffineParallelOp &preLoop,
+             AffineParallelOp &postLoop, Block *&outerBlock,
+             AffineParallelOp &outerLoop, scf::ExecuteRegionOp &outerEx) {
+
+  SmallVector<AffineMap> outerLower;
+  SmallVector<AffineMap> outerUpper;
+  SmallVector<int64_t> outerStep;
+  SmallVector<AffineMap> innerLower;
+  SmallVector<AffineMap> innerUpper;
+  SmallVector<int64_t> innerStep;
+  unsigned idx = 0;
+  for (auto en : llvm::enumerate(
+           llvm::zip(op.getBody()->getArguments(), op.getSteps()))) {
+    bool found = false;
+    for (auto v : barrier.getOperands())
+      if (v == std::get<0>(en.value()))
+        found = true;
+    if (found) {
+      innerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
+      innerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      innerStep.push_back(std::get<1>(en.value()));
+    } else {
+      outerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
+      outerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      outerStep.push_back(std::get<1>(en.value()));
+    }
+    idx++;
+  }
+  if (!innerLower.size())
+    return failure();
+  if (outerLower.size()) {
+    outerLoop = rewriter.create<AffineParallelOp>(
+        op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), outerLower,
+        op.getLowerBoundsOperands(), outerUpper, op.getUpperBoundsOperands(),
+        outerStep);
+    rewriter.eraseOp(&outerLoop.getBody()->back());
+    outerBlock = outerLoop.getBody();
+  } else {
+    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerBlock = new Block();
+    outerEx.getRegion().push_back(outerBlock);
+  }
+
+  rewriter.setInsertionPointToEnd(outerBlock);
+  for (auto tup : llvm::zip(innerLower, innerUpper, innerStep)) {
+    auto expr = (std::get<1>(tup).getResult(0) -
+                 std::get<0>(tup)
+                     .getResult(0)
+                     .shiftDims(op.lowerBoundsMap().getNumDims(),
+                                op.upperBoundsMap().getNumDims())
+                     .shiftSymbols(op.lowerBoundsMap().getNumSymbols(),
+                                   op.upperBoundsMap().getNumSymbols()))
+                    .floorDiv(std::get<2>(tup));
+    SmallVector<Value> symbols;
+    SmallVector<Value> dims;
+    size_t idx = 0;
+    for (auto v : op.getUpperBoundsOperands()) {
+      if (idx < op.upperBoundsMap().getNumDims())
+        dims.push_back(v);
+      else
+        symbols.push_back(v);
+      idx++;
+    }
+    idx = 0;
+    for (auto v : op.getLowerBoundsOperands()) {
+      if (idx < op.lowerBoundsMap().getNumDims())
+        dims.push_back(v);
+      else
+        symbols.push_back(v);
+      idx++;
+    }
+    SmallVector<Value> ops = dims;
+    ops.append(symbols);
+    iterCounts.push_back(rewriter.create<AffineApplyOp>(
+        op.getLoc(), AffineMap::get(dims.size(), symbols.size(), expr), ops));
+  }
+  preLoop = rewriter.create<AffineParallelOp>(
+      op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
+      op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
+      innerStep);
+  rewriter.eraseOp(&preLoop.getBody()->back());
+  postLoop = rewriter.create<AffineParallelOp>(
+      op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
+      op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
+      innerStep);
+  rewriter.eraseOp(&postLoop.getBody()->back());
+  return success();
+}
+
 /// Splits a parallel loop around the first barrier it immediately contains.
 /// Values defined before the barrier are stored in newly allocated buffers and
 /// loaded back when needed.
-template <typename T>
+template <typename T, bool UseMinCut>
 struct DistributeAroundBarrier : public OpRewritePattern<T> {
   DistributeAroundBarrier(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
-
-  LogicalResult splitSubLoop(T op, PatternRewriter &rewriter, BarrierOp barrier,
-                             SmallVector<Value> &iterCounts, T &preLoop,
-                             T &postLoop, Block *&outerBlock, T &outerLoop,
-                             memref::AllocaScopeOp &outerEx) const;
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
@@ -1232,8 +1376,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     llvm::SetVector<Value> minCache;
     // TODO make it an option I guess
-    bool MIN_CUT_OPTIMIZATION = true;
-    if (MIN_CUT_OPTIMIZATION) {
+    if (UseMinCut) {
 
       minCutCache(barrier, usedBelow, minCache);
 
@@ -1495,156 +1638,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     return success();
   }
 };
-template <>
-LogicalResult DistributeAroundBarrier<scf::ParallelOp>::splitSubLoop(
-    scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
-    SmallVector<Value> &iterCounts, scf::ParallelOp &preLoop,
-    scf::ParallelOp &postLoop, Block *&outerBlock, scf::ParallelOp &outerLoop,
-    memref::AllocaScopeOp &outerEx) const {
-
-  SmallVector<Value> outerLower;
-  SmallVector<Value> outerUpper;
-  SmallVector<Value> outerStep;
-  SmallVector<Value> innerLower;
-  SmallVector<Value> innerUpper;
-  SmallVector<Value> innerStep;
-  for (auto en : llvm::zip(op.getBody()->getArguments(), op.getLowerBound(),
-                           op.getUpperBound(), op.getStep())) {
-    bool found = false;
-    for (auto v : barrier.getOperands())
-      if (v == std::get<0>(en))
-        found = true;
-    if (found) {
-      innerLower.push_back(std::get<1>(en));
-      innerUpper.push_back(std::get<2>(en));
-      innerStep.push_back(std::get<3>(en));
-    } else {
-      outerLower.push_back(std::get<1>(en));
-      outerUpper.push_back(std::get<2>(en));
-      outerStep.push_back(std::get<3>(en));
-    }
-  }
-  if (!innerLower.size())
-    return failure();
-  if (outerLower.size()) {
-    outerLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), outerLower,
-                                                 outerUpper, outerStep);
-    rewriter.eraseOp(&outerLoop.getBody()->back());
-    outerBlock = outerLoop.getBody();
-  } else {
-    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
-    outerBlock = new Block();
-    outerEx.getRegion().push_back(outerBlock);
-  }
-
-  rewriter.setInsertionPointToEnd(outerBlock);
-  for (auto tup : llvm::zip(innerLower, innerUpper, innerStep)) {
-    iterCounts.push_back(rewriter.create<DivUIOp>(
-        op.getLoc(),
-        rewriter.create<SubIOp>(op.getLoc(), std::get<1>(tup),
-                                std::get<0>(tup)),
-        std::get<2>(tup)));
-  }
-  preLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
-                                             innerUpper, innerStep);
-  rewriter.eraseOp(&preLoop.getBody()->back());
-  postLoop = rewriter.create<scf::ParallelOp>(op.getLoc(), innerLower,
-                                              innerUpper, innerStep);
-  rewriter.eraseOp(&postLoop.getBody()->back());
-  return success();
-}
-
-template <>
-LogicalResult DistributeAroundBarrier<AffineParallelOp>::splitSubLoop(
-    AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
-    SmallVector<Value> &iterCounts, AffineParallelOp &preLoop,
-    AffineParallelOp &postLoop, Block *&outerBlock, AffineParallelOp &outerLoop,
-    memref::AllocaScopeOp &outerEx) const {
-
-  SmallVector<AffineMap> outerLower;
-  SmallVector<AffineMap> outerUpper;
-  SmallVector<int64_t> outerStep;
-  SmallVector<AffineMap> innerLower;
-  SmallVector<AffineMap> innerUpper;
-  SmallVector<int64_t> innerStep;
-  unsigned idx = 0;
-  for (auto en : llvm::enumerate(
-           llvm::zip(op.getBody()->getArguments(), op.getSteps()))) {
-    bool found = false;
-    for (auto v : barrier.getOperands())
-      if (v == std::get<0>(en.value()))
-        found = true;
-    if (found) {
-      innerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      innerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
-      innerStep.push_back(std::get<1>(en.value()));
-    } else {
-      outerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      outerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
-      outerStep.push_back(std::get<1>(en.value()));
-    }
-    idx++;
-  }
-  if (!innerLower.size())
-    return failure();
-  if (outerLower.size()) {
-    outerLoop = rewriter.create<AffineParallelOp>(
-        op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), outerLower,
-        op.getLowerBoundsOperands(), outerUpper, op.getUpperBoundsOperands(),
-        outerStep);
-    rewriter.eraseOp(&outerLoop.getBody()->back());
-    outerBlock = outerLoop.getBody();
-  } else {
-    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
-    outerBlock = new Block();
-    outerEx.getRegion().push_back(outerBlock);
-  }
-
-  rewriter.setInsertionPointToEnd(outerBlock);
-  for (auto tup : llvm::zip(innerLower, innerUpper, innerStep)) {
-    auto expr = (std::get<1>(tup).getResult(0) -
-                 std::get<0>(tup)
-                     .getResult(0)
-                     .shiftDims(op.lowerBoundsMap().getNumDims(),
-                                op.upperBoundsMap().getNumDims())
-                     .shiftSymbols(op.lowerBoundsMap().getNumSymbols(),
-                                   op.upperBoundsMap().getNumSymbols()))
-                    .floorDiv(std::get<2>(tup));
-    SmallVector<Value> symbols;
-    SmallVector<Value> dims;
-    size_t idx = 0;
-    for (auto v : op.getUpperBoundsOperands()) {
-      if (idx < op.upperBoundsMap().getNumDims())
-        dims.push_back(v);
-      else
-        symbols.push_back(v);
-      idx++;
-    }
-    idx = 0;
-    for (auto v : op.getLowerBoundsOperands()) {
-      if (idx < op.lowerBoundsMap().getNumDims())
-        dims.push_back(v);
-      else
-        symbols.push_back(v);
-      idx++;
-    }
-    SmallVector<Value> ops = dims;
-    ops.append(symbols);
-    iterCounts.push_back(rewriter.create<AffineApplyOp>(
-        op.getLoc(), AffineMap::get(dims.size(), symbols.size(), expr), ops));
-  }
-  preLoop = rewriter.create<AffineParallelOp>(
-      op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
-      op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
-      innerStep);
-  rewriter.eraseOp(&preLoop.getBody()->back());
-  postLoop = rewriter.create<AffineParallelOp>(
-      op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,
-      op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
-      innerStep);
-  rewriter.eraseOp(&postLoop.getBody()->back());
-  return success();
-}
 
 static void loadValues(Location loc, ArrayRef<Value> pointers,
                        PatternRewriter &rewriter,
@@ -1861,7 +1854,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass() = default;
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
   void runOnOperation() override {
-    if (method == "distribute") {
+    StringRef method(this->method);
+    if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
         patterns.insert<
@@ -1882,10 +1876,18 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             InterchangeWhilePFor<scf::ParallelOp>,
             InterchangeWhilePFor<AffineParallelOp>,
             // NormalizeLoop,
-            NormalizeParallel,
+            NormalizeParallel
             // RotateWhile,
-            DistributeAroundBarrier<scf::ParallelOp>,
-            DistributeAroundBarrier<AffineParallelOp>>(&getContext());
+            >(&getContext());
+        if (method.contains("mincut")) {
+          patterns.insert<DistributeAroundBarrier<scf::ParallelOp, true>,
+                          DistributeAroundBarrier<AffineParallelOp, true>>(
+              &getContext());
+        } else {
+          patterns.insert<DistributeAroundBarrier<scf::ParallelOp, false>,
+                          DistributeAroundBarrier<AffineParallelOp, false>>(
+              &getContext());
+        }
         GreedyRewriteConfig config;
         config.maxIterations = 142;
         if (failed(applyPatternsAndFoldGreedily(getOperation(),
