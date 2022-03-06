@@ -406,6 +406,41 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
   return alloc;
 }
 
+ValueCategory
+MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
+  ValueCategory dref;
+  {
+    auto base = Visit(expr->getBase());
+    SmallVector<uint32_t, 4> indices;
+    expr->getEncodedElementAccess(indices);
+    assert(indices.size() == 1 &&
+           "The support for higher dimensions to be implemented.");
+    auto mt = base.val.getType().cast<MemRefType>();
+    auto shape = std::vector<int64_t>(mt.getShape());
+    shape[0] = -1;
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    auto post = builder.create<polygeist::SubIndexOp>(
+        loc, mt0, base.val, getConstantIndex(indices[0]));
+    dref = ValueCategory(post, /*isReference*/ true);
+  }
+
+  auto mt = dref.val.getType().cast<MemRefType>();
+  auto shape = std::vector<int64_t>(mt.getShape());
+  if (shape.size() == 1) {
+    shape[0] = -1;
+  } else {
+    shape.erase(shape.begin());
+  }
+  auto mt0 =
+      mlir::MemRefType::get(shape, mt.getElementType(),
+                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
+  auto post = builder.create<polygeist::SubIndexOp>(loc, mt0, dref.val,
+                                                    getConstantIndex(0));
+  return ValueCategory(post, /*isReference*/ true);
+}
+
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
   auto sv = Visit(expr->getSubExpr());
   if (auto ty = getMLIRType(expr->getType()).dyn_cast<mlir::IntegerType>()) {
@@ -3917,9 +3952,11 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
   auto rt = getMLIRType(FD->getType());
   unsigned memspace = 0;
   bool isArray = isa<clang::ArrayType>(FD->getType());
+  bool isExtVectorType =
+      isa<clang::ExtVectorType>(FD->getType()->getUnqualifiedDesugaredType());
 
   mlir::MemRefType mr;
-  if (!isArray) {
+  if (!isArray && !isExtVectorType) {
     mr = mlir::MemRefType::get(1, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();
