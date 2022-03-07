@@ -1015,6 +1015,11 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
       return failure();
     }
 
+    if (!arePreceedingOpsRecomputable(whileOp)) {
+      LLVM_DEBUG(DBGS() << "[interchange-while] found a nonrecomputable op\n");
+      return failure();
+    }
+
     auto conditionOp =
         cast<scf::ConditionOp>(whileOp.getBefore().front().back());
 
