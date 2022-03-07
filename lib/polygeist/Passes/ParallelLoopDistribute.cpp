@@ -112,7 +112,6 @@ struct Node {
   Node(Value V) : V(V), type(VAL){};
   Node() : type(NONE){};
   bool operator<(const Node N) const {
-    // TODO are the VAL and OP definitions fine?
     if (type != N.type)
       return type < N.type;
     else if (type == OP)
@@ -151,12 +150,6 @@ void dump(Graph &G) {
     }
   }
 }
-
-namespace mlir {
-bool operator<(const Value &a, const Value &b) {
-  return a.getAsOpaquePointer() < b.getAsOpaquePointer();
-}
-} // namespace mlir
 
 /* Returns true if there is a path from source 's' to sink 't' in
    residual graph. Also fills parent[] to store the path */
@@ -854,9 +847,6 @@ static void moveBodies(PatternRewriter &rewriter, ParallelOpType op,
   moveBodiesFor(rewriter, op, forIf, newForIf);
 }
 
-// TODO Should we have a pattern to hoist loads of if conditions or for bounds
-// before we do any loop distributing transformations?
-
 /// Interchanges a parallel for loop with a for loop perfectly nested within it.
 
 /// Interchanges a parallel for loop with an if perfectly nested within it.
@@ -915,9 +905,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     // the first thread outside of the loop to enable interchange.
 
     // Replicate the recomputable ops in case the condition or bound of lastOp
-    // is getting "recomputed" TODO dead code elimination should get rid of
-    // unneeded ops here, but is it better to do the check if it is needed
-    // ourselves?
+    // is getting "recomputed"
     BlockAndValueMapping mapping;
     rewriter.setInsertionPoint(op);
     mapping.map(op.getBody()->getArguments(), getLowerBounds(op, rewriter));
@@ -984,8 +972,6 @@ findNearestPostDominatingInsertionPoint(
         insertPoint, getInsertionPointAfterDef(values[i]), postDominanceInfo);
   return insertPoint;
 }
-
-// TODO handle this as well (with recomputes)
 
 /// Interchanges a parallel for loop with a while loop it contains. The while
 /// loop is expected to have an empty "after" region.
@@ -1353,7 +1339,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     findValuesUsedBelow(barrier, usedBelow, preserveAllocas);
 
     llvm::SetVector<Value> minCache;
-    // TODO make it an option I guess
     if (UseMinCut) {
 
       minCutCache(barrier, usedBelow, minCache);
@@ -1561,7 +1546,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     // Create the second loop.
     rewriter.setInsertionPointToEnd(outerBlock);
     auto freefn = GetOrCreateFreeFunction(mod);
-    // TODO do this more efficiently
     SmallVector<Value> allocations;
     allocations.append(minCacheAllocations.begin(), minCacheAllocations.end());
     allocations.append(allocaAllocations.begin(), allocaAllocations.end());
@@ -1850,7 +1834,6 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
             InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
 
-            // TODO
             InterchangeWhilePFor<scf::ParallelOp>,
             InterchangeWhilePFor<AffineParallelOp>,
             // NormalizeLoop,
