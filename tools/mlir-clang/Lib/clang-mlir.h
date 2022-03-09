@@ -310,6 +310,8 @@ public:
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
 
+  ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
+
   ValueCategory VisitAttributedStmt(clang::AttributedStmt *AS);
 
   ValueCategory VisitExprWithCleanups(clang::ExprWithCleanups *E);
