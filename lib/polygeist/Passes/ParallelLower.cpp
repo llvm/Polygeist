@@ -518,6 +518,19 @@ void ParallelLower::runOnOperation() {
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
+    } else if (call.getCallee() == "cudaMemcpyToSymbol") {
+      OpBuilder bz(call);
+      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
+      bz.create<LLVM::MemcpyOp>(
+          call.getLoc(),
+          bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
+                                 call.getOperand(0),
+                                 std::vector<Value>({call.getOperand(3)})),
+          call.getOperand(1), call.getOperand(2),
+          /*isVolatile*/ falsev);
+      call.replaceAllUsesWith(
+          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
+      call.erase();
     }
   });
 
