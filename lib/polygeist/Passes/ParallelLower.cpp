@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
 
@@ -146,6 +147,9 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 
 // TODO
 mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
@@ -162,6 +166,9 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
                                           lnk);
 }
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
