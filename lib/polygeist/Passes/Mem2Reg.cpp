@@ -178,7 +178,6 @@ public:
 
   void replaceValue(Value orig, Value post);
   void replaceOpWithValue(Operation *orig, ValueOrPlaceholder *ph, Value post) {
-    assert(valueMap.find(post) == valueMap.end());
     valueMap[post] = ph;
   }
 };
