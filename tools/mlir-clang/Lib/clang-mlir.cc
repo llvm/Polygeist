@@ -2995,6 +2995,14 @@ MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr) {
   return cfl;
 }
 
+ValueCategory MLIRScanner::VisitCXXNoexceptExpr(CXXNoexceptExpr *expr) {
+  auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+  return ValueCategory(
+      builder.create<ConstantIntOp>(getMLIRLocation(expr->getExprLoc()),
+                                    expr->getValue(), ty),
+      /*isReference*/ false);
+}
+
 ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
   auto memberName = ME->getMemberDecl()->getName();
   if (auto sr2 = dyn_cast<OpaqueValueExpr>(ME->getBase())) {
