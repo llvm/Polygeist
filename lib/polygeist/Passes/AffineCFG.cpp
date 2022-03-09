@@ -92,6 +92,9 @@ static bool legalCondition(Value en, bool outer = true, bool dim = false) {
         en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
       return true;
     }
+    if (auto IC = en.getDefiningOp<IndexCastOp>())
+      if (isValidSymbol(IC.getOperand()))
+        return true;
     if (auto m = en.getDefiningOp<DivSIOp>()) {
       return m.getRhs().getDefiningOp<ConstantIndexOp>();
     }
@@ -363,6 +366,17 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             affineApplyMap.print(llvm::dbgs() << "\nAffine apply fixup map: "));
         auxiliaryExprs.push_back(affineApplyMap.getResult(0));
       } else {
+        if (!isValidSymbol(t)) {
+          if (auto idx = t.getDefiningOp<IndexCastOp>()) {
+            if (auto op = idx.getOperand().getDefiningOp())
+              idx->moveAfter(op);
+            else {
+              auto BA = idx.getOperand().cast<BlockArgument>();
+              idx->moveBefore(&BA.getOwner()->front());
+            }
+          } else
+            assert(0 && "cannot move");
+        }
         if (i < numDimsBeforeRewrite) {
           // b. The mathematical composition of AffineMap composes dims.
           auxiliaryExprs.push_back(renumberOneDim(t));
@@ -447,8 +461,9 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   assert(map->getNumInputs() == operands->size());
   for (size_t i = 0; i < map->getNumInputs(); ++i) {
     auto v = (*operands)[i];
-    if (legalCondition(v, true, i < map->getNumDims()))
+    if (legalCondition(v, true, i < map->getNumDims())) {
       return true;
+    }
   }
   return false;
 }
