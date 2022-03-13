@@ -408,25 +408,16 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
 
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
-  ValueCategory dref;
-  {
-    auto base = Visit(expr->getBase());
-    SmallVector<uint32_t, 4> indices;
-    expr->getEncodedElementAccess(indices);
-    assert(indices.size() == 1 &&
-           "The support for higher dimensions to be implemented.");
-    auto mt = base.val.getType().cast<MemRefType>();
-    auto shape = std::vector<int64_t>(mt.getShape());
-    shape[0] = -1;
-    auto mt0 =
-        mlir::MemRefType::get(shape, mt.getElementType(),
-                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
-    auto post = builder.create<polygeist::SubIndexOp>(
-        loc, mt0, base.val, getConstantIndex(indices[0]));
-    dref = ValueCategory(post, /*isReference*/ true);
-  }
-
-  auto mt = dref.val.getType().cast<MemRefType>();
+  auto base = Visit(expr->getBase());
+  SmallVector<uint32_t, 4> indices;
+  expr->getEncodedElementAccess(indices);
+  assert(indices.size() == 1 &&
+         "The support for higher dimensions to be implemented.");
+  auto idx = castToIndex(getMLIRLocation(expr->getAccessorLoc()),
+                         builder.create<ConstantIntOp>(loc, indices[0], 32));
+  assert(base.isReference);
+  base.isReference = false;
+  auto mt = base.val.getType().cast<MemRefType>();
   auto shape = std::vector<int64_t>(mt.getShape());
   if (shape.size() == 1) {
     shape[0] = -1;
@@ -436,9 +427,9 @@ MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
   auto mt0 =
       mlir::MemRefType::get(shape, mt.getElementType(),
                             MemRefLayoutAttrInterface(), mt.getMemorySpace());
-  auto post = builder.create<polygeist::SubIndexOp>(loc, mt0, dref.val,
-                                                    getConstantIndex(0));
-  return ValueCategory(post, /*isReference*/ true);
+  base.val = builder.create<polygeist::SubIndexOp>(loc, mt0, base.val,
+                                                   getConstantIndex(0));
+  return CommonArrayLookup(base, idx, base.isReference);
 }
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
