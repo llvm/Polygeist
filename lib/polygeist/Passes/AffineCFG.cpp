@@ -92,9 +92,15 @@ static bool legalCondition(Value en, bool outer = true, bool dim = false) {
         en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
       return true;
     }
-    if (auto IC = en.getDefiningOp<IndexCastOp>())
-      if (isValidSymbol(IC.getOperand()))
+    if (auto IC = en.getDefiningOp<IndexCastOp>()) {
+      if (isTopLevelValue(IC.getOperand()))
         return true;
+      if (auto defOp = IC.getOperand().getDefiningOp()) {
+        auto region = getAffineScope(defOp);
+        if (region && isTopLevelValue(IC.getOperand(), region))
+          return true;
+      }
+    }
     if (auto m = en.getDefiningOp<DivSIOp>()) {
       return m.getRhs().getDefiningOp<ConstantIndexOp>();
     }
