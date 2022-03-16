@@ -57,6 +57,10 @@ static cl::opt<bool>
 static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
 
+cl::opt<std::string>
+    PrefixABI("prefix-abi", cl::init(""),
+                   cl::desc("Prefix for emitted symbols"));
+
 static cl::opt<bool>
     LLVMStructABI("llvm-struct-abi", cl::init(false),
                   cl::desc("Use literal LLVM ABI for structs"));
@@ -3991,6 +3995,8 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   else
     name = CGM.getMangledName(FD).str();
 
+  name = (PrefixABI + name);
+
   if (llvmFunctions.find(name) != llvmFunctions.end()) {
     return llvmFunctions[name];
   }
@@ -4060,6 +4066,8 @@ mlir::LLVM::GlobalOp
 MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
                                        std::string prefix) {
   std::string name = prefix + CGM.getMangledName(FD).str();
+  
+  name = (PrefixABI + name);
 
   if (llvmGlobals.find(name) != llvmGlobals.end()) {
     return llvmGlobals[name];
@@ -4198,6 +4206,8 @@ std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
                                    bool tryInit) {
   std::string name = prefix + CGM.getMangledName(FD).str();
+  
+  name = (PrefixABI + name);
 
   if (globals.find(name) != globals.end()) {
     return globals[name];
@@ -4356,6 +4366,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
     name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
     name = CGM.getMangledName(FD).str();
+  
+  name = (PrefixABI + name);
 
   assert(name != "free");
 

@@ -15,7 +15,7 @@
 #include "clang/Lex/HeaderSearchOptions.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Lex/PreprocessorOptions.h"
-
+#include "llvm/Support/CommandLine.h" 
 #include "AffineUtils.h"
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -39,8 +39,13 @@
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
+
 using namespace clang;
 using namespace mlir;
+
+extern llvm::cl::opt<std::string>
+    PrefixABI;
+             
 
 struct LoopContext {
   mlir::Value keepRunning;
