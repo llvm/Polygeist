@@ -39,6 +39,10 @@
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
 
+extern cl::opt<std::string>
+    PrefixABI("prefix-abi", cl::init(""),
+                   cl::desc("Prefix for emitted symbols"));
+
 using namespace clang;
 using namespace mlir;
 
