@@ -11,9 +11,9 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
@@ -81,7 +81,7 @@ int main(int argc, char *argv[]) {
   auto processBuffer = [&](std::unique_ptr<llvm::MemoryBuffer> ownedBuffer,
                            raw_ostream &os) {
     MLIRContext context;
-    context.loadDialect<mlir::StandardOpsDialect, mlir::AffineDialect,
+    context.loadDialect<mlir::func::FuncDialect, mlir::AffineDialect,
                         mlir::scf::SCFDialect, mlir::LLVM::LLVMDialect>();
 
     // Nothing here is threaded.  Disable synchronization overhead.

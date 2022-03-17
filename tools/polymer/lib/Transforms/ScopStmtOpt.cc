@@ -2,15 +2,16 @@
 
 #include "polymer/Transforms/ScopStmtOpt.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -23,7 +24,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
@@ -83,7 +83,7 @@ static Value findLastDefined(ValueRange values) {
 }
 
 static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
-                        BlockAndValueMapping &mapping, mlir::CallOp call,
+                        BlockAndValueMapping &mapping, mlir::func::CallOp call,
                         OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
 
@@ -101,7 +101,7 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
   for (size_t i = 0; i < newOperands.size(); i++)
     if (newOperands[i].getType() != b.getIndexType())
       newOperands[i] = b.create<arith::IndexCastOp>(
-          call.getLoc(), newOperands[i], b.getIndexType());
+          call.getLoc(), b.getIndexType(), newOperands[i]);
 
   return b.create<mlir::AffineApplyOp>(call.getLoc(), affMap, newOperands);
 }
@@ -121,7 +121,7 @@ static void projectAllOutExcept(FlatAffineValueConstraints &cst,
 /// The memref will have the same iteration domain as the `numDims` innermost
 /// forOps. `numDims` specifies the dimensions of the target memref.
 static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
-                          CallOp call, int numDims,
+                          mlir::func::CallOp call, int numDims,
                           SmallVectorImpl<Value> &dims, OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
 
@@ -176,7 +176,8 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
 
 /// Append the given argument to the end of the argument list for both the
 /// function and the caller.
-static Value appendArgument(Value arg, FuncOp func, CallOp call, OpBuilder &b) {
+static Value appendArgument(Value arg, FuncOp func, mlir::func::CallOp call,
+                            OpBuilder &b) {
   SmallVector<Type, 4> argTypes;
   SmallVector<Value, 4> operands;
   for (Type type : func.getArgumentTypes())
@@ -190,13 +191,13 @@ static Value appendArgument(Value arg, FuncOp func, CallOp call, OpBuilder &b) {
   call->setOperands(operands);
   func.setType(b.getFunctionType(argTypes, TypeRange(call.getResults())));
   Block &entryBlock = *(func.body().begin());
-  entryBlock.addArgument(arg.getType());
+  entryBlock.addArgument(arg.getType(), arg.getLoc());
 
   return entryBlock.getArguments().back();
 }
 
-static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f, mlir::CallOp call,
-                          Operation *op) {
+static void scopStmtSplit(ModuleOp m, OpBuilder &b, FuncOp f,
+                          mlir::func::CallOp call, Operation *op) {
   LLVM_DEBUG(op->dump());
 
   SmallVector<mlir::AffineForOp, 4> forOps;
@@ -278,11 +279,11 @@ static Operation *findToSplitStmt(ModuleOp m, FuncOp &parentFunc, int toSplit) {
   return opToSplit;
 }
 
-static CallOp findCallOpForFunc(ModuleOp m, FuncOp func) {
-  CallOp call;
+static mlir::func::CallOp findCallOpForFunc(ModuleOp m, FuncOp func) {
+  mlir::func::CallOp call;
 
   // Find the corresponding call op.
-  m.walk([&](CallOp callOp) {
+  m.walk([&](mlir::func::CallOp callOp) {
     if (callOp.getCallee() == func.getName()) {
       // TODO: implement the support for multiple calls.
       assert(!call && "There should be only one call to the target function.");
@@ -294,8 +295,8 @@ static CallOp findCallOpForFunc(ModuleOp m, FuncOp func) {
 }
 
 static void scopStmtSplit(ModuleOp m, OpBuilder &b, int toSplit) {
-  FuncOp func; // where the statement to split is located in.
-  CallOp call; // the corresponding call to `func`.
+  FuncOp func;             // where the statement to split is located in.
+  mlir::func::CallOp call; // the corresponding call to `func`.
   Operation *opToSplit;
 
   assert((opToSplit = findToSplitStmt(m, func, toSplit)) &&
@@ -360,10 +361,10 @@ struct RewriteScratchpadTypePass
     ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
-    SmallVector<std::pair<mlir::CallOp, BlockAndValueMapping>> worklist;
+    SmallVector<std::pair<mlir::func::CallOp, BlockAndValueMapping>> worklist;
 
     // Find the pattern.
-    m.walk([&](mlir::CallOp caller) {
+    m.walk([&](mlir::func::CallOp caller) {
       // All the operands that are unranked memrefs.
       SmallVector<Value> unranked;
       for (auto operand : caller.getArgOperands())
@@ -401,7 +402,7 @@ struct RewriteScratchpadTypePass
 
     // Process each work item.
     for (auto item : worklist) {
-      CallOp caller;
+      mlir::func::CallOp caller;
       BlockAndValueMapping vmap;
       std::tie(caller, vmap) = item;
 
@@ -440,9 +441,9 @@ struct SinkScratchpadPass
     ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
-    std::vector<std::pair<CallOp, std::set<unsigned>>> worklist;
+    std::vector<std::pair<mlir::func::CallOp, std::set<unsigned>>> worklist;
 
-    m.walk([&](CallOp caller) {
+    m.walk([&](mlir::func::CallOp caller) {
       FuncOp callee =
           dyn_cast_or_null<FuncOp>(m.lookupSymbol(caller.getCallee()));
       if (!callee)
@@ -472,7 +473,7 @@ struct SinkScratchpadPass
     });
 
     for (auto &item : worklist) {
-      CallOp caller;
+      mlir::func::CallOp caller;
       std::set<unsigned> indices;
       std::tie(caller, indices) = item;
 
@@ -491,7 +492,7 @@ struct SinkScratchpadPass
         if (indices.find(i) == indices.end())
           newArgs.push_back(caller.getOperand(i));
 
-      b.create<CallOp>(caller->getLoc(), callee, newArgs);
+      b.create<mlir::func::CallOp>(caller->getLoc(), callee, newArgs);
 
       caller.erase();
     }
@@ -555,7 +556,7 @@ static int annotateSplittable(FuncOp f, OpBuilder &b, int startId) {
         if (defOp->getParentRegion() != storeOp->getParentRegion())
           continue;
         // Filter out defining operations of specific types.
-        if (isa<mlir::AffineReadOpInterface, mlir::ConstantOp>(defOp))
+        if (isa<mlir::AffineReadOpInterface, arith::ConstantOp>(defOp))
           continue;
 
         worklist.push(std::make_pair(defOp, depth + 1));
@@ -650,7 +651,7 @@ static void unifyScratchpad(FuncOp f, ModuleOp m, OpBuilder &b) {
   scratchpads.front().replaceAllUsesWith(newScr);
 
   for (Operation *op : newScr.getUsers()) {
-    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
       FuncOp callee = m.lookupSymbol<FuncOp>(caller.getCallee());
 
       int64_t newMemIdx = findOperand(newScr, caller);
@@ -870,7 +871,7 @@ int64_t annotateSplitId(mlir::AffineStoreOp op, int64_t startId, OpBuilder &b,
       Operation *defOp = operand.getDefiningOp();
       if (!defOp || visited.contains(defOp))
         continue;
-      if (isa<mlir::AffineLoadOp, ConstantOp>(defOp))
+      if (isa<mlir::AffineLoadOp, mlir::arith::ConstantOp>(defOp))
         continue;
 
       visited.insert(defOp);

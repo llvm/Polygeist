@@ -17,8 +17,8 @@ func @foo(%a: f32, %b: f32, %c: i1, %d: i1) -> f32 {
 }
 
 // CHECK: func @foo(%[[a:.*]]: f32, %[[b:.*]]: f32, %[[c:.*]]: i1, %[[d:.*]]: i1) -> f32 
-// CHECK-NEXT:   %[[v0:.*]] = select %[[d]], %[[a]], %[[b]] : f32
+// CHECK-NEXT:   %[[v0:.*]] = arith.select %[[d]], %[[a]], %[[b]] : f32
 // CHECK-NEXT:   %[[v1:.*]] = arith.addf %[[v0]], %[[b]] : f32
 // CHECK-NEXT:   %[[v2:.*]] = arith.mulf %[[a]], %[[b]] : f32
-// CHECK-NEXT:   %[[v3:.*]] = select %[[c]], %[[v1]], %[[v2]] : f32
+// CHECK-NEXT:   %[[v3:.*]] = arith.select %[[c]], %[[v1]], %[[v2]] : f32
 // CHECK-NEXT:   return %[[v3]] : f32

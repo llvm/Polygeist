@@ -17,7 +17,7 @@
 #include "llvm/ADT/StringMap.h"
 
 namespace mlir {
-class OwningModuleRef;
+template <typename OpTy> class OwningOpRef;
 class MLIRContext;
 class ModuleOp;
 class FuncOp;
@@ -42,8 +42,9 @@ createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop, mlir::ModuleOp module,
                          PlutoProg *prog = nullptr,
                          const char *dumpClastAfterPluto = nullptr);
 
-mlir::OwningModuleRef translateOpenScopToModule(std::unique_ptr<OslScop> scop,
-                                                mlir::MLIRContext *context);
+mlir::OwningOpRef<mlir::ModuleOp>
+translateOpenScopToModule(std::unique_ptr<OslScop> scop,
+                          mlir::MLIRContext *context);
 
 mlir::LogicalResult translateModuleToOpenScop(
     mlir::ModuleOp module,

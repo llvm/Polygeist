@@ -2,13 +2,14 @@
 
 #include "polymer/Transforms/FoldSCFIf.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -23,7 +24,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/Support/Debug.h"
 
@@ -334,9 +334,9 @@ static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
     cloneAfter(ifOp.elseBlock(), elseResults);
 
     for (auto ifResult : enumerate(ifOp.getResults())) {
-      Value newResult = b.create<SelectOp>(loc, ifOp.getCondition(),
-                                           thenResults[ifResult.index()],
-                                           elseResults[ifResult.index()]);
+      Value newResult = b.create<arith::SelectOp>(
+          loc, ifOp.getCondition(), thenResults[ifResult.index()],
+          elseResults[ifResult.index()]);
       ifResult.value().replaceAllUsesWith(newResult);
     }
   }

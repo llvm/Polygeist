@@ -4,7 +4,7 @@
 include "mlir/Pass/PassBase.td"
 include "mlir/Rewrite/PassUtil.td"
 
-def AnnotateScop : FunctionPass<"annotate-scop"> {
+def AnnotateScop : Pass<"annotate-scop", "mlir::FuncOp"> {
   let summary = "Annotate scop.ignore to unselected functions.";
   let constructor = "polymer::createAnnotateScopPass()";
 
