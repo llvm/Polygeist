@@ -1627,7 +1627,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         signalPassFailure();
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;
-      getOperation().walk(
+      getOperation()->walk(
           [&](polygeist::BarrierOp b) { toReplace.push_back(b); });
       for (auto b : toReplace) {
         OpBuilder Builder(b);

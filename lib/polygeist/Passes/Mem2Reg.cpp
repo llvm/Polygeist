@@ -1784,7 +1784,6 @@ StoreMap getLastStored(mlir::Value AI) {
 }
 
 void Mem2Reg::runOnOperation() {
-  // Only supports single block functions at the moment.
   auto f = getOperation();
 
   // Variable indicating that a memref has had a load removed
@@ -1803,22 +1802,22 @@ void Mem2Reg::runOnOperation() {
 
     // Walk all load's and perform store to load forwarding.
     SmallVector<mlir::Value, 4> toPromote;
-    f.walk([&](mlir::memref::AllocaOp AI) {
+    f->walk([&](mlir::memref::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](mlir::memref::AllocOp AI) {
+    f->walk([&](mlir::memref::AllocOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](LLVM::AllocaOp AI) {
+    f->walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](memref::GetGlobalOp AI) {
+    f->walk([&](memref::GetGlobalOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }

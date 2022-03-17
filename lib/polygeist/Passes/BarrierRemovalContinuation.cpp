@@ -590,7 +590,8 @@ static void createContinuations(FunctionOpInterface func) {
   if (func->getNumRegions() == 0 || func.getBody().empty())
     return;
 
-  OpBuilder allocaBuilder(&func.getBody().front(), func.getBody().front().begin());
+  OpBuilder allocaBuilder(&func.getBody().front(),
+                          func.getBody().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
     // Ignore parallel ops with no barriers.
     if (!hasImmediateBarriers(parallel))
