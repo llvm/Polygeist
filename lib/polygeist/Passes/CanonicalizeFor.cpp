@@ -506,7 +506,7 @@ struct WhileToForHelper {
       }
     }
 
-    bool negativeStep = false;
+    negativeStep = false;
     if (auto cop = step.getDefiningOp<ConstantIntOp>()) {
       if (cop.value() < 0) {
         negativeStep = true;
