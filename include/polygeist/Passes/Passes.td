@@ -8,7 +8,7 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def Mem2Reg : Pass<"mem2reg", "FuncOp"> {
+def Mem2Reg : InterfacePass<"mem2reg", "FunctionOpInterface"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
@@ -25,7 +25,7 @@ def AffineReduction : Pass<"detect-reduction"> {
   let constructor = "mlir::polygeist::detectReductionPass()";
 }
 
-def SCFCPUify : Pass<"cpuify", "FuncOp"> {
+def SCFCPUify : InterfacePass<"cpuify", "FunctionOpInterface"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
@@ -35,7 +35,7 @@ def SCFCPUify : Pass<"cpuify", "FuncOp"> {
   ];
 }
 
-def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation", "FuncOp"> {
+def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];

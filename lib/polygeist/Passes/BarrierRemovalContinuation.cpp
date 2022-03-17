@@ -48,7 +48,7 @@ static bool hasImmediateBarriers(scf::ParallelOp op) {
 /// Wrap the bodies of all parallel ops with immediate barriers, i.e. the
 /// parallel ops that will persist after the partial loop-to-cfg conversion,
 /// into an execute region op.
-static void wrapPersistingLoopBodies(FuncOp function) {
+static void wrapPersistingLoopBodies(FunctionOpInterface function) {
   SmallVector<scf::ParallelOp> loops;
   function.walk([&](scf::ParallelOp op) {
     if (hasImmediateBarriers(op))
@@ -71,7 +71,7 @@ static void wrapPersistingLoopBodies(FuncOp function) {
 }
 
 /// Convert SCF constructs except parallel ops with immediate barriers to a CFG.
-static LogicalResult applyCFGConversion(FuncOp function) {
+static LogicalResult applyCFGConversion(FunctionOpInterface function) {
   RewritePatternSet patterns(function.getContext());
   populateSCFToControlFlowConversionPatterns(patterns);
 
@@ -91,7 +91,7 @@ static LogicalResult applyCFGConversion(FuncOp function) {
 /// Convert SCF constructs except parallel loops with immediate barriers to a
 /// CFG after wrapping the bodies of such loops in an execute_region op so as to
 /// comply with the single-block requirement of the body.
-static LogicalResult convertToCFG(FuncOp function) {
+static LogicalResult convertToCFG(FunctionOpInterface function) {
   wrapPersistingLoopBodies(function);
   return applyCFGConversion(function);
 }
@@ -111,7 +111,7 @@ static void splitBlocksWithBarrier(Region &region) {
 
 /// Split blocks with barriers into parts in the parallel ops of the given
 /// function.
-static LogicalResult splitBlocksWithBarrier(FuncOp function) {
+static LogicalResult splitBlocksWithBarrier(FunctionOpInterface function) {
   WalkResult result = function.walk([](scf::ParallelOp op) -> WalkResult {
     if (!hasImmediateBarriers(op))
       return success();
@@ -586,11 +586,11 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
   parallel.erase();
 }
 
-static void createContinuations(FuncOp func) {
-  if (func->getNumRegions() == 0 || func.body().empty())
+static void createContinuations(FunctionOpInterface func) {
+  if (func->getNumRegions() == 0 || func.getBody().empty())
     return;
 
-  OpBuilder allocaBuilder(&func.body().front(), func.body().front().begin());
+  OpBuilder allocaBuilder(&func.getBody().front(), func.getBody().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
     // Ignore parallel ops with no barriers.
     if (!hasImmediateBarriers(parallel))
@@ -605,7 +605,7 @@ namespace {
 struct BarrierRemoval
     : public SCFBarrierRemovalContinuationBase<BarrierRemoval> {
   void runOnOperation() override {
-    FuncOp f = getOperation();
+    auto f = getOperation();
     if (failed(convertToCFG(f)))
       return;
     if (failed(splitBlocksWithBarrier(f)))

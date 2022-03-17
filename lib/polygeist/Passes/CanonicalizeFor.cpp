@@ -413,6 +413,7 @@ struct WhileToForHelper {
   bool negativeStep;
   AddIOp addIOp;
   BlockArgument indVar;
+  size_t afterArgIdx;
   bool computeLegality(bool sizeCheck, Value lookThrough = nullptr) {
     step = nullptr;
     lb = nullptr;
@@ -485,10 +486,12 @@ struct WhileToForHelper {
       auto arg = loop.getAfter().getArgument(afterArg);
       if (addIOp.getOperand(0) == arg) {
         step = addIOp.getOperand(1);
+        afterArgIdx = afterArg;
         break;
       }
       if (addIOp.getOperand(1) == arg) {
         step = addIOp.getOperand(0);
+        afterArgIdx = afterArg;
         break;
       }
     }
@@ -836,7 +839,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       SmallVector<Value> postAfter(guard.getResults());
       BlockAndValueMapping postMap;
       postMap.map(helper.indVar, trueInd);
-      postMap.map(postElseYields[helper.indVar.getArgNumber()], trueInd);
+      postMap.map(postElseYields[helper.afterArgIdx], trueInd);
       postAfter.push_back(
           cast<AddIOp>(rewriter.clone(*helper.addIOp, postMap)));
       rewriter.create<YieldOp>(loop.getLoc(), postAfter);

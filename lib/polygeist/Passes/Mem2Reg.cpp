@@ -1785,7 +1785,7 @@ StoreMap getLastStored(mlir::Value AI) {
 
 void Mem2Reg::runOnOperation() {
   // Only supports single block functions at the moment.
-  FuncOp f = getOperation();
+  auto f = getOperation();
 
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of

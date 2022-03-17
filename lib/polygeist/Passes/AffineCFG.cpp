@@ -11,6 +11,7 @@
 #include "llvm/Support/Debug.h"
 #include <deque>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include "mlir/IR/FunctionInterfaces.h"
 
 #define DEBUG_TYPE "affine-cfg"
 
@@ -753,7 +754,7 @@ bool isValidIndex(Value val) {
     if (isa<AffineParallelOp>(parentOp))
       return true;
 
-    if (isa<FuncOp>(parentOp))
+    if (isa<FunctionOpInterface>(parentOp))
       return true;
   }
 

@@ -22,6 +22,7 @@
 #include "polygeist/Passes/Passes.h"
 
 namespace mlir {
+class FunctionOpInterface;
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);
