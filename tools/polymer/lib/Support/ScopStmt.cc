@@ -6,13 +6,13 @@
 
 #include "polymer/Support/ScopStmt.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -34,7 +34,8 @@ class ScopStmtImpl {
 public:
   using EnclosingOpList = SmallVector<Operation *, 8>;
 
-  ScopStmtImpl(llvm::StringRef name, mlir::CallOp caller, mlir::FuncOp callee)
+  ScopStmtImpl(llvm::StringRef name, mlir::func::CallOp caller,
+               mlir::FuncOp callee)
       : name(name), caller(caller), callee(callee) {}
 
   static std::unique_ptr<ScopStmtImpl> get(mlir::Operation *callerOp,
@@ -50,7 +51,7 @@ public:
   /// symbol in the OpenScop representation.
   llvm::StringRef name;
   /// The caller to the scop.stmt func.
-  mlir::CallOp caller;
+  mlir::func::CallOp caller;
   /// The scop.stmt callee.
   mlir::FuncOp callee;
   /// The domain of the caller.
@@ -64,9 +65,9 @@ public:
 /// Create ScopStmtImpl from only the caller/callee pair.
 std::unique_ptr<ScopStmtImpl> ScopStmtImpl::get(mlir::Operation *callerOp,
                                                 mlir::Operation *calleeOp) {
-  // We assume that the callerOp is of type mlir::CallOp, and the calleeOp is a
-  // mlir::FuncOp. If not, these two cast lines will raise error.
-  mlir::CallOp caller = cast<mlir::CallOp>(callerOp);
+  // We assume that the callerOp is of type mlir::func::CallOp, and the calleeOp
+  // is a mlir::FuncOp. If not, these two cast lines will raise error.
+  mlir::func::CallOp caller = cast<mlir::func::CallOp>(callerOp);
   mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
   llvm::StringRef name = caller.getCallee();
 
@@ -185,7 +186,7 @@ void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
 }
 
 mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
-mlir::CallOp ScopStmt::getCaller() const { return impl->caller; }
+mlir::func::CallOp ScopStmt::getCaller() const { return impl->caller; }
 
 static mlir::Value findBlockArg(mlir::Value v) {
   mlir::Value r = v;

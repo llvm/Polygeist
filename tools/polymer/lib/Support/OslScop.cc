@@ -10,11 +10,11 @@
 
 #include "osl/osl.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -451,7 +451,7 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   for (unsigned i = 0; i < numIVs; i++)
     ss << "i" << i << " ";
 
-  mlir::CallOp caller = stmt.getCaller();
+  mlir::func::CallOp caller = stmt.getCaller();
   mlir::FuncOp callee = stmt.getCallee();
   ss << "\n" << callee.getName() << "(";
 

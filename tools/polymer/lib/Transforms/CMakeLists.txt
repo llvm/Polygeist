@@ -21,7 +21,7 @@ add_mlir_conversion_library(PolymerTransforms
   MLIRTransforms
   MLIRTransformUtils
   MLIRIR
-  MLIRStandard
+  MLIRFunc
   MLIRSupport
   MLIRAffineToStandard
   MLIRAffineTransforms

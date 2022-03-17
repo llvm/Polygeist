@@ -4,9 +4,13 @@
 
 #include "mlir/Pass/Pass.h"
 
+namespace mlir {
+class Pass;
+} // namespace mlir
+
 namespace polymer {
 
-std::unique_ptr<mlir::OperationPass<mlir::FuncOp>> createAnnotateScopPass();
+std::unique_ptr<mlir::Pass> createAnnotateScopPass();
 
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION

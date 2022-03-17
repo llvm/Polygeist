@@ -2,12 +2,14 @@
 
 #include "polymer/Transforms/LoopAnnotate.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -19,7 +21,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -60,8 +61,8 @@ static void annotatePointLoops(FuncOp f, OpBuilder &b) {
   ModuleOp m = f->getParentOfType<ModuleOp>();
   assert(m && "A FuncOp should be wrapped in a ModuleOp");
 
-  SmallVector<mlir::CallOp> callers;
-  f.walk([&](mlir::CallOp caller) {
+  SmallVector<mlir::func::CallOp> callers;
+  f.walk([&](mlir::func::CallOp caller) {
     FuncOp callee = m.lookupSymbol<FuncOp>(caller.getCallee());
     assert(callee && "Callers should have its callees available.");
 
@@ -70,7 +71,7 @@ static void annotatePointLoops(FuncOp f, OpBuilder &b) {
       callers.push_back(caller);
   });
 
-  for (mlir::CallOp caller : callers)
+  for (mlir::func::CallOp caller : callers)
     annotatePointLoops(caller.getOperands(), b);
 }
 

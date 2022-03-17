@@ -14,7 +14,7 @@ add_mlir_library(PolymerSupport
 
   LINK_LIBS PUBLIC
   MLIRAnalysis
-  MLIRLoopAnalysis
+  MLIRAffineAnalysis
 
   # libosl
   # libcloog

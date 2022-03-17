@@ -6,15 +6,16 @@
 
 #include "polymer/Transforms/Reg2Mem.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
-#include "mlir/Analysis/Utils.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
@@ -26,7 +27,6 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
@@ -75,8 +75,7 @@ static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
 
         if (!defOp ||
             isa<memref::AllocOp, memref::AllocaOp, memref::DimOp,
-                mlir::arith::ConstantOp, mlir::ConstantOp, mlir::AffineApplyOp>(
-                defOp) ||
+                mlir::arith::ConstantOp, mlir::AffineApplyOp>(defOp) ||
             (isa<mlir::arith::IndexCastOp>(defOp) &&
              defOp->getOperand(0).isa<BlockArgument>()))
           continue;

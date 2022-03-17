@@ -7,11 +7,13 @@
 
 #include "polymer/Transforms/ExtractScopStmt.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -26,7 +28,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -83,7 +84,8 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 
   mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
   mlir::Block &calleeEntryBlock = *callee.getBlocks().begin();
-  mlir::BlockArgument scratchpad = calleeEntryBlock.addArgument(memrefType);
+  mlir::BlockArgument scratchpad =
+      calleeEntryBlock.addArgument(memrefType, b.getUnknownLoc());
   callee.setType(b.getFunctionType(
       TypeRange(calleeEntryBlock.getArgumentTypes()), llvm::None));
 
@@ -100,7 +102,7 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
   // llvm::errs() << "Updated callers:\n";
   llvm::SetVector<mlir::Operation *> callerOpsToRemove;
   for (mlir::Operation *callerOp : calleeToCallers[calleeOp]) {
-    mlir::CallOp caller = cast<mlir::CallOp>(callerOp);
+    mlir::func::CallOp caller = cast<mlir::func::CallOp>(callerOp);
     SmallVector<mlir::Value, 8> newOperands;
     for (mlir::Value operand : caller.getOperands())
       newOperands.push_back(operand);
@@ -108,9 +110,9 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 
     OpBuilder::InsertionGuard guard(b);
     b.setInsertionPointAfter(callerOp);
-    mlir::CallOp newCaller =
-        b.create<mlir::CallOp>(callerOp->getLoc(), caller.getCallee(),
-                               caller.getResultTypes(), newOperands);
+    mlir::func::CallOp newCaller =
+        b.create<mlir::func::CallOp>(callerOp->getLoc(), caller.getCallee(),
+                                     caller.getResultTypes(), newOperands);
     calleeToCallers[calleeOp].insert(newCaller);
     callerOpsToRemove.insert(callerOp);
     callerOp->erase();
@@ -309,7 +311,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   mlir::Block *entryBlock = callee.addEntryBlock();
   b.setInsertionPointToStart(entryBlock);
   // Terminator
-  b.create<mlir::ReturnOp>(callee.getLoc());
+  b.create<mlir::func::ReturnOp>(callee.getLoc());
   b.setInsertionPointToStart(entryBlock);
 
   // Create the mapping from the args to the newly created BlockArguments, to
@@ -364,16 +366,16 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 
 /// Create a caller to the callee right after the writeOp, which will be removed
 /// later.
-static mlir::CallOp createCaller(mlir::FuncOp callee,
-                                 const llvm::SetVector<mlir::Value> &args,
-                                 Operation *writeOp, OpBuilder &b) {
+static mlir::func::CallOp createCaller(mlir::FuncOp callee,
+                                       const llvm::SetVector<mlir::Value> &args,
+                                       Operation *writeOp, OpBuilder &b) {
   // llvm::errs() << "Create caller for: " << callee.getName() << "\n";
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPointAfter(writeOp);
   // writeOp->dump();
 
-  return b.create<mlir::CallOp>(writeOp->getLoc(), callee,
-                                ValueRange(args.getArrayRef()));
+  return b.create<mlir::func::CallOp>(writeOp->getLoc(), callee,
+                                      ValueRange(args.getArrayRef()));
 }
 
 /// Remove those ops that are already in the callee, and not have uses by other
@@ -433,7 +435,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
     mlir::FuncOp callee =
         createCallee(calleeName, ops, args, m, writeOp, opToCallee, b);
     // Create the caller.
-    mlir::CallOp caller = createCaller(callee, args, writeOp, b);
+    mlir::func::CallOp caller = createCaller(callee, args, writeOp, b);
     calleeToCallers[callee].insert(caller);
     // llvm::errs() << "Caller inserted:\n";
     // caller.dump();

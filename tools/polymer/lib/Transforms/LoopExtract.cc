@@ -2,12 +2,14 @@
 
 #include "polymer/Transforms/LoopExtract.h"
 
-#include "mlir/Analysis/AffineAnalysis.h"
-#include "mlir/Analysis/AffineStructures.h"
 #include "mlir/Analysis/SliceAnalysis.h"
-#include "mlir/Analysis/Utils.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
+#include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
@@ -19,7 +21,6 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "mlir/Transforms/Utils.h"
 
 #include "llvm/ADT/SetVector.h"
 
@@ -82,7 +83,7 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
 
   Block *entry = callee.addEntryBlock();
   b.setInsertionPointToStart(entry);
-  b.create<mlir::ReturnOp>(callee.getLoc());
+  b.create<mlir::func::ReturnOp>(callee.getLoc());
   b.setInsertionPointToStart(entry);
 
   llvm::SetVector<Value> args;
@@ -90,7 +91,7 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
 
   BlockAndValueMapping mapping;
   for (Value arg : args)
-    mapping.map(arg, entry->addArgument(arg.getType()));
+    mapping.map(arg, entry->addArgument(arg.getType(), arg.getLoc()));
   callee.setType(b.getFunctionType(entry->getArgumentTypes(), llvm::None));
 
   b.clone(*forOp.getOperation(), mapping);
@@ -102,7 +103,7 @@ static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
   ModuleOp m = f->getParentOfType<ModuleOp>();
 
   SmallVector<Operation *, 4> callers;
-  f.walk([&](mlir::CallOp caller) {
+  f.walk([&](mlir::func::CallOp caller) {
     FuncOp callee = m.lookupSymbol<FuncOp>(caller.getCallee());
     if (callee->hasAttr("scop.stmt"))
       callers.push_back(caller);

@@ -9,5 +9,5 @@ func @foo(%A: memref<10xf32>, %a: f32, %cond: i1) {
 
 // CHECK: func @foo(%[[A:.*]]: memref<10xf32>, %[[a:.*]]: f32, %[[cond:.*]]: i1) 
 // CHECK-NEXT:   %[[v0:.*]] = affine.load %[[A]][0] : memref<10xf32>
-// CHECK-NEXT:   %[[v1:.*]] = select %[[cond]], %[[a]], %[[v0]] : f32
+// CHECK-NEXT:   %[[v1:.*]] = arith.select %[[cond]], %[[a]], %[[v0]] : f32
 // CHECK-NEXT:   affine.store %[[v1]], %[[A]][0] : memref<10xf32>
