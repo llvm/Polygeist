@@ -413,7 +413,7 @@ struct WhileToForHelper {
   bool negativeStep;
   AddIOp addIOp;
   BlockArgument indVar;
-  bool computeLegality(bool sizeCheck) {
+  bool computeLegality(bool sizeCheck, Value lookThrough = nullptr) {
     step = nullptr;
     lb = nullptr;
     lb_addOne = false;
@@ -462,8 +462,24 @@ struct WhileToForHelper {
     //   Namely, its next value adds to the previous with an invariant step.
     addIOp =
         endYield.getResults()[indVar.getArgNumber()].getDefiningOp<AddIOp>();
-    if (!addIOp)
+    if (!addIOp) {
+      if (auto ifOp = endYield.getResults()[indVar.getArgNumber()]
+                          .getDefiningOp<IfOp>()) {
+        if (ifOp.getCondition() == lookThrough) {
+          for (auto r : llvm::enumerate(ifOp.getResults())) {
+            if (r.value() == endYield.getResults()[indVar.getArgNumber()]) {
+              addIOp = ifOp.thenYield()
+                           .getOperand(r.index())
+                           .getDefiningOp<AddIOp>();
+              break;
+            }
+          }
+        }
+      }
+    }
+    if (!addIOp) {
       return false;
+    }
 
     for (auto afterArg : afterArgs) {
       auto arg = loop.getAfter().getArgument(afterArg);
@@ -693,12 +709,16 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       helper.cmpIOp = andIOp->getOperand(i).getDefiningOp<CmpIOp>();
       if (!helper.cmpIOp)
         continue;
-      if (!helper.computeLegality(/*sizeCheck*/ false))
-        continue;
-
-      Value extraCmp = andIOp->getOperand(1 - i);
 
       YieldOp oldYield = cast<YieldOp>(loop.getAfter().front().getTerminator());
+
+      Value extraCmp = andIOp->getOperand(1 - i);
+      Value lookThrough = nullptr;
+      if (auto BA = extraCmp.dyn_cast<BlockArgument>()) {
+        lookThrough = oldYield.getOperand(BA.getArgNumber());
+      }
+      if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough))
+        continue;
 
       SmallVector<BlockArgument, 2> origBeforeArgs(
           loop.getBeforeArguments().begin(), loop.getBeforeArguments().end());
@@ -1630,6 +1650,7 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
     return success(changed);
   }
 };
+
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
