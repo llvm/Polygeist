@@ -26,6 +26,7 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/InitAllPasses.h"
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
@@ -69,6 +70,7 @@ int main(int argc, char **argv) {
   mlir::registerSymbolDCEPass();
   mlir::registerLoopInvariantCodeMotionPass();
   mlir::registerConvertSCFToOpenMPPass();
+  mlir::registerAffinePasses();
 
   registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMPointerType,
                             MemRefInsider>();
