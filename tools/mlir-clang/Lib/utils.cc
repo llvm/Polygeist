@@ -42,7 +42,7 @@ Operation *buildLinalgOp(StringRef name, OpBuilder &b,
 }
 
 Operation *
-mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
+mlirclang::replaceFuncByOperation(func::FuncOp f, StringRef opName, OpBuilder &b,
                                   SmallVectorImpl<mlir::Value> &input,
                                   SmallVectorImpl<mlir::Value> &output) {
   MLIRContext *ctx = f->getContext();

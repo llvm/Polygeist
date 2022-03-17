@@ -60,7 +60,7 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
 static void castCallerArgs(mlir::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
-  mlir::FunctionType funcTy = callee.getType().cast<mlir::FunctionType>();
+  mlir::FunctionType funcTy = callee.getFunctionType();
   assert(args.size() == funcTy.getNumInputs() &&
          "The caller arguments should have the same size as the number of "
          "callee arguments as the interface.");
@@ -82,7 +82,7 @@ ValueCategory MLIRScanner::CallHelper(
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
     QualType retType, bool retReference, clang::Expr *expr) {
   SmallVector<mlir::Value, 4> args;
-  auto fnType = tocall.getType();
+  auto fnType = tocall.getFunctionType();
 
   size_t i = 0;
   // map from declaration name to mlir::value

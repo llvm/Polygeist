@@ -840,6 +840,8 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       BlockAndValueMapping postMap;
       postMap.map(helper.indVar, trueInd);
       postMap.map(postElseYields[helper.afterArgIdx], trueInd);
+      assert(helper.addIOp.getLhs() == postElseYields[helper.afterArgIdx] ||
+             helper.addIOp.getRhs() == postElseYields[helper.afterArgIdx]);
       postAfter.push_back(
           cast<AddIOp>(rewriter.clone(*helper.addIOp, postMap)));
       rewriter.create<YieldOp>(loop.getLoc(), postAfter);
