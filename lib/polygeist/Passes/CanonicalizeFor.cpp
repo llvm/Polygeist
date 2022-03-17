@@ -755,7 +755,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       Value truev =
           rewriter.create<ConstantIntOp>(loop.getLoc(), 1, extraCmp.getType());
       nextInits.push_back(truev);
-      nextInits.push_back(nextInits[helper.indVar.getArgNumber()]);
+      nextInits.push_back(loop.getInits()[helper.indVar.getArgNumber()]);
 
       SmallVector<Type> resTys;
       for (auto a : nextInits)
