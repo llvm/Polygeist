@@ -4,6 +4,7 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -11,7 +12,6 @@
 #include "llvm/Support/Debug.h"
 #include <deque>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
-#include "mlir/IR/FunctionInterfaces.h"
 
 #define DEBUG_TYPE "affine-cfg"
 
@@ -93,15 +93,16 @@ static bool legalCondition(Value en, bool outer = true, bool dim = false) {
         en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
       return true;
     }
-    if (auto IC = en.getDefiningOp<IndexCastOp>()) {
-      if (isTopLevelValue(IC.getOperand()))
-        return true;
-      if (auto defOp = IC.getOperand().getDefiningOp()) {
-        auto region = getAffineScope(defOp);
-        if (region && isTopLevelValue(IC.getOperand(), region))
+    if (outer)
+      if (auto IC = en.getDefiningOp<IndexCastOp>()) {
+        if (isTopLevelValue(IC.getOperand()))
           return true;
+        if (auto defOp = IC.getOperand().getDefiningOp()) {
+          auto region = getAffineScope(defOp);
+          if (region && isTopLevelValue(IC.getOperand(), region))
+            return true;
+        }
       }
-    }
     if (auto m = en.getDefiningOp<DivSIOp>()) {
       return m.getRhs().getDefiningOp<ConstantIndexOp>();
     }
@@ -122,7 +123,7 @@ static llvm::SetVector<unsigned>
 indicesFromAffineApplyOp(ArrayRef<Value> operands) {
   llvm::SetVector<unsigned> res;
   for (auto en : llvm::enumerate(operands)) {
-    if (legalCondition(en.value()))
+    if (legalCondition(en.value(), /*outer*/ false))
       res.insert(en.index());
   }
   return res;
@@ -764,8 +765,6 @@ bool isValidIndex(Value val) {
 
 bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
             SmallVectorImpl<bool> &eqflags, SmallVectorImpl<Value> &applies) {
-  AffineMap lhsmap =
-      AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
   if (!isValidIndex(cmpi.getLhs())) {
     LLVM_DEBUG(llvm::dbgs()
                << "illegal lhs: " << cmpi.getLhs() << " - " << cmpi << "\n");
@@ -776,28 +775,22 @@ bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
                << "illegal rhs: " << cmpi.getRhs() << " - " << cmpi << "\n");
     return false;
   }
-  SmallVector<Value, 4> lhspack = {cmpi.getLhs()};
-  if (!lhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<arith::IndexCastOp>(
-        cmpi.getLoc(), IndexType::get(cmpi.getContext()), lhspack[0]);
-    lhspack[0] = op;
+  Value lhspack = cmpi.getLhs();
+  if (!lhspack.getType().isa<IndexType>()) {
+    lhspack = b.create<arith::IndexCastOp>(
+        cmpi.getLoc(), IndexType::get(cmpi.getContext()), lhspack);
   }
 
-  AffineMap rhsmap =
-      AffineMap::get(0, 1, getAffineSymbolExpr(0, cmpi.getContext()));
-  SmallVector<Value, 4> rhspack = {cmpi.getRhs()};
-  if (!rhspack[0].getType().isa<IndexType>()) {
-    auto op = b.create<arith::IndexCastOp>(
-        cmpi.getLoc(), IndexType::get(cmpi.getContext()), rhspack[0]);
-    rhspack[0] = op;
+  Value rhspack = cmpi.getRhs();
+  if (!rhspack.getType().isa<IndexType>()) {
+    rhspack = b.create<arith::IndexCastOp>(
+        cmpi.getLoc(), IndexType::get(cmpi.getContext()), rhspack);
   }
 
-  applies.push_back(
-      b.create<mlir::AffineApplyOp>(cmpi.getLoc(), lhsmap, lhspack));
-  applies.push_back(
-      b.create<mlir::AffineApplyOp>(cmpi.getLoc(), rhsmap, rhspack));
-  AffineExpr dims[2] = {b.getAffineDimExpr(2 * exprs.size() + 0),
-                        b.getAffineDimExpr(2 * exprs.size() + 1)};
+  applies.push_back(lhspack);
+  applies.push_back(rhspack);
+  AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
+                        b.getAffineSymbolExpr(2 * exprs.size() + 1)};
   switch (cmpi.getPredicate()) {
   case CmpIPredicate::eq:
     exprs.push_back(dims[0] - dims[1]);
@@ -1131,7 +1124,7 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
     }
 
     auto iset =
-        IntegerSet::get(/*dim*/ 2 * exprs.size(), /*symbol*/ 0, exprs, eqflags);
+        IntegerSet::get(/*dim*/ 0, /*symbol*/ 2 * exprs.size(), exprs, eqflags);
     fully2ComposeIntegerSetAndOperands(&iset, &applies);
     canonicalizeSetAndOperands(&iset, &applies);
     AffineIfOp affineIfOp =
