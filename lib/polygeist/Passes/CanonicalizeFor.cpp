@@ -1173,15 +1173,19 @@ struct MoveWhileInvariantIfResult : public OpRewritePattern<WhileOp> {
       if (!std::get<0>(pair).use_empty()) {
         if (auto ifOp = std::get<1>(pair).getDefiningOp<scf::IfOp>()) {
           if (ifOp.getCondition() == term.getCondition()) {
-            ssize_t idx = -1;
-            for (auto tup : llvm::enumerate(ifOp.getResults())) {
-              if (tup.value() == std::get<1>(pair)) {
-                idx = tup.index();
-                break;
-              }
-            }
-            assert(idx != -1);
+            auto idx = std::get<1>(pair).cast<OpResult>().getResultNumber();
             Value returnWith = ifOp.elseYield().getResults()[idx];
+            if (!op.getBefore().isAncestor(returnWith.getParentRegion())) {
+              rewriter.updateRootInPlace(op, [&] {
+                std::get<0>(pair).replaceAllUsesWith(returnWith);
+              });
+              changed = true;
+            }
+          }
+        } else if (auto selOp =
+                       std::get<1>(pair).getDefiningOp<arith::SelectOp>()) {
+          if (selOp.getCondition() == term.getCondition()) {
+            Value returnWith = selOp.getFalseValue();
             if (!op.getBefore().isAncestor(returnWith.getParentRegion())) {
               rewriter.updateRootInPlace(op, [&] {
                 std::get<0>(pair).replaceAllUsesWith(returnWith);
@@ -1328,6 +1332,69 @@ struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
     }
 
     return failure();
+  }
+};
+
+/// Given a while loop which yields a select whose condition is
+/// the same as the condition, remove the select.
+struct RemoveWhileSelect : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp loop,
+                                PatternRewriter &rewriter) const override {
+    scf::ConditionOp term =
+        cast<scf::ConditionOp>(loop.getBefore().front().getTerminator());
+
+    SmallVector<BlockArgument, 2> origAfterArgs(
+        loop.getAfterArguments().begin(), loop.getAfterArguments().end());
+    SmallVector<unsigned> newResults;
+    SmallVector<unsigned> newAfter;
+    SmallVector<Value> newYields;
+    bool changed = false;
+    for (auto pair :
+         llvm::zip(loop.getResults(), term.getArgs(), origAfterArgs)) {
+      auto selOp = std::get<1>(pair).getDefiningOp<arith::SelectOp>();
+      if (!selOp || selOp.getCondition() != term.getCondition()) {
+        newResults.push_back(newYields.size());
+        newAfter.push_back(newYields.size());
+        newYields.push_back(std::get<1>(pair));
+        continue;
+      }
+      newResults.push_back(newYields.size());
+      newYields.push_back(selOp.getFalseValue());
+      newAfter.push_back(newYields.size());
+      newYields.push_back(selOp.getTrueValue());
+      changed = true;
+    }
+    if (!changed)
+      return failure();
+
+    SmallVector<Type, 4> resultTypes;
+    for (auto v : newYields) {
+      resultTypes.push_back(v.getType());
+    }
+    auto nop =
+        rewriter.create<WhileOp>(loop.getLoc(), resultTypes, loop.getInits());
+
+    nop.getBefore().takeBody(loop.getBefore());
+
+    auto after = rewriter.createBlock(&nop.getAfter());
+    for (auto y : newYields)
+      after->addArgument(y.getType(), loop.getLoc());
+
+    SmallVector<Value> replacedArgs;
+    for (auto idx : newAfter)
+      replacedArgs.push_back(after->getArgument(idx));
+    rewriter.mergeBlocks(&loop.getAfter().front(), after, replacedArgs);
+
+    SmallVector<Value> replacedReturns;
+    for (auto idx : newResults)
+      replacedReturns.push_back(nop.getResult(idx));
+    rewriter.replaceOp(loop, replacedReturns);
+    rewriter.setInsertionPoint(term);
+    rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
+                                             newYields);
+    return success();
   }
 };
 
@@ -1659,7 +1726,7 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
-          MoveWhileToFor,
+          MoveWhileToFor, RemoveWhileSelect,
 
           MoveWhileDown, MoveWhileDown2,
 

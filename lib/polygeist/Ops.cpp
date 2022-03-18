@@ -1610,11 +1610,13 @@ struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
     // ifs to combine.
     auto nestedOps = nextIf.thenBlock()->without_terminator();
     // Nested `if` must be the only op in block.
-    if (llvm::hasSingleElement(nestedOps))
+    if (nestedOps.empty() || llvm::hasSingleElement(nestedOps)) {
       return failure();
+    }
 
-    if (nextIf.elseBlock() && !llvm::hasSingleElement(*nextIf.elseBlock()))
+    if (nextIf.elseBlock() && !llvm::hasSingleElement(*nextIf.elseBlock())) {
       return failure();
+    }
 
     auto nestedIf = dyn_cast<scf::IfOp>(*(--nestedOps.end()));
     if (!nestedIf) {
@@ -1633,8 +1635,11 @@ struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
         toMove.push_back(&o);
       }
 
-    for (auto o : toMove)
-      o->moveBefore(nextIf);
+    rewriter.setInsertionPoint(nextIf);
+    for (auto o : toMove) {
+      auto rep = rewriter.clone(*o);
+      rewriter.replaceOp(o, rep->getResults());
+    }
 
     return success();
   }

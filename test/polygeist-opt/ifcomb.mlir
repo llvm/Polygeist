@@ -22,3 +22,16 @@ module {
   }
 }
 
+// CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<f32>, %arg1: i32, %arg2: i32, %arg3: i32) -> i8 {
+// CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f32
+// CHECK-NEXT:     %c0_i8 = arith.constant 0 : i8
+// CHECK-NEXT:     %0 = arith.cmpi sge, %arg3, %arg1 : i32
+// CHECK-NEXT:     %1 = arith.cmpi sle, %arg3, %arg2 : i32
+// CHECK-NEXT:     %2 = arith.extui %1 : i1 to i8
+// CHECK-NEXT:     %3 = arith.andi %0, %1 : i1
+// CHECK-NEXT:     %4 = arith.select %3, %2, %c0_i8 : i8
+// CHECK-NEXT:     scf.if %3 {
+// CHECK-NEXT:       affine.store %cst, %arg0[] : memref<f32>
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return %4 : i8
+// CHECK-NEXT:   }
