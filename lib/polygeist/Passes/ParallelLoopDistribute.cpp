@@ -698,9 +698,9 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   rewriter.mergeBlockBefore(op.getBody(), &newParallel.getBody()->back(),
                             newParallel.getBody()->getArguments());
   rewriter.eraseOp(&newParallel.getBody()->back());
+  rewriter.eraseOp(&forLoop.getBody()->back());
   rewriter.mergeBlockBefore(forLoop.getBody(), &newParallel.getBody()->back(),
                             newForLoop.getBody()->getArguments());
-  rewriter.eraseOp(&newParallel.getBody()->back());
   rewriter.eraseOp(op);
   rewriter.eraseOp(forLoop);
 }

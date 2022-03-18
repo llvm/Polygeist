@@ -84,6 +84,62 @@ void BarrierOp::getEffects(
   // TODO: we need to handle regions in case the parent op isn't an SCF parallel
 }
 
+class BarrierHoist final : public OpRewritePattern<BarrierOp> {
+public:
+  using OpRewritePattern<BarrierOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BarrierOp barrier,
+                                PatternRewriter &rewriter) const override {
+    if (isa<scf::IfOp, AffineIfOp>(barrier->getParentOp())) {
+
+      bool below = true;
+      for (Operation *it = barrier->getNextNode(); it != nullptr;
+           it = it->getNextNode()) {
+        auto memInterface = dyn_cast<MemoryEffectOpInterface>(it);
+        if (!memInterface) {
+          below = false;
+          break;
+        }
+        if (!memInterface.hasNoEffect()) {
+          below = false;
+          break;
+        }
+      }
+      if (below) {
+        rewriter.setInsertionPoint(barrier->getParentOp()->getNextNode());
+        rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+      bool above = true;
+      for (Operation *it = barrier->getPrevNode(); it != nullptr;
+           it = it->getPrevNode()) {
+        auto memInterface = dyn_cast<MemoryEffectOpInterface>(it);
+        if (!memInterface) {
+          above = false;
+          break;
+        }
+        if (!memInterface.hasNoEffect()) {
+          above = false;
+          break;
+        }
+      }
+      if (above) {
+        rewriter.setInsertionPoint(barrier->getParentOp());
+        rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+    }
+    return failure();
+  }
+};
+
+void BarrierOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<BarrierHoist>(context);
+}
+
 /// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,
 /// FinalType)
 class CastOfSubIndex final : public OpRewritePattern<memref::CastOp> {
@@ -1476,6 +1532,18 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     if (isa<arith::ConstantOp>(prevOp))
       return failure();
 
+    // Don't attempt to move into if in the case where there are two
+    // ifs to combine.
+    auto nestedOps = nextIf.thenBlock()->without_terminator();
+    // Nested `if` must be the only op in block.
+    if (llvm::hasSingleElement(nestedOps)) {
+
+      if (!nextIf.elseBlock() || llvm::hasSingleElement(*nextIf.elseBlock())) {
+        if (auto nestedIf = dyn_cast<IfOp>(*nestedOps.begin()))
+          return failure();
+      }
+    }
+
     bool thenUse = false;
     bool elseUse = false;
     bool outsideUse = false;
@@ -1533,13 +1601,52 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
   }
 };
 
+struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    // Don't attempt to move into if in the case where there are two
+    // ifs to combine.
+    auto nestedOps = nextIf.thenBlock()->without_terminator();
+    // Nested `if` must be the only op in block.
+    if (llvm::hasSingleElement(nestedOps))
+      return failure();
+
+    if (nextIf.elseBlock() && !llvm::hasSingleElement(*nextIf.elseBlock()))
+      return failure();
+
+    auto nestedIf = dyn_cast<scf::IfOp>(*(--nestedOps.end()));
+    if (!nestedIf) {
+      return failure();
+    }
+    SmallVector<Operation *> toMove;
+    for (auto &o : nestedOps)
+      if (&o != nestedIf) {
+        auto memInterface = dyn_cast<MemoryEffectOpInterface>(&o);
+        if (!memInterface) {
+          return failure();
+        }
+        if (!memInterface.hasNoEffect()) {
+          return failure();
+        }
+        toMove.push_back(&o);
+      }
+
+    for (auto o : toMove)
+      o->moveBefore(nextIf);
+
+    return success();
+  }
+};
+
 void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
   results.insert<
       Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
-      CombineIfs, MoveIntoIfs, IfAndLazy>(context);
+      CombineIfs, MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
