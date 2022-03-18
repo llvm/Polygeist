@@ -1759,7 +1759,25 @@ struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
   }
 };
 
+class OrIExcludedMiddle final : public OpRewritePattern<arith::OrIOp> {
+public:
+  using OpRewritePattern<arith::OrIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::OrIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto lhs = op.getLhs().getDefiningOp<CmpIOp>();
+    auto rhs = op.getRhs().getDefiningOp<CmpIOp>();
+    if (!lhs || !rhs)
+      return failure();
+    if (lhs.getLhs() != rhs.getLhs() || lhs.getRhs() != rhs.getRhs() ||
+        lhs.getPredicate() != arith::invertPredicate(rhs.getPredicate()))
+      return failure();
+    rewriter.replaceOpWithNewOp<ConstantIntOp>(op, true, 1);
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize>(context);
+  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle>(context);
 }
