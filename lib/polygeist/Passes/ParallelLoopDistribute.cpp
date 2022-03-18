@@ -1032,7 +1032,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
   LogicalResult splitSubLoop(T op, PatternRewriter &rewriter, BarrierOp barrier,
                              SmallVector<Value> &iterCounts, T &preLoop,
                              T &postLoop, Block *&outerBlock, T &outerLoop,
-                             scf::ExecuteRegionOp &outerEx) const;
+                             memref::AllocaScopeOp &outerEx) const;
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
@@ -1069,7 +1069,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     Block *outerBlock;
     T outerLoop = nullptr;
-    scf::ExecuteRegionOp outerEx = nullptr;
+    memref::AllocaScopeOp outerEx = nullptr;
 
     if (splitSubLoop(op, rewriter, barrier, iterCounts, preLoop, postLoop,
                      outerBlock, outerLoop, outerEx)
@@ -1105,12 +1105,11 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     DataLayout DLI(mod);
     for (Value v : crossing) {
       if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
-        allocations.push_back(allocateTemporaryBuffer<LLVM::CallOp>(
-                                  rewriter, v, iterCounts, true, &DLI)
-                                  .getResult(0));
+        allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
+                                  rewriter, v, iterCounts, true, &DLI));
       } else {
         allocations.push_back(
-            allocateTemporaryBuffer<memref::AllocOp>(rewriter, v, iterCounts));
+            allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
       }
     }
 
@@ -1196,14 +1195,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     // Create the second loop.
     rewriter.setInsertionPointToEnd(outerBlock);
-    auto freefn = GetOrCreateFreeFunction(mod);
-    for (auto alloc : allocations) {
-      if (alloc.getType().isa<LLVM::LLVMPointerType>()) {
-        Value args[1] = {alloc};
-        rewriter.create<LLVM::CallOp>(alloc.getLoc(), freefn, args);
-      } else
-        rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
-    }
     if (outerLoop) {
       if (isa<scf::ParallelOp>(outerLoop))
         rewriter.create<scf::YieldOp>(op.getLoc());
@@ -1211,6 +1202,8 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
         assert(isa<AffineParallelOp>(outerLoop));
         rewriter.create<AffineYieldOp>(op.getLoc());
       }
+    } else {
+      rewriter.create<memref::AllocaScopeReturnOp>(op.getLoc());
     }
 
     // Recreate the operations in the new loop with new values.
@@ -1228,15 +1221,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
-    for (auto ao : allocations)
-      if (ao.getDefiningOp<LLVM::AllocaOp>() ||
-          ao.getDefiningOp<memref::AllocaOp>())
-        rewriter.eraseOp(ao.getDefiningOp());
-
-    if (!outerLoop) {
-      rewriter.mergeBlockBefore(outerBlock, op);
-      rewriter.eraseOp(outerEx);
-    }
     rewriter.eraseOp(op);
 
     LLVM_DEBUG(DBGS() << "[distribute] distributed around a barrier\n");
@@ -1248,7 +1232,7 @@ LogicalResult DistributeAroundBarrier<scf::ParallelOp>::splitSubLoop(
     scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
     SmallVector<Value> &iterCounts, scf::ParallelOp &preLoop,
     scf::ParallelOp &postLoop, Block *&outerBlock, scf::ParallelOp &outerLoop,
-    scf::ExecuteRegionOp &outerEx) const {
+    memref::AllocaScopeOp &outerEx) const {
 
   SmallVector<Value> outerLower;
   SmallVector<Value> outerUpper;
@@ -1280,7 +1264,7 @@ LogicalResult DistributeAroundBarrier<scf::ParallelOp>::splitSubLoop(
     rewriter.eraseOp(&outerLoop.getBody()->back());
     outerBlock = outerLoop.getBody();
   } else {
-    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
     outerBlock = new Block();
     outerEx.getRegion().push_back(outerBlock);
   }
@@ -1307,7 +1291,7 @@ LogicalResult DistributeAroundBarrier<AffineParallelOp>::splitSubLoop(
     AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
     SmallVector<Value> &iterCounts, AffineParallelOp &preLoop,
     AffineParallelOp &postLoop, Block *&outerBlock, AffineParallelOp &outerLoop,
-    scf::ExecuteRegionOp &outerEx) const {
+    memref::AllocaScopeOp &outerEx) const {
 
   SmallVector<AffineMap> outerLower;
   SmallVector<AffineMap> outerUpper;
@@ -1343,7 +1327,7 @@ LogicalResult DistributeAroundBarrier<AffineParallelOp>::splitSubLoop(
     rewriter.eraseOp(&outerLoop.getBody()->back());
     outerBlock = outerLoop.getBody();
   } else {
-    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
     outerBlock = new Block();
     outerEx.getRegion().push_back(outerBlock);
   }

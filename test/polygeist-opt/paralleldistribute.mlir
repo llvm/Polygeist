@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" --canonicalize --split-input-file %s | FileCheck %s
 
 module {
   func private @print()
@@ -48,34 +48,31 @@ module {
 
 
 // CHECK:   func @main() {
-// CHECK-NEXT:     %c0_i8 = arith.constant 0 : i8
-// CHECK-NEXT:     %c1_i8 = arith.constant 1 : i8
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c5 = arith.constant 5 : index
-// CHECK-NEXT:     %c2 = arith.constant 2 : index
-// CHECK-NEXT:     scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
+// CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
+// CHECK-DAG:     %c1_i8 = arith.constant 1 : i8
+// CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c5 = arith.constant 5 : index
+// CHECK-DAG:     %c2 = arith.constant 2 : index
+// CHECK-DAG:     scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
 // CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:       %1 = memref.alloc(%c2) : memref<?xi8>
-// CHECK-NEXT:       %2 = memref.alloc(%c2) : memref<?xi8>
+// CHECK-NEXT:       %1 = memref.alloca() : memref<2xi8>
+// CHECK-NEXT:       %2 = memref.alloca() : memref<2xi8>
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:         %3 = "polygeist.subindex"(%2, %arg1) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:         memref.store %c1_i8, %3[] : memref<i8>
+// CHECK-NEXT:         memref.store %c1_i8, %2[%arg1] : memref<2xi8>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.while : () -> () {
 // CHECK-NEXT:         %3 = memref.alloca() : memref<i1>
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:           %5 = "polygeist.subindex"(%2, %arg1) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:           %6 = memref.load %5[] : memref<i8>
-// CHECK-NEXT:           %7 = arith.cmpi ne, %6, %c0_i8 : i8
-// CHECK-NEXT:           %8 = arith.cmpi eq, %c0, %arg1 : index
-// CHECK-NEXT:           scf.if %8 {
-// CHECK-NEXT:             memref.store %7, %3[] : memref<i1>
+// CHECK-NEXT:           %5 = memref.load %2[%arg1] : memref<2xi8>
+// CHECK-NEXT:           %6 = arith.cmpi ne, %5, %c0_i8 : i8
+// CHECK-NEXT:           %7 = arith.cmpi eq, %c0, %arg1 : index
+// CHECK-NEXT:           scf.if %7 {
+// CHECK-NEXT:             memref.store %6, %3[] : memref<i1>
 // CHECK-NEXT:           }
-// CHECK-NEXT:           %9 = "polygeist.subindex"(%1, %arg1) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:           memref.store %6, %9[] : memref<i8>
+// CHECK-NEXT:           memref.store %5, %1[%arg1] : memref<2xi8>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         %4 = memref.load %3[] : memref<i1>
@@ -86,31 +83,27 @@ module {
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:           %3 = "polygeist.subindex"(%2, %arg1) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:           memref.store %c0_i8, %3[] : memref<i8>
+// CHECK-NEXT:           memref.store %c0_i8, %2[%arg1] : memref<2xi8>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:         %3 = "polygeist.subindex"(%1, %arg1) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:         %4 = memref.load %3[] : memref<i8>
-// CHECK-NEXT:         %5 = arith.cmpi ne, %4, %c0_i8 : i8
-// CHECK-NEXT:         scf.if %5 {
+// CHECK-NEXT:         %3 = memref.load %1[%arg1] : memref<2xi8>
+// CHECK-NEXT:         %4 = arith.cmpi ne, %3, %c0_i8 : i8
+// CHECK-NEXT:         scf.if %4 {
 // CHECK-NEXT:           call @print() : () -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
-// CHECK-NEXT:       memref.dealloc %1 : memref<?xi8>
-// CHECK-NEXT:       memref.dealloc %2 : memref<?xi8>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
 // CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32) {
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     scf.for %arg3 = %c0 to %arg1 step %c1 {
 // CHECK-NEXT:       affine.parallel (%arg4, %arg5) = (0, 0) to (16, 16) {
 // CHECK-NEXT:         affine.store %arg2, %arg0[%arg4] : memref<?xf32>

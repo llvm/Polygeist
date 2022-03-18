@@ -75,6 +75,23 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
 }
 
 template <>
+mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
+    mlir::OpBuilder &rewriter, mlir::Value value,
+    mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
+  using namespace mlir;
+  auto val = value.getDefiningOp<LLVM::AllocaOp>();
+  auto sz = val.getArraySize();
+  assert(DLI);
+  for (auto iter : iterationCounts) {
+    sz =
+        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
+                                       rewriter.create<arith::IndexCastOp>(
+                                           value.getLoc(), sz.getType(), iter));
+  }
+  return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
+}
+
+template <>
 mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
     mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {

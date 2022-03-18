@@ -31,8 +31,10 @@ module {
 // CHECK-NEXT:     %c9 = arith.constant 9 : index
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %0 = memref.alloca() : memref<256xi32>
-// CHECK-NEXT:     %1 = memref.alloc(%c9) : memref<?xi1>
+// CHECK-NEXT:     memref.alloca_scope  {
+// CHECK-NEXT:     %1 = memref.alloca(%c9) : memref<?xi1>
 // CHECK-NEXT:     scf.if %arg1 {
+// CHECK-NEXT:       memref.alloca_scope  {
 // CHECK-NEXT:       scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:         memref.store %c0_i32, %0[%c0] : memref<256xi32>
 // CHECK-NEXT:         scf.yield
@@ -42,6 +44,7 @@ module {
 // CHECK-NEXT:         memref.store %true, %2[] : memref<i1>
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
+// CHECK-NEXT:       }
 // CHECK-NEXT:     } else {
 // CHECK-NEXT:       scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:         %2 = "polygeist.subindex"(%1, %arg2) : (memref<?xi1>, index) -> memref<i1>
@@ -49,6 +52,6 @@ module {
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     memref.dealloc %1 : memref<?xi1>
+// CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
