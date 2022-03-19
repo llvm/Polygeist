@@ -8,6 +8,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
 
@@ -30,7 +31,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   bool isAffine(scf::ForOp loop) const {
     // return true;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
-    return isa_and_nonnull<ConstantIndexOp>(loop.getStep().getDefiningOp());
+    return isValidSymbol(loop.getStep());
   }
 
   void canonicalizeLoopBounds(AffineForOp forOp) const {
@@ -58,27 +59,90 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
 
   int64_t getStep(mlir::Value value) const {
     ConstantIndexOp cstOp = value.getDefiningOp<ConstantIndexOp>();
-    assert(cstOp && "expect non-null operation");
-    return cstOp.value();
+    if (cstOp)
+      return cstOp.value();
+    else
+      return 1;
   }
 
+  AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
+    SmallVector<AffineExpr, 4> dimExprs;
+    dimExprs.reserve(rank);
+    for (unsigned i = 0; i < rank; ++i)
+      dimExprs.push_back(B.getAffineSymbolExpr(i));
+    return AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
+                          B.getContext());
+  }
   LogicalResult matchAndRewrite(scf::ForOp loop,
                                 PatternRewriter &rewriter) const final {
     if (isAffine(loop)) {
       OpBuilder builder(loop);
 
-      if (!isValidIndex(loop.getLowerBound())) {
-        return failure();
+      SmallVector<Value> lbs;
+      {
+        SmallVector<Value> todo = {loop.getLowerBound()};
+        while (todo.size()) {
+          auto cur = todo.back();
+          todo.pop_back();
+          if (isValidIndex(cur)) {
+            lbs.push_back(cur);
+            continue;
+          } else if (auto selOp = cur.getDefiningOp<SelectOp>()) {
+            // LB only has max of operands
+            if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
+              if (cmp.getLhs() == selOp.getTrueValue() &&
+                  cmp.getRhs() == selOp.getFalseValue() &&
+                  cmp.getPredicate() == CmpIPredicate::sge) {
+                todo.push_back(cmp.getLhs());
+                todo.push_back(cmp.getRhs());
+                continue;
+              }
+            }
+          }
+          return failure();
+        }
       }
 
-      if (!isValidIndex(loop.getUpperBound())) {
-        return failure();
+      SmallVector<Value> ubs;
+      {
+        SmallVector<Value> todo = {loop.getUpperBound()};
+        while (todo.size()) {
+          auto cur = todo.back();
+          todo.pop_back();
+          if (isValidIndex(cur)) {
+            ubs.push_back(cur);
+            continue;
+          } else if (auto selOp = cur.getDefiningOp<SelectOp>()) {
+            // UB only has min of operands
+            if (auto cmp = selOp.getCondition().getDefiningOp<CmpIOp>()) {
+              if (cmp.getLhs() == selOp.getTrueValue() &&
+                  cmp.getRhs() == selOp.getFalseValue() &&
+                  cmp.getPredicate() == CmpIPredicate::sle) {
+                todo.push_back(cmp.getLhs());
+                todo.push_back(cmp.getRhs());
+                continue;
+              }
+            }
+          }
+          return failure();
+        }
+      }
+
+      if (!loop.getStep().getDefiningOp<ConstantIndexOp>()) {
+        if (ubs.size() != 1 || lbs.size() != 1)
+          return failure();
+        ubs[0] = rewriter.create<DivUIOp>(
+            loop.getLoc(),
+            rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
+                                    loop.getLowerBound()),
+            loop.getStep());
+        lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
       }
 
       AffineForOp affineLoop = rewriter.create<AffineForOp>(
-          loop.getLoc(), loop.getLowerBound(), builder.getSymbolIdentityMap(),
-          loop.getUpperBound(), builder.getSymbolIdentityMap(),
-          getStep(loop.getStep()), loop.getIterOperands());
+          loop.getLoc(), lbs, getMultiSymbolIdentity(builder, lbs.size()), ubs,
+          getMultiSymbolIdentity(builder, ubs.size()), getStep(loop.getStep()),
+          loop.getIterOperands());
 
       canonicalizeLoopBounds(affineLoop);
 
@@ -94,16 +158,19 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         rewriter.eraseOp(affineYieldOp);
       }
 
-      rewriter.updateRootInPlace(loop, [&] {
-        affineLoop.region().front().getOperations().splice(
-            affineLoop.region().front().getOperations().begin(),
-            loop.getRegion().front().getOperations());
-
-        for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
-                                   loop.getRegion().front().getArguments())) {
-          std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
+      SmallVector<Value> vals;
+      rewriter.setInsertionPointToStart(&affineLoop.region().front());
+      for (Value arg : affineLoop.region().front().getArguments()) {
+        if (arg == affineLoop.getInductionVar()) {
+          arg = rewriter.create<AddIOp>(
+              loop.getLoc(), loop.getLowerBound(),
+              rewriter.create<MulIOp>(loop.getLoc(), arg, loop.getStep()));
         }
-      });
+        vals.push_back(arg);
+      }
+      assert(vals.size() == loop.getRegion().front().getNumArguments());
+      rewriter.mergeBlocks(&loop.getRegion().front(),
+                           &affineLoop.region().front(), vals);
 
       rewriter.setInsertionPoint(mergedYieldOp);
       rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
@@ -197,16 +264,12 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
       rewriter.eraseOp(affineYieldOp);
     }
 
-    rewriter.updateRootInPlace(loop, [&] {
-      affineLoop.region().front().getOperations().splice(
-          affineLoop.region().front().getOperations().begin(),
-          loop.getRegion().front().getOperations());
-
-      for (auto pair : llvm::zip(affineLoop.region().front().getArguments(),
-                                 loop.getRegion().front().getArguments())) {
-        std::get<1>(pair).replaceAllUsesWith(std::get<0>(pair));
-      }
-    });
+    SmallVector<Value> vals;
+    for (Value arg : affineLoop.region().front().getArguments()) {
+      vals.push_back(arg);
+    }
+    rewriter.mergeBlocks(&loop.getRegion().front(),
+                         &affineLoop.region().front(), vals);
 
     rewriter.setInsertionPoint(mergedYieldOp);
     rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
@@ -220,15 +283,12 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 };
 
 void RaiseSCFToAffine::runOnOperation() {
-  ConversionTarget target(getContext());
-  target.addLegalDialect<AffineDialect, func::FuncDialect, LLVM::LLVMDialect>();
-
   RewritePatternSet patterns(&getContext());
   patterns.insert<ForOpRaising, ParallelOpRaising>(&getContext());
 
-  if (failed(
-          applyPartialConversion(getOperation(), target, std::move(patterns))))
-    signalPassFailure();
+  GreedyRewriteConfig config;
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                     config);
 }
 
 namespace mlir {

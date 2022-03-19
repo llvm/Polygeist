@@ -683,6 +683,29 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
                                         iadd.getOperand(1)));
       return success();
     }
+    if (auto iadd = op.getOperand().getDefiningOp<SelectOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getTrueValue());
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getFalseValue());
+      auto cond = iadd.getCondition();
+      OpBuilder b3(rewriter);
+      setLocationAfter(b3, cond);
+      if (auto cmp = iadd.getCondition().getDefiningOp<CmpIOp>()) {
+        if (cmp.getLhs() == iadd.getTrueValue() &&
+            cmp.getRhs() == iadd.getFalseValue()) {
+
+          auto truev = b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                                    iadd.getTrueValue());
+          auto falsev = b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                                      iadd.getFalseValue());
+          cond = b3.create<CmpIOp>(cmp.getLoc(), cmp.getPredicate(), truev,
+                                   falsev);
+          rewriter.replaceOpWithNewOp<SelectOp>(op, cond, truev, falsev);
+          return success();
+        }
+      }
+    }
     return failure();
   }
 };
@@ -814,8 +837,15 @@ bool isValidIndex(Value val) {
   if (auto ba = val.dyn_cast<BlockArgument>()) {
     auto owner = ba.getOwner();
     assert(owner);
-    auto parentOp = owner->getParentOp();
 
+    auto parentOp = owner->getParentOp();
+    if (!parentOp) {
+      owner->dump();
+      llvm::errs() << " ba: " << ba << "\n";
+    }
+    assert(parentOp);
+    if (isa<FunctionOpInterface>(parentOp))
+      return true;
     if (auto af = dyn_cast<AffineForOp>(parentOp))
       return af.getInductionVar() == ba;
 
