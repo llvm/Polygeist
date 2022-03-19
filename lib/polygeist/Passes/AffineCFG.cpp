@@ -6,6 +6,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IntegerSet.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -90,7 +91,8 @@ static bool legalCondition(Value en, bool outer = true, bool dim = false) {
 
   if (!isValidSymbol(en)) {
     if (en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
-        en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>()) {
+        en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivUIOp>() ||
+        en.getDefiningOp<RemUIOp>() || en.getDefiningOp<RemSIOp>()) {
       return true;
     }
     if (outer)
@@ -256,7 +258,8 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       if (!isValidSymbol(t) &&
           (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
            t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
-           t.getDefiningOp<DivUIOp>())) {
+           t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
+           t.getDefiningOp<RemSIOp>())) {
 
         AffineMap affineApplyMap;
         SmallVector<Value, 8> affineApplyOperands;
@@ -296,6 +299,20 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
               0, 2,
               getAffineSymbolExpr(0, op.getContext())
                   .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else if (auto op = t.getDefiningOp<RemSIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.append(op.getOperands().begin(),
+                                     op.getOperands().end());
+        } else if (auto op = t.getDefiningOp<RemUIOp>()) {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
           affineApplyOperands.append(op.getOperands().begin(),
                                      op.getOperands().end());
         } else {
@@ -640,6 +657,32 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
                                         iadd.getOperand(1)));
       return success();
     }
+    if (auto iadd = op.getOperand().getDefiningOp<RemUIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
+      rewriter.replaceOpWithNewOp<RemUIOp>(
+          op,
+          b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                       iadd.getOperand(0)),
+          b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                        iadd.getOperand(1)));
+      return success();
+    }
+    if (auto iadd = op.getOperand().getDefiningOp<RemSIOp>()) {
+      OpBuilder b(rewriter);
+      setLocationAfter(b, iadd.getOperand(0));
+      OpBuilder b2(rewriter);
+      setLocationAfter(b2, iadd.getOperand(1));
+      rewriter.replaceOpWithNewOp<RemSIOp>(
+          op,
+          b.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                       iadd.getOperand(0)),
+          b2.create<arith::IndexCastOp>(op.getLoc(), op.getType(),
+                                        iadd.getOperand(1)));
+      return success();
+    }
     return failure();
   }
 };
@@ -710,8 +753,24 @@ struct CanonicalizeAffineIf : public OpRewritePattern<AffineIfOp> {
 };
 */
 
+// isValidSymbol, even if not index
+bool isValidSymbolInt(Value value) {
+  // Check that the value is a top level value.
+  if (isTopLevelValue(value))
+    return true;
+
+  if (auto *defOp = value.getDefiningOp()) {
+    Attribute operandCst;
+    if (matchPattern(defOp, m_Constant(&operandCst)))
+      return true;
+
+    return isValidSymbol(value, getAffineScope(defOp));
+  }
+  return false;
+}
+
 bool isValidIndex(Value val) {
-  if (mlir::isValidSymbol(val))
+  if (isValidSymbolInt(val))
     return true;
 
   if (auto cast = val.getDefiningOp<IndexCastOp>())
@@ -722,17 +781,26 @@ bool isValidIndex(Value val) {
 
   if (auto bop = val.getDefiningOp<MulIOp>())
     return (isValidIndex(bop.getOperand(0)) &&
-            isValidSymbol(bop.getOperand(1))) ||
+            isValidSymbolInt(bop.getOperand(1))) ||
            (isValidIndex(bop.getOperand(1)) &&
-            isValidSymbol(bop.getOperand(0)));
+            isValidSymbolInt(bop.getOperand(0)));
 
   if (auto bop = val.getDefiningOp<DivSIOp>())
     return (isValidIndex(bop.getOperand(0)) &&
-            isValidSymbol(bop.getOperand(1)));
+            isValidSymbolInt(bop.getOperand(1)));
 
   if (auto bop = val.getDefiningOp<DivUIOp>())
     return (isValidIndex(bop.getOperand(0)) &&
-            isValidSymbol(bop.getOperand(1)));
+            isValidSymbolInt(bop.getOperand(1)));
+
+  if (auto bop = val.getDefiningOp<RemSIOp>()) {
+    return (isValidIndex(bop.getOperand(0)) &&
+            isValidSymbolInt(bop.getOperand(1)));
+  }
+
+  if (auto bop = val.getDefiningOp<RemUIOp>())
+    return (isValidIndex(bop.getOperand(0)) &&
+            isValidSymbolInt(bop.getOperand(1)));
 
   if (auto bop = val.getDefiningOp<SubIOp>())
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));
