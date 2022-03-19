@@ -38,32 +38,33 @@ struct OpenMPOpt : public OpenMPOptPassBase<OpenMPOpt> {
 ///       omp.barrier
 ///       codeB();
 ///    }
-bool isReadOnly(Operation* op) {
-    bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
-    if (hasRecursiveEffects) {
-      for (Region &region : op->getRegions()) {
-        for (auto &block : region) {
-          for (auto &nestedOp : block)
-			if (!isReadOnly(&nestedOp)) return false;
-        }
+bool isReadOnly(Operation *op) {
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  if (hasRecursiveEffects) {
+    for (Region &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &nestedOp : block)
+          if (!isReadOnly(&nestedOp))
+            return false;
       }
     }
+  }
 
-    // If the op has memory effects, try to characterize them to see if the op
-    // is trivially dead here.
-    if (auto effectInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
-      // Check to see if this op either has no effects, or only allocates/reads
-      // memory.
-      SmallVector<MemoryEffects::EffectInstance, 1> effects;
-      effectInterface.getEffects(effects);
-      if (!llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
-            return isa<MemoryEffects::Read>(it.getEffect());
-          })) {
-        return false;
-      }
-	  return true;
+  // If the op has memory effects, try to characterize them to see if the op
+  // is trivially dead here.
+  if (auto effectInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    // Check to see if this op either has no effects, or only allocates/reads
+    // memory.
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    effectInterface.getEffects(effects);
+    if (!llvm::all_of(effects, [op](const MemoryEffects::EffectInstance &it) {
+          return isa<MemoryEffects::Read>(it.getEffect());
+        })) {
+      return false;
     }
-   return false;
+    return true;
+  }
+  return false;
 }
 
 struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
@@ -75,39 +76,45 @@ struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
     if (nextParallel == &parent->front())
       return failure();
 
-	// Only attempt this if there is another parallel within the function, which is
-	// not contained within this operation.
-	bool noncontained = false;
-	nextParallel->getParentOfType<FuncOp>()->walk([&](omp::ParallelOp other) {
-		if (!nextParallel->isAncestor(other)) {
-			noncontained = true;
-		}
-	});
-	if (!noncontained) return failure();
+    // Only attempt this if there is another parallel within the function, which
+    // is not contained within this operation.
+    bool noncontained = false;
+    nextParallel->getParentOfType<FuncOp>()->walk([&](omp::ParallelOp other) {
+      if (!nextParallel->isAncestor(other)) {
+        noncontained = true;
+      }
+    });
+    if (!noncontained)
+      return failure();
 
     omp::ParallelOp prevParallel;
-    SmallVector <Operation*> prevOps;
+    SmallVector<Operation *> prevOps;
 
     bool changed = false;
 
-
-    for (Operation* prevOp = nextParallel->getPrevNode(); 1; ) {
-        if (prevParallel = dyn_cast<omp::ParallelOp>(prevOp)) {
-            break;
-        }
-        // We can move this into the parallel if it only reads
-        if (isReadOnly(prevOp) && llvm::all_of(prevOp->getResults(), [&](Value v) { return llvm::all_of(v.getUsers(),
-				[&](Operation *user) { return nextParallel->isAncestor(user); }); })) {
-			auto prevIter = (prevOp == &parent->front()) ? nullptr : prevOp->getPrevNode();
-	        rewriter.setInsertionPointToStart(&nextParallel.getRegion().front());
-			auto replacement = rewriter.clone(*prevOp);
-			rewriter.replaceOp(prevOp, replacement->getResults());
-			changed = true;
-			if (!prevIter) return success();
-			prevOp = prevIter;
-			continue;
-        }
-		return success(changed);
+    for (Operation *prevOp = nextParallel->getPrevNode(); 1;) {
+      if (prevParallel = dyn_cast<omp::ParallelOp>(prevOp)) {
+        break;
+      }
+      // We can move this into the parallel if it only reads
+      if (isReadOnly(prevOp) &&
+          llvm::all_of(prevOp->getResults(), [&](Value v) {
+            return llvm::all_of(v.getUsers(), [&](Operation *user) {
+              return nextParallel->isAncestor(user);
+            });
+          })) {
+        auto prevIter =
+            (prevOp == &parent->front()) ? nullptr : prevOp->getPrevNode();
+        rewriter.setInsertionPointToStart(&nextParallel.getRegion().front());
+        auto replacement = rewriter.clone(*prevOp);
+        rewriter.replaceOp(prevOp, replacement->getResults());
+        changed = true;
+        if (!prevIter)
+          return success();
+        prevOp = prevIter;
+        continue;
+      }
+      return success(changed);
     }
 
     rewriter.setInsertionPointToEnd(&prevParallel.getRegion().front());

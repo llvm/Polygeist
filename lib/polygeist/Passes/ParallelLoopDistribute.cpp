@@ -1055,7 +1055,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Value v : crossing) {
       if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
         allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
-                                  rewriter, v, iterCounts, true, &DLI));
+            rewriter, v, iterCounts, true, &DLI));
       } else {
         allocations.push_back(
             allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));

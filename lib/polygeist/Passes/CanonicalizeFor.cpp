@@ -476,7 +476,8 @@ struct WhileToForHelper {
             }
           }
         }
-      } else if (auto selOp = endYield.getResults()[indVar.getArgNumber()].getDefiningOp<SelectOp>()) {
+      } else if (auto selOp = endYield.getResults()[indVar.getArgNumber()]
+                                  .getDefiningOp<SelectOp>()) {
         if (selOp.getCondition() == lookThrough)
           addIOp = selOp.getTrueValue().getDefiningOp<AddIOp>();
       }

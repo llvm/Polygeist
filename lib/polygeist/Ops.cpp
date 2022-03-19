@@ -1318,10 +1318,12 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
          llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(),
                    prevIf.thenYield().getOperands())) {
       if (std::get<0>(it) == nextIf.getCondition()) {
-        if (matchPattern(std::get<1>(it), m_Zero()) || std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
+        if (matchPattern(std::get<1>(it), m_Zero()) ||
+            std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<2>(it);
           thenRegion = true;
-        } else if (matchPattern(std::get<2>(it), m_Zero()) || std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
+        } else if (matchPattern(std::get<2>(it), m_Zero()) ||
+                   std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<1>(it);
           thenRegion = false;
         } else
@@ -1681,43 +1683,51 @@ public:
   LogicalResult matchAndRewrite(arith::SelectOp op,
                                 PatternRewriter &rewriter) const override {
     auto ty = op.getType().dyn_cast<IntegerType>();
-    if (!ty) return failure();
-    if (ty.getWidth() == 1) return failure();
+    if (!ty)
+      return failure();
+    if (ty.getWidth() == 1)
+      return failure();
     IntegerAttr lhs, rhs;
     Value lhs_v = nullptr, rhs_v = nullptr;
     if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
-      lhs_v  = ext.getIn();
+      lhs_v = ext.getIn();
       if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
-          return failure();
+        return failure();
     } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
-    } else return failure();
+    } else
+      return failure();
 
     if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
-      rhs_v  = ext.getIn();
+      rhs_v = ext.getIn();
       if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
-          return failure();
+        return failure();
     } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
-    } else return failure();
+    } else
+      return failure();
 
-    if (!lhs_v) lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
-    if (!rhs_v) rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+    if (!lhs_v)
+      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
+    if (!rhs_v)
+      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
 
-    rewriter.replaceOpWithNewOp<ExtUIOp>(op, op.getType(), rewriter.create<SelectOp>(op.getLoc(), op.getCondition(), lhs_v, rhs_v));
+    rewriter.replaceOpWithNewOp<ExtUIOp>(
+        op, op.getType(),
+        rewriter.create<SelectOp>(op.getLoc(), op.getCondition(), lhs_v,
+                                  rhs_v));
     return success();
   }
 };
 
-template<typename T>
-class UndefProp final : public OpRewritePattern<T> {
+template <typename T> class UndefProp final : public OpRewritePattern<T> {
 public:
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-      Value v = op->getOperand(0);
-      Operation *undef;
-    if (!(undef = v.getDefiningOp<LLVM::UndefOp>() ))
-        return failure();
+    Value v = op->getOperand(0);
+    Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+      return failure();
     rewriter.setInsertionPoint(undef);
     rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
     return success();
@@ -1730,12 +1740,12 @@ public:
 
   LogicalResult matchAndRewrite(CmpIOp op,
                                 PatternRewriter &rewriter) const override {
-      Value v = op->getOperand(0);
-      Operation *undef;
-    if (!(undef = v.getDefiningOp<LLVM::UndefOp>() ))
-        return failure();
+    Value v = op->getOperand(0);
+    Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+      return failure();
     if (!op.getRhs().getDefiningOp<ConstantOp>())
-        return failure();
+      return failure();
     rewriter.setInsertionPoint(undef);
     rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
     return success();
@@ -1748,24 +1758,27 @@ public:
   LogicalResult matchAndRewrite(CmpIOp op,
                                 PatternRewriter &rewriter) const override {
     auto ifOp = op.getLhs().getDefiningOp<scf::IfOp>();
-    if (!ifOp) return failure();
+    if (!ifOp)
+      return failure();
     auto rhs = op.getRhs().getDefiningOp<ConstantOp>();
     if (!rhs) {
-        return failure();
+      return failure();
     }
     auto idx = op.getLhs().cast<OpResult>().getResultNumber();
     bool change = false;
-    for (auto v : {ifOp.thenYield().getOperand(idx), ifOp.elseYield().getOperand(idx)}) {
-        change |= v.getDefiningOp<ConstantIntOp>() || v.getDefiningOp<LLVM::UndefOp>();
-        if (auto extOp = v.getDefiningOp<ExtUIOp>())
-            if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
-                change |= it.getWidth() == 1;
-        if (auto extOp = v.getDefiningOp<ExtSIOp>())
-            if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
-                change |= it.getWidth() == 1;
+    for (auto v :
+         {ifOp.thenYield().getOperand(idx), ifOp.elseYield().getOperand(idx)}) {
+      change |=
+          v.getDefiningOp<ConstantIntOp>() || v.getDefiningOp<LLVM::UndefOp>();
+      if (auto extOp = v.getDefiningOp<ExtUIOp>())
+        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+          change |= it.getWidth() == 1;
+      if (auto extOp = v.getDefiningOp<ExtSIOp>())
+        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+          change |= it.getWidth() == 1;
     }
     if (!change) {
-        return failure();
+      return failure();
     }
 
     SmallVector<Type> resultTypes;
@@ -1773,20 +1786,23 @@ public:
     resultTypes.push_back(op.getType());
 
     auto rhs2 = rewriter.clone(*rhs)->getResult(0);
-    auto nop = rewriter.create<scf::IfOp>(ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/true);
+    auto nop = rewriter.create<scf::IfOp>(
+        ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/ true);
     nop.getThenRegion().takeBody(ifOp.getThenRegion());
     nop.getElseRegion().takeBody(ifOp.getElseRegion());
 
     SmallVector<Value> thenYields;
     llvm::append_range(thenYields, nop.thenYield().getOperands());
     rewriter.setInsertionPoint(nop.thenYield());
-    thenYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(), thenYields[idx], rhs2));
+    thenYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
+                                                 thenYields[idx], rhs2));
     nop.thenYield()->setOperands(thenYields);
 
     SmallVector<Value> elseYields;
     llvm::append_range(elseYields, nop.elseYield().getOperands());
     rewriter.setInsertionPoint(nop.elseYield());
-    elseYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(), elseYields[idx], rhs2));
+    elseYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
+                                                 elseYields[idx], rhs2));
     nop.elseYield()->setOperands(elseYields);
     rewriter.replaceOp(ifOp, nop.getResults().take_front(ifOp.getNumResults()));
     rewriter.replaceOp(op, nop.getResults().take_back(1));
@@ -1794,10 +1810,9 @@ public:
   }
 };
 
-
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
                  UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
-                 CmpProp,UndefCmpProp>(context);
+                 CmpProp, UndefCmpProp>(context);
 }
