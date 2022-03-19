@@ -27,8 +27,6 @@ module {
 // CHECK-NEXT:     scf.for %arg5 = %c0 to %arg1 step %c1 {
 // CHECK-NEXT:       affine.parallel (%arg6, %arg7) = (0, 0) to (16, 16) {
 // CHECK-NEXT:         affine.store %arg2, %arg0[%arg6] : memref<?xf32>
-// CHECK-NEXT:       }
-// CHECK-NEXT:       affine.parallel (%arg6, %arg7) = (0, 0) to (16, 16) {
 // CHECK-NEXT:         memref.store %arg4, %0[%arg6, %arg7] : memref<16x16xi1>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }

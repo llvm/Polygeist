@@ -1364,13 +1364,22 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     auto oldTerminator = op.getBody()->getTerminator();
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
                               newRegionArguments);
+    SmallVector<Value> oldOps;
+    llvm::append_range(oldOps, oldTerminator->getOperands());
+    rewriter.eraseOp(oldTerminator);
 
-    rewriter.setInsertionPoint(newOp.getBody()->getTerminator());
-    for (auto en : llvm::enumerate(oldTerminator->getOperands())) {
+    Operation *IP = newOp.getBody()->getTerminator();
+    while (IP != &IP->getBlock()->front()) {
+      if (isa<BarrierOp>(IP->getPrevNode())) {
+        IP = IP->getPrevNode();
+      }
+      break;
+    }
+    rewriter.setInsertionPoint(IP);
+    for (auto en : llvm::enumerate(oldOps)) {
       rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
                                        allocated[en.index()], ValueRange());
     }
-    rewriter.eraseOp(oldTerminator);
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;

@@ -128,6 +128,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         }
       }
 
+      bool rewrittenStep = false;
       if (!loop.getStep().getDefiningOp<ConstantIndexOp>()) {
         if (ubs.size() != 1 || lbs.size() != 1)
           return failure();
@@ -137,6 +138,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
                                     loop.getLowerBound()),
             loop.getStep());
         lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
+        rewrittenStep = true;
       }
 
       AffineForOp affineLoop = rewriter.create<AffineForOp>(
@@ -161,7 +163,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       SmallVector<Value> vals;
       rewriter.setInsertionPointToStart(&affineLoop.region().front());
       for (Value arg : affineLoop.region().front().getArguments()) {
-        if (arg == affineLoop.getInductionVar()) {
+        if (rewrittenStep && arg == affineLoop.getInductionVar()) {
           arg = rewriter.create<AddIOp>(
               loop.getLoc(), loop.getLowerBound(),
               rewriter.create<MulIOp>(loop.getLoc(), arg, loop.getStep()));
