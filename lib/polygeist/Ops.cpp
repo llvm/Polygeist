@@ -1318,10 +1318,10 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
          llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(),
                    prevIf.thenYield().getOperands())) {
       if (std::get<0>(it) == nextIf.getCondition()) {
-        if (matchPattern(std::get<1>(it), m_Zero())) {
+        if (matchPattern(std::get<1>(it), m_Zero()) || std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<2>(it);
           thenRegion = true;
-        } else if (matchPattern(std::get<2>(it), m_Zero())) {
+        } else if (matchPattern(std::get<2>(it), m_Zero()) || std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<1>(it);
           thenRegion = false;
         } else
@@ -1411,109 +1411,6 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
   }
 };
 
-struct CombineIfs : public OpRewritePattern<scf::IfOp> {
-  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(scf::IfOp nextIf,
-                                PatternRewriter &rewriter) const override {
-    using namespace scf;
-    Block *parent = nextIf->getBlock();
-    if (nextIf == &parent->front())
-      return failure();
-
-    auto prevIf = dyn_cast<scf::IfOp>(nextIf->getPrevNode());
-    if (!prevIf)
-      return failure();
-
-    if (nextIf.getCondition() != prevIf.getCondition())
-      return failure();
-
-    //* Changed*//
-    SmallVector<Value> prevElseYielded;
-    if (!prevIf.getElseRegion().empty())
-      prevElseYielded = prevIf.elseYield().getOperands();
-    // Replace all uses of return values of op within nextIf with the
-    // corresponding yields
-    for (auto it : llvm::zip(prevIf.getResults(),
-                             prevIf.thenYield().getOperands(), prevElseYielded))
-      for (OpOperand &use :
-           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
-        if (nextIf.getThenRegion().isAncestor(
-                use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
-          use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
-        } else if (nextIf.getElseRegion().isAncestor(
-                       use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
-          use.set(std::get<2>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
-        }
-      }
-    //* End Changed*//
-
-    SmallVector<Type> mergedTypes(prevIf.getResultTypes());
-    llvm::append_range(mergedTypes, nextIf.getResultTypes());
-
-    //* Changed nextIf cond to nextIf cond*//
-    scf::IfOp combinedIf = rewriter.create<scf::IfOp>(
-        nextIf.getLoc(), mergedTypes, prevIf.getCondition(), /*hasElse=*/false);
-    rewriter.eraseBlock(&combinedIf.getThenRegion().back());
-
-    scf::YieldOp thenYield = prevIf.thenYield();
-    scf::YieldOp thenYield2 = nextIf.thenYield();
-
-    combinedIf.getThenRegion().getBlocks().splice(
-        combinedIf.getThenRegion().getBlocks().begin(),
-        prevIf.getThenRegion().getBlocks());
-
-    rewriter.mergeBlocks(nextIf.thenBlock(), combinedIf.thenBlock());
-    rewriter.setInsertionPointToEnd(combinedIf.thenBlock());
-
-    SmallVector<Value> mergedYields(thenYield.getOperands());
-    llvm::append_range(mergedYields, thenYield2.getOperands());
-    rewriter.create<scf::YieldOp>(thenYield2.getLoc(), mergedYields);
-    rewriter.eraseOp(thenYield);
-    rewriter.eraseOp(thenYield2);
-
-    combinedIf.getElseRegion().getBlocks().splice(
-        combinedIf.getElseRegion().getBlocks().begin(),
-        prevIf.getElseRegion().getBlocks());
-
-    if (!nextIf.getElseRegion().empty()) {
-      if (combinedIf.getElseRegion().empty()) {
-        combinedIf.getElseRegion().getBlocks().splice(
-            combinedIf.getElseRegion().getBlocks().begin(),
-            nextIf.getElseRegion().getBlocks());
-      } else {
-        scf::YieldOp elseYield = combinedIf.elseYield();
-        scf::YieldOp elseYield2 = nextIf.elseYield();
-        rewriter.mergeBlocks(nextIf.elseBlock(), combinedIf.elseBlock());
-
-        rewriter.setInsertionPointToEnd(combinedIf.elseBlock());
-
-        SmallVector<Value> mergedElseYields(elseYield.getOperands());
-        llvm::append_range(mergedElseYields, elseYield2.getOperands());
-
-        rewriter.create<scf::YieldOp>(elseYield2.getLoc(), mergedElseYields);
-        rewriter.eraseOp(elseYield);
-        rewriter.eraseOp(elseYield2);
-      }
-    }
-
-    SmallVector<Value> prevValues;
-    SmallVector<Value> nextValues;
-    for (const auto &pair : llvm::enumerate(combinedIf.getResults())) {
-      if (pair.index() < prevIf.getNumResults())
-        prevValues.push_back(pair.value());
-      else
-        nextValues.push_back(pair.value());
-    }
-    rewriter.replaceOp(prevIf, prevValues);
-    rewriter.replaceOp(nextIf, nextValues);
-    return success();
-  }
-};
 struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
   using OpRewritePattern<scf::IfOp>::OpRewritePattern;
 
@@ -1651,7 +1548,7 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
       Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
-      CombineIfs, MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
+      MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
@@ -1777,7 +1674,130 @@ public:
   }
 };
 
+class SelectI1Ext final : public OpRewritePattern<arith::SelectOp> {
+public:
+  using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ty = op.getType().dyn_cast<IntegerType>();
+    if (!ty) return failure();
+    if (ty.getWidth() == 1) return failure();
+    IntegerAttr lhs, rhs;
+    Value lhs_v = nullptr, rhs_v = nullptr;
+    if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
+      lhs_v  = ext.getIn();
+      if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
+          return failure();
+    } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
+    } else return failure();
+
+    if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
+      rhs_v  = ext.getIn();
+      if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
+          return failure();
+    } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
+    } else return failure();
+
+    if (!lhs_v) lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
+    if (!rhs_v) rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+
+    rewriter.replaceOpWithNewOp<ExtUIOp>(op, op.getType(), rewriter.create<SelectOp>(op.getLoc(), op.getCondition(), lhs_v, rhs_v));
+    return success();
+  }
+};
+
+template<typename T>
+class UndefProp final : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+      Value v = op->getOperand(0);
+      Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>() ))
+        return failure();
+    rewriter.setInsertionPoint(undef);
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    return success();
+  }
+};
+
+class UndefCmpProp final : public OpRewritePattern<CmpIOp> {
+public:
+  using OpRewritePattern<CmpIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CmpIOp op,
+                                PatternRewriter &rewriter) const override {
+      Value v = op->getOperand(0);
+      Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>() ))
+        return failure();
+    if (!op.getRhs().getDefiningOp<ConstantOp>())
+        return failure();
+    rewriter.setInsertionPoint(undef);
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    return success();
+  }
+};
+class CmpProp final : public OpRewritePattern<CmpIOp> {
+public:
+  using OpRewritePattern<CmpIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CmpIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ifOp = op.getLhs().getDefiningOp<scf::IfOp>();
+    if (!ifOp) return failure();
+    auto rhs = op.getRhs().getDefiningOp<ConstantOp>();
+    if (!rhs) {
+        return failure();
+    }
+    auto idx = op.getLhs().cast<OpResult>().getResultNumber();
+    bool change = false;
+    for (auto v : {ifOp.thenYield().getOperand(idx), ifOp.elseYield().getOperand(idx)}) {
+        change |= v.getDefiningOp<ConstantIntOp>() || v.getDefiningOp<LLVM::UndefOp>();
+        if (auto extOp = v.getDefiningOp<ExtUIOp>())
+            if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+                change |= it.getWidth() == 1;
+        if (auto extOp = v.getDefiningOp<ExtSIOp>())
+            if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+                change |= it.getWidth() == 1;
+    }
+    if (!change) {
+        return failure();
+    }
+
+    SmallVector<Type> resultTypes;
+    llvm::append_range(resultTypes, ifOp.getResultTypes());
+    resultTypes.push_back(op.getType());
+
+    auto rhs2 = rewriter.clone(*rhs)->getResult(0);
+    auto nop = rewriter.create<scf::IfOp>(ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/true);
+    nop.getThenRegion().takeBody(ifOp.getThenRegion());
+    nop.getElseRegion().takeBody(ifOp.getElseRegion());
+
+    SmallVector<Value> thenYields;
+    llvm::append_range(thenYields, nop.thenYield().getOperands());
+    rewriter.setInsertionPoint(nop.thenYield());
+    thenYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(), thenYields[idx], rhs2));
+    nop.thenYield()->setOperands(thenYields);
+
+    SmallVector<Value> elseYields;
+    llvm::append_range(elseYields, nop.elseYield().getOperands());
+    rewriter.setInsertionPoint(nop.elseYield());
+    elseYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(), elseYields[idx], rhs2));
+    nop.elseYield()->setOperands(elseYields);
+    rewriter.replaceOp(ifOp, nop.getResults().take_front(ifOp.getNumResults()));
+    rewriter.replaceOp(op, nop.getResults().take_back(1));
+    return success();
+  }
+};
+
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle>(context);
+  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
+                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
+                 CmpProp,UndefCmpProp>(context);
 }
