@@ -1366,7 +1366,7 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
                               newRegionArguments);
 
     rewriter.setInsertionPoint(newOp.getBody()->getTerminator());
-    for (auto en : llvm::enumerate(oldTerminator->getResults())) {
+    for (auto en : llvm::enumerate(oldTerminator->getOperands())) {
       rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
                                        allocated[en.index()], ValueRange());
     }
