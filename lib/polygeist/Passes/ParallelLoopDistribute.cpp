@@ -1518,14 +1518,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
-    for (auto ao : allocations) {
-      if (ao.getDefiningOp<LLVM::AllocaOp>() ||
-          ao.getDefiningOp<memref::AllocaOp>()) {
-        assert(false && "TODO I feel like this never happens, no?");
-        rewriter.eraseOp(ao.getDefiningOp());
-      }
-    }
-
     if (!outerLoop) {
       rewriter.mergeBlockBefore(outerBlock, op);
       rewriter.eraseOp(outerEx);
