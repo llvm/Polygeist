@@ -61,8 +61,8 @@ module {
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
-// CHECK-NEXT:       %7 = memref.load %1[%arg0] : memref<?xmemref<?xi32>>
-// CHECK-DAG:       %[[i8:.+]] = memref.load %7[%c0] : memref<?xi32>
+// CHECK-DAG:       %[[i7:.+]] = memref.load %1[%arg0] : memref<?xmemref<?xi32>>
+// CHECK-DAG:       %[[i8:.+]] = memref.load %[[i7]][%c0] : memref<?xi32>
 // CHECK-DAG:       %[[i9:.+]] = memref.load %3[%arg0] : memref<?xmemref<?xi32>>
 // CHECK-DAG:       %[[i10:.+]] = memref.load %2[%arg0] : memref<?xf32>
 // CHECK-DAG:       %[[i11:.+]] = memref.load %0[%arg0] : memref<?xf32>
