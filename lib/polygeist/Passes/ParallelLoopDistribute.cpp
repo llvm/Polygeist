@@ -1046,7 +1046,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     op.getBody()->eraseArguments([](BlockArgument) { return true; });
     rewriter.mergeBlocks(op.getBody(), preLoop.getBody());
 
-    rewriter.setInsertionPointToStart(outerBlock);
+    rewriter.setInsertionPoint(preLoop);
     // Allocate space for values crossing the barrier.
     SmallVector<Value> allocations;
     allocations.reserve(crossing.size());
