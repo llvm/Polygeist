@@ -346,9 +346,10 @@ static LogicalResult wrapWithBarriers(
 /// Puts a barrier before and/or after an "if" operation if there isn't already
 /// one, potentially with a single load that supplies the upper bound of a
 /// (normalized) loop.
-struct WrapIfWithBarrier : public OpRewritePattern<scf::IfOp> {
-  WrapIfWithBarrier(MLIRContext *ctx) : OpRewritePattern<scf::IfOp>(ctx) {}
-  LogicalResult matchAndRewrite(scf::IfOp op,
+template <typename IfType>
+struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
+  WrapIfWithBarrier(MLIRContext *ctx) : OpRewritePattern<IfType>(ctx) {}
+  LogicalResult matchAndRewrite(IfType op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<BlockArgument> vals;
     if (failed(canWrapWithBarriers(op, vals)))
@@ -368,7 +369,7 @@ struct WrapIfWithBarrier : public OpRewritePattern<scf::IfOp> {
 
     return wrapWithBarriers(op, rewriter, vals, [&](Operation *prevOp) {
       if (auto loadOp = dyn_cast_or_null<memref::LoadOp>(prevOp)) {
-        if (loadOp.result() == op.getCondition() &&
+        if (inBound(op, loadOp.result()) &&
             llvm::all_of(loadOp.indices(),
                          [&](Value v) { return indVars.contains(v); })) {
           prevOp = prevOp->getPrevNode();
@@ -1535,8 +1536,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
       patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
                       Reg2MemWhile, Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>,
                       WrapForWithBarrier, WrapAffineForWithBarrier,
-                      WrapIfWithBarrier, WrapWhileWithBarrier,
-
+                      WrapIfWithBarrier<scf::IfOp>,
+                      WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
                       InterchangeForPFor<scf::ParallelOp, scf::ForOp>,
                       InterchangeForPFor<AffineParallelOp, scf::ForOp>,
                       InterchangeForPForLoad<scf::ParallelOp, scf::ForOp>,
