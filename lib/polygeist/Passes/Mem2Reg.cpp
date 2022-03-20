@@ -33,6 +33,7 @@
 #include <set>
 
 #include "polygeist/Ops.h"
+#include "polygeist/Passes/Utils.h"
 
 #define DEBUG_TYPE "mem2reg"
 
@@ -174,6 +175,7 @@ public:
   ValueOrPlaceholder *get(Value val);
   ValueOrPlaceholder *get(Block *val);
   ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
+  ValueOrPlaceholder *get(AffineIfOp val, ValueOrPlaceholder *ifVal);
   ValueOrPlaceholder *get(scf::ExecuteRegionOp val);
 
   void replaceValue(Value orig, Value post);
@@ -190,7 +192,7 @@ public:
   Value val;
   Block *valueAtStart;
   scf::ExecuteRegionOp exOp;
-  scf::IfOp ifOp;
+  Operation *ifOp;
   ValueOrPlaceholder(ValueOrPlaceholder &&) = delete;
   ValueOrPlaceholder(const ValueOrPlaceholder &) = delete;
   ValueOrPlaceholder(std::nullptr_t, ReplacementHandler &metaMap)
@@ -219,6 +221,14 @@ public:
     if (ifLastVal)
       metaMap.opOperands[ifOp] = ifLastVal;
   }
+  ValueOrPlaceholder(AffineIfOp ifOp, ReplaceableUse ifLastVal,
+                     ReplacementHandler &metaMap)
+      : metaMap(metaMap), overwritten(false), val(nullptr),
+        valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
+    assert(ifOp);
+    if (ifLastVal)
+      metaMap.opOperands[ifOp] = ifLastVal;
+  }
   // Return true if this represents a full expression if all block argsare
   // defined at start Append the list of blocks requiring definition to block.
   bool definedWithArg(SmallPtrSetImpl<Block *> &block) {
@@ -236,26 +246,50 @@ public:
       return true;
     }
     if (ifOp) {
-      auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
-      assert(thenFind != metaMap.valueAtEndOfBlock.end());
-      assert(thenFind->second);
-      if (!thenFind->second->definedWithArg(block))
-        return false;
+      if (auto sifOp = dyn_cast<scf::IfOp>(ifOp)) {
+        auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(sifOp));
+        assert(thenFind != metaMap.valueAtEndOfBlock.end());
+        assert(thenFind->second);
+        if (!thenFind->second->definedWithArg(block))
+          return false;
 
-      if (ifOp.getElseRegion().getBlocks().size()) {
-        auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
-        assert(elseFind != metaMap.valueAtEndOfBlock.end());
-        assert(elseFind->second);
-        if (!elseFind->second->definedWithArg(block))
-          return false;
+        if (hasElse(sifOp)) {
+          auto elseFind = metaMap.valueAtEndOfBlock.find(getElseBlock(sifOp));
+          assert(elseFind != metaMap.valueAtEndOfBlock.end());
+          assert(elseFind->second);
+          if (!elseFind->second->definedWithArg(block))
+            return false;
+        } else {
+          auto opFound = metaMap.opOperands.find(sifOp);
+          assert(opFound != metaMap.opOperands.end());
+          auto ifLastValue = opFound->second;
+          if (!ifLastValue->definedWithArg(block))
+            return false;
+        }
+        return true;
       } else {
-        auto opFound = metaMap.opOperands.find(ifOp);
-        assert(opFound != metaMap.opOperands.end());
-        auto ifLastValue = opFound->second;
-        if (!ifLastValue->definedWithArg(block))
+        auto aifOp = cast<AffineIfOp>(ifOp);
+        auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(aifOp));
+        assert(thenFind != metaMap.valueAtEndOfBlock.end());
+        assert(thenFind->second);
+        if (!thenFind->second->definedWithArg(block))
           return false;
+
+        if (hasElse(aifOp)) {
+          auto elseFind = metaMap.valueAtEndOfBlock.find(getElseBlock(aifOp));
+          assert(elseFind != metaMap.valueAtEndOfBlock.end());
+          assert(elseFind->second);
+          if (!elseFind->second->definedWithArg(block))
+            return false;
+        } else {
+          auto opFound = metaMap.opOperands.find(ifOp);
+          assert(opFound != metaMap.opOperands.end());
+          auto ifLastValue = opFound->second;
+          if (!ifLastValue->definedWithArg(block))
+            return false;
+        }
+        return true;
       }
-      return true;
     }
     if (exOp) {
       for (auto &B : exOp.getRegion()) {
@@ -401,8 +435,17 @@ public:
     this->exOp = nullptr;
     return this->val;
   }
+
   Value materializeIf(bool full = true) {
-    auto thenFind = metaMap.valueAtEndOfBlock.find(ifOp.thenBlock());
+    if (auto sop = dyn_cast<scf::IfOp>(ifOp))
+      return materializeIf<scf::IfOp, scf::YieldOp>(sop, full);
+    return materializeIf<AffineIfOp, AffineYieldOp>(cast<AffineIfOp>(ifOp),
+                                                    full);
+  }
+
+  template <typename IfType, typename YieldType>
+  Value materializeIf(IfType ifOp, bool full = true) {
+    auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(ifOp));
     assert(thenFind != metaMap.valueAtEndOfBlock.end());
     assert(thenFind->second);
     Value thenVal = thenFind->second->materialize(full);
@@ -422,8 +465,8 @@ public:
     }
     Value elseVal;
 
-    if (ifOp.getElseRegion().getBlocks().size()) {
-      auto elseFind = metaMap.valueAtEndOfBlock.find(ifOp.elseBlock());
+    if (hasElse(ifOp)) {
+      auto elseFind = metaMap.valueAtEndOfBlock.find(getElseBlock(ifOp));
       assert(elseFind != metaMap.valueAtEndOfBlock.end());
       assert(elseFind->second);
       elseVal = elseFind->second->materialize(full);
@@ -463,10 +506,10 @@ public:
       return thenVal;
     }
 
-    if (ifOp.getElseRegion().getBlocks().size()) {
+    if (hasElse(ifOp)) {
       for (auto tup : llvm::reverse(
-               llvm::zip(ifOp.getResults(), ifOp.thenYield().getOperands(),
-                         ifOp.elseYield().getOperands()))) {
+               llvm::zip(ifOp.getResults(), getThenYield(ifOp).getOperands(),
+                         getElseYield(ifOp).getOperands()))) {
         if (std::get<1>(tup) == thenVal && std::get<2>(tup) == elseVal) {
           return thenVal;
         }
@@ -478,25 +521,24 @@ public:
     SmallVector<mlir::Type, 4> tys(ifOp.getResultTypes().begin(),
                                    ifOp.getResultTypes().end());
     tys.push_back(thenVal.getType());
-    auto nextIf = B.create<mlir::scf::IfOp>(
-        ifOp.getLoc(), tys, ifOp.getCondition(), /*hasElse*/ true);
+    auto nextIf = cloneWithoutResults(ifOp, B, {}, tys);
 
-    SmallVector<mlir::Value, 4> thenVals = ifOp.thenYield().getResults();
+    SmallVector<mlir::Value, 4> thenVals = getThenYield(ifOp).getOperands();
     thenVals.push_back(thenVal);
-    nextIf.getThenRegion().takeBody(ifOp.getThenRegion());
-    nextIf.thenYield()->setOperands(thenVals);
+    getThenRegion(nextIf).takeBody(getThenRegion(ifOp));
+    getThenYield(nextIf)->setOperands(thenVals);
 
-    if (ifOp.getElseRegion().getBlocks().size()) {
-      nextIf.getElseRegion().getBlocks().clear();
-      SmallVector<mlir::Value, 4> elseVals = ifOp.elseYield().getResults();
+    if (hasElse(ifOp)) {
+      getElseRegion(nextIf).getBlocks().clear();
+      SmallVector<mlir::Value, 4> elseVals = getElseYield(ifOp).getOperands();
       elseVals.push_back(elseVal);
-      nextIf.getElseRegion().takeBody(ifOp.getElseRegion());
-      nextIf.elseYield()->setOperands(elseVals);
+      getElseRegion(nextIf).takeBody(getElseRegion(ifOp));
+      getElseYield(nextIf)->setOperands(elseVals);
     } else {
-      B.setInsertionPoint(&nextIf.getElseRegion().back(),
-                          nextIf.getElseRegion().back().begin());
+      B.setInsertionPoint(&getElseRegion(nextIf).back(),
+                          getElseRegion(nextIf).back().begin());
       SmallVector<mlir::Value, 4> elseVals = {elseVal};
-      B.create<mlir::scf::YieldOp>(ifOp.getLoc(), elseVals);
+      B.create<YieldType>(ifOp.getLoc(), elseVals);
     }
 
     SmallVector<mlir::Value, 3> resvals = nextIf.getResults();
@@ -516,6 +558,7 @@ public:
     return this->val;
   }
 };
+
 static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
                                             ValueOrPlaceholder &PH) {
   if (PH.overwritten)
@@ -553,6 +596,12 @@ ValueOrPlaceholder *ReplacementHandler::get(Block *val) {
   return PH;
 }
 ValueOrPlaceholder *ReplacementHandler::get(scf::IfOp val,
+                                            ValueOrPlaceholder *ifVal) {
+  ValueOrPlaceholder *PH;
+  allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
+  return PH;
+}
+ValueOrPlaceholder *ReplacementHandler::get(AffineIfOp val,
                                             ValueOrPlaceholder *ifVal) {
   ValueOrPlaceholder *PH;
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
@@ -1334,6 +1383,15 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                 lastVal = metaMap.get(ifOp, lastVal);
               }
               continue;
+            } else if (auto ifOp = dyn_cast<mlir::AffineIfOp>(a)) {
+              handleBlock(*ifOp.thenRegion().begin(), lastVal);
+              if (ifOp.elseRegion().getBlocks().size()) {
+                handleBlock(*ifOp.elseRegion().begin(), lastVal);
+                lastVal = metaMap.get(ifOp, emptyValue);
+              } else {
+                lastVal = metaMap.get(ifOp, lastVal);
+              }
+              continue;
             }
             LLVM_DEBUG(llvm::dbgs() << "erased store due to: " << *a << "\n");
 
@@ -1783,8 +1841,7 @@ StoreMap getLastStored(mlir::Value AI) {
 }
 
 void Mem2Reg::runOnOperation() {
-  // Only supports single block functions at the moment.
-  FuncOp f = getOperation();
+  auto f = getOperation();
 
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
@@ -1802,22 +1859,22 @@ void Mem2Reg::runOnOperation() {
 
     // Walk all load's and perform store to load forwarding.
     SmallVector<mlir::Value, 4> toPromote;
-    f.walk([&](mlir::memref::AllocaOp AI) {
+    f->walk([&](mlir::memref::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](mlir::memref::AllocOp AI) {
+    f->walk([&](mlir::memref::AllocOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](LLVM::AllocaOp AI) {
+    f->walk([&](LLVM::AllocaOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }
     });
-    f.walk([&](memref::GetGlobalOp AI) {
+    f->walk([&](memref::GetGlobalOp AI) {
       if (isPromotable(AI)) {
         toPromote.push_back(AI);
       }

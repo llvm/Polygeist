@@ -25,7 +25,6 @@
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVMPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
@@ -543,7 +542,9 @@ int main(int argc, char **argv) {
     mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
     if (CudaLower) {
       optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
       optPM.addPass(polygeist::createMem2RegPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(mlir::createCSEPass());
       optPM.addPass(mlir::createCanonicalizerPass());
       optPM.addPass(polygeist::createCanonicalizeForPass());
@@ -567,6 +568,21 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
       }
       optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
+      optPM.addPass(polygeist::createMem2RegPass());
+      optPM.addPass(mlir::createCanonicalizerPass());
+      optPM.addPass(mlir::createCSEPass());
+      if (RaiseToAffine) {
+        optPM.addPass(polygeist::createCanonicalizeForPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+        optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(polygeist::replaceAffineCFGPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        if (ScalarReplacement)
+          optPM.addPass(mlir::createAffineScalarReplacementPass());
+      }
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
@@ -599,7 +615,7 @@ int main(int argc, char **argv) {
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
-        pm3.addPass(mlir::createLowerToLLVMPass(options));
+        // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass());
         if (mlir::failed(pm3.run(module.get()))) {
           module->dump();

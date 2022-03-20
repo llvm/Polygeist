@@ -23,8 +23,9 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/InitAllPasses.h"
 #include "mlir/Pass/PassRegistry.h"
-#include "mlir/Support/MlirOptMain.h"
+#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
 
 #include "polygeist/Dialect.h"
@@ -69,13 +70,20 @@ int main(int argc, char **argv) {
   mlir::registerSymbolDCEPass();
   mlir::registerLoopInvariantCodeMotionPass();
   mlir::registerConvertSCFToOpenMPPass();
+  mlir::registerAffinePasses();
 
-  registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMPointerType,
-                            MemRefInsider>();
-  registry.addTypeInterface<polygeist::PolygeistDialect, LLVM::LLVMStructType,
-                            MemRefInsider>();
-  registry.addTypeInterface<polygeist::PolygeistDialect, MemRefType,
-                            PtrElementModel<MemRefType>>();
+  registry.addExtension(
+      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
+        LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
+      });
+  registry.addExtension(
+      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
+        LLVM::LLVMStructType::attachInterface<MemRefInsider>(*ctx);
+      });
+  registry.addExtension(
+      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
+        MemRefType::attachInterface<PtrElementModel<MemRefType>>(*ctx);
+      });
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,

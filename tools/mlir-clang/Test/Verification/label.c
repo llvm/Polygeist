@@ -18,13 +18,13 @@ int fir (int d_i[1000], int idx[1000] ) {
 // CHECK-DAG:     %c1000 = arith.constant 1000 : index
 // CHECK-DAG:     %c999 = arith.constant 999 : index
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %0:2 = scf.for %arg2 = %c0 to %c1000 step %c1 iter_args(%arg3 = %c0_i32, %arg4 = %c0_i32) -> (i32, i32) {
+// CHECK-NEXT:     %0 = scf.for %arg2 = %c0 to %c1000 step %c1 iter_args(%arg3 = %c0_i32) -> (i32) {
 // CHECK-NEXT:       %1 = memref.load %arg1[%arg2] : memref<?xi32>
 // CHECK-NEXT:       %2 = arith.subi %c999, %arg2 : index
 // CHECK-NEXT:       %3 = memref.load %arg0[%2] : memref<?xi32>
 // CHECK-NEXT:       %4 = arith.muli %1, %3 : i32
 // CHECK-NEXT:       %5 = arith.addi %arg3, %4 : i32
-// CHECK-NEXT:       scf.yield %5, %5 : i32, i32
+// CHECK-NEXT:       scf.yield %5 : i32
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %0#1 : i32
+// CHECK-NEXT:     return %0 : i32
 // CHECK-NEXT:   }

@@ -51,7 +51,7 @@ target_link_libraries(mlir-clang PRIVATE
   MLIRGPUOps
   MLIRTransforms
   MLIRSCFToControlFlow
-  MLIRStandardToLLVM
+  MLIRFuncToLLVM
   MLIRAffineTransforms
   MLIRAffineToStandard
   MLIRMathToLLVM

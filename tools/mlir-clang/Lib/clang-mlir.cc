@@ -270,9 +270,9 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
                    builder.create<mlir::memref::AllocaOp>(loc, type)});
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().noBreak);
   builder.create<mlir::memref::StoreOp>(loc, truev, loops.back().keepRunning);
-  if (function.getType().getResults().size()) {
-    auto type =
-        mlir::MemRefType::get({}, function.getType().getResult(0), {}, 0);
+  if (function.getFunctionType().getResults().size()) {
+    auto type = mlir::MemRefType::get(
+        {}, function.getFunctionType().getResult(0), {}, 0);
     returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
     if (type.getElementType().isa<mlir::IntegerType, mlir::FloatType>()) {
       builder.create<mlir::memref::StoreOp>(
@@ -282,7 +282,7 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
   }
   Visit(stmt);
 
-  if (function.getType().getResults().size()) {
+  if (function.getFunctionType().getResults().size()) {
     mlir::Value vals[1] = {
         builder.create<mlir::memref::LoadOp>(loc, returnVal)};
     builder.create<ReturnOp>(loc, vals);

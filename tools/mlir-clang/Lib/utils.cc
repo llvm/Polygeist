@@ -41,10 +41,9 @@ Operation *buildLinalgOp(StringRef name, OpBuilder &b,
   }
 }
 
-Operation *
-mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
-                                  SmallVectorImpl<mlir::Value> &input,
-                                  SmallVectorImpl<mlir::Value> &output) {
+Operation *mlirclang::replaceFuncByOperation(
+    func::FuncOp f, StringRef opName, OpBuilder &b,
+    SmallVectorImpl<mlir::Value> &input, SmallVectorImpl<mlir::Value> &output) {
   MLIRContext *ctx = f->getContext();
   assert(ctx->isOperationRegistered(opName) &&
          "Provided lower_to opName should be registered.");

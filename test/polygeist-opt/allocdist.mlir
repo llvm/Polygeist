@@ -35,13 +35,14 @@ module {
 // CHECK-NEXT:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     %c5 = arith.constant 5 : index
-// CHECK-NEXT:     %0 = memref.alloc(%c5) : memref<?xf32>
-// CHECK-NEXT:     %1 = memref.alloc(%c5) : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     %2 = memref.alloc(%c5) : memref<?xf32>
-// CHECK-NEXT:     %3 = memref.alloc(%c5) : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     %4 = memref.alloc(%c5) : memref<?x2xi32>
-// CHECK-NEXT:     %5 = memref.alloc(%c5) : memref<?xi32>
-// CHECK-NEXT:     %6 = memref.alloc(%c5) : memref<?x1xi32>
+// CHECK-NEXT:     memref.alloca_scope {
+// CHECK-NEXT:     %0 = memref.alloca(%c5) : memref<?xf32>
+// CHECK-NEXT:     %1 = memref.alloca(%c5) : memref<?xmemref<?xi32>>
+// CHECK-NEXT:     %2 = memref.alloca(%c5) : memref<?xf32>
+// CHECK-NEXT:     %3 = memref.alloca(%c5) : memref<?xmemref<?xi32>>
+// CHECK-NEXT:     %4 = memref.alloca(%c5) : memref<?x2xi32>
+// CHECK-NEXT:     %5 = memref.alloca(%c5) : memref<?xi32>
+// CHECK-NEXT:     %6 = memref.alloca(%c5) : memref<?x1xi32>
 // CHECK-NEXT:     scf.parallel (%arg0) = (%c0) to (%c5) step (%c1) {
 // CHECK-NEXT:       %7 = "polygeist.subindex"(%4, %arg0) : (memref<?x2xi32>, index) -> memref<2xi32>
 // CHECK-NEXT:       %8 = memref.cast %7 : memref<2xi32> to memref<?xi32>
@@ -68,12 +69,6 @@ module {
 // CHECK-DAG:       call @use(%[[i9]], %[[i10]], %[[i8]], %[[i11]]) : (memref<?xi32>, f32, i32, f32) -> ()
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
-// CHECK-NEXT:     memref.dealloc %0 : memref<?xf32>
-// CHECK-NEXT:     memref.dealloc %1 : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     memref.dealloc %2 : memref<?xf32>
-// CHECK-NEXT:     memref.dealloc %3 : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     memref.dealloc %4 : memref<?x2xi32>
-// CHECK-NEXT:     memref.dealloc %5 : memref<?xi32>
-// CHECK-NEXT:     memref.dealloc %6 : memref<?x1xi32>
+// CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

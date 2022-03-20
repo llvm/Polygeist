@@ -24,6 +24,7 @@ def BarrierOp
   let arguments = (ins Variadic<Index>:$indices);
   let summary = "barrier for parallel loops";
   let description = [{}];
+  let hasCanonicalizer = true;
 }
 
 //===----------------------------------------------------------------------===//
