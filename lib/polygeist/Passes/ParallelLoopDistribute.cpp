@@ -182,8 +182,6 @@ static inline void bfs(const Graph &G,
 // Checks if an op is recomputable within the context of a parallel operation,
 // i.e. either it has no side effects or it is a polygeist cache load
 static bool isRecomputable(Operation *op) {
-  // TODO does this mess with minCutCache's logic? can we somehow come across
-  // another parallel's cache load there and would that be a problem?
   if (isa<polygeist::CacheLoad>(op))
     return true;
   // TODO is this correct? do we need to check HasRecursiveSideEffects?
@@ -191,7 +189,6 @@ static bool isRecomputable(Operation *op) {
     return memInterface.hasNoEffect();
   } else {
     return false;
-    // return !op.hasTrait<OpTrait::HasRecursiveSideEffects>();
   }
 }
 
@@ -210,8 +207,6 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
 static bool arePreceedingOpsRecomputable(Operation *op) {
   auto prevOp = op->getPrevNode();
   while (prevOp) {
-    // TODO we could check if our cacheload ops have the parallel op indVars
-    // as arguments, is that needed?
     if (!isRecomputable(prevOp))
       return false;
     prevOp = prevOp->getPrevNode();
@@ -759,9 +754,6 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
 
     insertRecomputables(rewriter, op, newParallel, ifOp);
   }
-
-  // TODO this newIf gets printed as if it has an empty else if the original had
-  // no else, do we have to delete its 'else' block?
 
   rewriter.eraseOp(ifOp);
   rewriter.eraseOp(op);
@@ -1338,18 +1330,18 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     llvm::SetVector<Operation *> preserveAllocas;
     findValuesUsedBelow(barrier, usedBelow, preserveAllocas);
 
-    llvm::SetVector<Value> minCache;
+    llvm::SetVector<Value> crossingCache;
     if (UseMinCut) {
 
-      minCutCache(barrier, usedBelow, minCache);
+      minCutCache(barrier, usedBelow, crossingCache);
 
       LLVM_DEBUG(DBGS() << "[distribute] min cut cache optimisation: "
                         << "preserveAllocas: " << preserveAllocas.size() << ", "
                         << "usedBelow: " << usedBelow.size() << ", "
-                        << "minCache: " << minCache.size() << "\n");
+                        << "crossingCache: " << crossingCache.size() << "\n");
 
       BlockAndValueMapping mapping;
-      for (Value v : minCache)
+      for (Value v : crossingCache)
         mapping.map(v, v);
 
       // Recalculate values used below the barrier up to available ones
@@ -1386,12 +1378,11 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
         }
       }
     } else {
-      minCache = usedBelow;
+      crossingCache = usedBelow;
     }
 
-    // TODO should we integrate this in minCutCache?
     for (auto alloca : preserveAllocas) {
-      minCache.remove(alloca->getResult(0));
+      crossingCache.remove(alloca->getResult(0));
     }
 
     SmallVector<Value> iterCounts;
@@ -1430,9 +1421,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     rewriter.setInsertionPointToStart(outerBlock);
     // Allocate space for values crossing the barrier.
-    SmallVector<Value> minCacheAllocations;
+    SmallVector<Value> cacheAllocations;
     SmallVector<Value> allocaAllocations;
-    minCacheAllocations.reserve(minCache.size());
+    cacheAllocations.reserve(crossingCache.size());
     allocaAllocations.reserve(preserveAllocas.size());
     auto mod = ((Operation *)op)->getParentOfType<ModuleOp>();
     assert(mod);
@@ -1446,13 +1437,10 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
             allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
       }
     };
-    for (Value v : minCache)
-      addToAllocations(v, minCacheAllocations);
+    for (Value v : crossingCache)
+      addToAllocations(v, cacheAllocations);
     for (Operation *o : preserveAllocas)
       addToAllocations(o->getResult(0), allocaAllocations);
-
-    // TODO rewrite these alloca loads using cacheload and load only once (not
-    // for all uses)
 
     // Allocate alloca's we need to preserve outside the loop
     for (auto pair : llvm::zip(preserveAllocas, allocaAllocations)) {
@@ -1513,7 +1501,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     // Store values in the min cache immediately when ready and reload them
     // after the barrier
-    for (auto pair : llvm::zip(minCache, minCacheAllocations)) {
+    for (auto pair : llvm::zip(crossingCache, cacheAllocations)) {
       Value v = std::get<0>(pair);
       Value alloc = std::get<1>(pair);
       // Store
@@ -1547,7 +1535,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     rewriter.setInsertionPointToEnd(outerBlock);
     auto freefn = GetOrCreateFreeFunction(mod);
     SmallVector<Value> allocations;
-    allocations.append(minCacheAllocations.begin(), minCacheAllocations.end());
+    allocations.append(cacheAllocations.begin(), cacheAllocations.end());
     allocations.append(allocaAllocations.begin(), allocaAllocations.end());
     for (auto alloc : allocations) {
       if (alloc.getType().isa<LLVM::LLVMPointerType>()) {
