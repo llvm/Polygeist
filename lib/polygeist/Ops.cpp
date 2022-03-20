@@ -49,15 +49,9 @@ collectEffects(Operation *op,
   // getEffects erases all effect instances that have the type other than the
   // template parameter so we collect them first in a local buffer and then
   // copy.
-  SmallVector<MemoryEffects::EffectInstance> localEffects;
   if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
-    iface.getEffects<MemoryEffects::Read>(localEffects);
-    llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Write>(localEffects);
-    llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Allocate>(localEffects);
-    llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Free>(localEffects);
+    SmallVector<MemoryEffects::EffectInstance> localEffects;
+    iface.getEffects(localEffects);
     llvm::append_range(effects, localEffects);
     return true;
   }
@@ -71,17 +65,90 @@ collectEffects(Operation *op,
   return false;
 }
 
+// Rethrns if we are non-conservative whether we have filled with all possible
+// effects.
+bool getEffectsBefore(Operation *op,
+                      SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  if (isa<scf::ParallelOp, AffineParallelOp>(op))
+    return true;
+
+  for (Operation *it = op->getPrevNode(); it != nullptr;
+       it = it->getPrevNode()) {
+    if (isa<BarrierOp>(it)) {
+      return true;
+    }
+    if (!collectEffects(it, effects))
+      return false;
+  }
+
+  bool conservative = false;
+
+  // As we didn't hit another barrier, we must check the predecessors of this
+  // operation.
+  if (!getEffectsBefore(op->getParentOp(), effects))
+    return false;
+
+  // If the parent operation is not guaranteed to execute its (single-block)
+  // region once, walk the block.
+  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+    op->getParentOp()->walk([&](Operation *in) {
+      if (conservative)
+        return WalkResult::interrupt();
+      if (!collectEffects(in, effects)) {
+        conservative = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+
+  return !conservative;
+}
+bool getEffectsAfter(Operation *op,
+                     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  if (isa<scf::ParallelOp, AffineParallelOp>(op))
+    return true;
+
+  for (Operation *it = op->getNextNode(); it != nullptr;
+       it = it->getNextNode()) {
+    if (isa<BarrierOp>(it)) {
+      return true;
+    }
+    if (!collectEffects(it, effects))
+      return false;
+  }
+
+  bool conservative = false;
+
+  // As we didn't hit another barrier, we must check the predecessors of this
+  // operation.
+  if (!getEffectsAfter(op->getParentOp(), effects))
+    return false;
+
+  // If the parent operation is not guaranteed to execute its (single-block)
+  // region once, walk the block.
+  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+    op->getParentOp()->walk([&](Operation *in) {
+      if (conservative)
+        return WalkResult::interrupt();
+      if (!collectEffects(in, effects)) {
+        conservative = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+
+  return !conservative;
+}
+
 void BarrierOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   Operation *op = getOperation();
-  for (Operation *it = op->getPrevNode(); it != nullptr; it = it->getPrevNode())
-    if (!collectEffects(it, effects))
-      return;
-  for (Operation *it = op->getNextNode(); it != nullptr; it = it->getNextNode())
-    if (!collectEffects(it, effects))
-      return;
 
-  // TODO: we need to handle regions in case the parent op isn't an SCF parallel
+  if (!getEffectsBefore(op, effects))
+    return;
+
+  if (!getEffectsAfter(op, effects))
+    return;
 }
 
 class BarrierHoist final : public OpRewritePattern<BarrierOp> {

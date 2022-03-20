@@ -48,9 +48,9 @@ module {
   }
 }
 // CHECK:   func @meta(%arg0: !llvm.ptr<i8>, %arg1: i8) {
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c2 = arith.constant 2 : index
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c2 = arith.constant 2 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     scf.parallel (%arg2, %arg3, %arg4) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:       scf.parallel (%arg5, %arg6, %arg7) = (%c0, %c0, %c0) to (%c1, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:         %0 = scf.execute_region -> i8 {
@@ -65,6 +65,52 @@ module {
 // CHECK-NEXT:           cf.br ^bb3(%2 : i8)
 // CHECK-NEXT:         ^bb3(%3: i8):  // pred: ^bb2
 // CHECK-NEXT:           scf.yield %3 : i8
+// CHECK-NEXT:         }
+// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:       }
+// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+
+// -----
+
+module {
+  func private @somethingA() -> () 
+  func private @somethingB() -> ()
+  func private @S(%arg0: i1) {
+    call @somethingA() : () -> ()
+    scf.if %arg0 {
+        nvvm.barrier0
+    }
+    call @somethingB() : () -> ()
+    return 
+  }
+  func @meta(%arg: i1) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c2 = arith.constant 2 : index
+    gpu.launch blocks(%arg4, %arg5, %arg6) in (%arg10 = %c2, %arg11 = %c1, %arg12 = %c1) threads(%arg7, %arg8, %arg9) in (%arg13 = %c2, %arg14 = %c1, %arg15 = %c1) {
+      call @S(%arg) : (i1) -> ()
+      gpu.terminator
+    }
+    return
+  }
+}
+
+// CHECK:   func @meta(%arg0: i1) {
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-NEXT:     %c2 = arith.constant 2 : index
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     scf.parallel (%arg1, %arg2, %arg3) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
+// CHECK-NEXT:       scf.parallel (%arg4, %arg5, %arg6) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
+// CHECK-NEXT:         scf.execute_region {
+// CHECK-NEXT:           call @somethingA() : () -> ()
+// CHECK-NEXT:           scf.if %arg0 {
+// CHECK-NEXT:             "polygeist.barrier"(%arg4, %arg5, %arg6) : (index, index, index) -> ()
+// CHECK-NEXT:           }
+// CHECK-NEXT:           call @somethingB() : () -> ()
+// CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }

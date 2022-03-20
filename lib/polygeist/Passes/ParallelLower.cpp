@@ -251,8 +251,7 @@ void ParallelLower::runOnOperation() {
     for (auto op : ops)
       callInliner(op);
 
-    Block *nb = &launchOp.getRegion().front();
-    mlir::OpBuilder builder(launchOp.getContext());
+    mlir::IRRewriter builder(launchOp.getContext());
     auto loc = builder.getUnknownLoc();
 
     builder.setInsertionPoint(launchOp->getBlock(), launchOp->getIterator());
@@ -265,12 +264,8 @@ void ParallelLower::runOnOperation() {
         std::vector<Value>(
             {launchOp.gridSizeX(), launchOp.gridSizeY(), launchOp.gridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
-    Block *blockB;
-    {
-      auto iter = block.getRegion().getBlocks().begin();
-      blockB = &*iter;
-      blockB->begin()->erase();
-    }
+    Block *blockB = &block.getRegion().front();
+
     builder.setInsertionPointToStart(blockB);
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
@@ -278,31 +273,26 @@ void ParallelLower::runOnOperation() {
         std::vector<Value>({launchOp.blockSizeX(), launchOp.blockSizeY(),
                             launchOp.blockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
-    builder.create<mlir::scf::YieldOp>(loc);
-    Block *threadB;
-    auto iter = threadr.getRegion().getBlocks().begin();
-    threadB = &*iter;
-    // threadB->begin()->erase();
+    Block *threadB = &threadr.getRegion().front();
 
-    // threadr.getRegion().getBlocks().clear();
-    // builder.create<mlir::scf::YieldOp>(loc);
-    // builder.setInsertionPointToStart(threadB);
+    launchOp.getRegion().front().getTerminator()->erase();
 
-    auto container = threadr; // builder.create<mlir::scf::ContainerOp>(loc,
-                              // std::vector<mlir::Type>());
+    SmallVector<Value> launchArgs;
+    llvm::append_range(launchArgs, blockB->getArguments());
+    llvm::append_range(launchArgs, threadB->getArguments());
+    launchArgs.push_back(launchOp.gridSizeX());
+    launchArgs.push_back(launchOp.gridSizeY());
+    launchArgs.push_back(launchOp.gridSizeZ());
+    launchArgs.push_back(launchOp.blockSizeX());
+    launchArgs.push_back(launchOp.blockSizeY());
+    launchArgs.push_back(launchOp.blockSizeZ());
+    builder.mergeBlockBefore(&launchOp.getRegion().front(),
+                             threadr.getRegion().front().getTerminator(),
+                             launchArgs);
 
-    threadB->getOperations().clear();
-    threadB->getOperations().splice(threadB->begin(), nb->getOperations());
-    nb->erase();
-
-    // mlir::OpBuilder builder2(f.getContext());
-    // builder2.setInsertionPointToStart(threadB);
-    // iter++;
-    // builder2.create<mlir::cf::BranchOp>(loc, &*iter);
+    auto container = threadr;
 
     container.walk([&](mlir::gpu::BlockIdOp bidx) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(bidx);
       int idx = -1;
       if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
@@ -312,44 +302,37 @@ void ParallelLower::runOnOperation() {
         idx = 2;
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith((mlir::Value)blockB->getArgument(idx));
-      bidx.erase();
+      builder.replaceOp(bidx,
+                        ValueRange((mlir::Value)blockB->getArgument(idx)));
     });
 
     container.walk([&](mlir::memref::AllocaOp alop) {
       if (auto ia =
               alop.getType().getMemorySpace().dyn_cast_or_null<IntegerAttr>())
         if (ia.getValue() == 5) {
-          mlir::OpBuilder bz(launchOp.getContext());
-          bz.setInsertionPointToStart(blockB);
-          auto newAlloca = bz.create<memref::AllocaOp>(
+          builder.setInsertionPointToStart(blockB);
+          auto newAlloca = builder.create<memref::AllocaOp>(
               alop.getLoc(),
               MemRefType::get(alop.getType().getShape(),
                               alop.getType().getElementType(),
                               alop.getType().getLayout(), Attribute()));
-          alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
-              alop.getLoc(), alop.getType(), newAlloca));
-          alop.erase();
+          builder.replaceOpWithNewOp<memref::CastOp>(alop, alop.getType(),
+                                                     newAlloca);
         }
     });
 
     container.walk([&](mlir::LLVM::AllocaOp alop) {
       auto PT = alop.getType().cast<LLVM::LLVMPointerType>();
       if (PT.getAddressSpace() == 5) {
-        mlir::OpBuilder bz(launchOp.getContext());
-        bz.setInsertionPointToStart(blockB);
-        auto newAlloca = bz.create<LLVM::AllocaOp>(
+        builder.setInsertionPointToStart(blockB);
+        auto newAlloca = builder.create<LLVM::AllocaOp>(
             alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
             alop.getArraySize());
-        alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
-            alop.getLoc(), PT, newAlloca));
-        alop.erase();
+        builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
     });
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(bidx);
       int idx = -1;
       if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
@@ -359,22 +342,13 @@ void ParallelLower::runOnOperation() {
         idx = 2;
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith((mlir::Value)threadB->getArgument(idx));
-      bidx.erase();
-    });
-
-    container.walk([&](gpu::TerminatorOp op) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(op);
-      bz.create<mlir::scf::YieldOp>(loc);
-      op.erase();
+      builder.replaceOp(bidx, ValueRange(threadB->getArgument(idx)));
     });
 
     container.walk([&](mlir::NVVM::Barrier0Op op) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(op);
-      bz.create<mlir::polygeist::BarrierOp>(loc, threadB->getArguments());
-      op.erase();
+      builder.setInsertionPoint(op);
+      auto nb = builder.replaceOpWithNewOp<mlir::polygeist::BarrierOp>(
+          op, threadB->getArguments());
     });
 
     container.walk([&](gpu::GridDimOp bidx) {
@@ -387,8 +361,7 @@ void ParallelLower::runOnOperation() {
         val = launchOp.gridSizeZ();
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith(val);
-      bidx.erase();
+      builder.replaceOp(bidx, val);
     });
 
     container.walk([&](gpu::BlockDimOp bidx) {
@@ -401,38 +374,35 @@ void ParallelLower::runOnOperation() {
         val = launchOp.blockSizeZ();
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith(val);
-      bidx.erase();
+      builder.replaceOp(bidx, val);
     });
 
     container.walk([&](AffineStoreOp storeOp) {
-      OpBuilder bz(storeOp);
+      builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = bz.create<AffineApplyOp>(
+        auto apply = builder.create<AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      bz.create<memref::StoreOp>(storeOp.getLoc(), storeOp.value(),
-                                 storeOp.memref(), indices);
-      storeOp.erase();
+      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
+                                                  storeOp.memref(), indices);
     });
 
     container.walk([&](AffineLoadOp storeOp) {
-      OpBuilder bz(storeOp);
+      builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = bz.create<AffineApplyOp>(
+        auto apply = builder.create<AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      storeOp.replaceAllUsesWith((mlir::Value)bz.create<memref::LoadOp>(
-          storeOp.getLoc(), storeOp.memref(), indices));
-      storeOp.erase();
+      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+                                                 indices);
     });
-    launchOp.erase();
+    builder.eraseOp(launchOp);
   }
 
   getOperation().walk([&](LLVM::CallOp call) {
