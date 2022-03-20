@@ -140,18 +140,26 @@ struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
     if (!prevFor || prevFor->getResults().size())
       return failure();
 
-    nextParallel->moveBefore(prevFor);
+    rewriter.setInsertionPoint(prevFor);
+    auto newParallel = rewriter.create<omp::ParallelOp>(nextParallel.getLoc());
+    rewriter.createBlock(&newParallel.getRegion());
+    rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
+    auto newFor =
+        rewriter.create<scf::ForOp>(prevFor.getLoc(), prevFor.getLowerBound(),
+                                    prevFor.getUpperBound(), prevFor.getStep());
     auto yield = nextParallel.getRegion().front().getTerminator();
-    auto contents =
-        rewriter.splitBlock(&nextParallel.getRegion().front(),
-                            nextParallel.getRegion().front().begin());
-    rewriter.mergeBlockBefore(contents, &prevFor.getBody()->front());
-    rewriter.setInsertionPoint(prevFor.getBody()->getTerminator());
+    newFor.getRegion().takeBody(prevFor.getRegion());
+    rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
+                              newFor.getBody()->getTerminator());
+    rewriter.setInsertionPoint(newFor.getBody()->getTerminator());
     rewriter.create<omp::BarrierOp>(nextParallel.getLoc());
-    rewriter.setInsertionPointToEnd(&nextParallel.getRegion().front());
+
+    rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
     auto newYield = rewriter.clone(*yield);
     rewriter.eraseOp(yield);
-    prevFor->moveBefore(newYield);
+    rewriter.eraseOp(nextParallel);
+    rewriter.eraseOp(prevFor);
+
     return success();
   }
 };
@@ -169,16 +177,20 @@ struct ParallelIfInterchange : public OpRewritePattern<omp::ParallelOp> {
     if (!prevIf || prevIf->getResults().size())
       return failure();
 
-    nextParallel->moveBefore(prevIf);
+    rewriter.setInsertionPoint(prevIf);
+    auto newParallel = rewriter.create<omp::ParallelOp>(nextParallel.getLoc());
+    rewriter.createBlock(&newParallel.getRegion());
+    rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
+    auto newIf = rewriter.create<scf::IfOp>(
+        prevIf.getLoc(), prevIf.getCondition(), /*hasElse*/ false);
     auto yield = nextParallel.getRegion().front().getTerminator();
-    auto contents =
-        rewriter.splitBlock(&nextParallel.getRegion().front(),
-                            nextParallel.getRegion().front().begin());
-    rewriter.mergeBlockBefore(contents, &prevIf.getBody()->front());
-    rewriter.setInsertionPointToEnd(&nextParallel.getRegion().front());
+    rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
+                              newIf.thenYield());
+
+    rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
     auto newYield = rewriter.clone(*yield);
     rewriter.eraseOp(yield);
-    prevIf->moveBefore(newYield);
+    rewriter.eraseOp(prevIf);
     return success();
   }
 };
