@@ -34,7 +34,8 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     return isValidSymbol(loop.getStep());
   }
 
-  void canonicalizeLoopBounds(AffineForOp forOp) const {
+  void canonicalizeLoopBounds(PatternRewriter &rewriter,
+                              AffineForOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
 
@@ -43,11 +44,11 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     auto prevLbMap = lbMap;
     auto prevUbMap = ubMap;
 
-    fully2ComposeAffineMapAndOperands(&lbMap, &lbOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
     lbMap = removeDuplicateExprs(lbMap);
 
-    fully2ComposeAffineMapAndOperands(&ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
     ubMap = removeDuplicateExprs(ubMap);
 
@@ -146,7 +147,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
           getMultiSymbolIdentity(builder, ubs.size()), getStep(loop.getStep()),
           loop.getIterOperands());
 
-      canonicalizeLoopBounds(affineLoop);
+      canonicalizeLoopBounds(rewriter, affineLoop);
 
       auto mergedYieldOp =
           cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
@@ -198,7 +199,8 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     return true;
   }
 
-  void canonicalizeLoopBounds(AffineParallelOp forOp) const {
+  void canonicalizeLoopBounds(PatternRewriter &rewriter,
+                              AffineParallelOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundsOperands());
 
@@ -207,10 +209,10 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     auto prevLbMap = lbMap;
     auto prevUbMap = ubMap;
 
-    fully2ComposeAffineMapAndOperands(&lbMap, &lbOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
 
-    fully2ComposeAffineMapAndOperands(&ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
 
     if (lbMap != prevLbMap)
@@ -252,7 +254,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
         loop.getLowerBound(), bounds, loop.getUpperBound(),
         steps); //, loop.getInitVals());
 
-    canonicalizeLoopBounds(affineLoop);
+    canonicalizeLoopBounds(rewriter, affineLoop);
 
     auto mergedYieldOp =
         cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
