@@ -149,8 +149,6 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
       indVars.insert(var);
 }
 
-// Are all ops preceeding the child `child` with a nested barrier of a parallel
-// operation `pOp` all recomputable?
 static bool arePreceedingOpsRecomputable(Operation *op) {
   auto prevOp = op->getPrevNode();
   while (prevOp) {
