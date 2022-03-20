@@ -1481,17 +1481,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
     // Create the second loop.
     rewriter.setInsertionPointToEnd(outerBlock);
-    auto freefn = GetOrCreateFreeFunction(mod);
-    SmallVector<Value> allocations;
-    allocations.append(cacheAllocations.begin(), cacheAllocations.end());
-    allocations.append(allocaAllocations.begin(), allocaAllocations.end());
-    for (auto alloc : allocations) {
-      if (alloc.getType().isa<LLVM::LLVMPointerType>()) {
-        Value args[1] = {alloc};
-        rewriter.create<LLVM::CallOp>(alloc.getLoc(), freefn, args);
-      } else
-        rewriter.create<memref::DeallocOp>(alloc.getLoc(), alloc);
-    }
     if (outerLoop) {
       if (isa<scf::ParallelOp>(outerLoop))
         rewriter.create<scf::YieldOp>(op.getLoc());
@@ -1518,10 +1507,6 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (Operation *o : llvm::reverse(toDelete))
       rewriter.eraseOp(o);
 
-    if (!outerLoop) {
-      rewriter.mergeBlockBefore(outerBlock, op);
-      rewriter.eraseOp(outerEx);
-    }
     rewriter.eraseOp(op);
 
     LLVM_DEBUG(DBGS() << "[distribute] distributed around a barrier\n");
