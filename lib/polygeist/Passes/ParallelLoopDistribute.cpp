@@ -38,59 +38,6 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
-scf::IfOp cloneWithoutResults(scf::IfOp op, PatternRewriter &rewriter,
-                              BlockAndValueMapping mapping = {}) {
-  return rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(),
-                                    mapping.lookupOrDefault(op.getCondition()),
-                                    true);
-}
-
-AffineIfOp cloneWithoutResults(AffineIfOp op, PatternRewriter &rewriter,
-                               BlockAndValueMapping mapping = {}) {
-  SmallVector<Value> lower;
-  for (auto o : op.getOperands())
-    lower.push_back(mapping.lookupOrDefault(o));
-  return rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(),
-                                     op.getIntegerSet(), lower, true);
-}
-
-scf::ForOp cloneWithoutResults(scf::ForOp op, PatternRewriter &rewriter,
-                               BlockAndValueMapping mapping = {}) {
-  return rewriter.create<scf::ForOp>(
-      op.getLoc(), mapping.lookupOrDefault(op.getLowerBound()),
-      mapping.lookupOrDefault(op.getUpperBound()),
-      mapping.lookupOrDefault(op.getStep()));
-}
-AffineForOp cloneWithoutResults(AffineForOp op, PatternRewriter &rewriter,
-                                BlockAndValueMapping mapping = {}) {
-  SmallVector<Value> lower;
-  for (auto o : op.getLowerBoundOperands())
-    lower.push_back(mapping.lookupOrDefault(o));
-  SmallVector<Value> upper;
-  for (auto o : op.getUpperBoundOperands())
-    upper.push_back(mapping.lookupOrDefault(o));
-  return rewriter.create<AffineForOp>(op.getLoc(), lower, op.getLowerBoundMap(),
-                                      upper, op.getUpperBoundMap(),
-                                      op.getStep());
-}
-
-Block *getThenBlock(scf::IfOp op) { return op.thenBlock(); }
-Block *getThenBlock(AffineIfOp op) { return op.getThenBlock(); }
-Block *getElseBlock(scf::IfOp op) { return op.elseBlock(); }
-Block *getElseBlock(AffineIfOp op) { return op.getElseBlock(); }
-bool inBound(scf::IfOp op, Value v) { return op.getCondition() == v; }
-bool inBound(AffineIfOp op, Value v) {
-  return llvm::any_of(op.getOperands(), [&](Value e) { return e == v; });
-}
-bool inBound(scf::ForOp op, Value v) { return op.getUpperBound() == v; }
-bool inBound(AffineForOp op, Value v) {
-  return llvm::any_of(op.getUpperBoundOperands(),
-                      [&](Value e) { return e == v; });
-}
-bool inBound(scf::WhileOp op, Value v) { return false; }
-bool hasElse(scf::IfOp op) { return op.getElseRegion().getBlocks().size() > 0; }
-bool hasElse(AffineIfOp op) { return op.elseRegion().getBlocks().size() > 0; }
-
 static bool couldWrite(Operation *op) {
   if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
     SmallVector<MemoryEffects::EffectInstance> localEffects;
@@ -1145,11 +1092,11 @@ struct RotateWhile : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
-static LogicalResult
-splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
-             SmallVector<Value> &iterCounts, scf::ParallelOp &preLoop,
-             scf::ParallelOp &postLoop, Block *&outerBlock,
-             scf::ParallelOp &outerLoop, scf::ExecuteRegionOp &outerEx) {
+LogicalResult splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter,
+                           BarrierOp barrier, SmallVector<Value> &iterCounts,
+                           scf::ParallelOp &preLoop, scf::ParallelOp &postLoop,
+                           Block *&outerBlock, scf::ParallelOp &outerLoop,
+                           memref::AllocaScopeOp &outerEx) {
 
   SmallVector<Value> outerLower;
   SmallVector<Value> outerUpper;
@@ -1181,7 +1128,7 @@ splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
     rewriter.eraseOp(&outerLoop.getBody()->back());
     outerBlock = outerLoop.getBody();
   } else {
-    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
     outerBlock = new Block();
     outerEx.getRegion().push_back(outerBlock);
   }
@@ -1203,11 +1150,12 @@ splitSubLoop(scf::ParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
   return success();
 }
 
-static LogicalResult
-splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
-             SmallVector<Value> &iterCounts, AffineParallelOp &preLoop,
-             AffineParallelOp &postLoop, Block *&outerBlock,
-             AffineParallelOp &outerLoop, scf::ExecuteRegionOp &outerEx) {
+LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
+                           BarrierOp barrier, SmallVector<Value> &iterCounts,
+                           AffineParallelOp &preLoop,
+                           AffineParallelOp &postLoop, Block *&outerBlock,
+                           AffineParallelOp &outerLoop,
+                           memref::AllocaScopeOp &outerEx) {
 
   SmallVector<AffineMap> outerLower;
   SmallVector<AffineMap> outerUpper;
@@ -1243,7 +1191,7 @@ splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter, BarrierOp barrier,
     rewriter.eraseOp(&outerLoop.getBody()->back());
     outerBlock = outerLoop.getBody();
   } else {
-    outerEx = rewriter.create<scf::ExecuteRegionOp>(op.getLoc(), TypeRange());
+    outerEx = rewriter.create<memref::AllocaScopeOp>(op.getLoc(), TypeRange());
     outerBlock = new Block();
     outerEx.getRegion().push_back(outerBlock);
   }
@@ -1808,26 +1756,26 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns.insert<
-            Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>, Reg2MemWhile,
-            Reg2MemIf<scf::IfOp>, Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
-            WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
-            WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-            InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
-            InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
-            InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
-            InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
-            InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
-            InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
-            InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-            InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
+        patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
+                        Reg2MemWhile, Reg2MemIf<scf::IfOp>,
+                        Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
+                        WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
+                        WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
+                        InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+                        InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+                        InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
+                        InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
+                        InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
 
-            InterchangeWhilePFor<scf::ParallelOp>,
-            InterchangeWhilePFor<AffineParallelOp>,
-            // NormalizeLoop,
-            NormalizeParallel
-            // RotateWhile,
-            >(&getContext());
+                        InterchangeWhilePFor<scf::ParallelOp>,
+                        InterchangeWhilePFor<AffineParallelOp>,
+                        // NormalizeLoop,
+                        NormalizeParallel
+                        // RotateWhile,
+                        >(&getContext());
         if (method.contains("mincut")) {
           patterns.insert<DistributeAroundBarrier<scf::ParallelOp, true>,
                           DistributeAroundBarrier<AffineParallelOp, true>>(
