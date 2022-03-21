@@ -1514,7 +1514,7 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     if (nextIf == &parent->front())
       return failure();
 
-    auto prevOp = nextIf->getPrevNode();
+    auto *prevOp = nextIf->getPrevNode();
 
     // Only move if op doesn't write or free memory (only read)
     if (!wouldOpBeTriviallyDead(prevOp))
@@ -1633,8 +1633,8 @@ struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
       }
 
     rewriter.setInsertionPoint(nextIf);
-    for (auto o : toMove) {
-      auto rep = rewriter.clone(*o);
+    for (auto *o : toMove) {
+      auto *rep = rewriter.clone(*o);
       rewriter.replaceOp(o, rep->getResults());
     }
 

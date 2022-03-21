@@ -91,7 +91,7 @@ typedef std::map<Node, std::set<Node>> Graph;
 void dump(Graph &G) {
   for (auto &pair : G) {
     pair.first.dump();
-    for (auto &N : pair.second) {
+    for (const auto &N : pair.second) {
       llvm::errs() << "\t";
       N.dump();
     }
@@ -104,7 +104,7 @@ static inline void bfs(const Graph &G,
                        const llvm::SetVector<Operation *> &Sources,
                        std::map<Node, Node> &parent) {
   std::deque<Node> q;
-  for (auto O : Sources) {
+  for (auto *O : Sources) {
     Node N(O);
     parent.emplace(N, Node(nullptr));
     q.push_back(N);
@@ -150,7 +150,7 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
 }
 
 static bool arePreceedingOpsRecomputable(Operation *op) {
-  auto prevOp = op->getPrevNode();
+  auto *prevOp = op->getPrevNode();
   while (prevOp) {
     if (!isRecomputable(prevOp))
       return false;
@@ -279,7 +279,7 @@ static void findValuesUsedBelow(polygeist::BarrierOp op,
   }
 
   llvm::SmallVector<std::pair<Operation *, Operation *>> todo;
-  for (auto A : Allocas)
+  for (auto *A : Allocas)
     todo.emplace_back(A, A);
 
   std::map<Operation *, SmallPtrSet<Operation *, 2>> descendants;
@@ -1295,7 +1295,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
       std::function<void(Value)> recalculateVal;
       recalculateVal = [&recalculateVal, &barrier, &mapping,
                         &rewriter](Value v) {
-        auto op = v.getDefiningOp();
+        auto *op = v.getDefiningOp();
         if (mapping.contains(v)) {
           return;
         } else if (op && op->getBlock() == barrier->getBlock()) {
@@ -1313,7 +1313,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
         recalculateVal(v);
         // Remap the uses of the recalculated val below the barrier
         for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-          auto user = u.getOwner();
+          auto *user = u.getOwner();
           while (user->getBlock() != barrier->getBlock())
             user = user->getBlock()->getParentOp();
           if (barrier->isBeforeInBlock(user)) {
@@ -1327,7 +1327,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
       crossingCache = usedBelow;
     }
 
-    for (auto alloca : preserveAllocas) {
+    for (auto *alloca : preserveAllocas) {
       crossingCache.remove(alloca->getResult(0));
     }
 
@@ -1459,7 +1459,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
       Value reloaded = rewriter.create<polygeist::CacheLoad>(
           v.getLoc(), alloc, preLoop.getBody()->getArguments());
       for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-        auto user = u.getOwner();
+        auto *user = u.getOwner();
         while (user->getBlock() != barrier->getBlock())
           user = user->getBlock()->getParentOp();
 

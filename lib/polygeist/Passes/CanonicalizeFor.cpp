@@ -506,7 +506,7 @@ struct WhileToForHelper {
       return false;
 
     // Cannot transform for if step is not loop-invariant
-    if (auto op = step.getDefiningOp()) {
+    if (auto *op = step.getDefiningOp()) {
       if (loop->isAncestor(op)) {
         return false;
       }
@@ -580,9 +580,9 @@ struct WhileToForHelper {
       lb = rewriter.create<AddIOp>(loop.getLoc(), lb, one);
     }
     if (ub_cloneMove) {
-      auto op = ub.getDefiningOp();
+      auto *op = ub.getDefiningOp();
       assert(op);
-      auto newOp = rewriter.clone(*op);
+      auto *newOp = rewriter.clone(*op);
       rewriter.replaceOp(op, newOp->getResults());
       ub = newOp->getResult(0);
     }
@@ -1384,7 +1384,7 @@ struct RemoveWhileSelect : public OpRewritePattern<WhileOp> {
 
     nop.getBefore().takeBody(loop.getBefore());
 
-    auto after = rewriter.createBlock(&nop.getAfter());
+    auto *after = rewriter.createBlock(&nop.getAfter());
     for (auto y : newYields)
       after->addArgument(y.getType(), loop.getLoc());
 
@@ -1544,7 +1544,7 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // Helper to check whether an operation is loop invariant wrt. SSA
     // properties.
     auto isDefinedOutsideOfBody = [&](Value value) {
-      auto definingOp = value.getDefiningOp();
+      auto *definingOp = value.getDefiningOp();
       if (!definingOp) {
         if (auto ba = value.dyn_cast<BlockArgument>())
           definingOp = ba.getOwner()->getParentOp();
@@ -1722,7 +1722,7 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
       changed = true;
       toErase.push_back(&*iter);
     }
-    for (auto op : toErase) {
+    for (auto *op : toErase) {
       rewriter.eraseOp(op);
     }
     return success(changed);

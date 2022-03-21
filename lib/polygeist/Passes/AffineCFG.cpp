@@ -115,7 +115,7 @@ static bool isAffineForArg(Value val) {
   if (!val.isa<BlockArgument>())
     return false;
   Operation *parentOp = val.cast<BlockArgument>().getOwner()->getParentOp();
-  return (parentOp && isa<AffineForOp, AffineParallelOp>(parentOp));
+  return (isa_and_nonnull<AffineForOp, AffineParallelOp>(parentOp));
 }
 
 static bool legalCondition(Value en, bool dim = false) {
@@ -316,13 +316,13 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     } else {
       if (!isValidSymbolInt(t, /*recur*/ false)) {
         if (auto idx = t.getDefiningOp()) {
-          auto scope = getAffineScope(idx)->getParentOp();
+          auto *scope = getAffineScope(idx)->getParentOp();
           DominanceInfo DI(scope);
 
           std::function<bool(Value)> fix = [&](Value v) -> bool /*legal*/ {
             if (isValidSymbolInt(v, /*recur*/ false))
               return true;
-            auto op = v.getDefiningOp();
+            auto *op = v.getDefiningOp();
             if (!op)
               llvm::errs() << v << "\n";
             assert(op);
@@ -334,7 +334,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             Operation *front = nullptr;
             for (auto o : op->getOperands()) {
               Operation *next;
-              if (auto op = o.getDefiningOp()) {
+              if (auto *op = o.getDefiningOp()) {
                 if (!fix(o)) {
                   return false;
                 }
@@ -527,7 +527,7 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
-      if (auto o = op.getDefiningOp())
+      if (auto *o = op.getDefiningOp())
         toInsert = o->getNextNode();
       else {
         auto BA = op.cast<BlockArgument>();
@@ -596,7 +596,7 @@ void fully2ComposeIntegerSetAndOperands(OpBuilder &builder, IntegerSet *set,
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
-      if (auto o = op.getDefiningOp())
+      if (auto *o = op.getDefiningOp())
         toInsert = o->getNextNode();
       else {
         auto BA = op.cast<BlockArgument>();
@@ -895,10 +895,10 @@ bool isValidIndex(Value val) {
     return true;
 
   if (auto ba = val.dyn_cast<BlockArgument>()) {
-    auto owner = ba.getOwner();
+    auto *owner = ba.getOwner();
     assert(owner);
 
-    auto parentOp = owner->getParentOp();
+    auto *parentOp = owner->getParentOp();
     if (!parentOp) {
       owner->dump();
       llvm::errs() << " ba: " << ba << "\n";

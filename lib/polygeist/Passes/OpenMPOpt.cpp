@@ -133,10 +133,10 @@ struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
               return nextParallel->isAncestor(user);
             });
           })) {
-        auto prevIter =
+        auto *prevIter =
             (prevOp == &parent->front()) ? nullptr : prevOp->getPrevNode();
         rewriter.setInsertionPointToStart(&nextParallel.getRegion().front());
-        auto replacement = rewriter.clone(*prevOp);
+        auto *replacement = rewriter.clone(*prevOp);
         rewriter.replaceOp(prevOp, replacement->getResults());
         changed = true;
         if (!prevIter)
@@ -180,7 +180,7 @@ struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
     auto newFor =
         rewriter.create<scf::ForOp>(prevFor.getLoc(), prevFor.getLowerBound(),
                                     prevFor.getUpperBound(), prevFor.getStep());
-    auto yield = nextParallel.getRegion().front().getTerminator();
+    auto *yield = nextParallel.getRegion().front().getTerminator();
     newFor.getRegion().takeBody(prevFor.getRegion());
     rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
                               newFor.getBody()->getTerminator());
@@ -188,7 +188,7 @@ struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
     rewriter.create<omp::BarrierOp>(nextParallel.getLoc());
 
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
-    auto newYield = rewriter.clone(*yield);
+    auto *newYield = rewriter.clone(*yield);
     rewriter.eraseOp(yield);
     rewriter.eraseOp(nextParallel);
     rewriter.eraseOp(prevFor);
@@ -229,7 +229,7 @@ struct ParallelIfInterchange : public OpRewritePattern<scf::IfOp> {
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
     auto newIf = rewriter.create<scf::IfOp>(
         prevIf.getLoc(), prevIf.getCondition(), /*hasElse*/ elseParallel);
-    auto yield = nextParallel.getRegion().front().getTerminator();
+    auto *yield = nextParallel.getRegion().front().getTerminator();
     rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
                               newIf.thenYield());
     if (elseParallel) {

@@ -64,7 +64,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
 
   bool checkDominance(Operation *a, ArrayRef<Operation *> bs) const {
     bool res = true;
-    for (auto b : bs)
+    for (auto *b : bs)
       if (!checkDominance(b, a)) {
         res = false;
         break;
@@ -106,7 +106,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         SmallVector<AffineStoreOp> candidateStores;
         SmallVector<Operation *> otherStores;
         SmallVector<Operation *> otherLoads;
-        for (auto user : memref.getUsers()) {
+        for (auto *user : memref.getUsers()) {
           if (auto store = dyn_cast<AffineStoreOp>(user)) {
             if (areInSameAffineFor(load, store, forOp) &&
                 areCompatible<AffineStoreOp>(load, store)) {
@@ -162,7 +162,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     llvm::append_range(newIterArgs, forOp.getRegionIterArgs());
     rewriter.setInsertionPoint(forOp);
     for (auto pair : candidateOpsInFor) {
-      auto movedLoad = rewriter.clone(*std::get<0>(pair));
+      auto *movedLoad = rewriter.clone(*std::get<0>(pair));
       newIterArgs.push_back(movedLoad->getResult(0));
     }
 
@@ -226,7 +226,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       auto store = cast<AffineStoreOp>(std::get<1>(pair));
 
       auto loads = loadsInFor[i];
-      for (auto load : loads) {
+      for (auto *load : loads) {
         if (PDT.postDominates(store, load)) {
           load->getResult(0).replaceAllUsesWith(
               newForOp.getBody()->getArguments()[i + origNumRegionArgs + 1]);
