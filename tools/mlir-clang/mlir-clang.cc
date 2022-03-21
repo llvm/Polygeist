@@ -276,7 +276,7 @@ int emitBinary(char *Argv0, const char *filename,
     chars[Output.length()] = 0;
     Argv.push_back(chars);
   }
-  for (auto arg : LinkArgs)
+  for (const auto *arg : LinkArgs)
     Argv.push_back(arg);
 
   const unique_ptr<Compilation> compilation(

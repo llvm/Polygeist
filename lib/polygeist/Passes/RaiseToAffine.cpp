@@ -143,7 +143,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       // The terminator is added if the iterator args are not provided.
       // see the ::build method.
       if (affineLoop.getNumIterOperands() == 0) {
-        auto affineYieldOp = newBlock.getTerminator();
+        auto *affineYieldOp = newBlock.getTerminator();
         rewriter.eraseOp(affineYieldOp);
       }
 
@@ -250,7 +250,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     // The terminator is added if the iterator args are not provided.
     // see the ::build method.
     if (affineLoop.getResults().size() == 0) {
-      auto affineYieldOp = newBlock.getTerminator();
+      auto *affineYieldOp = newBlock.getTerminator();
       rewriter.eraseOp(affineYieldOp);
     }
 

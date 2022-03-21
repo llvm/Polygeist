@@ -262,7 +262,7 @@ public:
         } else {
           auto opFound = metaMap.opOperands.find(sifOp);
           assert(opFound != metaMap.opOperands.end());
-          auto ifLastValue = opFound->second;
+          auto *ifLastValue = opFound->second;
           if (!ifLastValue->definedWithArg(block))
             return false;
         }
@@ -284,7 +284,7 @@ public:
         } else {
           auto opFound = metaMap.opOperands.find(ifOp);
           assert(opFound != metaMap.opOperands.end());
-          auto ifLastValue = opFound->second;
+          auto *ifLastValue = opFound->second;
           if (!ifLastValue->definedWithArg(block))
             return false;
         }
@@ -656,17 +656,17 @@ struct Analyzer {
       std::deque<Block *> todo(Other.begin(), Other.end());
       todo.insert(todo.end(), Good.begin(), Good.end());
       while (todo.size()) {
-        auto block = todo.front();
+        auto *block = todo.front();
         todo.pop_front();
         if (Legal.count(block) || Illegal.count(block))
           continue;
         bool currentlyLegal = !block->hasNoPredecessors();
-        for (auto pred : block->getPredecessors()) {
+        for (auto *pred : block->getPredecessors()) {
           if (Bad.count(pred)) {
             assert(!Legal.count(block));
             Illegal.insert(block);
             currentlyLegal = false;
-            for (auto succ : block->getSuccessors()) {
+            for (auto *succ : block->getSuccessors()) {
               todo.push_back(succ);
             }
             break;
@@ -675,7 +675,7 @@ struct Analyzer {
           } else if (Illegal.count(pred)) {
             Illegal.insert(block);
             currentlyLegal = false;
-            for (auto succ : block->getSuccessors()) {
+            for (auto *succ : block->getSuccessors()) {
               todo.push_back(succ);
             }
             break;
@@ -695,20 +695,20 @@ struct Analyzer {
         if (currentlyLegal) {
           Legal.insert(block);
           assert(!Illegal.count(block));
-          for (auto succ : block->getSuccessors()) {
+          for (auto *succ : block->getSuccessors()) {
             todo.push_back(succ);
           }
         }
       }
       bool changed = false;
-      for (auto O : Other) {
+      for (auto *O : Other) {
         if (Legal.count(O) || Illegal.count(O))
           continue;
         Analyzer AssumeLegal(Good, Bad, Other, Legal, Illegal, depth + 1);
         AssumeLegal.Legal.insert(O);
         AssumeLegal.analyze();
         bool currentlyLegal = true;
-        for (auto pred : O->getPredecessors()) {
+        for (auto *pred : O->getPredecessors()) {
           if (!AssumeLegal.Legal.count(pred) && !AssumeLegal.Good.count(pred)) {
             currentlyLegal = false;
             break;
@@ -761,7 +761,7 @@ void removeRedundantBlockArgs(
     todo.push_back(p.first);
 
   while (todo.size()) {
-    auto block = todo.front();
+    auto *block = todo.front();
     todo.pop_front();
     if (!blocksWithAddedArgs.count(block))
       continue;
@@ -777,7 +777,7 @@ void removeRedundantBlockArgs(
 
     SetVector<Block *> prepred(block->getPredecessors().begin(),
                                block->getPredecessors().end());
-    for (auto pred : prepred) {
+    for (auto *pred : prepred) {
       mlir::Value pval = nullptr;
 
       if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
@@ -862,7 +862,7 @@ void removeRedundantBlockArgs(
       assert(val || block->hasNoPredecessors());
 
     bool used = false;
-    for (auto U : blockArg.getUsers()) {
+    for (auto *U : blockArg.getUsers()) {
 
       if (auto op = dyn_cast<cf::BranchOp>(U)) {
         size_t i = 0;
@@ -902,10 +902,10 @@ void removeRedundantBlockArgs(
     }
 
     if (legal) {
-      for (auto U : blockArg.getUsers()) {
-        if (auto block = U->getBlock()) {
+      for (auto *U : blockArg.getUsers()) {
+        if (auto *block = U->getBlock()) {
           todo.push_back(block);
-          for (auto succ : block->getSuccessors())
+          for (auto *succ : block->getSuccessors())
             todo.push_back(succ);
         }
       }
@@ -922,7 +922,7 @@ void removeRedundantBlockArgs(
 
       SetVector<Block *> prepred(block->getPredecessors().begin(),
                                  block->getPredecessors().end());
-      for (auto pred : prepred) {
+      for (auto *pred : prepred) {
         if (auto op = dyn_cast<cf::BranchOp>(pred->getTerminator())) {
           mlir::OpBuilder subbuilder(op.getOperation());
           std::vector<Value> args(op.getOperands().begin(),
@@ -1249,18 +1249,18 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   SmallPtrSet<Region *, 4> ContainsLoadingOperation;
   {
     SmallVector<Region *> todo;
-    for (auto load : loadOps) {
+    for (auto *load : loadOps) {
       todo.push_back(load->getParentRegion());
     }
     while (todo.size()) {
-      auto op = todo.back();
+      auto *op = todo.back();
       todo.pop_back();
       if (ContainsLoadingOperation.contains(op))
         continue;
       if (op == parentAI)
         continue;
       ContainsLoadingOperation.insert(op);
-      auto parent = op->getParentRegion();
+      auto *parent = op->getParentRegion();
       assert(parent);
       todo.push_back(parent);
     }
@@ -1271,25 +1271,25 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   SmallPtrSet<Block *, 4> StoringBlocks;
   {
     std::deque<Block *> todo;
-    for (auto &pair : allStoreOps) {
+    for (const auto &pair : allStoreOps) {
       LLVM_DEBUG(llvm::dbgs() << " storing operation: " << *pair << "\n");
       todo.push_back(pair->getBlock());
     }
-    for (auto op : AliasingStoreOperations) {
+    for (auto *op : AliasingStoreOperations) {
       StoringOperations.insert(op);
       LLVM_DEBUG(llvm::dbgs()
                  << " aliasing storing operation: " << *op << "\n");
       todo.push_back(op->getBlock());
     }
     while (todo.size()) {
-      auto block = todo.front();
+      auto *block = todo.front();
       assert(block);
       todo.pop_front();
       StoringBlocks.insert(block);
       LLVM_DEBUG(llvm::dbgs() << " initial storing block: " << block << "\n");
-      if (auto op = block->getParentOp()) {
+      if (auto *op = block->getParentOp()) {
         StoringOperations.insert(op);
-        if (auto next = op->getBlock()) {
+        if (auto *next = op->getBlock()) {
           StoringBlocks.insert(next);
           LLVM_DEBUG(llvm::dbgs()
                      << " derived storing block: " << next << "\n");
@@ -1318,7 +1318,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   std::map<Block *, BlockArgument> blocksWithAddedArgs;
 
-  auto emptyValue = metaMap.get(nullptr);
+  auto *emptyValue = metaMap.get(nullptr);
 
   auto replaceValue =
       [&](Value orig, ValueOrPlaceholder *replacement) -> ValueOrPlaceholder * {
@@ -1367,7 +1367,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         LLVM_DEBUG(llvm::dbgs()
                        << "\nstarting block: lastVal=" << *lastVal << "\n";
                    block.print(llvm::dbgs()); llvm::dbgs() << "\n";);
-        for (auto a : ops) {
+        for (auto *a : ops) {
           if (StoringOperations.count(a)) {
             // erase a, in case overwritten later in metamap replacement/lookup.
             StoringOperations.erase(a);
@@ -1451,7 +1451,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         handleBlock(*cur, emptyValue);
       else
         handleBlock(*cur, metaMap.get(cur));
-      for (auto B : cur->getSuccessors())
+      for (auto *B : cur->getSuccessors())
         todo.push_back(B);
     }
   }
@@ -1488,7 +1488,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   std::deque<Block *> todo(PotentiallyHelpfulArgs.begin(),
                            PotentiallyHelpfulArgs.end());
   while (todo.size()) {
-    auto block = todo.back();
+    auto *block = todo.back();
     todo.pop_back();
 
     if (PotentialArgs.find(block) != PotentialArgs.end())
@@ -1499,7 +1499,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
                                block->getPredecessors().end());
     assert(prepred.size());
 
-    for (auto Pred : prepred) {
+    for (auto *Pred : prepred) {
 
       auto endFind = valueAtEndOfBlock.find(Pred);
       assert(endFind != valueAtEndOfBlock.end());
@@ -1513,7 +1513,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
       SmallPtrSet<Block *, 1> requirements;
       if (endFind->second->definedWithArg(requirements)) {
-        for (auto r : requirements) {
+        for (auto *r : requirements) {
           todo.push_back(r);
           UserMap[r].insert(block);
           RequirementMap[block].insert(r);
@@ -1528,16 +1528,16 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   // Mark all blocks which may have an illegal predecessor
   for (auto &pair : PotentialArgs)
     if (pair.second == Legality::Illegal)
-      for (auto next : UserMap[pair.first])
+      for (auto *next : UserMap[pair.first])
         todo.push_back(next);
 
   while (todo.size()) {
-    auto block = todo.back();
+    auto *block = todo.back();
     todo.pop_back();
     if (PotentialArgs[block] == Legality::Illegal)
       continue;
     PotentialArgs[block] = Legality::Illegal;
-    for (auto next : UserMap[block])
+    for (auto *next : UserMap[block])
       todo.push_back(next);
   }
 
@@ -1548,7 +1548,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
     bool _tmp = pair.second->definedWithArg(requirements);
     assert(_tmp);
     bool illegal = false;
-    for (auto r : requirements) {
+    for (auto *r : requirements) {
       if (PotentialArgs[r] == Legality::Illegal) {
         illegal = true;
         break;
@@ -1559,16 +1559,16 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       continue;
     }
     // Otherwise mark that block arg, and all of its dependencies as required.
-    for (auto r : requirements)
+    for (auto *r : requirements)
       todo.push_back(r);
 
     while (todo.size()) {
-      auto block = todo.back();
+      auto *block = todo.back();
       todo.pop_back();
       if (PotentialArgs[block] == Legality::Required)
         continue;
       PotentialArgs[block] = Legality::Required;
-      for (auto prev : RequirementMap[block])
+      for (auto *prev : RequirementMap[block])
         todo.push_back(prev);
     }
     nextReplacements.push_back(pair);
@@ -1584,13 +1584,13 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       Legal.push_back(pair.first);
     }
 
-  for (auto block : Legal) {
+  for (auto *block : Legal) {
     auto startFound = valueAtStartOfBlock.find(block);
 
     assert(startFound != valueAtStartOfBlock.end());
     assert(startFound->second->valueAtStart == block);
     auto arg = block->addArgument(subType, loc);
-    auto argVal = metaMap.get(arg);
+    auto *argVal = metaMap.get(arg);
     valueAtStartOfBlock[block] = argVal;
     blocksWithAddedArgs[block] = arg;
   }
@@ -1626,7 +1626,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
     SetVector<Block *> prepred(block->getPredecessors().begin(),
                                block->getPredecessors().end());
-    for (auto pred : prepred) {
+    for (auto *pred : prepred) {
       assert(pred && "Null predecessor");
       assert(valueAtEndOfBlock.find(pred) != valueAtEndOfBlock.end());
       assert(valueAtEndOfBlock.find(pred)->second);
@@ -1701,7 +1701,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
 
   removeRedundantBlockArgs(AI, elType, blocksWithAddedArgs);
 
-  for (auto loadOp : llvm::make_early_inc_range(loadOps)) {
+  for (auto *loadOp : llvm::make_early_inc_range(loadOps)) {
     assert(loadOp);
     if (loadOp->getResult(0).use_empty()) {
       loadOpsToErase.push_back(loadOp);
@@ -1718,7 +1718,7 @@ bool isPromotable(mlir::Value AI) {
     auto val = list.front();
     list.pop_front();
 
-    for (auto U : val.getUsers()) {
+    for (auto *U : val.getUsers()) {
       if (auto LO = dyn_cast<memref::LoadOp>(U)) {
         for (auto idx : LO.getIndices()) {
           if (!idx.getDefiningOp<ConstantIntOp>() &&
@@ -1790,7 +1790,7 @@ StoreMap getLastStored(mlir::Value AI) {
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
-    for (auto U : val.getUsers()) {
+    for (auto *U : val.getUsers()) {
       if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         std::vector<ssize_t> vec;
         for (auto idx : SO.getIndices()) {
@@ -1850,7 +1850,7 @@ StoreMap getLastStored(mlir::Value AI) {
 }
 
 void Mem2Reg::runOnOperation() {
-  auto f = getOperation();
+  auto *f = getOperation();
 
   // Variable indicating that a memref has had a load removed
   // and or been deleted. Because there can be memrefs of
@@ -1892,7 +1892,7 @@ void Mem2Reg::runOnOperation() {
     for (auto AI : toPromote) {
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
-      for (auto &vec : lastStored) {
+      for (const auto &vec : lastStored) {
         LLVM_DEBUG(llvm::dbgs() << " + forwarding vec to promote {";
                    for (auto m
                         : vec) llvm::dbgs()
@@ -1935,7 +1935,7 @@ void Mem2Reg::runOnOperation() {
         auto val = list.front();
         list.pop_front();
 
-        for (auto U : val.getUsers()) {
+        for (auto *U : val.getUsers()) {
           if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
             if (SO.getValue() == val) {
               error = true;
