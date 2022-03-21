@@ -83,7 +83,7 @@ module {
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%arg1) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:           memref.store %c0_i8, %1[%arg1] : memref<2xi8>
+// CHECK-NEXT:           memref.store %c0_i8, %2[%arg1] : memref<2xi8>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield

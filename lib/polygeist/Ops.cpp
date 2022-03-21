@@ -1877,6 +1877,7 @@ public:
     resultTypes.push_back(op.getType());
 
     auto rhs2 = rewriter.clone(*rhs)->getResult(0);
+    rewriter.setInsertionPoint(ifOp);
     auto nop = rewriter.create<scf::IfOp>(
         ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/ true);
     nop.getThenRegion().takeBody(ifOp.getThenRegion());
