@@ -511,7 +511,7 @@ public:
                llvm::zip(ifOp.getResults(), getThenYield(ifOp).getOperands(),
                          getElseYield(ifOp).getOperands()))) {
         if (std::get<1>(tup) == thenVal && std::get<2>(tup) == elseVal) {
-          return thenVal;
+          return std::get<0>(tup);
         }
       }
     }
@@ -571,7 +571,7 @@ static inline llvm::raw_ostream &operator<<(llvm::raw_ostream &os,
     ;
   }
   if (PH.ifOp)
-    return os << "ifOp:" << PH.ifOp;
+    return os << "ifOp:" << *PH.ifOp;
   if (PH.exOp)
     return os << "exOp:" << PH.exOp;
   return os;
