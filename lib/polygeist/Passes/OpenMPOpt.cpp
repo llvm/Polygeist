@@ -67,6 +67,36 @@ bool isReadOnly(Operation *op) {
   return false;
 }
 
+bool isReadNone(Operation *op) {
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  if (hasRecursiveEffects) {
+    for (Region &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &nestedOp : block)
+          if (!isReadNone(&nestedOp))
+            return false;
+      }
+    }
+  }
+
+  // If the op has memory effects, try to characterize them to see if the op
+  // is trivially dead here.
+  if (auto effectInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    // Check to see if this op either has no effects, or only allocates/reads
+    // memory.
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    effectInterface.getEffects(effects);
+    if (llvm::any_of(effects, [op](const MemoryEffects::EffectInstance &it) {
+          return isa<MemoryEffects::Read>(it.getEffect()) || isa<MemoryEffects::Write>(it.getEffect());
+        })) {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+
 struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
   using OpRewritePattern<omp::ParallelOp>::OpRewritePattern;
 

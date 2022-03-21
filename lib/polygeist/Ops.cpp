@@ -145,9 +145,10 @@ void BarrierOp::getEffects(
 
   // If this doesn't synchronize any values, it has no effects.
   if (llvm::all_of(getOperands(), [](Value v) {
-      IntegerAttr constValue;
-      return matchPattern(v, m_Constant(&constValue));
-              })) return;
+        IntegerAttr constValue;
+        return matchPattern(v, m_Constant(&constValue));
+      }))
+    return;
 
   Operation *op = getOperation();
 
@@ -157,6 +158,8 @@ void BarrierOp::getEffects(
   if (!getEffectsAfter(op, effects))
     return;
 }
+
+bool isReadNone(Operation *op);
 
 class BarrierHoist final : public OpRewritePattern<BarrierOp> {
 public:
@@ -169,12 +172,7 @@ public:
       bool below = true;
       for (Operation *it = barrier->getNextNode(); it != nullptr;
            it = it->getNextNode()) {
-        auto memInterface = dyn_cast<MemoryEffectOpInterface>(it);
-        if (!memInterface) {
-          below = false;
-          break;
-        }
-        if (!memInterface.hasNoEffect()) {
+        if (!isReadNone(it)) {
           below = false;
           break;
         }
@@ -188,12 +186,7 @@ public:
       bool above = true;
       for (Operation *it = barrier->getPrevNode(); it != nullptr;
            it = it->getPrevNode()) {
-        auto memInterface = dyn_cast<MemoryEffectOpInterface>(it);
-        if (!memInterface) {
-          above = false;
-          break;
-        }
-        if (!memInterface.hasNoEffect()) {
+        if (!isReadNone(it)) {
           above = false;
           break;
         }
@@ -203,6 +196,30 @@ public:
         rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
         rewriter.eraseOp(barrier);
         return success();
+      }
+    }
+    // Move barrier into after region and after loop, if possible
+    if (auto whileOp = dyn_cast<scf::WhileOp>(barrier->getParentOp())) {
+      if (barrier->getParentRegion() == &whileOp.getBefore()) {
+        auto cond = whileOp.getBefore().front().getTerminator();
+
+        bool above = true;
+        for (Operation *it = cond; it != nullptr; it = it->getPrevNode()) {
+          if (it == barrier)
+            break;
+          if (!isReadNone(it)) {
+            above = false;
+            break;
+          }
+        }
+        if (above) {
+          rewriter.setInsertionPointToStart(&whileOp.getAfter().front());
+          rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+          rewriter.setInsertionPoint(whileOp->getNextNode());
+          rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+          rewriter.eraseOp(barrier);
+          return success();
+        }
       }
     }
     return failure();
@@ -1901,20 +1918,20 @@ static bool isGuaranteedAutomaticAllocation(Operation *op) {
   return false;
 }
 
-template<typename T>
+template <typename T>
 struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T top,
                                 PatternRewriter &rewriter) const override {
 
-	Operation* op = top;
+    Operation *op = top;
     if (!op->getParentWithTrait<OpTrait::AutomaticAllocationScope>())
       return failure();
 
-    Operation *lastParentWithoutScope = 
-		op->hasTrait<OpTrait::AutomaticAllocationScope>() ? op :
-		op->getParentOp();
+    Operation *lastParentWithoutScope =
+        op->hasTrait<OpTrait::AutomaticAllocationScope>() ? op
+                                                          : op->getParentOp();
 
     if (!lastParentWithoutScope)
       return failure();
@@ -1929,7 +1946,8 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
                ->hasTrait<OpTrait::AutomaticAllocationScope>());
 
     Region *containingRegion = nullptr;
-	if (lastParentWithoutScope == op) containingRegion = &op->getRegion(0);
+    if (lastParentWithoutScope == op)
+      containingRegion = &op->getRegion(0);
     for (auto &r : lastParentWithoutScope->getRegions()) {
       if (r.isAncestor(op->getParentRegion())) {
         assert(containingRegion == nullptr &&
@@ -1940,9 +1958,12 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
     assert(containingRegion && "op must be contained in a region");
 
     SmallVector<Operation *> toHoist;
-    op->walk([&](Operation *alloc) {
-      if (!isGuaranteedAutomaticAllocation(alloc))
+    op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
+      if (alloc != op && alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
         return WalkResult::skip();
+
+      if (!isGuaranteedAutomaticAllocation(alloc))
+        return WalkResult::advance();
 
       // If any operand is not defined before the location of
       // lastParentWithoutScope (i.e. where we would hoist to), skip.
@@ -1984,14 +2005,16 @@ static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
   return false;
 }
 
-struct AggressiveAllocaScopeInliner : public OpRewritePattern<memref::AllocaScopeOp> {
+struct AggressiveAllocaScopeInliner
+    : public OpRewritePattern<memref::AllocaScopeOp> {
   using OpRewritePattern<memref::AllocaScopeOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(memref::AllocaScopeOp op,
                                 PatternRewriter &rewriter) const override {
     bool hasPotentialAlloca =
         op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
-            if (alloc == op || isa<LLVM::CallOp>(alloc) || isa<func::CallOp>(alloc))
+            if (alloc == op || isa<LLVM::CallOp>(alloc) ||
+                isa<func::CallOp>(alloc))
               return WalkResult::advance();
             if (isOpItselfPotentialAutomaticAllocation(alloc))
               return WalkResult::interrupt();
@@ -2023,12 +2046,11 @@ struct AggressiveAllocaScopeInliner : public OpRewritePattern<memref::AllocaScop
 
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
-                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
-                 CmpProp, UndefCmpProp,
-				 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
-				 AlwaysAllocaScopeHoister<scf::ForOp>,
-				 AlwaysAllocaScopeHoister<AffineForOp>,
-				 AggressiveAllocaScopeInliner
-				>(context);
+  results.insert<
+      TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext, UndefProp<ExtUIOp>,
+      UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
+      AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+      AlwaysAllocaScopeHoister<scf::ForOp>,
+      AlwaysAllocaScopeHoister<AffineForOp>, AggressiveAllocaScopeInliner>(
+      context);
 }
