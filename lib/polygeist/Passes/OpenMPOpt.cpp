@@ -87,7 +87,8 @@ bool isReadNone(Operation *op) {
     SmallVector<MemoryEffects::EffectInstance, 1> effects;
     effectInterface.getEffects(effects);
     if (llvm::any_of(effects, [op](const MemoryEffects::EffectInstance &it) {
-          return isa<MemoryEffects::Read>(it.getEffect()) || isa<MemoryEffects::Write>(it.getEffect());
+          return isa<MemoryEffects::Read>(it.getEffect()) ||
+                 isa<MemoryEffects::Write>(it.getEffect());
         })) {
       return false;
     }
@@ -95,7 +96,6 @@ bool isReadNone(Operation *op) {
   }
   return false;
 }
-
 
 struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
   using OpRewritePattern<omp::ParallelOp>::OpRewritePattern;
@@ -202,20 +202,25 @@ struct ParallelIfInterchange : public OpRewritePattern<scf::IfOp> {
 
   LogicalResult matchAndRewrite(scf::IfOp prevIf,
                                 PatternRewriter &rewriter) const override {
-    if (prevIf->getResults().size()) return failure();
+    if (prevIf->getResults().size())
+      return failure();
 
     omp::ParallelOp nextParallel = nullptr;
     if (auto thenB = prevIf.thenBlock()) {
-        if (thenB->getOperations().size() != 2) return failure();
-        nextParallel = dyn_cast<omp::ParallelOp>(&thenB->front());
+      if (thenB->getOperations().size() != 2)
+        return failure();
+      nextParallel = dyn_cast<omp::ParallelOp>(&thenB->front());
     }
-    if (!nextParallel) return failure();
+    if (!nextParallel)
+      return failure();
 
     omp::ParallelOp elseParallel = nullptr;
     if (auto elseB = prevIf.elseBlock()) {
-        if (elseB->getOperations().size() != 2) return failure();
-        elseParallel = dyn_cast<omp::ParallelOp>(&elseB->front());
-        if (!elseParallel) return failure();
+      if (elseB->getOperations().size() != 2)
+        return failure();
+      elseParallel = dyn_cast<omp::ParallelOp>(&elseB->front());
+      if (!elseParallel)
+        return failure();
     }
 
     rewriter.setInsertionPoint(prevIf);
@@ -228,9 +233,9 @@ struct ParallelIfInterchange : public OpRewritePattern<scf::IfOp> {
     rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
                               newIf.thenYield());
     if (elseParallel) {
-        rewriter.eraseOp(elseParallel.getRegion().front().getTerminator());
-        rewriter.mergeBlockBefore(&elseParallel.getRegion().front(),
-                                  newIf.elseYield());
+      rewriter.eraseOp(elseParallel.getRegion().front().getTerminator());
+      rewriter.mergeBlockBefore(&elseParallel.getRegion().front(),
+                                newIf.elseYield());
     }
 
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
