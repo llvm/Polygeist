@@ -117,9 +117,12 @@ struct CombineParallel : public OpRewritePattern<omp::ParallelOp> {
       return success(changed);
     }
 
+    // TODO analyze if already has barrier at the end
+    bool preBarrier = false;
     rewriter.setInsertionPointToEnd(&prevParallel.getRegion().front());
-    rewriter.replaceOpWithNewOp<omp::BarrierOp>(
-        prevParallel.getRegion().front().getTerminator(), TypeRange());
+    if (!preBarrier)
+      rewriter.replaceOpWithNewOp<omp::BarrierOp>(
+          prevParallel.getRegion().front().getTerminator(), TypeRange());
     rewriter.mergeBlocks(&nextParallel.getRegion().front(),
                          &prevParallel.getRegion().front());
     rewriter.eraseOp(nextParallel);
@@ -164,31 +167,44 @@ struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
   }
 };
 
-struct ParallelIfInterchange : public OpRewritePattern<omp::ParallelOp> {
-  using OpRewritePattern<omp::ParallelOp>::OpRewritePattern;
+struct ParallelIfInterchange : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(omp::ParallelOp nextParallel,
+  LogicalResult matchAndRewrite(scf::IfOp prevIf,
                                 PatternRewriter &rewriter) const override {
-    Block *parent = nextParallel->getBlock();
-    if (parent->getOperations().size() != 2)
-      return failure();
+    if (prevIf->getResults().size()) return failure();
 
-    auto prevIf = dyn_cast<scf::IfOp>(nextParallel->getParentOp());
-    if (!prevIf || prevIf->getResults().size())
-      return failure();
+    omp::ParallelOp nextParallel = nullptr;
+    if (auto thenB = prevIf.thenBlock()) {
+        if (thenB->getOperations().size() != 2) return failure();
+        nextParallel = dyn_cast<omp::ParallelOp>(&thenB->front());
+    }
+    if (!nextParallel) return failure();
+
+    omp::ParallelOp elseParallel = nullptr;
+    if (auto elseB = prevIf.elseBlock()) {
+        if (elseB->getOperations().size() != 2) return failure();
+        elseParallel = dyn_cast<omp::ParallelOp>(&elseB->front());
+        if (!elseParallel) return failure();
+    }
 
     rewriter.setInsertionPoint(prevIf);
     auto newParallel = rewriter.create<omp::ParallelOp>(nextParallel.getLoc());
     rewriter.createBlock(&newParallel.getRegion());
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
     auto newIf = rewriter.create<scf::IfOp>(
-        prevIf.getLoc(), prevIf.getCondition(), /*hasElse*/ false);
+        prevIf.getLoc(), prevIf.getCondition(), /*hasElse*/ elseParallel);
     auto yield = nextParallel.getRegion().front().getTerminator();
     rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
                               newIf.thenYield());
+    if (elseParallel) {
+        rewriter.eraseOp(elseParallel.getRegion().front().getTerminator());
+        rewriter.mergeBlockBefore(&elseParallel.getRegion().front(),
+                                  newIf.elseYield());
+    }
 
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());
-    auto newYield = rewriter.clone(*yield);
+    rewriter.clone(*yield);
     rewriter.eraseOp(yield);
     rewriter.eraseOp(prevIf);
     return success();

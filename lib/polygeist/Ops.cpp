@@ -142,6 +142,13 @@ bool getEffectsAfter(Operation *op,
 
 void BarrierOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+
+  // If this doesn't synchronize any values, it has no effects.
+  if (llvm::all_of(getOperands(), [](Value v) {
+      IntegerAttr constValue;
+      return matchPattern(v, m_Constant(&constValue));
+              })) return;
+
   Operation *op = getOperation();
 
   if (!getEffectsBefore(op, effects))
@@ -1877,9 +1884,151 @@ public:
   }
 };
 
+/// Given an operation, return whether this op is guaranteed to
+/// allocate an AutomaticAllocationScopeResource
+static bool isGuaranteedAutomaticAllocation(Operation *op) {
+  MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!interface)
+    return false;
+  for (auto res : op->getResults()) {
+    if (auto effect =
+            interface.getEffectOnValue<MemoryEffects::Allocate>(res)) {
+      if (isa<SideEffects::AutomaticAllocationScopeResource>(
+              effect->getResource()))
+        return true;
+    }
+  }
+  return false;
+}
+
+template<typename T>
+struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T top,
+                                PatternRewriter &rewriter) const override {
+
+	Operation* op = top;
+    if (!op->getParentWithTrait<OpTrait::AutomaticAllocationScope>())
+      return failure();
+
+    Operation *lastParentWithoutScope = 
+		op->hasTrait<OpTrait::AutomaticAllocationScope>() ? op :
+		op->getParentOp();
+
+    if (!lastParentWithoutScope)
+      return failure();
+
+    while (!lastParentWithoutScope->getParentOp()
+                ->hasTrait<OpTrait::AutomaticAllocationScope>()) {
+      lastParentWithoutScope = lastParentWithoutScope->getParentOp();
+      if (!lastParentWithoutScope)
+        return failure();
+    }
+    assert(lastParentWithoutScope->getParentOp()
+               ->hasTrait<OpTrait::AutomaticAllocationScope>());
+
+    Region *containingRegion = nullptr;
+	if (lastParentWithoutScope == op) containingRegion = &op->getRegion(0);
+    for (auto &r : lastParentWithoutScope->getRegions()) {
+      if (r.isAncestor(op->getParentRegion())) {
+        assert(containingRegion == nullptr &&
+               "only one region can contain the op");
+        containingRegion = &r;
+      }
+    }
+    assert(containingRegion && "op must be contained in a region");
+
+    SmallVector<Operation *> toHoist;
+    op->walk([&](Operation *alloc) {
+      if (!isGuaranteedAutomaticAllocation(alloc))
+        return WalkResult::skip();
+
+      // If any operand is not defined before the location of
+      // lastParentWithoutScope (i.e. where we would hoist to), skip.
+      if (llvm::any_of(alloc->getOperands(), [&](Value v) {
+            return containingRegion->isAncestor(v.getParentRegion());
+          }))
+        return WalkResult::skip();
+      toHoist.push_back(alloc);
+      return WalkResult::advance();
+    });
+
+    if (toHoist.empty())
+      return failure();
+    rewriter.setInsertionPoint(lastParentWithoutScope);
+    for (auto *op : toHoist) {
+      auto *cloned = rewriter.clone(*op);
+      rewriter.replaceOp(op, cloned->getResults());
+    }
+    return success();
+  }
+};
+
+static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
+  // This op itself doesn't create a stack allocation,
+  // the inner allocation should be handled separately.
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+    return false;
+  MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!interface)
+    return true;
+  for (auto res : op->getResults()) {
+    if (auto effect =
+            interface.getEffectOnValue<MemoryEffects::Allocate>(res)) {
+      if (isa<SideEffects::AutomaticAllocationScopeResource>(
+              effect->getResource()))
+        return true;
+    }
+  }
+  return false;
+}
+
+struct AggressiveAllocaScopeInliner : public OpRewritePattern<memref::AllocaScopeOp> {
+  using OpRewritePattern<memref::AllocaScopeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::AllocaScopeOp op,
+                                PatternRewriter &rewriter) const override {
+    bool hasPotentialAlloca =
+        op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
+            if (alloc == op || isa<LLVM::CallOp>(alloc) || isa<func::CallOp>(alloc))
+              return WalkResult::advance();
+            if (isOpItselfPotentialAutomaticAllocation(alloc))
+              return WalkResult::interrupt();
+            if (alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
+              return WalkResult::skip();
+            return WalkResult::advance();
+          }).wasInterrupted();
+
+    // If this contains no potential allocation, it is always legal to
+    // inline. Otherwise, consider two conditions:
+    if (hasPotentialAlloca) {
+      // If the parent isn't an allocation scope, or we are not the last
+      // non-terminator op in the parent, we will extend the lifetime.
+      if (!op->getParentOp()->hasTrait<OpTrait::AutomaticAllocationScope>())
+        return failure();
+      // if (!lastNonTerminatorInRegion(op))
+      //  return failure();
+    }
+
+    Block *block = &op.getRegion().front();
+    Operation *terminator = block->getTerminator();
+    ValueRange results = terminator->getOperands();
+    rewriter.mergeBlockBefore(block, op);
+    rewriter.replaceOp(op, results);
+    rewriter.eraseOp(terminator);
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
                  UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
-                 CmpProp, UndefCmpProp>(context);
+                 CmpProp, UndefCmpProp,
+				 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+				 AlwaysAllocaScopeHoister<scf::ForOp>,
+				 AlwaysAllocaScopeHoister<AffineForOp>,
+				 AggressiveAllocaScopeInliner
+				>(context);
 }
