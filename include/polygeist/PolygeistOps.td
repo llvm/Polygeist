@@ -16,6 +16,24 @@ include "mlir/Interfaces/ViewLikeInterface.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 
+def CacheLoad
+    : Polygeist_Op<"cacheload"> {
+
+  let arguments = (ins Arg<AnyMemRef, "the reference to load from",
+                           [MemRead]>:$memref,
+                       Variadic<Index>:$indices);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilder<(ins "Value":$memref, CArg<"ValueRange", "{}">:$indices), [{
+      auto memrefType = memref.getType().cast<MemRefType>();
+      $_state.addOperands(memref);
+      $_state.addOperands(indices);
+      $_state.types.push_back(memrefType.getElementType());
+    }]>];
+  let summary = "load from cross barier cache";
+  let description = [{}];
+}
+
 // HasParent<"ParallelOp">,
 def BarrierOp
     : Polygeist_Op<"barrier",
