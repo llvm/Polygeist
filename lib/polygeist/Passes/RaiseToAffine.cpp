@@ -121,14 +121,14 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs);
-        canonicalizeMapAndOperands(&lbMap, &ubs);
+        canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
       AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs);
         canonicalizeMapAndOperands(&ubMap, &ubs);
-        lbMap = removeDuplicateExprs(lbMap);
+        ubMap = removeDuplicateExprs(ubMap);
       }
 
       AffineForOp affineLoop = rewriter.create<AffineForOp>(

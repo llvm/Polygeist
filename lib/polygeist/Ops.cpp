@@ -1555,6 +1555,13 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     if (!thenUse && !elseUse)
       return failure();
 
+    // If this is used in an affine if/for/parallel op, do not move it, as it
+    // may no longer be a legal symbol
+    for (OpOperand &use : prevOp->getUses()) {
+      if (isa<AffineForOp, AffineIfOp, AffineParallelOp>(use.getOwner()))
+        return failure();
+    }
+
     rewriter.startRootUpdate(nextIf);
     rewriter.startRootUpdate(prevOp);
     prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front()
