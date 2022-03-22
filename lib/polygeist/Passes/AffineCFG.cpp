@@ -189,17 +189,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     auto t = operands[i];
     if (!isValidSymbolInt(t, /*recur*/ false)) {
       while (auto idx = t.getDefiningOp<IndexCastOp>()) {
-        if (idx.getIn().getDefiningOp<ConstantIntOp>() ||
-            idx.getIn().getDefiningOp<ConstantIndexOp>() ||
-            idx.getIn().getDefiningOp<AddIOp>() ||
-            idx.getIn().getDefiningOp<SubIOp>() ||
-            idx.getIn().getDefiningOp<MulIOp>() ||
-            idx.getIn().getDefiningOp<DivSIOp>() ||
-            idx.getIn().getDefiningOp<DivUIOp>() ||
-            idx.getIn().getDefiningOp<RemUIOp>())
-          t = idx.getIn();
-        else
-          break;
+        t = idx.getIn();
       }
     }
 
@@ -472,9 +462,8 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   assert(map->getNumInputs() == operands->size());
   for (size_t i = 0; i < map->getNumInputs(); ++i) {
     auto v = (*operands)[i];
-    if (legalCondition(v, i < map->getNumDims())) {
+    if (legalCondition(v, i < map->getNumDims()))
       return true;
-    }
   }
   return false;
 }
@@ -519,16 +508,8 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
   }
   assert(map->getNumInputs() == operands->size());
   while (need(map, operands)) {
-    // llvm::errs() << "pre: " << *map << "\n";
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
     composeAffineMapAndOperands(map, operands);
     assert(map->getNumInputs() == operands->size());
-    // llvm::errs() << "post: " << *map << "\n";
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
   }
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {

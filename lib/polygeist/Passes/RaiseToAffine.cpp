@@ -34,30 +34,6 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
     return isValidSymbol(loop.getStep());
   }
 
-  void canonicalizeLoopBounds(PatternRewriter &rewriter,
-                              AffineForOp forOp) const {
-    SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
-    SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
-
-    auto lbMap = forOp.getLowerBoundMap();
-    auto ubMap = forOp.getUpperBoundMap();
-    auto prevLbMap = lbMap;
-    auto prevUbMap = ubMap;
-
-    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
-    canonicalizeMapAndOperands(&lbMap, &lbOperands);
-    lbMap = removeDuplicateExprs(lbMap);
-
-    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
-    canonicalizeMapAndOperands(&ubMap, &ubOperands);
-    ubMap = removeDuplicateExprs(ubMap);
-
-    if (lbMap != prevLbMap)
-      forOp.setLowerBound(lbOperands, lbMap);
-    if (ubMap != prevUbMap)
-      forOp.setUpperBound(ubOperands, ubMap);
-  }
-
   int64_t getStep(mlir::Value value) const {
     ConstantIndexOp cstOp = value.getDefiningOp<ConstantIndexOp>();
     if (cstOp)
@@ -142,12 +118,22 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         rewrittenStep = true;
       }
 
-      AffineForOp affineLoop = rewriter.create<AffineForOp>(
-          loop.getLoc(), lbs, getMultiSymbolIdentity(builder, lbs.size()), ubs,
-          getMultiSymbolIdentity(builder, ubs.size()), getStep(loop.getStep()),
-          loop.getIterOperands());
+      AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
+      {
+        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs);
+        canonicalizeMapAndOperands(&lbMap, &ubs);
+        lbMap = removeDuplicateExprs(lbMap);
+      }
+      AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
+      {
+        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs);
+        canonicalizeMapAndOperands(&ubMap, &ubs);
+        lbMap = removeDuplicateExprs(lbMap);
+      }
 
-      canonicalizeLoopBounds(rewriter, affineLoop);
+      AffineForOp affineLoop = rewriter.create<AffineForOp>(
+          loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
+          loop.getIterOperands());
 
       auto mergedYieldOp =
           cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
