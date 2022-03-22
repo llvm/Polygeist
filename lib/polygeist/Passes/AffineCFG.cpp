@@ -315,7 +315,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       auxiliaryExprs.push_back(affineApplyMap.getResult(0));
     } else {
       if (!isValidSymbolInt(t, /*recur*/ false)) {
-        if (auto idx = t.getDefiningOp<IndexCastOp>()) {
+        if (auto idx = t.getDefiningOp()) {
           auto scope = getAffineScope(idx)->getParentOp();
           DominanceInfo DI(scope);
 
@@ -357,10 +357,10 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             op->moveAfter(front);
             return true;
           };
-          if (fix(idx))
-            assert(isValidSymbolInt(idx, /*recur*/ false));
+          if (fix(t))
+            assert(isValidSymbolInt(t, /*recur*/ false));
           else
-            t = idx.getIn();
+            assert(0 && "cannot move");
         } else
           assert(0 && "cannot move");
       }

@@ -759,6 +759,7 @@ void removeRedundantBlockArgs(
   std::deque<Block *> todo;
   for (auto &p : blocksWithAddedArgs)
     todo.push_back(p.first);
+
   while (todo.size()) {
     auto block = todo.front();
     todo.pop_front();
@@ -768,6 +769,7 @@ void removeRedundantBlockArgs(
     BlockArgument blockArg = blocksWithAddedArgs.find(block)->second;
     if (blockArg.getOwner() != block)
       continue;
+
     assert(blockArg.getOwner() == block);
 
     mlir::Value val = nullptr;
@@ -964,7 +966,9 @@ void removeRedundantBlockArgs(
               cases.back().erase(cases.back().begin() +
                                  blockArg.getArgNumber());
             }
-            vrange.push_back(cases.back());
+          }
+          for (auto &c : cases) {
+            vrange.push_back(c);
           }
           builder.create<cf::SwitchOp>(
               op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
@@ -1628,13 +1632,16 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       assert(valueAtEndOfBlock.find(pred)->second);
       mlir::Value pval =
           valueAtEndOfBlock.find(pred)->second->materialize(true);
-      if (!pval) {
+      if (!pval || pval.getType() != elType) {
         AI.getDefiningOp()->getParentOfType<FuncOp>().dump();
         pred->dump();
         llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second
                      << " AI: " << AI << "\n";
+        if (pval)
+          llvm::errs() << " mat pval: " << pval << "\n";
       }
       assert(pval && "Null last stored");
+      assert(pval.getType() == elType);
       assert(pred->getTerminator());
 
       assert(blockArg.getOwner() == block);
@@ -1679,9 +1686,10 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           }
         }
         SmallVector<ValueRange> vrange;
-        for (auto c : cases)
+        for (auto &c : cases) {
           vrange.push_back(c);
-        builder.create<cf::SwitchOp>(
+        }
+        auto newop = builder.create<cf::SwitchOp>(
             op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
             op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
         op.erase();

@@ -18,11 +18,11 @@ module {
   }
 }
 
-// CHECK:   func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
+// CHECK:   func @main(%arg0: i1, %arg1: i32, %arg2: memref<?xf32>, %arg3: memref<?xf32>) {
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     scf.if %arg3 {
-// CHECK-NEXT:       affine.for %arg4 = 1 to %0 {
-// CHECK-NEXT:         %1 = memref.load %arg0[%arg4] : memref<?xf64>
-// CHECK-NEXT:         memref.store %1, %arg2[%arg4] : memref<?xf64>
+// CHECK-NEXT:     scf.if %arg0 {
+// CHECK-NEXT:       affine.for %arg4 = 0 to %0 {
+// CHECK-NEXT:         %1 = memref.load %arg3[%arg4] : memref<?xf32>
+// CHECK-NEXT:         memref.store %1, %arg2[%arg4] : memref<?xf32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
