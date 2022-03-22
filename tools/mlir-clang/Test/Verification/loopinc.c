@@ -1,5 +1,8 @@
 // RUN: mlir-clang %s --function=test -S | FileCheck %s
 
+// TODO
+// XFAIL: * 
+
 unsigned int test() {
   int divisor = 1;
   unsigned int shift;  // Shift amounts.

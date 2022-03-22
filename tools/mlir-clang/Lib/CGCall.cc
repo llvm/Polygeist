@@ -264,7 +264,7 @@ ValueCategory MLIRScanner::CallHelper(
         blocks[i] = builder.create<IndexCastOp>(
             loc, mlir::IndexType::get(builder.getContext()),
             builder.create<LLVM::LoadOp>(
-                loc, mlir::IndexType::get(builder.getContext()),
+                loc,
                 builder.create<LLVM::GEPOp>(
                     loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
                     val, idx)));
