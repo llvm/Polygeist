@@ -655,7 +655,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         Block *block = &insertRegion.front();
         IRRewriter B(exec->getContext());
         Operation *terminator = block->getTerminator();
-        ValueRange results = terminator->getOperands();
+        SmallVector<Value> results;
+        llvm::append_range(results, terminator->getOperands());
         terminator->erase();
         B.mergeBlockBefore(block, exec);
         exec.replaceAllUsesWith(results);

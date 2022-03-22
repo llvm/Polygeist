@@ -189,17 +189,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     auto t = operands[i];
     if (!isValidSymbolInt(t, /*recur*/ false)) {
       while (auto idx = t.getDefiningOp<IndexCastOp>()) {
-        if (idx.getIn().getDefiningOp<ConstantIntOp>() ||
-            idx.getIn().getDefiningOp<ConstantIndexOp>() ||
-            idx.getIn().getDefiningOp<AddIOp>() ||
-            idx.getIn().getDefiningOp<SubIOp>() ||
-            idx.getIn().getDefiningOp<MulIOp>() ||
-            idx.getIn().getDefiningOp<DivSIOp>() ||
-            idx.getIn().getDefiningOp<DivUIOp>() ||
-            idx.getIn().getDefiningOp<RemUIOp>())
-          t = idx.getIn();
-        else
-          break;
+        t = idx.getIn();
       }
     }
 
@@ -325,7 +315,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       auxiliaryExprs.push_back(affineApplyMap.getResult(0));
     } else {
       if (!isValidSymbolInt(t, /*recur*/ false)) {
-        if (auto idx = t.getDefiningOp<IndexCastOp>()) {
+        if (auto idx = t.getDefiningOp()) {
           auto scope = getAffineScope(idx)->getParentOp();
           DominanceInfo DI(scope);
 
@@ -367,10 +357,10 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             op->moveAfter(front);
             return true;
           };
-          if (fix(idx))
-            assert(isValidSymbolInt(idx, /*recur*/ false));
+          if (fix(t))
+            assert(isValidSymbolInt(t, /*recur*/ false));
           else
-            t = idx.getIn();
+            assert(0 && "cannot move");
         } else
           assert(0 && "cannot move");
       }
@@ -472,9 +462,8 @@ bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   assert(map->getNumInputs() == operands->size());
   for (size_t i = 0; i < map->getNumInputs(); ++i) {
     auto v = (*operands)[i];
-    if (legalCondition(v, i < map->getNumDims())) {
+    if (legalCondition(v, i < map->getNumDims()))
       return true;
-    }
   }
   return false;
 }
@@ -491,7 +480,18 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
                                        SmallVectorImpl<Value> *operands) {
   BlockAndValueMapping indexMap;
   for (auto op : *operands) {
-    if (auto idx = op.getDefiningOp<IndexCastOp>()) {
+    SmallVector<IndexCastOp> attempt;
+    auto idx0 = op.getDefiningOp<IndexCastOp>();
+    attempt.push_back(idx0);
+    if (!idx0)
+      continue;
+
+    for (auto &u : idx0.getIn().getUses()) {
+      if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
+        attempt.push_back(idx);
+    }
+
+    for (auto idx : attempt) {
       Operation *start = idx;
       bool immediate = false;
 
@@ -513,22 +513,16 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
         }
         break;
       }
-      if (immediate)
+      if (immediate) {
         indexMap.map(idx.getIn(), idx);
+        break;
+      }
     }
   }
   assert(map->getNumInputs() == operands->size());
   while (need(map, operands)) {
-    // llvm::errs() << "pre: " << *map << "\n";
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
     composeAffineMapAndOperands(map, operands);
     assert(map->getNumInputs() == operands->size());
-    // llvm::errs() << "post: " << *map << "\n";
-    // for(auto op : *operands) {
-    //  llvm::errs() << " -- operands: " << op << "\n";
-    //}
   }
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
