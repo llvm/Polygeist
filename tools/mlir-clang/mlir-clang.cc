@@ -407,6 +407,7 @@ int main(int argc, char **argv) {
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
+  IndexType::attachInterface<PtrElementModel<IndexType>>(context);
   LLVM::LLVMStructType::attachInterface<PtrElementModel<LLVM::LLVMStructType>>(
       context);
   LLVM::LLVMPointerType::attachInterface<

@@ -480,7 +480,18 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
                                        SmallVectorImpl<Value> *operands) {
   BlockAndValueMapping indexMap;
   for (auto op : *operands) {
-    if (auto idx = op.getDefiningOp<IndexCastOp>()) {
+    SmallVector<IndexCastOp> attempt;
+    auto idx0 = op.getDefiningOp<IndexCastOp>();
+    attempt.push_back(idx0);
+    if (!idx0)
+      continue;
+
+    for (auto &u : idx0.getIn().getUses()) {
+      if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
+        attempt.push_back(idx);
+    }
+
+    for (auto idx : attempt) {
       Operation *start = idx;
       bool immediate = false;
 
@@ -502,8 +513,10 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
         }
         break;
       }
-      if (immediate)
+      if (immediate) {
         indexMap.map(idx.getIn(), idx);
+        break;
+      }
     }
   }
   assert(map->getNumInputs() == operands->size());

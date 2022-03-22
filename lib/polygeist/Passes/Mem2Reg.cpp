@@ -1671,15 +1671,16 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
           defaultOps.push_back(pval);
 
         SmallVector<SmallVector<Value>> cases;
-        SmallVector<ValueRange> vrange;
         for (auto pair : llvm::enumerate(op.getCaseDestinations())) {
           cases.emplace_back(op.getCaseOperands(pair.index()).begin(),
                              op.getCaseOperands(pair.index()).end());
           if (pair.value() == block) {
             cases.back().push_back(pval);
           }
-          vrange.push_back(cases.back());
         }
+        SmallVector<ValueRange> vrange;
+        for (auto c : cases)
+          vrange.push_back(c);
         builder.create<cf::SwitchOp>(
             op.getLoc(), op.getFlag(), op.getDefaultDestination(), defaultOps,
             op.getCaseValuesAttr(), op.getCaseDestinations(), vrange);
