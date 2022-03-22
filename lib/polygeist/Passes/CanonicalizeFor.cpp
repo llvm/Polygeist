@@ -442,9 +442,11 @@ struct WhileToForHelper {
     }
 
     // Before region contains more than just the comparison
-    if (sizeCheck) {
+    {
       size_t size = loop.getBefore().front().getOperations().size();
       if (extType)
+        size--;
+      if (!sizeCheck)
         size--;
       if (size != 2) {
         return false;
