@@ -178,7 +178,7 @@ private:
 
   const clang::FunctionDecl *EmitCallee(const Expr *E);
 
-  mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
+  mlir::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
   std::map<int, mlir::Value> constants;
 

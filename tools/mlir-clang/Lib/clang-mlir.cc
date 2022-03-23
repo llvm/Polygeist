@@ -4870,8 +4870,7 @@ public:
   }
 };
 
-mlir::FuncOp MLIRScanner::EmitDirectCallee(GlobalDecl GD) {
-  const FunctionDecl *FD = cast<FunctionDecl>(GD.getDecl());
+mlir::FuncOp MLIRScanner::EmitDirectCallee(const FunctionDecl *FD) {
   return Glob.GetOrCreateMLIRFunction(FD);
 }
 
