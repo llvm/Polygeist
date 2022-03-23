@@ -978,6 +978,12 @@ ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
   return nullptr;
 }
 
+ValueCategory MLIRScanner::VisitCXXTryStmt(clang::CXXTryStmt *stmt) {
+  llvm::errs() << "warning, not performing catches for try: ";
+  stmt->dump();
+  return Visit(stmt->getTryBlock());
+}
+
 ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   IfScope scope(*this);
   bool isArrayReturn = false;

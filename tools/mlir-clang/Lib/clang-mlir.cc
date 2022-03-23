@@ -1107,7 +1107,23 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
 
   mlir::Value alloc;
   mlir::Value arrayCons;
-  if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+  if (!expr->placement_arguments().empty()) {
+    mlir::Value val = Visit(*expr->placement_arg_begin()).getValue(builder);
+    if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+      arrayCons = alloc =
+          builder.create<polygeist::Pointer2MemrefOp>(loc, mt, val);
+    } else {
+      arrayCons = alloc = builder.create<mlir::LLVM::BitcastOp>(loc, ty, val);
+      auto PT = ty.cast<LLVM::LLVMPointerType>();
+      if (expr->isArray())
+        arrayCons = builder.create<mlir::LLVM::BitcastOp>(
+            loc,
+            LLVM::LLVMPointerType::get(
+                LLVM::LLVMArrayType::get(PT.getElementType(), 0),
+                PT.getAddressSpace()),
+            alloc);
+    }
+  } else if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
     auto shape = std::vector<int64_t>(mt.getShape());
     mlir::Value args[1] = {count};
     arrayCons = alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
@@ -1116,7 +1132,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
     auto typeSize = getTypeSize(expr->getAllocatedType());
     mlir::Value args[1] = {builder.create<arith::MulIOp>(loc, typeSize, count)};
     args[0] = builder.create<IndexCastOp>(loc, i64, args[0]);
-    alloc = builder.create<mlir::LLVM::BitcastOp>(
+    arrayCons = alloc = builder.create<mlir::LLVM::BitcastOp>(
         loc, ty,
         builder
             .create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(),

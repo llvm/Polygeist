@@ -249,6 +249,8 @@ public:
 
   ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
+  ValueCategory VisitCXXTryStmt(clang::CXXTryStmt *stmt);
+
   ValueCategory VisitStringLiteral(clang::StringLiteral *expr);
 
   ValueCategory VisitParenExpr(clang::ParenExpr *expr);
