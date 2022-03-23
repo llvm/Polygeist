@@ -52,6 +52,11 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
 }
 
+def ParallelLICM : Pass<"parallel-licm"> {
+  let summary = "Perform LICM on known parallel (and serial) loops";
+  let constructor = "mlir::polygeist::createParallelLICMPass()";
+}
+
 def OpenMPOptPass : Pass<"openmp-opt"> {
   let summary = "Optimize OpenMP";
   let constructor = "mlir::polygeist::createOpenMPOptPass()";

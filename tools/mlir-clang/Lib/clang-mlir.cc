@@ -2539,13 +2539,20 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                                         ArrayRef<mlir::Value>(vals)),
             false);
       }
-      return ValueCategory(
+      mlir::Value val =
           builder.create<SubIOp>(loc,
                                  builder.create<LLVM::PtrToIntOp>(
                                      loc, getMLIRType(BO->getType()), lhs_v),
                                  builder.create<LLVM::PtrToIntOp>(
-                                     loc, getMLIRType(BO->getType()), rhs_v)),
-          /*isReference*/ false);
+                                     loc, getMLIRType(BO->getType()), rhs_v));
+      val = builder.create<DivSIOp>(
+          loc, val,
+          builder.create<IndexCastOp>(
+              loc, val.getType(),
+              builder.create<polygeist::TypeSizeOp>(
+                  loc, builder.getIndexType(),
+                  mlir::TypeAttr::get(pt.getElementType()))));
+      return ValueCategory(val, /*isReference*/ false);
     } else {
       return ValueCategory(builder.create<SubIOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
