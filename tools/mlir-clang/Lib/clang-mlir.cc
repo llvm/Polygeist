@@ -2170,6 +2170,55 @@ bool hasAffineArith(Operation *op, AffineExpr &expr,
   return hasAffineArith(nonCstOperand.getDefiningOp(), expr, affineForIndVar);
 }
 
+ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
+  auto loc = getMLIRLocation(BO->getExprLoc());
+
+  // TODO note assumptions made here about unsigned / unordered
+  bool signedType = true;
+  if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
+    if (bit->isUnsignedInteger())
+      signedType = false;
+    if (bit->isSignedInteger())
+      signedType = true;
+  }
+  switch (BO->getOp()) {
+  case AtomicExpr::AtomicOp::AO__atomic_add_fetch: {
+    auto a0 = Visit(BO->getPtr()).getValue(builder);
+    auto a1 = Visit(BO->getVal1()).getValue(builder);
+    auto ty = a1.getType();
+    AtomicRMWKind op;
+    LLVM::AtomicBinOp lop;
+    if (ty.isa<mlir::IntegerType>()) {
+      op = AtomicRMWKind::addi;
+      lop = LLVM::AtomicBinOp::add;
+    } else {
+      op = AtomicRMWKind::addf;
+      lop = LLVM::AtomicBinOp::fadd;
+    }
+    // TODO add atomic ordering
+    mlir::Value v;
+    if (a0.getType().isa<MemRefType>())
+      v = builder.create<memref::AtomicRMWOp>(
+          loc, a1.getType(), op, a1, a0,
+          std::vector<mlir::Value>({getConstantIndex(0)}));
+    else
+      v = builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+                                            LLVM::AtomicOrdering::acq_rel);
+
+    if (ty.isa<mlir::IntegerType>())
+      v = builder.create<arith::AddIOp>(loc, v, a1);
+    else
+      v = builder.create<arith::AddFOp>(loc, v, a1);
+
+    return ValueCategory(v, false);
+  }
+  default:
+    llvm::errs() << "unhandled atomic:";
+    BO->dump();
+    assert(0);
+  }
+}
+
 ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto loc = getMLIRLocation(BO->getExprLoc());
 
