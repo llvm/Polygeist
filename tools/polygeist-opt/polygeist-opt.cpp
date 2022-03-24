@@ -72,18 +72,30 @@ int main(int argc, char **argv) {
   mlir::registerConvertSCFToOpenMPPass();
   mlir::registerAffinePasses();
 
-  registry.addExtension(
-      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
-        LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
-      });
-  registry.addExtension(
-      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
-        LLVM::LLVMStructType::attachInterface<MemRefInsider>(*ctx);
-      });
-  registry.addExtension(
-      +[](MLIRContext *ctx, polygeist::PolygeistDialect *dialect) {
-        MemRefType::attachInterface<PtrElementModel<MemRefType>>(*ctx);
-      });
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
+  });
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMStructType::attachInterface<MemRefInsider>(*ctx);
+  });
+  registry.addExtension(+[](MLIRContext *ctx, memref::MemRefDialect *dialect) {
+    MemRefType::attachInterface<PtrElementModel<MemRefType>>(*ctx);
+  });
+
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMStructType::attachInterface<
+        PtrElementModel<LLVM::LLVMStructType>>(*ctx);
+  });
+
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMPointerType::attachInterface<
+        PtrElementModel<LLVM::LLVMPointerType>>(*ctx);
+  });
+
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMArrayType::attachInterface<PtrElementModel<LLVM::LLVMArrayType>>(
+        *ctx);
+  });
 
   return mlir::failed(mlir::MlirOptMain(
       argc, argv, "Polygeist modular optimizer driver", registry,

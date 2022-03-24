@@ -178,7 +178,7 @@ private:
 
   const clang::FunctionDecl *EmitCallee(const Expr *E);
 
-  mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
+  mlir::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
   std::map<int, mlir::Value> constants;
 
@@ -233,6 +233,8 @@ public:
   ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
   ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
+
+  ValueCategory VisitAtomicExpr(clang::AtomicExpr *expr);
 
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
 
@@ -325,6 +327,16 @@ public:
   ValueCategory VisitMemberExpr(clang::MemberExpr *ME);
 
   ValueCategory VisitCastExpr(clang::CastExpr *E);
+
+  mlir::Value GetAddressOfBaseClass(mlir::Value obj,
+                                    const CXXRecordDecl *DerivedClass,
+                                    CastExpr::path_const_iterator Start,
+                                    CastExpr::path_const_iterator End);
+
+  mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
+                                       const CXXRecordDecl *DerivedClass,
+                                       CastExpr::path_const_iterator Start,
+                                       CastExpr::path_const_iterator End);
 
   ValueCategory VisitIfStmt(clang::IfStmt *stmt);
 

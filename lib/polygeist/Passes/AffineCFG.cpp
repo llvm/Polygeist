@@ -878,12 +878,12 @@ bool isValidIndex(Value val) {
 
   if (auto bop = val.getDefiningOp<RemSIOp>()) {
     return (isValidIndex(bop.getOperand(0)) &&
-            isValidSymbolInt(bop.getOperand(1)));
+            bop.getOperand(1).getDefiningOp<arith::ConstantOp>());
   }
 
   if (auto bop = val.getDefiningOp<RemUIOp>())
     return (isValidIndex(bop.getOperand(0)) &&
-            isValidSymbolInt(bop.getOperand(1)));
+            bop.getOperand(1).getDefiningOp<arith::ConstantOp>());
 
   if (auto bop = val.getDefiningOp<SubIOp>())
     return isValidIndex(bop.getOperand(0)) && isValidIndex(bop.getOperand(1));

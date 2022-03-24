@@ -452,14 +452,14 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass());
     if (ScalarReplacement)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
-    optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+    optPM.addPass(polygeist::createParallelLICMPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass());
     if (RaiseToAffine) {
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass());
-      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+      optPM.addPass(polygeist::createParallelLICMPass());
       optPM.addPass(polygeist::createRaiseSCFToAffinePass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
       if (ScalarReplacement)
@@ -493,13 +493,19 @@ int main(int argc, char **argv) {
         optPM.addPass(mlir::createCanonicalizerPass());
         pm.addPass(mlir::createInlinerPass());
         mlir::OpPassManager &optPM2 = pm.nest<mlir::FuncOp>();
+        optPM2.addPass(mlir::createCanonicalizerPass());
+        optPM2.addPass(mlir::createCSEPass());
+        optPM2.addPass(polygeist::createMem2RegPass());
+        optPM2.addPass(mlir::createCanonicalizerPass());
+        optPM2.addPass(mlir::createCSEPass());
+        optPM2.addPass(polygeist::createCanonicalizeForPass());
         if (RaiseToAffine) {
           optPM2.addPass(polygeist::createRaiseSCFToAffinePass());
         }
         optPM2.addPass(polygeist::replaceAffineCFGPass());
         optPM2.addPass(mlir::createCanonicalizerPass());
         optPM2.addPass(mlir::createCSEPass());
-        optPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+        optPM2.addPass(polygeist::createParallelLICMPass());
         optPM2.addPass(mlir::createCanonicalizerPass());
       }
       if (mlir::failed(pm.run(module.get()))) {
@@ -526,7 +532,7 @@ int main(int argc, char **argv) {
       noptPM2.addPass(polygeist::createCanonicalizeForPass());
       noptPM2.addPass(mlir::createCanonicalizerPass());
       noptPM2.addPass(mlir::createCSEPass());
-      noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
+      noptPM2.addPass(polygeist::createParallelLICMPass());
       noptPM2.addPass(mlir::createCanonicalizerPass());
       if (RaiseToAffine) {
         noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -557,7 +563,7 @@ int main(int argc, char **argv) {
       if (RaiseToAffine) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
         optPM.addPass(mlir::createCanonicalizerPass());
-        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+        optPM.addPass(polygeist::createParallelLICMPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(mlir::createCanonicalizerPass());
         optPM.addPass(polygeist::replaceAffineCFGPass());
@@ -579,7 +585,17 @@ int main(int argc, char **argv) {
       if (RaiseToAffine) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
         optPM.addPass(mlir::createCanonicalizerPass());
-        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+        optPM.addPass(polygeist::createParallelLICMPass());
+        optPM.addPass(polygeist::createRaiseSCFToAffinePass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(polygeist::replaceAffineCFGPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(mlir::createLoopUnrollPass(-1, false, true));
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(mlir::createCSEPass());
+        optPM.addPass(polygeist::createMem2RegPass());
+        optPM.addPass(mlir::createCanonicalizerPass());
+        optPM.addPass(polygeist::createParallelLICMPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(mlir::createCanonicalizerPass());
         optPM.addPass(polygeist::replaceAffineCFGPass());
