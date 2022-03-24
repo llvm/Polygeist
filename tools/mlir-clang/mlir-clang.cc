@@ -74,6 +74,9 @@ static cl::opt<bool> Opt3("O3", cl::init(false), cl::desc("Opt level 3"));
 static cl::opt<bool> SCFOpenMP("scf-openmp", cl::init(true),
                                cl::desc("Emit llvm"));
 
+static cl::opt<bool> OpenMPOpt("openmp-opt", cl::init(true),
+                               cl::desc("Turn on openmp opt"));
+
 static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
@@ -599,8 +602,10 @@ int main(int argc, char **argv) {
         pm2.addPass(createConvertSCFToOpenMPPass());
       }
       pm2.addPass(mlir::createCanonicalizerPass());
-      pm2.addPass(polygeist::createOpenMPOptPass());
-      pm2.addPass(mlir::createCanonicalizerPass());
+      if (OpenMPOpt) {
+        pm2.addPass(polygeist::createOpenMPOptPass());
+        pm2.addPass(mlir::createCanonicalizerPass());
+      }
       pm.nest<mlir::FuncOp>().addPass(polygeist::createMem2RegPass());
       pm2.addPass(mlir::createCSEPass());
       pm2.addPass(mlir::createCanonicalizerPass());
