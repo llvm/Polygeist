@@ -57,6 +57,10 @@ static cl::opt<bool>
 static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
                                cl::desc("Use memrefs when possible"));
 
+static cl::opt<bool>
+    LLVMStructABI("llvm-struct-abi", cl::init(false),
+                  cl::desc("Use literal LLVM ABI for structs"));
+
 mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   if (memorySpace == 0)
     return nullptr;
@@ -2877,9 +2881,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
 
-  if (rd->isUnion() ||
-      (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
-                CXRD->getDefinition()->getNumBases() > 0)) ||
+  if (LLVMStructABI || rd->isUnion() ||
+      (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic())) ||
       (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                             ST->getName() == "class.std::basic_ifstream" ||
                             ST->getName() == "class.std::basic_istream" ||
@@ -2889,6 +2892,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     fnum = layout.getLLVMFieldNo(FD);
   } else {
     fnum = 0;
+    if (CXRD)
+      fnum += CXRD->getDefinition()->getNumBases();
     for (auto field : rd->fields()) {
       if (field == FD) {
         break;
@@ -4649,9 +4654,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if (RT->getDecl()->isUnion() ||
-        (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
-                  CXRD->getDefinition()->getNumBases() > 0)) ||
+    if (LLVMStructABI || RT->getDecl()->isUnion() ||
+        (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic())) ||
         (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
                               ST->getName() == "class.std::basic_ifstream" ||
                               ST->getName() == "class.std::basic_istream" ||
