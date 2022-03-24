@@ -261,6 +261,10 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
           loc, lctx.noBreak, std::vector<mlir::Value>());
       cond = builder.create<AndIOp>(loc, cond, nb);
       builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+    } else {
+      auto cond = builder.create<mlir::memref::LoadOp>(
+          loc, lctx.noBreak, std::vector<mlir::Value>());
+      builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
     }
 
     builder.setInsertionPointToStart(&bodyB);
