@@ -192,7 +192,7 @@ LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     Value cond = nullptr;
     for (auto pair :
          llvm::zip(looplike.getLowerBound(), looplike.getUpperBound())) {
-      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::sgt,
+      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
                                          std::get<0>(pair), std::get<1>(pair));
       if (cond == nullptr)
         cond = val;
