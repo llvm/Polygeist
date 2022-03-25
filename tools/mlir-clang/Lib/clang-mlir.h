@@ -9,13 +9,6 @@
 #ifndef CLANG_MLIR_H
 #define CLANG_MLIR_H
 
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/StmtVisitor.h"
-#include "clang/Lex/HeaderSearch.h"
-#include "clang/Lex/HeaderSearchOptions.h"
-#include "clang/Lex/Preprocessor.h"
-#include "clang/Lex/PreprocessorOptions.h"
-
 #include "AffineUtils.h"
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -33,7 +26,14 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
 #include "pragmaHandler.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/StmtVisitor.h"
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "clang/../../lib/CodeGen/CGRecordLayout.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
@@ -41,6 +41,8 @@
 
 using namespace clang;
 using namespace mlir;
+
+extern llvm::cl::opt<std::string> PrefixABI;
 
 struct LoopContext {
   mlir::Value keepRunning;
