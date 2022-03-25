@@ -59,7 +59,7 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
 
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
-                  cl::desc("Use literal LLVM ABI for structs"));
+                      cl::desc("Use literal LLVM ABI for structs"));
 
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
