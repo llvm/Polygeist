@@ -72,7 +72,7 @@ bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
     if (CXRD->getNumVBases())
       return true;
     for (auto m : CXRD->methods()) {
-      if (m->isVirtual())
+      if (m->isVirtualAsWritten() || m->isPure())
         return true;
     }
   }
