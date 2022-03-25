@@ -17,9 +17,9 @@ int* add (int* in) {
 // CHECK-NEXT:     %0 = memref.alloca() : memref<10xi32>
 // CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<10xi32>) -> !llvm.ptr<i32>
 // CHECK-NEXT:     %2 = llvm.getelementptr %1[%c7_i64] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %3 = llvm.ptrtoint %1 : !llvm.ptr<i32> to i64
-// CHECK-NEXT:     %4 = llvm.ptrtoint %2 : !llvm.ptr<i32> to i64
-// CHECK-NEXT:     %5 = arith.subi %4, %3 : i64
+// CHECK-DAG:     %[[i3:.+]] = llvm.ptrtoint %1 : !llvm.ptr<i32> to i64
+// CHECK-DAG:     %[[i4:.+]] = llvm.ptrtoint %2 : !llvm.ptr<i32> to i64
+// CHECK-NEXT:     %5 = arith.subi %[[i4]], %[[i3]] : i64
 // CHECK-NEXT:     %6 = arith.divsi %5, %c4_i64 : i64
 // CHECK-NEXT:     %7 = arith.trunci %6 : i64 to i32
 // CHECK-NEXT:     return %7 : i32
