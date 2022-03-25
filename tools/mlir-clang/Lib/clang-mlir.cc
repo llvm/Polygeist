@@ -3138,8 +3138,11 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
           loc, -(ssize_t)Layout.getBaseClassOffset(BaseDecl).getQuantity(), 32);
     } else {
       Offset = builder.create<arith::ConstantIntOp>(loc, 0, 32);
+      bool found = false;
       for (auto f : RD->bases()) {
-        if (f.getType() == Base->getType()) {
+        if (f.getType().getTypePtr()->getUnqualifiedDesugaredType() ==
+            Base->getType()->getUnqualifiedDesugaredType()) {
+          found = true;
           break;
         }
         bool subType = false;
@@ -3151,6 +3154,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
                 builder.create<polygeist::TypeSizeOp>(
                     loc, builder.getIndexType(), mlir::TypeAttr::get(nt))));
       }
+      assert(found);
     }
 
     mlir::Value ptr = value;
@@ -3209,12 +3213,16 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
     } else {
       assert(!std::get<1>(tup) && "Should not see virtual bases here!");
       fnum = 0;
+      bool found = false;
       for (auto f : RD->bases()) {
-        if (f.getType().getTypePtr() == BaseType) {
+        if (f.getType().getTypePtr()->getUnqualifiedDesugaredType() ==
+            BaseType->getUnqualifiedDesugaredType()) {
+          found = true;
           break;
         }
         fnum++;
       }
+      assert(found);
     }
 
     if (auto mt = value.getType().dyn_cast<MemRefType>()) {
