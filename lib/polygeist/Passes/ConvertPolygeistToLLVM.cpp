@@ -293,7 +293,7 @@ struct LLVMOpLowering : public ConversionPattern {
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
       state.addRegion();
 
-    Operation *rewritten = rewriter.createOperation(state);
+    Operation *rewritten = rewriter.create(state);
     rewriter.replaceOp(op, rewritten->getResults());
 
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)

@@ -54,5 +54,5 @@ Operation *mlirclang::replaceFuncByOperation(
   // NOTE: The attributes of the provided FuncOp is ignored.
   OperationState opState(b.getUnknownLoc(), opName, input,
                          f.getCallableResults(), {});
-  return b.createOperation(opState);
+  return b.create(opState);
 }
