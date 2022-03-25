@@ -484,6 +484,14 @@ void ParallelLower::runOnOperation() {
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
+    } else if (call.getCallee().getValue() == "cudaGetLastError") {
+      OpBuilder bz(call);
+      auto retv = bz.create<ConstantIntOp>(
+          call.getLoc(), 0,
+          call.getResult(0).getType().cast<IntegerType>().getWidth());
+      Value vals[] = {retv};
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
+      call.erase();
     }
   });
   getOperation().walk([&](CallOp call) {
@@ -507,6 +515,14 @@ void ParallelLower::runOnOperation() {
           /*isVolatile*/ falsev);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
+      call.erase();
+    } else if (call.getCallee() == "cudaGetLastError") {
+      OpBuilder bz(call);
+      auto retv = bz.create<ConstantIntOp>(
+          call.getLoc(), 0,
+          call.getResult(0).getType().cast<IntegerType>().getWidth());
+      Value vals[] = {retv};
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
     }
   });
