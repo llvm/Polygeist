@@ -3206,13 +3206,19 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
         Glob.CGM.getContext().getLValueReferenceType(QualType(BaseType, 0)));
 
     size_t fnum;
+    bool subIndex = true;
 
     if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
       auto &layout = Glob.CGM.getTypes().getCGRecordLayout(RD);
       if (std::get<1>(tup))
         fnum = layout.getVirtualBaseIndex(BaseDecl);
-      else
-        fnum = layout.getNonVirtualBaseLLVMFieldNo(BaseDecl);
+      else {
+        if (!layout.hasNonVirtualBaseLLVMField(BaseDecl)) {
+          subIndex = false;
+        } else {
+          fnum = layout.getNonVirtualBaseLLVMFieldNo(BaseDecl);
+        }
+      }
     } else {
       assert(!std::get<1>(tup) && "Should not see virtual bases here!");
       fnum = 0;
@@ -3228,31 +3234,34 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
       assert(found);
     }
 
-    if (auto mt = value.getType().dyn_cast<MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
-      shape.erase(shape.begin());
-      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       MemRefLayoutAttrInterface(),
-                                       mt.getMemorySpace());
-      value = builder.create<polygeist::SubIndexOp>(loc, mt0, value,
-                                                    getConstantIndex(fnum));
-    } else {
-      mlir::Value idx[] = {builder.create<arith::ConstantIntOp>(loc, 0, 32),
-                           builder.create<arith::ConstantIntOp>(loc, fnum, 32)};
-      auto PT = value.getType().cast<LLVM::LLVMPointerType>();
-      mlir::Type ET;
-      if (auto ST =
-              PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        ET = ST.getBody()[fnum];
+    if (subIndex) {
+      if (auto mt = value.getType().dyn_cast<MemRefType>()) {
+        auto shape = std::vector<int64_t>(mt.getShape());
+        shape.erase(shape.begin());
+        auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                         MemRefLayoutAttrInterface(),
+                                         mt.getMemorySpace());
+        value = builder.create<polygeist::SubIndexOp>(loc, mt0, value,
+                                                      getConstantIndex(fnum));
       } else {
-        ET = PT.getElementType()
-                 .cast<mlir::LLVM::LLVMArrayType>()
-                 .getElementType();
-      }
+        mlir::Value idx[] = {
+            builder.create<arith::ConstantIntOp>(loc, 0, 32),
+            builder.create<arith::ConstantIntOp>(loc, fnum, 32)};
+        auto PT = value.getType().cast<LLVM::LLVMPointerType>();
+        mlir::Type ET;
+        if (auto ST =
+                PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
+          ET = ST.getBody()[fnum];
+        } else {
+          ET = PT.getElementType()
+                   .cast<mlir::LLVM::LLVMArrayType>()
+                   .getElementType();
+        }
 
-      value = builder.create<LLVM::GEPOp>(
-          loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
-          idx);
+        value = builder.create<LLVM::GEPOp>(
+            loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
+            idx);
+      }
     }
 
     auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
