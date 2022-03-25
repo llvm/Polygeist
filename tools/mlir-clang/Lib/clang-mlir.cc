@@ -256,12 +256,6 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     llvm::errs() << " warning, destructor not fully handled yet\n";
   }
 
-  Stmt *stmt = fd->getBody();
-  assert(stmt);
-  if (ShowAST) {
-    stmt->dump();
-  }
-
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
   auto truev = builder.create<ConstantIntOp>(loc, true, 1);
@@ -278,6 +272,51 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
           loc, builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
           returnVal, std::vector<mlir::Value>({}));
     }
+  }
+
+  if (auto D = dyn_cast<CXXMethodDecl>(fd)) {
+    // ClangAST incorrectly does not contain the correct definition
+    // of a union move operation and as such we _must_ emit a memcpy
+    // for a defaulted union copy or move.
+    if (D->getParent()->isUnion() && D->isDefaulted()) {
+      mlir::Value V = ThisVal.val;
+      assert(V);
+      if (auto MT = V.getType().dyn_cast<MemRefType>()) {
+        V = builder.create<polygeist::Pointer2MemrefOp>(
+            loc, LLVM::LLVMPointerType::get(MT.getElementType()), V);
+      }
+      mlir::Value src = function.getArgument(1);
+      if (auto MT = src.getType().dyn_cast<MemRefType>()) {
+        src = builder.create<polygeist::Pointer2MemrefOp>(
+            loc, LLVM::LLVMPointerType::get(MT.getElementType()), src);
+      }
+      mlir::Value typeSize = builder.create<polygeist::TypeSizeOp>(
+          loc, builder.getIndexType(),
+          mlir::TypeAttr::get(
+              V.getType().cast<LLVM::LLVMPointerType>().getElementType()));
+      typeSize = builder.create<arith::IndexCastOp>(loc, builder.getI64Type(),
+                                                    typeSize);
+      V = builder.create<LLVM::BitcastOp>(
+          loc,
+          LLVM::LLVMPointerType::get(
+              builder.getI8Type(),
+              V.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
+          V);
+      src = builder.create<LLVM::BitcastOp>(
+          loc,
+          LLVM::LLVMPointerType::get(
+              builder.getI8Type(),
+              src.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
+          src);
+      mlir::Value volatileCpy = builder.create<ConstantIntOp>(loc, false, 1);
+      builder.create<LLVM::MemcpyOp>(loc, V, src, typeSize, volatileCpy);
+    }
+  }
+
+  Stmt *stmt = fd->getBody();
+  assert(stmt);
+  if (ShowAST) {
+    stmt->dump();
   }
   Visit(stmt);
 
