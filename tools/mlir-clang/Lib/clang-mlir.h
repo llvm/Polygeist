@@ -330,8 +330,8 @@ public:
 
   mlir::Value GetAddressOfBaseClass(mlir::Value obj,
                                     const CXXRecordDecl *DerivedClass,
-                                    CastExpr::path_const_iterator Start,
-                                    CastExpr::path_const_iterator End);
+                                    ArrayRef<const clang::Type*> BaseTypes,
+                                    ArrayRef<bool> BaseVirtuals);
 
   mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
                                        const CXXRecordDecl *DerivedClass,

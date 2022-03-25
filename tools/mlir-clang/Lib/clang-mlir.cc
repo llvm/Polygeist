@@ -61,6 +61,32 @@ static cl::opt<bool>
     LLVMStructABI("llvm-struct-abi", cl::init(false),
                   cl::desc("Use literal LLVM ABI for structs"));
 
+bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
+  if (LLVMStructABI)
+    return true;
+  if (RD->isUnion())
+    return true;
+  if (auto CXRD = dyn_cast<CXXRecordDecl>(RD)) {
+    if (!CXRD->hasDefinition())
+      return true;
+    if (CXRD->getNumVBases())
+      return true;
+    for (auto m : CXRD->methods()) {
+      if (m->isVirtual())
+        return true;
+    }
+  }
+  if (ST) {
+    if (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
+                             ST->getName() == "class.std::basic_ifstream" ||
+                             ST->getName() == "class.std::basic_istream" ||
+                             ST->getName() == "class.std::basic_ostream" ||
+                             ST->getName() == "class.std::basic_ofstream"))
+      return true;
+  }
+  return false;
+}
+
 mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
   if (memorySpace == 0)
     return nullptr;
@@ -160,49 +186,15 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
 
           auto BaseType = expr->getBaseClass();
 
-          auto BaseClassDecl =
-              cast<CXXRecordDecl>(BaseType->castAs<RecordType>()->getDecl());
-
-          clang::CharUnits Offset;
-          const ASTRecordLayout &Layout =
-              Glob.astContext.getASTRecordLayout(ClassDecl);
-          if (BaseIsVirtual)
-            Offset = Layout.getVBaseClassOffset(BaseClassDecl);
-          else
-            Offset = Layout.getBaseClassOffset(BaseClassDecl);
-
           // Shift and cast down to the base type.
           // TODO: for complete types, this should be possible with a GEP.
           mlir::Value V = ThisVal.val;
-          if (!Offset.isZero()) {
-            V = builder.create<LLVM::BitcastOp>(
-                loc,
-                LLVM::LLVMPointerType::get(builder.getI8Type(),
-                                           V.getType()
-                                               .cast<LLVM::LLVMPointerType>()
-                                               .getAddressSpace()),
-                V);
-            mlir::Value idxs[] = {
-                builder.create<ConstantIntOp>(loc, Offset.getQuantity(), 32)};
-            V = builder.create<LLVM::GEPOp>(loc, V.getType(), V, idxs);
-          }
 
-          bool isArray = false;
-          auto subType = LLVM::LLVMPointerType::get(
-              Glob.getMLIRType(QualType(BaseType, 0), &isArray,
-                               /*allowMerge*/ false),
-              V.getType().cast<LLVM::LLVMPointerType>().getAddressSpace());
-          assert(!isArray && "implicit reference not handled");
+          const clang::Type *BaseTypes[] = {BaseType};
+          bool BaseVirtual[] = {BaseIsVirtual};
 
-          V = builder.create<LLVM::BitcastOp>(loc, subType, V);
-
-          isArray = false;
-          auto subType2 =
-              Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                   QualType(BaseType, 0)),
-                               &isArray);
-          if (subType2.isa<MemRefType>())
-            V = builder.create<polygeist::Pointer2MemrefOp>(loc, subType2, V);
+          V = GetAddressOfBaseClass(V, /*derived*/ ClassDecl, BaseTypes,
+                                    BaseVirtual);
 
           Expr *init = expr->getInit();
           if (auto clean = dyn_cast<ExprWithCleanups>(init)) {
@@ -2177,14 +2169,6 @@ bool hasAffineArith(Operation *op, AffineExpr &expr,
 ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
   auto loc = getMLIRLocation(BO->getExprLoc());
 
-  // TODO note assumptions made here about unsigned / unordered
-  bool signedType = true;
-  if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
-    if (bit->isUnsignedInteger())
-      signedType = false;
-    if (bit->isSignedInteger())
-      signedType = true;
-  }
   switch (BO->getOp()) {
   case AtomicExpr::AtomicOp::AO__atomic_add_fetch: {
     auto a0 = Visit(BO->getPtr()).getValue(builder);
@@ -2881,13 +2865,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
   auto CXRD = dyn_cast<CXXRecordDecl>(rd);
 
-  if (LLVMStructABI || rd->isUnion() ||
-      (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic())) ||
-      (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
-                            ST->getName() == "class.std::basic_ifstream" ||
-                            ST->getName() == "class.std::basic_istream" ||
-                            ST->getName() == "class.std::basic_ostream" ||
-                            ST->getName() == "class.std::basic_ofstream"))) {
+  if (isLLVMStructABI(rd, ST)) {
     auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
     fnum = layout.getLLVMFieldNo(FD);
   } else {
@@ -3155,8 +3133,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
         Glob.CGM.getContext().getLValueReferenceType(Base->getType()));
 
     mlir::Value Offset = nullptr;
-    if (LLVMStructABI || RD->isUnion() ||
-        (!RD->hasDefinition() || RD->isPolymorphic())) {
+    if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
       Offset = builder.create<arith::ConstantIntOp>(
           loc, -(ssize_t)Layout.getBaseClassOffset(BaseDecl).getQuantity(), 32);
     } else {
@@ -3207,109 +3184,81 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
 
 mlir::Value MLIRScanner::GetAddressOfBaseClass(
     mlir::Value value, const CXXRecordDecl *DerivedClass,
-    CastExpr::path_const_iterator Start, CastExpr::path_const_iterator End) {
-  const ASTContext &Context = Glob.CGM.getContext();
-
+    ArrayRef<const clang::Type *> BaseTypes, ArrayRef<bool> BaseVirtuals) {
   const CXXRecordDecl *RD = DerivedClass;
 
-  for (CastExpr::path_const_iterator I = Start; I != End; ++I) {
-    const CXXBaseSpecifier *Base = *I;
+  for (auto tup : llvm::zip(BaseTypes, BaseVirtuals)) {
 
-    const ASTRecordLayout &Layout = Context.getASTRecordLayout(RD);
-    assert(!Base->isVirtual() && "Should not see virtual bases here!");
+    auto BaseType = std::get<0>(tup);
 
     const auto *BaseDecl =
-        cast<CXXRecordDecl>(Base->getType()->castAs<RecordType>()->getDecl());
+        cast<CXXRecordDecl>(BaseType->castAs<RecordType>()->getDecl());
     // Add the offset.
 
     mlir::Type nt = getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(Base->getType()));
+        Glob.CGM.getContext().getLValueReferenceType(QualType(BaseType, 0)));
 
-    if (LLVMStructABI || RD->isUnion() ||
-        (!RD->hasDefinition() || RD->isPolymorphic())) {
+    size_t fnum;
 
-      size_t Offset = Layout.getBaseClassOffset(BaseDecl).getQuantity();
-      mlir::Value ptr = value;
-      if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>())
-        ptr = builder.create<LLVM::BitcastOp>(
-            loc,
-            LLVM::LLVMPointerType::get(builder.getI8Type(),
-                                       PT.getAddressSpace()),
-            ptr);
+    if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
+      auto &layout = Glob.CGM.getTypes().getCGRecordLayout(RD);
+      if (std::get<1>(tup))
+        fnum = layout.getVirtualBaseIndex(BaseDecl);
       else
-        ptr = builder.create<polygeist::Memref2PointerOp>(
-            loc,
-            LLVM::LLVMPointerType::get(builder.getI8Type(),
-                                       PT.getAddressSpace()),
-            ptr);
-
-      mlir::Value idx[] = {
-          builder.create<arith::ConstantIntOp>(loc, Offset, 32)};
-      ptr = builder.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idx);
-
-      if (auto PT = nt.dyn_cast<mlir::LLVM::LLVMPointerType>())
-        value = builder.create<LLVM::BitcastOp>(
-            loc,
-            LLVM::LLVMPointerType::get(
-                PT.getElementType(),
-                ptr.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
-            ptr);
-      else
-        value = builder.create<polygeist::Pointer2MemrefOp>(loc, nt, ptr);
-
+        fnum = layout.getNonVirtualBaseLLVMFieldNo(BaseDecl);
     } else {
-      size_t fnum = 0;
+      assert(!std::get<1>(tup) && "Should not see virtual bases here!");
+      fnum = 0;
       for (auto f : RD->bases()) {
-        if (f.getType() == Base->getType()) {
+        if (f.getType().getTypePtr() == BaseType) {
           break;
         }
         fnum++;
       }
+    }
 
-      if (auto mt = value.getType().dyn_cast<MemRefType>()) {
-        auto shape = std::vector<int64_t>(mt.getShape());
-        shape.erase(shape.begin());
-        auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                         MemRefLayoutAttrInterface(),
-                                         mt.getMemorySpace());
-        value = builder.create<polygeist::SubIndexOp>(loc, mt0, value,
-                                                      getConstantIndex(fnum));
+    if (auto mt = value.getType().dyn_cast<MemRefType>()) {
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape.erase(shape.begin());
+      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
+      value = builder.create<polygeist::SubIndexOp>(loc, mt0, value,
+                                                    getConstantIndex(fnum));
+    } else {
+      mlir::Value idx[] = {builder.create<arith::ConstantIntOp>(loc, 0, 32),
+                           builder.create<arith::ConstantIntOp>(loc, fnum, 32)};
+      auto PT = value.getType().cast<LLVM::LLVMPointerType>();
+      mlir::Type ET;
+      if (auto ST =
+              PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
+        ET = ST.getBody()[fnum];
       } else {
-        mlir::Value idx[] = {
-            builder.create<arith::ConstantIntOp>(loc, 0, 32),
-            builder.create<arith::ConstantIntOp>(loc, fnum, 32)};
-        auto PT = value.getType().cast<LLVM::LLVMPointerType>();
-        mlir::Type ET;
-        if (auto ST =
-                PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
-          ET = ST.getBody()[fnum];
-        } else {
-          ET = PT.getElementType()
-                   .cast<mlir::LLVM::LLVMArrayType>()
-                   .getElementType();
-        }
-
-        value = builder.create<LLVM::GEPOp>(
-            loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
-            idx);
+        ET = PT.getElementType()
+                 .cast<mlir::LLVM::LLVMArrayType>()
+                 .getElementType();
       }
 
-      auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
-      if (auto opt = value.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-        if (!pt) {
-          value = builder.create<polygeist::Pointer2MemrefOp>(loc, nt, value);
-        } else {
-          if (value.getType() != nt)
-            value = builder.create<mlir::LLVM::BitcastOp>(loc, pt, value);
-        }
+      value = builder.create<LLVM::GEPOp>(
+          loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()), value,
+          idx);
+    }
+
+    auto pt = nt.dyn_cast<mlir::LLVM::LLVMPointerType>();
+    if (auto opt = value.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      if (!pt) {
+        value = builder.create<polygeist::Pointer2MemrefOp>(loc, nt, value);
       } else {
-        assert(value.getType().isa<MemRefType>());
-        if (pt) {
-          value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
-        } else {
-          if (value.getType() != nt)
-            value = builder.create<memref::CastOp>(loc, nt, value);
-        }
+        if (value.getType() != nt)
+          value = builder.create<mlir::LLVM::BitcastOp>(loc, pt, value);
+      }
+    } else {
+      assert(value.getType().isa<MemRefType>());
+      if (pt) {
+        value = builder.create<polygeist::Memref2PointerOp>(loc, pt, value);
+      } else {
+        if (value.getType() != nt)
+          value = builder.create<memref::CastOp>(loc, nt, value);
       }
     }
 
@@ -3355,8 +3304,15 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
             ? cast<CXXRecordDecl>(
                   E->getSubExpr()->getType()->castAs<RecordType>()->getDecl())
             : E->getSubExpr()->getType()->getPointeeCXXRecordDecl();
+    SmallVector<const clang::Type *> BaseTypes;
+    SmallVector<bool> BaseVirtual;
+    for (auto B : E->path()) {
+      BaseTypes.push_back(B->getType().getTypePtr());
+      BaseVirtual.push_back(B->isVirtual());
+    }
+
     mlir::Value val =
-        GetAddressOfBaseClass(se.val, Derived, E->path_begin(), E->path_end());
+        GetAddressOfBaseClass(se.val, Derived, BaseTypes, BaseVirtual);
     if (E->getCastKind() != clang::CastKind::CK_UncheckedDerivedToBase &&
         !isa<CXXThisExpr>(E->IgnoreParens())) {
       mlir::Value ptr = val;
@@ -4841,10 +4797,6 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
     llvm::StructType *ST = cast<llvm::StructType>(LT);
 
-    if (RT->getDecl()->field_empty())
-      if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
-        return typeTranslator.translateType(anonymize(ST));
-
     SmallPtrSet<llvm::Type *, 4> Seen;
     bool notAllSame = false;
     bool recursive = false;
@@ -4858,14 +4810,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     auto CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
-    if (LLVMStructABI || RT->getDecl()->isUnion() ||
-        (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic())) ||
-        (!ST->isLiteral() && (ST->getName() == "struct._IO_FILE" ||
-                              ST->getName() == "class.std::basic_ifstream" ||
-                              ST->getName() == "class.std::basic_istream" ||
-                              ST->getName() == "class.std::basic_ostream" ||
-                              ST->getName() == "class.std::basic_ofstream"))) {
-      return typeTranslator.translateType(anonymize(ST));
+    if (isLLVMStructABI(RT->getDecl(), ST)) {
+      auto retTy = typeTranslator.translateType(anonymize(ST));
+      return retTy;
     }
 
     /* TODO
@@ -4903,6 +4850,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       types.push_back(ty);
     }
 
+    if (types.empty())
+      if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
+        return typeTranslator.translateType(anonymize(ST));
+
     if (recursive) {
       auto LR = typeCache[RT].setBody(types, /*isPacked*/ false);
       assert(LR.succeeded());
@@ -4910,8 +4861,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     if (!memRefABI || notAllSame || !allowMerge || innerLLVM) {
-      return mlir::LLVM::LLVMStructType::getLiteral(module->getContext(),
-                                                    types);
+      auto retTy =
+          mlir::LLVM::LLVMStructType::getLiteral(module->getContext(), types);
+      return retTy;
     }
 
     if (!types.size()) {

@@ -40,18 +40,16 @@ void make() {
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN3SubC1Eid(%arg0: !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, %arg1: i32, %arg2: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-DAG:     %c4_i32 = arith.constant 4 : i32
 // CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>) -> memref<?x1xi32>
 // CHECK-NEXT:     call @_ZN4RootC1Ei(%0, %arg1) : (memref<?x1xi32>, i32) -> ()
-// CHECK-NEXT:     %1 = llvm.bitcast %arg0 : !llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>> to !llvm.ptr<i8>
-// CHECK-NEXT:     %2 = llvm.getelementptr %1[%c4_i32] : (!llvm.ptr<i8>, i32) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<i8>) -> memref<?x1xf32>
-// CHECK-NEXT:     call @_ZN5FRootC1Ev(%3) : (memref<?x1xf32>) -> ()
-// CHECK-NEXT:     %4 = llvm.getelementptr %arg0[%c0_i32, 2] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %arg2, %4 : !llvm.ptr<f64>
-// CHECK-NEXT:     %5 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
-// CHECK-NEXT:     %6 = llvm.getelementptr %5[%c0_i32, %c0_i32] : (!llvm.ptr<array<12 x i8>>, i32, i32) -> !llvm.ptr<i8>
-// CHECK-NEXT:     call @_Z5printPc(%6) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:     %1 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32) -> !llvm.ptr<struct<(f32)>>
+// CHECK-NEXT:     %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<struct<(f32)>>) -> memref<?x1xf32>
+// CHECK-NEXT:     call @_ZN5FRootC1Ev(%2) : (memref<?x1xf32>) -> ()
+// CHECK-NEXT:     %3 = llvm.getelementptr %arg0[%c0_i32, 2] : (!llvm.ptr<struct<(struct<(i32)>, struct<(f32)>, f64)>>, i32) -> !llvm.ptr<f64>
+// CHECK-NEXT:     llvm.store %arg2, %3 : !llvm.ptr<f64>
+// CHECK-NEXT:     %4 = llvm.mlir.addressof @str0 : !llvm.ptr<array<12 x i8>>
+// CHECK-NEXT:     %5 = llvm.getelementptr %4[%c0_i32, %c0_i32] : (!llvm.ptr<array<12 x i8>>, i32, i32) -> !llvm.ptr<i8>
+// CHECK-NEXT:     call @_Z5printPc(%5) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func @_ZN4RootC1Ei(%arg0: memref<?x1xi32>, %arg1: i32) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
