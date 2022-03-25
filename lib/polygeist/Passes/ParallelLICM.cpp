@@ -65,9 +65,25 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
         freeResources.push_back(effect.getResource());
     }
 
-    auto conflicting = [&](Operation *b) {
+    std::function<bool(Operation *)> conflicting = [&](Operation *b) {
       if (willBeMoved.count(b))
         return false;
+
+      if (b->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+
+        for (auto &region : b->getRegions()) {
+          for (auto &block : region) {
+            for (auto &innerOp : block)
+              if (conflicting(&innerOp))
+                return true;
+          }
+        }
+        return false;
+      }
+
+      auto memEffect = dyn_cast<MemoryEffectOpInterface>(b);
+      if (!memEffect)
+        return true;
       for (auto res : readResources) {
         SmallVector<MemoryEffects::EffectInstance> effects;
         memEffect.getEffectsOnResource(res, effects);
@@ -107,14 +123,14 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       for (Operation *it = b->getPrevNode(); it != nullptr;
            it = it->getPrevNode()) {
         if (conflicting(it)) {
-          return false;
+          return true;
         }
       }
 
       if (b->getParentOp() == scope)
         return false;
       if (hasConflictBefore(b->getParentOp()))
-        return false;
+        return true;
 
       bool conflict = false;
       // If the parent operation is not guaranteed to execute its (single-block)
@@ -192,7 +208,7 @@ LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     Value cond = nullptr;
     for (auto pair :
          llvm::zip(looplike.getLowerBound(), looplike.getUpperBound())) {
-      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::sgt,
+      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
                                          std::get<0>(pair), std::get<1>(pair));
       if (cond == nullptr)
         cond = val;
