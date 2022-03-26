@@ -4006,7 +4006,8 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   else
     name = CGM.getMangledName(FD).str();
 
-  name = (PrefixABI + name);
+  if (name != "malloc" && name != "free")
+    name = (PrefixABI + name);
 
   if (llvmFunctions.find(name) != llvmFunctions.end()) {
     return llvmFunctions[name];
