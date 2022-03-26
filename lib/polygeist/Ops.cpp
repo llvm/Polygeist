@@ -55,6 +55,16 @@ collectEffects(Operation *op,
     llvm::append_range(effects, localEffects);
     return true;
   }
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    for (auto &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &innerOp : block)
+          if (!collectEffects(&innerOp, effects))
+            return false;
+      }
+    }
+    return true;
+  }
 
   // We need to be conservative here in case the op doesn't have the interface
   // and assume it can have any possible effect.
@@ -68,24 +78,29 @@ collectEffects(Operation *op,
 // Rethrns if we are non-conservative whether we have filled with all possible
 // effects.
 bool getEffectsBefore(Operation *op,
-                      SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  if (isa<scf::ParallelOp, AffineParallelOp>(op))
-    return true;
-
-  for (Operation *it = op->getPrevNode(); it != nullptr;
-       it = it->getPrevNode()) {
-    if (isa<BarrierOp>(it)) {
-      return true;
+                      SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                      bool stopAtBarrier) {
+  if (op != &op->getBlock()->front())
+    for (Operation *it = op->getPrevNode(); it != nullptr;
+         it = it->getPrevNode()) {
+      if (isa<BarrierOp>(it)) {
+        if (stopAtBarrier)
+          return true;
+        else
+          continue;
+      }
+      if (!collectEffects(it, effects))
+        return false;
     }
-    if (!collectEffects(it, effects))
-      return false;
-  }
 
   bool conservative = false;
 
+  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+    return true;
+
   // As we didn't hit another barrier, we must check the predecessors of this
   // operation.
-  if (!getEffectsBefore(op->getParentOp(), effects))
+  if (!getEffectsBefore(op->getParentOp(), effects, stopAtBarrier))
     return false;
 
   // If the parent operation is not guaranteed to execute its (single-block)
@@ -104,24 +119,28 @@ bool getEffectsBefore(Operation *op,
   return !conservative;
 }
 bool getEffectsAfter(Operation *op,
-                     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  if (isa<scf::ParallelOp, AffineParallelOp>(op))
-    return true;
-
-  for (Operation *it = op->getNextNode(); it != nullptr;
-       it = it->getNextNode()) {
-    if (isa<BarrierOp>(it)) {
-      return true;
+                     SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                     bool stopAtBarrier) {
+  if (op != &op->getBlock()->back())
+    for (Operation *it = op->getNextNode(); it != nullptr;
+         it = it->getNextNode()) {
+      if (isa<BarrierOp>(it)) {
+        if (stopAtBarrier)
+          return true;
+        continue;
+      }
+      if (!collectEffects(it, effects))
+        return false;
     }
-    if (!collectEffects(it, effects))
-      return false;
-  }
 
   bool conservative = false;
 
+  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+    return true;
+
   // As we didn't hit another barrier, we must check the predecessors of this
   // operation.
-  if (!getEffectsAfter(op->getParentOp(), effects))
+  if (!getEffectsAfter(op->getParentOp(), effects, stopAtBarrier))
     return false;
 
   // If the parent operation is not guaranteed to execute its (single-block)
@@ -152,10 +171,10 @@ void BarrierOp::getEffects(
 
   Operation *op = getOperation();
 
-  if (!getEffectsBefore(op, effects))
+  if (!getEffectsBefore(op, effects, /*stopAtBarrier*/ true))
     return;
 
-  if (!getEffectsAfter(op, effects))
+  if (!getEffectsAfter(op, effects, /*stopAtBarrier*/ true))
     return;
 }
 
@@ -226,9 +245,133 @@ public:
   }
 };
 
+bool mayAlias(MemoryEffects::EffectInstance a,
+              MemoryEffects::EffectInstance b) {
+  if (Value v = a.getValue()) {
+    if (Value v2 = b.getValue()) {
+      if (v == v2)
+        return true;
+
+      if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
+        if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
+          return glob.name() == Aglob.name();
+        }
+      }
+
+      if (auto glob = v.getDefiningOp<LLVM::AddressOfOp>()) {
+        if (auto Aglob = v2.getDefiningOp<LLVM::AddressOfOp>()) {
+          return glob.getGlobalName() == Aglob.getGlobalName();
+        }
+      }
+
+      if (v.getDefiningOp<memref::AllocaOp>() ||
+          v.getDefiningOp<memref::AllocOp>() ||
+          v.getDefiningOp<LLVM::AllocaOp>() ||
+          v.getDefiningOp<memref::GetGlobalOp>() ||
+          v.getDefiningOp<LLVM::AddressOfOp>() ||
+          (v.isa<BlockArgument>() &&
+           isa<FunctionOpInterface>(
+               v.cast<BlockArgument>().getOwner()->getParentOp()))) {
+
+        if (v2.getDefiningOp<memref::AllocaOp>() ||
+            v2.getDefiningOp<memref::AllocOp>() ||
+            v2.getDefiningOp<LLVM::AllocaOp>() ||
+            v2.getDefiningOp<memref::GetGlobalOp>() ||
+            v2.getDefiningOp<LLVM::AddressOfOp>() ||
+            (v2.isa<BlockArgument>() &&
+             isa<FunctionOpInterface>(
+                 v2.cast<BlockArgument>().getOwner()->getParentOp()))) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+class BarrierElim final : public OpRewritePattern<BarrierOp> {
+public:
+  using OpRewritePattern<BarrierOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BarrierOp barrier,
+                                PatternRewriter &rewriter) const override {
+    // Remove if it only sync's constant indices.
+    if (llvm::all_of(barrier.getOperands(), [](Value v) {
+          IntegerAttr constValue;
+          return matchPattern(v, m_Constant(&constValue));
+        })) {
+      rewriter.eraseOp(barrier);
+      return success();
+    }
+
+    Operation *op = barrier;
+
+    {
+      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+      getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ true);
+
+      SmallVector<MemoryEffects::EffectInstance> afterEffects;
+      getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ false);
+
+      bool conflict = false;
+      for (auto before : beforeEffects)
+        for (auto after : afterEffects) {
+          if (mayAlias(before, after)) {
+            // Read, read is okay
+            if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                !isa<MemoryEffects::Read>(after.getEffect())) {
+              continue;
+            }
+
+            // Write, write is not okay because may be different offsets and the
+            // later must subsume other conflicts are invalid.
+            conflict = true;
+            break;
+          }
+        }
+
+      if (!conflict) {
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+    }
+
+    {
+      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+      getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
+
+      SmallVector<MemoryEffects::EffectInstance> afterEffects;
+      getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ true);
+
+      bool conflict = false;
+      for (auto before : beforeEffects)
+        for (auto after : afterEffects) {
+          if (mayAlias(before, after)) {
+            // Read, read is okay
+            if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                !isa<MemoryEffects::Read>(after.getEffect())) {
+              continue;
+            }
+            // Write, write is not okay because may be different offsets and the
+            // later must subsume other conflicts are invalid.
+            conflict = true;
+            break;
+          }
+        }
+
+      if (!conflict) {
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+    }
+
+    return failure();
+  }
+};
+
 void BarrierOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.insert<BarrierHoist>(context);
+  results.insert<BarrierHoist, BarrierElim>(context);
 }
 
 /// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,
