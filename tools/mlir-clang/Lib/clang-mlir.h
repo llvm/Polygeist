@@ -263,6 +263,8 @@ public:
 
   ValueCategory VisitForStmt(clang::ForStmt *fors);
 
+  ValueCategory VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors);
+
   ValueCategory VisitOMPSingleDirective(clang::OMPSingleDirective *);
 
   ValueCategory VisitOMPForDirective(clang::OMPForDirective *);
