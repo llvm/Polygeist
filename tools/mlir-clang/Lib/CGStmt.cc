@@ -291,6 +291,86 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
   return nullptr;
 }
 
+ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
+  IfScope scope(*this);
+
+  auto loc = getMLIRLocation(fors->getForLoc());
+
+  if (auto *s = fors->getInit()) {
+    Visit(s);
+  }
+  Visit(fors->getRangeStmt());
+  Visit(fors->getBeginStmt());
+  Visit(fors->getEndStmt());
+
+  auto i1Ty = builder.getIntegerType(1);
+  auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
+  auto truev = builder.create<ConstantIntOp>(loc, true, 1);
+
+  LoopContext lctx{builder.create<mlir::memref::AllocaOp>(loc, type),
+                   builder.create<mlir::memref::AllocaOp>(loc, type)};
+  builder.create<mlir::memref::StoreOp>(loc, truev, lctx.noBreak);
+
+  auto *toadd = builder.getInsertionBlock()->getParent();
+  auto &condB = *(new Block());
+  toadd->getBlocks().push_back(&condB);
+  auto &bodyB = *(new Block());
+  toadd->getBlocks().push_back(&bodyB);
+  auto &exitB = *(new Block());
+  toadd->getBlocks().push_back(&exitB);
+
+  builder.create<mlir::cf::BranchOp>(loc, &condB);
+
+  builder.setInsertionPointToStart(&condB);
+
+  if (auto *s = fors->getCond()) {
+    auto condRes = Visit(s);
+    auto cond = condRes.getValue(builder);
+    if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+      cond = builder.create<mlir::LLVM::ICmpOp>(
+          loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
+    }
+    auto ty = cond.getType().cast<mlir::IntegerType>();
+    if (ty.getWidth() != 1) {
+      cond = builder.create<arith::CmpIOp>(
+          loc, CmpIPredicate::ne, cond,
+          builder.create<ConstantIntOp>(loc, 0, ty));
+    }
+    auto nb = builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
+                                                   std::vector<mlir::Value>());
+    cond = builder.create<AndIOp>(loc, cond, nb);
+    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+  } else {
+    auto cond = builder.create<mlir::memref::LoadOp>(
+        loc, lctx.noBreak, std::vector<mlir::Value>());
+    builder.create<mlir::cf::CondBranchOp>(loc, cond, &bodyB, &exitB);
+  }
+
+  builder.setInsertionPointToStart(&bodyB);
+  builder.create<mlir::memref::StoreOp>(
+      loc,
+      builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
+                                           std::vector<mlir::Value>()),
+      lctx.keepRunning, std::vector<mlir::Value>());
+
+  loops.push_back(lctx);
+  Visit(fors->getLoopVarStmt());
+  Visit(fors->getBody());
+  if (auto *s = fors->getInc()) {
+    IfScope scope(*this);
+    Visit(s);
+  }
+  loops.pop_back();
+  if (builder.getInsertionBlock()->empty() ||
+      !isTerminator(&builder.getInsertionBlock()->back())) {
+    builder.create<mlir::cf::BranchOp>(loc, &condB);
+  }
+
+  builder.setInsertionPointToStart(&exitB);
+  return nullptr;
+}
+
 ValueCategory
 MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *par) {
   IfScope scope(*this);
