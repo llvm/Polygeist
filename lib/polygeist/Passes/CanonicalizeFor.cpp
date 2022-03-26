@@ -1743,7 +1743,7 @@ void CanonicalizeFor::runOnOperation() {
           RemoveUnusedCondVar, ReturnSq, MoveSideEffectFreeWhile>(
       getOperation()->getContext());
   GreedyRewriteConfig config;
-  config.maxIterations = 47;
+  config.maxIterations = 247;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 

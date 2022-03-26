@@ -41,7 +41,108 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
-typedef std::set<std::vector<ssize_t>> StoreMap;
+enum class Match { Exact, Maybe, None };
+
+bool operator<(Value lhs, Value rhs) {
+  if (auto lhsBA = lhs.dyn_cast<BlockArgument>()) {
+    if (auto rhsBA = rhs.dyn_cast<BlockArgument>()) {
+      if (lhsBA.getOwner() != rhsBA.getOwner())
+        return lhsBA.getOwner() < rhsBA.getOwner();
+      else
+        return lhsBA.getArgNumber() < rhsBA.getArgNumber();
+    } else {
+      return true;
+    }
+  }
+  auto lhsOR = lhs.cast<OpResult>();
+  if (auto rhsBA = rhs.dyn_cast<BlockArgument>()) {
+    return false;
+  } else {
+    auto rhsOR = rhs.cast<OpResult>();
+    if (lhsOR.getOwner() != rhsOR.getOwner())
+      return lhsOR.getOwner() < rhsOR.getOwner();
+    else
+      return lhsOR.getResultNumber() < rhsOR.getResultNumber();
+  }
+}
+class Offset {
+public:
+  enum class Type { Value, Index, Unknown } type;
+  mlir::Value val;
+  size_t idx;
+  Offset(mlir::Value v) {
+    if (auto op = v.getDefiningOp<ConstantIntOp>()) {
+      idx = op.value();
+      type = Type::Index;
+      return;
+    }
+    if (auto op = v.getDefiningOp<ConstantIndexOp>()) {
+      idx = op.value();
+      type = Type::Index;
+      return;
+    }
+    val = v;
+    type = Type::Value;
+  }
+  Offset(AffineExpr op, unsigned numDims, unsigned numSymbols,
+         mlir::OperandRange vals) {
+    if (auto opc = op.dyn_cast<AffineConstantExpr>()) {
+      idx = opc.getValue();
+      type = Type::Index;
+      return;
+    }
+    if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+      val = vals[opd.getPosition()];
+      type = Type::Value;
+      return;
+    }
+    if (auto ops = op.dyn_cast<AffineSymbolExpr>()) {
+      val = vals[numDims + ops.getPosition()];
+      type = Type::Value;
+      return;
+    }
+    type = Type::Unknown;
+  }
+  Match matches(const Offset o) const {
+    if (type != o.type)
+      return Match::Maybe;
+    switch (type) {
+    case Type::Unknown:
+      return Match::Maybe;
+    case Type::Value:
+      return (val == o.val) ? Match::Exact : Match::Maybe;
+    case Type::Index:
+      return (idx == o.idx) ? Match::Exact : Match::None;
+    }
+  }
+  bool operator<(const Offset o) const {
+    if (type != o.type) {
+      return type < o.type;
+    } else {
+      switch (type) {
+      case Offset::Type::Unknown:
+        return false;
+      case Offset::Type::Value:
+        return val < o.val;
+      case Offset::Type::Index:
+        return idx < o.idx;
+      }
+    }
+  }
+};
+
+llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Offset off) {
+  switch (off.type) {
+  case Offset::Type::Unknown:
+    return o << "<unknown>";
+  case Offset::Type::Value:
+    return o << off.val;
+  case Offset::Type::Index:
+    return o << off.idx;
+  }
+}
+
+typedef std::set<std::vector<Offset>> StoreMap;
 
 namespace {
 // The store to load forwarding relies on three conditions:
@@ -80,7 +181,7 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
   void runOnOperation() override;
 
   // return if changed
-  bool forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
+  bool forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
                           SmallVectorImpl<Operation *> &loadOpsToErase);
 };
 
@@ -92,60 +193,39 @@ std::unique_ptr<Pass> mlir::polygeist::createMem2RegPass() {
   return std::make_unique<Mem2Reg>();
 }
 
-bool matchesIndices(mlir::OperandRange ops, const std::vector<ssize_t> &idx) {
+Match matchesIndices(mlir::OperandRange ops, const std::vector<Offset> &idx) {
   if (ops.size() != idx.size())
-    return false;
+    return Match::None;
   for (size_t i = 0; i < idx.size(); i++) {
-    if (auto op = ops[i].getDefiningOp<ConstantIntOp>()) {
-      if (op.value() != idx[i]) {
-        return false;
-      }
-    } else if (auto op = ops[i].getDefiningOp<ConstantIndexOp>()) {
-      if (op.value() != idx[i]) {
-        return false;
-      }
-    } else {
-      assert(0 && "unhandled op");
+    switch (idx[i].matches(Offset(ops[i]))) {
+    case Match::None:
+      return Match::None;
+    case Match::Maybe:
+      return Match::Maybe;
+    case Match::Exact:
+      break;
     }
   }
-  return true;
+  return Match::Exact;
 }
 
-bool matchesIndices(ArrayRef<AffineExpr> ops, const std::vector<ssize_t> &idx) {
-  if (ops.size() != idx.size())
-    return false;
+Match matchesIndices(AffineMap map, mlir::OperandRange ops,
+                     const std::vector<Offset> &idx) {
+  auto idxs = map.getResults();
+  if (idxs.size() != idx.size())
+    return Match::None;
   for (size_t i = 0; i < idx.size(); i++) {
-    if (auto op = ops[i].dyn_cast<AffineConstantExpr>()) {
-      if (op.getValue() != idx[i])
-        return false;
-    } else {
-      assert(0 && "unhandled op");
+    switch (idx[i].matches(
+        Offset(idxs[i], map.getNumDims(), map.getNumSymbols(), ops))) {
+    case Match::None:
+      return Match::None;
+    case Match::Maybe:
+      return Match::Maybe;
+    case Match::Exact:
+      break;
     }
   }
-  return true;
-}
-
-bool constantIndices(mlir::OperandRange ops) {
-  for (size_t i = 0; i < ops.size(); i++) {
-    if (auto op = ops[i].getDefiningOp<ConstantIntOp>())
-      continue;
-    else if (auto op = ops[i].getDefiningOp<ConstantIndexOp>())
-      continue;
-    else
-      return false;
-  }
-  return true;
-}
-
-bool constantIndices(ArrayRef<AffineExpr> ops) {
-  for (size_t i = 0; i < ops.size(); i++) {
-    if (auto op = ops[i].dyn_cast<AffineConstantExpr>()) {
-      continue;
-    } else {
-      return false;
-    }
-  }
-  return true;
+  return Match::Exact;
 }
 
 class ValueOrPlaceholder;
@@ -729,28 +809,6 @@ struct Analyzer {
     }
   }
 };
-/*
-Operation* newLoad = nullptr;
-if (lastVal == nullptr && lastValIsStartOfBlock) {
-OpBuilder B(exOp.getContext());
-B.setInsertionPoint(exOp);
-SmallVector<mlir::Value, 4> nidx;
-for (auto i : idx) {
-nidx.push_back(B.create<ConstantIndexOp>(exOp.getLoc(), i));
-}
-if (AI.getType().isa<MemRefType>()) {
-        SmallVector<AffineExpr> exprs;
-        for (auto i : idx)
-              exprs.push_back(B.getAffineConstantExpr(i));
-AffineMap m = AffineMap::get(0, 0, exprs, B.getContext());
-        newLoad = B.create<AffineLoadOp>(exOp.getLoc(), AI, m, ValueRange());
-} else
-newLoad = B.create<LLVM::LoadOp>(exOp.getLoc(), AI);
-  lastVal = newLoad->getResult(0);
-      lastValIsStartOfBlock = false;
-      newLoads.insert(newLoad);
-}
-*/
 
 // Remove block arguments if possible
 void removeRedundantBlockArgs(
@@ -991,7 +1049,7 @@ std::set<std::string> NonCapturingFunctions = {
 std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
+bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
                                  SmallVectorImpl<Operation *> &loadOpsToErase) {
   bool changed = false;
   std::set<mlir::Operation *> loadOps;
@@ -1029,6 +1087,11 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         list.emplace_back((Value)co, true);
         continue;
       }
+      // If at the same index, the "hole" property applies
+      // and we can go through.
+      if (isa<polygeist::BarrierOp>(user)) {
+        continue;
+      }
       if (auto co = dyn_cast<mlir::LLVM::GEPOp>(user)) {
         list.emplace_back((Value)co, true);
         continue;
@@ -1042,7 +1105,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         continue;
       }
       if (auto loadOp = dyn_cast<mlir::memref::LoadOp>(user)) {
-        if (!modified && matchesIndices(loadOp.getIndices(), idx)) {
+        if (!modified &&
+            matchesIndices(loadOp.getIndices(), idx) == Match::Exact) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
           LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
@@ -1059,8 +1123,8 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
       }
       if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
         if (!modified &&
-            matchesIndices(loadOp.getAffineMapAttr().getValue().getResults(),
-                           idx)) {
+            matchesIndices(loadOp.getAffineMapAttr().getValue(),
+                           loadOp.getMapOperands(), idx) == Match::Exact) {
           subType = loadOp.getType();
           loadOps.insert(loadOp);
           LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
@@ -1071,11 +1135,18 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (storeOp.value() == val)
           captured = true;
         else if (!modified) {
-          if (matchesIndices(storeOp.getIndices(), idx)) {
+          switch (matchesIndices(storeOp.getIndices(), idx)) {
+          case Match::Exact:
             LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
             allStoreOps.insert(storeOp);
-          } else if (!constantIndices(storeOp.getIndices())) {
+            break;
+          case Match::Maybe:
+            LLVM_DEBUG(llvm::dbgs()
+                       << "Mabye Aliasing Store: " << storeOp << "\n");
             AliasingStoreOperations.insert(storeOp);
+            break;
+          case Match::None:
+            break;
           }
         } else
           AliasingStoreOperations.insert(storeOp);
@@ -1097,13 +1168,19 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
         if (storeOp.value() == val) {
           captured = true;
         } else if (!modified) {
-          if (matchesIndices(storeOp.getAffineMapAttr().getValue().getResults(),
-                             idx)) {
+          switch (matchesIndices(storeOp.getAffineMapAttr().getValue(),
+                                 storeOp.getMapOperands(), idx)) {
+          case Match::Exact:
             LLVM_DEBUG(llvm::dbgs() << "Matching Store: " << storeOp << "\n");
             allStoreOps.insert(storeOp);
-          } else if (!constantIndices(
-                         storeOp.getAffineMapAttr().getValue().getResults())) {
+            break;
+          case Match::Maybe:
+            LLVM_DEBUG(llvm::dbgs()
+                       << "Mabye Aliasing Store: " << storeOp << "\n");
             AliasingStoreOperations.insert(storeOp);
+            break;
+          case Match::None:
+            break;
           }
         } else
           AliasingStoreOperations.insert(storeOp);
@@ -1227,20 +1304,7 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<ssize_t> idx,
   if (loadOps.size() == 0) {
     return changed;
   }
-  /*
-  // this is a valid optimization, however it should occur naturally
-  // from the logic to follow anyways
-  if (allStoreOps.size() == 1) {
-    auto store = *allStoreOps.begin();
-    for(auto loadOp : loadOps) {
-      if (domInfo->dominates(store, loadOp)) {
-        loadOp.replaceAllUsesWith(store.getValueToStore());
-        loadOpsToErase.push_back(loadOp);
-      }
-    }
-    return changed;
-  }
-  */
+
   assert(AI.getDefiningOp());
   Region *parentAI = AI.getDefiningOp()->getParentRegion();
   assert(parentAI);
@@ -1720,46 +1784,16 @@ bool isPromotable(mlir::Value AI) {
 
     for (auto *U : val.getUsers()) {
       if (auto LO = dyn_cast<memref::LoadOp>(U)) {
-        for (auto idx : LO.getIndices()) {
-          if (!idx.getDefiningOp<ConstantIntOp>() &&
-              !idx.getDefiningOp<ConstantIndexOp>()) {
-            // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "
-            // ldue to " << idx << "\n";
-            return false;
-          }
-        }
         continue;
       } else if (auto LO = dyn_cast<LLVM::LoadOp>(U)) {
         continue;
       } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
         continue;
       } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
-        for (auto idx : LO.getAffineMapAttr().getValue().getResults()) {
-          if (!idx.isa<AffineConstantExpr>()) {
-            return false;
-          }
-        }
         continue;
       } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
-        if (SO.value() == val)
-          return false;
-        for (auto idx : SO.getIndices()) {
-          if (!idx.getDefiningOp<ConstantIntOp>() &&
-              !idx.getDefiningOp<ConstantIndexOp>()) {
-            // llvm::errs() << "non promotable "; AI.dump(); llvm::errs() << "
-            // sdue to " << idx << "\n";
-            return false;
-          }
-        }
         continue;
       } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
-        if (SO.value() == val)
-          return false;
-        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
-          if (!idx.isa<AffineConstantExpr>()) {
-            return false;
-          }
-        }
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
@@ -1792,55 +1826,47 @@ StoreMap getLastStored(mlir::Value AI) {
     list.pop_front();
     for (auto *U : val.getUsers()) {
       if (auto SO = dyn_cast<memref::StoreOp>(U)) {
-        std::vector<ssize_t> vec;
+        std::vector<Offset> vec;
         for (auto idx : SO.getIndices()) {
-          if (auto op = idx.getDefiningOp<ConstantIntOp>()) {
-            vec.push_back(op.value());
-          } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
-            vec.push_back(op.value());
-          } else {
-            assert(0 && "unhandled op");
-          }
+          vec.emplace_back(idx);
         }
         lastStored.insert(vec);
       } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
-        std::vector<ssize_t> vec;
-        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
-          if (auto op = idx.dyn_cast<AffineConstantExpr>()) {
-            vec.push_back(op.getValue());
-          } else {
-            assert(0 && "unhandled op");
-          }
+        std::vector<Offset> vec;
+        bool unknown = false;
+        auto map = SO.getAffineMapAttr().getValue();
+        for (auto idx : map.getResults()) {
+          vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
+                           SO.getMapOperands());
+          if (vec.back().type == Offset::Type::Unknown)
+            unknown = true;
         }
-        lastStored.insert(vec);
+        if (!unknown)
+          lastStored.insert(vec);
       } else if (isa<LLVM::LoadOp>(U)) {
-        std::vector<ssize_t> vec;
+        std::vector<Offset> vec;
         lastStored.insert(vec);
       } else if (isa<LLVM::StoreOp>(U)) {
-        std::vector<ssize_t> vec;
+        std::vector<Offset> vec;
         lastStored.insert(vec);
       } else if (auto SO = dyn_cast<memref::LoadOp>(U)) {
-        std::vector<ssize_t> vec;
+        std::vector<Offset> vec;
         for (auto idx : SO.getIndices()) {
-          if (auto op = idx.getDefiningOp<ConstantIntOp>()) {
-            vec.push_back(op.value());
-          } else if (auto op = idx.getDefiningOp<ConstantIndexOp>()) {
-            vec.push_back(op.value());
-          } else {
-            assert(0 && "unhandled op");
-          }
+          vec.emplace_back(idx);
         }
         lastStored.insert(vec);
       } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
-        std::vector<ssize_t> vec;
-        for (auto idx : SO.getAffineMapAttr().getValue().getResults()) {
-          if (auto op = idx.dyn_cast<AffineConstantExpr>()) {
-            vec.push_back(op.getValue());
-          } else {
-            assert(0 && "unhandled op");
-          }
+        std::vector<Offset> vec;
+        bool unknown = false;
+        auto map = SO.getAffineMapAttr().getValue();
+        for (auto idx : map.getResults()) {
+          vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
+                           SO.getMapOperands());
+          if (vec.back().type == Offset::Type::Unknown)
+            unknown = true;
         }
-        lastStored.insert(vec);
+        if (!unknown)
+          lastStored.insert(vec);
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       }
@@ -1896,7 +1922,7 @@ void Mem2Reg::runOnOperation() {
         LLVM_DEBUG(llvm::dbgs() << " + forwarding vec to promote {";
                    for (auto m
                         : vec) llvm::dbgs()
-                   << (int)m << ",";
+                   << m << ",";
                    llvm::dbgs() << "} of " << AI << "\n");
         // llvm::errs() << " PRE " << AI << "\n";
         // f.dump();

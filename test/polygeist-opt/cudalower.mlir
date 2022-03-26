@@ -53,18 +53,21 @@ module {
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     scf.parallel (%arg2, %arg3, %arg4) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:       scf.parallel (%arg5, %arg6, %arg7) = (%c0, %c0, %c0) to (%c1, %c1, %c1) step (%c1, %c1, %c1) {
-// CHECK-NEXT:         %0 = scf.execute_region -> i8 {
+// CHECK-NEXT:         %0 = memref.alloca_scope -> (i8) {
+// CHECK-NEXT:         %1 = scf.execute_region -> i8 {
 // CHECK-NEXT:           cf.switch %arg1 : i8, [
 // CHECK-NEXT:             default: ^bb2(%arg1 : i8),
 // CHECK-NEXT:             0: ^bb1
 // CHECK-NEXT:           ]
 // CHECK-NEXT:         ^bb1:  // pred: ^bb0
-// CHECK-NEXT:           %1 = llvm.load %arg0 : !llvm.ptr<i8>
-// CHECK-NEXT:           cf.br ^bb2(%1 : i8)
-// CHECK-NEXT:         ^bb2(%2: i8):  // 2 preds: ^bb0, ^bb1
-// CHECK-NEXT:           cf.br ^bb3(%2 : i8)
-// CHECK-NEXT:         ^bb3(%3: i8):  // pred: ^bb2
-// CHECK-NEXT:           scf.yield %3 : i8
+// CHECK-NEXT:           %2 = llvm.load %arg0 : !llvm.ptr<i8>
+// CHECK-NEXT:           cf.br ^bb2(%2 : i8)
+// CHECK-NEXT:         ^bb2(%3: i8):  // 2 preds: ^bb0, ^bb1
+// CHECK-NEXT:           cf.br ^bb3(%3 : i8)
+// CHECK-NEXT:         ^bb3(%4: i8):  // pred: ^bb2
+// CHECK-NEXT:           scf.yield %4 : i8
+// CHECK-NEXT:         }
+// CHECK-NEXT:         memref.alloca_scope.return %1 : i8
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
@@ -104,6 +107,7 @@ module {
 // CHECK-NEXT:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     scf.parallel (%arg1, %arg2, %arg3) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:       scf.parallel (%arg4, %arg5, %arg6) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
+// CHECK-NEXT:         memref.alloca_scope {
 // CHECK-NEXT:         scf.execute_region {
 // CHECK-NEXT:           call @somethingA() : () -> ()
 // CHECK-NEXT:           scf.if %arg0 {
@@ -111,6 +115,7 @@ module {
 // CHECK-NEXT:           }
 // CHECK-NEXT:           call @somethingB() : () -> ()
 // CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }

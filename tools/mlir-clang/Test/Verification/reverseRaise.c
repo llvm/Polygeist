@@ -15,8 +15,8 @@ void kernel_correlation(int start, int end) {
 }
 
 // CHECK: kernel_correlation
-// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %1 = arith.addi %0, %c1 : index
 // CHECK-NEXT:     %2 = arith.index_cast %arg0 : i32 to index
