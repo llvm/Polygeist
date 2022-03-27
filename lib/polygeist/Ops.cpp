@@ -291,7 +291,7 @@ bool mayAlias(MemoryEffects::EffectInstance a,
 
 void BarrierOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.insert<BarrierHoist, BarrierElim</*TopLevelOnly*/false>>(context);
+  results.insert<BarrierHoist, BarrierElim</*TopLevelOnly*/ false>>(context);
 }
 
 /// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,
@@ -1054,22 +1054,25 @@ public:
       width *= std::get<0>(pair);
     }
 
-    Value len = op.getLen();
+    SmallVector<Value> todo = {op.getLen()};
     size_t factor = 1;
-    while (factor % width != 0) {
+    while (factor % width != 0 && todo.size()) {
+      Value len = todo.back();
+      todo.pop_back();
       IntegerAttr constValue;
       if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
-        len = ext.getIn();
-      else if (auto mul = len.getDefiningOp<arith::MulIOp>())
-        len = mul.getRhs();
-      else if (matchPattern(len, m_Constant(&constValue))) {
+        todo.push_back(ext.getIn());
+      else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
+        todo.push_back(mul.getLhs());
+        todo.push_back(mul.getRhs());
+      } else if (matchPattern(len, m_Constant(&constValue))) {
         factor *= constValue.getValue().getLimitedValue();
       } else
-        return failure();
+        continue;
     }
 
     if (factor % width != 0)
@@ -1147,22 +1150,25 @@ public:
       width *= pair;
     }
 
-    Value len = op.getLen();
+    SmallVector<Value> todo = {op.getLen()};
     size_t factor = 1;
-    while (factor % width != 0) {
+    while (factor % width != 0 && todo.size()) {
+      Value len = todo.back();
+      todo.pop_back();
       IntegerAttr constValue;
       if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
-        len = ext.getIn();
-      else if (auto mul = len.getDefiningOp<arith::MulIOp>())
-        len = mul.getRhs();
-      else if (matchPattern(len, m_Constant(&constValue))) {
+        todo.push_back(ext.getIn());
+      else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
+        todo.push_back(mul.getLhs());
+        todo.push_back(mul.getRhs());
+      } else if (matchPattern(len, m_Constant(&constValue))) {
         factor *= constValue.getValue().getLimitedValue();
       } else
-        return failure();
+        continue;
     }
 
     if (factor % width != 0)
