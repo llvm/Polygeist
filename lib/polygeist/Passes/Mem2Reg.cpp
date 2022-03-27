@@ -123,7 +123,7 @@ public:
       case Offset::Type::Unknown:
         return false;
       case Offset::Type::Value:
-        return val < o.val;
+        return val.getAsOpaquePointer() < o.val.getAsOpaquePointer();
       case Offset::Type::Index:
         return idx < o.idx;
       }

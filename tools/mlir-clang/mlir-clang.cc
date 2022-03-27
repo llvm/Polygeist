@@ -89,6 +89,9 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
 static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
+static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(true),
+                                cl::desc("Unroll Affine Loops"));
+
 static cl::opt<bool>
     DetectReduction("detect-reduction", cl::init(false),
                     cl::desc("Detect reduction in inner most loop"));
@@ -563,7 +566,8 @@ int main(int argc, char **argv) {
         noptPM2.addPass(polygeist::replaceAffineCFGPass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        noptPM2.addPass(mlir::createLoopUnrollPass(-1, false, true));
+        if (LoopUnroll)
+          noptPM2.addPass(mlir::createLoopUnrollPass(-1, false, true));
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         noptPM2.addPass(mlir::createCSEPass());
@@ -634,7 +638,8 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::replaceAffineCFGPass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        optPM.addPass(mlir::createLoopUnrollPass(-1, false, true));
+        if (LoopUnroll)
+          optPM.addPass(mlir::createLoopUnrollPass(-1, false, true));
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM.addPass(mlir::createCSEPass());
