@@ -1521,12 +1521,45 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
   }
 };
 
+static bool
+collectEffects(Operation *op,
+               SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // Collect effect instances the operation. Note that the implementation of
+  // getEffects erases all effect instances that have the type other than the
+  // template parameter so we collect them first in a local buffer and then
+  // copy.
+  if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    SmallVector<MemoryEffects::EffectInstance> localEffects;
+    iface.getEffects(localEffects);
+    llvm::append_range(effects, localEffects);
+    return true;
+  }
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    for (auto &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &innerOp : block)
+          if (!collectEffects(&innerOp, effects))
+            return false;
+      }
+    }
+    return true;
+  }
+
+  // We need to be conservative here in case the op doesn't have the interface
+  // and assume it can have any possible effect.
+  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Read>());
+  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Write>());
+  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Allocate>());
+  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Free>());
+  return false;
+}
+
 // Rewritten from LoopInvariantCodeMotion.cpp
 struct WhileLICM : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;
   static bool canBeHoisted(Operation *op,
                            function_ref<bool(Value)> definedOutside,
-                           bool isSpeculatable) {
+                           bool isSpeculatable, WhileOp whileOp) {
     // TODO consider requirement of isSpeculatable
 
     // Check that dependencies are defined outside of loop.
@@ -1536,8 +1569,35 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // can be no side-effects because the surrounding op has claimed so, we can
     // (and have to) skip this step.
     if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
-      if (!memInterface.hasNoEffect())
-        return false;
+      if (!memInterface.hasNoEffect()) {
+        if (isReadOnly(op) && !isSpeculatable) {
+            
+            SmallVector<MemoryEffects::EffectInstance> whileEffects;
+            collectEffects(whileOp, whileEffects);
+            
+            SmallVector<MemoryEffects::EffectInstance> opEffects;
+            collectEffects(op, opEffects);
+
+            bool conflict = false;
+            for (auto before : opEffects)
+        for (auto after : whileEffects) {
+          if (mayAlias(before, after)) {
+            // Read, read is okay
+            if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                isa<MemoryEffects::Read>(after.getEffect())) {
+              continue;
+            }
+
+            // Write, write is not okay because may be different offsets and the
+            // later must subsume other conflicts are invalid.
+            conflict = true;
+            break;
+          }
+        }
+           if (conflict) return false;
+        } else
+          return false;
+      }
       // If the operation doesn't have side effects and it doesn't recursively
       // have side effects, it can always be hoisted.
       if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
@@ -1555,7 +1615,7 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
         for (auto &innerOp : block.without_terminator())
-          if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable))
+          if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable, whileOp))
             return false;
       }
     }
@@ -1588,21 +1648,21 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // to this rewriting. If the nested regions are loops, they will have been
     // processed.
     for (auto &block : op.getBefore()) {
-      for (auto &op : block.without_terminator()) {
-        bool legal = canBeHoisted(&op, isDefinedOutsideOfBody, false);
+      for (auto &iop : block.without_terminator()) {
+        bool legal = canBeHoisted(&iop, isDefinedOutsideOfBody, false, op);
         if (legal) {
-          opsToMove.push_back(&op);
-          willBeMovedSet.insert(&op);
+          opsToMove.push_back(&iop);
+          willBeMovedSet.insert(&iop);
         }
       }
     }
 
     for (auto &block : op.getAfter()) {
-      for (auto &op : block.without_terminator()) {
-        bool legal = canBeHoisted(&op, isDefinedOutsideOfBody, true);
+      for (auto &iop : block.without_terminator()) {
+        bool legal = canBeHoisted(&iop, isDefinedOutsideOfBody, true, op);
         if (legal) {
-          opsToMove.push_back(&op);
-          willBeMovedSet.insert(&op);
+          opsToMove.push_back(&iop);
+          willBeMovedSet.insert(&iop);
         }
       }
     }

@@ -186,9 +186,15 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
     if (((!isValidSymbolInt(t, /*recur*/ false) &&
           (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-           t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
-           t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
-           t.getDefiningOp<RemSIOp>() || t.getDefiningOp<ConstantIntOp>() ||
+           (t.getDefiningOp<MulIOp>() && (
+                             isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)) ||
+                             isValidIndex(t.getDefiningOp()->getOperand(1)) && isValidSymbolInt(t.getDefiningOp()->getOperand(0))
+                             )) || 
+           (t.getDefiningOp<DivUIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
+           (t.getDefiningOp<DivSIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
+           (t.getDefiningOp<RemUIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
+           (t.getDefiningOp<RemSIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
+           t.getDefiningOp<ConstantIntOp>() ||
            t.getDefiningOp<ConstantIndexOp>())) ||
          ((decast.getDefiningOp<AddIOp>() || decast.getDefiningOp<SubIOp>() ||
            decast.getDefiningOp<MulIOp>() || decast.getDefiningOp<DivSIOp>() ||

@@ -27,8 +27,6 @@ struct ParallelLICM : public ParallelLICMBase<ParallelLICM> {
 };
 } // namespace
 
-bool isReadOnly(Operation *);
-
 static bool canBeParallelHoisted(Operation *op, Operation *scope,
                                  SmallPtrSetImpl<Operation *> &willBeMoved) {
   // Helper to check whether an operation is loop invariant wrt. SSA properties.

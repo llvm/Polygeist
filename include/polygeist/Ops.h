@@ -33,6 +33,8 @@ bool getEffectsAfter(
     llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance> &effects,
     bool stopAtBarrier);
 
+bool isReadOnly(mlir::Operation *);
+
 bool mayAlias(mlir::MemoryEffects::EffectInstance a,
               mlir::MemoryEffects::EffectInstance b);
 
@@ -73,7 +75,7 @@ public:
           if (mayAlias(before, after)) {
             // Read, read is okay
             if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                !isa<MemoryEffects::Read>(after.getEffect())) {
+                isa<MemoryEffects::Read>(after.getEffect())) {
               continue;
             }
 
