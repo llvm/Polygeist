@@ -1142,6 +1142,8 @@ public:
         len = ext.getIn();
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
         len = ext.getIn();
+      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+        len = ext.getIn();
       else if (auto mul = len.getDefiningOp<arith::MulIOp>())
         len = mul.getRhs();
       else if (matchPattern(len, m_Constant(&constValue))) {
@@ -1232,6 +1234,8 @@ public:
       if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
         len = ext.getIn();
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
+        len = ext.getIn();
+      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
         len = ext.getIn();
       else if (auto mul = len.getDefiningOp<arith::MulIOp>())
         len = mul.getRhs();
