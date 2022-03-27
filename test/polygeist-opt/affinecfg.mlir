@@ -88,19 +88,16 @@ module {
 
 // CHECK: #set = affine_set<()[s0] : (s0 - 1 >= 0)>
 // CHECK:   func @minif(%arg0: i32, %arg1: i32, %arg2: index) {
-// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %1 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %2 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %3 = arith.index_cast %arg0 : i32 to index
-// CHECK-NEXT:     %4 = arith.index_cast %arg1 : i32 to index
-// CHECK-NEXT:     %5 = arith.muli %arg2, %0 : index
-// CHECK-NEXT:     %6 = arith.divui %5, %1 : index
-// CHECK-NEXT:     %7 = arith.muli %6, %2 : index
-// CHECK-NEXT:     %8 = arith.subi %3, %7 : index
-// CHECK-NEXT:     %9 = arith.cmpi sle, %4, %8 : index
-// CHECK-NEXT:     %10 = arith.select %9, %4, %8 : index
+// CHECK-NEXT:     %0 = arith.index_cast %arg2 : index to i32
+// CHECK-NEXT:     %1 = arith.muli %0, %arg1 : i32
+// CHECK-NEXT:     %2 = arith.divui %1, %arg1 : i32
+// CHECK-NEXT:     %3 = arith.muli %2, %arg1 : i32
+// CHECK-NEXT:     %4 = arith.subi %arg0, %3 : i32
+// CHECK-NEXT:     %5 = arith.cmpi sle, %arg1, %4 : i32
+// CHECK-NEXT:     %6 = arith.select %5, %arg1, %4 : i32
+// CHECK-NEXT:     %7 = arith.index_cast %6 : i32 to index
 // CHECK-NEXT:     affine.for %arg3 = 0 to 10 {
-// CHECK-NEXT:       affine.if #set()[%10] {
+// CHECK-NEXT:       affine.if #set()[%7] {
 // CHECK-NEXT:         call @run() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }

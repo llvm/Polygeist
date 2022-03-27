@@ -5,6 +5,7 @@
 #include "mlir/Pass/Pass.h"
 #include <memory>
 namespace mlir {
+class PatternRewriter;
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
@@ -26,7 +27,8 @@ std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 } // namespace mlir
 
 void fully2ComposeAffineMapAndOperands(
-    mlir::OpBuilder &, mlir::AffineMap *map,
+    mlir::PatternRewriter &rewriter,
+    mlir::AffineMap *map,
     llvm::SmallVectorImpl<mlir::Value> *operands);
 bool isValidIndex(mlir::Value val);
 
