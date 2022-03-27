@@ -6,6 +6,7 @@
 #include <memory>
 namespace mlir {
 class PatternRewriter;
+class DominanceInfo;
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
@@ -29,7 +30,8 @@ std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 void fully2ComposeAffineMapAndOperands(
     mlir::PatternRewriter &rewriter,
     mlir::AffineMap *map,
-    llvm::SmallVectorImpl<mlir::Value> *operands);
+    llvm::SmallVectorImpl<mlir::Value> *operands,
+    mlir::DominanceInfo &DI);
 bool isValidIndex(mlir::Value val);
 
 namespace mlir {

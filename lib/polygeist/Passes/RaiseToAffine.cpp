@@ -11,6 +11,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/Support/Debug.h"
+#include "mlir/IR/Dominance.h"
 
 #define DEBUG_TYPE "raise-to-affine"
 
@@ -117,16 +118,19 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
         rewrittenStep = true;
       }
+          
+      auto *scope = getAffineScope(loop)->getParentOp();
+      DominanceInfo DI(scope);
 
       AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
-        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs);
+        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
         canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
       AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
-        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs);
+        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
         canonicalizeMapAndOperands(&ubMap, &ubs);
         ubMap = removeDuplicateExprs(ubMap);
       }
@@ -194,11 +198,14 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     auto ubMap = forOp.upperBoundsMap();
     auto prevLbMap = lbMap;
     auto prevUbMap = ubMap;
+      
+    auto *scope = getAffineScope(forOp)->getParentOp();
+    DominanceInfo DI(scope);
 
-    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
 
-    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
 
     if (lbMap != prevLbMap)
