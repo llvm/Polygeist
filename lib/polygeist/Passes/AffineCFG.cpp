@@ -102,6 +102,13 @@ static bool legalCondition(Value en, bool dim = false) {
       return true;
     }
   }
+  if ((en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
+       en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivSIOp>() ||
+       en.getDefiningOp<DivUIOp>() || en.getDefiningOp<RemUIOp>() ||
+       en.getDefiningOp<RemSIOp>()) &&
+      (en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIntOp>() ||
+       en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIndexOp>()))
+    return true;
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
   //	if (!outer || legalCondition(IC.getOperand(), false)) return true;
   //}
@@ -167,12 +174,23 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       }
     }
 
-    if (!isValidSymbolInt(t, /*recur*/ false) &&
-        (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-         t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
-         t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
-         t.getDefiningOp<RemSIOp>() || t.getDefiningOp<ConstantIntOp>() ||
-         t.getDefiningOp<ConstantIndexOp>())) {
+    // Only promote one at a time, lest we end up with two dimensions
+    // multiplying each other.
+    bool promotable = symbolsToPromote.size() == 0;
+
+    if (promotable &&
+            (!isValidSymbolInt(t, /*recur*/ false) &&
+             (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+              t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
+              t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
+              t.getDefiningOp<RemSIOp>() || t.getDefiningOp<ConstantIntOp>() ||
+              t.getDefiningOp<ConstantIndexOp>())) ||
+        ((t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+          t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
+          t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
+          t.getDefiningOp<RemSIOp>()) &&
+         (t.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIntOp>() ||
+          t.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIndexOp>()))) {
 
       AffineMap affineApplyMap;
       SmallVector<Value, 8> affineApplyOperands;
@@ -184,36 +202,104 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) +
                                getAffineSymbolExpr(1, op.getContext()));
+        affineApplyOperands.push_back(op.getLhs());
+        affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<SubIOp>()) {
         affineApplyMap =
             AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) -
                                getAffineSymbolExpr(1, op.getContext()));
+        affineApplyOperands.push_back(op.getLhs());
+        affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<MulIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) *
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) *
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<DivSIOp>()) {
-        affineApplyMap = AffineMap::get(
-            0, 2,
-            getAffineSymbolExpr(0, op.getContext())
-                .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<DivUIOp>()) {
-        affineApplyMap = AffineMap::get(
-            0, 2,
-            getAffineSymbolExpr(0, op.getContext())
-                .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<RemSIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) %
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<RemUIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) %
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<ConstantIntOp>()) {
         affineApplyMap = AffineMap::get(
             0, 0, getAffineConstantExpr(op.value(), op.getContext()));
@@ -222,10 +308,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             0, 0, getAffineConstantExpr(op.value(), op.getContext()));
       } else {
         llvm_unreachable("");
-      }
-
-      for (auto op : t.getDefiningOp()->getOperands()) {
-        affineApplyOperands.push_back(op);
       }
 
       SmallVector<AffineExpr, 0> dimRemapping;
@@ -251,11 +333,12 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         llvm::dbgs() << " + prevop: " << op << "\n";
       }
       */
-    } else if (isAffineForArg(t)) {
+    } else if (promotable && isAffineForArg(t)) {
       auxiliaryExprs.push_back(renumberOneDim(t));
       if (i >= numDimsBeforeRewrite)
         symbolsToPromote.insert(i - numDimsBeforeRewrite);
-    } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
+    } else if (promotable && t.getDefiningOp<AffineApplyOp>()) {
+      auto affineApply = t.getDefiningOp<AffineApplyOp>();
       // a. Compose affine.apply operations.
       LLVM_DEBUG(affineApply->print(
           llvm::dbgs() << "\nCompose AffineApplyOp recursively: "));
@@ -288,7 +371,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           affineApplyMap.print(llvm::dbgs() << "\nAffine apply fixup map: "));
       auxiliaryExprs.push_back(affineApplyMap.getResult(0));
     } else {
-      if (!isValidSymbolInt(t, /*recur*/ false)) {
+      if (promotable && !isValidSymbolInt(t, /*recur*/ false)) {
         if (auto idx = t.getDefiningOp()) {
           auto *scope = getAffineScope(idx)->getParentOp();
           DominanceInfo DI(scope);
@@ -334,7 +417,6 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             rewriter.setInsertionPoint(front);
             auto cloned = rewriter.clone(*op);
             rewriter.replaceOp(op, cloned->getResults());
-            cloned->getParentOfType<FunctionOpInterface>()->dump();
             return cloned->getResult(0);
           };
           if ((t = fix(t))) {

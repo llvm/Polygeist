@@ -19,11 +19,9 @@ module {
 
 // CHECK:   func @_Z7runTestiPPc(%arg0: index, %arg1: memref<?xi32>) {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %0 = arith.addi %arg0, %c1 : index
 // CHECK-NEXT:     affine.for %arg2 = 0 to 2 {
 // CHECK-NEXT:       affine.for %arg3 = 0 to 2 {
-// CHECK-NEXT:         affine.store %c0_i32, %arg1[%arg3 + %arg2 * symbol(%0)] : memref<?xi32>
+// CHECK-NEXT:         affine.store %c0_i32, %arg1[%arg3 + %arg2 * (symbol(%arg0) + 1)] : memref<?xi32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
