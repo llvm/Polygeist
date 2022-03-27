@@ -173,10 +173,12 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   // 2. Compose AffineApplyOps and dispatch dims or symbols.
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
+    auto decast = t;
+    while (auto idx = decast.getDefiningOp<IndexCastOp>()) {
+      decast = idx.getIn();
+    }
     if (!isValidSymbolInt(t, /*recur*/ false)) {
-      while (auto idx = t.getDefiningOp<IndexCastOp>()) {
-        t = idx.getIn();
-      }
+      t = decast;
     }
 
     // Only promote one at a time, lest we end up with two dimensions
@@ -188,14 +190,18 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
            t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
            t.getDefiningOp<RemSIOp>() || t.getDefiningOp<ConstantIntOp>() ||
            t.getDefiningOp<ConstantIndexOp>())) ||
-         ((t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-           t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
-           t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
-           t.getDefiningOp<RemSIOp>()) &&
-          (t.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIntOp>() ||
-           t.getDefiningOp()
+         ((decast.getDefiningOp<AddIOp>() || decast.getDefiningOp<SubIOp>() ||
+           decast.getDefiningOp<MulIOp>() || decast.getDefiningOp<DivSIOp>() ||
+           decast.getDefiningOp<DivUIOp>() || decast.getDefiningOp<RemUIOp>() ||
+           decast.getDefiningOp<RemSIOp>()) &&
+          (decast.getDefiningOp()
+               ->getOperand(1)
+               .getDefiningOp<ConstantIntOp>() ||
+           decast.getDefiningOp()
                ->getOperand(1)
                .getDefiningOp<ConstantIndexOp>())))) {
+      t = decast;
+      LLVM_DEBUG(llvm::dbgs() << " Replacing: " << t << "\n");
 
       AffineMap affineApplyMap;
       SmallVector<Value, 8> affineApplyOperands;
@@ -1397,13 +1403,14 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
     canonicalizeSetAndOperands(&iset, &applies);
     AffineIfOp affineIfOp =
         rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
-                                    /*elseBlock=*/false);
+                                    /*elseBlock=*/true);
 
     rewriter.setInsertionPoint(ifOp.thenYield());
     rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(),
                                                ifOp.thenYield().getOperands());
 
     rewriter.eraseBlock(affineIfOp.getThenBlock());
+    rewriter.eraseBlock(affineIfOp.getElseBlock());
     if (ifOp.getElseRegion().getBlocks().size()) {
       rewriter.setInsertionPoint(ifOp.elseYield());
       rewriter.replaceOpWithNewOp<AffineYieldOp>(

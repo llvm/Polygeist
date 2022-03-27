@@ -79,8 +79,6 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
               forOp->getParentRegion()))
         continue;
 
-      Value init = std::get<0>(it);
-
       bool sameValue = addOp.getOperand(1) == forOp.getStep();
 
       APInt rattr;
@@ -94,6 +92,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
         }
 
       if (!std::get<1>(it).use_empty()) {
+        Value init = std::get<0>(it);
         rewriter.setInsertionPointToStart(&forOp.getRegion().front());
         Value replacement = rewriter.create<SubIOp>(
             forOp.getLoc(), forOp.getInductionVar(), forOp.getLowerBound());
@@ -102,16 +101,30 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
           replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement,
                                                  forOp.getStep());
 
+        if (!sameValue) {
+          Value step = addOp.getOperand(1);
+
+          if (!step.getType().isa<IndexType>()) {
+            step = rewriter.create<IndexCastOp>(forOp.getLoc(),
+                                                replacement.getType(), step);
+          }
+
+          replacement =
+              rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
+        }
+
+        if (!init.getType().isa<IndexType>()) {
+          init = rewriter.create<IndexCastOp>(forOp.getLoc(),
+                                              replacement.getType(), init);
+        }
+
+        replacement =
+            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
+
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
-
-        if (!sameValue)
-          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement,
-                                                addOp.getOperand(1));
-        replacement =
-            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<1>(it).replaceAllUsesWith(replacement); });
@@ -119,6 +132,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
       }
 
       if (!std::get<2>(it).use_empty()) {
+        Value init = std::get<0>(it);
         rewriter.setInsertionPoint(forOp);
         Value replacement = rewriter.create<SubIOp>(
             forOp.getLoc(), forOp.getUpperBound(), forOp.getLowerBound());
@@ -127,16 +141,30 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
           replacement = rewriter.create<DivUIOp>(forOp.getLoc(), replacement,
                                                  forOp.getStep());
 
+        if (!sameValue) {
+          Value step = addOp.getOperand(1);
+
+          if (!step.getType().isa<IndexType>()) {
+            step = rewriter.create<IndexCastOp>(forOp.getLoc(),
+                                                replacement.getType(), step);
+          }
+
+          replacement =
+              rewriter.create<MulIOp>(forOp.getLoc(), replacement, step);
+        }
+
+        if (!init.getType().isa<IndexType>()) {
+          init = rewriter.create<IndexCastOp>(forOp.getLoc(),
+                                              replacement.getType(), init);
+        }
+
+        replacement =
+            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
+
         if (!std::get<1>(it).getType().isa<IndexType>()) {
           replacement = rewriter.create<IndexCastOp>(
               forOp.getLoc(), std::get<1>(it).getType(), replacement);
         }
-
-        if (!sameValue)
-          replacement = rewriter.create<MulIOp>(forOp.getLoc(), replacement,
-                                                addOp.getOperand(1));
-        replacement =
-            rewriter.create<AddIOp>(forOp.getLoc(), init, replacement);
 
         rewriter.updateRootInPlace(
             forOp, [&] { std::get<2>(it).replaceAllUsesWith(replacement); });

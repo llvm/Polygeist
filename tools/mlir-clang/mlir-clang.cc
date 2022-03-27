@@ -553,6 +553,24 @@ int main(int argc, char **argv) {
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (RaiseToAffine) {
+        noptPM2.addPass(polygeist::createCanonicalizeForPass());
+        noptPM2.addPass(
+            mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+        noptPM2.addPass(polygeist::createParallelLICMPass());
+        noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
+        noptPM2.addPass(
+            mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+        noptPM2.addPass(polygeist::replaceAffineCFGPass());
+        noptPM2.addPass(
+            mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+        noptPM2.addPass(mlir::createLoopUnrollPass(-1, false, true));
+        noptPM2.addPass(
+            mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+        noptPM2.addPass(mlir::createCSEPass());
+        noptPM2.addPass(polygeist::createMem2RegPass());
+        noptPM2.addPass(
+            mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+        noptPM2.addPass(polygeist::createParallelLICMPass());
         noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));

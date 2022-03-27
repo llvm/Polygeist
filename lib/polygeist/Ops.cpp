@@ -289,89 +289,9 @@ bool mayAlias(MemoryEffects::EffectInstance a,
   return true;
 }
 
-class BarrierElim final : public OpRewritePattern<BarrierOp> {
-public:
-  using OpRewritePattern<BarrierOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(BarrierOp barrier,
-                                PatternRewriter &rewriter) const override {
-    // Remove if it only sync's constant indices.
-    if (llvm::all_of(barrier.getOperands(), [](Value v) {
-          IntegerAttr constValue;
-          return matchPattern(v, m_Constant(&constValue));
-        })) {
-      rewriter.eraseOp(barrier);
-      return success();
-    }
-
-    Operation *op = barrier;
-
-    {
-      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
-      getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ true);
-
-      SmallVector<MemoryEffects::EffectInstance> afterEffects;
-      getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ false);
-
-      bool conflict = false;
-      for (auto before : beforeEffects)
-        for (auto after : afterEffects) {
-          if (mayAlias(before, after)) {
-            // Read, read is okay
-            if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                !isa<MemoryEffects::Read>(after.getEffect())) {
-              continue;
-            }
-
-            // Write, write is not okay because may be different offsets and the
-            // later must subsume other conflicts are invalid.
-            conflict = true;
-            break;
-          }
-        }
-
-      if (!conflict) {
-        rewriter.eraseOp(barrier);
-        return success();
-      }
-    }
-
-    {
-      SmallVector<MemoryEffects::EffectInstance> beforeEffects;
-      getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
-
-      SmallVector<MemoryEffects::EffectInstance> afterEffects;
-      getEffectsAfter(op, afterEffects, /*stopAtBarrier*/ true);
-
-      bool conflict = false;
-      for (auto before : beforeEffects)
-        for (auto after : afterEffects) {
-          if (mayAlias(before, after)) {
-            // Read, read is okay
-            if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                !isa<MemoryEffects::Read>(after.getEffect())) {
-              continue;
-            }
-            // Write, write is not okay because may be different offsets and the
-            // later must subsume other conflicts are invalid.
-            conflict = true;
-            break;
-          }
-        }
-
-      if (!conflict) {
-        rewriter.eraseOp(barrier);
-        return success();
-      }
-    }
-
-    return failure();
-  }
-};
-
 void BarrierOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.insert<BarrierHoist, BarrierElim>(context);
+  results.insert<BarrierHoist, BarrierElim</*TopLevelOnly*/false>>(context);
 }
 
 /// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,

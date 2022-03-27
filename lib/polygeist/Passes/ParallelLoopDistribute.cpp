@@ -1731,26 +1731,27 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
-                        Reg2MemWhile, Reg2MemIf<scf::IfOp>,
-                        Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
-                        WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
-                        WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-                        InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
-                        InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
-                        InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
-                        InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
-                        InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                        InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
+        patterns
+            .insert<BarrierElim</*TopLevelOnly*/ true>, Reg2MemFor<scf::ForOp>,
+                    Reg2MemFor<AffineForOp>, Reg2MemWhile, Reg2MemIf<scf::IfOp>,
+                    Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
+                    WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
+                    WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
+                    InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+                    InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
+                    InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+                    InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
+                    InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
+                    InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+                    InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
+                    InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
 
-                        InterchangeWhilePFor<scf::ParallelOp>,
-                        InterchangeWhilePFor<AffineParallelOp>,
-                        // NormalizeLoop,
-                        NormalizeParallel
-                        // RotateWhile,
-                        >(&getContext());
+                    InterchangeWhilePFor<scf::ParallelOp>,
+                    InterchangeWhilePFor<AffineParallelOp>,
+                    // NormalizeLoop,
+                    NormalizeParallel
+                    // RotateWhile,
+                    >(&getContext());
         if (method.contains("mincut")) {
           patterns.insert<DistributeAroundBarrier<scf::ParallelOp, true>,
                           DistributeAroundBarrier<AffineParallelOp, true>>(
