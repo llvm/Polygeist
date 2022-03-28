@@ -22,6 +22,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
+#include "llvm/Support/CommandLine.h"
 
 bool getEffectsBefore(
     mlir::Operation *op,
@@ -38,6 +39,8 @@ bool isReadOnly(mlir::Operation *);
 bool mayAlias(mlir::MemoryEffects::EffectInstance a,
               mlir::MemoryEffects::EffectInstance b);
 
+extern llvm::cl::opt<bool> BarrierOpt;
+
 template <bool TopLevelOnly = false>
 class BarrierElim final
     : public mlir::OpRewritePattern<mlir::polygeist::BarrierOp> {
@@ -48,6 +51,7 @@ public:
                   mlir::PatternRewriter &rewriter) const override {
     using namespace mlir;
     using namespace polygeist;
+    if (!BarrierOpt) return failure();
     // Remove if it only sync's constant indices.
     if (llvm::all_of(barrier.getOperands(), [](mlir::Value v) {
           IntegerAttr constValue;

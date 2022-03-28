@@ -1,6 +1,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
@@ -230,12 +231,26 @@ struct ParallelIfInterchange : public OpRewritePattern<scf::IfOp> {
     auto newIf = rewriter.create<scf::IfOp>(
         prevIf.getLoc(), prevIf.getCondition(), /*hasElse*/ elseParallel);
     auto *yield = nextParallel.getRegion().front().getTerminator();
-    rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
-                              newIf.thenYield());
+    rewriter.setInsertionPoint(newIf.thenYield());
+
+    auto allocScope =
+        rewriter.create<memref::AllocaScopeOp>(prevIf.getLoc(), TypeRange());
+    rewriter.inlineRegionBefore(nextParallel.getRegion(),
+                                allocScope.getRegion(),
+                                allocScope.getRegion().begin());
+    rewriter.setInsertionPointToEnd(&allocScope.getRegion().front());
+    rewriter.create<memref::AllocaScopeReturnOp>(allocScope.getLoc());
+
     if (elseParallel) {
       rewriter.eraseOp(elseParallel.getRegion().front().getTerminator());
-      rewriter.mergeBlockBefore(&elseParallel.getRegion().front(),
-                                newIf.elseYield());
+      rewriter.setInsertionPoint(newIf.elseYield());
+      auto allocScope =
+          rewriter.create<memref::AllocaScopeOp>(prevIf.getLoc(), TypeRange());
+      rewriter.inlineRegionBefore(elseParallel.getRegion(),
+                                  allocScope.getRegion(),
+                                  allocScope.getRegion().begin());
+      rewriter.setInsertionPointToEnd(&allocScope.getRegion().front());
+      rewriter.create<memref::AllocaScopeReturnOp>(allocScope.getLoc());
     }
 
     rewriter.setInsertionPointToEnd(&newParallel.getRegion().front());

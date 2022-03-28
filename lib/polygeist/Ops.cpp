@@ -29,6 +29,9 @@ using namespace mlir;
 using namespace polygeist;
 using namespace mlir::arith;
 
+llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
+                               llvm::cl::desc("Optimize barriers"));
+
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
@@ -186,6 +189,8 @@ public:
 
   LogicalResult matchAndRewrite(BarrierOp barrier,
                                 PatternRewriter &rewriter) const override {
+    if (!BarrierOpt)
+      return failure();
     if (isa<scf::IfOp, AffineIfOp>(barrier->getParentOp())) {
 
       bool below = true;
@@ -2043,7 +2048,8 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
     }
     assert(containingRegion && "op must be contained in a region");
 
-    SmallVector<Operation *> toHoist;
+    SetVector<Operation *> toHoist;
+
     op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
       if (alloc != op && alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
         return WalkResult::skip();
@@ -2051,21 +2057,43 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
       if (!isGuaranteedAutomaticAllocation(alloc))
         return WalkResult::advance();
 
+      SetVector<Operation *> subHoist;
+      std::function<bool(Value)> fix = [&](Value v) -> /*legal*/ bool {
+        if (!containingRegion->isAncestor(v.getParentRegion()))
+          return true;
+        auto *op = v.getDefiningOp();
+        if (toHoist.count(op))
+          return true;
+        if (subHoist.count(op))
+          return true;
+        if (!op)
+          return false;
+        if (!isReadNone(op))
+          return false;
+        for (auto o : op->getOperands()) {
+          if (!fix(o))
+            return false;
+        }
+        subHoist.insert(op);
+        return true;
+      };
+
       // If any operand is not defined before the location of
       // lastParentWithoutScope (i.e. where we would hoist to), skip.
-      if (llvm::any_of(alloc->getOperands(), [&](Value v) {
-            return containingRegion->isAncestor(v.getParentRegion());
-          }))
+      if (llvm::any_of(alloc->getOperands(), [&](Value v) { return !fix(v); }))
         return WalkResult::skip();
-      toHoist.push_back(alloc);
+      for (auto s : subHoist)
+        toHoist.insert(s);
+      toHoist.insert(alloc);
       return WalkResult::advance();
     });
 
     if (toHoist.empty())
       return failure();
     rewriter.setInsertionPoint(lastParentWithoutScope);
+    BlockAndValueMapping map;
     for (auto *op : toHoist) {
-      auto *cloned = rewriter.clone(*op);
+      auto *cloned = rewriter.clone(*op, map);
       rewriter.replaceOp(op, cloned->getResults());
     }
     return success();
