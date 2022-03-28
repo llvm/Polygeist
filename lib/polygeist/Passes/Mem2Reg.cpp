@@ -67,9 +67,12 @@ bool operator<(Value lhs, Value rhs) {
 }
 class Offset {
 public:
-  enum class Type { Value, Index, Unknown } type;
+  enum class Type { Value, Index, Affine } type;
   mlir::Value val;
   size_t idx;
+  AffineExpr aff;
+  SmallVector<Value> dim;
+  SmallVector<Value> sym;
   Offset(mlir::Value v) {
     if (auto op = v.getDefiningOp<ConstantIntOp>()) {
       idx = op.value();
@@ -101,14 +104,23 @@ public:
       type = Type::Value;
       return;
     }
-    type = Type::Unknown;
+
+    aff = op;
+    for (unsigned i = 0; i < numDims; i++)
+      dim.push_back(vals[i]);
+
+    for (unsigned i = numDims; i < numSymbols; i++)
+      sym.push_back(vals[i]);
+
+    type = Type::Affine;
   }
   Match matches(const Offset o) const {
     if (type != o.type)
       return Match::Maybe;
     switch (type) {
-    case Type::Unknown:
-      return Match::Maybe;
+    case Type::Affine:
+      return (aff == o.aff && dim == o.dim && sym == o.sym) ? Match::Exact
+                                                            : Match::Maybe;
     case Type::Value:
       return (val == o.val) ? Match::Exact : Match::Maybe;
     case Type::Index:
@@ -120,8 +132,21 @@ public:
       return type < o.type;
     } else {
       switch (type) {
-      case Offset::Type::Unknown:
-        return false;
+      case Offset::Type::Affine:
+        if (aff == o.aff) {
+          for (auto pair : llvm::zip(dim, o.dim)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return std::get<0>(pair).getAsOpaquePointer() <
+                     std::get<1>(pair).getAsOpaquePointer();
+          }
+          for (auto pair : llvm::zip(sym, o.sym)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return std::get<0>(pair).getAsOpaquePointer() <
+                     std::get<1>(pair).getAsOpaquePointer();
+          }
+          return false;
+        } else
+          return hash_value(aff) < hash_value(o.aff);
       case Offset::Type::Value:
         return val.getAsOpaquePointer() < o.val.getAsOpaquePointer();
       case Offset::Type::Index:
@@ -133,8 +158,8 @@ public:
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Offset off) {
   switch (off.type) {
-  case Offset::Type::Unknown:
-    return o << "<unknown>";
+  case Offset::Type::Affine:
+    return o << off.aff;
   case Offset::Type::Value:
     return o << off.val;
   case Offset::Type::Index:
@@ -1833,16 +1858,12 @@ StoreMap getLastStored(mlir::Value AI) {
         lastStored.insert(vec);
       } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
         std::vector<Offset> vec;
-        bool unknown = false;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
           vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
                            SO.getMapOperands());
-          if (vec.back().type == Offset::Type::Unknown)
-            unknown = true;
         }
-        if (!unknown)
-          lastStored.insert(vec);
+        lastStored.insert(vec);
       } else if (isa<LLVM::LoadOp>(U)) {
         std::vector<Offset> vec;
         lastStored.insert(vec);
@@ -1857,16 +1878,12 @@ StoreMap getLastStored(mlir::Value AI) {
         lastStored.insert(vec);
       } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
         std::vector<Offset> vec;
-        bool unknown = false;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
           vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
                            SO.getMapOperands());
-          if (vec.back().type == Offset::Type::Unknown)
-            unknown = true;
         }
-        if (!unknown)
-          lastStored.insert(vec);
+        lastStored.insert(vec);
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       }

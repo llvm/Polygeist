@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -204,10 +205,13 @@ LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
   if (opsToMove.size()) {
     OpBuilder b(looplike);
     Value cond = nullptr;
-    for (auto pair :
-         llvm::zip(looplike.getLowerBound(), looplike.getUpperBound())) {
-      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
-                                         std::get<0>(pair), std::get<1>(pair));
+    for (auto pair : llvm::zip(looplike.getLowerBound(),
+                               looplike.getUpperBound(), looplike.getStep())) {
+      auto val = b.create<arith::CmpIOp>(
+          looplike.getLoc(), CmpIPredicate::sle,
+          b.create<arith::AddIOp>(looplike.getLoc(), std::get<0>(pair),
+                                  std::get<2>(pair)),
+          std::get<1>(pair));
       if (cond == nullptr)
         cond = val;
       else
@@ -222,52 +226,98 @@ LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 }
 
 // TODO affine parallel licm
-#if 0
- LogicalResult moveParallelLoopInvariantCode(AffineParallelOp looplike) {
-   auto &loopBody = looplike.getLoopBody();
- 
-   // We use two collections here as we need to preserve the order for insertion
-   // and this is easiest.
-   SmallPtrSet<Operation *, 8> willBeMovedSet;
-   SmallVector<Operation *, 8> opsToMove;
-  
-   // Do not use walk here, as we do not want to go into nested regions and hoist
-   // operations from there. These regions might have semantics unknown to this
-   // rewriting. If the nested regions are loops, they will have been processed.
-   for (auto &block : loopBody) {
-     for (auto &op : block.without_terminator()) {
-       if (canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
-         opsToMove.push_back(&op);
-         willBeMovedSet.insert(&op);
-       }
-     }
-   }
- 
-   // For all instructions that we found to be invariant, move outside of the
-   // loop.
-   if (opsToMove.size()) {
-      OpBuilder b(looplike);
-    
-	SmallVector<Value, 4> lbOperands(looplike.getLowerBoundOperands());
-    SmallVector<Value, 4> ubOperands(looplike.getUpperBoundOperands());
+LogicalResult moveParallelLoopInvariantCode(AffineParallelOp looplike) {
+  auto &loopBody = looplike.getLoopBody();
 
-    auto lbMap = looplike.getLowerBoundMap();
-    auto ubMap = looplike.getUpperBoundMap();
+  // We use two collections here as we need to preserve the order for insertion
+  // and this is easiest.
+  SmallPtrSet<Operation *, 8> willBeMovedSet;
+  SmallVector<Operation *, 8> opsToMove;
 
+  // Do not use walk here, as we do not want to go into nested regions and hoist
+  // operations from there. These regions might have semantics unknown to this
+  // rewriting. If the nested regions are loops, they will have been processed.
+  for (auto &block : loopBody) {
+    for (auto &op : block.without_terminator()) {
+      if (canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
+        opsToMove.push_back(&op);
+        willBeMovedSet.insert(&op);
+      }
+    }
+  }
 
-	// TODO properly fill exprs and eqflags
+  // For all instructions that we found to be invariant, move outside of the
+  // loop.
+  if (opsToMove.size()) {
+    OpBuilder b(looplike);
+
+    // TODO properly fill exprs and eqflags
     SmallVector<AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
 
-      auto iset = IntegerSet::get(/*dim*/ lbMap.getNumDims() + ubMap.getNumDims(), /*symbol*/ lbMap.getNumSymbols() + ubMap.getNumSymbols(), exprs, eqflags);
-      auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset, values);
-      looplike->moveBefore(ifOp.thenYield());
-   }
-   LogicalResult result = looplike.moveOutOfLoop(opsToMove);
-   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
-   return result;
- }
-#endif
+    for (auto step : llvm::enumerate(looplike.getSteps())) {
+      for (auto ub : looplike.getUpperBoundMap(step.index()).getResults()) {
+        SmallVector<AffineExpr, 4> symbols;
+        for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumSymbols();
+             ++idx)
+          symbols.push_back(getAffineSymbolExpr(
+              idx + looplike.lowerBoundsMap().getNumSymbols(),
+              looplike.getContext()));
+
+        SmallVector<AffineExpr, 4> dims;
+        for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumDims();
+             ++idx)
+          dims.push_back(
+              getAffineDimExpr(idx + looplike.lowerBoundsMap().getNumDims(),
+                               looplike.getContext()));
+
+        ub = ub.replaceDimsAndSymbols(dims, symbols);
+
+        for (auto lb : looplike.getLowerBoundMap(step.index()).getResults()) {
+
+          // Bound is whether this expr >= 0, which since we want ub > lb, we
+          // rewrite as follows.
+          exprs.push_back(ub - lb - step.value());
+          eqflags.push_back(false);
+        }
+      }
+    }
+
+    SmallVector<Value> values;
+    auto lb_ops = looplike.getLowerBoundsOperands();
+    auto ub_ops = looplike.getUpperBoundsOperands();
+    for (unsigned idx = 0; idx < looplike.lowerBoundsMap().getNumDims();
+         ++idx) {
+      values.push_back(lb_ops[idx]);
+    }
+    for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumDims();
+         ++idx) {
+      values.push_back(ub_ops[idx]);
+    }
+    for (unsigned idx = 0; idx < looplike.lowerBoundsMap().getNumSymbols();
+         ++idx) {
+      values.push_back(lb_ops[idx + looplike.lowerBoundsMap().getNumDims()]);
+    }
+    for (unsigned idx = 0; idx < looplike.upperBoundsMap().getNumSymbols();
+         ++idx) {
+      values.push_back(ub_ops[idx + looplike.upperBoundsMap().getNumDims()]);
+    }
+
+    auto iset =
+        IntegerSet::get(/*dim*/ looplike.lowerBoundsMap().getNumDims() +
+                            looplike.upperBoundsMap().getNumDims(),
+                        /*symbols*/ looplike.lowerBoundsMap().getNumSymbols() +
+                            looplike.upperBoundsMap().getNumSymbols(),
+                        exprs, eqflags);
+    auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
+                                     values, /*else*/ false);
+    looplike->moveBefore(ifOp.getThenBlock()->getTerminator());
+    llvm::errs() << "ifOp: " << ifOp << "\n";
+  }
+  LogicalResult result = looplike.moveOutOfLoop(opsToMove);
+  LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
+  return result;
+}
 
 void ParallelLICM::runOnOperation() {
   getOperation()->walk([&](LoopLikeOpInterface loopLike) {
@@ -275,6 +325,9 @@ void ParallelLICM::runOnOperation() {
     if (failed(moveLoopInvariantCode(loopLike)))
       signalPassFailure();
     if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
+      if (failed(moveParallelLoopInvariantCode(par)))
+        signalPassFailure();
+    } else if (auto par = dyn_cast<AffineParallelOp>((Operation *)loopLike)) {
       if (failed(moveParallelLoopInvariantCode(par)))
         signalPassFailure();
     }

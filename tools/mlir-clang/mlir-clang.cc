@@ -78,6 +78,9 @@ static cl::opt<bool> SCFOpenMP("scf-openmp", cl::init(true),
 static cl::opt<bool> OpenMPOpt("openmp-opt", cl::init(true),
                                cl::desc("Turn on openmp opt"));
 
+static cl::opt<bool> ParallelLICM("parallel-licm", cl::init(true),
+                               cl::desc("Turn on parallel licm"));
+
 static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
@@ -462,14 +465,20 @@ int main(int argc, char **argv) {
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (ScalarReplacement)
       optPM.addPass(mlir::createAffineScalarReplacementPass());
-    optPM.addPass(polygeist::createParallelLICMPass());
+    if (ParallelLICM)
+      optPM.addPass(polygeist::createParallelLICMPass());
+    else
+      optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::createCanonicalizeForPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (RaiseToAffine) {
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      optPM.addPass(polygeist::createParallelLICMPass());
+      if (ParallelLICM)
+        optPM.addPass(polygeist::createParallelLICMPass());
+      else
+        optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
       optPM.addPass(polygeist::createRaiseSCFToAffinePass());
       optPM.addPass(polygeist::replaceAffineCFGPass());
       if (ScalarReplacement)
@@ -520,7 +529,10 @@ int main(int argc, char **argv) {
         optPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM2.addPass(mlir::createCSEPass());
-        optPM2.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          optPM2.addPass(polygeist::createParallelLICMPass());
+        else
+          optPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
         optPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       }
@@ -552,14 +564,20 @@ int main(int argc, char **argv) {
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       noptPM2.addPass(mlir::createCSEPass());
-      noptPM2.addPass(polygeist::createParallelLICMPass());
+      if (ParallelLICM)
+        noptPM2.addPass(polygeist::createParallelLICMPass());
+      else
+        noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (RaiseToAffine) {
         noptPM2.addPass(polygeist::createCanonicalizeForPass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        noptPM2.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          noptPM2.addPass(polygeist::createParallelLICMPass());
+        else
+          noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
         noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -574,7 +592,10 @@ int main(int argc, char **argv) {
         noptPM2.addPass(polygeist::createMem2RegPass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        noptPM2.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          noptPM2.addPass(polygeist::createParallelLICMPass());
+        else
+          noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
         noptPM2.addPass(polygeist::createRaiseSCFToAffinePass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -606,7 +627,10 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        optPM.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          optPM.addPass(polygeist::createParallelLICMPass());
+        else
+          optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -631,7 +655,10 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        optPM.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          optPM.addPass(polygeist::createParallelLICMPass());
+        else
+          optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -646,7 +673,10 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::createMem2RegPass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        optPM.addPass(polygeist::createParallelLICMPass());
+        if (ParallelLICM)
+          optPM.addPass(polygeist::createParallelLICMPass());
+        else
+          optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
