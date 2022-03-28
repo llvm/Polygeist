@@ -276,6 +276,12 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
 
     loops.push_back(lctx);
     Visit(fors->getBody());
+
+    builder.create<mlir::memref::StoreOp>(
+        loc,
+        builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
+                                             std::vector<mlir::Value>()),
+        lctx.keepRunning, std::vector<mlir::Value>());
     if (auto *s = fors->getInc()) {
       IfScope scope(*this);
       Visit(s);
@@ -357,6 +363,12 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
   loops.push_back(lctx);
   Visit(fors->getLoopVarStmt());
   Visit(fors->getBody());
+
+  builder.create<mlir::memref::StoreOp>(
+      loc,
+      builder.create<mlir::memref::LoadOp>(loc, lctx.noBreak,
+                                           std::vector<mlir::Value>()),
+      lctx.keepRunning, std::vector<mlir::Value>());
   if (auto *s = fors->getInc()) {
     IfScope scope(*this);
     Visit(s);
