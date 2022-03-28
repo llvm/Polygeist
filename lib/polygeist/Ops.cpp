@@ -1956,26 +1956,31 @@ public:
     llvm::append_range(resultTypes, ifOp.getResultTypes());
     resultTypes.push_back(op.getType());
 
-    auto rhs2 = rewriter.clone(*rhs)->getResult(0);
     rewriter.setInsertionPoint(ifOp);
+    auto rhs2 = rewriter.clone(*rhs)->getResult(0);
     auto nop = rewriter.create<scf::IfOp>(
         ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/ true);
-    nop.getThenRegion().takeBody(ifOp.getThenRegion());
-    nop.getElseRegion().takeBody(ifOp.getElseRegion());
+    rewriter.eraseBlock(nop.thenBlock());
+    rewriter.eraseBlock(nop.elseBlock());
+
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(), nop.getThenRegion(),
+                                nop.getThenRegion().begin());
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(), nop.getElseRegion(),
+                                nop.getElseRegion().begin());
 
     SmallVector<Value> thenYields;
     llvm::append_range(thenYields, nop.thenYield().getOperands());
     rewriter.setInsertionPoint(nop.thenYield());
     thenYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
                                                  thenYields[idx], rhs2));
-    nop.thenYield()->setOperands(thenYields);
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(nop.thenYield(), thenYields);
 
     SmallVector<Value> elseYields;
     llvm::append_range(elseYields, nop.elseYield().getOperands());
     rewriter.setInsertionPoint(nop.elseYield());
     elseYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
                                                  elseYields[idx], rhs2));
-    nop.elseYield()->setOperands(elseYields);
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(nop.elseYield(), elseYields);
     rewriter.replaceOp(ifOp, nop.getResults().take_front(ifOp.getNumResults()));
     rewriter.replaceOp(op, nop.getResults().take_back(1));
     return success();
