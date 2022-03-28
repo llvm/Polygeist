@@ -1375,7 +1375,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     assert(mod);
     DataLayout DLI(mod);
     auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
-      if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
+      if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
+        allocations.push_back(cl.memref());
+      } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
         allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
             rewriter, v, iterCounts, true, &DLI));
       } else {
@@ -1450,10 +1452,14 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (auto pair : llvm::zip(crossingCache, cacheAllocations)) {
       Value v = std::get<0>(pair);
       Value alloc = std::get<1>(pair);
-      // Store
-      rewriter.setInsertionPointAfter(v.getDefiningOp());
-      rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
-                                       preLoop.getBody()->getArguments());
+
+      // No need to store cache loads
+      if (!isa<polygeist::CacheLoad>(v.getDefiningOp())) {
+        // Store
+        rewriter.setInsertionPointAfter(v.getDefiningOp());
+        rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
+                                         preLoop.getBody()->getArguments());
+      }
       // Reload
       rewriter.setInsertionPointAfter(barrier);
       Value reloaded = rewriter.create<polygeist::CacheLoad>(
