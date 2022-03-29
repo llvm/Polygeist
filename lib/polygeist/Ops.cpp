@@ -2174,11 +2174,12 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
       }
       bool legal = true;
       SmallVector<Value> vals = {std::get<1>(tup)};
-      SmallPtrSet<Value, 2> seen = {std::get<1>(tup), std::get<2>(tup)};
+      SmallPtrSet<Value, 2> seen = {};
       while (vals.size()) {
         Value v = vals.pop_back_val();
         if (seen.count(v))
           continue;
+        seen.insert(v);
         for (OpOperand &back : v.getUses()) {
           if (auto yop = dyn_cast<scf::YieldOp>(back.getOwner())) {
             if (auto ifOp = dyn_cast<scf::IfOp>(yop->getParentOp())) {
@@ -2376,6 +2377,6 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
                  AlwaysAllocaScopeHoister<AffineForOp>,
-                 RankReduction<memref::AllocaOp, scf::ParallelOp>,
+                 //RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
