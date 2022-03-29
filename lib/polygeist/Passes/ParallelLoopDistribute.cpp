@@ -1824,7 +1824,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
     } else {
 	    rewriter.clone(*elseBarrier);
     }
-    auto ifPost = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(), op.getCondition(), hasElse(op));
+    auto ifPost = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(), op.getCondition(), true);
 
     BlockAndValueMapping mapping;
     int i = 0;
@@ -1833,22 +1833,35 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
     for (auto v : crossingCacheElse)
 	    mapping.map(v, ifPre.getResult(i++));
 
-    if (thenBarrier)
+    if (thenBarrier) {
 	    distributeBlockAroundBarrier(rewriter,
                                    preserveAllocasThen,
                                    crossingCacheThenPadded,
                                    getThenBlock(op),
                                    getThenBlock(ifPre), getThenBlock(ifPost),
                                    thenBarrier, ifPre, mapping);
-    else
+    } else {
+	    getThenBlock(ifPost)->clear();
+      rewriter.mergeBlocks(getThenBlock(op), getThenBlock(ifPost));
 
-    if (elseBarrier)
+      rewriter.setInsertionPointToEnd(getThenBlock(ifPre));
+      rewriter.create<scf::YieldOp>(op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
+    }
+    if (elseBarrier) {
       distributeBlockAroundBarrier(rewriter,
                                    preserveAllocasElse,
                                    crossingCacheElsePadded,
                                    getElseBlock(op),
                                    getElseBlock(ifPre), getElseBlock(ifPost),
                                    elseBarrier, ifPre, mapping);
+    } else {
+	    if (elseBlock) {
+	      getElseBlock(ifPost)->clear();
+        rewriter.mergeBlocks(getElseBlock(op), getElseBlock(ifPost));
+	    }
+      rewriter.setInsertionPointToEnd(getElseBlock(ifPre));
+      rewriter.create<scf::YieldOp>(op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
+    }
 
     rewriter.replaceOp(op, ifPost->getResults());
 
