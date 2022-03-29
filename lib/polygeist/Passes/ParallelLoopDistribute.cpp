@@ -1844,6 +1844,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 	    getThenBlock(ifPost)->clear();
       rewriter.mergeBlocks(getThenBlock(op), getThenBlock(ifPost));
 
+      getThenBlock(ifPre)->clear();
       rewriter.setInsertionPointToEnd(getThenBlock(ifPre));
       rewriter.create<scf::YieldOp>(op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
     }
@@ -1859,6 +1860,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 	      getElseBlock(ifPost)->clear();
         rewriter.mergeBlocks(getElseBlock(op), getElseBlock(ifPost));
 	    }
+	    getElseBlock(ifPre)->clear();
       rewriter.setInsertionPointToEnd(getElseBlock(ifPre));
       rewriter.create<scf::YieldOp>(op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
     }
