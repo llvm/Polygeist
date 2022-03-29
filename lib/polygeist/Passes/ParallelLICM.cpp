@@ -312,7 +312,6 @@ LogicalResult moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
                                      values, /*else*/ false);
     looplike->moveBefore(ifOp.getThenBlock()->getTerminator());
-    llvm::errs() << "ifOp: " << ifOp << "\n";
   }
   LogicalResult result = looplike.moveOutOfLoop(opsToMove);
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
