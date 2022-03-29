@@ -167,8 +167,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &o, const Offset off) {
   }
 }
 
-typedef std::set<std::vector<Offset>> StoreMap;
-
 namespace {
 // The store to load forwarding relies on three conditions:
 //
@@ -207,7 +205,8 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
 
   // return if changed
   bool forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
-                          SmallVectorImpl<Operation *> &loadOpsToErase);
+                          SmallVectorImpl<Operation *> &loadOpsToErase,
+                                 DenseMap<Operation*,SmallVector<Operation *>> &capturedAliasing);
 };
 
 } // end anonymous namespace
@@ -1075,7 +1074,8 @@ std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
 bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
-                                 SmallVectorImpl<Operation *> &loadOpsToErase) {
+                                 SmallVectorImpl<Operation *> &loadOpsToErase,
+                                 DenseMap<Operation*,SmallVector<Operation *>> &capturedAliasing) {
   bool changed = false;
   std::set<mlir::Operation *> loadOps;
   mlir::Type subType = nullptr;
@@ -1262,12 +1262,21 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
   }
 
   if (captured) {
+    if (capturedAliasing.count(AI.getDefiningOp()) == 0) {
+        SmallVector<Operation*> capEffects;
     AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
-      if (allStoreOps.count(op))
-        return;
       bool opMayHaveEffect = false;
       if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
         return;
+      if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(op)) {
+        if (callOp.getCallee() && (
+                    *callOp.getCallee() == "printf" ||
+                    *callOp.getCallee() == "free" ||
+                    *callOp.getCallee() == "strlen"
+                    )) {
+          return;
+        }
+      }
       MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
       if (!interface)
         opMayHaveEffect = true;
@@ -1320,10 +1329,20 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
         }
       }
       if (opMayHaveEffect) {
-        LLVM_DEBUG(llvm::dbgs() << "Potential Op ith Effect: " << *op << "\n");
-        AliasingStoreOperations.insert(op);
+          capEffects.push_back(op);
       }
     });
+      
+    capturedAliasing[AI.getDefiningOp()] = capEffects;
+
+    }
+
+    for (auto op : capturedAliasing[AI.getDefiningOp()]) {
+      if (allStoreOps.count(op))
+        continue;
+      LLVM_DEBUG(llvm::dbgs() << "Potential Op ith Effect: " << *op << "\n");
+      AliasingStoreOperations.insert(op);
+    }
   }
 
   if (loadOps.size() == 0) {
@@ -1841,11 +1860,12 @@ bool isPromotable(mlir::Value AI) {
   return true;
 }
 
-StoreMap getLastStored(mlir::Value AI) {
-  StoreMap lastStored;
+std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
+  std::map<std::vector<Offset>,unsigned> lastStored;
+
 
   std::deque<mlir::Value> list = {AI};
-
+  
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
@@ -1855,7 +1875,7 @@ StoreMap getLastStored(mlir::Value AI) {
         for (auto idx : SO.getIndices()) {
           vec.emplace_back(idx);
         }
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
@@ -1863,19 +1883,19 @@ StoreMap getLastStored(mlir::Value AI) {
           vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
                            SO.getMapOperands());
         }
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (isa<LLVM::LoadOp>(U)) {
         std::vector<Offset> vec;
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (isa<LLVM::StoreOp>(U)) {
         std::vector<Offset> vec;
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (auto SO = dyn_cast<memref::LoadOp>(U)) {
         std::vector<Offset> vec;
         for (auto idx : SO.getIndices()) {
           vec.emplace_back(idx);
         }
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
@@ -1883,13 +1903,19 @@ StoreMap getLastStored(mlir::Value AI) {
           vec.emplace_back(idx, map.getNumDims(), map.getNumSymbols(),
                            SO.getMapOperands());
         }
-        lastStored.insert(vec);
+        lastStored[vec]++;
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
         list.push_back(CO);
       }
     }
   }
-  return lastStored;
+
+  std::vector<std::vector<Offset>> todo;
+  for (auto &pair : lastStored) {
+      if (pair.second > 1)
+          todo.push_back(pair.first);
+  }
+  return todo;
 }
 
 void Mem2Reg::runOnOperation() {
@@ -1931,7 +1957,7 @@ void Mem2Reg::runOnOperation() {
         toPromote.push_back(AI);
       }
     });
-
+    DenseMap<Operation*,SmallVector<Operation *>> capturedAliasing;
     for (auto AI : toPromote) {
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
@@ -1943,7 +1969,7 @@ void Mem2Reg::runOnOperation() {
                    llvm::dbgs() << "} of " << AI << "\n");
         // llvm::errs() << " PRE " << AI << "\n";
         // f.dump();
-        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase);
+        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase, capturedAliasing);
         // llvm::errs() << " POST " << AI << "\n";
         // f.dump();
       }
