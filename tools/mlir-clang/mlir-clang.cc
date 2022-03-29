@@ -444,6 +444,7 @@ int main(int argc, char **argv) {
     llvm::errs() << "</immediate: mlir>\n";
   }
 
+  int unrollSize = 32;
   bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
   mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
@@ -585,7 +586,7 @@ int main(int argc, char **argv) {
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (LoopUnroll)
-          noptPM2.addPass(mlir::createLoopUnrollPass(-1, false, true));
+          noptPM2.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         noptPM2.addPass(mlir::createCSEPass());
@@ -666,7 +667,7 @@ int main(int argc, char **argv) {
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (LoopUnroll)
-          optPM.addPass(mlir::createLoopUnrollPass(-1, false, true));
+          optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM.addPass(mlir::createCSEPass());
