@@ -1656,13 +1656,12 @@ static BarrierOp getBarrierInBlock(Block *block) {
 template <bool UseMinCut>
 void getIfCrossingCache(
 	mlir::PatternRewriter &rewriter,
-	Block *original, llvm::SetVector<Operation *> &preserveAllocasElse,
-	llvm::SetVector<Value *> &crossingCacheElse, BarrierOp barrier) {
+	Block *original, llvm::SetVector<Operation *> &preserveAllocas,
+	llvm::SetVector<Value> &crossingCache, BarrierOp barrier) {
+
   llvm::SetVector<Value> usedBelow;
-  llvm::SetVector<Operation *> preserveAllocas;
   findValuesUsedBelow(barrier, usedBelow, preserveAllocas);
 
-  llvm::SetVector<Value> crossingCache;
   if (UseMinCut) {
 
     minCutCache(barrier, usedBelow, crossingCache);
@@ -1725,14 +1724,21 @@ void distributeBlockAroundBarrier(
 	mlir::PatternRewriter &rewriter,
 	llvm::SetVector<Operation *> &preserveAllocas,
 	llvm::SetVector<Value> &crossingCache,
-	Block *original, Block *pre, Block *post, BarrierOp barrier, Operation* beforeBlocks) {
+	Block *original, Block *pre, Block *post, BarrierOp barrier, Operation* beforeBlocks, BlockAndValueMapping mapping) {
+
+	// Remove already created yields if they exist
+	pre->clear();
+	post->clear();
+
   // Move alloca's we need to preserve outside the if
   rewriter.setInsertionPoint(beforeBlocks);
   for (auto alloca : preserveAllocas) {
 	  auto newAlloca = rewriter.clone(*alloca);
 	  rewriter.replaceOp(alloca, newAlloca->getResults());
-	  rewriter.eraseOp(alloca);
   }
+
+  // Insert the body of the original block in the pre
+  rewriter.mergeBlocks(original, pre);
 
   // Yield values in crossingCache from the block just before the barrier
   rewriter.setInsertionPoint(barrier);
@@ -1740,10 +1746,8 @@ void distributeBlockAroundBarrier(
   Operation *postBarrier = barrier->getNextNode();
   rewriter.eraseOp(barrier);
 
-
-  // Recreate the operations in the new loop with new values.
+  // Recreate the operations in the new with new values.
   rewriter.setInsertionPointToStart(post);
-  BlockAndValueMapping mapping;
   SmallVector<Operation *> toDelete;
   for (Operation *o = postBarrier; o != nullptr; o = o->getNextNode()) {
     rewriter.clone(*o, mapping);
@@ -1762,8 +1766,14 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    BarrierOp thenBarrier = getBarrierInBlock(getThenBlock(op));
-    BarrierOp elseBarrier = getBarrierInBlock(getElseBlock(op));
+	  Block *thenBlock = getThenBlock(op);
+	  Block *elseBlock = getElseBlock(op);
+	  BarrierOp thenBarrier = nullptr;
+	  BarrierOp elseBarrier = nullptr;
+	  if (thenBlock)
+      thenBarrier = getBarrierInBlock(getThenBlock(op));
+	  if (elseBlock)
+      elseBarrier = getBarrierInBlock(getElseBlock(op));
 
     if (!(thenBarrier || elseBarrier)) {
       LLVM_DEBUG(DBGS() << "[if-barrier-distribute] no barrier in the if\n");
@@ -1778,25 +1788,29 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 
     llvm::SetVector<Operation *> preserveAllocasThen;
     llvm::SetVector<Value> crossingCacheThen;
-    getIfCrossingCache<true>(rewriter, getThenBlock(op), preserveAllocasThen, crossingCacheThen, thenBarrier);
+    if (thenBarrier)
+      getIfCrossingCache<true>(rewriter, getThenBlock(op), preserveAllocasThen, crossingCacheThen, thenBarrier);
 
     llvm::SetVector<Operation *> preserveAllocasElse;
     llvm::SetVector<Value> crossingCacheElse;
-    getIfCrossingCache<true>(rewriter, etElseBlock(op), preserveAllocasElse, crossingCacheElse, elseBarrier);
+    if (elseBarrier)
+      getIfCrossingCache<true>(rewriter, getElseBlock(op), preserveAllocasElse, crossingCacheElse, elseBarrier);
 
-    llvm::SmallVector<Type *> typesToYield;
+
+    rewriter.setInsertionPointToStart(&((Operation *) op)->getParentOfType<FunctionOpInterface>()->getRegion(0).front());
+    SmallVector<Type> typesToYield;
     llvm::SetVector<Value> combinedCrossingCache;
     llvm::SetVector<Value> crossingCacheElsePadded;
     llvm::SetVector<Value> crossingCacheThenPadded;
     for (auto v : crossingCacheThen) {
-	    typesToYield.append(v.getType());
+	    typesToYield.push_back(v.getType());
 	    combinedCrossingCache.insert(v);
 	    crossingCacheThenPadded.insert(v);
 	    crossingCacheElsePadded.insert(
 		    rewriter.create<LLVM::UndefOp>(rewriter.getUnknownLoc(), v.getType()));
     }
     for (auto v : crossingCacheElse) {
-	    typesToYield.append(v.getType());
+	    typesToYield.push_back(v.getType());
       combinedCrossingCache.insert(v);
       crossingCacheElsePadded.insert(v);
       crossingCacheThenPadded.insert(
@@ -1804,31 +1818,42 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
     }
 
     rewriter.setInsertionPoint(op);
-    auto ifPre = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(typesToYield));
+    auto ifPre = rewriter.create<scf::IfOp>(op.getLoc(), TypeRange(typesToYield), op.getCondition(), true);
     if (thenBarrier) {
 	    rewriter.clone(*thenBarrier);
     } else {
 	    rewriter.clone(*elseBarrier);
     }
-    auto ifPost = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes());
+    auto ifPost = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(), op.getCondition(), hasElse(op));
 
-    rewriter.replaceOp(op, ifPost);
-    rewriter.eraseOp(op);
+    BlockAndValueMapping mapping;
+    int i = 0;
+    for (auto v : crossingCacheThen)
+	    mapping.map(v, ifPre.getResult(i++));
+    for (auto v : crossingCacheElse)
+	    mapping.map(v, ifPre.getResult(i++));
 
     if (thenBarrier)
-	    distributeBlockAroundBarrier<true>(rewriter,
-	                                       preserveAllocasThen,
-	                                       crossingCacheThenPadded,
-	                                       getThenBlock(op),
-	                                       getThenBlock(ifPre), getThenBlock(ifPost),
-	                                       thenBarrier, op);
+	    distributeBlockAroundBarrier(rewriter,
+                                   preserveAllocasThen,
+                                   crossingCacheThenPadded,
+                                   getThenBlock(op),
+                                   getThenBlock(ifPre), getThenBlock(ifPost),
+                                   thenBarrier, ifPre, mapping);
+    else
+
     if (elseBarrier)
-	    distributeBlockAroundBarrier<true>(rewriter,
-	                                       preserveAllocasElse,
-	                                       crossingCacheElsePadded,
-	                                       getElseBlock(op),
-	                                       getElseBlock(ifPre), getElseBlock(ifPost),
-	                                       elseBarrier, op);
+      distributeBlockAroundBarrier(rewriter,
+                                   preserveAllocasElse,
+                                   crossingCacheElsePadded,
+                                   getElseBlock(op),
+                                   getElseBlock(ifPre), getElseBlock(ifPost),
+                                   elseBarrier, ifPre, mapping);
+
+    rewriter.replaceOp(op, ifPost->getResults());
+
+    LLVM_DEBUG(DBGS() << "[distribute-if] distributed if around barrier\n");
+    return success();
   }
 };
 
