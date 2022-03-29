@@ -55,8 +55,7 @@ bool isValidSymbolInt(Value value, bool recur = true) {
 
 struct AffineApplyNormalizer {
   AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands,
-                        PatternRewriter &rewriter,
-                        DominanceInfo &DI);
+                        PatternRewriter &rewriter, DominanceInfo &DI);
 
   /// Returns the AffineMap resulting from normalization.
   AffineMap getAffineMap() { return affineMap; }
@@ -172,52 +171,55 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   SmallVector<AffineExpr, 8> dimReplacements;
   SmallVector<AffineExpr, 8> symReplacements;
 
-          std::function<Value(Value, bool)> fix = [&](Value v, bool index) -> Value /*legal*/ {
-            if (isValidSymbolInt(v, /*recur*/ false))
-              return v;
-            if (index && isAffineForArg(v)) return v;
-            auto *op = v.getDefiningOp();
-            if (!op) return nullptr;
-            if (!op)
-              llvm::errs() << v << "\n";
-            assert(op);
-            if (isa<ConstantOp>(op) || isa<ConstantIndexOp>(op))
-              return v;
-            if (!isReadOnly(op)) {
-              return nullptr;
-            }
-            Operation *front = nullptr;
-            for (auto o : op->getOperands()) {
-              Operation *next;
-              if (auto *op = o.getDefiningOp()) {
-                if (Value nv = fix(o, index)) {
-                  op = nv.getDefiningOp();
-                } else {
-                  return nullptr;
-                }
-                next = op->getNextNode();
-              } else {
-                auto BA = o.cast<BlockArgument>();
-                if (index && isAffineForArg(BA))  {}
-                else if (!isValidSymbolInt(o, /*recur*/ false)) {
-                  return nullptr;
-                }
-                next = &BA.getOwner()->front();
-              }
-              if (front == nullptr)
-                front = next;
-              else if (DI.dominates(front, next))
-                front = next;
-            }
-            if (!front)
-              op->dump();
-            assert(front);
-            PatternRewriter::InsertionGuard B(rewriter);
-            rewriter.setInsertionPoint(front);
-            auto cloned = rewriter.clone(*op);
-            rewriter.replaceOp(op, cloned->getResults());
-            return cloned->getResult(0);
-          };
+  std::function<Value(Value, bool)> fix = [&](Value v,
+                                              bool index) -> Value /*legal*/ {
+    if (isValidSymbolInt(v, /*recur*/ false))
+      return v;
+    if (index && isAffineForArg(v))
+      return v;
+    auto *op = v.getDefiningOp();
+    if (!op)
+      return nullptr;
+    if (!op)
+      llvm::errs() << v << "\n";
+    assert(op);
+    if (isa<ConstantOp>(op) || isa<ConstantIndexOp>(op))
+      return v;
+    if (!isReadOnly(op)) {
+      return nullptr;
+    }
+    Operation *front = nullptr;
+    for (auto o : op->getOperands()) {
+      Operation *next;
+      if (auto *op = o.getDefiningOp()) {
+        if (Value nv = fix(o, index)) {
+          op = nv.getDefiningOp();
+        } else {
+          return nullptr;
+        }
+        next = op->getNextNode();
+      } else {
+        auto BA = o.cast<BlockArgument>();
+        if (index && isAffineForArg(BA)) {
+        } else if (!isValidSymbolInt(o, /*recur*/ false)) {
+          return nullptr;
+        }
+        next = &BA.getOwner()->front();
+      }
+      if (front == nullptr)
+        front = next;
+      else if (DI.dominates(front, next))
+        front = next;
+    }
+    if (!front)
+      op->dump();
+    assert(front);
+    PatternRewriter::InsertionGuard B(rewriter);
+    rewriter.setInsertionPoint(front);
+    auto cloned = rewriter.clone(*op);
+    rewriter.replaceOp(op, cloned->getResults());
+    return cloned->getResult(0);
+  };
   // 2. Compose AffineApplyOps and dispatch dims or symbols.
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
@@ -234,17 +236,27 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
 
     if (((!isValidSymbolInt(t, /*recur*/ false) &&
           (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-           (t.getDefiningOp<MulIOp>() && (
-                             isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)) ||
-                             isValidIndex(t.getDefiningOp()->getOperand(1)) && isValidSymbolInt(t.getDefiningOp()->getOperand(0))
-                             ) && !(
-                                 fix(t.getDefiningOp()->getOperand(0), false) && fix(t.getDefiningOp()->getOperand(1), false))
-                                 
-                                 ) || 
-           (t.getDefiningOp<DivUIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
-           (t.getDefiningOp<DivSIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
-           (t.getDefiningOp<RemUIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
-           (t.getDefiningOp<RemSIOp>() && (isValidIndex(t.getDefiningOp()->getOperand(0)) && isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) || 
+           (t.getDefiningOp<MulIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+                 isValidSymbolInt(t.getDefiningOp()->getOperand(1)) ||
+             isValidIndex(t.getDefiningOp()->getOperand(1)) &&
+                 isValidSymbolInt(t.getDefiningOp()->getOperand(0))) &&
+            !(fix(t.getDefiningOp()->getOperand(0), false) &&
+              fix(t.getDefiningOp()->getOperand(1), false))
+
+                ) ||
+           (t.getDefiningOp<DivUIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           (t.getDefiningOp<DivSIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           (t.getDefiningOp<RemUIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           (t.getDefiningOp<RemSIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
            t.getDefiningOp<ConstantIntOp>() ||
            t.getDefiningOp<ConstantIndexOp>())) ||
          ((decast.getDefiningOp<AddIOp>() || decast.getDefiningOp<SubIOp>() ||
@@ -539,28 +551,8 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
     }
 
     for (auto idx : attempt) {
-      Operation *start = idx;
-      bool immediate = false;
-
-      while (1) {
-        if (start == idx.getIn().getDefiningOp()) {
-          immediate = true;
-          break;
-        }
-        if (isa<IndexCastOp>(start)) {
-          if (start == &start->getBlock()->front()) {
-            if (auto BA = idx.getIn().dyn_cast<BlockArgument>())
-              if (start->getBlock() == BA.getOwner()) {
-                immediate = true;
-                break;
-              }
-            break;
-          }
-          start = start->getPrevNode();
-        }
-        break;
-      }
-      if (immediate) {
+      if (isValidSymbol(idx)) {
+        indexMap.map(idx.getIn(), idx0);
         indexMap.map(idx.getIn(), idx);
         break;
       }
@@ -615,30 +607,23 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
                                         DominanceInfo &DI) {
   BlockAndValueMapping indexMap;
   for (auto op : *operands) {
-    if (auto idx = op.getDefiningOp<IndexCastOp>()) {
-      Operation *start = idx;
-      bool immediate = false;
+    SmallVector<IndexCastOp> attempt;
+    auto idx0 = op.getDefiningOp<IndexCastOp>();
+    attempt.push_back(idx0);
+    if (!idx0)
+      continue;
 
-      while (1) {
-        if (start == idx.getIn().getDefiningOp()) {
-          immediate = true;
-          break;
-        }
-        if (isa<IndexCastOp>(start)) {
-          if (start == &start->getBlock()->front()) {
-            if (auto BA = idx.getIn().dyn_cast<BlockArgument>())
-              if (start->getBlock() == BA.getOwner()) {
-                immediate = true;
-                break;
-              }
-            break;
-          }
-          start = start->getPrevNode();
-        }
+    for (auto &u : idx0.getIn().getUses()) {
+      if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
+        attempt.push_back(idx);
+    }
+
+    for (auto idx : attempt) {
+      if (isValidSymbol(idx)) {
+        indexMap.map(idx.getIn(), idx0);
+        indexMap.map(idx.getIn(), idx);
         break;
       }
-      if (immediate)
-        indexMap.map(idx.getIn(), idx);
     }
   }
   while (need(set, operands)) {
@@ -848,7 +833,7 @@ struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
     SmallVector<Value, 4> mapOperands(affineOp.mapOperands());
     auto map = affineOp.map();
     auto prevMap = map;
-    
+
     auto *scope = getAffineScope(affineOp)->getParentOp();
     DominanceInfo DI(scope);
 
@@ -1205,7 +1190,7 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
     auto map = AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
                               rewriter.getContext());
     SmallVector<Value, 4> operands = store.getIndices();
-    
+
     auto *scope = getAffineScope(store)->getParentOp();
     DominanceInfo DI(scope);
 
@@ -1328,7 +1313,7 @@ struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
 
     // llvm::errs() << "*********\n";
     // ubMap.dump();
-    
+
     auto *scope = getAffineScope(forOp)->getParentOp();
     DominanceInfo DI(scope);
 
@@ -1376,7 +1361,7 @@ struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
 
     // llvm::errs() << "*********\n";
     // ubMap.dump();
-    
+
     auto *scope = getAffineScope(op)->getParentOp();
     DominanceInfo DI(scope);
 
@@ -1428,7 +1413,7 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
       }
       return failure();
     }
-    
+
     auto *scope = getAffineScope(ifOp)->getParentOp();
     DominanceInfo DI(scope);
 
