@@ -22,6 +22,7 @@
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 
@@ -2128,7 +2129,8 @@ struct AggressiveAllocaScopeInliner
     bool hasPotentialAlloca =
         op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
             if (alloc == op || isa<LLVM::CallOp>(alloc) ||
-                isa<func::CallOp>(alloc))
+                isa<func::CallOp>(alloc) || isa<omp::BarrierOp>(alloc) ||
+                isa<polygeist::BarrierOp>(alloc))
               return WalkResult::advance();
             if (isOpItselfPotentialAutomaticAllocation(alloc))
               return WalkResult::interrupt();
@@ -2158,13 +2160,76 @@ struct AggressiveAllocaScopeInliner
   }
 };
 
+struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
+  using OpRewritePattern<scf::ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::ForOp forOp,
+                                PatternRewriter &rewriter) const override {
+    bool changed = false;
+    for (auto tup : llvm::zip(forOp.getResults(), forOp.getRegionIterArgs(),
+                              forOp.getIterOperands())) {
+      if (!std::get<0>(tup).use_empty() || std::get<1>(tup).use_empty()) {
+        continue;
+      }
+      bool legal = true;
+      SmallVector<Value> vals = {std::get<1>(tup)};
+      SmallPtrSet<Value, 2> seen = {std::get<1>(tup), std::get<2>(tup)};
+      while (vals.size()) {
+        Value v = vals.pop_back_val();
+        if (seen.count(v))
+          continue;
+        for (OpOperand &back : v.getUses()) {
+          if (auto yop = dyn_cast<scf::YieldOp>(back.getOwner())) {
+            if (auto ifOp = dyn_cast<scf::IfOp>(yop->getParentOp())) {
+              vals.push_back(ifOp.getResult(back.getOperandNumber()));
+              continue;
+            }
+            if (auto op = dyn_cast<scf::ForOp>(yop->getParentOp())) {
+              vals.push_back(op.getResult(back.getOperandNumber()));
+              vals.push_back(op.getRegionIterArgs()[back.getOperandNumber()]);
+              continue;
+            }
+          }
+          if (auto yop = dyn_cast<AffineYieldOp>(back.getOwner())) {
+            if (auto ifOp = dyn_cast<AffineIfOp>(yop->getParentOp())) {
+              vals.push_back(ifOp.getResult(back.getOperandNumber()));
+              continue;
+            }
+            if (auto op = dyn_cast<AffineForOp>(yop->getParentOp())) {
+              vals.push_back(op.getResult(back.getOperandNumber()));
+              vals.push_back(op.getRegionIterArgs()[back.getOperandNumber()]);
+              continue;
+            }
+          }
+          if (auto selOp = dyn_cast<arith::SelectOp>(back.getOwner())) {
+            if (selOp.getCondition() != v)
+              vals.push_back(selOp);
+            continue;
+          }
+          legal = false;
+          break;
+        }
+        if (!legal)
+          break;
+      }
+      if (legal) {
+        rewriter.updateRootInPlace(forOp, [&] {
+          std::get<1>(tup).replaceAllUsesWith(std::get<2>(tup));
+        });
+        changed = true;
+      }
+    }
+    return success(changed);
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<
-      TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext, UndefProp<ExtUIOp>,
-      UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
-      AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
-      AlwaysAllocaScopeHoister<scf::ForOp>,
-      AlwaysAllocaScopeHoister<AffineForOp>, AggressiveAllocaScopeInliner>(
-      context);
+  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
+                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
+                 CmpProp, UndefCmpProp,
+                 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+                 AlwaysAllocaScopeHoister<scf::ForOp>,
+                 AlwaysAllocaScopeHoister<AffineForOp>,
+                 AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }

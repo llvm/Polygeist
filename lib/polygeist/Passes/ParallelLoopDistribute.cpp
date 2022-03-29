@@ -1542,8 +1542,9 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
           op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()),
           ValueRange());
       allocated.push_back(alloc);
-      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
-                                       ValueRange());
+      if (!operand.getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
+                                         ValueRange());
     }
 
     auto newOp = cloneWithoutResults(op, rewriter);
@@ -1568,8 +1569,9 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     }
     rewriter.setInsertionPoint(IP);
     for (auto en : llvm::enumerate(oldOps)) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
+      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                         allocated[en.index()], ValueRange());
     }
 
     rewriter.setInsertionPointAfter(op);
@@ -1606,16 +1608,18 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     Operation *thenYield = &getThenBlock(op)->back();
     rewriter.setInsertionPoint(thenYield);
     for (auto en : llvm::enumerate(thenYield->getOperands())) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
+      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                         allocated[en.index()], ValueRange());
     }
     thenYield->setOperands(ValueRange());
 
     Operation *elseYield = &getElseBlock(op)->back();
     rewriter.setInsertionPoint(elseYield);
     for (auto en : llvm::enumerate(elseYield->getOperands())) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
+      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                         allocated[en.index()], ValueRange());
     }
     elseYield->setOperands(ValueRange());
 
@@ -1639,8 +1643,9 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 static void storeValues(Location loc, ValueRange values, ValueRange pointers,
                         PatternRewriter &rewriter) {
   for (auto pair : llvm::zip(values, pointers)) {
-    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair),
-                                     ValueRange());
+    if (!std::get<0>(pair).getDefiningOp<LLVM::UndefOp>())
+      rewriter.create<memref::StoreOp>(loc, std::get<0>(pair),
+                                       std::get<1>(pair), ValueRange());
   }
 }
 
