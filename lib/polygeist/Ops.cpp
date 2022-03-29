@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -2223,6 +2224,150 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
   }
 };
 
+// Does not fly if parallelism, need to make thread local in that case (either
+// move within or remove memspace 5).
+template <typename T, typename ParOp>
+struct RankReduction : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+    mlir::Type Ty = op->getResult(0).getType();
+    MemRefType MT = Ty.cast<MemRefType>();
+    if (MT.getShape().size() == 0) return failure();
+    SmallVector<Value> v;
+    bool set = false;
+    ParOp midPar = nullptr;
+    for (auto u : op->getResult(0).getUsers()) {
+      Operation *uop = u;
+      if (auto par = uop->getParentOfType<ParOp>()) {
+        if (par != ((Operation *)op)->getParentOfType<ParOp>()) {
+          if (midPar == nullptr)
+            midPar = par;
+          else if (midPar != par)
+            return failure();
+        }
+      }
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        if (!set) {
+          for (auto i : load.indices())
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(load.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        SmallVector<Value> indices;
+        auto map = load.getAffineMapAttr().getValue();
+        for (AffineExpr op : map.getResults()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+            indices.push_back(load.getMapOperands()[opd.getPosition()]);
+          }
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
+            indices.push_back(
+                load.getMapOperands()[opd.getPosition() + map.getNumDims()]);
+          }
+          return failure();
+        }
+        if (!set) {
+          for (auto i : indices)
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(load.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        if (!set) {
+          for (auto i : store.indices())
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(store.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        SmallVector<Value> indices;
+        auto map = store.getAffineMapAttr().getValue();
+        for (AffineExpr op : map.getResults()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+            indices.push_back(store.getMapOperands()[opd.getPosition()]);
+          }
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
+            indices.push_back(
+                store.getMapOperands()[opd.getPosition() + map.getNumDims()]);
+          }
+          return failure();
+        }
+        if (!set) {
+          for (auto i : indices)
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(store.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      return failure();
+    }
+
+    MT = MemRefType::get({}, MT.getElementType(), MemRefLayoutAttrInterface(),
+                         0 /*MT.getMemorySpace()*/);
+    if (midPar)
+      rewriter.setInsertionPointToStart(&midPar.getRegion().front());
+    auto newOp = rewriter.create<T>(op.getLoc(), MT);
+
+    for (auto u : llvm::make_early_inc_range(op->getResult(0).getUsers())) {
+      rewriter.setInsertionPoint(u);
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(load, newOp,
+                                                    ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(store, store.value(),
+                                                     newOp, ArrayRef<Value>());
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<AffineLoadOp>(load, newOp, AffineMap(),
+                                                  ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        rewriter.replaceOpWithNewOp<AffineStoreOp>(
+            store, store.value(), newOp, AffineMap(), ArrayRef<Value>());
+        continue;
+      }
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
@@ -2231,5 +2376,6 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
                  AlwaysAllocaScopeHoister<AffineForOp>,
+                 RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
