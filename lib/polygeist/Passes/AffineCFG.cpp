@@ -104,8 +104,7 @@ static bool legalCondition(Value en, bool dim = false) {
     en = ic.getIn();
 
   if ((en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
-       en.getDefiningOp<MulIOp>() || en.getDefiningOp<DivSIOp>() ||
-       en.getDefiningOp<DivUIOp>() || en.getDefiningOp<RemUIOp>() ||
+       en.getDefiningOp<MulIOp>() || en.getDefiningOp<RemUIOp>() ||
        en.getDefiningOp<RemSIOp>()) &&
       (en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIntOp>() ||
        en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIndexOp>()))
@@ -220,6 +219,16 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     rewriter.replaceOp(op, cloned->getResults());
     return cloned->getResult(0);
   };
+  auto renumberOneSymbol = [&](Value v) {
+    for (auto i : llvm::enumerate(addedValues)) {
+      if (i.value() == v)
+        return getAffineSymbolExpr(i.index(), map.getContext());
+    }
+    auto expr = getAffineSymbolExpr(addedValues.size(), map.getContext());
+    addedValues.push_back(v);
+    return expr;
+  };
+
   // 2. Compose AffineApplyOps and dispatch dims or symbols.
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
@@ -245,9 +254,11 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
               fix(t.getDefiningOp()->getOperand(1), false))
 
                 ) ||
-           (t.getDefiningOp<DivUIOp>() &&
+           ((t.getDefiningOp<DivUIOp>() || t.getDefiningOp<DivSIOp>()) &&
             (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
-             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1))) &&
+            (!(fix(t.getDefiningOp()->getOperand(0), false) &&
+               fix(t.getDefiningOp()->getOperand(1), false)))) ||
            (t.getDefiningOp<DivSIOp>() &&
             (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
              isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
@@ -260,8 +271,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
            t.getDefiningOp<ConstantIntOp>() ||
            t.getDefiningOp<ConstantIndexOp>())) ||
          ((decast.getDefiningOp<AddIOp>() || decast.getDefiningOp<SubIOp>() ||
-           decast.getDefiningOp<MulIOp>() || decast.getDefiningOp<DivSIOp>() ||
-           decast.getDefiningOp<DivUIOp>() || decast.getDefiningOp<RemUIOp>() ||
+           decast.getDefiningOp<MulIOp>() || decast.getDefiningOp<RemUIOp>() ||
            decast.getDefiningOp<RemSIOp>()) &&
           (decast.getDefiningOp()
                ->getOperand(1)
@@ -394,9 +404,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       unsigned numOtherSymbols = affineApplyOperands.size();
       SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols);
       for (unsigned idx = 0; idx < numOtherSymbols; ++idx) {
-        symRemapping[idx] = getAffineSymbolExpr(addedValues.size(),
-                                                affineApplyMap.getContext());
-        addedValues.push_back(affineApplyOperands[idx]);
+        symRemapping[idx] = renumberOneSymbol(affineApplyOperands[idx]);
       }
       affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
           dimRemapping, symRemapping, reorderedDims.size(), addedValues.size());
@@ -433,9 +441,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols -
                                               affineApplyMap.getNumDims());
       for (unsigned idx = 0; idx < symRemapping.size(); ++idx) {
-        symRemapping[idx] = getAffineSymbolExpr(addedValues.size(),
-                                                affineApplyMap.getContext());
-        addedValues.push_back(
+        symRemapping[idx] = renumberOneSymbol(
             affineApplyOperands[idx + affineApplyMap.getNumDims()]);
       }
       affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
@@ -467,9 +473,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         //    in the map before any symbols coming from the auxiliary map, so
         //    we insert them before any symbols that are due to renumbering,
         //    and after the proper symbols we have seen already.
-        symReplacements.push_back(
-            getAffineSymbolExpr(addedValues.size(), map.getContext()));
-        addedValues.push_back(t);
+        symReplacements.push_back(renumberOneSymbol(t));
       }
     }
   }
@@ -485,7 +489,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       dimReplacements, symReplacements, numNewDims, numNewSymbols);
   LLVM_DEBUG(auxillaryMap.print(llvm::dbgs() << "\nRewritten map: "));
 
-  affineMap = simplifyAffineMap(auxillaryMap);
+  affineMap = auxillaryMap; // simplifyAffineMap(auxillaryMap);
 
   LLVM_DEBUG(affineMap.print(llvm::dbgs() << "\nSimplified result: "));
   LLVM_DEBUG(llvm::dbgs() << "\n");
@@ -563,6 +567,7 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
     composeAffineMapAndOperands(map, operands, builder, DI);
     assert(map->getNumInputs() == operands->size());
   }
+  *map = simplifyAffineMap(*map);
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
@@ -583,22 +588,6 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
       }
     }
   }
-}
-
-static void composeIntegerSetAndOperands(IntegerSet *set,
-                                         SmallVectorImpl<Value> *operands,
-                                         PatternRewriter &rewriter,
-                                         DominanceInfo &DI) {
-  auto amap = AffineMap::get(set->getNumDims(), set->getNumSymbols(),
-                             set->getConstraints(), set->getContext());
-  AffineApplyNormalizer normalizer(amap, *operands, rewriter, DI);
-  auto normalizedMap = normalizer.getAffineMap();
-  auto normalizedOperands = normalizer.getOperands();
-  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
-  *set =
-      IntegerSet::get(normalizedMap.getNumDims(), normalizedMap.getNumSymbols(),
-                      normalizedMap.getResults(), set->getEqFlags());
-  *operands = normalizedOperands;
 }
 
 void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
@@ -626,9 +615,14 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
       }
     }
   }
-  while (need(set, operands)) {
-    composeIntegerSetAndOperands(set, operands, builder, DI);
+  auto map = AffineMap::get(set->getNumDims(), set->getNumSymbols(),
+                            set->getConstraints(), set->getContext());
+  while (need(&map, operands)) {
+    composeAffineMapAndOperands(&map, operands, builder, DI);
   }
+  map = simplifyAffineMap(map);
+  *set = IntegerSet::get(map.getNumDims(), map.getNumSymbols(),
+                         map.getResults(), set->getEqFlags());
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
