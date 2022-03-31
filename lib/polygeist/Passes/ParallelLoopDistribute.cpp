@@ -1518,12 +1518,13 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
   }
 };
 
+template <typename T = memref::LoadOp>
 static void loadValues(Location loc, ArrayRef<Value> pointers,
                        PatternRewriter &rewriter,
                        SmallVectorImpl<Value> &loaded) {
   loaded.reserve(loaded.size() + pointers.size());
   for (Value alloc : pointers)
-    loaded.push_back(rewriter.create<memref::LoadOp>(loc, alloc, ValueRange()));
+    loaded.push_back(rewriter.create<T>(loc, alloc, ValueRange()));
 }
 
 template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
@@ -1555,7 +1556,8 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     rewriter.setInsertionPointToStart(newOp.getBody());
     SmallVector<Value> newRegionArguments;
     newRegionArguments.push_back(newOp.getInductionVar());
-    loadValues(op.getLoc(), allocated, rewriter, newRegionArguments);
+    loadValues<polygeist::CacheLoad>(op.getLoc(), allocated, rewriter,
+                                     newRegionArguments);
 
     auto oldTerminator = op.getBody()->getTerminator();
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
