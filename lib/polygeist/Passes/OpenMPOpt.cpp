@@ -131,7 +131,7 @@ bool mayReadFrom(Operation *op, Value val) {
   return false;
 }
 
-bool mayWriteTo(Operation *op, Value val) {
+bool mayWriteTo(Operation *op, Value val, bool igoreBarrier) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
@@ -143,6 +143,9 @@ bool mayWriteTo(Operation *op, Value val) {
     }
     return false;
   }
+
+  if (isa<polygeist::BarrierOp>(op))
+    return false;
 
   // If the op has memory effects, try to characterize them to see if the op
   // is trivially dead here.

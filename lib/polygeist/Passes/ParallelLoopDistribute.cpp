@@ -1707,7 +1707,7 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
               bool same = true;
               for (Operation *op = cl->getNextNode(); op != storeOp;
                    op = op->getNextNode()) {
-                if (mayWriteTo(op, cl.memref())) {
+                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
                   same = false;
                   break;
                 }
@@ -1779,7 +1779,7 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
               bool same = true;
               for (Operation *op = cl->getNextNode(); op != storeOp;
                    op = op->getNextNode()) {
-                if (mayWriteTo(op, cl.memref())) {
+                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
                   same = false;
                   break;
                 }
@@ -1836,6 +1836,7 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     rewriter.mergeBlocks(getElseBlock(op), getElseBlock(newOp));
 
     rewriter.startRootUpdate(op);
+    rewriter.setInsertionPoint(op);
     for (auto pair : llvm::zip(op->getResults(), allocated)) {
       auto alloc = std::get<1>(pair);
       if (alloc) {
