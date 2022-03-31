@@ -1620,9 +1620,14 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
       return failure();
     }
 
+    SmallPtrSet<Operation*, 1> equivThenStores;
+    SmallPtrSet<Operation*, 1> equivElseStores;
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumResults());
-    for (Value res : op.getResults()) {
+    Operation *thenYield = &getThenBlock(op)->back();
+    Operation *elseYield = &getElseBlock(op)->back();
+    for (auto tup : llvm::zip(op.getResults(), thenYield->getOperands(), elseYield->getOperands())) {
+      Value res = std::get<0>(tup);
       Type opType = res.getType();
       bool usesMustStore = false;
       for (auto user : res.getUsers()) {
@@ -1670,6 +1675,51 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
             usesMustStore = true;
             break;
           }
+          if (!usesMustStore) {
+              Value val = std::get<1>(tup);
+            if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
+            if (isEquivalent(cl.memref(), storeOp.memref()) &&
+                cl->getBlock() == storeOp->getBlock() &&
+                llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                             [](std::tuple<Value, Value> t) {
+                               return isEquivalent(std::get<0>(t),
+                                                   std::get<1>(t));
+                             })) {
+              bool same = true;
+              for (Operation *op = cl->getNextNode(); op != storeOp;
+                   op = op->getNextNode()) {
+                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/true)) {
+                  same = false;
+                  break;
+                }
+              }
+              if (same)
+                equivThenStores.insert(storeOp);
+            }
+          }
+              val = std::get<2>(tup);
+            if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
+            if (isEquivalent(cl.memref(), storeOp.memref()) &&
+                cl->getBlock() == storeOp->getBlock() &&
+                llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                             [](std::tuple<Value, Value> t) {
+                               return isEquivalent(std::get<0>(t),
+                                                   std::get<1>(t));
+                             })) {
+              bool same = true;
+              for (Operation *op = cl->getNextNode(); op != storeOp;
+                   op = op->getNextNode()) {
+                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/true)) {
+                  same = false;
+                  break;
+                }
+              }
+              if (same)
+                equivElseStores.insert(storeOp);
+            }
+          }
+
+          }
           continue;
         }
         usesMustStore = true;
@@ -1685,7 +1735,6 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 
     auto newOp = cloneWithoutResults(op, rewriter);
 
-    Operation *thenYield = &getThenBlock(op)->back();
     rewriter.setInsertionPoint(thenYield);
     for (auto pair :
          llvm::zip(thenYield->getOperands(), allocated, op.getResults())) {
@@ -1696,26 +1745,8 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
         for (auto user : llvm::make_early_inc_range(res.getUsers())) {
           auto storeOp = dyn_cast<memref::StoreOp>(user);
           assert(storeOp);
-          if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-            if (isEquivalent(cl.memref(), storeOp.memref()) &&
-                cl->getBlock() == storeOp->getBlock() &&
-                llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
-                             [](std::tuple<Value, Value> t) {
-                               return isEquivalent(std::get<0>(t),
-                                                   std::get<1>(t));
-                             })) {
-              bool same = true;
-              for (Operation *op = cl->getNextNode(); op != storeOp;
-                   op = op->getNextNode()) {
-                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
-                  same = false;
-                  break;
-                }
-              }
-              if (same)
-                continue;
-            }
-          }
+          if (equivThenStores.count(storeOp))
+              continue;
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
           SmallVector<Value> todo = {storeOp.memref()};
@@ -1757,7 +1788,6 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     }
     thenYield->setOperands(ValueRange());
 
-    Operation *elseYield = &getElseBlock(op)->back();
     rewriter.setInsertionPoint(elseYield);
     for (auto pair :
          llvm::zip(elseYield->getOperands(), allocated, op.getResults())) {
@@ -1768,25 +1798,9 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
         for (auto user : llvm::make_early_inc_range(res.getUsers())) {
           auto storeOp = dyn_cast<memref::StoreOp>(user);
           assert(storeOp);
-          if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-            if (isEquivalent(cl.memref(), storeOp.memref()) &&
-                cl->getBlock() == storeOp->getBlock() &&
-                llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
-                             [](std::tuple<Value, Value> t) {
-                               return isEquivalent(std::get<0>(t),
-                                                   std::get<1>(t));
-                             })) {
-              bool same = true;
-              for (Operation *op = cl->getNextNode(); op != storeOp;
-                   op = op->getNextNode()) {
-                if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
-                  same = false;
-                  break;
-                }
-              }
-              if (same)
-                continue;
-            }
+          if (equivElseStores.count(storeOp)) {
+              rewriter.eraseOp(storeOp);
+              continue;
           }
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
