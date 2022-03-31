@@ -1555,9 +1555,9 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     auto newOp = cloneWithoutResults(op, rewriter);
     rewriter.setInsertionPointToStart(newOp.getBody());
     SmallVector<Value> newRegionArguments;
-    newRegionArguments.push_back(newOp.getInductionVar());
     loadValues<polygeist::CacheLoad>(op.getLoc(), allocated, rewriter,
                                      newRegionArguments);
+    newRegionArguments.push_back(newOp.getInductionVar());
 
     auto oldTerminator = op.getBody()->getTerminator();
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
