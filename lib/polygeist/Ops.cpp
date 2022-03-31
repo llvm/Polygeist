@@ -254,42 +254,47 @@ public:
 
 bool mayAlias(MemoryEffects::EffectInstance a,
               MemoryEffects::EffectInstance b) {
+  if (Value v2 = b.getValue()) {
+    return mayAlias(a, v2);
+  }
+  return true;
+}
+
+bool mayAlias(MemoryEffects::EffectInstance a, Value v2) {
   if (Value v = a.getValue()) {
-    if (Value v2 = b.getValue()) {
-      if (v == v2)
-        return true;
+    if (v == v2)
+      return true;
 
-      if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
-        if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
-          return glob.name() == Aglob.name();
-        }
+    if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
+      if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
+        return glob.name() == Aglob.name();
       }
+    }
 
-      if (auto glob = v.getDefiningOp<LLVM::AddressOfOp>()) {
-        if (auto Aglob = v2.getDefiningOp<LLVM::AddressOfOp>()) {
-          return glob.getGlobalName() == Aglob.getGlobalName();
-        }
+    if (auto glob = v.getDefiningOp<LLVM::AddressOfOp>()) {
+      if (auto Aglob = v2.getDefiningOp<LLVM::AddressOfOp>()) {
+        return glob.getGlobalName() == Aglob.getGlobalName();
       }
+    }
 
-      if (v.getDefiningOp<memref::AllocaOp>() ||
-          v.getDefiningOp<memref::AllocOp>() ||
-          v.getDefiningOp<LLVM::AllocaOp>() ||
-          v.getDefiningOp<memref::GetGlobalOp>() ||
-          v.getDefiningOp<LLVM::AddressOfOp>() ||
-          (v.isa<BlockArgument>() &&
+    if (v.getDefiningOp<memref::AllocaOp>() ||
+        v.getDefiningOp<memref::AllocOp>() ||
+        v.getDefiningOp<LLVM::AllocaOp>() ||
+        v.getDefiningOp<memref::GetGlobalOp>() ||
+        v.getDefiningOp<LLVM::AddressOfOp>() ||
+        (v.isa<BlockArgument>() &&
+         isa<FunctionOpInterface>(
+             v.cast<BlockArgument>().getOwner()->getParentOp()))) {
+
+      if (v2.getDefiningOp<memref::AllocaOp>() ||
+          v2.getDefiningOp<memref::AllocOp>() ||
+          v2.getDefiningOp<LLVM::AllocaOp>() ||
+          v2.getDefiningOp<memref::GetGlobalOp>() ||
+          v2.getDefiningOp<LLVM::AddressOfOp>() ||
+          (v2.isa<BlockArgument>() &&
            isa<FunctionOpInterface>(
-               v.cast<BlockArgument>().getOwner()->getParentOp()))) {
-
-        if (v2.getDefiningOp<memref::AllocaOp>() ||
-            v2.getDefiningOp<memref::AllocOp>() ||
-            v2.getDefiningOp<LLVM::AllocaOp>() ||
-            v2.getDefiningOp<memref::GetGlobalOp>() ||
-            v2.getDefiningOp<LLVM::AddressOfOp>() ||
-            (v2.isa<BlockArgument>() &&
-             isa<FunctionOpInterface>(
-                 v2.cast<BlockArgument>().getOwner()->getParentOp()))) {
-          return false;
-        }
+               v2.cast<BlockArgument>().getOwner()->getParentOp()))) {
+        return false;
       }
     }
   }
@@ -2235,7 +2240,8 @@ struct RankReduction : public OpRewritePattern<T> {
                                 PatternRewriter &rewriter) const override {
     mlir::Type Ty = op->getResult(0).getType();
     MemRefType MT = Ty.cast<MemRefType>();
-    if (MT.getShape().size() == 0) return failure();
+    if (MT.getShape().size() == 0)
+      return failure();
     SmallVector<Value> v;
     bool set = false;
     ParOp midPar = nullptr;
@@ -2377,6 +2383,6 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
                  AlwaysAllocaScopeHoister<AffineForOp>,
-                 //RankReduction<memref::AllocaOp, scf::ParallelOp>,
+                 // RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }

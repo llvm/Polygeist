@@ -1604,10 +1604,64 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumResults());
-    for (Type opType : op.getResultTypes()) {
-      Value alloc = rewriter.create<memref::AllocaOp>(
-          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType),
-          ValueRange());
+    for (Value res : op.getResults()) {
+      Type opType = res.getType();
+      bool usesMustStore = false;
+      for (auto user : res.getUsers()) {
+        if (auto storeOp = dyn_cast<memref::StoreOp>(user)) {
+          if (storeOp.memref() == res) {
+            usesMustStore = true;
+            break;
+          }
+          if (storeOp->getBlock() != op->getBlock()) {
+            usesMustStore = true;
+            break;
+          }
+          for (auto nex = op->getNextNode(); nex != storeOp;
+               nex = nex->getNextNode()) {
+            if (!mayReadFrom(nex, storeOp.memref()))
+              continue;
+            usesMustStore = true;
+            break;
+          }
+          // TODO check that memref operands are recomputable at this location
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
+
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+            // If a value which
+            if (auto op = cur.getDefiningOp()) {
+              if (isReadNone(op)) {
+                for (auto arg : op->getOperands()) {
+                  todo.push_back(arg);
+                }
+                continue;
+              }
+            }
+
+            usesMustStore = true;
+            break;
+          }
+          continue;
+        }
+        usesMustStore = true;
+      }
+      Value alloc = nullptr;
+      if (usesMustStore) {
+        alloc = rewriter.create<memref::AllocaOp>(
+            op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType),
+            ValueRange());
+      }
       allocated.push_back(alloc);
     }
 
@@ -1615,19 +1669,104 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 
     Operation *thenYield = &getThenBlock(op)->back();
     rewriter.setInsertionPoint(thenYield);
-    for (auto en : llvm::enumerate(thenYield->getOperands())) {
-      if (!en.value().getDefiningOp<LLVM::UndefOp>())
-        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                         allocated[en.index()], ValueRange());
+    for (auto pair :
+         llvm::zip(thenYield->getOperands(), allocated, op.getResults())) {
+      Value val = std::get<0>(pair);
+      auto alloc = std::get<1>(pair);
+      auto res = std::get<2>(pair);
+      if (!alloc) {
+        for (auto user : llvm::make_early_inc_range(res.getUsers())) {
+          auto storeOp = dyn_cast<memref::StoreOp>(user);
+          assert(storeOp);
+          BlockAndValueMapping map;
+          SetVector<Operation *> seen;
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
+
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+
+            // If a value which
+            auto op = cur.getDefiningOp();
+            assert(op);
+            seen.insert(op);
+            for (auto arg : op->getOperands()) {
+              todo.push_back(arg);
+            }
+          }
+          for (auto op : llvm::reverse(seen)) {
+            rewriter.clone(*op, map);
+          }
+          SmallVector<Value> inds;
+          for (auto ind : storeOp.indices())
+            inds.push_back(map.lookupOrDefault(ind));
+          // Only erase during the else, since we need that there
+          rewriter.create<memref::StoreOp>(
+              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.memref()),
+              inds);
+        }
+      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+        rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
+      }
     }
     thenYield->setOperands(ValueRange());
 
     Operation *elseYield = &getElseBlock(op)->back();
     rewriter.setInsertionPoint(elseYield);
-    for (auto en : llvm::enumerate(elseYield->getOperands())) {
-      if (!en.value().getDefiningOp<LLVM::UndefOp>())
-        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                         allocated[en.index()], ValueRange());
+    for (auto pair :
+         llvm::zip(elseYield->getOperands(), allocated, op.getResults())) {
+      Value val = std::get<0>(pair);
+      auto alloc = std::get<1>(pair);
+      auto res = std::get<2>(pair);
+      if (!alloc) {
+        for (auto user : llvm::make_early_inc_range(res.getUsers())) {
+          auto storeOp = dyn_cast<memref::StoreOp>(user);
+          assert(storeOp);
+          BlockAndValueMapping map;
+          SetVector<Operation *> seen;
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
+
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+
+            // If a value which
+            auto op = cur.getDefiningOp();
+            assert(op);
+            seen.insert(op);
+            for (auto arg : op->getOperands()) {
+              todo.push_back(arg);
+            }
+          }
+          for (auto op : llvm::reverse(seen)) {
+            rewriter.clone(*op, map);
+          }
+          SmallVector<Value> inds;
+          for (auto ind : storeOp.indices())
+            inds.push_back(map.lookupOrDefault(ind));
+          rewriter.replaceOpWithNewOp<memref::StoreOp>(
+              storeOp, val, map.lookupOrDefault(storeOp.memref()), inds);
+        }
+      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+        rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
+      }
     }
     elseYield->setOperands(ValueRange());
 
@@ -1639,11 +1778,17 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
-    for (Value alloc : allocated) {
-      loaded.push_back(
-          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+    rewriter.startRootUpdate(op);
+    for (auto pair : llvm::zip(op->getResults(), allocated)) {
+      auto alloc = std::get<1>(pair);
+      if (alloc) {
+        // TODO may want to move this far into the future.
+        std::get<0>(pair).replaceAllUsesWith(
+            rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+      }
     }
-    rewriter.replaceOp(op, loaded);
+    rewriter.finalizeRootUpdate(op);
+    rewriter.eraseOp(op);
     return success();
   }
 };

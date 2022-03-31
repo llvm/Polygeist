@@ -35,9 +35,14 @@ bool getEffectsAfter(
     bool stopAtBarrier);
 
 bool isReadOnly(mlir::Operation *);
+bool isReadNone(mlir::Operation *);
+
+bool mayReadFrom(mlir::Operation *, mlir::Value);
 
 bool mayAlias(mlir::MemoryEffects::EffectInstance a,
               mlir::MemoryEffects::EffectInstance b);
+
+bool mayAlias(mlir::MemoryEffects::EffectInstance a, mlir::Value b);
 
 extern llvm::cl::opt<bool> BarrierOpt;
 
@@ -51,7 +56,8 @@ public:
                   mlir::PatternRewriter &rewriter) const override {
     using namespace mlir;
     using namespace polygeist;
-    if (!BarrierOpt) return failure();
+    if (!BarrierOpt)
+      return failure();
     // Remove if it only sync's constant indices.
     if (llvm::all_of(barrier.getOperands(), [](mlir::Value v) {
           IntegerAttr constValue;

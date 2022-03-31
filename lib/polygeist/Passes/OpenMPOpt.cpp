@@ -49,6 +49,7 @@ bool isReadOnly(Operation *op) {
             return false;
       }
     }
+    return true;
   }
 
   // If the op has memory effects, try to characterize them to see if the op
@@ -78,6 +79,7 @@ bool isReadNone(Operation *op) {
             return false;
       }
     }
+    return true;
   }
 
   // If the op has memory effects, try to characterize them to see if the op
@@ -94,6 +96,37 @@ bool isReadNone(Operation *op) {
       return false;
     }
     return true;
+  }
+  return false;
+}
+
+bool mayReadFrom(Operation *op, Value val) {
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  if (hasRecursiveEffects) {
+    for (Region &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &nestedOp : block)
+          if (mayReadFrom(&nestedOp, val))
+            return true;
+      }
+    }
+    return false;
+  }
+
+  // If the op has memory effects, try to characterize them to see if the op
+  // is trivially dead here.
+  if (auto effectInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    // Check to see if this op either has no effects, or only allocates/reads
+    // memory.
+    SmallVector<MemoryEffects::EffectInstance, 1> effects;
+    effectInterface.getEffects(effects);
+    for (auto it : effects) {
+      if (!isa<MemoryEffects::Read>(it.getEffect()))
+        continue;
+      if (mayAlias(it, val))
+        return true;
+    }
+    return false;
   }
   return false;
 }
