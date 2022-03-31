@@ -560,6 +560,11 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
+    if (arePreceedingOpsRecomputable(op) &&
+        isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
+
     if (op.getNumResults() != 0)
       return failure();
 
@@ -579,6 +584,11 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
     SmallVector<BlockArgument> vals;
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
+
+    if (arePreceedingOpsRecomputable(op) &&
+        isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
 
     return wrapWithBarriers(op, rewriter, vals);
   }

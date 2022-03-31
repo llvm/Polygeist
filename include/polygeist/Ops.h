@@ -47,7 +47,7 @@ bool mayAlias(mlir::MemoryEffects::EffectInstance a, mlir::Value b);
 
 extern llvm::cl::opt<bool> BarrierOpt;
 
-template <bool TopLevelOnly = false>
+template <bool NotTopLevel = false>
 class BarrierElim final
     : public mlir::OpRewritePattern<mlir::polygeist::BarrierOp> {
 public:
@@ -69,7 +69,7 @@ public:
     }
 
     Operation *op = barrier;
-    if (TopLevelOnly && !isa<mlir::scf::ParallelOp, mlir::AffineParallelOp>(
+    if (NotTopLevel && isa<mlir::scf::ParallelOp, mlir::AffineParallelOp>(
                             barrier->getParentOp()))
       return failure();
 
