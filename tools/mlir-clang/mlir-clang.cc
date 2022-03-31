@@ -79,7 +79,10 @@ static cl::opt<bool> OpenMPOpt("openmp-opt", cl::init(true),
                                cl::desc("Turn on openmp opt"));
 
 static cl::opt<bool> ParallelLICM("parallel-licm", cl::init(true),
-                               cl::desc("Turn on parallel licm"));
+                                  cl::desc("Turn on parallel licm"));
+
+static cl::opt<bool> InnerSerialize("inner-serialize", cl::init(false),
+                                    cl::desc("Turn on parallel licm"));
 
 static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
@@ -692,6 +695,9 @@ int main(int argc, char **argv) {
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
       pm.addPass(mlir::createLowerAffinePass());
+      if (InnerSerialize)
+        pm.addPass(polygeist::createInnerSerializationPass());
+
       // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
