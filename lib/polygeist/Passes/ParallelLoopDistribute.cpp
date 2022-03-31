@@ -1582,7 +1582,9 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     SmallVector<Value> loaded;
     for (Value alloc : allocated) {
       loaded.push_back(
-          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+          rewriter
+              .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
+              ->getResult(0));
     }
     rewriter.replaceOp(op, loaded);
     return success();
@@ -1784,7 +1786,9 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
       if (alloc) {
         // TODO may want to move this far into the future.
         std::get<0>(pair).replaceAllUsesWith(
-            rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+            rewriter
+                .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
+                ->getResult(0));
       }
     }
     rewriter.finalizeRootUpdate(op);
