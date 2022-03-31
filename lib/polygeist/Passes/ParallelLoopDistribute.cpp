@@ -1537,7 +1537,8 @@ static void loadValues(Location loc, ArrayRef<Value> pointers,
     loaded.push_back(rewriter.create<T>(loc, alloc, ValueRange()));
 }
 
-template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
+template <typename T, bool UseMinCut>
+struct Reg2MemFor : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
@@ -1565,9 +1566,13 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     auto newOp = cloneWithoutResults(op, rewriter);
     rewriter.setInsertionPointToStart(newOp.getBody());
     SmallVector<Value> newRegionArguments;
-    loadValues<polygeist::CacheLoad>(op.getLoc(), allocated, rewriter,
-                                     newRegionArguments);
     newRegionArguments.push_back(newOp.getInductionVar());
+    if (UseMinCut)
+      loadValues<polygeist::CacheLoad>(op.getLoc(), allocated, rewriter,
+                                       newRegionArguments);
+    else
+      loadValues<memref::LoadOp>(op.getLoc(), allocated, rewriter,
+                                 newRegionArguments);
 
     auto oldTerminator = op.getBody()->getTerminator();
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
@@ -1593,10 +1598,15 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
     for (Value alloc : allocated) {
-      loaded.push_back(
-          rewriter
-              .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
-              ->getResult(0));
+      if (UseMinCut)
+        loaded.push_back(
+            rewriter
+                .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
+                ->getResult(0));
+      else
+        loaded.push_back(
+            rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange())
+                ->getResult(0));
     }
     rewriter.replaceOp(op, loaded);
     return success();
@@ -1617,7 +1627,8 @@ bool isEquivalent(Value a, Value b) {
   return false;
 }
 
-template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
+template <typename T, bool UseMinCut>
+struct Reg2MemIf : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
@@ -1873,10 +1884,16 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
       auto alloc = std::get<1>(pair);
       if (alloc) {
         // TODO may want to move this far into the future.
-        std::get<0>(pair).replaceAllUsesWith(
-            rewriter
-                .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
-                ->getResult(0));
+        if (UseMinCut)
+          std::get<0>(pair).replaceAllUsesWith(
+              rewriter
+                  .create<polygeist::CacheLoad>(op.getLoc(), alloc,
+                                                ValueRange())
+                  ->getResult(0));
+        else
+          std::get<0>(pair).replaceAllUsesWith(
+              rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange())
+                  ->getResult(0));
       }
     }
     rewriter.finalizeRootUpdate(op);
@@ -1987,27 +2004,39 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns
-            .insert<BarrierElim</*TopLevelOnly*/ true>, Reg2MemFor<scf::ForOp>,
-                    Reg2MemFor<AffineForOp>, Reg2MemWhile, Reg2MemIf<scf::IfOp>,
-                    Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
-                    WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
-                    WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-                    InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
-                    InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
-                    InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
-                    InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
-                    InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
-                    InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
-                    InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                    InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
+        patterns.insert<BarrierElim</*TopLevelOnly*/ true>, Reg2MemWhile>(
+            &getContext());
 
-                    InterchangeWhilePFor<scf::ParallelOp>,
-                    InterchangeWhilePFor<AffineParallelOp>,
-                    // NormalizeLoop,
-                    NormalizeParallel
-                    // RotateWhile,
-                    >(&getContext());
+        if (method.contains("mincut")) {
+          patterns
+              .insert<Reg2MemFor<scf::ForOp, true>,
+                      Reg2MemFor<AffineForOp, true>, Reg2MemIf<scf::IfOp, true>,
+                      Reg2MemIf<AffineIfOp, true>>(&getContext());
+        } else {
+          patterns.insert<
+              Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
+              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>>(
+              &getContext());
+        }
+
+        patterns.insert<WrapForWithBarrier, WrapAffineForWithBarrier,
+                        WrapIfWithBarrier<scf::IfOp>,
+                        WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
+                        InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+                        InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+                        InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
+                        InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+                        InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
+                        InterchangeForIfPFor<AffineParallelOp, AffineIfOp>,
+
+                        InterchangeWhilePFor<scf::ParallelOp>,
+                        InterchangeWhilePFor<AffineParallelOp>,
+                        // NormalizeLoop,
+                        NormalizeParallel
+                        // RotateWhile,
+                        >(&getContext());
         if (method.contains("mincut")) {
           patterns.insert<DistributeAroundBarrier<scf::ParallelOp, true>,
                           DistributeAroundBarrier<AffineParallelOp, true>>(
@@ -2020,16 +2049,20 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         GreedyRewriteConfig config;
         config.maxIterations = 142;
         if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                                std::move(patterns), config)))
+                                                std::move(patterns), config))) {
           signalPassFailure();
+          return;
+        }
       }
       {
         RewritePatternSet patterns(&getContext());
         GreedyRewriteConfig config;
         patterns.insert<LowerCacheLoad>(&getContext());
         if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                                std::move(patterns), config)))
+                                                std::move(patterns), config))) {
           signalPassFailure();
+          return;
+        }
       }
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;
