@@ -3164,7 +3164,7 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
 
     const auto *BaseDecl =
         cast<CXXRecordDecl>(Base->getType()->castAs<RecordType>()->getDecl());
-    const auto *RD = ToBase[i];
+    const auto *RD = ToBase[i - 1];
     // Get the layout.
     const ASTRecordLayout &Layout = Context.getASTRecordLayout(RD);
     assert(!Base->isVirtual() && "Should not see virtual bases here!");

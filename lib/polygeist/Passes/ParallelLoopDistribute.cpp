@@ -1535,6 +1535,10 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     if (op.getNumResults() == 0 || !hasNestedBarrier(op, args))
       return failure();
 
+    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+      return failure();
+    }
+
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumIterOperands());
     for (Value operand : op.getIterOperands()) {
@@ -1593,6 +1597,10 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     SmallVector<BlockArgument> args;
     if (!op.getResults().size() || !hasNestedBarrier(op, args))
       return failure();
+
+    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+      return failure();
+    }
 
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumResults());
