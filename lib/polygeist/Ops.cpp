@@ -252,9 +252,109 @@ public:
   }
 };
 
+bool isCaptured(Value v) {
+  SmallVector<Value> todo = {v};
+  while (todo.size()) {
+    Value v = todo.pop_back_val();
+    for (auto u : v.getUsers()) {
+      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp>(u))
+        continue;
+      if (auto s = dyn_cast<memref::StoreOp>(u)) {
+        if (s.value() == v)
+          return true;
+        continue;
+      }
+      if (auto s = dyn_cast<AffineStoreOp>(u)) {
+        if (s.value() == v)
+          return true;
+        continue;
+      }
+      if (auto s = dyn_cast<LLVM::StoreOp>(u)) {
+        if (s.getValue() == v)
+          return true;
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::GEPOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::BitcastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::AddrSpaceCastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::MemsetOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::MemcpyOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::MemmoveOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<memref::CastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<memref::DeallocOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<polygeist::SubIndexOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<polygeist::Memref2PointerOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<polygeist::Pointer2MemrefOp>(u)) {
+        todo.push_back(sub);
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+Value getBase(Value v) {
+  while (true) {
+    if (auto s = v.getDefiningOp<SubIndexOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<Memref2PointerOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<Pointer2MemrefOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::GEPOp>()) {
+      v = s.getBase();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::BitcastOp>()) {
+      v = s.getArg();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::AddrSpaceCastOp>()) {
+      v = s.getArg();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<memref::CastOp>()) {
+      v = s.source();
+      continue;
+    }
+    break;
+  }
+  return v;
+}
 static bool mayAlias(Value v, Value v2) {
+  v = getBase(v);
+  v2 = getBase(v2);
   if (v == v2)
     return true;
+
+  // We may now assume neither v1 nor v2 are subindices
 
   if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
     if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
@@ -268,31 +368,46 @@ static bool mayAlias(Value v, Value v2) {
     }
   }
 
-  if (v.getDefiningOp<memref::AllocaOp>() ||
-      v.getDefiningOp<memref::AllocOp>() || v.getDefiningOp<LLVM::AllocaOp>() ||
-      v.getDefiningOp<memref::GetGlobalOp>() ||
-      v.getDefiningOp<LLVM::AddressOfOp>() ||
-      (v.isa<BlockArgument>() &&
-       isa<FunctionOpInterface>(
-           v.cast<BlockArgument>().getOwner()->getParentOp()))) {
+  bool isAlloca[2];
+  bool isGlobal[2];
 
-    if (v2.getDefiningOp<memref::AllocaOp>() ||
-        v2.getDefiningOp<memref::AllocOp>() ||
-        v2.getDefiningOp<LLVM::AllocaOp>() ||
-        v2.getDefiningOp<memref::GetGlobalOp>() ||
-        v2.getDefiningOp<LLVM::AddressOfOp>() ||
-        (v2.isa<BlockArgument>() &&
-         isa<FunctionOpInterface>(
-             v2.cast<BlockArgument>().getOwner()->getParentOp()))) {
-      return false;
-    }
-  }
+  isAlloca[0] = v.getDefiningOp<memref::AllocaOp>() ||
+                v.getDefiningOp<memref::AllocOp>() ||
+                v.getDefiningOp<LLVM::AllocaOp>();
+  isGlobal[0] = v.getDefiningOp<memref::GetGlobalOp>() ||
+                v.getDefiningOp<LLVM::AddressOfOp>();
 
-  if (auto s = v.getDefiningOp<SubIndexOp>())
-    return mayAlias(s.source(), v2);
+  isAlloca[1] = v2.getDefiningOp<memref::AllocaOp>() ||
+                v2.getDefiningOp<memref::AllocOp>() ||
+                v2.getDefiningOp<LLVM::AllocaOp>();
 
-  if (auto s = v2.getDefiningOp<SubIndexOp>())
-    return mayAlias(v, s.source());
+  isGlobal[1] = v2.getDefiningOp<memref::GetGlobalOp>() ||
+                v2.getDefiningOp<LLVM::AddressOfOp>();
+
+  // Non-equivalent allocas/global's cannot conflict with each other
+  if ((isAlloca[0] || isGlobal[0]) && (isAlloca[1] || isGlobal[1]))
+    return false;
+
+  bool isArg[2];
+  isArg[0] = v.isa<BlockArgument>() &&
+             isa<FunctionOpInterface>(
+                 v.cast<BlockArgument>().getOwner()->getParentOp());
+
+  isArg[1] = v.isa<BlockArgument>() &&
+             isa<FunctionOpInterface>(
+                 v.cast<BlockArgument>().getOwner()->getParentOp());
+
+  // Stack allocations cannot have been passed as an argument.
+  if ((isAlloca[0] && isArg[1]) || (isAlloca[1] && isArg[0]))
+    return false;
+
+  // Non captured base allocas cannot conflict with another base value.
+  if (isAlloca[0] && !isCaptured(v))
+    return false;
+
+  if (isAlloca[1] && !isCaptured(v2))
+    return false;
+
   return true;
 }
 
