@@ -159,6 +159,22 @@ static bool arePreceedingOpsRecomputable(Operation *op) {
   return true;
 }
 
+static bool arePreceedingOpsFullyRecomputable(Operation *op) {
+  SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+  getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
+
+  for (auto it : beforeEffects) {
+    if (auto RE = dyn_cast<MemoryEffects::Read>(it.getEffect())) {
+      if (Value v = it.getValue())
+        if (!mayWriteTo(op, v, /*ignoreBarrier*/ true))
+          continue;
+    }
+    return false;
+  }
+
+  return true;
+}
+
 static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Required,
                         llvm::SetVector<Value> &Cache) {
@@ -515,12 +531,12 @@ bool isBarrierContainingAll(Operation *op, SmallVector<BlockArgument> &args) {
 /// not a barrier.
 template <typename T>
 static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
-                                      SmallVector<BlockArgument> &args) {
+                                      SmallVector<BlockArgument> &args,
+                                      bool recomputable) {
   Operation *prevOp = op->getPrevNode();
   Operation *nextOp = op->getNextNode();
-  bool hasPrevBarrierLike = prevOp == nullptr ||
-                            isBarrierContainingAll(prevOp, args) ||
-                            arePreceedingOpsRecomputable(op);
+  bool hasPrevBarrierLike =
+      prevOp == nullptr || isBarrierContainingAll(prevOp, args) || recomputable;
   bool hasNextBarrierLike =
       nextOp == &op->getBlock()->back() || isBarrierContainingAll(nextOp, args);
 
@@ -560,15 +576,15 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    if (arePreceedingOpsRecomputable(op) &&
-        isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
       return failure();
     }
 
     if (op.getNumResults() != 0)
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -585,12 +601,12 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    if (arePreceedingOpsRecomputable(op) &&
-        isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
       return failure();
     }
 
-    return wrapWithBarriers(op, rewriter, vals);
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -604,7 +620,8 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -626,7 +643,10 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    // TODO
+    bool recomputable = arePreceedingOpsRecomputable(op);
+
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -842,7 +862,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
       return failure();
     }
 
-    if (!arePreceedingOpsRecomputable(lastOp)) {
+    if (!arePreceedingOpsFullyRecomputable(lastOp)) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
@@ -857,8 +877,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     rewriter.setInsertionPoint(op);
     mapping.map(op.getBody()->getArguments(), getLowerBounds(op, rewriter));
     rewriter.setInsertionPoint(op);
-    for (auto it = op.getBody()->begin(); dyn_cast<ForIfType>(*it) != lastOp;
-         ++it)
+    for (auto it = op.getBody()->begin(); &*it != lastOp; ++it)
       rewriter.clone(*it, mapping);
 
     auto newOp = cloneWithoutResults(lastOp, rewriter, mapping);
@@ -2004,7 +2023,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns.insert<BarrierElim</*TopLevelOnly*/ true>, Reg2MemWhile>(
+        patterns.insert<BarrierElim</*TopLevelOnly*/ false>, Reg2MemWhile>(
             &getContext());
 
         if (method.contains("mincut")) {
