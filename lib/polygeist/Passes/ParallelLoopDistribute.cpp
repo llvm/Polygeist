@@ -159,12 +159,17 @@ static bool arePreceedingOpsRecomputable(Operation *op) {
   return true;
 }
 
-static bool arePreceedingOpsFullyRecomputable(Operation *op) {
+// \p singleExecution denotes whether op is guaranteed to execute the body once
+// and after the cloned values
+static bool arePreceedingOpsFullyRecomputable(Operation *op,
+                                              bool singleExecution) {
   SmallVector<MemoryEffects::EffectInstance> beforeEffects;
   getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
 
   for (auto it : beforeEffects) {
     if (auto RE = dyn_cast<MemoryEffects::Read>(it.getEffect())) {
+      if (singleExecution)
+        continue;
       if (Value v = it.getValue())
         if (!mayWriteTo(op, v, /*ignoreBarrier*/ true))
           continue;
@@ -576,7 +581,8 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ true);
     if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
       return failure();
     }
@@ -601,7 +607,8 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
     if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
       return failure();
     }
@@ -620,7 +627,12 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    bool recomputable = arePreceedingOpsFullyRecomputable(op);
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
+
     return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
@@ -862,7 +874,8 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
       return failure();
     }
 
-    if (!arePreceedingOpsFullyRecomputable(lastOp)) {
+    if (!arePreceedingOpsFullyRecomputable(
+            lastOp, /*isSingleExecution*/ isa<scf::IfOp, AffineIfOp>(op))) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
