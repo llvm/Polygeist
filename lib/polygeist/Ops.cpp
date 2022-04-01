@@ -252,12 +252,13 @@ public:
   }
 };
 
-bool isCaptured(Value v) {
+bool isCaptured(Value v, Operation* potentialUser = nullptr, bool *seenuse = nullptr) {
   SmallVector<Value> todo = {v};
   while (todo.size()) {
     Value v = todo.pop_back_val();
     for (auto u : v.getUsers()) {
-      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp>(u))
+      if (seenuse && u == potentialUser) *seenuse = true;
+      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp,polygeist::CacheLoad>(u))
         continue;
       if (auto s = dyn_cast<memref::StoreOp>(u)) {
         if (s.value() == v)
@@ -348,6 +349,13 @@ Value getBase(Value v) {
   }
   return v;
 }
+
+bool isStackAlloca(Value v) {
+  return v.getDefiningOp<memref::AllocaOp>() ||
+                v.getDefiningOp<memref::AllocOp>() ||
+                v.getDefiningOp<LLVM::AllocaOp>();
+
+}
 static bool mayAlias(Value v, Value v2) {
   v = getBase(v);
   v2 = getBase(v2);
@@ -371,15 +379,11 @@ static bool mayAlias(Value v, Value v2) {
   bool isAlloca[2];
   bool isGlobal[2];
 
-  isAlloca[0] = v.getDefiningOp<memref::AllocaOp>() ||
-                v.getDefiningOp<memref::AllocOp>() ||
-                v.getDefiningOp<LLVM::AllocaOp>();
+  isAlloca[0] = isStackAlloca(v);
   isGlobal[0] = v.getDefiningOp<memref::GetGlobalOp>() ||
                 v.getDefiningOp<LLVM::AddressOfOp>();
 
-  isAlloca[1] = v2.getDefiningOp<memref::AllocaOp>() ||
-                v2.getDefiningOp<memref::AllocOp>() ||
-                v2.getDefiningOp<LLVM::AllocaOp>();
+  isAlloca[1] = isStackAlloca(v2);
 
   isGlobal[1] = v2.getDefiningOp<memref::GetGlobalOp>() ||
                 v2.getDefiningOp<LLVM::AddressOfOp>();
