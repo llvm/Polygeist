@@ -875,7 +875,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     }
 
     if (!arePreceedingOpsFullyRecomputable(
-            lastOp, /*isSingleExecution*/ isa<scf::IfOp, AffineIfOp>(op))) {
+            lastOp, /*isSingleExecution*/ isa<scf::IfOp, AffineIfOp>(lastOp))) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
