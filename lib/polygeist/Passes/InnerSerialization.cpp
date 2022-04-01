@@ -39,12 +39,9 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
     for (auto tup :
          llvm::zip(nextParallel.getLowerBound(), nextParallel.getUpperBound(),
                    nextParallel.getStep(), nextParallel.getInductionVars())) {
-      bool plast = last != nullptr;
       last =
           rewriter.create<scf::ForOp>(nextParallel.getLoc(), std::get<0>(tup),
                                       std::get<1>(tup), std::get<2>(tup));
-      if (plast)
-        rewriter.create<scf::YieldOp>(nextParallel.getLoc());
       inds.push_back(last.getInductionVar());
       rewriter.setInsertionPointToStart(last.getBody());
     }
