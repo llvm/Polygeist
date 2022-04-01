@@ -45,6 +45,7 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
       inds.push_back(last.getInductionVar());
       rewriter.setInsertionPointToStart(last.getBody());
     }
+    rewriter.eraseOp(last.getBody()->getTerminator());
     rewriter.mergeBlocks(&nextParallel.getRegion().front(), last.getBody(),
                          inds);
 
