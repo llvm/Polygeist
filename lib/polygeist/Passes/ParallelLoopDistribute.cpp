@@ -674,11 +674,9 @@ static void insertRecomputables(PatternRewriter &rewriter, T oldParallel,
   rewriter.setInsertionPointToStart(newParallel.getBody());
   for (auto it = oldParallel.getBody()->begin(); dyn_cast<T2>(*it) != until;
        ++it) {
-    if (isRecomputable(&*it)) {
-      auto newOp = rewriter.clone(*it, mapping);
-      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
-                                    newParallel.getBody());
-    }
+    auto newOp = rewriter.clone(*it, mapping);
+    rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
+                                  newParallel.getBody());
   }
 }
 
@@ -2017,6 +2015,30 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
+struct PLDBarrierElim : public OpRewritePattern<polygeist::BarrierOp> {
+  using OpRewritePattern<polygeist::BarrierOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(polygeist::BarrierOp op,
+                                PatternRewriter &rewriter) const override {
+    if (isa<scf::ParallelOp>(op->getParentOp())) {
+      auto next = op->getNextNode();
+      if (isa<scf::IfOp, AffineIfOp>(next) &&
+          arePreceedingOpsFullyRecomputable(next, true)) {
+        return failure();
+      }
+      if (isa<scf::ForOp, AffineForOp>(next) &&
+          (!arePreceedingOpsFullyRecomputable(next, false))) {
+        return failure();
+      }
+    }
+    if (succeeded(canElimBarrier(op, rewriter, false))) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+    return failure();
+  }
+};
+
 struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
   using OpRewritePattern<polygeist::CacheLoad>::OpRewritePattern;
 
@@ -2037,8 +2059,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns.insert<BarrierElim</*TopLevelOnly*/ false>, Reg2MemWhile>(
-            &getContext());
+        patterns.insert<PLDBarrierElim, Reg2MemWhile>(&getContext());
 
         if (method.contains("mincut")) {
           patterns
