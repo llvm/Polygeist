@@ -1571,30 +1571,31 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
       if (!memInterface.hasNoEffect()) {
         if (isReadOnly(op) && !isSpeculatable) {
-            
-            SmallVector<MemoryEffects::EffectInstance> whileEffects;
-            collectEffects(whileOp, whileEffects);
-            
-            SmallVector<MemoryEffects::EffectInstance> opEffects;
-            collectEffects(op, opEffects);
 
-            bool conflict = false;
-            for (auto before : opEffects)
-        for (auto after : whileEffects) {
-          if (mayAlias(before, after)) {
-            // Read, read is okay
-            if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                isa<MemoryEffects::Read>(after.getEffect())) {
-              continue;
+          SmallVector<MemoryEffects::EffectInstance> whileEffects;
+          collectEffects(whileOp, whileEffects);
+
+          SmallVector<MemoryEffects::EffectInstance> opEffects;
+          collectEffects(op, opEffects);
+
+          bool conflict = false;
+          for (auto before : opEffects)
+            for (auto after : whileEffects) {
+              if (mayAlias(before, after)) {
+                // Read, read is okay
+                if (isa<MemoryEffects::Read>(before.getEffect()) &&
+                    isa<MemoryEffects::Read>(after.getEffect())) {
+                  continue;
+                }
+
+                // Write, write is not okay because may be different offsets and
+                // the later must subsume other conflicts are invalid.
+                conflict = true;
+                break;
+              }
             }
-
-            // Write, write is not okay because may be different offsets and the
-            // later must subsume other conflicts are invalid.
-            conflict = true;
-            break;
-          }
-        }
-           if (conflict) return false;
+          if (conflict)
+            return false;
         } else
           return false;
       }

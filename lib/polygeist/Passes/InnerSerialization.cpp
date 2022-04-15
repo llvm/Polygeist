@@ -18,8 +18,7 @@ using namespace mlir::arith;
 using namespace polygeist;
 
 namespace {
-struct InnerSerialization
-    : public InnerSerializationBase<InnerSerialization> {
+struct InnerSerialization : public InnerSerializationBase<InnerSerialization> {
   void runOnOperation() override;
 };
 } // namespace

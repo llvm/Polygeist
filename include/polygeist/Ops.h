@@ -116,7 +116,7 @@ public:
           if (mayAlias(before, after)) {
             // Read, read is okay
             if (isa<MemoryEffects::Read>(before.getEffect()) &&
-                !isa<MemoryEffects::Read>(after.getEffect())) {
+                isa<MemoryEffects::Read>(after.getEffect())) {
               continue;
             }
             // Write, write is not okay because may be different offsets and the

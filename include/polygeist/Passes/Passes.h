@@ -29,10 +29,8 @@ std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 } // namespace mlir
 
 void fully2ComposeAffineMapAndOperands(
-    mlir::PatternRewriter &rewriter,
-    mlir::AffineMap *map,
-    llvm::SmallVectorImpl<mlir::Value> *operands,
-    mlir::DominanceInfo &DI);
+    mlir::PatternRewriter &rewriter, mlir::AffineMap *map,
+    llvm::SmallVectorImpl<mlir::Value> *operands, mlir::DominanceInfo &DI);
 bool isValidIndex(mlir::Value val);
 
 namespace mlir {

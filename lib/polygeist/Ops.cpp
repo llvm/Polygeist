@@ -252,13 +252,16 @@ public:
   }
 };
 
-bool isCaptured(Value v, Operation* potentialUser = nullptr, bool *seenuse = nullptr) {
+bool isCaptured(Value v, Operation *potentialUser = nullptr,
+                bool *seenuse = nullptr) {
   SmallVector<Value> todo = {v};
   while (todo.size()) {
     Value v = todo.pop_back_val();
     for (auto u : v.getUsers()) {
-      if (seenuse && u == potentialUser) *seenuse = true;
-      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp,polygeist::CacheLoad>(u))
+      if (seenuse && u == potentialUser)
+        *seenuse = true;
+      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp, polygeist::CacheLoad>(
+              u))
         continue;
       if (auto s = dyn_cast<memref::StoreOp>(u)) {
         if (s.value() == v)
@@ -352,9 +355,8 @@ Value getBase(Value v) {
 
 bool isStackAlloca(Value v) {
   return v.getDefiningOp<memref::AllocaOp>() ||
-                v.getDefiningOp<memref::AllocOp>() ||
-                v.getDefiningOp<LLVM::AllocaOp>();
-
+         v.getDefiningOp<memref::AllocOp>() ||
+         v.getDefiningOp<LLVM::AllocaOp>();
 }
 static bool mayAlias(Value v, Value v2) {
   v = getBase(v);

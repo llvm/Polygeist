@@ -133,7 +133,8 @@ bool mayReadFrom(Operation *op, Value val) {
 
 Value getBase(Value v);
 bool isStackAlloca(Value v);
-bool isCaptured(Value v, Operation* potentialUser = nullptr, bool *seenuse = nullptr);
+bool isCaptured(Value v, Operation *potentialUser = nullptr,
+                bool *seenuse = nullptr);
 
 bool mayWriteTo(Operation *op, Value val, bool ignoreBarrier) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
@@ -167,13 +168,13 @@ bool mayWriteTo(Operation *op, Value val, bool ignoreBarrier) {
     return false;
   }
 
-  // Calls which do not use a derived pointer of a known alloca, which is not captured
-  // can not write to said memory.
+  // Calls which do not use a derived pointer of a known alloca, which is not
+  // captured can not write to said memory.
   if (isa<LLVM::CallOp, func::CallOp>(op)) {
     auto base = getBase(val);
     bool seenuse = false;
     if (isStackAlloca(base) && !isCaptured(base, op, &seenuse) && !seenuse) {
-        return false;
+      return false;
     }
   }
   return true;

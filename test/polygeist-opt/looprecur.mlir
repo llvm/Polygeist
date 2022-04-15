@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" -canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" -allow-unregistered-dialect -canonicalize --split-input-file %s | FileCheck %s
 
 module {
   func private @use(%a : i1) -> ()
@@ -18,6 +18,7 @@ module {
             %s = scf.if %cond -> (i1) {
               %m = arith.xori %arg2, %true : i1
               "polygeist.barrier"(%arg4) : (index) -> ()
+              "test.something"() : () -> ()
               scf.yield %m : i1
             } else {
               scf.yield %arg2 : i1
@@ -43,6 +44,7 @@ module {
 // CHECK-NEXT:       memref.store %false, %0[%arg4] : memref<9xi1>
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
+//    TODO don't need this cache during parallel split
 // CHECK-NEXT:     %1 = memref.alloca() : memref<9xi1>
 // CHECK-NEXT:     scf.for %arg4 = %c0 to %c10 step %c1 {
 // CHECK-NEXT:       scf.if %arg3 {
@@ -54,6 +56,14 @@ module {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%arg5) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:           %2 = memref.load %1[%arg5] : memref<9xi1>
+// CHECK-NEXT:           "test.something"() : () -> ()
+// CHECK-NEXT:           memref.store %2, %0[%arg5] : memref<9xi1>
+// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:         }
+// CHECK-NEXT:       } else {
+//    TODO don't need load/store
+// CHECK-NEXT:         scf.parallel (%arg5) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:           %2 = memref.load %0[%arg5] : memref<9xi1>
 // CHECK-NEXT:           memref.store %2, %0[%arg5] : memref<9xi1>
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }

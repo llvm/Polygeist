@@ -204,9 +204,10 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
   void runOnOperation() override;
 
   // return if changed
-  bool forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
-                          SmallVectorImpl<Operation *> &loadOpsToErase,
-                                 DenseMap<Operation*,SmallVector<Operation *>> &capturedAliasing);
+  bool forwardStoreToLoad(
+      mlir::Value AI, std::vector<Offset> idx,
+      SmallVectorImpl<Operation *> &loadOpsToErase,
+      DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing);
 };
 
 } // end anonymous namespace
@@ -1073,9 +1074,10 @@ std::set<std::string> NonCapturingFunctions = {
 std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
-                                 SmallVectorImpl<Operation *> &loadOpsToErase,
-                                 DenseMap<Operation*,SmallVector<Operation *>> &capturedAliasing) {
+bool Mem2Reg::forwardStoreToLoad(
+    mlir::Value AI, std::vector<Offset> idx,
+    SmallVectorImpl<Operation *> &loadOpsToErase,
+    DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing) {
   bool changed = false;
   std::set<mlir::Operation *> loadOps;
   mlir::Type subType = nullptr;
@@ -1263,78 +1265,76 @@ bool Mem2Reg::forwardStoreToLoad(mlir::Value AI, std::vector<Offset> idx,
 
   if (captured) {
     if (capturedAliasing.count(AI.getDefiningOp()) == 0) {
-        SmallVector<Operation*> capEffects;
-    AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
-      bool opMayHaveEffect = false;
-      if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
-        return;
-      if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(op)) {
-        if (callOp.getCallee() && (
-                    *callOp.getCallee() == "printf" ||
-                    *callOp.getCallee() == "free" ||
-                    *callOp.getCallee() == "strlen"
-                    )) {
+      SmallVector<Operation *> capEffects;
+      AI.getDefiningOp()->getParentOp()->walk([&](Operation *op) {
+        bool opMayHaveEffect = false;
+        if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
           return;
-        }
-      }
-      MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
-      if (!interface)
-        opMayHaveEffect = true;
-      if (interface) {
-        SmallVector<MemoryEffects::EffectInstance, 1> effects;
-        interface.getEffects(effects);
-
-        for (auto effect : effects) {
-          // If op causes EffectType on a potentially aliasing location for
-          // memOp, mark as having the effect.
-          if (isa<MemoryEffects::Write>(effect.getEffect())) {
-            if (Value val = effect.getValue()) {
-              while (true) {
-                if (auto co = val.getDefiningOp<memref::CastOp>())
-                  val = co.source();
-                else if (auto co = val.getDefiningOp<polygeist::SubIndexOp>())
-                  val = co.source();
-                else if (auto co =
-                             val.getDefiningOp<polygeist::Memref2PointerOp>())
-                  val = co.source();
-                else if (auto co =
-                             val.getDefiningOp<polygeist::Pointer2MemrefOp>())
-                  val = co.source();
-                else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
-                  val = co.getArg();
-                else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
-                  val = co.getArg();
-                else if (auto co = val.getDefiningOp<LLVM::GEPOp>())
-                  val = co.getBase();
-                else
-                  break;
-              }
-              if (val.getDefiningOp<memref::AllocaOp>() ||
-                  val.getDefiningOp<memref::AllocOp>() ||
-                  val.getDefiningOp<LLVM::AllocaOp>()) {
-                if (val != AI)
-                  continue;
-              }
-              if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
-                if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
-                  if (glob.name() != Aglob.name())
-                    continue;
-                } else
-                  continue;
-              }
-            }
-            opMayHaveEffect = true;
-            break;
+        if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(op)) {
+          if (callOp.getCallee() && (*callOp.getCallee() == "printf" ||
+                                     *callOp.getCallee() == "free" ||
+                                     *callOp.getCallee() == "strlen")) {
+            return;
           }
         }
-      }
-      if (opMayHaveEffect) {
-          capEffects.push_back(op);
-      }
-    });
-      
-    capturedAliasing[AI.getDefiningOp()] = capEffects;
+        MemoryEffectOpInterface interface =
+            dyn_cast<MemoryEffectOpInterface>(op);
+        if (!interface)
+          opMayHaveEffect = true;
+        if (interface) {
+          SmallVector<MemoryEffects::EffectInstance, 1> effects;
+          interface.getEffects(effects);
 
+          for (auto effect : effects) {
+            // If op causes EffectType on a potentially aliasing location for
+            // memOp, mark as having the effect.
+            if (isa<MemoryEffects::Write>(effect.getEffect())) {
+              if (Value val = effect.getValue()) {
+                while (true) {
+                  if (auto co = val.getDefiningOp<memref::CastOp>())
+                    val = co.source();
+                  else if (auto co = val.getDefiningOp<polygeist::SubIndexOp>())
+                    val = co.source();
+                  else if (auto co =
+                               val.getDefiningOp<polygeist::Memref2PointerOp>())
+                    val = co.source();
+                  else if (auto co =
+                               val.getDefiningOp<polygeist::Pointer2MemrefOp>())
+                    val = co.source();
+                  else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
+                    val = co.getArg();
+                  else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
+                    val = co.getArg();
+                  else if (auto co = val.getDefiningOp<LLVM::GEPOp>())
+                    val = co.getBase();
+                  else
+                    break;
+                }
+                if (val.getDefiningOp<memref::AllocaOp>() ||
+                    val.getDefiningOp<memref::AllocOp>() ||
+                    val.getDefiningOp<LLVM::AllocaOp>()) {
+                  if (val != AI)
+                    continue;
+                }
+                if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
+                  if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
+                    if (glob.name() != Aglob.name())
+                      continue;
+                  } else
+                    continue;
+                }
+              }
+              opMayHaveEffect = true;
+              break;
+            }
+          }
+        }
+        if (opMayHaveEffect) {
+          capEffects.push_back(op);
+        }
+      });
+
+      capturedAliasing[AI.getDefiningOp()] = capEffects;
     }
 
     for (auto op : capturedAliasing[AI.getDefiningOp()]) {
@@ -1861,11 +1861,10 @@ bool isPromotable(mlir::Value AI) {
 }
 
 std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
-  std::map<std::vector<Offset>,unsigned> lastStored;
-
+  std::map<std::vector<Offset>, unsigned> lastStored;
 
   std::deque<mlir::Value> list = {AI};
-  
+
   while (list.size()) {
     auto val = list.front();
     list.pop_front();
@@ -1912,8 +1911,8 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
 
   std::vector<std::vector<Offset>> todo;
   for (auto &pair : lastStored) {
-      if (pair.second > 1)
-          todo.push_back(pair.first);
+    if (pair.second > 1)
+      todo.push_back(pair.first);
   }
   return todo;
 }
@@ -1957,7 +1956,7 @@ void Mem2Reg::runOnOperation() {
         toPromote.push_back(AI);
       }
     });
-    DenseMap<Operation*,SmallVector<Operation *>> capturedAliasing;
+    DenseMap<Operation *, SmallVector<Operation *>> capturedAliasing;
     for (auto AI : toPromote) {
       LLVM_DEBUG(llvm::dbgs() << " attempting to promote " << AI << "\n");
       auto lastStored = getLastStored(AI);
@@ -1969,7 +1968,8 @@ void Mem2Reg::runOnOperation() {
                    llvm::dbgs() << "} of " << AI << "\n");
         // llvm::errs() << " PRE " << AI << "\n";
         // f.dump();
-        changed |= forwardStoreToLoad(AI, vec, loadOpsToErase, capturedAliasing);
+        changed |=
+            forwardStoreToLoad(AI, vec, loadOpsToErase, capturedAliasing);
         // llvm::errs() << " POST " << AI << "\n";
         // f.dump();
       }

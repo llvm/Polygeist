@@ -126,6 +126,7 @@ module {
 // CHECK-NEXT:         } else {
 // CHECK-NEXT:           affine.yield %8 : f32
 // CHECK-NEXT:         }
+// CHECK-NEXT:         "polygeist.barrier"(%arg7, %arg8, %c0) : (index, index, index) -> ()
 // CHECK-NEXT:         affine.store %9, %arg2[%arg7 + symbol(%arg3) + %arg6 * symbol(%0) + %arg8 * symbol(%arg3) + 1] : memref<?xf32>
 // CHECK-NEXT:         "polygeist.barrier"(%arg7, %arg8, %c0) : (index, index, index) -> ()
 // CHECK-NEXT:         affine.if #set0(%arg7) {
