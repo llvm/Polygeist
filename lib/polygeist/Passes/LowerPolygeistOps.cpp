@@ -15,8 +15,6 @@
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/Dialect/StandardOps/Transforms/Passes.h"
 #include "mlir/Rewrite/FrozenRewritePatternSet.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "polygeist/Dialect.h"
@@ -68,14 +66,13 @@ struct LowerPolygeistOpsPass
 
   void runOnOperation() override {
     auto op = getOperation();
-    auto ctx = op.getContext();
+    auto ctx = op->getContext();
     RewritePatternSet patterns(ctx);
     patterns.insert<SubIndexToReinterpretCast>(ctx);
 
     ConversionTarget target(*ctx);
     target.addIllegalDialect<polygeist::PolygeistDialect>();
-    target.addLegalDialect<arith::ArithmeticDialect, mlir::StandardOpsDialect,
-                           memref::MemRefDialect>();
+    target.addLegalDialect<arith::ArithmeticDialect, memref::MemRefDialect>();
 
     if (failed(applyPartialConversion(op, target, std::move(patterns))))
       return signalPassFailure();
