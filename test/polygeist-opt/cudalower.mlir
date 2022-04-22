@@ -13,9 +13,9 @@ module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64
 }
 
 // CHECK:   func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c64_i64 = arith.constant 64 : i64
-// CHECK-NEXT:     %false = arith.constant false
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c64_i64 = arith.constant 64 : i64
+// CHECK-DAG:     %false = arith.constant false
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = "polygeist.memref2pointer"(%arg0) : (memref<?xi32>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%arg1) : (memref<?xi32>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     "llvm.intr.memcpy"(%0, %1, %c64_i64, %false) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i1) -> ()
@@ -102,9 +102,9 @@ module {
 }
 
 // CHECK:   func @meta(%arg0: i1) {
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c2 = arith.constant 2 : index
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c2 = arith.constant 2 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     scf.parallel (%arg1, %arg2, %arg3) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:       scf.parallel (%arg4, %arg5, %arg6) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:         memref.alloca_scope {

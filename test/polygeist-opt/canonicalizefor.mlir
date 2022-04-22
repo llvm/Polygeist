@@ -107,9 +107,9 @@ module  {
 }
 
 // CHECK:   func @runHisto(%arg0: i32, %arg1: i32) -> i32
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c2_i32 = arith.constant 2 : i32
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = arith.muli %arg1, %c2_i32 : i32
 // CHECK-NEXT:     %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:     %2 = arith.index_cast %0 : i32 to index

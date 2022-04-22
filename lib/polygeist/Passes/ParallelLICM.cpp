@@ -180,7 +180,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   return true;
 }
 
-LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
+void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
   auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
@@ -220,13 +220,13 @@ LogicalResult moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     auto ifOp = b.create<scf::IfOp>(looplike.getLoc(), TypeRange(), cond);
     looplike->moveBefore(ifOp.thenYield());
   }
-  LogicalResult result = looplike.moveOutOfLoop(opsToMove);
+  for (auto op : opsToMove)
+    looplike.moveOutOfLoop(op);
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
-  return result;
 }
 
 // TODO affine parallel licm
-LogicalResult moveParallelLoopInvariantCode(AffineParallelOp looplike) {
+void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
   auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
@@ -313,22 +313,19 @@ LogicalResult moveParallelLoopInvariantCode(AffineParallelOp looplike) {
                                      values, /*else*/ false);
     looplike->moveBefore(ifOp.getThenBlock()->getTerminator());
   }
-  LogicalResult result = looplike.moveOutOfLoop(opsToMove);
+  for (auto op : opsToMove)
+    looplike.moveOutOfLoop(op);
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
-  return result;
 }
 
 void ParallelLICM::runOnOperation() {
   getOperation()->walk([&](LoopLikeOpInterface loopLike) {
     LLVM_DEBUG(loopLike.print(llvm::dbgs() << "\nOriginal loop:\n"));
-    if (failed(moveLoopInvariantCode(loopLike)))
-      signalPassFailure();
+    moveLoopInvariantCode(loopLike);
     if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
-      if (failed(moveParallelLoopInvariantCode(par)))
-        signalPassFailure();
+      moveParallelLoopInvariantCode(par);
     } else if (auto par = dyn_cast<AffineParallelOp>((Operation *)loopLike)) {
-      if (failed(moveParallelLoopInvariantCode(par)))
-        signalPassFailure();
+      moveParallelLoopInvariantCode(par);
     }
   });
 }
