@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --raise-scf-to-affine --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --raise-scf-to-affine -allow-unregistered-dialect --split-input-file %s | FileCheck %s
 
 module {
   func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
@@ -13,6 +13,18 @@ module {
     }
     return
   }
+  func @aff(%c : i1, %arg0: i32) {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    scf.if %c {
+      %75 = arith.index_cast %arg0 : i32 to index
+      scf.parallel (%arg5) = (%c0) to (%75) step (%c1) {
+        "test.op"() : () -> ()
+        scf.yield
+      }
+    }
+    return 
+  }
 }
 
 // CHECK:   func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
@@ -21,6 +33,16 @@ module {
 // CHECK-NEXT:       affine.for %arg4 = 1 to %0 {
 // CHECK-NEXT:         %1 = memref.load %arg0[%arg4] : memref<?xf64>
 // CHECK-NEXT:         memref.store %1, %arg2[%arg4] : memref<?xf64>
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+
+// CHECK-NEXT:   func @aff(%arg0: i1, %arg1: i32) {
+// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:     scf.if %arg0 {
+// CHECK-NEXT:       affine.parallel (%arg2) = (0) to (symbol(%0)) {
+// CHECK-NEXT:         "test.op"() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

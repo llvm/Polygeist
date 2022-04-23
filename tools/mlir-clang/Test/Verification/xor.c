@@ -5,11 +5,15 @@ void foo(int A[10], int a) {
     A[i] ^= (a ^ (A[i] + 1));
 }
 
-// CHECK-LABEL: func @foo
-// CHECK: scf.for 
-// CHECK: %[[VAL0:.*]] = memref.load
-// CHECK: %[[VAL1:.*]] = arith.addi %[[VAL0]], %{{.*}}
-// CHECK: %[[VAL2:.*]] = arith.xori %{{.*}}, %[[VAL1]]
-// CHECK: %[[VAL3:.*]] = memref.load
-// CHECK: %[[VAL4:.*]] = arith.xori %[[VAL3]], %[[VAL2]]
-// CHECK: memref.store %[[VAL4]]
+// CHECK: func @foo(%arg0: memref<?xi32>, %arg1: i32)
+// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c10 = arith.constant 10 : index
+// CHECK-NEXT:     scf.for %arg2 = %c0 to %c10 step %c1 {
+// CHECK-NEXT:       %0 = memref.load %arg0[%arg2] : memref<?xi32>
+// CHECK-NEXT:       %1 = arith.addi %0, %c1_i32 : i32
+// CHECK-NEXT:       %2 = arith.xori %arg1, %1 : i32
+// CHECK-NEXT:       %3 = arith.xori %0, %2 : i32
+// CHECK-NEXT:       memref.store %3, %arg0[%arg2] : memref<?xi32>
+// CHECK-NEXT:     }

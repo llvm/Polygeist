@@ -7,6 +7,7 @@
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -118,15 +119,18 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         rewrittenStep = true;
       }
 
+      auto *scope = getAffineScope(loop)->getParentOp();
+      DominanceInfo DI(scope);
+
       AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
-        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs);
+        fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
         canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
       AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
-        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs);
+        fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
         canonicalizeMapAndOperands(&ubMap, &ubs);
         ubMap = removeDuplicateExprs(ubMap);
       }
@@ -177,14 +181,6 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
 struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
-  // TODO: remove me or rename me.
-  bool isAffine(scf::ParallelOp loop) const {
-    for (auto step : loop.getStep())
-      if (!step.getDefiningOp<ConstantIndexOp>())
-        return false;
-    return true;
-  }
-
   void canonicalizeLoopBounds(PatternRewriter &rewriter,
                               AffineParallelOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
@@ -192,19 +188,18 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
 
     auto lbMap = forOp.lowerBoundsMap();
     auto ubMap = forOp.upperBoundsMap();
-    auto prevLbMap = lbMap;
-    auto prevUbMap = ubMap;
 
-    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
+    auto *scope = getAffineScope(forOp)->getParentOp();
+    DominanceInfo DI(scope);
+
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
 
-    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
 
-    if (lbMap != prevLbMap)
-      forOp.setLowerBounds(lbOperands, lbMap);
-    if (ubMap != prevUbMap)
-      forOp.setUpperBounds(ubOperands, ubMap);
+    forOp.setLowerBounds(lbOperands, lbMap);
+    forOp.setUpperBounds(ubOperands, ubMap);
   }
 
   LogicalResult matchAndRewrite(scf::ParallelOp loop,

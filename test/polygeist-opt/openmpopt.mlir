@@ -43,7 +43,9 @@ module {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       omp.barrier
 // CHECK-NEXT:       scf.if %arg3 {
-// CHECK-NEXT:         call @inner(%arg0) : (index) -> ()
+// CHECK-NEXT:         memref.alloca_scope  {
+// CHECK-NEXT:           call @inner(%arg0) : (index) -> ()
+// CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:       omp.terminator
 // CHECK-NEXT:     }

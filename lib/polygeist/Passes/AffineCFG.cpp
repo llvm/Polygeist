@@ -54,7 +54,8 @@ bool isValidSymbolInt(Value value, bool recur = true) {
 }
 
 struct AffineApplyNormalizer {
-  AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands);
+  AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands,
+                        PatternRewriter &rewriter, DominanceInfo &DI);
 
   /// Returns the AffineMap resulting from normalization.
   AffineMap getAffineMap() { return affineMap; }
@@ -65,20 +66,11 @@ struct AffineApplyNormalizer {
     return res;
   }
 
-  unsigned getNumSymbols() { return concatenatedSymbols.size(); }
-  unsigned getNumDims() { return reorderedDims.size(); }
-
 private:
   /// Helper function to insert `v` into the coordinate system of the current
   /// AffineApplyNormalizer. Returns the AffineDimExpr with the corresponding
   /// renumbered position.
   AffineDimExpr renumberOneDim(Value v);
-
-  /// Given an `other` normalizer, this rewrites `other.affineMap` in the
-  /// coordinate system of the current AffineApplyNormalizer.
-  /// Returns the rewritten AffineMap and updates the dims and symbols of
-  /// `this`.
-  AffineMap renumber(const AffineApplyNormalizer &other);
 
   /// Maps of Value to position in `affineMap`.
   DenseMap<Value, unsigned> dimValueToPosition;
@@ -88,27 +80,7 @@ private:
   SmallVector<Value, 8> reorderedDims;
   SmallVector<Value, 8> concatenatedSymbols;
 
-  /// The number of symbols in concatenated symbols that belong to the original
-  /// map as opposed to those concatendated during map composition.
-  unsigned numProperSymbols;
-
   AffineMap affineMap;
-
-  /// Used with RAII to control the depth at which AffineApply are composed
-  /// recursively. Only accepts depth 1 for now to allow a behavior where a
-  /// newly composed AffineApplyOp does not increase the length of the chain of
-  /// AffineApplyOps. Full composition is implemented iteratively on top of
-  /// this behavior.
-  static unsigned &affineApplyDepth() {
-    static thread_local unsigned depth = 0;
-    return depth;
-  }
-  static constexpr unsigned kMaxAffineApplyDepth = 1;
-
-  AffineApplyNormalizer() : numProperSymbols(0) { affineApplyDepth()++; }
-
-public:
-  ~AffineApplyNormalizer() { affineApplyDepth()--; }
 };
 
 static bool isAffineForArg(Value val) {
@@ -127,6 +99,16 @@ static bool legalCondition(Value en, bool dim = false) {
       return true;
     }
   }
+
+  while (auto ic = en.getDefiningOp<IndexCastOp>())
+    en = ic.getIn();
+
+  if ((en.getDefiningOp<AddIOp>() || en.getDefiningOp<SubIOp>() ||
+       en.getDefiningOp<MulIOp>() || en.getDefiningOp<RemUIOp>() ||
+       en.getDefiningOp<RemSIOp>()) &&
+      (en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIntOp>() ||
+       en.getDefiningOp()->getOperand(1).getDefiningOp<ConstantIndexOp>()))
+    return true;
   // if (auto IC = dyn_cast_or_null<IndexCastOp>(en.getDefiningOp())) {
   //	if (!outer || legalCondition(IC.getOperand(), false)) return true;
   //}
@@ -170,35 +152,135 @@ static bool legalCondition(Value en, bool dim = false) {
 /// benefit potentially big: simpler and more maintainable code for a
 /// non-trivial, recursive, procedure.
 AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
-                                             ArrayRef<Value> operands)
-    : AffineApplyNormalizer() {
-  static_assert(kMaxAffineApplyDepth > 0, "kMaxAffineApplyDepth must be > 0");
+                                             ArrayRef<Value> operands,
+                                             PatternRewriter &rewriter,
+                                             DominanceInfo &DI) {
   assert(map.getNumInputs() == operands.size() &&
          "number of operands does not match the number of map inputs");
 
   LLVM_DEBUG(map.print(llvm::dbgs() << "\nInput map: "));
 
-  SmallVector<AffineExpr, 8> auxiliaryExprs;
   SmallVector<Value, 8> addedValues;
 
-  unsigned numDimsBeforeRewrite = map.getNumDims();
   llvm::SmallSet<unsigned, 1> symbolsToPromote;
+
+  unsigned numDims = map.getNumDims();
+  unsigned numSymbols = map.getNumSymbols();
+
+  SmallVector<AffineExpr, 8> dimReplacements;
+  SmallVector<AffineExpr, 8> symReplacements;
+
+  std::function<Value(Value, bool)> fix = [&](Value v,
+                                              bool index) -> Value /*legal*/ {
+    if (isValidSymbolInt(v, /*recur*/ false))
+      return v;
+    if (index && isAffineForArg(v))
+      return v;
+    auto *op = v.getDefiningOp();
+    if (!op)
+      return nullptr;
+    if (!op)
+      llvm::errs() << v << "\n";
+    assert(op);
+    if (isa<ConstantOp>(op) || isa<ConstantIndexOp>(op))
+      return v;
+    if (!isReadOnly(op)) {
+      return nullptr;
+    }
+    Operation *front = nullptr;
+    for (auto o : op->getOperands()) {
+      Operation *next;
+      if (auto *op = o.getDefiningOp()) {
+        if (Value nv = fix(o, index)) {
+          op = nv.getDefiningOp();
+        } else {
+          return nullptr;
+        }
+        next = op->getNextNode();
+      } else {
+        auto BA = o.cast<BlockArgument>();
+        if (index && isAffineForArg(BA)) {
+        } else if (!isValidSymbolInt(o, /*recur*/ false)) {
+          return nullptr;
+        }
+        next = &BA.getOwner()->front();
+      }
+      if (front == nullptr)
+        front = next;
+      else if (DI.dominates(front, next))
+        front = next;
+    }
+    if (!front)
+      op->dump();
+    assert(front);
+    PatternRewriter::InsertionGuard B(rewriter);
+    rewriter.setInsertionPoint(front);
+    auto cloned = rewriter.clone(*op);
+    rewriter.replaceOp(op, cloned->getResults());
+    return cloned->getResult(0);
+  };
+  auto renumberOneSymbol = [&](Value v) {
+    for (auto i : llvm::enumerate(addedValues)) {
+      if (i.value() == v)
+        return getAffineSymbolExpr(i.index(), map.getContext());
+    }
+    auto expr = getAffineSymbolExpr(addedValues.size(), map.getContext());
+    addedValues.push_back(v);
+    return expr;
+  };
 
   // 2. Compose AffineApplyOps and dispatch dims or symbols.
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
+    auto decast = t;
+    while (auto idx = decast.getDefiningOp<IndexCastOp>()) {
+      decast = idx.getIn();
+    }
     if (!isValidSymbolInt(t, /*recur*/ false)) {
-      while (auto idx = t.getDefiningOp<IndexCastOp>()) {
-        t = idx.getIn();
-      }
+      t = decast;
     }
 
-    if (!isValidSymbolInt(t, /*recur*/ false) &&
-        (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
-         t.getDefiningOp<MulIOp>() || t.getDefiningOp<DivSIOp>() ||
-         t.getDefiningOp<DivUIOp>() || t.getDefiningOp<RemUIOp>() ||
-         t.getDefiningOp<RemSIOp>() || t.getDefiningOp<ConstantIntOp>() ||
-         t.getDefiningOp<ConstantIndexOp>())) {
+    // Only promote one at a time, lest we end up with two dimensions
+    // multiplying each other.
+
+    if (((!isValidSymbolInt(t, /*recur*/ false) &&
+          (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
+           (t.getDefiningOp<MulIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+                 isValidSymbolInt(t.getDefiningOp()->getOperand(1)) ||
+             isValidIndex(t.getDefiningOp()->getOperand(1)) &&
+                 isValidSymbolInt(t.getDefiningOp()->getOperand(0))) &&
+            !(fix(t.getDefiningOp()->getOperand(0), false) &&
+              fix(t.getDefiningOp()->getOperand(1), false))
+
+                ) ||
+           ((t.getDefiningOp<DivUIOp>() || t.getDefiningOp<DivSIOp>()) &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1))) &&
+            (!(fix(t.getDefiningOp()->getOperand(0), false) &&
+               fix(t.getDefiningOp()->getOperand(1), false)))) ||
+           (t.getDefiningOp<DivSIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           (t.getDefiningOp<RemUIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           (t.getDefiningOp<RemSIOp>() &&
+            (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
+             isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
+           t.getDefiningOp<ConstantIntOp>() ||
+           t.getDefiningOp<ConstantIndexOp>())) ||
+         ((decast.getDefiningOp<AddIOp>() || decast.getDefiningOp<SubIOp>() ||
+           decast.getDefiningOp<MulIOp>() || decast.getDefiningOp<RemUIOp>() ||
+           decast.getDefiningOp<RemSIOp>()) &&
+          (decast.getDefiningOp()
+               ->getOperand(1)
+               .getDefiningOp<ConstantIntOp>() ||
+           decast.getDefiningOp()
+               ->getOperand(1)
+               .getDefiningOp<ConstantIndexOp>())))) {
+      t = decast;
+      LLVM_DEBUG(llvm::dbgs() << " Replacing: " << t << "\n");
 
       AffineMap affineApplyMap;
       SmallVector<Value, 8> affineApplyOperands;
@@ -210,36 +292,104 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
             AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) +
                                getAffineSymbolExpr(1, op.getContext()));
+        affineApplyOperands.push_back(op.getLhs());
+        affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<SubIOp>()) {
         affineApplyMap =
             AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) -
                                getAffineSymbolExpr(1, op.getContext()));
+        affineApplyOperands.push_back(op.getLhs());
+        affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<MulIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) *
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) *
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<DivSIOp>()) {
-        affineApplyMap = AffineMap::get(
-            0, 2,
-            getAffineSymbolExpr(0, op.getContext())
-                .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<DivUIOp>()) {
-        affineApplyMap = AffineMap::get(
-            0, 2,
-            getAffineSymbolExpr(0, op.getContext())
-                .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1,
+              getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap = AffineMap::get(
+              0, 2,
+              getAffineSymbolExpr(0, op.getContext())
+                  .floorDiv(getAffineSymbolExpr(1, op.getContext())));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<RemSIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) %
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<RemUIOp>()) {
-        affineApplyMap =
-            AffineMap::get(0, 2,
-                           getAffineSymbolExpr(0, op.getContext()) %
-                               getAffineSymbolExpr(1, op.getContext()));
+        if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
+          affineApplyMap = AffineMap::get(
+              0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
+          affineApplyOperands.push_back(op.getLhs());
+        } else {
+          affineApplyMap =
+              AffineMap::get(0, 2,
+                             getAffineSymbolExpr(0, op.getContext()) %
+                                 getAffineSymbolExpr(1, op.getContext()));
+          affineApplyOperands.push_back(op.getLhs());
+          affineApplyOperands.push_back(op.getRhs());
+        }
       } else if (auto op = t.getDefiningOp<ConstantIntOp>()) {
         affineApplyMap = AffineMap::get(
             0, 0, getAffineConstantExpr(op.value(), op.getContext()));
@@ -250,38 +400,30 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         llvm_unreachable("");
       }
 
-      for (auto op : t.getDefiningOp()->getOperands()) {
-        affineApplyOperands.push_back(op);
-      }
-
       SmallVector<AffineExpr, 0> dimRemapping;
       unsigned numOtherSymbols = affineApplyOperands.size();
       SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols);
       for (unsigned idx = 0; idx < numOtherSymbols; ++idx) {
-        symRemapping[idx] = getAffineSymbolExpr(addedValues.size(),
-                                                affineApplyMap.getContext());
-        addedValues.push_back(affineApplyOperands[idx]);
+        symRemapping[idx] = renumberOneSymbol(affineApplyOperands[idx]);
       }
       affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
           dimRemapping, symRemapping, reorderedDims.size(), addedValues.size());
 
-      if (i >= numDimsBeforeRewrite)
-        symbolsToPromote.insert(i - numDimsBeforeRewrite);
-
       LLVM_DEBUG(affineApplyMap.print(
           llvm::dbgs() << "\nRenumber into current normalizer: "));
-      auxiliaryExprs.push_back(affineApplyMap.getResult(0));
-      /*
-      llvm::dbgs() << "\n";
-      for(auto op : affineApplyOperands) {
-        llvm::dbgs() << " + prevop: " << op << "\n";
-      }
-      */
+
+      if (i >= numDims)
+        symReplacements.push_back(affineApplyMap.getResult(0));
+      else
+        dimReplacements.push_back(affineApplyMap.getResult(0));
+
     } else if (isAffineForArg(t)) {
-      auxiliaryExprs.push_back(renumberOneDim(t));
-      if (i >= numDimsBeforeRewrite)
-        symbolsToPromote.insert(i - numDimsBeforeRewrite);
-    } else if (auto affineApply = t.getDefiningOp<AffineApplyOp>()) {
+      if (i >= numDims)
+        symReplacements.push_back(renumberOneDim(t));
+      else
+        dimReplacements.push_back(renumberOneDim(t));
+    } else if (t.getDefiningOp<AffineApplyOp>()) {
+      auto affineApply = t.getDefiningOp<AffineApplyOp>();
       // a. Compose affine.apply operations.
       LLVM_DEBUG(affineApply->print(
           llvm::dbgs() << "\nCompose AffineApplyOp recursively: "));
@@ -299,137 +441,55 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols -
                                               affineApplyMap.getNumDims());
       for (unsigned idx = 0; idx < symRemapping.size(); ++idx) {
-        symRemapping[idx] = getAffineSymbolExpr(addedValues.size(),
-                                                affineApplyMap.getContext());
-        addedValues.push_back(
+        symRemapping[idx] = renumberOneSymbol(
             affineApplyOperands[idx + affineApplyMap.getNumDims()]);
       }
       affineApplyMap = affineApplyMap.replaceDimsAndSymbols(
           dimRemapping, symRemapping, reorderedDims.size(), addedValues.size());
 
-      if (i >= numDimsBeforeRewrite)
-        symbolsToPromote.insert(i - numDimsBeforeRewrite);
-
       LLVM_DEBUG(
           affineApplyMap.print(llvm::dbgs() << "\nAffine apply fixup map: "));
-      auxiliaryExprs.push_back(affineApplyMap.getResult(0));
+
+      if (i >= numDims)
+        symReplacements.push_back(affineApplyMap.getResult(0));
+      else
+        dimReplacements.push_back(affineApplyMap.getResult(0));
     } else {
       if (!isValidSymbolInt(t, /*recur*/ false)) {
-        if (auto idx = t.getDefiningOp()) {
-          auto *scope = getAffineScope(idx)->getParentOp();
-          DominanceInfo DI(scope);
-
-          std::function<bool(Value)> fix = [&](Value v) -> bool /*legal*/ {
-            if (isValidSymbolInt(v, /*recur*/ false))
-              return true;
-            auto *op = v.getDefiningOp();
-            if (!op)
-              llvm::errs() << v << "\n";
-            assert(op);
-            if (isa<ConstantOp>(op) || isa<ConstantIndexOp>(op))
-              return true;
-            if (!isReadOnly(op)) {
-              return false;
-            }
-            Operation *front = nullptr;
-            for (auto o : op->getOperands()) {
-              Operation *next;
-              if (auto *op = o.getDefiningOp()) {
-                if (!fix(o)) {
-                  return false;
-                }
-                next = op;
-              } else {
-                auto BA = o.cast<BlockArgument>();
-                if (!isValidSymbolInt(o, /*recur*/ false)) {
-                  return false;
-                }
-                next = &BA.getOwner()->front();
-              }
-              if (front == nullptr)
-                front = next;
-              else if (DI.dominates(front, next))
-                front = next;
-            }
-            if (!front)
-              op->dump();
-            assert(front);
-            op->moveAfter(front);
-            return true;
-          };
-          if (fix(t))
+        if (t.getDefiningOp()) {
+          if ((t = fix(t, false))) {
             assert(isValidSymbolInt(t, /*recur*/ false));
-          else
+          } else
             assert(0 && "cannot move");
         } else
-          assert(0 && "cannot move");
+          assert(0 && "cannot move2");
       }
-      if (i < numDimsBeforeRewrite) {
+      if (i < numDims) {
         // b. The mathematical composition of AffineMap composes dims.
-        auxiliaryExprs.push_back(renumberOneDim(t));
+        dimReplacements.push_back(renumberOneDim(t));
       } else {
         // c. The mathematical composition of AffineMap concatenates symbols.
         //    Note that the map composition will put symbols already present
         //    in the map before any symbols coming from the auxiliary map, so
         //    we insert them before any symbols that are due to renumbering,
         //    and after the proper symbols we have seen already.
-        concatenatedSymbols.insert(
-            std::next(concatenatedSymbols.begin(), numProperSymbols++), t);
+        symReplacements.push_back(renumberOneSymbol(t));
       }
     }
   }
+  for (auto v : addedValues)
+    concatenatedSymbols.push_back(v);
 
-  for (auto val : addedValues) {
-    concatenatedSymbols.push_back(val);
-  }
+  // Create the new map by replacing each symbol at pos by the next new dim.
+  unsigned numNewDims = reorderedDims.size();
+  unsigned numNewSymbols = addedValues.size();
+  assert(dimReplacements.size() == map.getNumDims());
+  assert(symReplacements.size() == map.getNumSymbols());
+  auto auxillaryMap = map.replaceDimsAndSymbols(
+      dimReplacements, symReplacements, numNewDims, numNewSymbols);
+  LLVM_DEBUG(auxillaryMap.print(llvm::dbgs() << "\nRewritten map: "));
 
-  {
-    // Create the new map by replacing each symbol at pos by the next new dim.
-    unsigned numDims = map.getNumDims();
-    unsigned numSymbols = map.getNumSymbols();
-    unsigned numNewDims = 0;
-    unsigned numNewSymbols = 0;
-    SmallVector<AffineExpr, 8> symReplacements(numSymbols);
-    for (unsigned i = 0; i < numSymbols; ++i) {
-      symReplacements[i] =
-          symbolsToPromote.count(i) > 0
-              ? getAffineDimExpr(numDims + numNewDims++, map.getContext())
-              : getAffineSymbolExpr(numNewSymbols++, map.getContext());
-    }
-    assert(numSymbols >= numNewDims);
-    map = map.replaceDimsAndSymbols({}, symReplacements, numDims + numNewDims,
-                                    numNewSymbols);
-  }
-
-  LLVM_DEBUG(map.print(llvm::dbgs() << "\nRewritten map: "));
-
-  assert(concatenatedSymbols.size() >= map.getNumSymbols() &&
-         "Unexpected number of concatenated symbols");
-  auto numDims = dimValueToPosition.size();
-  assert(dimValueToPosition.size() == reorderedDims.size());
-  auto numSymbols = concatenatedSymbols.size() - map.getNumSymbols();
-  auto auxiliaryMap =
-      AffineMap::get(numDims, numSymbols, auxiliaryExprs, map.getContext());
-
-  /*
-  llvm::dbgs() << "prev operands\n";
-  for(auto a : concatenatedSymbols) {
-    llvm::dbgs() << " &&& concatsym: " << a << "\n";
-  }
-  llvm::dbgs() << "\nprev operands\n";
-  for(auto a : operands) {
-    llvm::dbgs() << " *** pop: " << a << "\n";
-  }
-  */
-
-  LLVM_DEBUG(map.print(llvm::dbgs() << "\nCompose map: "));
-  LLVM_DEBUG(auxiliaryMap.print(llvm::dbgs() << "\nWith map: "));
-  LLVM_DEBUG(map.compose(auxiliaryMap).print(llvm::dbgs() << "\nResult: "));
-
-  // TODO: Disabling simplification results in major speed gains.
-  // Another option is to cache the results as it is expected a lot of redundant
-  // work is performed in practice.
-  affineMap = simplifyAffineMap(map.compose(auxiliaryMap));
+  affineMap = auxillaryMap; // simplifyAffineMap(auxillaryMap);
 
   LLVM_DEBUG(affineMap.print(llvm::dbgs() << "\nSimplified result: "));
   LLVM_DEBUG(llvm::dbgs() << "\n");
@@ -448,8 +508,10 @@ AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
 }
 
 static void composeAffineMapAndOperands(AffineMap *map,
-                                        SmallVectorImpl<Value> *operands) {
-  AffineApplyNormalizer normalizer(*map, *operands);
+                                        SmallVectorImpl<Value> *operands,
+                                        PatternRewriter &rewriter,
+                                        DominanceInfo &DI) {
+  AffineApplyNormalizer normalizer(*map, *operands, rewriter, DI);
   auto normalizedMap = normalizer.getAffineMap();
   auto normalizedOperands = normalizer.getOperands();
   canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
@@ -476,8 +538,9 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
   return false;
 }
 
-void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
-                                       SmallVectorImpl<Value> *operands) {
+void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
+                                       SmallVectorImpl<Value> *operands,
+                                       DominanceInfo &DI) {
   BlockAndValueMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
@@ -488,32 +551,12 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
 
     for (auto &u : idx0.getIn().getUses()) {
       if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
-        attempt.push_back(idx);
+        if (DI.dominates((Operation *)idx, &*builder.getInsertionPoint()))
+          attempt.push_back(idx);
     }
 
     for (auto idx : attempt) {
-      Operation *start = idx;
-      bool immediate = false;
-
-      while (1) {
-        if (start == idx.getIn().getDefiningOp()) {
-          immediate = true;
-          break;
-        }
-        if (isa<IndexCastOp>(start)) {
-          if (start == &start->getBlock()->front()) {
-            if (auto BA = idx.getIn().dyn_cast<BlockArgument>())
-              if (start->getBlock() == BA.getOwner()) {
-                immediate = true;
-                break;
-              }
-            break;
-          }
-          start = start->getPrevNode();
-        }
-        break;
-      }
-      if (immediate) {
+      if (isValidSymbol(idx)) {
         indexMap.map(idx.getIn(), idx);
         break;
       }
@@ -521,9 +564,10 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
   }
   assert(map->getNumInputs() == operands->size());
   while (need(map, operands)) {
-    composeAffineMapAndOperands(map, operands);
+    composeAffineMapAndOperands(map, operands, builder, DI);
     assert(map->getNumInputs() == operands->size());
   }
+  *map = simplifyAffineMap(*map);
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
@@ -537,7 +581,7 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
       if (auto v = indexMap.lookupOrNull(op))
         op = v;
       else {
-        OpBuilder::InsertionGuard B(builder);
+        PatternRewriter::InsertionGuard B(builder);
         builder.setInsertionPoint(toInsert);
         op = builder.create<IndexCastOp>(op.getLoc(), builder.getIndexType(),
                                          op);
@@ -546,53 +590,39 @@ void fully2ComposeAffineMapAndOperands(OpBuilder &builder, AffineMap *map,
   }
 }
 
-static void composeIntegerSetAndOperands(IntegerSet *set,
-                                         SmallVectorImpl<Value> *operands) {
-  auto amap = AffineMap::get(set->getNumDims(), set->getNumSymbols(),
-                             set->getConstraints(), set->getContext());
-  AffineApplyNormalizer normalizer(amap, *operands);
-  auto normalizedMap = normalizer.getAffineMap();
-  auto normalizedOperands = normalizer.getOperands();
-  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
-  *set =
-      IntegerSet::get(normalizedMap.getNumDims(), normalizedMap.getNumSymbols(),
-                      normalizedMap.getResults(), set->getEqFlags());
-  *operands = normalizedOperands;
-}
-
-void fully2ComposeIntegerSetAndOperands(OpBuilder &builder, IntegerSet *set,
-                                        SmallVectorImpl<Value> *operands) {
+void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
+                                        IntegerSet *set,
+                                        SmallVectorImpl<Value> *operands,
+                                        DominanceInfo &DI) {
   BlockAndValueMapping indexMap;
   for (auto op : *operands) {
-    if (auto idx = op.getDefiningOp<IndexCastOp>()) {
-      Operation *start = idx;
-      bool immediate = false;
+    SmallVector<IndexCastOp> attempt;
+    auto idx0 = op.getDefiningOp<IndexCastOp>();
+    attempt.push_back(idx0);
+    if (!idx0)
+      continue;
 
-      while (1) {
-        if (start == idx.getIn().getDefiningOp()) {
-          immediate = true;
-          break;
-        }
-        if (isa<IndexCastOp>(start)) {
-          if (start == &start->getBlock()->front()) {
-            if (auto BA = idx.getIn().dyn_cast<BlockArgument>())
-              if (start->getBlock() == BA.getOwner()) {
-                immediate = true;
-                break;
-              }
-            break;
-          }
-          start = start->getPrevNode();
-        }
+    for (auto &u : idx0.getIn().getUses()) {
+      if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
+        if (DI.dominates((Operation *)idx, &*builder.getInsertionPoint()))
+          attempt.push_back(idx);
+    }
+
+    for (auto idx : attempt) {
+      if (isValidSymbol(idx)) {
+        indexMap.map(idx.getIn(), idx);
         break;
       }
-      if (immediate)
-        indexMap.map(idx.getIn(), idx);
     }
   }
-  while (need(set, operands)) {
-    composeIntegerSetAndOperands(set, operands);
+  auto map = AffineMap::get(set->getNumDims(), set->getNumSymbols(),
+                            set->getConstraints(), set->getContext());
+  while (need(&map, operands)) {
+    composeAffineMapAndOperands(&map, operands, builder, DI);
   }
+  map = simplifyAffineMap(map);
+  *set = IntegerSet::get(map.getNumDims(), map.getNumSymbols(),
+                         map.getResults(), set->getEqFlags());
   for (auto &op : *operands) {
     if (!op.getType().isIndex()) {
       Operation *toInsert;
@@ -606,7 +636,7 @@ void fully2ComposeIntegerSetAndOperands(OpBuilder &builder, IntegerSet *set,
       if (auto v = indexMap.lookupOrNull(op))
         op = v;
       else {
-        OpBuilder::InsertionGuard B(builder);
+        PatternRewriter::InsertionGuard B(builder);
         builder.setInsertionPoint(toInsert);
         op = builder.create<IndexCastOp>(op.getLoc(), builder.getIndexType(),
                                          op);
@@ -621,7 +651,7 @@ struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
 };
 } // namespace
 
-static void setLocationAfter(OpBuilder &b, mlir::Value val) {
+static void setLocationAfter(PatternRewriter &b, mlir::Value val) {
   if (val.getDefiningOp()) {
     auto it = val.getDefiningOp()->getIterator();
     it++;
@@ -661,6 +691,7 @@ struct IndexCastMovement : public OpRewritePattern<IndexCastOp> {
   }
 };
 
+/*
 struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
   using OpRewritePattern<IndexCastOp>::OpRewritePattern;
 
@@ -671,9 +702,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<AddIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<AddIOp>(
           op,
@@ -683,9 +714,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<SubIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<SubIOp>(
           op,
@@ -696,9 +727,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<MulIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<MulIOp>(
           op,
@@ -708,9 +739,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<DivUIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<DivUIOp>(
           op,
@@ -721,9 +752,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<DivSIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<DivSIOp>(
           op,
@@ -734,9 +765,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<RemUIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<RemUIOp>(
           op,
@@ -747,9 +778,9 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<RemSIOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getOperand(0));
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getOperand(1));
       rewriter.replaceOpWithNewOp<RemSIOp>(
           op,
@@ -760,12 +791,12 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
       return success();
     }
     if (auto iadd = op.getOperand().getDefiningOp<SelectOp>()) {
-      OpBuilder b(rewriter);
+      PatternRewriter b(rewriter);
       setLocationAfter(b, iadd.getTrueValue());
-      OpBuilder b2(rewriter);
+      PatternRewriter b2(rewriter);
       setLocationAfter(b2, iadd.getFalseValue());
       auto cond = iadd.getCondition();
-      OpBuilder b3(rewriter);
+      PatternRewriter b3(rewriter);
       setLocationAfter(b3, cond);
       if (auto cmp = iadd.getCondition().getDefiningOp<CmpIOp>()) {
         if (cmp.getLhs() == iadd.getTrueValue() &&
@@ -785,6 +816,7 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
     return failure();
   }
 };
+*/
 
 struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
   using OpRewritePattern<AffineApplyOp>::OpRewritePattern;
@@ -796,7 +828,10 @@ struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
     auto map = affineOp.map();
     auto prevMap = map;
 
-    fully2ComposeAffineMapAndOperands(rewriter, &map, &mapOperands);
+    auto *scope = getAffineScope(affineOp)->getParentOp();
+    DominanceInfo DI(scope);
+
+    fully2ComposeAffineMapAndOperands(rewriter, &map, &mapOperands, DI);
     canonicalizeMapAndOperands(&map, &mapOperands);
     map = removeDuplicateExprs(map);
 
@@ -957,7 +992,7 @@ bool handleMinMax(Value start, SmallVectorImpl<Value> &out, bool &min,
   return !(min && max);
 }
 
-bool handle(OpBuilder &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
+bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
             SmallVectorImpl<bool> &eqflags, SmallVectorImpl<Value> &applies) {
   SmallVector<Value> lhs;
   bool lhs_min = false;
@@ -1062,7 +1097,7 @@ static void replaceStore(memref::StoreOp store,
   }
   assert(rank == newIndexes.size() && "Expect rank to match new indexes");
 
-  OpBuilder builder(store);
+  PatternRewriter builder(store);
   Location loc = store.getLoc();
   builder.create<AffineStoreOp>(loc, store.getValueToStore(), store.getMemRef(),
                                 newIndexes);
@@ -1071,7 +1106,7 @@ static void replaceStore(memref::StoreOp store,
 
 static void replaceLoad(memref::LoadOp load,
                         const SmallVector<Value, 2> &newIndexes) {
-  OpBuilder builder(load);
+  PatternRewriter builder(load);
   Location loc = load.getLoc();
 
   auto memrefType = load.getMemRef().getType().cast<MemRefType>();
@@ -1113,8 +1148,10 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
       // load->getParentOfType<FuncOp>().dump();
       llvm::errs() << " load: " << load << "\n";
     }
+    auto *scope = getAffineScope(load)->getParentOp();
+    DominanceInfo DI(scope);
     assert(map.getNumInputs() == operands.size());
-    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands);
+    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
     assert(map.getNumInputs() == operands.size());
     canonicalizeMapAndOperands(&map, &operands);
     assert(map.getNumInputs() == operands.size());
@@ -1148,7 +1185,10 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
                               rewriter.getContext());
     SmallVector<Value, 4> operands = store.getIndices();
 
-    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands);
+    auto *scope = getAffineScope(store)->getParentOp();
+    DominanceInfo DI(scope);
+
+    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
     canonicalizeMapAndOperands(&map, &operands);
 
     rewriter.create<AffineStoreOp>(store.getLoc(), store.getValueToStore(),
@@ -1184,8 +1224,11 @@ template <typename T> struct AffineFixup : public OpRewritePattern<T> {
     auto prevMap = map;
     auto prevOperands = operands;
 
+    auto *scope = getAffineScope(op)->getParentOp();
+    DominanceInfo DI(scope);
+
     assert(map.getNumInputs() == operands.size());
-    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands);
+    fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
     assert(map.getNumInputs() == operands.size());
     canonicalizeMapAndOperands(&map, &operands);
     assert(map.getNumInputs() == operands.size());
@@ -1265,11 +1308,14 @@ struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
     // llvm::errs() << "*********\n";
     // ubMap.dump();
 
-    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands);
+    auto *scope = getAffineScope(forOp)->getParentOp();
+    DominanceInfo DI(scope);
+
+    fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
     canonicalizeMapAndOperands(&lbMap, &lbOperands);
     lbMap = removeDuplicateExprs(lbMap);
 
-    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands);
+    fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
     canonicalizeMapAndOperands(&ubMap, &ubOperands);
     ubMap = removeDuplicateExprs(ubMap);
 
@@ -1310,7 +1356,10 @@ struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
     // llvm::errs() << "*********\n";
     // ubMap.dump();
 
-    fully2ComposeIntegerSetAndOperands(rewriter, &map, &operands);
+    auto *scope = getAffineScope(op)->getParentOp();
+    DominanceInfo DI(scope);
+
+    fully2ComposeIntegerSetAndOperands(rewriter, &map, &operands, DI);
     canonicalizeSetAndOperands(&map, &operands);
 
     // map(s).
@@ -1359,9 +1408,12 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
       return failure();
     }
 
+    auto *scope = getAffineScope(ifOp)->getParentOp();
+    DominanceInfo DI(scope);
+
     auto iset =
         IntegerSet::get(/*dim*/ 0, /*symbol*/ 2 * exprs.size(), exprs, eqflags);
-    fully2ComposeIntegerSetAndOperands(rewriter, &iset, &applies);
+    fully2ComposeIntegerSetAndOperands(rewriter, &iset, &applies, DI);
     canonicalizeSetAndOperands(&iset, &applies);
     AffineIfOp affineIfOp =
         rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
@@ -1371,14 +1423,18 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
     rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(),
                                                ifOp.thenYield().getOperands());
 
+    rewriter.eraseBlock(affineIfOp.getThenBlock());
+    rewriter.eraseBlock(affineIfOp.getElseBlock());
     if (ifOp.getElseRegion().getBlocks().size()) {
       rewriter.setInsertionPoint(ifOp.elseYield());
       rewriter.replaceOpWithNewOp<AffineYieldOp>(
           ifOp.elseYield(), ifOp.elseYield().getOperands());
     }
 
-    affineIfOp.thenRegion().takeBody(ifOp.getThenRegion());
-    affineIfOp.elseRegion().takeBody(ifOp.getElseRegion());
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(), affineIfOp.thenRegion(),
+                                affineIfOp.thenRegion().begin());
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(), affineIfOp.elseRegion(),
+                                affineIfOp.elseRegion().begin());
 
     rewriter.replaceOp(ifOp, affineIfOp.getResults());
     return success();
@@ -1387,8 +1443,9 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
 
 void AffineCFGPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
-  rpl.add<SimplfyIntegerCastMath, CanonicalizeAffineApply,
-          CanonicalizeIndexCast, IndexCastMovement, AffineFixup<AffineLoadOp>,
+  rpl.add</*SimplfyIntegerCastMath, */ CanonicalizeAffineApply,
+          CanonicalizeIndexCast,
+          /* IndexCastMovement,*/ AffineFixup<AffineLoadOp>,
           AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
           MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
       getOperation()->getContext());

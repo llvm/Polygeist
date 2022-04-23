@@ -12,6 +12,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ParallelLower.cpp
   TrivialUse.cpp
   ConvertPolygeistToLLVM.cpp
+  InnerSerialization.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine

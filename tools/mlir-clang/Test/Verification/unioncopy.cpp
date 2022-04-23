@@ -21,14 +21,14 @@ void meta() {
 
 // CHECK:   func @_Z4metav() attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
-// CHECK-DAG:     %cst = arith.constant 1.000000e+00 : f64
-// CHECK-DAG:     %cst_0 = arith.constant 3.000000e+00 : f64
+// CHECK-DAG:     %[[cst:.+]] = arith.constant 1.000000e+00 : f64
+// CHECK-DAG:     %[[cst_0:.+]] = arith.constant 3.000000e+00 : f64
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64)>)> : (i64) -> !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     %1 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64)>)> : (i64) -> !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     %2 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(f64)>)> : (i64) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%2, %cst) : (!llvm.ptr<struct<(struct<(f64)>)>>, f64) -> ()
-// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%1, %cst_0) : (!llvm.ptr<struct<(struct<(f64)>)>>, f64) -> ()
+// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%2, %[[cst]]) : (!llvm.ptr<struct<(struct<(f64)>)>>, f64) -> ()
+// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%1, %[[cst_0]]) : (!llvm.ptr<struct<(struct<(f64)>)>>, f64) -> ()
 // CHECK-NEXT:     %3 = llvm.load %1 : !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     llvm.store %3, %0 : !llvm.ptr<struct<(struct<(f64)>)>>
 // CHECK-NEXT:     %4 = call @_ZN8MyScalaraSEOS_(%2, %0) : (!llvm.ptr<struct<(struct<(f64)>)>>, !llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>

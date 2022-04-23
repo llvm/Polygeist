@@ -35,6 +35,13 @@ def SCFCPUify : Pass<"cpuify"> {
   ];
 }
 
+def InnerSerialization : Pass<"inner-serialize"> {
+  let summary = "remove scf.barrier";
+  let constructor = "mlir::polygeist::createInnerSerializationPass()";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+}
+
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";

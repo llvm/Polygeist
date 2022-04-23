@@ -159,6 +159,27 @@ static bool arePreceedingOpsRecomputable(Operation *op) {
   return true;
 }
 
+// \p singleExecution denotes whether op is guaranteed to execute the body once
+// and after the cloned values
+static bool arePreceedingOpsFullyRecomputable(Operation *op,
+                                              bool singleExecution) {
+  SmallVector<MemoryEffects::EffectInstance> beforeEffects;
+  getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
+
+  for (auto it : beforeEffects) {
+    if (auto RE = dyn_cast<MemoryEffects::Read>(it.getEffect())) {
+      if (singleExecution)
+        continue;
+      if (Value v = it.getValue())
+        if (!mayWriteTo(op, v, /*ignoreBarrier*/ true))
+          continue;
+    }
+    return false;
+  }
+
+  return true;
+}
+
 static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Required,
                         llvm::SetVector<Value> &Cache) {
@@ -515,12 +536,12 @@ bool isBarrierContainingAll(Operation *op, SmallVector<BlockArgument> &args) {
 /// not a barrier.
 template <typename T>
 static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
-                                      SmallVector<BlockArgument> &args) {
+                                      SmallVector<BlockArgument> &args,
+                                      bool recomputable) {
   Operation *prevOp = op->getPrevNode();
   Operation *nextOp = op->getNextNode();
-  bool hasPrevBarrierLike = prevOp == nullptr ||
-                            isBarrierContainingAll(prevOp, args) ||
-                            arePreceedingOpsRecomputable(op);
+  bool hasPrevBarrierLike =
+      prevOp == nullptr || isBarrierContainingAll(prevOp, args) || recomputable;
   bool hasNextBarrierLike =
       nextOp == &op->getBlock()->back() || isBarrierContainingAll(nextOp, args);
 
@@ -560,10 +581,16 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ true);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
+
     if (op.getNumResults() != 0)
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -580,7 +607,13 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
+
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -594,7 +627,13 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    bool recomputable =
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
+    if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
+      return failure();
+    }
+
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -616,7 +655,10 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    return wrapWithBarriers(op, rewriter, vals);
+    // TODO
+    bool recomputable = arePreceedingOpsRecomputable(op);
+
+    return wrapWithBarriers(op, rewriter, vals, recomputable);
   }
 };
 
@@ -632,11 +674,9 @@ static void insertRecomputables(PatternRewriter &rewriter, T oldParallel,
   rewriter.setInsertionPointToStart(newParallel.getBody());
   for (auto it = oldParallel.getBody()->begin(); dyn_cast<T2>(*it) != until;
        ++it) {
-    if (isRecomputable(&*it)) {
-      auto newOp = rewriter.clone(*it, mapping);
-      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
-                                    newParallel.getBody());
-    }
+    auto newOp = rewriter.clone(*it, mapping);
+    rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
+                                  newParallel.getBody());
   }
 }
 
@@ -741,11 +781,8 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
        ++it) {
-    if (isRecomputable(&*it)) {
-      auto newOp = rewriter.clone(*it, mapping);
-      rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
-                                    forLoop.getBody());
-    }
+    auto newOp = rewriter.clone(*it, mapping);
+    rewriter.replaceOpWithinBlock(&*it, newOp->getResults(), forLoop.getBody());
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
@@ -832,7 +869,9 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
       return failure();
     }
 
-    if (!arePreceedingOpsRecomputable(lastOp)) {
+    if (!arePreceedingOpsFullyRecomputable(
+            lastOp, /*isSingleExecution*/ isa<scf::IfOp, AffineIfOp>(
+                (Operation *)lastOp))) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
     }
@@ -847,8 +886,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     rewriter.setInsertionPoint(op);
     mapping.map(op.getBody()->getArguments(), getLowerBounds(op, rewriter));
     rewriter.setInsertionPoint(op);
-    for (auto it = op.getBody()->begin(); dyn_cast<ForIfType>(*it) != lastOp;
-         ++it)
+    for (auto it = op.getBody()->begin(); &*it != lastOp; ++it)
       rewriter.clone(*it, mapping);
 
     auto newOp = cloneWithoutResults(lastOp, rewriter, mapping);
@@ -1375,7 +1413,9 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     assert(mod);
     DataLayout DLI(mod);
     auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
-      if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
+      if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
+        allocations.push_back(cl.memref());
+      } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
         allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
             rewriter, v, iterCounts, true, &DLI));
       } else {
@@ -1450,10 +1490,14 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
     for (auto pair : llvm::zip(crossingCache, cacheAllocations)) {
       Value v = std::get<0>(pair);
       Value alloc = std::get<1>(pair);
-      // Store
-      rewriter.setInsertionPointAfter(v.getDefiningOp());
-      rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
-                                       preLoop.getBody()->getArguments());
+
+      // No need to store cache loads
+      if (!isa<polygeist::CacheLoad>(v.getDefiningOp())) {
+        // Store
+        rewriter.setInsertionPointAfter(v.getDefiningOp());
+        rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
+                                         preLoop.getBody()->getArguments());
+      }
       // Reload
       rewriter.setInsertionPointAfter(barrier);
       Value reloaded = rewriter.create<polygeist::CacheLoad>(
@@ -1512,15 +1556,17 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
   }
 };
 
+template <typename T = memref::LoadOp>
 static void loadValues(Location loc, ArrayRef<Value> pointers,
                        PatternRewriter &rewriter,
                        SmallVectorImpl<Value> &loaded) {
   loaded.reserve(loaded.size() + pointers.size());
   for (Value alloc : pointers)
-    loaded.push_back(rewriter.create<memref::LoadOp>(loc, alloc, ValueRange()));
+    loaded.push_back(rewriter.create<T>(loc, alloc, ValueRange()));
 }
 
-template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
+template <typename T, bool UseMinCut>
+struct Reg2MemFor : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
@@ -1529,6 +1575,10 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     if (op.getNumResults() == 0 || !hasNestedBarrier(op, args))
       return failure();
 
+    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+      return failure();
+    }
+
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumIterOperands());
     for (Value operand : op.getIterOperands()) {
@@ -1536,15 +1586,21 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
           op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()),
           ValueRange());
       allocated.push_back(alloc);
-      rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
-                                       ValueRange());
+      if (!operand.getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
+                                         ValueRange());
     }
 
     auto newOp = cloneWithoutResults(op, rewriter);
     rewriter.setInsertionPointToStart(newOp.getBody());
     SmallVector<Value> newRegionArguments;
     newRegionArguments.push_back(newOp.getInductionVar());
-    loadValues(op.getLoc(), allocated, rewriter, newRegionArguments);
+    if (UseMinCut)
+      loadValues<polygeist::CacheLoad>(op.getLoc(), allocated, rewriter,
+                                       newRegionArguments);
+    else
+      loadValues<memref::LoadOp>(op.getLoc(), allocated, rewriter,
+                                 newRegionArguments);
 
     auto oldTerminator = op.getBody()->getTerminator();
     rewriter.mergeBlockBefore(op.getBody(), newOp.getBody()->getTerminator(),
@@ -1562,22 +1618,45 @@ template <typename T> struct Reg2MemFor : public OpRewritePattern<T> {
     }
     rewriter.setInsertionPoint(IP);
     for (auto en : llvm::enumerate(oldOps)) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
+      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+        rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
+                                         allocated[en.index()], ValueRange());
     }
 
     rewriter.setInsertionPointAfter(op);
     SmallVector<Value> loaded;
     for (Value alloc : allocated) {
-      loaded.push_back(
-          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+      if (UseMinCut)
+        loaded.push_back(
+            rewriter
+                .create<polygeist::CacheLoad>(op.getLoc(), alloc, ValueRange())
+                ->getResult(0));
+      else
+        loaded.push_back(
+            rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange())
+                ->getResult(0));
     }
     rewriter.replaceOp(op, loaded);
     return success();
   }
 };
 
-template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
+bool isEquivalent(Value a, Value b) {
+  if (a == b)
+    return true;
+  if (a.getType() != b.getType())
+    return false;
+  if (auto sa = a.getDefiningOp<polygeist::SubIndexOp>()) {
+    if (auto sb = b.getDefiningOp<polygeist::SubIndexOp>()) {
+      return isEquivalent(sa.source(), sb.source()) &&
+             isEquivalent(sa.index(), sb.index());
+    }
+  }
+  return false;
+}
+
+template <typename T, bool UseMinCut>
+struct Reg2MemIf : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
@@ -1586,32 +1665,240 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     if (!op.getResults().size() || !hasNestedBarrier(op, args))
       return failure();
 
+    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+      return failure();
+    }
+
+    SmallPtrSet<Operation *, 1> equivThenStores;
+    SmallPtrSet<Operation *, 1> equivElseStores;
     SmallVector<Value> allocated;
     allocated.reserve(op.getNumResults());
-    for (Type opType : op.getResultTypes()) {
-      Value alloc = rewriter.create<memref::AllocaOp>(
-          op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType),
-          ValueRange());
+    Operation *thenYield = &getThenBlock(op)->back();
+    Operation *elseYield = &getElseBlock(op)->back();
+    for (auto tup : llvm::zip(op.getResults(), thenYield->getOperands(),
+                              elseYield->getOperands())) {
+      Value res = std::get<0>(tup);
+      Type opType = res.getType();
+      bool usesMustStore = false;
+      for (auto user : res.getUsers()) {
+        if (auto storeOp = dyn_cast<memref::StoreOp>(user)) {
+          if (storeOp.memref() == res) {
+            usesMustStore = true;
+            break;
+          }
+          if (storeOp->getBlock() != op->getBlock()) {
+            usesMustStore = true;
+            break;
+          }
+          for (auto nex = op->getNextNode(); nex != storeOp;
+               nex = nex->getNextNode()) {
+            if (!mayReadFrom(nex, storeOp.memref()))
+              continue;
+            usesMustStore = true;
+            break;
+          }
+          // TODO check that memref operands are recomputable at this location
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
+
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+            // If a value which
+            if (auto op = cur.getDefiningOp()) {
+              if (isReadNone(op)) {
+                for (auto arg : op->getOperands()) {
+                  todo.push_back(arg);
+                }
+                continue;
+              }
+            }
+
+            usesMustStore = true;
+            break;
+          }
+          if (!usesMustStore) {
+            Value val = std::get<1>(tup);
+            if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
+              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+                  cl->getBlock() == storeOp->getBlock() &&
+                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                               [](std::tuple<Value, Value> t) {
+                                 return isEquivalent(std::get<0>(t),
+                                                     std::get<1>(t));
+                               })) {
+                bool same = true;
+                for (Operation *op = cl->getNextNode(); op != storeOp;
+                     op = op->getNextNode()) {
+                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                    same = false;
+                    break;
+                  }
+                }
+                if (same)
+                  equivThenStores.insert(storeOp);
+              }
+            }
+            val = std::get<2>(tup);
+            if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
+              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+                  cl->getBlock() == storeOp->getBlock() &&
+                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                               [](std::tuple<Value, Value> t) {
+                                 return isEquivalent(std::get<0>(t),
+                                                     std::get<1>(t));
+                               })) {
+                bool same = true;
+                for (Operation *op = cl->getNextNode(); op != storeOp;
+                     op = op->getNextNode()) {
+                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                    same = false;
+                    break;
+                  }
+                }
+                if (same)
+                  equivElseStores.insert(storeOp);
+              }
+            }
+          }
+          continue;
+        }
+        usesMustStore = true;
+      }
+      Value alloc = nullptr;
+      if (usesMustStore) {
+        alloc = rewriter.create<memref::AllocaOp>(
+            op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), opType),
+            ValueRange());
+      }
       allocated.push_back(alloc);
     }
 
     auto newOp = cloneWithoutResults(op, rewriter);
 
-    Operation *thenYield = &getThenBlock(op)->back();
     rewriter.setInsertionPoint(thenYield);
-    for (auto en : llvm::enumerate(thenYield->getOperands())) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
-    }
-    thenYield->setOperands(ValueRange());
+    for (auto pair :
+         llvm::zip(thenYield->getOperands(), allocated, op.getResults())) {
+      Value val = std::get<0>(pair);
+      auto alloc = std::get<1>(pair);
+      auto res = std::get<2>(pair);
+      if (!alloc) {
+        for (auto user : llvm::make_early_inc_range(res.getUsers())) {
+          auto storeOp = dyn_cast<memref::StoreOp>(user);
+          assert(storeOp);
+          if (equivThenStores.count(storeOp))
+            continue;
+          BlockAndValueMapping map;
+          SetVector<Operation *> seen;
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
 
-    Operation *elseYield = &getElseBlock(op)->back();
-    rewriter.setInsertionPoint(elseYield);
-    for (auto en : llvm::enumerate(elseYield->getOperands())) {
-      rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
-                                       allocated[en.index()], ValueRange());
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+
+            // If a value which
+            auto op = cur.getDefiningOp();
+            assert(op);
+            seen.insert(op);
+            for (auto arg : op->getOperands()) {
+              todo.push_back(arg);
+            }
+          }
+          for (auto op : llvm::reverse(seen)) {
+            rewriter.clone(*op, map);
+          }
+          SmallVector<Value> inds;
+          for (auto ind : storeOp.indices())
+            inds.push_back(map.lookupOrDefault(ind));
+          // Only erase during the else, since we need that there
+          rewriter.create<memref::StoreOp>(
+              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.memref()),
+              inds);
+        }
+      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+        rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
+      }
     }
-    elseYield->setOperands(ValueRange());
+    rewriter.setInsertionPoint(thenYield);
+    if (isa<AffineIfOp>(op))
+      rewriter.replaceOpWithNewOp<AffineYieldOp>(thenYield);
+    else
+      rewriter.replaceOpWithNewOp<scf::YieldOp>(thenYield);
+
+    rewriter.setInsertionPoint(elseYield);
+    for (auto pair :
+         llvm::zip(elseYield->getOperands(), allocated, op.getResults())) {
+      Value val = std::get<0>(pair);
+      auto alloc = std::get<1>(pair);
+      auto res = std::get<2>(pair);
+      if (!alloc) {
+        for (auto user : llvm::make_early_inc_range(res.getUsers())) {
+          auto storeOp = dyn_cast<memref::StoreOp>(user);
+          assert(storeOp);
+          if (equivElseStores.count(storeOp)) {
+            rewriter.eraseOp(storeOp);
+            continue;
+          }
+          BlockAndValueMapping map;
+          SetVector<Operation *> seen;
+          SmallVector<Value> todo = {storeOp.memref()};
+          for (auto ind : storeOp.indices())
+            todo.push_back(ind);
+          while (!todo.empty()) {
+            auto cur = todo.pop_back_val();
+
+            if (auto BA = cur.dyn_cast<BlockArgument>())
+              if (BA.getOwner() == op->getBlock())
+                continue;
+
+            if (cur.getParentRegion()->isProperAncestor(
+                    op->getParentRegion())) {
+              continue;
+            }
+
+            // If a value which
+            auto op = cur.getDefiningOp();
+            assert(op);
+            seen.insert(op);
+            for (auto arg : op->getOperands()) {
+              todo.push_back(arg);
+            }
+          }
+          for (auto op : llvm::reverse(seen)) {
+            rewriter.clone(*op, map);
+          }
+          SmallVector<Value> inds;
+          for (auto ind : storeOp.indices())
+            inds.push_back(map.lookupOrDefault(ind));
+
+          rewriter.replaceOpWithNewOp<memref::StoreOp>(
+              storeOp, val, map.lookupOrDefault(storeOp.memref()), inds);
+        }
+      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+        rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
+      }
+    }
+    rewriter.setInsertionPoint(elseYield);
+    if (isa<AffineIfOp>(op))
+      rewriter.replaceOpWithNewOp<AffineYieldOp>(elseYield);
+    else
+      rewriter.replaceOpWithNewOp<scf::YieldOp>(elseYield);
 
     rewriter.eraseOp(&getThenBlock(newOp)->back());
     rewriter.mergeBlocks(getThenBlock(op), getThenBlock(newOp));
@@ -1619,13 +1906,26 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
     rewriter.eraseOp(&getElseBlock(newOp)->back());
     rewriter.mergeBlocks(getElseBlock(op), getElseBlock(newOp));
 
-    rewriter.setInsertionPointAfter(op);
-    SmallVector<Value> loaded;
-    for (Value alloc : allocated) {
-      loaded.push_back(
-          rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange()));
+    rewriter.startRootUpdate(op);
+    rewriter.setInsertionPoint(op);
+    for (auto pair : llvm::zip(op->getResults(), allocated)) {
+      auto alloc = std::get<1>(pair);
+      if (alloc) {
+        // TODO may want to move this far into the future.
+        if (UseMinCut)
+          std::get<0>(pair).replaceAllUsesWith(
+              rewriter
+                  .create<polygeist::CacheLoad>(op.getLoc(), alloc,
+                                                ValueRange())
+                  ->getResult(0));
+        else
+          std::get<0>(pair).replaceAllUsesWith(
+              rewriter.create<memref::LoadOp>(op.getLoc(), alloc, ValueRange())
+                  ->getResult(0));
+      }
     }
-    rewriter.replaceOp(op, loaded);
+    rewriter.finalizeRootUpdate(op);
+    rewriter.eraseOp(op);
     return success();
   }
 };
@@ -1633,8 +1933,9 @@ template <typename T> struct Reg2MemIf : public OpRewritePattern<T> {
 static void storeValues(Location loc, ValueRange values, ValueRange pointers,
                         PatternRewriter &rewriter) {
   for (auto pair : llvm::zip(values, pointers)) {
-    rewriter.create<memref::StoreOp>(loc, std::get<0>(pair), std::get<1>(pair),
-                                     ValueRange());
+    if (!std::get<0>(pair).getDefiningOp<LLVM::UndefOp>())
+      rewriter.create<memref::StoreOp>(loc, std::get<0>(pair),
+                                       std::get<1>(pair), ValueRange());
   }
 }
 
@@ -1731,10 +2032,23 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
     if (method.startswith("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
-        patterns.insert<Reg2MemFor<scf::ForOp>, Reg2MemFor<AffineForOp>,
-                        Reg2MemWhile, Reg2MemIf<scf::IfOp>,
-                        Reg2MemIf<AffineIfOp>, WrapForWithBarrier,
-                        WrapAffineForWithBarrier, WrapIfWithBarrier<scf::IfOp>,
+        patterns.insert<BarrierElim</*TopLevelOnly*/ false>, Reg2MemWhile>(
+            &getContext());
+
+        if (method.contains("mincut")) {
+          patterns
+              .insert<Reg2MemFor<scf::ForOp, true>,
+                      Reg2MemFor<AffineForOp, true>, Reg2MemIf<scf::IfOp, true>,
+                      Reg2MemIf<AffineIfOp, true>>(&getContext());
+        } else {
+          patterns.insert<
+              Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
+              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>>(
+              &getContext());
+        }
+
+        patterns.insert<WrapForWithBarrier, WrapAffineForWithBarrier,
+                        WrapIfWithBarrier<scf::IfOp>,
                         WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
                         InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
                         InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
@@ -1763,16 +2077,20 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         GreedyRewriteConfig config;
         config.maxIterations = 142;
         if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                                std::move(patterns), config)))
+                                                std::move(patterns), config))) {
           signalPassFailure();
+          return;
+        }
       }
       {
         RewritePatternSet patterns(&getContext());
         GreedyRewriteConfig config;
         patterns.insert<LowerCacheLoad>(&getContext());
         if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                                std::move(patterns), config)))
+                                                std::move(patterns), config))) {
           signalPassFailure();
+          return;
+        }
       }
     } else if (method == "omp") {
       SmallVector<polygeist::BarrierOp> toReplace;

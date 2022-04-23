@@ -198,7 +198,62 @@ void ParallelLower::runOnOperation() {
       bidx.erase();
   });
 
-  SmallPtrSet<Operation *, 2> toErase;
+  std::function<void(CallOp)> callInliner = [&](CallOp caller) {
+    // Build the inliner interface.
+    AlwaysInlinerInterface interface(&getContext());
+
+    auto callable = caller.getCallableForCallee();
+    CallableOpInterface callableOp;
+    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+      if (!symRef.isa<FlatSymbolRefAttr>())
+        return;
+      auto *symbolOp =
+          symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
+      callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
+    } else {
+      return;
+    }
+    Region *targetRegion = callableOp.getCallableRegion();
+    if (!targetRegion)
+      return;
+    if (targetRegion->empty())
+      return;
+    SmallVector<CallOp> ops;
+    callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
+    for (auto op : ops)
+      callInliner(op);
+    OpBuilder b(caller);
+    auto allocScope = b.create<memref::AllocaScopeOp>(caller.getLoc(),
+                                                      caller.getResultTypes());
+    allocScope.getRegion().push_back(new Block());
+    b.setInsertionPointToStart(&allocScope.getRegion().front());
+    auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(),
+                                               caller.getResultTypes());
+    Block *blk = new Block();
+    exOp.getRegion().push_back(blk);
+    caller->moveBefore(blk, blk->begin());
+    caller.replaceAllUsesWith(allocScope.getResults());
+    b.setInsertionPointToEnd(blk);
+    b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
+    if (inlineCall(interface, caller, callableOp, targetRegion,
+                   /*shouldCloneInlinedRegion=*/true)
+            .succeeded()) {
+      caller.erase();
+    }
+    b.setInsertionPointToEnd(&allocScope.getRegion().front());
+    b.create<memref::AllocaScopeReturnOp>(allocScope.getLoc(),
+                                          exOp.getResults());
+  };
+  {
+    SmallVector<CallOp> dimsToInline;
+    getOperation()->walk([&](CallOp bidx) {
+      if (bidx.getCallee() == "_ZN4dim3C1EOS_" ||
+          bidx.getCallee() == "_ZN4dim3C1Ejjj")
+        dimsToInline.push_back(bidx);
+    });
+    for (auto op : dimsToInline)
+      callInliner(op);
+  }
 
   // Only supports single block functions at the moment.
   SmallVector<gpu::LaunchOp> toHandle;
@@ -206,46 +261,6 @@ void ParallelLower::runOnOperation() {
       [&](gpu::LaunchOp launchOp) { toHandle.push_back(launchOp); });
 
   for (gpu::LaunchOp launchOp : toHandle) {
-    std::function<void(CallOp)> callInliner = [&](CallOp caller) {
-      // Build the inliner interface.
-      AlwaysInlinerInterface interface(&getContext());
-
-      auto callable = caller.getCallableForCallee();
-      CallableOpInterface callableOp;
-      if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
-        if (!symRef.isa<FlatSymbolRefAttr>())
-          return;
-        auto *symbolOp =
-            symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
-        callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
-      } else {
-        return;
-      }
-      Region *targetRegion = callableOp.getCallableRegion();
-      if (!targetRegion)
-        return;
-      if (targetRegion->empty())
-        return;
-      SmallVector<CallOp> ops;
-      callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
-      for (auto op : ops)
-        callInliner(op);
-      OpBuilder b(caller);
-      auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(),
-                                                 caller.getResultTypes());
-      Block *blk = new Block();
-      exOp.getRegion().push_back(blk);
-      caller->moveBefore(blk, blk->begin());
-      caller.replaceAllUsesWith(exOp.getResults());
-      b.setInsertionPointToEnd(blk);
-      b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
-      if (inlineCall(interface, caller, callableOp, targetRegion,
-                     /*shouldCloneInlinedRegion=*/true)
-              .succeeded()) {
-        caller.erase();
-        toErase.insert(callableOp);
-      }
-    };
     SmallVector<CallOp> ops;
     launchOp.walk([&](CallOp caller) { ops.push_back(caller); });
     for (auto op : ops)
@@ -347,7 +362,7 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::NVVM::Barrier0Op op) {
       builder.setInsertionPoint(op);
-      auto nb = builder.replaceOpWithNewOp<mlir::polygeist::BarrierOp>(
+      builder.replaceOpWithNewOp<mlir::polygeist::BarrierOp>(
           op, threadB->getArguments());
     });
 
