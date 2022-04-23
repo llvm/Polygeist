@@ -551,7 +551,7 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
 
     for (auto &u : idx0.getIn().getUses()) {
       if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
-        if (DI.dominates((Operation*)idx, &*builder.getInsertionPoint()))
+        if (DI.dominates((Operation *)idx, &*builder.getInsertionPoint()))
           attempt.push_back(idx);
     }
 
@@ -604,7 +604,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
 
     for (auto &u : idx0.getIn().getUses()) {
       if (auto idx = dyn_cast<IndexCastOp>(u.getOwner()))
-        if (DI.dominates((Operation*)idx, &*builder.getInsertionPoint()))
+        if (DI.dominates((Operation *)idx, &*builder.getInsertionPoint()))
           attempt.push_back(idx);
     }
 
