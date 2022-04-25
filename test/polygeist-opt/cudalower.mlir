@@ -2,7 +2,7 @@
 
 module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64", llvm.target_triple = "nvptx64-nvidia-cuda"}  {
   llvm.func @cudaMemcpy(!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i32) -> i32
-  func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
     %c1_i32 = arith.constant 1 : i32
     %c64_i64 = arith.constant 64 : i64
     %0 = "polygeist.memref2pointer"(%arg0) : (memref<?xi32>) -> !llvm.ptr<i8>
@@ -12,7 +12,7 @@ module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64
   }
 }
 
-// CHECK:   func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @_Z1aPiS_(%arg0: memref<?xi32>, %arg1: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %c64_i64 = arith.constant 64 : i64
 // CHECK-DAG:     %false = arith.constant false
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
@@ -25,7 +25,7 @@ module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64
 // -----
 
 module {
-  func private @S(%arg0: i8, %arg1: !llvm.ptr<i8>) -> i8 {
+  func.func private @S(%arg0: i8, %arg1: !llvm.ptr<i8>) -> i8 {
     cf.switch %arg0 : i8, [
       default: ^bb10(%arg0 : i8),
       0: ^bb1
@@ -36,18 +36,18 @@ module {
   ^bb10(%50: i8):  // 10 preds: ^bb0, ^bb1, ^bb2, ^bb3, ^bb4, ^bb5, ^bb6, ^bb7, ^bb8, ^bb9
     return %50 : i8
   }
-  func @meta(%arg2: !llvm.ptr<i8>, %arg3: i8) {
+  func.func @meta(%arg2: !llvm.ptr<i8>, %arg3: i8) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     gpu.launch blocks(%arg4, %arg5, %arg6) in (%arg10 = %c2, %arg11 = %c1, %arg12 = %c1) threads(%arg7, %arg8, %arg9) in (%arg13 = %c1, %arg14 = %c1, %arg15 = %c1) {
-      call @S(%arg3, %arg2) : (i8, !llvm.ptr<i8>) -> (i8)
+      func.call @S(%arg3, %arg2) : (i8, !llvm.ptr<i8>) -> (i8)
       gpu.terminator
     }
     return
   }
 }
-// CHECK:   func @meta(%arg0: !llvm.ptr<i8>, %arg1: i8) {
+// CHECK:   func.func @meta(%arg0: !llvm.ptr<i8>, %arg1: i8) {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c2 = arith.constant 2 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
@@ -79,29 +79,29 @@ module {
 // -----
 
 module {
-  func private @somethingA() -> () 
-  func private @somethingB() -> ()
-  func private @S(%arg0: i1) {
-    call @somethingA() : () -> ()
+  func.func private @somethingA() -> () 
+  func.func private @somethingB() -> ()
+  func.func private @S(%arg0: i1) {
+    func.call @somethingA() : () -> ()
     scf.if %arg0 {
         nvvm.barrier0
     }
-    call @somethingB() : () -> ()
+    func.call @somethingB() : () -> ()
     return 
   }
-  func @meta(%arg: i1) {
+  func.func @meta(%arg: i1) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     gpu.launch blocks(%arg4, %arg5, %arg6) in (%arg10 = %c2, %arg11 = %c1, %arg12 = %c1) threads(%arg7, %arg8, %arg9) in (%arg13 = %c2, %arg14 = %c1, %arg15 = %c1) {
-      call @S(%arg) : (i1) -> ()
+      func.call @S(%arg) : (i1) -> ()
       gpu.terminator
     }
     return
   }
 }
 
-// CHECK:   func @meta(%arg0: i1) {
+// CHECK:   func.func @meta(%arg0: i1) {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c2 = arith.constant 2 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
@@ -109,11 +109,11 @@ module {
 // CHECK-NEXT:       scf.parallel (%arg4, %arg5, %arg6) = (%c0, %c0, %c0) to (%c2, %c1, %c1) step (%c1, %c1, %c1) {
 // CHECK-NEXT:         memref.alloca_scope {
 // CHECK-NEXT:         scf.execute_region {
-// CHECK-NEXT:           call @somethingA() : () -> ()
+// CHECK-NEXT:           func.call @somethingA() : () -> ()
 // CHECK-NEXT:           scf.if %arg0 {
 // CHECK-NEXT:             "polygeist.barrier"(%arg4, %arg5, %arg6) : (index, index, index) -> ()
 // CHECK-NEXT:           }
-// CHECK-NEXT:           call @somethingB() : () -> ()
+// CHECK-NEXT:           func.call @somethingB() : () -> ()
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }

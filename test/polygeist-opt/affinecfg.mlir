@@ -1,6 +1,6 @@
 // RUN: polygeist-opt --affine-cfg --split-input-file %s | FileCheck %s
 module {
-  func @_Z7runTestiPPc(%arg0: index, %arg2: memref<?xi32>) {
+  func.func @_Z7runTestiPPc(%arg0: index, %arg2: memref<?xi32>) {
     %c0_i32 = arith.constant 0 : i32
     %c1 = arith.constant 1 : index
     %1 = arith.addi %arg0, %c1 : index
@@ -17,7 +17,7 @@ module {
 }
 
 
-// CHECK:   func @_Z7runTestiPPc(%arg0: index, %arg1: memref<?xi32>) {
+// CHECK:   func.func @_Z7runTestiPPc(%arg0: index, %arg1: memref<?xi32>) {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     affine.for %arg2 = 0 to 2 {
 // CHECK-NEXT:       affine.for %arg3 = 0 to 2 {
@@ -29,7 +29,7 @@ module {
 
 // -----
 module {
-func @kernel_nussinov(%arg0: i32, %arg2: memref<i32>) {
+func.func @kernel_nussinov(%arg0: i32, %arg2: memref<i32>) {
   %c0 = arith.constant 0 : index
   %true = arith.constant true
   %c1_i32 = arith.constant 1 : i32
@@ -48,7 +48,7 @@ func @kernel_nussinov(%arg0: i32, %arg2: memref<i32>) {
 }
 
 // CHECK: #set = affine_set<(d0) : (d0 + 40 >= 0)>
-// CHECK:   func @kernel_nussinov(%arg0: i32, %arg1: memref<i32>) {
+// CHECK:   func.func @kernel_nussinov(%arg0: i32, %arg1: memref<i32>) {
 // CHECK-NEXT:     affine.for %arg2 = 0 to 60 {
 // CHECK-NEXT:       affine.if #set(%arg2) {
 // CHECK-NEXT:         affine.store %arg0, %arg1[] : memref<i32>
@@ -61,9 +61,9 @@ func @kernel_nussinov(%arg0: i32, %arg2: memref<i32>) {
 // -----
 
 module {
-  func private @run()
+  func.func private @run()
 
-  func @minif(%arg4: i32, %arg5 : i32, %arg10 : index) { 
+  func.func @minif(%arg4: i32, %arg5 : i32, %arg10 : index) { 
     %c0_i32 = arith.constant 0 : i32
       
     affine.for %i = 0 to 10 {
@@ -76,7 +76,7 @@ module {
       %83 = arith.select %81, %arg5, %79 : i32
       %92 = arith.cmpi slt, %c0_i32, %83 : i32
       scf.if %92 {
-        call @run() : () -> ()
+        func.call @run() : () -> ()
         scf.yield
       }
     }
@@ -85,7 +85,7 @@ module {
 }
 
 // CHECK: #set = affine_set<()[s0] : (s0 - 1 >= 0)>
-// CHECK:   func @minif(%arg0: i32, %arg1: i32, %arg2: index) {
+// CHECK:   func.func @minif(%arg0: i32, %arg1: i32, %arg2: index) {
 // CHECK-NEXT:     %0 = arith.index_cast %arg2 : index to i32
 // CHECK-NEXT:     %1 = arith.muli %0, %arg1 : i32
 // CHECK-NEXT:     %2 = arith.divui %1, %arg1 : i32
@@ -96,7 +96,7 @@ module {
 // CHECK-NEXT:     %7 = arith.index_cast %6 : i32 to index
 // CHECK-NEXT:     affine.for %arg3 = 0 to 10 {
 // CHECK-NEXT:       affine.if #set()[%7] {
-// CHECK-NEXT:         call @run() : () -> ()
+// CHECK-NEXT:         func.call @run() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
@@ -106,7 +106,7 @@ module {
 
 module {
   llvm.func @atoi(!llvm.ptr<i8>) -> i32
-func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
+func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
   %c2_i32 = arith.constant 2 : i32
   %c16_i32 = arith.constant 16 : i32
     %58 = llvm.call @atoi(%arg1) : (!llvm.ptr<i8>) -> i32
@@ -123,7 +123,7 @@ func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) attri
 }
 }
 
-// CHECK:   func @_Z7runTestiPPc(%arg0: i32, %arg1: memref<?xi32>, %arg2: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @_Z7runTestiPPc(%arg0: i32, %arg1: memref<?xi32>, %arg2: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
 // CHECK-NEXT:     %c16_i32 = arith.constant 16 : i32
 // CHECK-NEXT:     %0 = llvm.call @atoi(%arg2) : (!llvm.ptr<i8>) -> i32

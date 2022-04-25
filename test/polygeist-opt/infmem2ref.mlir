@@ -1,10 +1,10 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module {
-  func private @overwrite(%a : memref<i1>)
-  func private @use(%a : i1)
+  func.func private @overwrite(%a : memref<i1>)
+  func.func private @use(%a : i1)
   
-  func @infLoop1(%c : i1) {
+  func.func @infLoop1(%c : i1) {
     %c0_i32 = arith.constant 0 : i32
     %c1_i32 = arith.constant 1 : i32
     %c2_i32 = arith.constant 2 : i32
@@ -27,7 +27,7 @@ module {
               }
           }
               %44 = memref.load %6[] : memref<i1>
-          call @use(%44) : (i1) -> ()
+          func.call @use(%44) : (i1) -> ()
           %42 = arith.addi %28, %c1_i32 : i32
           cf.br ^bb1(%42 : i32)
         ^bb3:  // pred: ^bb1
@@ -36,7 +36,7 @@ module {
     return
   }
 
-// CHECK:   func @infLoop1
+// CHECK:   func.func @infLoop1
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
@@ -60,7 +60,7 @@ module {
 // CHECK-NEXT:       } else {
 // CHECK-NEXT:         scf.yield %1 : i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       call @use(%4) : (i1) -> ()
+// CHECK-NEXT:       func.call @use(%4) : (i1) -> ()
 // CHECK-NEXT:       %5 = arith.addi %0, %c1_i32 : i32
 // CHECK-NEXT:       cf.br ^bb1(%5, %4 : i32, i1)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
@@ -69,7 +69,7 @@ module {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-  func @infLoop2(%c : i1) {
+  func.func @infLoop2(%c : i1) {
     %c0_i32 = arith.constant 0 : i32
     %c1_i32 = arith.constant 1 : i32
     %c2_i32 = arith.constant 2 : i32
@@ -88,11 +88,11 @@ module {
           scf.if %true {
               %45 = arith.cmpi eq, %28, %c1_i32 : i32
               scf.if %45 {
-                call @overwrite(%6) : (memref<i1>) -> ()
+                func.call @overwrite(%6) : (memref<i1>) -> ()
               }
           }
           %44 = memref.load %6[] : memref<i1>
-          call @use(%44) : (i1) -> ()
+          func.call @use(%44) : (i1) -> ()
           %42 = arith.addi %28, %c1_i32 : i32
           cf.br ^bb1(%42 : i32)
         ^bb3:  // pred: ^bb1
@@ -101,7 +101,7 @@ module {
     return
   }
 
-// CHECK:   func @infLoop2
+// CHECK:   func.func @infLoop2
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
@@ -120,11 +120,11 @@ module {
 // CHECK-NEXT:       scf.if %true {
 // CHECK-NEXT:         %7 = arith.cmpi eq, %1, %c1_i32 : i32
 // CHECK-NEXT:         scf.if %7 {
-// CHECK-NEXT:           call @overwrite(%0) : (memref<i1>) -> ()
+// CHECK-NEXT:           func.call @overwrite(%0) : (memref<i1>) -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:       %5 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       call @use(%5) : (i1) -> ()
+// CHECK-NEXT:       func.call @use(%5) : (i1) -> ()
 // CHECK-NEXT:       %6 = arith.addi %1, %c1_i32 : i32
 // CHECK-NEXT:       cf.br ^bb1(%6 : i32)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
@@ -133,7 +133,7 @@ module {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-  func @bpnn_train_cuda(%arg0: memref<11xf32>, %arg1: i1) {
+  func.func @bpnn_train_cuda(%arg0: memref<11xf32>, %arg1: i1) {
     %c0 = arith.constant 0 : index
     %c0_i32 = arith.constant 0 : i32
     %c10 = arith.constant 10 : index
@@ -164,13 +164,13 @@ module {
         scf.yield
       }
       %9 = memref.load %2[] : memref<i32>
-      call @put(%9) : (i32) -> ()
+      func.call @put(%9) : (i32) -> ()
     }
     return
   }
-  func private @put(%a : i32)
+  func.func private @put(%a : i32)
   
-  func private @_Z12findIndexBinPdiid(%arg0: i1, %arg1: i32, %arg2 : i1) -> i32 {
+  func.func private @_Z12findIndexBinPdiid(%arg0: i1, %arg1: i32, %arg2 : i1) -> i32 {
     %true = arith.constant true
     %c2_i32 = arith.constant 2 : i32
     %c1_i32 = arith.constant 1 : i32

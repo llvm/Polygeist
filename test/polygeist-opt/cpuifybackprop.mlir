@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --cpuify="method=distribute.mincut" --split-input-file %s | FileCheck %s
 
 module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128", llvm.target_triple = "x86_64-unknown-linux-gnu"} {
-  func @_Z11bpnnwrapperiPfiS_iS_S_(%arg0: i32, %arg1: memref<?xf32>, %arg2: i32, %arg3: memref<?xf32>, %arg4: i32, %arg5: memref<?xf32>, %arg6: memref<?xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @_Z11bpnnwrapperiPfiS_iS_S_(%arg0: i32, %arg1: memref<?xf32>, %arg2: i32, %arg3: memref<?xf32>, %arg4: i32, %arg5: memref<?xf32>, %arg6: memref<?xf32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c16 = arith.constant 16 : index
     %c0_i32 = arith.constant 0 : i32
     %cst = arith.constant 3.000000e-01 : f64
@@ -81,7 +81,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
     }
     return
   }
-  func @_Z30bpnn_layerforward_CUDA_wrapperiPfS_S_S_ii(%arg0: i32, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @_Z30bpnn_layerforward_CUDA_wrapperiPfS_S_S_ii(%arg0: i32, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c16 = arith.constant 16 : index
     %cst = arith.constant 2.000000e+00 : f32
     %cst_0 = arith.constant 4.000000e+00 : f32
@@ -164,7 +164,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
   }
 }
 
-// CHECK:  func @_Z11bpnnwrapperiPfiS_iS_S_(%arg0: i32, %arg1: memref<?xf32>, %arg2: i32, %arg3: memref<?xf32>, %arg4: i32, %arg5: memref<?xf32>, %arg6: memref<?xf32>)
+// CHECK:  func.func @_Z11bpnnwrapperiPfiS_iS_S_(%arg0: i32, %arg1: memref<?xf32>, %arg2: i32, %arg3: memref<?xf32>, %arg4: i32, %arg5: memref<?xf32>, %arg6: memref<?xf32>)
 // CHECK-NEXT:    %c16 = arith.constant 16 : index
 // CHECK-NEXT:    %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:    %cst = arith.constant 3.000000e-01 : f64
@@ -252,7 +252,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
 // CHECK-NEXT:  }
 
 
-// CHECK:   func @_Z30bpnn_layerforward_CUDA_wrapperiPfS_S_S_ii(%arg0: i32, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @_Z30bpnn_layerforward_CUDA_wrapperiPfS_S_S_ii(%arg0: i32, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:    %c16 = arith.constant 16 : index
 // CHECK-NEXT:    %cst = arith.constant 2.000000e+00 : f32
 // CHECK-NEXT:    %cst_0 = arith.constant 4.000000e+00 : f32

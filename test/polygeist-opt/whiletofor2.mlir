@@ -1,7 +1,7 @@
 // RUN: polygeist-opt -allow-unregistered-dialect --canonicalize-scf-for --split-input-file %s | FileCheck %s
 
 module {
-  func @w2f(%ub : i32) -> (i32, f32) {
+  func.func @w2f(%ub : i32) -> (i32, f32) {
     %cst = arith.constant 0.000000e+00 : f32
     %cst1 = arith.constant 1.000000e+00 : f32
     %c0_i32 = arith.constant 0 : i32
@@ -21,7 +21,7 @@ module {
     return %2#0, %2#1 : i32, f32
   }
   
-  func @w2f_inner(%ub : i32) -> (i32, f32) {
+  func.func @w2f_inner(%ub : i32) -> (i32, f32) {
     %cst = arith.constant 0.000000e+00 : f32
     %cst1 = arith.constant 1.000000e+00 : f32
     %c0_i32 = arith.constant 0 : i32
@@ -46,7 +46,7 @@ module {
     return %2#0, %2#1 : i32, f32
   }
   
-  func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: i8, %arg1: index, %arg2: i32, %arg3: i32, %arg4: i32) -> i32 {
+  func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: i8, %arg1: index, %arg2: i32, %arg3: i32, %arg4: i32) -> i32 {
     %c1_i8 = arith.constant 1 : i8
     %c0_i8 = arith.constant 0 : i8
     %true = arith.constant true
@@ -71,7 +71,7 @@ module {
   }
 }
 
-// CHECK:   func @w2f(%arg0: i32) -> (i32, f32) {
+// CHECK:   func.func @w2f(%arg0: i32) -> (i32, f32) {
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %[[cst:.+]] = arith.constant 1.000000e+00 : f32
@@ -101,7 +101,7 @@ module {
 // CHECK-NEXT:     return %1#0, %1#1 : i32, f32
 // CHECK-NEXT:   }
 
-// CHECK:   func @w2f_inner(%arg0: i32) -> (i32, f32) {
+// CHECK:   func.func @w2f_inner(%arg0: i32) -> (i32, f32) {
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %[[cst:.+]] = arith.constant 1.000000e+00 : f32
@@ -137,7 +137,7 @@ module {
 // CHECK-NEXT:     return %1#0, %1#1 : i32, f32
 // CHECK-NEXT:   }
 
-// CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: i8, %arg1: index, %arg2: i32, %arg3: i32, %arg4: i32) -> i32 {
+// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: i8, %arg1: index, %arg2: i32, %arg3: i32, %arg4: i32) -> i32 {
 // CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32

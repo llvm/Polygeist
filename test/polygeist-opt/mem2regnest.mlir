@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module {
-  func @foo(%arg0: i1) -> i32 {
+  func.func @foo(%arg0: i1) -> i32 {
     %c-1_i32 = arith.constant -1 : i32
     %c20_i32 = arith.constant 20 : i32
     %c10_i32 = arith.constant 10 : i32
@@ -24,7 +24,7 @@ module {
   }
 }
 
-// CHECK:   func @foo(%arg0: i1) -> i32 {
+// CHECK:   func.func @foo(%arg0: i1) -> i32 {
 // CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
 // CHECK-NEXT:     %c20_i32 = arith.constant 20 : i32
 // CHECK-NEXT:     %c10_i32 = arith.constant 10 : i32

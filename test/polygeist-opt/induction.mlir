@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module {
-  func @matrix_power(%arg0: memref<20xi32>, %arg1: i1, %arg2: index) {
+  func.func @matrix_power(%arg0: memref<20xi32>, %arg1: i1, %arg2: index) {
     %c0_i32 = arith.constant 0 : i32
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -28,7 +28,7 @@ module {
   }
 }
 
-// CHECK:   func @matrix_power(%arg0: memref<20xi32>, %arg1: i1, %arg2: index) {
+// CHECK:   func.func @matrix_power(%arg0: memref<20xi32>, %arg1: i1, %arg2: index) {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     %c1 = arith.constant 1 : index

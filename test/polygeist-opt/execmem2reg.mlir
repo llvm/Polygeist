@@ -2,7 +2,7 @@
 
 module  {
   llvm.func @print(i32)
-  func @h(%arg7: i1, %arg8: i1, %arg9 : i1) {
+  func.func @h(%arg7: i1, %arg8: i1, %arg9 : i1) {
     %c1_i32 = arith.constant 1 : i32
     %c5_i32 = arith.constant 5 : i32
     %c0_i32 = arith.constant 0 : i32
@@ -26,7 +26,7 @@ module  {
   }
 }
 
-// CHECK:   func @h(%arg0: i1, %arg1: i1, %arg2: i1)
+// CHECK:   func.func @h(%arg0: i1, %arg1: i1, %arg2: i1)
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c5_i32 = arith.constant 5 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
