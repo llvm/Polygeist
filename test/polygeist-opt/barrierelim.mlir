@@ -6,7 +6,7 @@
 #set3 = affine_set<(d0) : (d0 mod 8 == 0)>
 #set4 = affine_set<(d0) : (d0 mod 16 == 0)>
 module {
-  func @bpnn_train_cuda(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index) {
+  func.func @bpnn_train_cuda(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index) {
     %c16 = arith.constant 16 : index
     %c0 = arith.constant 0 : index
     %0 = arith.muli %arg3, %c16 : index
@@ -73,7 +73,7 @@ module {
   }
 }
 
-// CHECK:   func @bpnn_train_cuda(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index) {
+// CHECK:   func.func @bpnn_train_cuda(%arg0: memref<?xf32>, %arg1: memref<?xf32>, %arg2: memref<?xf32>, %arg3: index, %arg4: index, %arg5: index) {
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c16 = arith.constant 16 : index
 // CHECK-NEXT:     %0 = arith.muli %arg3, %c16 : index

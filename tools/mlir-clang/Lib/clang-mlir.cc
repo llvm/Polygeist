@@ -103,7 +103,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob,
     : Glob(Glob), module(module), builder(module->getContext()),
       loc(builder.getUnknownLoc()), ThisCapture(nullptr), LTInfo(LTInfo) {}
 
-void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
+void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   this->function = function;
   this->EmittingFunctionDecl = fd;
 
@@ -4365,7 +4365,8 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
   return globalPtr;
 }
 
-mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
+mlir::func::FuncOp
+MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   assert(FD->getTemplatedKind() !=
          FunctionDecl::TemplatedKind::TK_FunctionTemplate);
   assert(
@@ -4538,8 +4539,8 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   }
   mlir::OpBuilder builder(module->getContext());
   auto funcType = builder.getFunctionType(types, rettypes);
-  mlir::FuncOp function = mlir::FuncOp(
-      mlir::FuncOp::create(getMLIRLocation(FD->getLocation()), name, funcType));
+  mlir::func::FuncOp function = mlir::func::FuncOp(mlir::func::FuncOp::create(
+      getMLIRLocation(FD->getLocation()), name, funcType));
 
   if (LV == llvm::GlobalValue::InternalLinkage ||
       LV == llvm::GlobalValue::PrivateLinkage || !FD->isDefined() ||
@@ -5142,7 +5143,7 @@ public:
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> globals;
-  std::map<std::string, mlir::FuncOp> functions;
+  std::map<std::string, mlir::func::FuncOp> functions;
   std::map<std::string, mlir::LLVM::GlobalOp> llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> llvmFunctions;
   MLIRAction(std::string fn, mlir::OwningOpRef<mlir::ModuleOp> &module)
@@ -5158,7 +5159,7 @@ public:
   }
 };
 
-mlir::FuncOp MLIRScanner::EmitDirectCallee(const FunctionDecl *FD) {
+mlir::func::FuncOp MLIRScanner::EmitDirectCallee(const FunctionDecl *FD) {
   return Glob.GetOrCreateMLIRFunction(FD);
 }
 

@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --raise-scf-to-affine --split-input-file %s | FileCheck %s
 
 module {
-  func @main(%12 : i1, %14 : i32, %18 : memref<?xf32>, %19 : memref<?xf32> ) {
+  func.func @main(%12 : i1, %14 : i32, %18 : memref<?xf32>, %19 : memref<?xf32> ) {
     %c0 = arith.constant 0 : index
     %c4 = arith.constant 4 : index
     %c1 = arith.constant 1 : index
@@ -18,7 +18,7 @@ module {
   }
 }
 
-// CHECK:   func @main(%arg0: i1, %arg1: i32, %arg2: memref<?xf32>, %arg3: memref<?xf32>) {
+// CHECK:   func.func @main(%arg0: i1, %arg1: i32, %arg2: memref<?xf32>, %arg3: memref<?xf32>) {
 // CHECK-NEXT:     %c4 = arith.constant 4 : index
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:     %1 = arith.muli %0, %c4 : index

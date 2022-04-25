@@ -1,10 +1,10 @@
 // RUN: polygeist-opt --cpuify="method=distribute" -allow-unregistered-dialect -canonicalize --split-input-file %s | FileCheck %s
 
 module {
-  func private @use(%a : i1) -> ()
-  func private @make() -> (i1)
-  func private @something() -> ()
-  func @fast(%arg0: i32, %c : i1, %25 : memref<9x9xi1>, %cond : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func private @use(%a : i1) -> ()
+  func.func private @make() -> (i1)
+  func.func private @something() -> ()
+  func.func @fast(%arg0: i32, %c : i1, %25 : memref<9x9xi1>, %cond : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c10 = arith.constant 10 : index
     %c0_i32 = arith.constant 0 : i32
@@ -25,14 +25,14 @@ module {
             }
             scf.yield %s : i1
           }
-          call @use(%r) : (i1) -> () 
+          func.call @use(%r) : (i1) -> () 
           scf.yield
       }
     return
   }
 }
 
-// CHECK:   func @fast(%arg0: i32, %arg1: i1, %arg2: memref<9x9xi1>, %arg3: i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @fast(%arg0: i32, %arg1: i1, %arg2: memref<9x9xi1>, %arg3: i1) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %true = arith.constant true
 // CHECK-DAG:     %c9 = arith.constant 9 : index
 // CHECK-DAG:     %false = arith.constant false
@@ -71,7 +71,7 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:       %2 = memref.load %0[%arg4] : memref<9xi1>
-// CHECK-NEXT:       call @use(%2) : (i1) -> ()
+// CHECK-NEXT:       func.call @use(%2) : (i1) -> ()
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

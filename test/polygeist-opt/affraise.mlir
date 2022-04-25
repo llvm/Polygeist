@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --raise-scf-to-affine -allow-unregistered-dialect --split-input-file %s | FileCheck %s
 
 module {
-  func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
+  func.func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     scf.if %arg3 {
@@ -13,7 +13,7 @@ module {
     }
     return
   }
-  func @aff(%c : i1, %arg0: i32) {
+  func.func @aff(%c : i1, %arg0: i32) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     scf.if %c {
@@ -27,7 +27,7 @@ module {
   }
 }
 
-// CHECK:   func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
+// CHECK:   func.func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
 // CHECK-DAG:     %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:     scf.if %arg3 {
 // CHECK-NEXT:       affine.for %arg4 = 1 to %0 {
@@ -38,7 +38,7 @@ module {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// CHECK-NEXT:   func @aff(%arg0: i1, %arg1: i32) {
+// CHECK-NEXT:   func.func @aff(%arg0: i1, %arg1: i32) {
 // CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:     scf.if %arg0 {
 // CHECK-NEXT:       affine.parallel (%arg2) = (0) to (symbol(%0)) {

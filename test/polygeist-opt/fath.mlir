@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --loop-restructure --split-input-file %s | FileCheck %s
 
 module {
-  func @_Z14computeTempCPUPfS_iii(%arg2: i32, %arg3: i32, %arg4: i32) {
+  func.func @_Z14computeTempCPUPfS_iii(%arg2: i32, %arg3: i32, %arg4: i32) {
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
     cf.br ^bb1(%c0_i32, %c0_i32 : i32, i32)
@@ -16,7 +16,7 @@ module {
   }
 }
 
-// CHECK:   func @_Z14computeTempCPUPfS_iii(%arg0: i32, %arg1: i32, %arg2: i32) {
+// CHECK:   func.func @_Z14computeTempCPUPfS_iii(%arg0: i32, %arg1: i32, %arg2: i32) {
 // CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0:2 = scf.while (%arg3 = %c0_i32, %arg4 = %c0_i32) : (i32, i32) -> (i32, i32) {

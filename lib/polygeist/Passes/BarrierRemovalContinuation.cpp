@@ -81,7 +81,7 @@ static LogicalResult applyCFGConversion(FunctionOpInterface function) {
   target.addLegalDialect<func::FuncDialect>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addIllegalOp<scf::ForOp, scf::IfOp, scf::WhileOp>();
-  target.addLegalOp<scf::ExecuteRegionOp, FuncOp, ModuleOp>();
+  target.addLegalOp<scf::ExecuteRegionOp, func::FuncOp, ModuleOp>();
   target.addDynamicallyLegalOp<scf::ParallelOp>(
       [](scf::ParallelOp op) { return hasImmediateBarriers(op); });
 
@@ -362,7 +362,7 @@ findNesrestPostDominatingInsertionPoint(
 std::pair<Block *, Block::iterator>
 findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
   // Find the earliest insertion point where loop bounds are fully defined.
-  PostDominanceInfo postDominanceInfo(op->getParentOfType<FuncOp>());
+  PostDominanceInfo postDominanceInfo(op->getParentOfType<func::FuncOp>());
   SmallVector<Value> operands;
   llvm::append_range(operands, op.getLowerBound());
   llvm::append_range(operands, op.getUpperBound());

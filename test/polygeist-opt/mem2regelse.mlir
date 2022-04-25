@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module  {
-  func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {
+  func.func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {
     %c1_i64 = arith.constant 1 : i64
     %c0_i64 = arith.constant 0 : i64
     %0 = memref.alloca() : memref<i64>
@@ -26,7 +26,7 @@ module  {
   }
 }
 
-// CHECK:   func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {
+// CHECK:   func.func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
 // CHECK-NEXT:     cf.br ^bb1

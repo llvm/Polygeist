@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
 
 module {
-  func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<f32>, %arg1: i32, %arg2: i32, %arg3: i32) -> i8 {
+  func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<f32>, %arg1: i32, %arg2: i32, %arg3: i32) -> i8 {
     %c1_i8 = arith.constant 1 : i8
     %c0_i8 = arith.constant 0 : i8
     %cst = arith.constant 0.000000e+00 : f32
@@ -22,7 +22,7 @@ module {
   }
 }
 
-// CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<f32>, %arg1: i32, %arg2: i32, %arg3: i32) -> i8 {
+// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<f32>, %arg1: i32, %arg2: i32, %arg3: i32) -> i8 {
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f32
 // CHECK-NEXT:     %0 = arith.cmpi sge, %arg3, %arg1 : i32
 // CHECK-NEXT:     %1 = arith.cmpi sle, %arg3, %arg2 : i32

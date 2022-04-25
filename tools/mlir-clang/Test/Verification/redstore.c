@@ -14,7 +14,7 @@ void sum(double *result, double* array, int N) {
     #pragma endscop
 }
 
-// CHECK:  func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i32)
+// CHECK:  func.func @sum(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %arg2: i32)
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:     %0 = arith.index_cast %arg2 : i32 to index
 // CHECK-NEXT:     affine.for %arg3 = 0 to %0 {
@@ -27,7 +27,7 @@ void sum(double *result, double* array, int N) {
 // CHECK-NEXT:       }
 // CHECK-NEXT:       affine.store %[[i3]], %arg0[0] : memref<?xf64>
 // CHECK-NEXT:       %[[i4:.+]] = affine.load %arg0[0] : memref<?xf64>
-// CHECK-NEXT:       %{{.*}} = call @print(%[[i4]]) : (f64) -> i32
+// CHECK-NEXT:       %{{.*}} = func.call @print(%[[i4]]) : (f64) -> i32
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

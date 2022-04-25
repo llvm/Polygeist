@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module {
-  func @parse(%arg0: i32) {
+  func.func @parse(%arg0: i32) {
     %false = arith.constant false
     %c1_i32 = arith.constant 1 : i32
     %true = arith.constant true
@@ -35,7 +35,7 @@ module {
   }
 }
 
-// CHECK:   func @parse(%arg0: i32) {
+// CHECK:   func.func @parse(%arg0: i32) {
 // CHECK-DAG:     %false = arith.constant false
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-DAG:     %true = arith.constant true

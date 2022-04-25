@@ -1,8 +1,8 @@
 // RUN: polygeist-opt --cpuify="method=distribute" --canonicalize --split-input-file %s | FileCheck %s
 
 module {
-  func private @print()
-  func @main() {
+  func.func private @print()
+  func.func @main() {
     %c0_i8 = arith.constant 0 : i8
     %c1_i8 = arith.constant 1 : i8
     %c1_i64 = arith.constant 1 : i64
@@ -25,7 +25,7 @@ module {
         }
         %5 = arith.cmpi ne, %4, %c0_i8 : i8
         scf.if %5 {
-          call @print() : () -> ()
+          func.call @print() : () -> ()
         }
         scf.yield
       }
@@ -33,7 +33,7 @@ module {
     }
     return
   }
-  func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %len : index, %f : f32) {
+  func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %len : index, %f : f32) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
         affine.parallel (%arg15, %arg16) = (0, 0) to (16, 16) {
@@ -47,7 +47,7 @@ module {
 }
 
 
-// CHECK:   func @main() {
+// CHECK:   func.func @main() {
 // CHECK-DAG:     %c0_i8 = arith.constant 0 : i8
 // CHECK-DAG:     %c1_i8 = arith.constant 1 : i8
 // CHECK-DAG:     %c1_i64 = arith.constant 1 : i64
@@ -92,7 +92,7 @@ module {
 // CHECK-NEXT:         %4 = memref.load %[[i2]][%arg1] : memref<2xi8>
 // CHECK-NEXT:         %5 = arith.cmpi ne, %4, %c0_i8 : i8
 // CHECK-NEXT:         scf.if %5 {
-// CHECK-NEXT:           call @print() : () -> ()
+// CHECK-NEXT:           func.call @print() : () -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
@@ -101,7 +101,7 @@ module {
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32) {
+// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32) {
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     scf.for %arg3 = %c0 to %arg1 step %c1 {

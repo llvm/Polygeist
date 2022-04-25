@@ -1,21 +1,21 @@
 // RUN: polygeist-opt --cpuify="method=distribute.mincut" --split-input-file %s | FileCheck %s
 
 module {
-  func private @use(%arg0: i32)
-  func private @usememref(%arg0: memref<i32>)
-  func @trivial(%arg0: i32, %c : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func private @use(%arg0: i32)
+  func.func private @usememref(%arg0: memref<i32>)
+  func.func @trivial(%arg0: i32, %c : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c9 = arith.constant 9 : index
     scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
       %0 = arith.index_cast %arg4 : index to i32
       "polygeist.barrier"(%arg4) : (index) -> ()
-      call @use(%0) : (i32) -> ()
+      func.call @use(%0) : (i32) -> ()
       scf.yield
     }
     return
   }
-  func @add_if_barrier(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @add_if_barrier(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c9 = arith.constant 9 : index
@@ -24,19 +24,19 @@ module {
       %a = memref.load %amem[] : memref<i32>
       %b = memref.load %bmem[] : memref<i32>
       %mul = arith.muli %a, %b : i32
-      call @use(%mul) : (i32) -> ()
+      func.call @use(%mul) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
       scf.if %arg {
-        call @use(%mul) : (i32) -> ()
+        func.call @use(%mul) : (i32) -> ()
         "polygeist.barrier"(%arg4) : (index) -> ()
-        call @use(%mul) : (i32) -> ()
+        func.call @use(%mul) : (i32) -> ()
         scf.yield
       }
       scf.yield
     }
     return
   }
-  func @add_if_barrier_(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @add_if_barrier_(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c9 = arith.constant 9 : index
@@ -45,20 +45,20 @@ module {
       %a = memref.load %amem[] : memref<i32>
       %b = memref.load %bmem[] : memref<i32>
       %mul = arith.muli %a, %b : i32
-      call @usememref(%amem) : (memref<i32>) -> ()
-      call @use(%mul) : (i32) -> ()
+      func.call @usememref(%amem) : (memref<i32>) -> ()
+      func.call @use(%mul) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
       scf.if %arg {
-        call @use(%mul) : (i32) -> ()
+        func.call @use(%mul) : (i32) -> ()
         "polygeist.barrier"(%arg4) : (index) -> ()
-        call @use(%mul) : (i32) -> ()
+        func.call @use(%mul) : (i32) -> ()
         scf.yield
       }
       scf.yield
     }
     return
   }
-  func @mincut_for_barrier(%amem: memref<i32>, %arg: i1, %bound: index) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @mincut_for_barrier(%amem: memref<i32>, %arg: i1, %bound: index) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %i1 = arith.constant 1 : i32
@@ -71,22 +71,22 @@ module {
       %a1 = arith.addi %a, %i1 : i32
       %a2 = arith.addi %a, %i2 : i32
       %a3 = arith.addi %a, %i3 : i32
-      call @use(%a) : (i32) -> ()
+      func.call @use(%a) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
       scf.for %forarg = %c0 to %bound step %c1 {
-        call @use(%a1) : (i32) -> ()
-        call @use(%a2) : (i32) -> ()
-        call @use(%a3) : (i32) -> ()
+        func.call @use(%a1) : (i32) -> ()
+        func.call @use(%a2) : (i32) -> ()
+        func.call @use(%a3) : (i32) -> ()
         "polygeist.barrier"(%arg4) : (index) -> ()
-        call @use(%a1) : (i32) -> ()
-        call @use(%a2) : (i32) -> ()
+        func.call @use(%a1) : (i32) -> ()
+        func.call @use(%a2) : (i32) -> ()
         scf.yield
       }
       scf.yield
     }
     return
   }
-  func @mincut_if_barrier(%amem: memref<i32>, %arg : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @mincut_if_barrier(%amem: memref<i32>, %arg : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %i1 = arith.constant 1 : i32
@@ -99,23 +99,23 @@ module {
       %a1 = arith.addi %a, %i1 : i32
       %a2 = arith.addi %a, %i2 : i32
       %a3 = arith.addi %a, %i3 : i32
-      call @use(%a) : (i32) -> ()
+      func.call @use(%a) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
       scf.if %arg {
-        call @use(%a1) : (i32) -> ()
-        call @use(%a2) : (i32) -> ()
-        call @use(%a3) : (i32) -> ()
+        func.call @use(%a1) : (i32) -> ()
+        func.call @use(%a2) : (i32) -> ()
+        func.call @use(%a3) : (i32) -> ()
         "polygeist.barrier"(%arg4) : (index) -> ()
-        call @use(%a1) : (i32) -> ()
-        call @use(%a2) : (i32) -> ()
-        call @use(%a3) : (i32) -> ()
+        func.call @use(%a1) : (i32) -> ()
+        func.call @use(%a2) : (i32) -> ()
+        func.call @use(%a3) : (i32) -> ()
         scf.yield
       }
       scf.yield
     }
     return
   }
-  func @mincut(%amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @mincut(%amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %i1 = arith.constant 1 : i32
@@ -128,16 +128,16 @@ module {
       %a1 = arith.addi %a, %i1 : i32
       %a2 = arith.addi %a, %i2 : i32
       %a3 = arith.addi %a, %i3 : i32
-      call @use(%a) : (i32) -> ()
+      func.call @use(%a) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
-      call @use(%a1) : (i32) -> ()
-      call @use(%a2) : (i32) -> ()
-      call @use(%a3) : (i32) -> ()
+      func.call @use(%a1) : (i32) -> ()
+      func.call @use(%a2) : (i32) -> ()
+      func.call @use(%a3) : (i32) -> ()
       scf.yield
     }
     return
   }
-  func @add(%amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @add(%amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c9 = arith.constant 9 : index
@@ -146,14 +146,14 @@ module {
       %a = memref.load %amem[] : memref<i32>
       %b = memref.load %bmem[] : memref<i32>
       %mul = arith.muli %a, %b : i32
-      call @use(%mul) : (i32) -> ()
+      func.call @use(%mul) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
-      call @use(%mul) : (i32) -> ()
+      func.call @use(%mul) : (i32) -> ()
       scf.yield
     }
     return
   }
-  func @matmul(%arg0: memref<?x3xi32>, %arg1: memref<?x3xi32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
+  func.func @matmul(%arg0: memref<?x3xi32>, %arg1: memref<?x3xi32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
     %cst = arith.constant 0.000000e+00 : f32
     %c1 = arith.constant 1 : index
     %c0 = arith.constant 0 : index
@@ -219,20 +219,20 @@ module {
   }
 }
 
-// CHECK:  func @trivial(%arg0: i32, %arg1: i1)
+// CHECK:  func.func @trivial(%arg0: i32, %arg1: i1)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c9 = arith.constant 9 : index
 // CHECK-NEXT:    memref.alloca_scope  {
 // CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:        %0 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:        call @use(%0) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%0) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-// CHECK:  func @add_if_barrier(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
+// CHECK:  func.func @add_if_barrier(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c9 = arith.constant 9 : index
@@ -243,19 +243,19 @@ module {
 // CHECK-NEXT:        %2 = memref.load %arg2[] : memref<i32>
 // CHECK-NEXT:        %3 = arith.muli %1, %2 : i32
 // CHECK-NEXT:        memref.store %3, %0[%arg3] : memref<?xi32>
-// CHECK-NEXT:        call @use(%3) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%3) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.if %arg0 {
 // CHECK-NEXT:        memref.alloca_scope  {
 // CHECK-NEXT:          scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:            %1 = memref.load %0[%arg3] : memref<?xi32>
-// CHECK-NEXT:            call @use(%1) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:          scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:            %1 = memref.load %0[%arg3] : memref<?xi32>
-// CHECK-NEXT:            call @use(%1) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
@@ -264,7 +264,7 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-// CHECK:  func @mincut_for_barrier(%arg0: memref<i32>, %arg1: i1, %arg2: index)
+// CHECK:  func.func @mincut_for_barrier(%arg0: memref<i32>, %arg1: i1, %arg2: index)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
@@ -276,7 +276,7 @@ module {
 // CHECK-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:        %1 = memref.load %arg0[] : memref<i32>
 // CHECK-NEXT:        memref.store %1, %0[%arg3] : memref<?xi32>
-// CHECK-NEXT:        call @use(%1) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.for %arg3 = %c0 to %arg2 step %c1 {
@@ -286,17 +286,17 @@ module {
 // CHECK-NEXT:            %2 = arith.addi %1, %c3_i32 : i32
 // CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
 // CHECK-NEXT:            %4 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:            call @use(%4) : (i32) -> ()
-// CHECK-NEXT:            call @use(%3) : (i32) -> ()
-// CHECK-NEXT:            call @use(%2) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:          scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:            %1 = memref.load %0[%arg4] : memref<?xi32>
 // CHECK-NEXT:            %2 = arith.addi %1, %c1_i32 : i32
 // CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
-// CHECK-NEXT:            call @use(%2) : (i32) -> ()
-// CHECK-NEXT:            call @use(%3) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
@@ -304,7 +304,7 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-// CHECK:  func @mincut_if_barrier(%arg0: memref<i32>, %arg1: i1)
+// CHECK:  func.func @mincut_if_barrier(%arg0: memref<i32>, %arg1: i1)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
@@ -316,7 +316,7 @@ module {
 // CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:        %1 = memref.load %arg0[] : memref<i32>
 // CHECK-NEXT:        memref.store %1, %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:        call @use(%1) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.if %arg1 {
@@ -326,9 +326,9 @@ module {
 // CHECK-NEXT:            %2 = arith.addi %1, %c3_i32 : i32
 // CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
 // CHECK-NEXT:            %4 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:            call @use(%4) : (i32) -> ()
-// CHECK-NEXT:            call @use(%3) : (i32) -> ()
-// CHECK-NEXT:            call @use(%2) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:          scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
@@ -336,9 +336,9 @@ module {
 // CHECK-NEXT:            %2 = arith.addi %1, %c1_i32 : i32
 // CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
 // CHECK-NEXT:            %4 = arith.addi %1, %c3_i32 : i32
-// CHECK-NEXT:            call @use(%2) : (i32) -> ()
-// CHECK-NEXT:            call @use(%3) : (i32) -> ()
-// CHECK-NEXT:            call @use(%4) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
 // CHECK-NEXT:            scf.yield
 // CHECK-NEXT:          }
 // CHECK-NEXT:        }
@@ -347,7 +347,7 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-// CHECK:  func @mincut(%arg0: memref<i32>, %arg1: memref<i32>)
+// CHECK:  func.func @mincut(%arg0: memref<i32>, %arg1: memref<i32>)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
@@ -359,7 +359,7 @@ module {
 // CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:        %1 = memref.load %arg0[] : memref<i32>
 // CHECK-NEXT:        memref.store %1, %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:        call @use(%1) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
@@ -367,15 +367,15 @@ module {
 // CHECK-NEXT:        %2 = arith.addi %1, %c3_i32 : i32
 // CHECK-NEXT:        %3 = arith.addi %1, %c2_i32 : i32
 // CHECK-NEXT:        %4 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:        call @use(%4) : (i32) -> ()
-// CHECK-NEXT:        call @use(%3) : (i32) -> ()
-// CHECK-NEXT:        call @use(%2) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%4) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%2) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
-// CHECK:  func @add(%arg0: memref<i32>, %arg1: memref<i32>)
+// CHECK:  func.func @add(%arg0: memref<i32>, %arg1: memref<i32>)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c9 = arith.constant 9 : index
@@ -386,19 +386,19 @@ module {
 // CHECK-NEXT:        %2 = memref.load %arg1[] : memref<i32>
 // CHECK-NEXT:        %3 = arith.muli %1, %2 : i32
 // CHECK-NEXT:        memref.store %3, %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:        call @use(%3) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%3) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
 // CHECK-NEXT:        %1 = memref.load %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:        call @use(%1) : (i32) -> ()
+// CHECK-NEXT:        func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
-// CHECK:   func @matmul(%arg0: memref<?x3xi32>, %arg1: memref<?x3xi32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32)
+// CHECK:   func.func @matmul(%arg0: memref<?x3xi32>, %arg1: memref<?x3xi32>, %arg2: memref<?xf32>, %arg3: memref<?xf32>, %arg4: memref<?xf32>, %arg5: i32, %arg6: i32)
 // CHECK-NEXT:    %cst = arith.constant 0.000000e+00 : f32
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c0 = arith.constant 0 : index

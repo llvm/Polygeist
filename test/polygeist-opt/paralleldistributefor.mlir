@@ -1,8 +1,8 @@
 // RUN: polygeist-opt --cpuify="method=distribute" --canonicalize --split-input-file %s | FileCheck %s
 
 module {
-  func private @use(%arg : i1)
-  func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %len : index, %f : f32, %start : i1, %end : i1) {
+  func.func private @use(%arg : i1)
+  func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %len : index, %f : f32, %start : i1, %end : i1) {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
         affine.parallel (%arg15, %arg16) = (0, 0) to (16, 16) {
@@ -11,13 +11,13 @@ module {
               "polygeist.barrier"(%arg15, %arg16, %c0) : (index, index, index) -> ()
               scf.yield %end : i1
             }
-            call @use(%r) : (i1) -> ()
+            func.call @use(%r) : (i1) -> ()
         }
     return 
   }
 }
 
-// CHECK:   func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32, %arg3: i1, %arg4: i1) {
+// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32, %arg3: i1, %arg4: i1) {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-NEXT:     %0 = memref.alloca() : memref<16x16xi1>
@@ -32,7 +32,7 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.parallel (%arg5, %arg6) = (0, 0) to (16, 16) {
 // CHECK-NEXT:       %1 = memref.load %0[%arg5, %arg6] : memref<16x16xi1>
-// CHECK-NEXT:       call @use(%1) : (i1) -> ()
+// CHECK-NEXT:       func.call @use(%1) : (i1) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

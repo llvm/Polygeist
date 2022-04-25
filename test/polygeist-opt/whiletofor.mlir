@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --canonicalize-scf-for --split-input-file %s | FileCheck %s
 
 module {
-  func @set(%arg0: memref<?xi32>, %arg1: i64) {
+  func.func @set(%arg0: memref<?xi32>, %arg1: i64) {
     %c1_i32 = arith.constant 1 : i32
     %c0_i32 = arith.constant 0 : i32
     %0 = scf.while (%arg2 = %c0_i32) : (i32) -> i32 {
@@ -19,7 +19,7 @@ module {
   }
 }
 
-// CHECK:   func @set(%arg0: memref<?xi32>, %arg1: i64) {
+// CHECK:   func.func @set(%arg0: memref<?xi32>, %arg1: i64) {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
