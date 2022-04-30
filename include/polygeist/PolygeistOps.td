@@ -17,7 +17,7 @@ include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 
 def CacheLoad
-    : Polygeist_Op<"cacheload"> {
+    : Polygeist_Op<"cacheload", [NoSideEffect]> {
 
   let arguments = (ins Arg<AnyMemRef, "the reference to load from",
                            [MemRead]>:$memref,

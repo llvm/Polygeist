@@ -167,7 +167,7 @@ static bool arePreceedingOpsFullyRecomputable(Operation *op,
   getEffectsBefore(op, beforeEffects, /*stopAtBarrier*/ false);
 
   for (auto it : beforeEffects) {
-    if (auto RE = dyn_cast<MemoryEffects::Read>(it.getEffect())) {
+    if (isa<MemoryEffects::Read>(it.getEffect())) {
       if (singleExecution)
         continue;
       if (Value v = it.getValue())
@@ -1120,8 +1120,8 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
     if (failed(canWrapWithBarriers(op, vals)))
       return failure();
 
-    // TODO
-    bool recomputable = arePreceedingOpsRecomputable(op);
+    bool recomputable =
+      arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
 
     polygeist::BarrierOp before, after;
     if (failed(wrapWithBarriers(op, rewriter, vals, recomputable, before,
@@ -1456,7 +1456,7 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
       return failure();
     }
 
-    if (!arePreceedingOpsRecomputable(whileOp)) {
+    if (!arePreceedingOpsFullyRecomputable(whileOp, false)) {
       LLVM_DEBUG(DBGS() << "[interchange-while] found a nonrecomputable op\n");
       return failure();
     }
