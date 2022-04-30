@@ -43,10 +43,11 @@ LogicalResult verify(BarrierOp) { return success(); }
 /// could extract the effect information from the op, otherwise returns 'false'
 /// and conservatively populates the list with all possible effects.
 bool collectEffects(Operation *op,
-                    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+                    SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                    bool ignoreBarriers) {
   // Skip over barriers to avoid infinite recursion (those barriers would ask
   // this barrier again).
-  if (isa<BarrierOp>(op))
+  if (ignoreBarriers && isa<BarrierOp>(op))
     return true;
 
   // Ignore CacheLoads as they are already guaranteed to not have side effects
@@ -69,7 +70,7 @@ bool collectEffects(Operation *op,
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
         for (auto &innerOp : block)
-          if (!collectEffects(&innerOp, effects))
+          if (!collectEffects(&innerOp, effects, ignoreBarriers))
             return false;
       }
     }
@@ -99,7 +100,7 @@ bool getEffectsBefore(Operation *op,
         else
           continue;
       }
-      if (!collectEffects(it, effects))
+      if (!collectEffects(it, effects, /* ignoreBarriers */ true))
         return false;
     }
 
@@ -119,7 +120,7 @@ bool getEffectsBefore(Operation *op,
     op->getParentOp()->walk([&](Operation *in) {
       if (conservative)
         return WalkResult::interrupt();
-      if (!collectEffects(in, effects)) {
+      if (!collectEffects(in, effects, /* ignoreBarriers */ true)) {
         conservative = true;
         return WalkResult::interrupt();
       }
@@ -139,7 +140,7 @@ bool getEffectsAfter(Operation *op,
           return true;
         continue;
       }
-      if (!collectEffects(it, effects))
+      if (!collectEffects(it, effects, /* ignoreBarriers */ true))
         return false;
     }
 
@@ -159,7 +160,7 @@ bool getEffectsAfter(Operation *op,
     op->getParentOp()->walk([&](Operation *in) {
       if (conservative)
         return WalkResult::interrupt();
-      if (!collectEffects(in, effects)) {
+      if (!collectEffects(in, effects, /* ignoreBarriers */ true)) {
         conservative = true;
         return WalkResult::interrupt();
       }
