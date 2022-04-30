@@ -1065,7 +1065,7 @@ static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
 /// Puts a barrier before and/or after an "if" operation if there isn't already
 /// one, potentially with a single load that supplies the upper bound of a
 /// (normalized) loop.
-template <typename IfType>
+template <typename IfType, bool UseMinCut>
 struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
   WrapIfWithBarrier(MLIRContext *ctx) : OpRewritePattern<IfType>(ctx) {}
   LogicalResult matchAndRewrite(IfType op,
@@ -1073,34 +1073,37 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (op.getNumResults() != 0)
       return failure();
 
-    return wrapAndDistribute<IfType, true>(op, rewriter);
+    return wrapAndDistribute<IfType, UseMinCut>(op, rewriter);
   }
 };
 
 /// Puts a barrier before and/or after a "for" operation if there isn't already
 /// one, potentially with a single load that supplies the upper bound of a
 /// (normalized) loop.
+template <bool UseMinCut>
 struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
   WrapForWithBarrier(MLIRContext *ctx) : OpRewritePattern<scf::ForOp>(ctx) {}
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute<scf::ForOp, true>(op, rewriter);
+    return wrapAndDistribute<scf::ForOp, UseMinCut>(op, rewriter);
   }
 };
 
+template <bool UseMinCut>
 struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
   WrapAffineForWithBarrier(MLIRContext *ctx)
       : OpRewritePattern<AffineForOp>(ctx) {}
 
   LogicalResult matchAndRewrite(AffineForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute<AffineForOp, true>(op, rewriter);
+    return wrapAndDistribute<AffineForOp, UseMinCut>(op, rewriter);
   }
 };
 
 /// Puts a barrier before and/or after a "while" operation if there isn't
 /// already one.
+template <bool UseMinCut>
 struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
   using OpRewritePattern<scf::WhileOp>::OpRewritePattern;
 
@@ -1129,25 +1132,11 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
     // We have now introduced one or two barriers, distribute around them
     // immediately
     auto pop = op->getParentOp();
-    if (auto spop = dyn_cast<scf::ParallelOp>(pop)) {
-      if (failed(
-              distributeAroundBarrier<scf::ParallelOp, true>(spop, rewriter)))
-        return failure();
-      // If we wrapped with two barriers
-      if (after && before)
-        if (failed(
-                distributeAroundBarrier<scf::ParallelOp, true>(spop, rewriter)))
-          return failure();
-    }
-    if (auto apop = dyn_cast<AffineParallelOp>(pop)) {
-      if (failed(
-              distributeAroundBarrier<AffineParallelOp, true>(apop, rewriter)))
-        return failure();
-      // If we wrapped with two barriers
-      if (after && before)
-        if (failed(distributeAroundBarrier<AffineParallelOp, true>(apop,
-                                                                   rewriter)))
-          return failure();
+    if (failed(distributeAfterWrap<scf::ParallelOp, UseMinCut>(
+            pop, before && after, rewriter)) &&
+        failed(distributeAfterWrap<AffineParallelOp, UseMinCut>(
+            pop, before && after, rewriter))) {
+      return failure();
     }
     return success();
   }
@@ -2099,21 +2088,24 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             &getContext());
 
         if (method.contains("mincut")) {
-          patterns
-              .insert<Reg2MemFor<scf::ForOp, true>,
-                      Reg2MemFor<AffineForOp, true>, Reg2MemIf<scf::IfOp, true>,
-                      Reg2MemIf<AffineIfOp, true>>(&getContext());
+          patterns.insert<
+              Reg2MemFor<scf::ForOp, true>, Reg2MemFor<AffineForOp, true>,
+              Reg2MemIf<scf::IfOp, true>, Reg2MemIf<AffineIfOp, true>,
+              WrapForWithBarrier<true>, WrapAffineForWithBarrier<true>,
+              WrapIfWithBarrier<scf::IfOp, true>,
+              WrapIfWithBarrier<AffineIfOp, true>, WrapWhileWithBarrier<true>>(
+              &getContext());
         } else {
           patterns.insert<
               Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
-              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>>(
-              &getContext());
+              Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>,
+              WrapForWithBarrier<false>, WrapAffineForWithBarrier<false>,
+              WrapIfWithBarrier<scf::IfOp, false>,
+              WrapIfWithBarrier<AffineIfOp, false>,
+              WrapWhileWithBarrier<false>>(&getContext());
         }
 
-        patterns.insert<WrapForWithBarrier, WrapAffineForWithBarrier,
-                        WrapIfWithBarrier<scf::IfOp>,
-                        WrapIfWithBarrier<AffineIfOp>, WrapWhileWithBarrier,
-                        InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+        patterns.insert<InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
                         InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
                         InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
                         InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
