@@ -66,6 +66,11 @@ bool collectEffects(Operation *op,
   if (isa<CacheLoad>(op))
     return true;
 
+  // TODO this should probably have the Mem Effect Interface?
+  if (isa<polygeist::CacheLoad>(op)) {
+    return true;
+  }
+
   // Collect effect instances the operation. Note that the implementation of
   // getEffects erases all effect instances that have the type other than the
   // template parameter so we collect them first in a local buffer and then
