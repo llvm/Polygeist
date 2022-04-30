@@ -19,8 +19,7 @@ include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 def CacheLoad
     : Polygeist_Op<"cacheload"> {
 
-  let arguments = (ins Arg<AnyMemRef, "the reference to load from",
-                           [MemRead]>:$memref,
+  let arguments = (ins Arg<AnyMemRef, "the reference to load from">:$memref,
                        Variadic<Index>:$indices);
   let results = (outs AnyType:$result);
   let builders = [
