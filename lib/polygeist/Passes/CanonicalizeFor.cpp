@@ -1521,39 +1521,6 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
   }
 };
 
-static bool
-collectEffects(Operation *op,
-               SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  // Collect effect instances the operation. Note that the implementation of
-  // getEffects erases all effect instances that have the type other than the
-  // template parameter so we collect them first in a local buffer and then
-  // copy.
-  if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
-    SmallVector<MemoryEffects::EffectInstance> localEffects;
-    iface.getEffects(localEffects);
-    llvm::append_range(effects, localEffects);
-    return true;
-  }
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
-    for (auto &region : op->getRegions()) {
-      for (auto &block : region) {
-        for (auto &innerOp : block)
-          if (!collectEffects(&innerOp, effects))
-            return false;
-      }
-    }
-    return true;
-  }
-
-  // We need to be conservative here in case the op doesn't have the interface
-  // and assume it can have any possible effect.
-  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Read>());
-  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Write>());
-  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Allocate>());
-  effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Free>());
-  return false;
-}
-
 // Rewritten from LoopInvariantCodeMotion.cpp
 struct WhileLICM : public OpRewritePattern<WhileOp> {
   using OpRewritePattern<WhileOp>::OpRewritePattern;

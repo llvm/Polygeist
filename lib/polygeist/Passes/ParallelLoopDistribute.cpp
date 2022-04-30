@@ -126,20 +126,7 @@ static inline void bfs(const Graph &G,
   }
 }
 
-// Checks if an op is recomputable within the context of a parallel operation,
-// i.e. either it has no side effects or it is a polygeist cache load
-static bool isRecomputable(Operation *op) {
-  if (isa<polygeist::CacheLoad>(op))
-    return true;
-  // TODO is this correct? do we need to check HasRecursiveSideEffects?
-  if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
-    return memInterface.hasNoEffect();
-  } else {
-    return false;
-  }
-}
-
-// Get the indices of a parallel op
+/// Get the indices of a parallel op
 static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
   if (auto pop = dyn_cast<scf::ParallelOp>(op))
     for (auto var : pop.getInductionVars())
@@ -147,16 +134,6 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
   else
     for (auto var : cast<AffineParallelOp>(op).getBody()->getArguments())
       indVars.insert(var);
-}
-
-static bool arePreceedingOpsRecomputable(Operation *op) {
-  auto *prevOp = op->getPrevNode();
-  while (prevOp) {
-    if (!isRecomputable(prevOp))
-      return false;
-    prevOp = prevOp->getPrevNode();
-  }
-  return true;
 }
 
 // \p singleExecution denotes whether op is guaranteed to execute the body once
@@ -185,13 +162,20 @@ static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Cache) {
   Graph G;
   llvm::SetVector<Operation *> NonRecomputable;
-  for (Operation *it = barrier->getPrevNode(); it != nullptr;
-       it = it->getPrevNode()) {
-    auto &op = *it;
-    if (!isRecomputable(&op))
-      NonRecomputable.insert(&op);
-    for (Value value : op.getResults()) {
-      G[Node(&op)].insert(Node(value));
+  for (Operation *op = &barrier->getBlock()->front();
+       op != barrier; op = op->getNextNode()) {
+
+    // TODO The below logic should not disagree about the recomputability of ops
+    // with the logic used in interchange and wrap, otherwise we might cache
+    // unneeded results
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    collectEffects(op, effects);
+    // If there are memory effects we assume it is not recomputable
+    if (effects.size() > 0)
+      NonRecomputable.insert(op);
+
+    for (Value value : op->getResults()) {
+      G[Node(op)].insert(Node(value));
       for (Operation *user : value.getUsers()) {
         // If the user is nested in another op, find its ancestor op that lives
         // in the same block as the barrier.
