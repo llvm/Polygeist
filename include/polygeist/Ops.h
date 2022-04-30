@@ -24,7 +24,9 @@
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
 
-bool collectEffects(mlir::Operation *op, llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance> &effects);
+bool collectEffects(
+    mlir::Operation *op,
+    llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance> &effects);
 
 bool getEffectsBefore(
     mlir::Operation *op,

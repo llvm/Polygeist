@@ -42,7 +42,8 @@ LogicalResult verify(BarrierOp) { return success(); }
 /// Collect the memory effects of the given op in 'effects'. Returns 'true' it
 /// could extract the effect information from the op, otherwise returns 'false'
 /// and conservatively populates the list with all possible effects.
-bool collectEffects(Operation *op, SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+bool collectEffects(Operation *op,
+                    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   // Skip over barriers to avoid infinite recursion (those barriers would ask
   // this barrier again).
   if (isa<BarrierOp>(op))

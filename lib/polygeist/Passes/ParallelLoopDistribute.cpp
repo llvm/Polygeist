@@ -162,8 +162,8 @@ static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Cache) {
   Graph G;
   llvm::SetVector<Operation *> NonRecomputable;
-  for (Operation *op = &barrier->getBlock()->front();
-       op != barrier; op = op->getNextNode()) {
+  for (Operation *op = &barrier->getBlock()->front(); op != barrier;
+       op = op->getNextNode()) {
 
     // TODO The below logic should not disagree about the recomputability of ops
     // with the logic used in interchange and wrap, otherwise we might cache
@@ -1105,7 +1105,7 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
       return failure();
 
     bool recomputable =
-      arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
+        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
 
     polygeist::BarrierOp before, after;
     if (failed(wrapWithBarriers(op, rewriter, vals, recomputable, before,
