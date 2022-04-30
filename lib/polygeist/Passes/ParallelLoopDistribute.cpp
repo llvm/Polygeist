@@ -647,7 +647,8 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter) {
+static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter,
+                                             T &preLoop, T &postLoop) {
   if (op.getNumResults() != 0) {
     LLVM_DEBUG(DBGS() << "[distribute] not matching reduction loops\n");
     return failure();
@@ -730,8 +731,6 @@ static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter) {
   }
 
   SmallVector<Value> iterCounts;
-  T preLoop;
-  T postLoop;
 
   Block *outerBlock;
   T outerLoop = nullptr;
@@ -914,6 +913,11 @@ static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter) {
   LLVM_DEBUG(DBGS() << "[distribute] distributed around a barrier\n");
   return success();
 }
+template <typename T, bool UseMinCut>
+static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter) {
+  T preLoop, postLoop;
+  return distributeAroundBarrier<T, UseMinCut>(op, rewriter, preLoop, postLoop);
+}
 
 /// Splits a parallel loop around the first barrier it immediately contains.
 /// Values defined before the barrier are stored in newly allocated buffers and
@@ -1009,7 +1013,25 @@ static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
   return wrapWithBarriers(op, rewriter, args, recomputable, before, after);
 }
 
-template <typename T>
+template <typename T, bool UseMinCut>
+static LogicalResult distributeAfterWrap(Operation *pop, bool two,
+                                         PatternRewriter &rewriter) {
+  T preLoop, postLoop;
+  if (auto cast = dyn_cast<T>(pop)) {
+    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, rewriter, preLoop,
+                                                     postLoop)))
+      return failure();
+    // If we wrapped with two barriers
+    if (two)
+      if (failed(distributeAroundBarrier<T, UseMinCut>(postLoop, rewriter)))
+        return failure();
+    return success();
+  } else {
+    return failure();
+  }
+}
+
+template <typename T, bool UseMinCut>
 static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
   SmallVector<BlockArgument> vals;
   if (failed(canWrapWithBarriers(op, vals)))
@@ -1030,24 +1052,13 @@ static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
   // We have now introduced one or two barriers, distribute around them
   // immediately
   auto pop = op->getParentOp();
-  if (auto spop = dyn_cast<scf::ParallelOp>(pop)) {
-    if (failed(distributeAroundBarrier<scf::ParallelOp, true>(spop, rewriter)))
-      return failure();
-    // If we wrapped with two barriers
-    if (after && before)
-      if (failed(
-              distributeAroundBarrier<scf::ParallelOp, true>(spop, rewriter)))
-        return failure();
+  if (failed(distributeAfterWrap<scf::ParallelOp, UseMinCut>(
+          pop, before && after, rewriter)) &&
+      failed(distributeAfterWrap<AffineParallelOp, UseMinCut>(
+          pop, before && after, rewriter))) {
+    return failure();
   }
-  if (auto apop = dyn_cast<AffineParallelOp>(pop)) {
-    if (failed(distributeAroundBarrier<AffineParallelOp, true>(apop, rewriter)))
-      return failure();
-    // If we wrapped with two barriers
-    if (after && before)
-      if (failed(
-              distributeAroundBarrier<AffineParallelOp, true>(apop, rewriter)))
-        return failure();
-  }
+
   return success();
 }
 
@@ -1062,7 +1073,7 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (op.getNumResults() != 0)
       return failure();
 
-    return wrapAndDistribute(op, rewriter);
+    return wrapAndDistribute<IfType, true>(op, rewriter);
   }
 };
 
@@ -1074,7 +1085,7 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute(op, rewriter);
+    return wrapAndDistribute<scf::ForOp, true>(op, rewriter);
   }
 };
 
@@ -1084,7 +1095,7 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
 
   LogicalResult matchAndRewrite(AffineForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute(op, rewriter);
+    return wrapAndDistribute<AffineForOp, true>(op, rewriter);
   }
 };
 
