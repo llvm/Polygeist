@@ -49,6 +49,12 @@ bool collectEffects(Operation *op,
   if (isa<BarrierOp>(op))
     return true;
 
+  // Ignore CacheLoads as they are already guaranteed to not have side effects
+  // in the context of a parallel op, these only exist while we are in the
+  // CPUifyPass
+  if (isa<CacheLoad>(op))
+    return true;
+
   // Collect effect instances the operation. Note that the implementation of
   // getEffects erases all effect instances that have the type other than the
   // template parameter so we collect them first in a local buffer and then
