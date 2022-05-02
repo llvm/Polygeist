@@ -631,8 +631,9 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter,
-                                             T &preLoop, T &postLoop) {
+static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
+                                             T &preLoop, T &postLoop,
+                                              PatternRewriter &rewriter) {
   if (op.getNumResults() != 0) {
     LLVM_DEBUG(DBGS() << "[distribute] not matching reduction loops\n");
     return failure();
@@ -641,19 +642,6 @@ static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter,
   if (!isNormalized(op)) {
     LLVM_DEBUG(DBGS() << "[distribute] non-normalized loop\n");
     return failure();
-  }
-
-  BarrierOp barrier = nullptr;
-  {
-    auto it =
-        llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
-          return isa<polygeist::BarrierOp>(nested);
-        });
-    if (it == op.getBody()->end()) {
-      LLVM_DEBUG(DBGS() << "[distribute] no barrier in the loop\n");
-      return failure();
-    }
-    barrier = cast<BarrierOp>(&*it);
   }
 
   llvm::SetVector<Value> usedBelow;
@@ -898,9 +886,28 @@ static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter,
   return success();
 }
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAroundBarrier(T op, PatternRewriter &rewriter) {
+static LogicalResult distributeAroundFirstBarrier(T op,
+                                                  T &preLoop, T &postLoop,
+                                                  PatternRewriter &rewriter) {
+  BarrierOp barrier = nullptr;
+  {
+    auto it =
+      llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
+          return isa<polygeist::BarrierOp>(nested);
+        });
+    if (it == op.getBody()->end()) {
+      LLVM_DEBUG(DBGS() << "[distribute] no barrier in the loop\n");
+      return failure();
+    }
+    barrier = cast<BarrierOp>(&*it);
+  }
+
+  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop, rewriter);
+}
+template <typename T, bool UseMinCut>
+static LogicalResult distributeAroundFirstBarrier(T op, PatternRewriter &rewriter) {
   T preLoop, postLoop;
-  return distributeAroundBarrier<T, UseMinCut>(op, rewriter, preLoop, postLoop);
+  return distributeAroundFirstBarrier<T, UseMinCut>(op, preLoop, postLoop, rewriter);
 }
 
 /// Splits a parallel loop around the first barrier it immediately contains.
@@ -912,7 +919,7 @@ struct DistributeAroundBarrier : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    return distributeAroundBarrier<T, UseMinCut>(op, rewriter);
+    return distributeAroundFirstBarrier<T, UseMinCut>(op, rewriter);
   }
 };
 
@@ -998,17 +1005,13 @@ static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAfterWrap(Operation *pop, bool two,
-                                         PatternRewriter &rewriter) {
+static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier, PatternRewriter &rewriter) {
+  if (!barrier)
+    return failure();
   T preLoop, postLoop;
   if (auto cast = dyn_cast<T>(pop)) {
-    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, rewriter, preLoop,
-                                                     postLoop)))
+    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop, postLoop, rewriter)))
       return failure();
-    // If we wrapped with two barriers
-    if (two)
-      if (failed(distributeAroundBarrier<T, UseMinCut>(postLoop, rewriter)))
-        return failure();
     return success();
   } else {
     return failure();
@@ -1028,20 +1031,18 @@ static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
   }
 
   polygeist::BarrierOp before, after;
-  if (failed(
-          wrapWithBarriers(op, rewriter, vals, recomputable, before, after))) {
+  if (failed(wrapWithBarriers(op, rewriter, vals, recomputable, before, after))) {
     return failure();
   }
 
-  // We have now introduced one or two barriers, distribute around them
-  // immediately
+  // We have now introduced one or two barriers, distribute around the one
+  // before the op immediately (if they exist), the one after can be handled by
+  // the distributed pass, we need to do this now to prevent BarrierElim from
+  // eliminating it in some cases when now two barriers appear before `op` and
+  // only one of them is necessary
   auto pop = op->getParentOp();
-  if (failed(distributeAfterWrap<scf::ParallelOp, UseMinCut>(
-          pop, before && after, rewriter)) &&
-      failed(distributeAfterWrap<AffineParallelOp, UseMinCut>(
-          pop, before && after, rewriter))) {
-    return failure();
-  }
+  (void) distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
+  (void) distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, rewriter);
 
   return success();
 }
@@ -1100,29 +1101,7 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
       return failure();
     }
 
-    SmallVector<BlockArgument> vals;
-    if (failed(canWrapWithBarriers(op, vals)))
-      return failure();
-
-    bool recomputable =
-        arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
-
-    polygeist::BarrierOp before, after;
-    if (failed(wrapWithBarriers(op, rewriter, vals, recomputable, before,
-                                after))) {
-      return failure();
-    }
-
-    // We have now introduced one or two barriers, distribute around them
-    // immediately
-    auto pop = op->getParentOp();
-    if (failed(distributeAfterWrap<scf::ParallelOp, UseMinCut>(
-            pop, before && after, rewriter)) &&
-        failed(distributeAfterWrap<AffineParallelOp, UseMinCut>(
-            pop, before && after, rewriter))) {
-      return failure();
-    }
-    return success();
+    return wrapAndDistribute<scf::WhileOp, UseMinCut>(op, rewriter);
   }
 };
 
