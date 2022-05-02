@@ -633,7 +633,7 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
 template <typename T, bool UseMinCut>
 static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                                              T &preLoop, T &postLoop,
-                                              PatternRewriter &rewriter) {
+                                             PatternRewriter &rewriter) {
   if (op.getNumResults() != 0) {
     LLVM_DEBUG(DBGS() << "[distribute] not matching reduction loops\n");
     return failure();
@@ -886,13 +886,12 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   return success();
 }
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAroundFirstBarrier(T op,
-                                                  T &preLoop, T &postLoop,
+static LogicalResult distributeAroundFirstBarrier(T op, T &preLoop, T &postLoop,
                                                   PatternRewriter &rewriter) {
   BarrierOp barrier = nullptr;
   {
     auto it =
-      llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
+        llvm::find_if(op.getBody()->getOperations(), [](Operation &nested) {
           return isa<polygeist::BarrierOp>(nested);
         });
     if (it == op.getBody()->end()) {
@@ -902,12 +901,15 @@ static LogicalResult distributeAroundFirstBarrier(T op,
     barrier = cast<BarrierOp>(&*it);
   }
 
-  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop, rewriter);
+  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop,
+                                               rewriter);
 }
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAroundFirstBarrier(T op, PatternRewriter &rewriter) {
+static LogicalResult distributeAroundFirstBarrier(T op,
+                                                  PatternRewriter &rewriter) {
   T preLoop, postLoop;
-  return distributeAroundFirstBarrier<T, UseMinCut>(op, preLoop, postLoop, rewriter);
+  return distributeAroundFirstBarrier<T, UseMinCut>(op, preLoop, postLoop,
+                                                    rewriter);
 }
 
 /// Splits a parallel loop around the first barrier it immediately contains.
@@ -1005,12 +1007,14 @@ static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier, PatternRewriter &rewriter) {
+static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier,
+                                         PatternRewriter &rewriter) {
   if (!barrier)
     return failure();
   T preLoop, postLoop;
   if (auto cast = dyn_cast<T>(pop)) {
-    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop, postLoop, rewriter)))
+    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop,
+                                                     postLoop, rewriter)))
       return failure();
     return success();
   } else {
@@ -1019,19 +1023,20 @@ static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier, Patt
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
+static LogicalResult wrapAndDistribute(T op, bool singleExecution,
+                                       PatternRewriter &rewriter) {
   SmallVector<BlockArgument> vals;
   if (failed(canWrapWithBarriers(op, vals)))
     return failure();
 
-  bool recomputable =
-      arePreceedingOpsFullyRecomputable(op, /*singleExecution*/ false);
+  bool recomputable = arePreceedingOpsFullyRecomputable(op, singleExecution);
   if (recomputable && isa<scf::YieldOp, AffineYieldOp>(op->getNextNode())) {
     return failure();
   }
 
   polygeist::BarrierOp before, after;
-  if (failed(wrapWithBarriers(op, rewriter, vals, recomputable, before, after))) {
+  if (failed(
+          wrapWithBarriers(op, rewriter, vals, recomputable, before, after))) {
     return failure();
   }
 
@@ -1041,8 +1046,8 @@ static LogicalResult wrapAndDistribute(T op, PatternRewriter &rewriter) {
   // eliminating it in some cases when now two barriers appear before `op` and
   // only one of them is necessary
   auto pop = op->getParentOp();
-  (void) distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
-  (void) distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, rewriter);
+  (void)distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
+  (void)distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, rewriter);
 
   return success();
 }
@@ -1058,7 +1063,8 @@ struct WrapIfWithBarrier : public OpRewritePattern<IfType> {
     if (op.getNumResults() != 0)
       return failure();
 
-    return wrapAndDistribute<IfType, UseMinCut>(op, rewriter);
+    return wrapAndDistribute<IfType, UseMinCut>(op, /* singleExecution */ true,
+                                                rewriter);
   }
 };
 
@@ -1071,7 +1077,8 @@ struct WrapForWithBarrier : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute<scf::ForOp, UseMinCut>(op, rewriter);
+    return wrapAndDistribute<scf::ForOp, UseMinCut>(
+        op, /* singleExecution */ false, rewriter);
   }
 };
 
@@ -1082,7 +1089,8 @@ struct WrapAffineForWithBarrier : public OpRewritePattern<AffineForOp> {
 
   LogicalResult matchAndRewrite(AffineForOp op,
                                 PatternRewriter &rewriter) const override {
-    return wrapAndDistribute<AffineForOp, UseMinCut>(op, rewriter);
+    return wrapAndDistribute<AffineForOp, UseMinCut>(
+        op, /* singleExecution */ false, rewriter);
   }
 };
 
@@ -1101,7 +1109,8 @@ struct WrapWhileWithBarrier : public OpRewritePattern<scf::WhileOp> {
       return failure();
     }
 
-    return wrapAndDistribute<scf::WhileOp, UseMinCut>(op, rewriter);
+    return wrapAndDistribute<scf::WhileOp, UseMinCut>(
+        op, /* singleExecution */ false, rewriter);
   }
 };
 
