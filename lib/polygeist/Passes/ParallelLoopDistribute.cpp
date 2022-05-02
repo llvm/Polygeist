@@ -169,7 +169,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
     // with the logic used in interchange and wrap, otherwise we might cache
     // unneeded results
     SmallVector<MemoryEffects::EffectInstance> effects;
-    collectEffects(op, effects);
+    collectEffects(op, effects, /*ignoreBarriers*/ false);
     // If there are memory effects we assume it is not recomputable
     if (effects.size() > 0)
       NonRecomputable.insert(op);
@@ -1322,7 +1322,7 @@ struct InterchangeForIfPFor : public OpRewritePattern<ParallelOpType> {
     }
 
     if (!arePreceedingOpsFullyRecomputable(
-            lastOp, /*isSingleExecution*/ isa<scf::IfOp, AffineIfOp>(
+            lastOp, /* singleExecution */ isa<scf::IfOp, AffineIfOp>(
                 (Operation *)lastOp))) {
       LLVM_DEBUG(DBGS() << "[interchange] found a nonrecomputable op\n");
       return failure();
@@ -1428,7 +1428,8 @@ template <typename T> struct InterchangeWhilePFor : public OpRewritePattern<T> {
       return failure();
     }
 
-    if (!arePreceedingOpsFullyRecomputable(whileOp, false)) {
+    if (!arePreceedingOpsFullyRecomputable(whileOp,
+                                           /* singleExecution */ false)) {
       LLVM_DEBUG(DBGS() << "[interchange-while] found a nonrecomputable op\n");
       return failure();
     }

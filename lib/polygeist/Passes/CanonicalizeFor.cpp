@@ -1540,10 +1540,10 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
         if (isReadOnly(op) && !isSpeculatable) {
 
           SmallVector<MemoryEffects::EffectInstance> whileEffects;
-          collectEffects(whileOp, whileEffects);
+          collectEffects(whileOp, whileEffects, /*ignoreBarriers*/ false);
 
           SmallVector<MemoryEffects::EffectInstance> opEffects;
-          collectEffects(op, opEffects);
+          collectEffects(op, opEffects, /*ignoreBarriers*/ false);
 
           bool conflict = false;
           for (auto before : opEffects)

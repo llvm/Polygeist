@@ -27,7 +27,7 @@
 bool collectEffects(
     mlir::Operation *op,
     llvm::SmallVectorImpl<mlir::MemoryEffects::EffectInstance> &effects,
-    bool ignoreBarriers = false);
+    bool ignoreBarriers);
 
 bool getEffectsBefore(
     mlir::Operation *op,
