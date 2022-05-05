@@ -678,20 +678,24 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                       << "usedBelow: " << usedBelow.size() << ", "
                       << "crossingCache: " << crossingCache.size() << "\n");
 
+    BlockAndValueMapping mapping;
+    for (auto v : crossingCache)
+      mapping.map(v, v);
 
     // Recalculate values used below the barrier up to available ones
     rewriter.setInsertionPointAfter(barrier);
     llvm::SetVector<Operation *> done;
-    BlockAndValueMapping mapping;
     std::function<void(Operation *)> recalculateOp;
     recalculateOp = [&done, &recalculateOp, &barrier, &mapping, &rewriter](Operation *op) {
       Operation *pop = barrier->getParentOp();
       if (!pop->isProperAncestor(op))
         return;
 
-      if (done.count(op))
+      // We always have to recalculate operands of yields, otherwise check if we
+      // don't already have the results
+      if (!isa<scf::YieldOp, AffineYieldOp>(op) &&
+          llvm::all_of(op->getResults(), [&mapping](Value v) { return mapping.contains(v); }))
         return;
-      done.insert(op);
 
       for (Value operand : op->getOperands())
         if (auto operandOp = operand.getDefiningOp())
@@ -700,12 +704,12 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
         for (auto &block : region)
           for (auto &nestedOp : block)
             recalculateOp(&nestedOp);
-      if (op->getBlock() == barrier->getBlock()) {
+
+      if (op->getBlock() == barrier->getBlock())
         Operation *clonedOp = rewriter.clone(*op, mapping);
-        for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
-          mapping.map(std::get<0>(pair), std::get<1>(pair));
-        return;
-      }
+      else
+        for (Value v : op->getResults())
+          mapping.map(v, v);
     };
 
     for (auto v : usedBelow) {
