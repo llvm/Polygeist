@@ -157,41 +157,70 @@ static bool arePreceedingOpsFullyRecomputable(Operation *op,
   return true;
 }
 
+static bool isRecomputableAfterDistribute(Operation *op, polygeist::BarrierOp barrier) {
+  // The below logic should not disagree with the logic in interchange and wrap,
+  // otherwise we might cache unneeded results or wrap* will ask us to
+  // distribute again if it thinks the ops we decide here are recomputable here
+  // are not, resulting into an infinite loop
+
+  if (isa<polygeist::BarrierOp>(op))
+    return false;
+
+  SmallVector<MemoryEffects::EffectInstance> effects;
+  collectEffects(op, effects, /*ignoreBarriers*/ false);
+
+  if (effects.size() == 0)
+    return true;
+  for (auto it : effects)
+    if (!isa<MemoryEffects::Read>(it.getEffect()))
+      return false;
+
+  // op now only has read effects
+
+  // It is recomputable if nothing else may write to where it reads from from
+  // after the previous barrier (begin) up to the next sync after the barrier we
+  // are distributing around (end)
+
+  Operation *begin = op;
+  Operation *front = &barrier->getBlock()->front();
+  while (true) {
+    if (begin == front)
+      break;
+    Operation *prev = begin->getPrevNode();
+    if (isa<polygeist::BarrierOp>(prev))
+      break;
+    begin = prev;
+  }
+  Operation *end = barrier;
+  while (true) {
+    end = end->getNextNode();
+    if (end == nullptr)
+      break;
+    if (isa<polygeist::BarrierOp>(end))
+      break;
+  }
+
+  for (auto it : effects) {
+    assert(isa<MemoryEffects::Read>(it.getEffect()));
+    if (Value v = it.getValue())
+      for (Operation *op = begin; op != end; op = op->getNextNode())
+        if (mayWriteTo(op, v, /*ignoreBarrier*/ true))
+          return false;
+  }
+  return true;
+}
+
 static void minCutCache(polygeist::BarrierOp barrier,
                         llvm::SetVector<Value> &Required,
-                        llvm::SetVector<Value> &Cache,
-                        bool singleExecution, Operation *wrapOp) {
+                        llvm::SetVector<Value> &Cache) {
   Graph G;
   llvm::SetVector<Operation *> NonRecomputable;
+
   for (Operation *op = &barrier->getBlock()->front(); op != barrier;
        op = op->getNextNode()) {
 
-    // The below logic should not disagree about the recomputability of ops with
-    // the logic used in interchange and wrap, otherwise we might cache unneeded
-    // results or interchange* will ask us to distribute again going into an
-    // infinite loop
-    SmallVector<MemoryEffects::EffectInstance> effects;
-    collectEffects(op, effects, /*ignoreBarriers*/ false);
-    for (auto it : effects) {
-      if (isa<MemoryEffects::Read>(it.getEffect())) {
-        if (wrapOp) {
-          // We are wrapping an op with barriers, check if the op is
-          // recomputable within the context of wrapping wrapOp to interchange
-          // it
-          if (singleExecution)
-            continue;
-          if (Value v = it.getValue())
-            if (!mayWriteTo(wrapOp, v, /*ignoreBarrier*/ true))
-              continue;
-        } else {
-          // Any read is ok in this case, since it will be a single time
-          // execution
-          assert(singleExecution);
-          continue;
-        }
-      }
+    if (!isRecomputableAfterDistribute(op, barrier))
       NonRecomputable.insert(op);
-    }
 
     for (Value value : op->getResults()) {
       G[Node(op)].insert(Node(value));
@@ -652,7 +681,6 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
 template <typename T, bool UseMinCut>
 static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                                              T &preLoop, T &postLoop,
-                                             bool singleExecution, Operation *wrapOp,
                                              PatternRewriter &rewriter) {
   if (op.getNumResults() != 0) {
     LLVM_DEBUG(DBGS() << "[distribute] not matching reduction loops\n");
@@ -671,7 +699,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   llvm::SetVector<Value> crossingCache;
   if (UseMinCut) {
 
-    minCutCache(barrier, usedBelow, crossingCache, singleExecution, wrapOp);
+    minCutCache(barrier, usedBelow, crossingCache);
 
     LLVM_DEBUG(DBGS() << "[distribute] min cut cache optimisation: "
                       << "preserveAllocas: " << preserveAllocas.size() << ", "
@@ -706,7 +734,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
             recalculateOp(&nestedOp);
 
       if (op->getBlock() == barrier->getBlock())
-        Operation *clonedOp = rewriter.clone(*op, mapping);
+        rewriter.clone(*op, mapping);
       else
         for (Value v : op->getResults())
           mapping.map(v, v);
@@ -935,8 +963,7 @@ static LogicalResult distributeAroundFirstBarrier(T op, T &preLoop, T &postLoop,
     barrier = cast<BarrierOp>(&*it);
   }
 
-  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop,
-                                               /* singleExecution */ true, /* wrapOp */ nullptr, rewriter);
+  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop, rewriter);
 }
 template <typename T, bool UseMinCut>
 static LogicalResult distributeAroundFirstBarrier(T op,
@@ -1041,14 +1068,13 @@ static LogicalResult wrapWithBarriers(T op, PatternRewriter &rewriter,
 }
 
 template <typename T, bool UseMinCut>
-static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier, bool singleExecution, Operation *wrapOp,
+static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier,
                                          PatternRewriter &rewriter) {
   if (!barrier)
     return failure();
   T preLoop, postLoop;
   if (auto cast = dyn_cast<T>(pop)) {
-    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop,
-                                                     postLoop, singleExecution, wrapOp, rewriter)))
+    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop, postLoop, rewriter)))
       return failure();
     return success();
   } else {
@@ -1080,8 +1106,8 @@ static LogicalResult wrapAndDistribute(T op, bool singleExecution,
   // eliminating it in some cases when now two barriers appear before `op` and
   // only one of them is necessary
   auto pop = op->getParentOp();
-  (void)distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, singleExecution, op, rewriter);
-  (void)distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, singleExecution, op, rewriter);
+  (void)distributeAfterWrap<scf::ParallelOp, UseMinCut>(pop, before, rewriter);
+  (void)distributeAfterWrap<AffineParallelOp, UseMinCut>(pop, before, rewriter);
 
   return success();
 }
