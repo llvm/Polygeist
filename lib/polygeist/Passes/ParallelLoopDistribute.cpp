@@ -678,34 +678,40 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                       << "usedBelow: " << usedBelow.size() << ", "
                       << "crossingCache: " << crossingCache.size() << "\n");
 
-    BlockAndValueMapping mapping;
-    for (Value v : crossingCache)
-      mapping.map(v, v);
 
     // Recalculate values used below the barrier up to available ones
     rewriter.setInsertionPointAfter(barrier);
-    std::function<void(Value)> recalculateVal;
-    recalculateVal = [&recalculateVal, &barrier, &mapping, &rewriter](Value v) {
-      auto *op = v.getDefiningOp();
-      if (mapping.contains(v)) {
+    llvm::SetVector<Operation *> done;
+    BlockAndValueMapping mapping;
+    std::function<void(Operation *)> recalculateOp;
+    recalculateOp = [&done, &recalculateOp, &barrier, &mapping, &rewriter](Operation *op) {
+      Operation *pop = barrier->getParentOp();
+      if (!pop->isProperAncestor(op))
         return;
-      } else if (op && op->getBlock() == barrier->getBlock()) {
-        for (Value operand : op->getOperands())
-          recalculateVal(operand);
-        for (Region &region : op->getRegions())
-          for (auto &block : region)
-            for (auto &nestedOp : block)
-              for (auto result : nestedOp.getResults())
-                recalculateVal(result);
+
+      if (done.count(op))
+        return;
+      done.insert(op);
+
+      for (Value operand : op->getOperands())
+        if (auto operandOp = operand.getDefiningOp())
+          recalculateOp(operandOp);
+      for (Region &region : op->getRegions())
+        for (auto &block : region)
+          for (auto &nestedOp : block)
+            recalculateOp(&nestedOp);
+      if (op->getBlock() == barrier->getBlock()) {
         Operation *clonedOp = rewriter.clone(*op, mapping);
         for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
           mapping.map(std::get<0>(pair), std::get<1>(pair));
-      } else {
-        mapping.map(v, v);
+        return;
       }
     };
+
     for (auto v : usedBelow) {
-      recalculateVal(v);
+      Operation *vOp = v.getDefiningOp();
+      assert(vOp && "values used below barrier must be results of operations");
+      recalculateOp(vOp);
       // Remap the uses of the recalculated val below the barrier
       for (auto &u : llvm::make_early_inc_range(v.getUses())) {
         auto *user = u.getOwner();
