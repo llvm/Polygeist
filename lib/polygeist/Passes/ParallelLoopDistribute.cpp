@@ -157,7 +157,8 @@ static bool arePreceedingOpsFullyRecomputable(Operation *op,
   return true;
 }
 
-static bool isRecomputableAfterDistribute(Operation *op, polygeist::BarrierOp barrier) {
+static bool isRecomputableAfterDistribute(Operation *op,
+                                          polygeist::BarrierOp barrier) {
   // The below logic should not disagree with the logic in interchange and wrap,
   // otherwise we might cache unneeded results or wrap* will ask us to
   // distribute again if it thinks the ops we decide here are recomputable here
@@ -712,9 +713,9 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
 
     // Recalculate values used below the barrier up to available ones
     rewriter.setInsertionPointAfter(barrier);
-    llvm::SetVector<Operation *> done;
     std::function<void(Operation *)> recalculateOp;
-    recalculateOp = [&done, &recalculateOp, &barrier, &mapping, &rewriter](Operation *op) {
+    recalculateOp = [&recalculateOp, &barrier, &mapping,
+                     &rewriter](Operation *op) {
       Operation *pop = barrier->getParentOp();
       if (!pop->isProperAncestor(op))
         return;
@@ -722,7 +723,8 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
       // We always have to recalculate operands of yields, otherwise check if we
       // don't already have the results
       if (!isa<scf::YieldOp, AffineYieldOp>(op) &&
-          llvm::all_of(op->getResults(), [&mapping](Value v) { return mapping.contains(v); }))
+          llvm::all_of(op->getResults(),
+                       [&mapping](Value v) { return mapping.contains(v); }))
         return;
 
       for (Value operand : op->getOperands())
@@ -963,7 +965,8 @@ static LogicalResult distributeAroundFirstBarrier(T op, T &preLoop, T &postLoop,
     barrier = cast<BarrierOp>(&*it);
   }
 
-  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop, rewriter);
+  return distributeAroundBarrier<T, UseMinCut>(op, barrier, preLoop, postLoop,
+                                               rewriter);
 }
 template <typename T, bool UseMinCut>
 static LogicalResult distributeAroundFirstBarrier(T op,
@@ -1074,7 +1077,8 @@ static LogicalResult distributeAfterWrap(Operation *pop, BarrierOp barrier,
     return failure();
   T preLoop, postLoop;
   if (auto cast = dyn_cast<T>(pop)) {
-    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop, postLoop, rewriter)))
+    if (failed(distributeAroundBarrier<T, UseMinCut>(cast, barrier, preLoop,
+                                                     postLoop, rewriter)))
       return failure();
     return success();
   } else {
