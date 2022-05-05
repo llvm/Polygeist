@@ -2,6 +2,7 @@
 
 module {
   func private @use(%arg0: i32)
+  func private @usememref(%arg0: memref<i32>)
   func @trivial(%arg0: i32, %c : i1) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -14,7 +15,6 @@ module {
     }
     return
   }
-
   func @add_if_barrier(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -24,6 +24,28 @@ module {
       %a = memref.load %amem[] : memref<i32>
       %b = memref.load %bmem[] : memref<i32>
       %mul = arith.muli %a, %b : i32
+      call @use(%mul) : (i32) -> ()
+      "polygeist.barrier"(%arg4) : (index) -> ()
+      scf.if %arg {
+        call @use(%mul) : (i32) -> ()
+        "polygeist.barrier"(%arg4) : (index) -> ()
+        call @use(%mul) : (i32) -> ()
+        scf.yield
+      }
+      scf.yield
+    }
+    return
+  }
+  func @add_if_barrier_(%arg: i1, %amem: memref<i32>, %bmem : memref<i32>) attributes {llvm.linkage = #llvm.linkage<external>} {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c9 = arith.constant 9 : index
+    %alloc = memref.alloca() : memref<i32>
+    scf.parallel (%arg4) = (%c0) to (%c9) step (%c1) {
+      %a = memref.load %amem[] : memref<i32>
+      %b = memref.load %bmem[] : memref<i32>
+      %mul = arith.muli %a, %b : i32
+      call @usememref(%amem) : (memref<i32>) -> ()
       call @use(%mul) : (i32) -> ()
       "polygeist.barrier"(%arg4) : (index) -> ()
       scf.if %arg {
