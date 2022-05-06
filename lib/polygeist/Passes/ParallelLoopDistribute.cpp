@@ -1677,28 +1677,42 @@ void getIfCrossingCache(
 
     // Recalculate values used below the barrier up to available ones
     rewriter.setInsertionPointAfter(barrier);
-    std::function<void(Value)> recalculateVal;
-    recalculateVal = [&recalculateVal, &barrier, &mapping,
-                      &rewriter](Value v) {
-      auto op = v.getDefiningOp();
-      if (mapping.contains(v)) {
+    std::function<void(Operation *)> recalculateOp;
+    recalculateOp = [&recalculateOp, &barrier, &mapping,
+                     &rewriter](Operation *op) {
+      Operation *pop = barrier->getParentOp();
+      if (!pop->isProperAncestor(op))
         return;
-      } else if (op && op->getBlock() == barrier->getBlock()) {
-        for (Value operand : op->getOperands()) {
-          recalculateVal(operand);
-        }
-        Operation *clonedOp = rewriter.clone(*op, mapping);
-        for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
-          mapping.map(std::get<0>(pair), std::get<1>(pair));
-      } else {
-        mapping.map(v, v);
-      }
+
+      // We always have to recalculate operands of yields, otherwise check if we
+      // don't already have the results
+      if (!isa<scf::YieldOp, AffineYieldOp>(op) &&
+          llvm::all_of(op->getResults(),
+                       [&mapping](Value v) { return mapping.contains(v); }))
+        return;
+
+      for (Value operand : op->getOperands())
+        if (auto operandOp = operand.getDefiningOp())
+          recalculateOp(operandOp);
+      for (Region &region : op->getRegions())
+        for (auto &block : region)
+          for (auto &nestedOp : block)
+            recalculateOp(&nestedOp);
+
+      if (op->getBlock() == barrier->getBlock())
+        rewriter.clone(*op, mapping);
+      else
+        for (Value v : op->getResults())
+          mapping.map(v, v);
     };
+
     for (auto v : usedBelow) {
-      recalculateVal(v);
+      Operation *vOp = v.getDefiningOp();
+      assert(vOp && "values used below barrier must be results of operations");
+      recalculateOp(vOp);
       // Remap the uses of the recalculated val below the barrier
       for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-        auto user = u.getOwner();
+        auto *user = u.getOwner();
         while (user->getBlock() != barrier->getBlock())
           user = user->getBlock()->getParentOp();
         if (barrier->isBeforeInBlock(user)) {
@@ -2354,6 +2368,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         if (method.contains("mincut")) {
           patterns.insert<
               Reg2MemFor<scf::ForOp, true>, Reg2MemFor<AffineForOp, true>,
+              DistributeIfAroundBarrier<scf::IfOp>,
               Reg2MemIf<scf::IfOp, true>, Reg2MemIf<AffineIfOp, true>,
               WrapForWithBarrier<true>, WrapAffineForWithBarrier<true>,
               WrapIfWithBarrier<scf::IfOp, true>,
@@ -2362,6 +2377,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         } else {
           patterns.insert<
               Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
+              DistributeIfAroundBarrier<scf::IfOp>,
               Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>,
               WrapForWithBarrier<false>, WrapAffineForWithBarrier<false>,
               WrapIfWithBarrier<scf::IfOp, false>,
