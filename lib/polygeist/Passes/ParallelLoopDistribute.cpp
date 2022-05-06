@@ -1774,7 +1774,7 @@ void distributeBlockAroundBarrier(
 }
 
 /// Splits if at barrier
-template <typename T>
+template <typename T, bool UseMinCut>
 struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
   DistributeIfAroundBarrier(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
 
@@ -1803,12 +1803,12 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
     llvm::SetVector<Operation *> preserveAllocasThen;
     llvm::SetVector<Value> crossingCacheThen;
     if (thenBarrier)
-      getIfCrossingCache<true>(rewriter, getThenBlock(op), preserveAllocasThen, crossingCacheThen, thenBarrier);
+      getIfCrossingCache<UseMinCut>(rewriter, getThenBlock(op), preserveAllocasThen, crossingCacheThen, thenBarrier);
 
     llvm::SetVector<Operation *> preserveAllocasElse;
     llvm::SetVector<Value> crossingCacheElse;
     if (elseBarrier)
-      getIfCrossingCache<true>(rewriter, getElseBlock(op), preserveAllocasElse, crossingCacheElse, elseBarrier);
+      getIfCrossingCache<UseMinCut>(rewriter, getElseBlock(op), preserveAllocasElse, crossingCacheElse, elseBarrier);
 
 
     rewriter.setInsertionPointToStart(&((Operation *) op)->getParentOfType<FunctionOpInterface>()->getRegion(0).front());
@@ -2368,7 +2368,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         if (method.contains("mincut")) {
           patterns.insert<
               Reg2MemFor<scf::ForOp, true>, Reg2MemFor<AffineForOp, true>,
-              DistributeIfAroundBarrier<scf::IfOp>,
+              DistributeIfAroundBarrier<scf::IfOp, true>,
+              //DistributeIfAroundBarrier<AffineIfOp, true>,
               Reg2MemIf<scf::IfOp, true>, Reg2MemIf<AffineIfOp, true>,
               WrapForWithBarrier<true>, WrapAffineForWithBarrier<true>,
               WrapIfWithBarrier<scf::IfOp, true>,
@@ -2377,7 +2378,8 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         } else {
           patterns.insert<
               Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
-              DistributeIfAroundBarrier<scf::IfOp>,
+              DistributeIfAroundBarrier<scf::IfOp, false>,
+              //DistributeIfAroundBarrier<AffineIfOp, false>,
               Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>,
               WrapForWithBarrier<false>, WrapAffineForWithBarrier<false>,
               WrapIfWithBarrier<scf::IfOp, false>,
