@@ -5422,7 +5422,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                             translateDataLayout(DL, module->getContext()));
     }
 
-    for (const auto &FIF : llvm::reverse(Clang->getFrontendOpts().Inputs)) {
+    for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
       // Reset the ID tables if we are reusing the SourceManager and parsing
       // regular files.
       if (Clang->hasSourceManager() && !Act.isModelParsingAction())
