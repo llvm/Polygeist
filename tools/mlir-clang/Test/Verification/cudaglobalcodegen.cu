@@ -1,4 +1,20 @@
-// RUN: mlir-clang %s %resourcedir --function=* -S | FileCheck %s
+// RUN: mlir-clang %s --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
+
+#include <cstddef>
+
+struct dim3
+{
+	unsigned int x, y, z;
+	dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
+
+};
+
+
+#define __global__ __attribute__((global))
+
+extern "C" unsigned __cudaPushCallConfiguration(dim3 gridDim, dim3 blockDim,
+                                                size_t sharedMem = 0,
+                                                void *stream = 0);
 
 __global__ void bar(int * a)
 {
@@ -10,7 +26,7 @@ __global__ void bar(int * a)
 }
 
 void baz(int * a){
-    bar<<<1, 1>>>(a);
+    bar<<<dim3(1,1,1), dim3(1,1,1)>>>(a);
 }
 // CHECK:  func private @_Z18__device_stub__barPi(%arg0: memref<?xi32>)
 // CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32

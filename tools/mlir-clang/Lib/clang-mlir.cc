@@ -5291,6 +5291,12 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   if (Verbose) {
     Argv.push_back("-v");
   }
+  if (NoCUDAInc) {
+    Argv.push_back("-nocudainc");
+  }
+  if (NoCUDALib) {
+    Argv.push_back("-nocudalib");
+  }
   if (CUDAGPUArch != "") {
     auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
     char *chars = (char *)malloc(a.length() + 1);
