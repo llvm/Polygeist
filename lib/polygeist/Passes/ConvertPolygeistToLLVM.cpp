@@ -47,7 +47,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     auto loc = subViewOp.getLoc();
 
     if (!subViewOp.source().getType().isa<MemRefType>()) {
-      llvm::errs() << " func: " << subViewOp->getParentOfType<FuncOp>() << "\n";
+      llvm::errs() << " func: " << subViewOp->getParentOfType<func::FuncOp>() << "\n";
       llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.source()
                    << "\n";
     }

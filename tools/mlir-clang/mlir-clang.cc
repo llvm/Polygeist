@@ -450,7 +450,7 @@ int main(int argc, char **argv) {
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
-  mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+  mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
   if (true) {
@@ -501,7 +501,7 @@ int main(int argc, char **argv) {
 #define pm pm2
     {
       mlir::PassManager pm(&context);
-      mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+      mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
 
       if (DetectReduction)
         optPM.addPass(polygeist::detectReductionPass());
@@ -517,7 +517,7 @@ int main(int argc, char **argv) {
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         pm.addPass(mlir::createInlinerPass());
-        mlir::OpPassManager &optPM2 = pm.nest<mlir::FuncOp>();
+        mlir::OpPassManager &optPM2 = pm.nest<mlir::func::FuncOp>();
         optPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM2.addPass(mlir::createCSEPass());
@@ -548,19 +548,19 @@ int main(int argc, char **argv) {
 
     if (CudaLower) {
       mlir::PassManager pm(&context);
-      mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+      mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createParallelLowerPass());
       pm.addPass(mlir::createSymbolDCEPass());
-      mlir::OpPassManager &noptPM = pm.nest<mlir::FuncOp>();
+      mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
       noptPM.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       noptPM.addPass(polygeist::createMem2RegPass());
       noptPM.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(mlir::createInlinerPass());
-      mlir::OpPassManager &noptPM2 = pm.nest<mlir::FuncOp>();
+      mlir::OpPassManager &noptPM2 = pm.nest<mlir::func::FuncOp>();
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       noptPM2.addPass(polygeist::createMem2RegPass());
@@ -616,7 +616,7 @@ int main(int argc, char **argv) {
     }
 
     mlir::PassManager pm(&context);
-    mlir::OpPassManager &optPM = pm.nest<mlir::FuncOp>();
+    mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
     if (CudaLower) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       optPM.addPass(mlir::createCSEPass());
@@ -646,7 +646,7 @@ int main(int argc, char **argv) {
       }
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
-        // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
+        // pm.nest<mlir::func::FuncOp>().addPass(mlir::createCanonicalizerPass());
       } else if (ToCPU.size() != 0) {
         optPM.addPass(polygeist::createCPUifyPass(ToCPU));
       }
@@ -698,7 +698,7 @@ int main(int argc, char **argv) {
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
 
-      // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
+      // pm.nest<mlir::func::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 4;
@@ -712,7 +712,7 @@ int main(int argc, char **argv) {
         pm2.addPass(polygeist::createOpenMPOptPass());
         pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       }
-      pm.nest<mlir::FuncOp>().addPass(polygeist::createMem2RegPass());
+      pm.nest<mlir::func::FuncOp>().addPass(polygeist::createMem2RegPass());
       pm2.addPass(mlir::createCSEPass());
       pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm2.run(module.get()))) {

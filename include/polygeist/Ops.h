@@ -14,6 +14,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.h.inc"

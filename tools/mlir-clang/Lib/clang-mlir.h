@@ -54,7 +54,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &done;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
-  std::map<std::string, mlir::FuncOp> &functions;
+  std::map<std::string, mlir::func::FuncOp> &functions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
@@ -77,7 +77,7 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::set<std::string> &emitIfFound, std::set<std::string> &done,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
-      std::map<std::string, mlir::FuncOp> &functions,
+      std::map<std::string, mlir::func::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP, ASTContext &astContext,
@@ -100,7 +100,7 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   ~MLIRASTConsumer() {}
 
-  mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
+  mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
@@ -142,7 +142,7 @@ class MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
 private:
   friend class IfScope;
   MLIRASTConsumer &Glob;
-  mlir::FuncOp function;
+  mlir::func::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OpBuilder builder;
   mlir::Location loc;
@@ -180,7 +180,7 @@ private:
 
   const clang::FunctionDecl *EmitCallee(const Expr *E);
 
-  mlir::FuncOp EmitDirectCallee(const FunctionDecl *FD);
+  mlir::func::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
   std::map<int, mlir::Value> constants;
 
@@ -219,7 +219,7 @@ public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
 
-  void init(mlir::FuncOp function, const FunctionDecl *fd);
+  void init(mlir::func::FuncOp function, const FunctionDecl *fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
@@ -283,7 +283,7 @@ public:
   ValueCategory VisitCallExpr(clang::CallExpr *expr);
 
   ValueCategory
-  CallHelper(mlir::FuncOp tocall, QualType objType,
+  CallHelper(mlir::func::FuncOp tocall, QualType objType,
              ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
              QualType retType, bool retReference, clang::Expr *expr);
 

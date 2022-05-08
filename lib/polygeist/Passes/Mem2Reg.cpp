@@ -1089,7 +1089,7 @@ bool Mem2Reg::forwardStoreToLoad(
   SmallPtrSet<Operation *, 4> AliasingStoreOperations;
 
   LLVM_DEBUG(llvm::dbgs() << "Begin forwarding store of " << AI << " to load\n"
-                          << *AI.getDefiningOp()->getParentOfType<FuncOp>()
+                          << *AI.getDefiningOp()->getParentOfType<func::FuncOp>()
                           << "\n");
   bool captured = AI.getDefiningOp<memref::GetGlobalOp>();
   while (list.size()) {
@@ -1741,7 +1741,7 @@ bool Mem2Reg::forwardStoreToLoad(
       mlir::Value pval =
           valueAtEndOfBlock.find(pred)->second->materialize(true);
       if (!pval || pval.getType() != elType) {
-        AI.getDefiningOp()->getParentOfType<FuncOp>().dump();
+        AI.getDefiningOp()->getParentOfType<func::FuncOp>().dump();
         pred->dump();
         llvm::errs() << "pval: " << *valueAtEndOfBlock.find(pred)->second
                      << " AI: " << AI << "\n";

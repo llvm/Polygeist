@@ -57,7 +57,7 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
 /// expected type for an arg is memref<10xi8> while the provided is
 /// memref<20xf32>, we will simply ignore the case in this function and wait for
 /// the rest of the pipeline to detect it.
-static void castCallerArgs(mlir::FuncOp callee,
+static void castCallerArgs(mlir::func::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
   mlir::FunctionType funcTy = callee.getFunctionType();
@@ -78,7 +78,7 @@ static void castCallerArgs(mlir::FuncOp callee,
 }
 
 ValueCategory MLIRScanner::CallHelper(
-    mlir::FuncOp tocall, QualType objType,
+    mlir::func::FuncOp tocall, QualType objType,
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
     QualType retType, bool retReference, clang::Expr *expr) {
   SmallVector<mlir::Value, 4> args;
@@ -613,8 +613,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           std::vector<mlir::Type> rettypes{RT};
           mlir::OpBuilder mbuilder(Glob.module->getContext());
           auto funcType = mbuilder.getFunctionType(types, rettypes);
-          Glob.functions[name] = mlir::FuncOp(
-              mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+          Glob.functions[name] = mlir::func::FuncOp(
+              mlir::func::FuncOp::create(builder.getUnknownLoc(), name, funcType));
           SymbolTable::setSymbolVisibility(Glob.functions[name],
                                            SymbolTable::Visibility::Private);
           Glob.module->push_back(Glob.functions[name]);
@@ -640,8 +640,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           std::vector<mlir::Type> rettypes{RT};
           mlir::OpBuilder mbuilder(Glob.module->getContext());
           auto funcType = mbuilder.getFunctionType(types, rettypes);
-          Glob.functions[name] = mlir::FuncOp(
-              mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+          Glob.functions[name] = mlir::func::FuncOp(
+              mlir::func::FuncOp::create(builder.getUnknownLoc(), name, funcType));
           SymbolTable::setSymbolVisibility(Glob.functions[name],
                                            SymbolTable::Visibility::Private);
           Glob.module->push_back(Glob.functions[name]);
@@ -809,8 +809,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
         mlir::OpBuilder mbuilder(Glob.module->getContext());
         auto funcType = mbuilder.getFunctionType(types, rettypes);
-        mlir::FuncOp function = mlir::FuncOp(
-            mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+        mlir::func::FuncOp function = mlir::func::FuncOp(
+            mlir::func::FuncOp::create(builder.getUnknownLoc(), name, funcType));
         SymbolTable::setSymbolVisibility(function,
                                          SymbolTable::Visibility::Private);
 
