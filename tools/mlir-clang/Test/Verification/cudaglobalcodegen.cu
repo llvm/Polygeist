@@ -1,27 +1,13 @@
 // RUN: mlir-clang %s --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
 
-#include <cstddef>
-
-struct dim3
-{
-	unsigned int x, y, z;
-	dim3(unsigned int vx = 1, unsigned int vy = 1, unsigned int vz = 1) : x(vx), y(vy), z(vz) {}
-
-};
-
-
-#define __global__ __attribute__((global))
-
-extern "C" unsigned __cudaPushCallConfiguration(dim3 gridDim, dim3 blockDim,
-                                                size_t sharedMem = 0,
-                                                void *stream = 0);
+#include "Inputs/cuda.h"
 
 __global__ void bar(int * a)
 {
 #ifdef __CUDA_ARCH__
-    *a = 1;
+	*a = 1;
 #else
-    *a = 2;
+	*a = 2;
 #endif
 }
 
