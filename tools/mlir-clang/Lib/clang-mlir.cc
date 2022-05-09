@@ -4374,8 +4374,9 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
   return globalPtr;
 }
 
-mlir::func::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
-                                                            bool getDeviceStub) {
+mlir::func::FuncOp
+MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
+                                         bool getDeviceStub) {
   assert(FD->getTemplatedKind() !=
          FunctionDecl::TemplatedKind::TK_FunctionTemplate);
   assert(
