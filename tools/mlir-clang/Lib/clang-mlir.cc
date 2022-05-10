@@ -164,6 +164,15 @@ void MLIRScanner::init(mlir::FuncOp function, const FunctionDecl *fd) {
     i++;
   }
 
+  if (fd->hasAttr<CUDAGlobalAttr>() && Glob.CGM.getLangOpts().CUDA &&
+      !Glob.CGM.getLangOpts().CUDAIsDevice) {
+    auto deviceStub =
+        Glob.GetOrCreateMLIRFunction(fd, /* getDeviceStub */ true);
+    builder.create<func::CallOp>(loc, deviceStub, function.getArguments());
+    builder.create<ReturnOp>(loc);
+    return;
+  }
+
   if (auto CC = dyn_cast<CXXConstructorDecl>(fd)) {
     const CXXRecordDecl *ClassDecl = CC->getParent();
     for (auto expr : CC->inits()) {
@@ -4365,14 +4374,18 @@ mlir::Value MLIRASTConsumer::GetOrCreateGlobalLLVMString(
   return globalPtr;
 }
 
-mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
+mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
+                                                      bool getDeviceStub) {
   assert(FD->getTemplatedKind() !=
          FunctionDecl::TemplatedKind::TK_FunctionTemplate);
   assert(
       FD->getTemplatedKind() !=
       FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
   std::string name;
-  if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+  if (getDeviceStub)
+    name =
+        CGM.getMangledName(GlobalDecl(FD, KernelReferenceKind::Kernel)).str();
+  else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
   else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
     name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
@@ -5277,6 +5290,12 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   if (Verbose) {
     Argv.push_back("-v");
+  }
+  if (NoCUDAInc) {
+    Argv.push_back("-nocudainc");
+  }
+  if (NoCUDALib) {
+    Argv.push_back("-nocudalib");
   }
   if (CUDAGPUArch != "") {
     auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
