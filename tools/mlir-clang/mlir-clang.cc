@@ -28,6 +28,7 @@
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/Passes.h"
@@ -299,6 +300,11 @@ int emitBinary(char *Argv0, const char *filename,
   for (const auto *arg : LinkArgs)
     Argv.push_back(arg);
 
+  llvm::errs() << "\n";
+  for (auto arg : Argv)
+      llvm::errs() << " " << arg;
+  llvm::errs() << "\n";
+
   const unique_ptr<Compilation> compilation(
       driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
 
@@ -418,6 +424,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<func::FuncDialect>();
   context.getOrLoadDialect<DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
+  context.getOrLoadDialect<mlir::async::AsyncDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();

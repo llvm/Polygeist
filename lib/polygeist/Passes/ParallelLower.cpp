@@ -14,6 +14,7 @@
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
@@ -273,6 +274,18 @@ void ParallelLower::runOnOperation() {
     auto zindex = builder.create<ConstantIndexOp>(loc, 0);
 
     auto oneindex = builder.create<ConstantIndexOp>(loc, 1);
+
+    async::ExecuteOp asyncOp = nullptr;
+    if (!llvm::empty(launchOp.asyncDependencies())) {
+        SmallVector<Value> dependencies;
+        for (auto v : launchOp.asyncDependencies()) {
+            auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
+            dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(tok.getLoc(), builder.getType<async::TokenType>(), tok.source()) );
+        }
+        asyncOp = builder.create<mlir::async::ExecuteOp>(loc, /*results*/TypeRange(), /*dependencies*/dependencies, /*operands*/ValueRange());
+        Block *blockB = &asyncOp.body().front();
+        builder.setInsertionPointToStart(blockB);
+    }
 
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
