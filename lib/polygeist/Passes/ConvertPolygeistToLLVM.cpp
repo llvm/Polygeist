@@ -12,6 +12,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -321,6 +322,129 @@ struct URLLVMOpLowering
   }
 };
 
+// TODO lock this wrt module
+static LLVM::LLVMFuncOp addMocCUDAFunction(ModuleOp module, Type streamTy) {
+  const char fname[] = "fake_cuda_dispatch";
+  if (module.lookupSymbol(fname))
+    return;
+
+  MLIRContext *ctx = module.getContext();
+  auto loc = module.getLoc();
+  auto moduleBuilder = ImplicitLocOpBuilder::atBlockEnd(loc, module.getBody());
+
+  auto voidTy = LLVM::LLVMVoidType::get(ctx);
+  auto i8Ptr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+
+  auto resumeOp = moduleBuilder.create<LLVM::LLVMFuncOp>(
+      fname, LLVM::LLVMFunctionType::get(voidTy, {i8Ptr,
+        LLVM::LLVMPointerType::get(LLVM::LLVMFunctionType::get(voidTy, {i8Ptr})),
+        streamTy}));
+  resumeOp.setPrivate();
+
+  return resumeOp;
+}
+
+struct AsyncOpLowering
+    : public ConvertOpToLLVMPattern<async::ExecuteOp> {
+  using ConvertOpToLLVMPattern<
+      UnrealizedConversionCastOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(async::ExecuteOp execute, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // Only perform lowering after inner parallel lowered
+    if (execute->walk([](omp::ParallelOp) {
+        return WalkResult::interrupt();
+    }).wasInterrupted()) return failure();
+
+    llvm::errs() << " op: " << execute << "\n";
+
+
+  ModuleOp module = execute->getParentOfType<ModuleOp>();
+
+  MLIRContext *ctx = module.getContext();
+  Location loc = execute.getLoc();
+
+  // Make sure that all constants will be inside the outlined async function to
+  // reduce the number of function arguments.
+  cloneConstantsIntoTheRegion(execute.body());
+
+  // Collect all outlined function inputs.
+  SetVector<mlir::Value> functionInputs(execute.dependencies().begin(),
+                                        execute.dependencies().end());
+  functionInputs.insert(execute.operands().begin(), execute.operands().end());
+  getUsedValuesDefinedAbove(execute.body(), functionInputs);
+
+  // Collect types for the outlined function inputs and outputs.
+  TypeConverter *converter = getTypeConverter();
+  auto typesRange = llvm::map_range(
+      functionInputs, [](Value value) { return converter->convertType(value.getType()); });
+  SmallVector<Type, 4> inputTypes(typesRange.begin(), typesRange.end());
+  auto outputTypes = execute.getResultTypes();
+
+  auto voidTy = LLVM::LLVMVoidType::get(ctx);
+  auto funcType = LLVM::LLVMFunctionType::get(voidTy, inputTypes);
+
+  // TODO: Derive outlined function name from the parent FuncOp (support
+  // multiple nested async.execute operations).
+  auto func = LLVM::LLVMFuncOp::create(execute.getLoc(), "kernelbody."+std::to_string((void*)execute), funcType);
+
+  auto builder = ImplicitLocOpBuilder::atBlockBegin(loc, func.addEntryBlock());
+
+  // Prepare for coroutine conversion by creating the body of the function.
+  {
+    // Map from function inputs defined above the execute op to the function
+    // arguments.
+    BlockAndValueMapping valueMapping;
+    for (auto tup : llvm::zip(functionInputs, func.getArguments())) {
+      Value val = std::get<1>(tup);
+      if (val.getType() != std::get<0>(tup).getType()) {
+        val = rewriter.create<UnrealizedConversionCastOp>(execute.getLoc(), std::get<0>(tup).getType(), val);
+      }
+      valueMapping.map(std::get<0>(tup), val);
+    }
+
+    // Clone all operations from the execute operation body into the outlined
+    // function body.
+    for (Operation &op : execute.body().getOps().getWithoutTerminator())
+      rewriter.clone(*op, valueMapping);
+
+    rewriter.create<LLVM::ReturnOp>(execute.getLoc(), ret);
+  }
+
+  // Replace the original `async.execute` with a call to outlined function.
+  {
+    SmallVector<Value> vals;
+    for (auto tup : llvm::zip(functionInputs, inputTypes)) {
+      Value val = std::get<1>(0);
+      if (val.getType() != std::get<1>(tup)) {
+        val = rewriter.create<UnrealizedConversionCastOp>(execute.getLoc(), std::get<1>(tup), val);
+      }
+      // TODO assert that this is a pointer OR make an allocation from
+      assert(dep.getType().isa<LLVM::LLVMPointerType>());
+      vals.push_back(dep);
+    }
+    assert(vals.size() == 1);
+    vals.push_back(rewriter.create<LLVM::AddressOfOp>(
+        op->getLoc(), func));
+    for (auto dep : execute.getDependencies()) {
+      auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
+      vals.push_back(ctx.source());
+    }
+    assert(vals.size() == 3);
+
+    auto f = addMocCUDAFunction(op->getParentOfType<ModuleOp>(), vals.back().getType());
+
+    ImplicitLocOpBuilder callBuilder(loc, execute);
+    auto callOutlinedFunc = callBuilder.create<func::CallOp>(
+        f, TypeRange(), vals);
+    rewriter.eraseOp(execute);
+  }
+
+    return success();
+  }
+};
+
 struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
   explicit GlobalOpTypeConversion(LLVMTypeConverter &converter)
       : OpConversionPattern<LLVM::GlobalOp>(converter,
@@ -395,7 +519,7 @@ struct ConvertPolygeistToLLVMPass
     patterns
         .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
             converter);
-    patterns.add<URLLVMOpLowering>(converter);
+    patterns.add<URLLVMOpLowering, AsyncOpLowering>(converter);
 
     // Legality callback for operations that checks whether their operand and
     // results types are converted.
