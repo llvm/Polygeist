@@ -8,7 +8,7 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def Mem2Reg : Pass<"mem2reg", "FuncOp"> {
+def Mem2Reg : Pass<"mem2reg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
@@ -25,7 +25,7 @@ def AffineReduction : Pass<"detect-reduction"> {
   let constructor = "mlir::polygeist::detectReductionPass()";
 }
 
-def SCFCPUify : Pass<"cpuify", "FuncOp"> {
+def SCFCPUify : Pass<"cpuify"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createCPUifyPass()";
   let dependentDialects =
@@ -35,7 +35,14 @@ def SCFCPUify : Pass<"cpuify", "FuncOp"> {
   ];
 }
 
-def SCFBarrierRemovalContinuation : Pass<"barrier-removal-continuation", "FuncOp"> {
+def InnerSerialization : Pass<"inner-serialize"> {
+  let summary = "remove scf.barrier";
+  let constructor = "mlir::polygeist::createInnerSerializationPass()";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+}
+
+def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];
@@ -50,6 +57,11 @@ def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   let summary = "Run some additional canonicalization for scf::for";
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
+}
+
+def ParallelLICM : Pass<"parallel-licm"> {
+  let summary = "Perform LICM on known parallel (and serial) loops";
+  let constructor = "mlir::polygeist::createParallelLICMPass()";
 }
 
 def OpenMPOptPass : Pass<"openmp-opt"> {

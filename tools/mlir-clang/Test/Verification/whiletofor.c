@@ -22,34 +22,34 @@ void whiletofor() {
 
 // TODO redundant for elim
 // CHECK: func @whiletofor()
-// CHECK-DAG:      %c1 = arith.constant 1 : index
-// CHECK-DAG:      %c0 = arith.constant 0 : index
-// CHECK-DAG:      %c100 = arith.constant 100 : index
-// CHECK-DAG:      %c7_i32 = arith.constant 7 : i32
-// CHECK-DAG:      %c0_i32 = arith.constant 0 : i32
-// CHECK-DAG:      %c20_i32 = arith.constant 20 : i32
-// CHECK-DAG:      %c2_i32 = arith.constant 2 : i32
-// CHECK-DAG:      %c3_i32 = arith.constant 3 : i32
-// CHECK-DAG:      %c1_i32 = arith.constant 1 : i32
-// CHECK-DAG:      %0 = memref.alloca() : memref<100x100xi32>
-// CHECK-NEXT:      %1 = scf.for %arg0 = %c0 to %c100 step %c1 iter_args(%arg1 = %c7_i32) -> (i32) {
-// CHECK-NEXT:        %3 = scf.for %arg2 = %c0 to %c100 step %c1 iter_args(%arg3 = %arg1) -> (i32) {
-// CHECK-NEXT:          %4 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:          %5 = arith.addi %arg1, %4 : i32
-// CHECK-NEXT:          %[[i4:.+]] = arith.remsi %5, %c20_i32 : i32
-// CHECK-NEXT:          %[[i5:.+]] = arith.cmpi eq, %[[i4]], %c0_i32 : i32
-// CHECK-NEXT:          scf.if %[[i5]] {
-// CHECK-NEXT:            memref.store %c2_i32, %0[%arg0, %arg2] : memref<100x100xi32>
-// CHECK-NEXT:          } else {
-// CHECK-NEXT:            memref.store %c3_i32, %0[%arg0, %arg2] : memref<100x100xi32>
-// CHECK-NEXT:          }
-// CHECK-NEXT:          %[[i6:.+]] = arith.addi %5, %c1_i32 : i32
-// CHECK-NEXT:          scf.yield %[[i6]] : i32
-// CHECK-NEXT:        }
-// CHECK-NEXT:        scf.yield %3 : i32
-// CHECK-NEXT:      }
-// CHECK-NEXT:      %2 = memref.cast %0 : memref<100x100xi32> to memref<?x100xi32>
-// CHECK-NEXT:      call @use(%2) : (memref<?x100xi32>) -> ()
+// CHECK-NEXT:     %c7_i32 = arith.constant 7 : i32
+// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK-NEXT:     %c20_i32 = arith.constant 20 : i32
+// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
+// CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %c100 = arith.constant 100 : index
+// CHECK-NEXT:     %0 = memref.alloca() : memref<100x100xi32>
+// CHECK-NEXT:     %1 = scf.for %arg0 = %c0 to %c100 step %c1 iter_args(%arg1 = %c7_i32) -> (i32) {
+// CHECK-NEXT:       %3 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:       %4 = arith.addi %3, %c100 : index
+// CHECK-NEXT:       %5 = arith.index_cast %4 : index to i32
+// CHECK-NEXT:       scf.for %arg2 = %c0 to %c100 step %c1 {
+// CHECK-NEXT:         %6 = arith.addi %3, %arg2 : index
+// CHECK-NEXT:         %7 = arith.index_cast %6 : index to i32
+// CHECK-NEXT:         %8 = arith.remsi %7, %c20_i32 : i32
+// CHECK-NEXT:         %9 = arith.cmpi eq, %8, %c0_i32 : i32
+// CHECK-NEXT:         scf.if %9 {
+// CHECK-NEXT:           memref.store %c2_i32, %0[%arg0, %arg2] : memref<100x100xi32>
+// CHECK-NEXT:         } else {
+// CHECK-NEXT:           memref.store %c3_i32, %0[%arg0, %arg2] : memref<100x100xi32>
+// CHECK-NEXT:         }
+// CHECK-NEXT:       }
+// CHECK-NEXT:       scf.yield %5 : i32
+// CHECK-NEXT:     }
+// CHECK-NEXT:      %[[k2:.+]] = memref.cast %0 : memref<100x100xi32> to memref<?x100xi32>
+// CHECK-NEXT:      call @use(%[[k2]]) : (memref<?x100xi32>) -> ()
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
 

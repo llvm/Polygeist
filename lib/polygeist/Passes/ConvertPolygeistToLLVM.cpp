@@ -14,13 +14,13 @@
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
-#include "mlir/Conversion/StandardToLLVM/ConvertStandardToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -47,7 +47,8 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     auto loc = subViewOp.getLoc();
 
     if (!subViewOp.source().getType().isa<MemRefType>()) {
-      llvm::errs() << " func: " << subViewOp->getParentOfType<FuncOp>() << "\n";
+      llvm::errs() << " func: " << subViewOp->getParentOfType<func::FuncOp>()
+                   << "\n";
       llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.source()
                    << "\n";
     }
@@ -293,7 +294,7 @@ struct LLVMOpLowering : public ConversionPattern {
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
       state.addRegion();
 
-    Operation *rewritten = rewriter.createOperation(state);
+    Operation *rewritten = rewriter.create(state);
     rewriter.replaceOp(op, rewritten->getResults());
 
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
@@ -386,7 +387,7 @@ struct ConvertPolygeistToLLVMPass
     populateSCFToControlFlowConversionPatterns(patterns);
     cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
     populateMemRefToLLVMConversionPatterns(converter, patterns);
-    populateStdToLLVMConversionPatterns(converter, patterns);
+    populateFuncToLLVMConversionPatterns(converter, patterns);
     populateMathToLLVMConversionPatterns(converter, patterns);
     populateOpenMPToLLVMConversionPatterns(converter, patterns);
     arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
@@ -415,7 +416,7 @@ struct ConvertPolygeistToLLVMPass
     target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
         [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
     target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
-                        scf::ExecuteRegionOp>();
+                        scf::ExecuteRegionOp, func::FuncOp>();
     target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
                       omp::BarrierOp, omp::TaskwaitOp>();
     target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(areAllTypesConverted);
@@ -470,6 +471,6 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(true, true, 64u, true,
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, false, 64u, false,
                                                       dl);
 }

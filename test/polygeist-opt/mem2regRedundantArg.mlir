@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --mem2reg --split-input-file %s | FileCheck %s
 
 module {
-  func @kernel_correlation(%arg0: memref<?xf64>) {
+  func.func @kernel_correlation(%arg0: memref<?xf64>) {
     %cst = arith.constant 0.000000e+00 : f64
     %true = arith.constant true
     %c0 = arith.constant 0 : index
@@ -24,7 +24,7 @@ module {
   }
 }
 
-// CHECK:   func @kernel_correlation(%arg0: memref<?xf64>) {
+// CHECK:   func.func @kernel_correlation(%arg0: memref<?xf64>) {
 // CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
 // CHECK-NEXT:     %true = arith.constant true
 // CHECK-NEXT:     %c0 = arith.constant 0 : index

@@ -28,6 +28,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
 #include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
 
@@ -146,12 +147,15 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 
 // TODO
 mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
           symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc"))))
     return fn;
-  auto ctx = module->getContext();
+  auto *ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
@@ -162,12 +166,15 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
                                           lnk);
 }
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
   if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
           symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
     return fn;
-  auto ctx = module->getContext();
+  auto *ctx = module->getContext();
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMVoidType::get(ctx),
       ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())),
@@ -191,7 +198,62 @@ void ParallelLower::runOnOperation() {
       bidx.erase();
   });
 
-  SmallPtrSet<Operation *, 2> toErase;
+  std::function<void(CallOp)> callInliner = [&](CallOp caller) {
+    // Build the inliner interface.
+    AlwaysInlinerInterface interface(&getContext());
+
+    auto callable = caller.getCallableForCallee();
+    CallableOpInterface callableOp;
+    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+      if (!symRef.isa<FlatSymbolRefAttr>())
+        return;
+      auto *symbolOp =
+          symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
+      callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
+    } else {
+      return;
+    }
+    Region *targetRegion = callableOp.getCallableRegion();
+    if (!targetRegion)
+      return;
+    if (targetRegion->empty())
+      return;
+    SmallVector<CallOp> ops;
+    callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
+    for (auto op : ops)
+      callInliner(op);
+    OpBuilder b(caller);
+    auto allocScope = b.create<memref::AllocaScopeOp>(caller.getLoc(),
+                                                      caller.getResultTypes());
+    allocScope.getRegion().push_back(new Block());
+    b.setInsertionPointToStart(&allocScope.getRegion().front());
+    auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(),
+                                               caller.getResultTypes());
+    Block *blk = new Block();
+    exOp.getRegion().push_back(blk);
+    caller->moveBefore(blk, blk->begin());
+    caller.replaceAllUsesWith(allocScope.getResults());
+    b.setInsertionPointToEnd(blk);
+    b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
+    if (inlineCall(interface, caller, callableOp, targetRegion,
+                   /*shouldCloneInlinedRegion=*/true)
+            .succeeded()) {
+      caller.erase();
+    }
+    b.setInsertionPointToEnd(&allocScope.getRegion().front());
+    b.create<memref::AllocaScopeReturnOp>(allocScope.getLoc(),
+                                          exOp.getResults());
+  };
+  {
+    SmallVector<CallOp> dimsToInline;
+    getOperation()->walk([&](CallOp bidx) {
+      if (bidx.getCallee() == "_ZN4dim3C1EOS_" ||
+          bidx.getCallee() == "_ZN4dim3C1Ejjj")
+        dimsToInline.push_back(bidx);
+    });
+    for (auto op : dimsToInline)
+      callInliner(op);
+  }
 
   // Only supports single block functions at the moment.
   SmallVector<gpu::LaunchOp> toHandle;
@@ -199,53 +261,12 @@ void ParallelLower::runOnOperation() {
       [&](gpu::LaunchOp launchOp) { toHandle.push_back(launchOp); });
 
   for (gpu::LaunchOp launchOp : toHandle) {
-    std::function<void(CallOp)> callInliner = [&](CallOp caller) {
-      // Build the inliner interface.
-      AlwaysInlinerInterface interface(&getContext());
-
-      auto callable = caller.getCallableForCallee();
-      CallableOpInterface callableOp;
-      if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
-        if (!symRef.isa<FlatSymbolRefAttr>())
-          return;
-        auto *symbolOp =
-            symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
-        callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
-      } else {
-        return;
-      }
-      Region *targetRegion = callableOp.getCallableRegion();
-      if (!targetRegion)
-        return;
-      if (targetRegion->empty())
-        return;
-      SmallVector<CallOp> ops;
-      callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
-      for (auto op : ops)
-        callInliner(op);
-      OpBuilder b(caller);
-      auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(),
-                                                 caller.getResultTypes());
-      Block *blk = new Block();
-      exOp.getRegion().push_back(blk);
-      caller->moveBefore(blk, blk->begin());
-      caller.replaceAllUsesWith(exOp.getResults());
-      b.setInsertionPointToEnd(blk);
-      b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
-      if (inlineCall(interface, caller, callableOp, targetRegion,
-                     /*shouldCloneInlinedRegion=*/true)
-              .succeeded()) {
-        caller.erase();
-        toErase.insert(callableOp);
-      }
-    };
     SmallVector<CallOp> ops;
     launchOp.walk([&](CallOp caller) { ops.push_back(caller); });
     for (auto op : ops)
       callInliner(op);
 
-    Block *nb = &launchOp.getRegion().front();
-    mlir::OpBuilder builder(launchOp.getContext());
+    mlir::IRRewriter builder(launchOp.getContext());
     auto loc = builder.getUnknownLoc();
 
     builder.setInsertionPoint(launchOp->getBlock(), launchOp->getIterator());
@@ -258,12 +279,8 @@ void ParallelLower::runOnOperation() {
         std::vector<Value>(
             {launchOp.gridSizeX(), launchOp.gridSizeY(), launchOp.gridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
-    Block *blockB;
-    {
-      auto iter = block.getRegion().getBlocks().begin();
-      blockB = &*iter;
-      blockB->begin()->erase();
-    }
+    Block *blockB = &block.getRegion().front();
+
     builder.setInsertionPointToStart(blockB);
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
@@ -271,31 +288,26 @@ void ParallelLower::runOnOperation() {
         std::vector<Value>({launchOp.blockSizeX(), launchOp.blockSizeY(),
                             launchOp.blockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
-    builder.create<mlir::scf::YieldOp>(loc);
-    Block *threadB;
-    auto iter = threadr.getRegion().getBlocks().begin();
-    threadB = &*iter;
-    // threadB->begin()->erase();
+    Block *threadB = &threadr.getRegion().front();
 
-    // threadr.getRegion().getBlocks().clear();
-    // builder.create<mlir::scf::YieldOp>(loc);
-    // builder.setInsertionPointToStart(threadB);
+    launchOp.getRegion().front().getTerminator()->erase();
 
-    auto container = threadr; // builder.create<mlir::scf::ContainerOp>(loc,
-                              // std::vector<mlir::Type>());
+    SmallVector<Value> launchArgs;
+    llvm::append_range(launchArgs, blockB->getArguments());
+    llvm::append_range(launchArgs, threadB->getArguments());
+    launchArgs.push_back(launchOp.gridSizeX());
+    launchArgs.push_back(launchOp.gridSizeY());
+    launchArgs.push_back(launchOp.gridSizeZ());
+    launchArgs.push_back(launchOp.blockSizeX());
+    launchArgs.push_back(launchOp.blockSizeY());
+    launchArgs.push_back(launchOp.blockSizeZ());
+    builder.mergeBlockBefore(&launchOp.getRegion().front(),
+                             threadr.getRegion().front().getTerminator(),
+                             launchArgs);
 
-    threadB->getOperations().clear();
-    threadB->getOperations().splice(threadB->begin(), nb->getOperations());
-    nb->erase();
-
-    // mlir::OpBuilder builder2(f.getContext());
-    // builder2.setInsertionPointToStart(threadB);
-    // iter++;
-    // builder2.create<mlir::cf::BranchOp>(loc, &*iter);
+    auto container = threadr;
 
     container.walk([&](mlir::gpu::BlockIdOp bidx) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(bidx);
       int idx = -1;
       if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
@@ -305,44 +317,37 @@ void ParallelLower::runOnOperation() {
         idx = 2;
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith((mlir::Value)blockB->getArgument(idx));
-      bidx.erase();
+      builder.replaceOp(bidx,
+                        ValueRange((mlir::Value)blockB->getArgument(idx)));
     });
 
     container.walk([&](mlir::memref::AllocaOp alop) {
       if (auto ia =
               alop.getType().getMemorySpace().dyn_cast_or_null<IntegerAttr>())
         if (ia.getValue() == 5) {
-          mlir::OpBuilder bz(launchOp.getContext());
-          bz.setInsertionPointToStart(blockB);
-          auto newAlloca = bz.create<memref::AllocaOp>(
+          builder.setInsertionPointToStart(blockB);
+          auto newAlloca = builder.create<memref::AllocaOp>(
               alop.getLoc(),
               MemRefType::get(alop.getType().getShape(),
                               alop.getType().getElementType(),
                               alop.getType().getLayout(), Attribute()));
-          alop.replaceAllUsesWith((mlir::Value)bz.create<memref::CastOp>(
-              alop.getLoc(), alop.getType(), newAlloca));
-          alop.erase();
+          builder.replaceOpWithNewOp<memref::CastOp>(alop, alop.getType(),
+                                                     newAlloca);
         }
     });
 
     container.walk([&](mlir::LLVM::AllocaOp alop) {
       auto PT = alop.getType().cast<LLVM::LLVMPointerType>();
       if (PT.getAddressSpace() == 5) {
-        mlir::OpBuilder bz(launchOp.getContext());
-        bz.setInsertionPointToStart(blockB);
-        auto newAlloca = bz.create<LLVM::AllocaOp>(
+        builder.setInsertionPointToStart(blockB);
+        auto newAlloca = builder.create<LLVM::AllocaOp>(
             alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
             alop.getArraySize());
-        alop.replaceAllUsesWith((mlir::Value)bz.create<LLVM::AddrSpaceCastOp>(
-            alop.getLoc(), PT, newAlloca));
-        alop.erase();
+        builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
     });
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(bidx);
       int idx = -1;
       if (bidx.dimension() == gpu::Dimension::x)
         idx = 0;
@@ -352,22 +357,13 @@ void ParallelLower::runOnOperation() {
         idx = 2;
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith((mlir::Value)threadB->getArgument(idx));
-      bidx.erase();
-    });
-
-    container.walk([&](gpu::TerminatorOp op) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(op);
-      bz.create<mlir::scf::YieldOp>(loc);
-      op.erase();
+      builder.replaceOp(bidx, ValueRange(threadB->getArgument(idx)));
     });
 
     container.walk([&](mlir::NVVM::Barrier0Op op) {
-      mlir::OpBuilder bz(launchOp.getContext());
-      bz.setInsertionPoint(op);
-      bz.create<mlir::polygeist::BarrierOp>(loc, threadB->getArguments());
-      op.erase();
+      builder.setInsertionPoint(op);
+      builder.replaceOpWithNewOp<mlir::polygeist::BarrierOp>(
+          op, threadB->getArguments());
     });
 
     container.walk([&](gpu::GridDimOp bidx) {
@@ -380,8 +376,7 @@ void ParallelLower::runOnOperation() {
         val = launchOp.gridSizeZ();
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith(val);
-      bidx.erase();
+      builder.replaceOp(bidx, val);
     });
 
     container.walk([&](gpu::BlockDimOp bidx) {
@@ -394,38 +389,35 @@ void ParallelLower::runOnOperation() {
         val = launchOp.blockSizeZ();
       else
         assert(0 && "illegal dimension");
-      bidx.replaceAllUsesWith(val);
-      bidx.erase();
+      builder.replaceOp(bidx, val);
     });
 
     container.walk([&](AffineStoreOp storeOp) {
-      OpBuilder bz(storeOp);
+      builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = bz.create<AffineApplyOp>(
+        auto apply = builder.create<AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      bz.create<memref::StoreOp>(storeOp.getLoc(), storeOp.value(),
-                                 storeOp.memref(), indices);
-      storeOp.erase();
+      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
+                                                  storeOp.memref(), indices);
     });
 
     container.walk([&](AffineLoadOp storeOp) {
-      OpBuilder bz(storeOp);
+      builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = bz.create<AffineApplyOp>(
+        auto apply = builder.create<AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      storeOp.replaceAllUsesWith((mlir::Value)bz.create<memref::LoadOp>(
-          storeOp.getLoc(), storeOp.memref(), indices));
-      storeOp.erase();
+      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+                                                 indices);
     });
-    launchOp.erase();
+    builder.eraseOp(launchOp);
   }
 
   getOperation().walk([&](LLVM::CallOp call) {
@@ -507,10 +499,39 @@ void ParallelLower::runOnOperation() {
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
+    } else if (call.getCallee().getValue() == "cudaGetLastError") {
+      OpBuilder bz(call);
+      auto retv = bz.create<ConstantIntOp>(
+          call.getLoc(), 0,
+          call.getResult(0).getType().cast<IntegerType>().getWidth());
+      Value vals[] = {retv};
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
+      call.erase();
     }
   });
   getOperation().walk([&](CallOp call) {
     if (call.getCallee() == "cudaDeviceSynchronize") {
+      OpBuilder bz(call);
+      auto retv = bz.create<ConstantIntOp>(
+          call.getLoc(), 0,
+          call.getResult(0).getType().cast<IntegerType>().getWidth());
+      Value vals[] = {retv};
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
+      call.erase();
+    } else if (call.getCallee() == "cudaMemcpyToSymbol") {
+      OpBuilder bz(call);
+      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
+      bz.create<LLVM::MemcpyOp>(
+          call.getLoc(),
+          bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
+                                 call.getOperand(0),
+                                 std::vector<Value>({call.getOperand(3)})),
+          call.getOperand(1), call.getOperand(2),
+          /*isVolatile*/ falsev);
+      call.replaceAllUsesWith(
+          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
+      call.erase();
+    } else if (call.getCallee() == "cudaGetLastError") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,

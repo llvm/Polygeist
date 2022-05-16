@@ -273,7 +273,7 @@ bool attemptToFoldIntoPredecessor(Block *target) {
 bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
                                          Block *pseudoExit) {
   SmallVector<Block *, 4> Preds;
-  for (auto block : pseudoExit->getPredecessors()) {
+  for (auto *block : pseudoExit->getPredecessors()) {
     Preds.push_back(block);
   }
   SmallVector<Type, 4> emptyTys;
@@ -284,7 +284,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
   if (Preds.size() == 2) {
     for (size_t i = 0; i < Preds.size(); ++i) {
       SmallVector<Block *, 4> Succs;
-      for (auto block : Preds[i]->getSuccessors()) {
+      for (auto *block : Preds[i]->getSuccessors()) {
         Succs.push_back(block);
       }
       if (Succs.size() == 2) {
@@ -334,7 +334,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys,
                                             condBr.getFalseOperands());
             }
-            auto oldTerm = Succs[1 - j]->getTerminator();
+            auto *oldTerm = Succs[1 - j]->getTerminator();
             OpBuilder tbuilder(Succs[1 - j], Succs[1 - j]->end());
             tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys,
                                           oldTerm->getOperands());
@@ -359,7 +359,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
     const llvm::DominatorTreeBase<Block, false> *DT =
         &domInfo.getDomTree(&region);
     mlir::LoopInfo LI(*(const llvm::DominatorTreeBase<Wrapper, false> *)DT);
-    for (auto L : LI.getTopLevelLoops()) {
+    for (auto *L : LI.getTopLevelLoops()) {
       Block *header = (Block *)L->getHeader();
       Block *target = (Block *)L->getUniqueExitBlock();
       if (!target) {
@@ -394,7 +394,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         valsCallingLoop.push_back(a);
 
       SmallVector<std::pair<Value, size_t>> preservedVals;
-      for (auto B : L->getBlocks()) {
+      for (auto *B : L->getBlocks()) {
         for (auto &O : *(Block *)B) {
           for (auto V : O.getResults()) {
             if (llvm::any_of(V.getUsers(), [&](Operation *user) {
@@ -438,7 +438,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 
       SmallVector<Block *, 4> Preds;
 
-      for (auto block : header->getPredecessors()) {
+      for (auto *block : header->getPredecessors()) {
         if (!L->contains((Wrapper *)block))
           Preds.push_back(block);
       }
@@ -611,7 +611,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         yieldargs.push_back(a);
       }
 
-      for (auto block : Preds) {
+      for (auto *block : Preds) {
         Operation *terminator = block->getTerminator();
         for (unsigned i = 0; i < terminator->getNumSuccessors(); ++i) {
           Block *successor = terminator->getSuccessor(i);
@@ -655,7 +655,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         Block *block = &insertRegion.front();
         IRRewriter B(exec->getContext());
         Operation *terminator = block->getTerminator();
-        ValueRange results = terminator->getOperands();
+        SmallVector<Value> results;
+        llvm::append_range(results, terminator->getOperands());
         terminator->erase();
         B.mergeBlockBefore(block, exec);
         exec.replaceAllUsesWith(results);

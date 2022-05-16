@@ -5,26 +5,30 @@
 
 // CHECK-LABEL:   func @matrix_power(
 // CHECK:                       %[[VAL_0:.*]]: memref<20x20xi32>, %[[VAL_1:.*]]: memref<20xi32>, %[[VAL_2:.*]]: memref<20xi32>, %[[VAL_3:.*]]: memref<20xi32>)
-// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 20 : index
-// CHECK-DAG:           %[[VAL_5:.*]] = arith.constant 0 : index
-// CHECK-DAG:           %[[VAL_6:.*]] = arith.constant 1 : index
-// CHECK:           scf.for %[[VAL_8:.*]] = %[[VAL_6]] to %[[VAL_4]] step %[[VAL_6]] {
-// CHECK:             %[[VAL_9:.*]] = arith.subi %[[VAL_8]], %[[VAL_6]] : index
-// CHECK:             scf.for %[[VAL_13:.*]] = %[[VAL_5]] to %[[VAL_4]] step %[[VAL_6]] {
-// CHECK:               %[[VAL_14:.*]] = memref.load %[[VAL_1]]{{\[}}%[[VAL_13]]] : memref<20xi32>
-// CHECK:               %[[VAL_15:.*]] = arith.index_cast %[[VAL_14]] : i32 to index
-// CHECK:               %[[VAL_16:.*]] = memref.load %[[VAL_3]]{{\[}}%[[VAL_13]]] : memref<20xi32>
-// CHECK:               %[[VAL_18:.*]] = memref.load %[[VAL_2]]{{\[}}%[[VAL_13]]] : memref<20xi32>
-// CHECK:               %[[VAL_19:.*]] = arith.index_cast %[[VAL_18]] : i32 to index
-// CHECK:               %[[VAL_20:.*]] = memref.load %[[VAL_0]]{{\[}}%[[VAL_9]], %[[VAL_19]]] : memref<20x20xi32>
-// CHECK:               %[[VAL_21:.*]] = arith.muli %[[VAL_16]], %[[VAL_20]] : i32
-// CHECK:               %[[VAL_22:.*]] = memref.load %[[VAL_0]]{{\[}}%[[VAL_8]], %[[VAL_15]]] : memref<20x20xi32>
-// CHECK:               %[[VAL_23:.*]] = arith.addi %[[VAL_22]], %[[VAL_21]] : i32
-// CHECK:               memref.store %[[VAL_23]], %[[VAL_0]]{{\[}}%[[VAL_8]], %[[VAL_15]]] : memref<20x20xi32>
-// CHECK:             }
-// CHECK:           }
-// CHECK:           return
-// CHECK:         }
+// CHECK-NEXT:     %c1 = arith.constant 1 : index
+// CHECK-NEXT:     %c20 = arith.constant 20 : index
+// CHECK-NEXT:     %c0 = arith.constant 0 : index
+// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-NEXT:     scf.for %arg4 = %c1 to %c20 step %c1 {
+// CHECK-NEXT:       %0 = arith.index_cast %arg4 : index to i32
+// CHECK-NEXT:       %1 = arith.addi %0, %c-1_i32 : i32
+// CHECK-NEXT:       %2 = arith.index_cast %1 : i32 to index
+// CHECK-NEXT:       scf.for %arg5 = %c0 to %c20 step %c1 {
+// CHECK-NEXT:         %3 = memref.load %arg1[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %4 = arith.index_cast %3 : i32 to index
+// CHECK-NEXT:         %5 = memref.load %arg3[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %6 = memref.load %arg2[%arg5] : memref<20xi32>
+// CHECK-NEXT:         %7 = arith.index_cast %6 : i32 to index
+// CHECK-NEXT:         %8 = memref.load %arg0[%2, %7] : memref<20x20xi32>
+// CHECK-NEXT:         %9 = arith.muli %5, %8 : i32
+// CHECK-NEXT:         %10 = memref.load %arg0[%arg4, %4] : memref<20x20xi32>
+// CHECK-NEXT:         %11 = arith.addi %10, %9 : i32
+// CHECK-NEXT:         memref.store %11, %arg0[%arg4, %4] : memref<20x20xi32>
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }     
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+
 void matrix_power(int x[20][20], int row[20], int col[20], int a[20]) {
   for (int k = 1; k < 20; k++) {
     for (int p = 0; p < 20; p++) {

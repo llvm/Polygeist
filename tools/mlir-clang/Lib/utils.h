@@ -13,7 +13,9 @@
 
 namespace mlir {
 class Operation;
+namespace func {
 class FuncOp;
+}
 class Value;
 class OpBuilder;
 class AbstractOperation;
@@ -38,7 +40,7 @@ namespace mlirclang {
 /// operands %a and %b. The new op will be inserted at where the insertion point
 /// of the provided OpBuilder is.
 mlir::Operation *
-replaceFuncByOperation(mlir::FuncOp f, llvm::StringRef opName,
+replaceFuncByOperation(mlir::func::FuncOp f, llvm::StringRef opName,
                        mlir::OpBuilder &b,
                        llvm::SmallVectorImpl<mlir::Value> &input,
                        llvm::SmallVectorImpl<mlir::Value> &output);

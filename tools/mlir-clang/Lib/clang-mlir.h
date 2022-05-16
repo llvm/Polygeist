@@ -9,13 +9,6 @@
 #ifndef CLANG_MLIR_H
 #define CLANG_MLIR_H
 
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/StmtVisitor.h"
-#include "clang/Lex/HeaderSearch.h"
-#include "clang/Lex/HeaderSearchOptions.h"
-#include "clang/Lex/Preprocessor.h"
-#include "clang/Lex/PreprocessorOptions.h"
-
 #include "AffineUtils.h"
 #include "ValueCategory.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
@@ -33,7 +26,14 @@
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "polygeist/Ops.h"
 #include "pragmaHandler.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/StmtVisitor.h"
+#include "clang/Lex/HeaderSearch.h"
+#include "clang/Lex/HeaderSearchOptions.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "clang/../../lib/CodeGen/CGRecordLayout.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
@@ -41,6 +41,8 @@
 
 using namespace clang;
 using namespace mlir;
+
+extern llvm::cl::opt<std::string> PrefixABI;
 
 struct LoopContext {
   mlir::Value keepRunning;
@@ -52,7 +54,7 @@ struct MLIRASTConsumer : public ASTConsumer {
   std::set<std::string> &done;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
   std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
-  std::map<std::string, mlir::FuncOp> &functions;
+  std::map<std::string, mlir::func::FuncOp> &functions;
   std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
   std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
   Preprocessor &PP;
@@ -75,7 +77,7 @@ struct MLIRASTConsumer : public ASTConsumer {
       std::set<std::string> &emitIfFound, std::set<std::string> &done,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
       std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
-      std::map<std::string, mlir::FuncOp> &functions,
+      std::map<std::string, mlir::func::FuncOp> &functions,
       std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
       std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
       Preprocessor &PP, ASTContext &astContext,
@@ -98,7 +100,8 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   ~MLIRASTConsumer() {}
 
-  mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
+  mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD,
+                                             bool getDeviceStub = false);
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
   mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
@@ -140,7 +143,7 @@ class MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
 private:
   friend class IfScope;
   MLIRASTConsumer &Glob;
-  mlir::FuncOp function;
+  mlir::func::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OpBuilder builder;
   mlir::Location loc;
@@ -178,7 +181,7 @@ private:
 
   const clang::FunctionDecl *EmitCallee(const Expr *E);
 
-  mlir::FuncOp EmitDirectCallee(GlobalDecl GD);
+  mlir::func::FuncOp EmitDirectCallee(const FunctionDecl *FD);
 
   std::map<int, mlir::Value> constants;
 
@@ -217,7 +220,7 @@ public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
               LowerToInfo &LTInfo);
 
-  void init(mlir::FuncOp function, const FunctionDecl *fd);
+  void init(mlir::func::FuncOp function, const FunctionDecl *fd);
 
   void setEntryAndAllocBlock(mlir::Block *B) {
     allocationScope = entryBlock = B;
@@ -236,6 +239,8 @@ public:
 
   ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
 
+  ValueCategory VisitAtomicExpr(clang::AtomicExpr *expr);
+
   ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
 
   ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *expr);
@@ -251,6 +256,8 @@ public:
 
   ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
 
+  ValueCategory VisitCXXTryStmt(clang::CXXTryStmt *stmt);
+
   ValueCategory VisitStringLiteral(clang::StringLiteral *expr);
 
   ValueCategory VisitParenExpr(clang::ParenExpr *expr);
@@ -258,6 +265,8 @@ public:
   ValueCategory VisitVarDecl(clang::VarDecl *decl);
 
   ValueCategory VisitForStmt(clang::ForStmt *fors);
+
+  ValueCategory VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors);
 
   ValueCategory VisitOMPSingleDirective(clang::OMPSingleDirective *);
 
@@ -277,7 +286,7 @@ public:
   ValueCategory VisitCallExpr(clang::CallExpr *expr);
 
   ValueCategory
-  CallHelper(mlir::FuncOp tocall, QualType objType,
+  CallHelper(mlir::func::FuncOp tocall, QualType objType,
              ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
              QualType retType, bool retReference, clang::Expr *expr);
 
@@ -312,6 +321,8 @@ public:
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
 
+  ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
+
   ValueCategory VisitAttributedStmt(clang::AttributedStmt *AS);
 
   ValueCategory VisitExprWithCleanups(clang::ExprWithCleanups *E);
@@ -323,6 +334,16 @@ public:
   ValueCategory VisitMemberExpr(clang::MemberExpr *ME);
 
   ValueCategory VisitCastExpr(clang::CastExpr *E);
+
+  mlir::Value GetAddressOfBaseClass(mlir::Value obj,
+                                    const CXXRecordDecl *DerivedClass,
+                                    ArrayRef<const clang::Type *> BaseTypes,
+                                    ArrayRef<bool> BaseVirtuals);
+
+  mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
+                                       const CXXRecordDecl *DerivedClass,
+                                       CastExpr::path_const_iterator Start,
+                                       CastExpr::path_const_iterator End);
 
   ValueCategory VisitIfStmt(clang::IfStmt *stmt);
 

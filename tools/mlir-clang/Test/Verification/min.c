@@ -1,6 +1,7 @@
 // RUN: mlir-clang %s --function=min -S | FileCheck %s
 
-// XFAIL: *
+// TODO combine selects
+
 int min(int a, int b) {
     if (a < b) return a;
     return b;

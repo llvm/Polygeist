@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -22,12 +23,16 @@
 #include "mlir/Dialect/Arithmetic/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 
 using namespace mlir;
 using namespace polygeist;
 using namespace mlir::arith;
+
+llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
+                               llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
 // BarrierOp
@@ -37,28 +42,38 @@ LogicalResult verify(BarrierOp) { return success(); }
 /// Collect the memory effects of the given op in 'effects'. Returns 'true' it
 /// could extract the effect information from the op, otherwise returns 'false'
 /// and conservatively populates the list with all possible effects.
-static bool
-collectEffects(Operation *op,
-               SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+bool collectEffects(Operation *op,
+                    SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                    bool ignoreBarriers) {
   // Skip over barriers to avoid infinite recursion (those barriers would ask
   // this barrier again).
-  if (isa<BarrierOp>(op))
+  if (ignoreBarriers && isa<BarrierOp>(op))
+    return true;
+
+  // Ignore CacheLoads as they are already guaranteed to not have side effects
+  // in the context of a parallel op, these only exist while we are in the
+  // CPUifyPass
+  if (isa<CacheLoad>(op))
     return true;
 
   // Collect effect instances the operation. Note that the implementation of
   // getEffects erases all effect instances that have the type other than the
   // template parameter so we collect them first in a local buffer and then
   // copy.
-  SmallVector<MemoryEffects::EffectInstance> localEffects;
   if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
-    iface.getEffects<MemoryEffects::Read>(localEffects);
+    SmallVector<MemoryEffects::EffectInstance> localEffects;
+    iface.getEffects(localEffects);
     llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Write>(localEffects);
-    llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Allocate>(localEffects);
-    llvm::append_range(effects, localEffects);
-    iface.getEffects<MemoryEffects::Free>(localEffects);
-    llvm::append_range(effects, localEffects);
+    return true;
+  }
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    for (auto &region : op->getRegions()) {
+      for (auto &block : region) {
+        for (auto &innerOp : block)
+          if (!collectEffects(&innerOp, effects, ignoreBarriers))
+            return false;
+      }
+    }
     return true;
   }
 
@@ -71,17 +86,361 @@ collectEffects(Operation *op,
   return false;
 }
 
+// Rethrns if we are non-conservative whether we have filled with all possible
+// effects.
+bool getEffectsBefore(Operation *op,
+                      SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                      bool stopAtBarrier) {
+  if (op != &op->getBlock()->front())
+    for (Operation *it = op->getPrevNode(); it != nullptr;
+         it = it->getPrevNode()) {
+      if (isa<BarrierOp>(it)) {
+        if (stopAtBarrier)
+          return true;
+        else
+          continue;
+      }
+      if (!collectEffects(it, effects, /* ignoreBarriers */ true))
+        return false;
+    }
+
+  bool conservative = false;
+
+  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+    return true;
+
+  // As we didn't hit another barrier, we must check the predecessors of this
+  // operation.
+  if (!getEffectsBefore(op->getParentOp(), effects, stopAtBarrier))
+    return false;
+
+  // If the parent operation is not guaranteed to execute its (single-block)
+  // region once, walk the block.
+  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+    op->getParentOp()->walk([&](Operation *in) {
+      if (conservative)
+        return WalkResult::interrupt();
+      if (!collectEffects(in, effects, /* ignoreBarriers */ true)) {
+        conservative = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+
+  return !conservative;
+}
+bool getEffectsAfter(Operation *op,
+                     SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                     bool stopAtBarrier) {
+  if (op != &op->getBlock()->back())
+    for (Operation *it = op->getNextNode(); it != nullptr;
+         it = it->getNextNode()) {
+      if (isa<BarrierOp>(it)) {
+        if (stopAtBarrier)
+          return true;
+        continue;
+      }
+      if (!collectEffects(it, effects, /* ignoreBarriers */ true))
+        return false;
+    }
+
+  bool conservative = false;
+
+  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+    return true;
+
+  // As we didn't hit another barrier, we must check the predecessors of this
+  // operation.
+  if (!getEffectsAfter(op->getParentOp(), effects, stopAtBarrier))
+    return false;
+
+  // If the parent operation is not guaranteed to execute its (single-block)
+  // region once, walk the block.
+  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+    op->getParentOp()->walk([&](Operation *in) {
+      if (conservative)
+        return WalkResult::interrupt();
+      if (!collectEffects(in, effects, /* ignoreBarriers */ true)) {
+        conservative = true;
+        return WalkResult::interrupt();
+      }
+      return WalkResult::advance();
+    });
+
+  return !conservative;
+}
+
 void BarrierOp::getEffects(
     SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
-  Operation *op = getOperation();
-  for (Operation *it = op->getPrevNode(); it != nullptr; it = it->getPrevNode())
-    if (!collectEffects(it, effects))
-      return;
-  for (Operation *it = op->getNextNode(); it != nullptr; it = it->getNextNode())
-    if (!collectEffects(it, effects))
-      return;
 
-  // TODO: we need to handle regions in case the parent op isn't an SCF parallel
+  // If this doesn't synchronize any values, it has no effects.
+  if (llvm::all_of(getOperands(), [](Value v) {
+        IntegerAttr constValue;
+        return matchPattern(v, m_Constant(&constValue));
+      }))
+    return;
+
+  Operation *op = getOperation();
+
+  if (!getEffectsBefore(op, effects, /*stopAtBarrier*/ true))
+    return;
+
+  if (!getEffectsAfter(op, effects, /*stopAtBarrier*/ true))
+    return;
+}
+
+bool isReadNone(Operation *op);
+
+class BarrierHoist final : public OpRewritePattern<BarrierOp> {
+public:
+  using OpRewritePattern<BarrierOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BarrierOp barrier,
+                                PatternRewriter &rewriter) const override {
+    if (!BarrierOpt)
+      return failure();
+    if (isa<scf::IfOp, AffineIfOp>(barrier->getParentOp())) {
+
+      bool below = true;
+      for (Operation *it = barrier->getNextNode(); it != nullptr;
+           it = it->getNextNode()) {
+        if (!isReadNone(it)) {
+          below = false;
+          break;
+        }
+      }
+      if (below) {
+        rewriter.setInsertionPoint(barrier->getParentOp()->getNextNode());
+        rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+      bool above = true;
+      for (Operation *it = barrier->getPrevNode(); it != nullptr;
+           it = it->getPrevNode()) {
+        if (!isReadNone(it)) {
+          above = false;
+          break;
+        }
+      }
+      if (above) {
+        rewriter.setInsertionPoint(barrier->getParentOp());
+        rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+        rewriter.eraseOp(barrier);
+        return success();
+      }
+    }
+    // Move barrier into after region and after loop, if possible
+    if (auto whileOp = dyn_cast<scf::WhileOp>(barrier->getParentOp())) {
+      if (barrier->getParentRegion() == &whileOp.getBefore()) {
+        auto cond = whileOp.getBefore().front().getTerminator();
+
+        bool above = true;
+        for (Operation *it = cond; it != nullptr; it = it->getPrevNode()) {
+          if (it == barrier)
+            break;
+          if (!isReadNone(it)) {
+            above = false;
+            break;
+          }
+        }
+        if (above) {
+          rewriter.setInsertionPointToStart(&whileOp.getAfter().front());
+          rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+          rewriter.setInsertionPoint(whileOp->getNextNode());
+          rewriter.create<BarrierOp>(barrier.getLoc(), barrier.getOperands());
+          rewriter.eraseOp(barrier);
+          return success();
+        }
+      }
+    }
+    return failure();
+  }
+};
+
+bool isCaptured(Value v, Operation *potentialUser = nullptr,
+                bool *seenuse = nullptr) {
+  SmallVector<Value> todo = {v};
+  while (todo.size()) {
+    Value v = todo.pop_back_val();
+    for (auto u : v.getUsers()) {
+      if (seenuse && u == potentialUser)
+        *seenuse = true;
+      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp, polygeist::CacheLoad>(
+              u))
+        continue;
+      if (auto s = dyn_cast<memref::StoreOp>(u)) {
+        if (s.value() == v)
+          return true;
+        continue;
+      }
+      if (auto s = dyn_cast<AffineStoreOp>(u)) {
+        if (s.value() == v)
+          return true;
+        continue;
+      }
+      if (auto s = dyn_cast<LLVM::StoreOp>(u)) {
+        if (s.getValue() == v)
+          return true;
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::GEPOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::BitcastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::AddrSpaceCastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<LLVM::MemsetOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::MemcpyOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<LLVM::MemmoveOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<memref::CastOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<memref::DeallocOp>(u)) {
+        continue;
+      }
+      if (auto sub = dyn_cast<polygeist::SubIndexOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<polygeist::Memref2PointerOp>(u)) {
+        todo.push_back(sub);
+      }
+      if (auto sub = dyn_cast<polygeist::Pointer2MemrefOp>(u)) {
+        todo.push_back(sub);
+      }
+      return true;
+    }
+  }
+
+  return false;
+}
+
+Value getBase(Value v) {
+  while (true) {
+    if (auto s = v.getDefiningOp<SubIndexOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<Memref2PointerOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<Pointer2MemrefOp>()) {
+      v = s.source();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::GEPOp>()) {
+      v = s.getBase();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::BitcastOp>()) {
+      v = s.getArg();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<LLVM::AddrSpaceCastOp>()) {
+      v = s.getArg();
+      continue;
+    }
+    if (auto s = v.getDefiningOp<memref::CastOp>()) {
+      v = s.source();
+      continue;
+    }
+    break;
+  }
+  return v;
+}
+
+bool isStackAlloca(Value v) {
+  return v.getDefiningOp<memref::AllocaOp>() ||
+         v.getDefiningOp<memref::AllocOp>() ||
+         v.getDefiningOp<LLVM::AllocaOp>();
+}
+static bool mayAlias(Value v, Value v2) {
+  v = getBase(v);
+  v2 = getBase(v2);
+  if (v == v2)
+    return true;
+
+  // We may now assume neither v1 nor v2 are subindices
+
+  if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
+    if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
+      return glob.name() == Aglob.name();
+    }
+  }
+
+  if (auto glob = v.getDefiningOp<LLVM::AddressOfOp>()) {
+    if (auto Aglob = v2.getDefiningOp<LLVM::AddressOfOp>()) {
+      return glob.getGlobalName() == Aglob.getGlobalName();
+    }
+  }
+
+  bool isAlloca[2];
+  bool isGlobal[2];
+
+  isAlloca[0] = isStackAlloca(v);
+  isGlobal[0] = v.getDefiningOp<memref::GetGlobalOp>() ||
+                v.getDefiningOp<LLVM::AddressOfOp>();
+
+  isAlloca[1] = isStackAlloca(v2);
+
+  isGlobal[1] = v2.getDefiningOp<memref::GetGlobalOp>() ||
+                v2.getDefiningOp<LLVM::AddressOfOp>();
+
+  // Non-equivalent allocas/global's cannot conflict with each other
+  if ((isAlloca[0] || isGlobal[0]) && (isAlloca[1] || isGlobal[1]))
+    return false;
+
+  bool isArg[2];
+  isArg[0] = v.isa<BlockArgument>() &&
+             isa<FunctionOpInterface>(
+                 v.cast<BlockArgument>().getOwner()->getParentOp());
+
+  isArg[1] = v.isa<BlockArgument>() &&
+             isa<FunctionOpInterface>(
+                 v.cast<BlockArgument>().getOwner()->getParentOp());
+
+  // Stack allocations cannot have been passed as an argument.
+  if ((isAlloca[0] && isArg[1]) || (isAlloca[1] && isArg[0]))
+    return false;
+
+  // Non captured base allocas cannot conflict with another base value.
+  if (isAlloca[0] && !isCaptured(v))
+    return false;
+
+  if (isAlloca[1] && !isCaptured(v2))
+    return false;
+
+  return true;
+}
+
+bool mayAlias(MemoryEffects::EffectInstance a,
+              MemoryEffects::EffectInstance b) {
+  if (Value v2 = b.getValue()) {
+    return mayAlias(a, v2);
+  }
+  return true;
+}
+
+bool mayAlias(MemoryEffects::EffectInstance a, Value v2) {
+  if (Value v = a.getValue()) {
+    return mayAlias(v, v2);
+  }
+  return true;
+}
+
+void BarrierOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<BarrierHoist, BarrierElim</*TopLevelOnly*/ false>>(context);
 }
 
 /// Replace cast(subindex(x, InterimType), FinalType) with subindex(x,
@@ -844,20 +1203,25 @@ public:
       width *= std::get<0>(pair);
     }
 
-    Value len = op.getLen();
+    SmallVector<Value> todo = {op.getLen()};
     size_t factor = 1;
-    while (factor % width != 0) {
+    while (factor % width != 0 && todo.size()) {
+      Value len = todo.back();
+      todo.pop_back();
       IntegerAttr constValue;
       if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
-        len = ext.getIn();
-      else if (auto mul = len.getDefiningOp<arith::MulIOp>())
-        len = mul.getRhs();
-      else if (matchPattern(len, m_Constant(&constValue))) {
+        todo.push_back(ext.getIn());
+      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+        todo.push_back(ext.getIn());
+      else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
+        todo.push_back(mul.getLhs());
+        todo.push_back(mul.getRhs());
+      } else if (matchPattern(len, m_Constant(&constValue))) {
         factor *= constValue.getValue().getLimitedValue();
       } else
-        return failure();
+        continue;
     }
 
     if (factor % width != 0)
@@ -935,20 +1299,25 @@ public:
       width *= pair;
     }
 
-    Value len = op.getLen();
+    SmallVector<Value> todo = {op.getLen()};
     size_t factor = 1;
-    while (factor % width != 0) {
+    while (factor % width != 0 && todo.size()) {
+      Value len = todo.back();
+      todo.pop_back();
       IntegerAttr constValue;
       if (auto ext = len.getDefiningOp<arith::ExtUIOp>())
-        len = ext.getIn();
+        todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
-        len = ext.getIn();
-      else if (auto mul = len.getDefiningOp<arith::MulIOp>())
-        len = mul.getRhs();
-      else if (matchPattern(len, m_Constant(&constValue))) {
+        todo.push_back(ext.getIn());
+      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+        todo.push_back(ext.getIn());
+      else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
+        todo.push_back(mul.getLhs());
+        todo.push_back(mul.getRhs());
+      } else if (matchPattern(len, m_Constant(&constValue))) {
         factor *= constValue.getValue().getLimitedValue();
       } else
-        return failure();
+        continue;
     }
 
     if (factor % width != 0)
@@ -1262,10 +1631,12 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
          llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(),
                    prevIf.thenYield().getOperands())) {
       if (std::get<0>(it) == nextIf.getCondition()) {
-        if (matchPattern(std::get<1>(it), m_Zero())) {
+        if (matchPattern(std::get<1>(it), m_Zero()) ||
+            std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<2>(it);
           thenRegion = true;
-        } else if (matchPattern(std::get<2>(it), m_Zero())) {
+        } else if (matchPattern(std::get<2>(it), m_Zero()) ||
+                   std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<1>(it);
           thenRegion = false;
         } else
@@ -1355,109 +1726,6 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
   }
 };
 
-struct CombineIfs : public OpRewritePattern<scf::IfOp> {
-  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(scf::IfOp nextIf,
-                                PatternRewriter &rewriter) const override {
-    using namespace scf;
-    Block *parent = nextIf->getBlock();
-    if (nextIf == &parent->front())
-      return failure();
-
-    auto prevIf = dyn_cast<scf::IfOp>(nextIf->getPrevNode());
-    if (!prevIf)
-      return failure();
-
-    if (nextIf.getCondition() != prevIf.getCondition())
-      return failure();
-
-    //* Changed*//
-    SmallVector<Value> prevElseYielded;
-    if (!prevIf.getElseRegion().empty())
-      prevElseYielded = prevIf.elseYield().getOperands();
-    // Replace all uses of return values of op within nextIf with the
-    // corresponding yields
-    for (auto it : llvm::zip(prevIf.getResults(),
-                             prevIf.thenYield().getOperands(), prevElseYielded))
-      for (OpOperand &use :
-           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
-        if (nextIf.getThenRegion().isAncestor(
-                use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
-          use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
-        } else if (nextIf.getElseRegion().isAncestor(
-                       use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
-          use.set(std::get<2>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
-        }
-      }
-    //* End Changed*//
-
-    SmallVector<Type> mergedTypes(prevIf.getResultTypes());
-    llvm::append_range(mergedTypes, nextIf.getResultTypes());
-
-    //* Changed nextIf cond to nextIf cond*//
-    scf::IfOp combinedIf = rewriter.create<scf::IfOp>(
-        nextIf.getLoc(), mergedTypes, prevIf.getCondition(), /*hasElse=*/false);
-    rewriter.eraseBlock(&combinedIf.getThenRegion().back());
-
-    scf::YieldOp thenYield = prevIf.thenYield();
-    scf::YieldOp thenYield2 = nextIf.thenYield();
-
-    combinedIf.getThenRegion().getBlocks().splice(
-        combinedIf.getThenRegion().getBlocks().begin(),
-        prevIf.getThenRegion().getBlocks());
-
-    rewriter.mergeBlocks(nextIf.thenBlock(), combinedIf.thenBlock());
-    rewriter.setInsertionPointToEnd(combinedIf.thenBlock());
-
-    SmallVector<Value> mergedYields(thenYield.getOperands());
-    llvm::append_range(mergedYields, thenYield2.getOperands());
-    rewriter.create<scf::YieldOp>(thenYield2.getLoc(), mergedYields);
-    rewriter.eraseOp(thenYield);
-    rewriter.eraseOp(thenYield2);
-
-    combinedIf.getElseRegion().getBlocks().splice(
-        combinedIf.getElseRegion().getBlocks().begin(),
-        prevIf.getElseRegion().getBlocks());
-
-    if (!nextIf.getElseRegion().empty()) {
-      if (combinedIf.getElseRegion().empty()) {
-        combinedIf.getElseRegion().getBlocks().splice(
-            combinedIf.getElseRegion().getBlocks().begin(),
-            nextIf.getElseRegion().getBlocks());
-      } else {
-        scf::YieldOp elseYield = combinedIf.elseYield();
-        scf::YieldOp elseYield2 = nextIf.elseYield();
-        rewriter.mergeBlocks(nextIf.elseBlock(), combinedIf.elseBlock());
-
-        rewriter.setInsertionPointToEnd(combinedIf.elseBlock());
-
-        SmallVector<Value> mergedElseYields(elseYield.getOperands());
-        llvm::append_range(mergedElseYields, elseYield2.getOperands());
-
-        rewriter.create<scf::YieldOp>(elseYield2.getLoc(), mergedElseYields);
-        rewriter.eraseOp(elseYield);
-        rewriter.eraseOp(elseYield2);
-      }
-    }
-
-    SmallVector<Value> prevValues;
-    SmallVector<Value> nextValues;
-    for (const auto &pair : llvm::enumerate(combinedIf.getResults())) {
-      if (pair.index() < prevIf.getNumResults())
-        prevValues.push_back(pair.value());
-      else
-        nextValues.push_back(pair.value());
-    }
-    rewriter.replaceOp(prevIf, prevValues);
-    rewriter.replaceOp(nextIf, nextValues);
-    return success();
-  }
-};
 struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
   using OpRewritePattern<scf::IfOp>::OpRewritePattern;
 
@@ -1468,13 +1736,25 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     if (nextIf == &parent->front())
       return failure();
 
-    auto prevOp = nextIf->getPrevNode();
+    auto *prevOp = nextIf->getPrevNode();
 
     // Only move if op doesn't write or free memory (only read)
     if (!wouldOpBeTriviallyDead(prevOp))
       return failure();
     if (isa<arith::ConstantOp>(prevOp))
       return failure();
+
+    // Don't attempt to move into if in the case where there are two
+    // ifs to combine.
+    auto nestedOps = nextIf.thenBlock()->without_terminator();
+    // Nested `if` must be the only op in block.
+    if (llvm::hasSingleElement(nestedOps)) {
+
+      if (!nextIf.elseBlock() || llvm::hasSingleElement(*nextIf.elseBlock())) {
+        if (auto nestedIf = dyn_cast<IfOp>(*nestedOps.begin()))
+          return failure();
+      }
+    }
 
     bool thenUse = false;
     bool elseUse = false;
@@ -1496,6 +1776,13 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     // If no use, this should've been folded / eliminated
     if (!thenUse && !elseUse)
       return failure();
+
+    // If this is used in an affine if/for/parallel op, do not move it, as it
+    // may no longer be a legal symbol
+    for (OpOperand &use : prevOp->getUses()) {
+      if (isa<AffineForOp, AffineIfOp, AffineParallelOp>(use.getOwner()))
+        return failure();
+    }
 
     rewriter.startRootUpdate(nextIf);
     rewriter.startRootUpdate(prevOp);
@@ -1533,13 +1820,57 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
   }
 };
 
+struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern<scf::IfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    // Don't attempt to move into if in the case where there are two
+    // ifs to combine.
+    auto nestedOps = nextIf.thenBlock()->without_terminator();
+    // Nested `if` must be the only op in block.
+    if (nestedOps.empty() || llvm::hasSingleElement(nestedOps)) {
+      return failure();
+    }
+
+    if (nextIf.elseBlock() && !llvm::hasSingleElement(*nextIf.elseBlock())) {
+      return failure();
+    }
+
+    auto nestedIf = dyn_cast<scf::IfOp>(*(--nestedOps.end()));
+    if (!nestedIf) {
+      return failure();
+    }
+    SmallVector<Operation *> toMove;
+    for (auto &o : nestedOps)
+      if (&o != nestedIf) {
+        auto memInterface = dyn_cast<MemoryEffectOpInterface>(&o);
+        if (!memInterface) {
+          return failure();
+        }
+        if (!memInterface.hasNoEffect()) {
+          return failure();
+        }
+        toMove.push_back(&o);
+      }
+
+    rewriter.setInsertionPoint(nextIf);
+    for (auto *o : toMove) {
+      auto *rep = rewriter.clone(*o);
+      rewriter.replaceOp(o, rep->getResults());
+    }
+
+    return success();
+  }
+};
+
 void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
   results.insert<
       Pointer2MemrefCast, Pointer2Memref2PointerCast,
       MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
       MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
-      CombineIfs, MoveIntoIfs, IfAndLazy>(context);
+      MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
@@ -1647,7 +1978,548 @@ struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
   }
 };
 
+class OrIExcludedMiddle final : public OpRewritePattern<arith::OrIOp> {
+public:
+  using OpRewritePattern<arith::OrIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::OrIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto lhs = op.getLhs().getDefiningOp<CmpIOp>();
+    auto rhs = op.getRhs().getDefiningOp<CmpIOp>();
+    if (!lhs || !rhs)
+      return failure();
+    if (lhs.getLhs() != rhs.getLhs() || lhs.getRhs() != rhs.getRhs() ||
+        lhs.getPredicate() != arith::invertPredicate(rhs.getPredicate()))
+      return failure();
+    rewriter.replaceOpWithNewOp<ConstantIntOp>(op, true, 1);
+    return success();
+  }
+};
+
+class SelectI1Ext final : public OpRewritePattern<arith::SelectOp> {
+public:
+  using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::SelectOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ty = op.getType().dyn_cast<IntegerType>();
+    if (!ty)
+      return failure();
+    if (ty.getWidth() == 1)
+      return failure();
+    IntegerAttr lhs, rhs;
+    Value lhs_v = nullptr, rhs_v = nullptr;
+    if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
+      lhs_v = ext.getIn();
+      if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
+        return failure();
+    } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
+    } else
+      return failure();
+
+    if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
+      rhs_v = ext.getIn();
+      if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
+        return failure();
+    } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
+    } else
+      return failure();
+
+    if (!lhs_v)
+      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
+    if (!rhs_v)
+      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+
+    rewriter.replaceOpWithNewOp<ExtUIOp>(
+        op, op.getType(),
+        rewriter.create<SelectOp>(op.getLoc(), op.getCondition(), lhs_v,
+                                  rhs_v));
+    return success();
+  }
+};
+
+template <typename T> class UndefProp final : public OpRewritePattern<T> {
+public:
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+    Value v = op->getOperand(0);
+    Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+      return failure();
+    rewriter.setInsertionPoint(undef);
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    return success();
+  }
+};
+
+class UndefCmpProp final : public OpRewritePattern<CmpIOp> {
+public:
+  using OpRewritePattern<CmpIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CmpIOp op,
+                                PatternRewriter &rewriter) const override {
+    Value v = op->getOperand(0);
+    Operation *undef;
+    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+      return failure();
+    if (!op.getRhs().getDefiningOp<ConstantOp>())
+      return failure();
+    rewriter.setInsertionPoint(undef);
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    return success();
+  }
+};
+class CmpProp final : public OpRewritePattern<CmpIOp> {
+public:
+  using OpRewritePattern<CmpIOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(CmpIOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ifOp = op.getLhs().getDefiningOp<scf::IfOp>();
+    if (!ifOp)
+      return failure();
+    auto rhs = op.getRhs().getDefiningOp<ConstantOp>();
+    if (!rhs) {
+      return failure();
+    }
+    auto idx = op.getLhs().cast<OpResult>().getResultNumber();
+    bool change = false;
+    for (auto v :
+         {ifOp.thenYield().getOperand(idx), ifOp.elseYield().getOperand(idx)}) {
+      change |=
+          v.getDefiningOp<ConstantIntOp>() || v.getDefiningOp<LLVM::UndefOp>();
+      if (auto extOp = v.getDefiningOp<ExtUIOp>())
+        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+          change |= it.getWidth() == 1;
+      if (auto extOp = v.getDefiningOp<ExtSIOp>())
+        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+          change |= it.getWidth() == 1;
+    }
+    if (!change) {
+      return failure();
+    }
+
+    SmallVector<Type> resultTypes;
+    llvm::append_range(resultTypes, ifOp.getResultTypes());
+    resultTypes.push_back(op.getType());
+
+    rewriter.setInsertionPoint(ifOp);
+    auto rhs2 = rewriter.clone(*rhs)->getResult(0);
+    auto nop = rewriter.create<scf::IfOp>(
+        ifOp.getLoc(), resultTypes, ifOp.getCondition(), /*hasElse*/ true);
+    rewriter.eraseBlock(nop.thenBlock());
+    rewriter.eraseBlock(nop.elseBlock());
+
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(), nop.getThenRegion(),
+                                nop.getThenRegion().begin());
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(), nop.getElseRegion(),
+                                nop.getElseRegion().begin());
+
+    SmallVector<Value> thenYields;
+    llvm::append_range(thenYields, nop.thenYield().getOperands());
+    rewriter.setInsertionPoint(nop.thenYield());
+    thenYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
+                                                 thenYields[idx], rhs2));
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(nop.thenYield(), thenYields);
+
+    SmallVector<Value> elseYields;
+    llvm::append_range(elseYields, nop.elseYield().getOperands());
+    rewriter.setInsertionPoint(nop.elseYield());
+    elseYields.push_back(rewriter.create<CmpIOp>(op.getLoc(), op.getPredicate(),
+                                                 elseYields[idx], rhs2));
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(nop.elseYield(), elseYields);
+    rewriter.replaceOp(ifOp, nop.getResults().take_front(ifOp.getNumResults()));
+    rewriter.replaceOp(op, nop.getResults().take_back(1));
+    return success();
+  }
+};
+
+/// Given an operation, return whether this op is guaranteed to
+/// allocate an AutomaticAllocationScopeResource
+static bool isGuaranteedAutomaticAllocation(Operation *op) {
+  MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!interface)
+    return false;
+  for (auto res : op->getResults()) {
+    if (auto effect =
+            interface.getEffectOnValue<MemoryEffects::Allocate>(res)) {
+      if (isa<SideEffects::AutomaticAllocationScopeResource>(
+              effect->getResource()))
+        return true;
+    }
+  }
+  return false;
+}
+
+template <typename T>
+struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T top,
+                                PatternRewriter &rewriter) const override {
+
+    Operation *op = top;
+    if (!op->getParentWithTrait<OpTrait::AutomaticAllocationScope>())
+      return failure();
+
+    Operation *lastParentWithoutScope =
+        op->hasTrait<OpTrait::AutomaticAllocationScope>() ? op
+                                                          : op->getParentOp();
+
+    if (!lastParentWithoutScope)
+      return failure();
+
+    while (!lastParentWithoutScope->getParentOp()
+                ->hasTrait<OpTrait::AutomaticAllocationScope>()) {
+      lastParentWithoutScope = lastParentWithoutScope->getParentOp();
+      if (!lastParentWithoutScope)
+        return failure();
+    }
+    assert(lastParentWithoutScope->getParentOp()
+               ->hasTrait<OpTrait::AutomaticAllocationScope>());
+
+    Region *containingRegion = nullptr;
+    if (lastParentWithoutScope == op)
+      containingRegion = &op->getRegion(0);
+    for (auto &r : lastParentWithoutScope->getRegions()) {
+      if (r.isAncestor(op->getParentRegion())) {
+        assert(containingRegion == nullptr &&
+               "only one region can contain the op");
+        containingRegion = &r;
+      }
+    }
+    assert(containingRegion && "op must be contained in a region");
+
+    SetVector<Operation *> toHoist;
+
+    op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
+      if (alloc != op && alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
+        return WalkResult::skip();
+
+      if (!isGuaranteedAutomaticAllocation(alloc))
+        return WalkResult::advance();
+
+      SetVector<Operation *> subHoist;
+      std::function<bool(Value)> fix = [&](Value v) -> /*legal*/ bool {
+        if (!containingRegion->isAncestor(v.getParentRegion()))
+          return true;
+        auto *op = v.getDefiningOp();
+        if (toHoist.count(op))
+          return true;
+        if (subHoist.count(op))
+          return true;
+        if (!op)
+          return false;
+        if (!isReadNone(op))
+          return false;
+        for (auto o : op->getOperands()) {
+          if (!fix(o))
+            return false;
+        }
+        subHoist.insert(op);
+        return true;
+      };
+
+      // If any operand is not defined before the location of
+      // lastParentWithoutScope (i.e. where we would hoist to), skip.
+      if (llvm::any_of(alloc->getOperands(), [&](Value v) { return !fix(v); }))
+        return WalkResult::skip();
+      for (auto s : subHoist)
+        toHoist.insert(s);
+      toHoist.insert(alloc);
+      return WalkResult::advance();
+    });
+
+    if (toHoist.empty())
+      return failure();
+    rewriter.setInsertionPoint(lastParentWithoutScope);
+    BlockAndValueMapping map;
+    for (auto *op : toHoist) {
+      auto *cloned = rewriter.clone(*op, map);
+      rewriter.replaceOp(op, cloned->getResults());
+    }
+    return success();
+  }
+};
+
+static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
+  // This op itself doesn't create a stack allocation,
+  // the inner allocation should be handled separately.
+  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+    return false;
+  MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
+  if (!interface)
+    return true;
+  for (auto res : op->getResults()) {
+    if (auto effect =
+            interface.getEffectOnValue<MemoryEffects::Allocate>(res)) {
+      if (isa<SideEffects::AutomaticAllocationScopeResource>(
+              effect->getResource()))
+        return true;
+    }
+  }
+  return false;
+}
+
+struct AggressiveAllocaScopeInliner
+    : public OpRewritePattern<memref::AllocaScopeOp> {
+  using OpRewritePattern<memref::AllocaScopeOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::AllocaScopeOp op,
+                                PatternRewriter &rewriter) const override {
+    bool hasPotentialAlloca =
+        op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
+            if (alloc == op || isa<LLVM::CallOp>(alloc) ||
+                isa<func::CallOp>(alloc) || isa<omp::BarrierOp>(alloc) ||
+                isa<polygeist::BarrierOp>(alloc))
+              return WalkResult::advance();
+            if (isOpItselfPotentialAutomaticAllocation(alloc))
+              return WalkResult::interrupt();
+            if (alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
+              return WalkResult::skip();
+            return WalkResult::advance();
+          }).wasInterrupted();
+
+    // If this contains no potential allocation, it is always legal to
+    // inline. Otherwise, consider two conditions:
+    if (hasPotentialAlloca) {
+      // If the parent isn't an allocation scope, or we are not the last
+      // non-terminator op in the parent, we will extend the lifetime.
+      if (!op->getParentOp()->hasTrait<OpTrait::AutomaticAllocationScope>())
+        return failure();
+      // if (!lastNonTerminatorInRegion(op))
+      //  return failure();
+    }
+
+    Block *block = &op.getRegion().front();
+    Operation *terminator = block->getTerminator();
+    ValueRange results = terminator->getOperands();
+    rewriter.mergeBlockBefore(block, op);
+    rewriter.replaceOp(op, results);
+    rewriter.eraseOp(terminator);
+    return success();
+  }
+};
+
+struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
+  using OpRewritePattern<scf::ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::ForOp forOp,
+                                PatternRewriter &rewriter) const override {
+    bool changed = false;
+    for (auto tup : llvm::zip(forOp.getResults(), forOp.getRegionIterArgs(),
+                              forOp.getIterOperands())) {
+      if (!std::get<0>(tup).use_empty() || std::get<1>(tup).use_empty()) {
+        continue;
+      }
+      bool legal = true;
+      SmallVector<Value> vals = {std::get<1>(tup)};
+      SmallPtrSet<Value, 2> seen = {};
+      while (vals.size()) {
+        Value v = vals.pop_back_val();
+        if (seen.count(v))
+          continue;
+        seen.insert(v);
+        for (OpOperand &back : v.getUses()) {
+          if (auto yop = dyn_cast<scf::YieldOp>(back.getOwner())) {
+            if (auto ifOp = dyn_cast<scf::IfOp>(yop->getParentOp())) {
+              vals.push_back(ifOp.getResult(back.getOperandNumber()));
+              continue;
+            }
+            if (auto op = dyn_cast<scf::ForOp>(yop->getParentOp())) {
+              vals.push_back(op.getResult(back.getOperandNumber()));
+              vals.push_back(op.getRegionIterArgs()[back.getOperandNumber()]);
+              continue;
+            }
+          }
+          if (auto yop = dyn_cast<AffineYieldOp>(back.getOwner())) {
+            if (auto ifOp = dyn_cast<AffineIfOp>(yop->getParentOp())) {
+              vals.push_back(ifOp.getResult(back.getOperandNumber()));
+              continue;
+            }
+            if (auto op = dyn_cast<AffineForOp>(yop->getParentOp())) {
+              vals.push_back(op.getResult(back.getOperandNumber()));
+              vals.push_back(op.getRegionIterArgs()[back.getOperandNumber()]);
+              continue;
+            }
+          }
+          if (auto selOp = dyn_cast<arith::SelectOp>(back.getOwner())) {
+            if (selOp.getCondition() != v)
+              vals.push_back(selOp);
+            continue;
+          }
+          legal = false;
+          break;
+        }
+        if (!legal)
+          break;
+      }
+      if (legal) {
+        rewriter.updateRootInPlace(forOp, [&] {
+          std::get<1>(tup).replaceAllUsesWith(std::get<2>(tup));
+        });
+        changed = true;
+      }
+    }
+    return success(changed);
+  }
+};
+
+// Does not fly if parallelism, need to make thread local in that case (either
+// move within or remove memspace 5).
+template <typename T, typename ParOp>
+struct RankReduction : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+    mlir::Type Ty = op->getResult(0).getType();
+    MemRefType MT = Ty.cast<MemRefType>();
+    if (MT.getShape().size() == 0)
+      return failure();
+    SmallVector<Value> v;
+    bool set = false;
+    ParOp midPar = nullptr;
+    for (auto u : op->getResult(0).getUsers()) {
+      Operation *uop = u;
+      if (auto par = uop->getParentOfType<ParOp>()) {
+        if (par != ((Operation *)op)->getParentOfType<ParOp>()) {
+          if (midPar == nullptr)
+            midPar = par;
+          else if (midPar != par)
+            return failure();
+        }
+      }
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        if (!set) {
+          for (auto i : load.indices())
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(load.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        SmallVector<Value> indices;
+        auto map = load.getAffineMapAttr().getValue();
+        for (AffineExpr op : map.getResults()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+            indices.push_back(load.getMapOperands()[opd.getPosition()]);
+          }
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
+            indices.push_back(
+                load.getMapOperands()[opd.getPosition() + map.getNumDims()]);
+          }
+          return failure();
+        }
+        if (!set) {
+          for (auto i : indices)
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(load.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        if (!set) {
+          for (auto i : store.indices())
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(store.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        SmallVector<Value> indices;
+        auto map = store.getAffineMapAttr().getValue();
+        for (AffineExpr op : map.getResults()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
+            indices.push_back(store.getMapOperands()[opd.getPosition()]);
+          }
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
+            indices.push_back(
+                store.getMapOperands()[opd.getPosition() + map.getNumDims()]);
+          }
+          return failure();
+        }
+        if (!set) {
+          for (auto i : indices)
+            v.push_back(i);
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(store.indices(), v)) {
+            if (std::get<0>(pair) != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+
+      return failure();
+    }
+
+    MT = MemRefType::get({}, MT.getElementType(), MemRefLayoutAttrInterface(),
+                         0 /*MT.getMemorySpace()*/);
+    if (midPar)
+      rewriter.setInsertionPointToStart(&midPar.getRegion().front());
+    auto newOp = rewriter.create<T>(op.getLoc(), MT);
+
+    for (auto u : llvm::make_early_inc_range(op->getResult(0).getUsers())) {
+      rewriter.setInsertionPoint(u);
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(load, newOp,
+                                                    ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(store, store.value(),
+                                                     newOp, ArrayRef<Value>());
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<AffineLoadOp>(load, newOp, AffineMap(),
+                                                  ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        rewriter.replaceOpWithNewOp<AffineStoreOp>(
+            store, store.value(), newOp, AffineMap(), ArrayRef<Value>());
+        continue;
+      }
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize>(context);
+  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
+                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
+                 CmpProp, UndefCmpProp,
+                 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+                 AlwaysAllocaScopeHoister<scf::ForOp>,
+                 AlwaysAllocaScopeHoister<AffineForOp>,
+                 // RankReduction<memref::AllocaOp, scf::ParallelOp>,
+                 AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }

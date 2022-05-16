@@ -19,12 +19,12 @@ void kernel_correlation(int table[N][N]) {
 }
 
 // CHECK:   func @kernel_correlation(%arg0: memref<?x10xi32>)
-// CHECK-DAG:     %c9_i32 = arith.constant 9 : i32
-// CHECK-DAG:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-DAG:     %c9 = arith.constant 9 : index
+// CHECK-DAG:     %c-1 = arith.constant -1 : index
 // CHECK-NEXT:     affine.for %arg1 = 0 to 10 {
-// CHECK-NEXT:       %0 = arith.index_cast %arg1 : index to i32
-// CHECK-NEXT:       %1 = arith.muli %0, %c-1_i32 : i32
-// CHECK-NEXT:       %2 = arith.addi %1, %c9_i32 : i32
+// CHECK-NEXT:       %0 = arith.muli %arg1, %c-1 : index
+// CHECK-NEXT:       %1 = arith.addi %0, %c9 : index
+// CHECK-NEXT:       %2 = arith.index_cast %1 : index to i32
 // CHECK-NEXT:       affine.for %arg2 = 0 to 10 {
 // CHECK-NEXT:         %3 = arith.index_cast %arg2 : index to i32
 // CHECK-NEXT:         %4 = arith.addi %2, %3 : i32

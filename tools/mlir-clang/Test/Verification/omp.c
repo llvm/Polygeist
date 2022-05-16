@@ -8,17 +8,17 @@ void square(double* x, int sstart, int send, int sinc) {
 }
 
 // CHECK:   func @square(%arg0: memref<?xf64>, %arg1: i32, %arg2: i32, %arg3: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-DAG:     %[[i0:.+]] = arith.index_cast %arg1 : i32 to index
-// CHECK-DAG:     %[[i1:.+]] = arith.index_cast %arg2 : i32 to index
-// CHECK-DAG:     %[[i2:.+]] = arith.index_cast %arg3 : i32 to index
-// CHECK-NEXT:     %[[i3:.+]] = arith.subi %[[i1]], %[[i0]] : index
-// CHECK-NEXT:     %4 = arith.subi %[[i3]], %c1 : index
-// CHECK-NEXT:     %5 = arith.addi %4, %[[i2]] : index
-// CHECK-NEXT:     %6 = arith.divui %5, %[[i2]] : index
-// CHECK-NEXT:     %7 = arith.muli %6, %[[i2]] : index
-// CHECK-NEXT:     %8 = arith.addi %[[i0]], %7 : index
-// CHECK-NEXT:     scf.parallel (%arg4) = (%[[i0]]) to (%8) step (%[[i2]]) {
+// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i32 to index
+// CHECK-NEXT:     %1 = arith.subi %arg2, %arg1 : i32
+// CHECK-NEXT:     %2 = arith.addi %1, %c-1_i32 : i32
+// CHECK-NEXT:     %3 = arith.addi %2, %arg3 : i32
+// CHECK-NEXT:     %4 = arith.divui %3, %arg3 : i32
+// CHECK-NEXT:     %5 = arith.muli %4, %arg3 : i32
+// CHECK-NEXT:     %6 = arith.addi %arg1, %5 : i32
+// CHECK-NEXT:     %7 = arith.index_cast %6 : i32 to index
+// CHECK-NEXT:     %8 = arith.index_cast %arg3 : i32 to index
+// CHECK-NEXT:     scf.parallel (%arg4) = (%0) to (%7) step (%8) {
 // CHECK-NEXT:       %9 = arith.index_cast %arg4 : index to i32
 // CHECK-NEXT:       %10 = arith.sitofp %9 : i32 to f64
 // CHECK-NEXT:       memref.store %10, %arg0[%arg4] : memref<?xf64>

@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --loop-restructure --split-input-file %s | FileCheck %s
 
 module {
-func @kernel_gemm(%arg0: i64) -> i1 {
+func.func @kernel_gemm(%arg0: i64) -> i1 {
   %c0_i64 = arith.constant 0 : i64
   %c1_i64 = arith.constant 1 : i64
   cf.br ^bb1(%c0_i64 : i64)
@@ -17,7 +17,7 @@ func @kernel_gemm(%arg0: i64) -> i1 {
 }
 
 
-// CHECK:   func @kernel_gemm(%arg0: i64) -> i1 {
+// CHECK:   func.func @kernel_gemm(%arg0: i64) -> i1 {
 // CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
 // CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
 // CHECK-NEXT:     %0 = llvm.mlir.undef : i1
@@ -41,7 +41,7 @@ func @kernel_gemm(%arg0: i64) -> i1 {
 // CHECK-NEXT:   }
 
 
-  func @gcd(%arg0: i32, %arg1: i32) -> i32 {
+  func.func @gcd(%arg0: i32, %arg1: i32) -> i32 {
     %c0_i32 = arith.constant 0 : i32
     %true = arith.constant true
     %0 = memref.alloca() : memref<i32>
@@ -70,7 +70,7 @@ func @kernel_gemm(%arg0: i64) -> i1 {
   }
 
 
-// CHECK:   func @gcd(%arg0: i32, %arg1: i32) -> i32 {
+// CHECK:   func.func @gcd(%arg0: i32, %arg1: i32) -> i32 {
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %true = arith.constant true
 // CHECK-NEXT:     %0 = memref.alloca() : memref<i32>

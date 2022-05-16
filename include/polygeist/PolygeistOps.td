@@ -1,4 +1,4 @@
-//===- BFVOps.td - BFV dialect ops -----------*- tablegen -*-===//
+//===- Polygeist.td - Polygeist dialect ops ----------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,6 +16,24 @@ include "mlir/Interfaces/ViewLikeInterface.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 
+def CacheLoad
+    : Polygeist_Op<"cacheload"> {
+
+  let arguments = (ins Arg<AnyMemRef, "the reference to load from",
+                           [MemRead]>:$memref,
+                       Variadic<Index>:$indices);
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilder<(ins "Value":$memref, CArg<"ValueRange", "{}">:$indices), [{
+      auto memrefType = memref.getType().cast<MemRefType>();
+      $_state.addOperands(memref);
+      $_state.addOperands(indices);
+      $_state.types.push_back(memrefType.getElementType());
+    }]>];
+  let summary = "load from cross barier cache";
+  let description = [{}];
+}
+
 // HasParent<"ParallelOp">,
 def BarrierOp
     : Polygeist_Op<"barrier",
@@ -24,6 +42,7 @@ def BarrierOp
   let arguments = (ins Variadic<Index>:$indices);
   let summary = "barrier for parallel loops";
   let description = [{}];
+  let hasCanonicalizer = true;
 }
 
 //===----------------------------------------------------------------------===//

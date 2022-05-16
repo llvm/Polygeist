@@ -57,10 +57,10 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
 /// expected type for an arg is memref<10xi8> while the provided is
 /// memref<20xf32>, we will simply ignore the case in this function and wait for
 /// the rest of the pipeline to detect it.
-static void castCallerArgs(mlir::FuncOp callee,
+static void castCallerArgs(mlir::func::FuncOp callee,
                            llvm::SmallVectorImpl<mlir::Value> &args,
                            mlir::OpBuilder &b) {
-  mlir::FunctionType funcTy = callee.getType().cast<mlir::FunctionType>();
+  mlir::FunctionType funcTy = callee.getFunctionType();
   assert(args.size() == funcTy.getNumInputs() &&
          "The caller arguments should have the same size as the number of "
          "callee arguments as the interface.");
@@ -78,11 +78,11 @@ static void castCallerArgs(mlir::FuncOp callee,
 }
 
 ValueCategory MLIRScanner::CallHelper(
-    mlir::FuncOp tocall, QualType objType,
+    mlir::func::FuncOp tocall, QualType objType,
     ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
     QualType retType, bool retReference, clang::Expr *expr) {
   SmallVector<mlir::Value, 4> args;
-  auto fnType = tocall.getType();
+  auto fnType = tocall.getFunctionType();
 
   size_t i = 0;
   // map from declaration name to mlir::value
@@ -91,15 +91,15 @@ ValueCategory MLIRScanner::CallHelper(
   for (auto pair : arguments) {
 
     ValueCategory arg = std::get<0>(pair);
-    auto a = std::get<1>(pair);
+    auto *a = std::get<1>(pair);
     if (!arg.val) {
       expr->dump();
       a->dump();
     }
     assert(arg.val && "expect not null");
 
-    if (auto ice = dyn_cast_or_null<ImplicitCastExpr>(a))
-      if (auto dre = dyn_cast<DeclRefExpr>(ice->getSubExpr()))
+    if (auto *ice = dyn_cast_or_null<ImplicitCastExpr>(a))
+      if (auto *dre = dyn_cast<DeclRefExpr>(ice->getSubExpr()))
         mapFuncOperands.insert(
             make_pair(dre->getDecl()->getName().str(), arg.val));
 
@@ -244,7 +244,7 @@ ValueCategory MLIRScanner::CallHelper(
     args.push_back(alloc);
   }
 
-  if (auto CU = dyn_cast<CUDAKernelCallExpr>(expr)) {
+  if (auto *CU = dyn_cast<CUDAKernelCallExpr>(expr)) {
     auto l0 = Visit(CU->getConfig()->getArg(0));
     assert(l0.isReference);
     mlir::Value blocks[3];
@@ -264,7 +264,7 @@ ValueCategory MLIRScanner::CallHelper(
         blocks[i] = builder.create<IndexCastOp>(
             loc, mlir::IndexType::get(builder.getContext()),
             builder.create<LLVM::LoadOp>(
-                loc, mlir::IndexType::get(builder.getContext()),
+                loc,
                 builder.create<LLVM::GEPOp>(
                     loc, LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
                     val, idx)));
@@ -300,7 +300,7 @@ ValueCategory MLIRScanner::CallHelper(
                                                   blocks[2], threads[0],
                                                   threads[1], threads[2]);
     auto oldpoint = builder.getInsertionPoint();
-    auto oldblock = builder.getInsertionBlock();
+    auto *oldblock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&op.getRegion().front());
     builder.create<CallOp>(loc, tocall, args);
     builder.create<gpu::TerminatorOp>(loc);
@@ -355,10 +355,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (valEmitted.second)
     return valEmitted.first;
 
-  if (auto oc = dyn_cast<CXXOperatorCallExpr>(expr)) {
+  if (auto *oc = dyn_cast<CXXOperatorCallExpr>(expr)) {
     if (oc->getOperator() == clang::OO_EqualEqual) {
-      if (auto lhs = dyn_cast<CXXTypeidExpr>(expr->getArg(0))) {
-        if (auto rhs = dyn_cast<CXXTypeidExpr>(expr->getArg(1))) {
+      if (auto *lhs = dyn_cast<CXXTypeidExpr>(expr->getArg(0))) {
+        if (auto *rhs = dyn_cast<CXXTypeidExpr>(expr->getArg(1))) {
           QualType LT = lhs->isTypeOperand()
                             ? lhs->getTypeOperand(Glob.CGM.getContext())
                             : lhs->getExprOperand()->getType();
@@ -375,17 +375,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
   }
-  if (auto oc = dyn_cast<CXXMemberCallExpr>(expr)) {
-    if (auto lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
+  if (auto *oc = dyn_cast<CXXMemberCallExpr>(expr)) {
+    if (auto *lhs = dyn_cast<CXXTypeidExpr>(oc->getImplicitObjectArgument())) {
       expr->getCallee()->dump();
-      if (auto ic = dyn_cast<MemberExpr>(expr->getCallee()))
-        if (auto sr = dyn_cast<NamedDecl>(ic->getMemberDecl())) {
+      if (auto *ic = dyn_cast<MemberExpr>(expr->getCallee()))
+        if (auto *sr = dyn_cast<NamedDecl>(ic->getMemberDecl())) {
           if (sr->getIdentifier() && sr->getName() == "name") {
             QualType LT = lhs->isTypeOperand()
                               ? lhs->getTypeOperand(Glob.CGM.getContext())
                               : lhs->getExprOperand()->getType();
             llvm::Constant *LC = Glob.CGM.GetAddrOfRTTIDescriptor(LT);
-            while (auto CE = dyn_cast<llvm::ConstantExpr>(LC))
+            while (auto *CE = dyn_cast<llvm::ConstantExpr>(LC))
               LC = CE->getOperand(0);
             std::string val = cast<llvm::GlobalVariable>(LC)->getName().str();
             return CommonArrayToPointer(ValueCategory(
@@ -396,18 +396,18 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
   }
 
-  if (auto ps = dyn_cast<CXXPseudoDestructorExpr>(expr->getCallee())) {
+  if (auto *ps = dyn_cast<CXXPseudoDestructorExpr>(expr->getCallee())) {
     return Visit(ps);
   }
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "atomicAdd" ||
            sr->getDecl()->getName() == "atomicOr" ||
            sr->getDecl()->getName() == "atomicAnd")) {
         std::vector<ValueCategory> args;
-        for (auto a : expr->arguments()) {
+        for (auto *a : expr->arguments()) {
           args.push_back(Visit(a));
         }
         auto a0 = args[0].getValue(builder);
@@ -498,8 +498,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return val;
   };
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__powf" ||
            sr->getDecl()->getName() == "pow" ||
@@ -512,7 +512,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "powf")) {
         auto mlirType = getMLIRType(expr->getType());
         std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
+        for (auto *a : expr->arguments()) {
           args.push_back(Visit(a).getValue(builder));
         }
         if (args[1].getType().isa<mlir::IntegerType>())
@@ -525,8 +525,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               /*isReference*/ false);
       }
     }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "__builtin_addressof") {
         auto V = Visit(expr->getArg(0));
@@ -555,8 +555,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         assert(0 && "unhandled builtin addressof");
       }
     }
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__nv_fabsf" ||
            sr->getDecl()->getName() == "__nv_fabs" ||
@@ -613,8 +613,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           std::vector<mlir::Type> rettypes{RT};
           mlir::OpBuilder mbuilder(Glob.module->getContext());
           auto funcType = mbuilder.getFunctionType(types, rettypes);
-          Glob.functions[name] = mlir::FuncOp(
-              mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+          Glob.functions[name] = mlir::func::FuncOp(mlir::func::FuncOp::create(
+              builder.getUnknownLoc(), name, funcType));
           SymbolTable::setSymbolVisibility(Glob.functions[name],
                                            SymbolTable::Visibility::Private);
           Glob.module->push_back(Glob.functions[name]);
@@ -631,7 +631,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "strlen")) {
         mlir::Value V0 = getLLVM(expr->getArg(0));
 
-        auto name = "strlen";
+        const auto *name = "strlen";
 
         if (Glob.functions.find(name) == Glob.functions.end()) {
           std::vector<mlir::Type> types{V0.getType()};
@@ -640,8 +640,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           std::vector<mlir::Type> rettypes{RT};
           mlir::OpBuilder mbuilder(Glob.module->getContext());
           auto funcType = mbuilder.getFunctionType(types, rettypes);
-          Glob.functions[name] = mlir::FuncOp(
-              mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+          Glob.functions[name] = mlir::func::FuncOp(mlir::func::FuncOp::create(
+              builder.getUnknownLoc(), name, funcType));
           SymbolTable::setSymbolVisibility(Glob.functions[name],
                                            SymbolTable::Visibility::Private);
           Glob.module->push_back(Glob.functions[name]);
@@ -809,8 +809,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
         mlir::OpBuilder mbuilder(Glob.module->getContext());
         auto funcType = mbuilder.getFunctionType(types, rettypes);
-        mlir::FuncOp function = mlir::FuncOp(
-            mlir::FuncOp::create(builder.getUnknownLoc(), name, funcType));
+        mlir::func::FuncOp function =
+            mlir::func::FuncOp(mlir::func::FuncOp::create(
+                builder.getUnknownLoc(), name, funcType));
         SymbolTable::setSymbolVisibility(function,
                                          SymbolTable::Visibility::Private);
 
@@ -935,8 +936,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if ((sr->getDecl()->getIdentifier() &&
            (sr->getDecl()->getName() == "fscanf" ||
             sr->getDecl()->getName() == "scanf" ||
@@ -945,13 +946,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           (isa<CXXOperatorCallExpr>(expr) &&
            cast<CXXOperatorCallExpr>(expr)->getOperator() ==
                OO_GreaterGreater)) {
-        auto tocall = EmitCallee(expr->getCallee());
+        const auto *tocall = EmitCallee(expr->getCallee());
         auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
         std::vector<mlir::Value> args;
         std::vector<std::pair<mlir::Value, mlir::Value>> ops;
         std::map<const void *, size_t> counts;
-        for (auto a : expr->arguments()) {
+        for (auto *a : expr->arguments()) {
           auto v = getLLVM(a);
           if (auto toptr = v.getDefiningOp<polygeist::Memref2PointerOp>()) {
             auto T = toptr.getType().cast<LLVM::LLVMPointerType>();
@@ -973,8 +974,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "memmove" ||
            sr->getDecl()->getName() == "__builtin_memmove")) {
@@ -1014,11 +1015,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "cudaMemcpyToSymbol" ||
            sr->getDecl()->getName() == "memcpy" ||
            sr->getDecl()->getName() == "__builtin_memcpy")) {
-        auto dstSub = expr->getArg(0);
-        while (auto BC = dyn_cast<clang::CastExpr>(dstSub))
+        auto *dstSub = expr->getArg(0);
+        while (auto *BC = dyn_cast<clang::CastExpr>(dstSub))
           dstSub = BC->getSubExpr();
-        auto srcSub = expr->getArg(1);
-        while (auto BC = dyn_cast<clang::CastExpr>(srcSub))
+        auto *srcSub = expr->getArg(1);
+        while (auto *BC = dyn_cast<clang::CastExpr>(srcSub))
           srcSub = BC->getSubExpr();
 
 #if 0
@@ -1323,7 +1324,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     }
 #endif
 
-  auto callee = EmitCallee(expr->getCallee());
+  const auto *callee = EmitCallee(expr->getCallee());
 
   std::set<std::string> funcs = {
       "fread",
@@ -1373,13 +1374,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
       "cudaEventRecord"};
-  if (auto ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       StringRef name;
-      if (auto CC = dyn_cast<CXXConstructorDecl>(sr->getDecl()))
+      if (auto *CC = dyn_cast<CXXConstructorDecl>(sr->getDecl()))
         name =
             Glob.CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
-      else if (auto CC = dyn_cast<CXXDestructorDecl>(sr->getDecl()))
+      else if (auto *CC = dyn_cast<CXXDestructorDecl>(sr->getDecl()))
         name =
             Glob.CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
       else if (sr->getDecl()->hasAttr<CUDAGlobalAttr>())
@@ -1392,7 +1393,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           name.startswith("cblas_")) {
 
         std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
+        for (auto *a : expr->arguments()) {
           args.push_back(getLLVM(a));
         }
         mlir::Value called;
@@ -1418,7 +1419,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (!callee || callee->isVariadic()) {
     bool isReference = expr->isLValue() || expr->isXValue();
     std::vector<mlir::Value> args;
-    for (auto a : expr->arguments()) {
+    for (auto *a : expr->arguments()) {
       args.push_back(getLLVM(a));
     }
     mlir::Value called;
@@ -1460,7 +1461,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   SmallVector<std::pair<ValueCategory, clang::Expr *>> args;
   QualType objType;
 
-  if (auto CC = dyn_cast<CXXMemberCallExpr>(expr)) {
+  if (auto *CC = dyn_cast<CXXMemberCallExpr>(expr)) {
     ValueCategory obj = Visit(CC->getImplicitObjectArgument());
     objType = CC->getObjectType();
     if (!obj.val) {
@@ -1476,7 +1477,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     assert(obj.isReference);
     args.emplace_back(make_pair(obj, (clang::Expr *)nullptr));
   }
-  for (auto a : expr->arguments())
+  for (auto *a : expr->arguments())
     args.push_back(make_pair(Visit(a), a));
   return CallHelper(tocall, objType, args, expr->getType(),
                     expr->isLValue() || expr->isXValue(), expr);

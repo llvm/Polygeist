@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
 
 module  {
-  func private @_ZN11ACUDAStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(i32, i32)>)>>, %arg1: !llvm.ptr<struct<(struct<(i32, i32)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+  func.func private @_ZN11ACUDAStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(i32, i32)>)>>, %arg1: !llvm.ptr<struct<(struct<(i32, i32)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 	%c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
     %c0_i32 = arith.constant 0 : i32
@@ -17,7 +17,7 @@ module  {
   }
 }
 
-// CHECK:   func private @_ZN11ACUDAStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(i32, i32)>)>>, %arg1: !llvm.ptr<struct<(struct<(i32, i32)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK:   func.func private @_ZN11ACUDAStreamC1EOS_(%arg0: !llvm.ptr<struct<(struct<(i32, i32)>)>>, %arg1: !llvm.ptr<struct<(struct<(i32, i32)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:     %[[i0:.+]] = llvm.bitcast %arg1 : !llvm.ptr<struct<(struct<(i32, i32)>)>> to !llvm.ptr<i32>
 // CHECK-NEXT:     %[[i2:.+]] = llvm.load %[[i0]] : !llvm.ptr<i32>
