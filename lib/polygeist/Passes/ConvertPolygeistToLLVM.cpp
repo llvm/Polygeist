@@ -37,6 +37,9 @@
 using namespace mlir;
 using namespace polygeist;
 
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module);
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
+
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor
 ///   2. Updates to the descriptor to introduce the data ptr, offset, size
@@ -471,6 +474,9 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           valueMapping.map(idx.value(),
                            rewriter.create<LLVM::LoadOp>(loc, next));
         }
+        auto freef = GetOrCreateFreeFunction(module);
+        Value args[] = {arg};
+        rewriter.create<LLVM::CallOp>(loc, freef, args);
       }
 
       // Clone all operations from the execute operation body into the outlined
@@ -509,13 +515,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         for (auto v : crossing)
           types.push_back(v.getType());
         auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
-        rewriter.setInsertionPointToStart(
-            &execute->getParentOfType<FunctionOpInterface>()
-                 ->getRegion(0)
-                 .front());
-        auto alloc = rewriter.create<LLVM::AllocaOp>(
-            execute.getLoc(), LLVM::LLVMPointerType::get(ST),
-            rewriter.create<arith::ConstantIntOp>(loc, 1, 32), 0);
+        
+        auto mallocf = GetOrCreateMallocFunction(module);
+        
+        Value args[] = { rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(), ST)) };
+        mlir::Value alloc =
+          rewriter.create<LLVM::BitcastOp>(loc, LLVM::LLVMPointerType::get(ST), rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args).getResult(0));
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
