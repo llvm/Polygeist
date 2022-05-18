@@ -277,14 +277,17 @@ void ParallelLower::runOnOperation() {
 
     async::ExecuteOp asyncOp = nullptr;
     if (!llvm::empty(launchOp.asyncDependencies())) {
-        SmallVector<Value> dependencies;
-        for (auto v : launchOp.asyncDependencies()) {
-            auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
-            dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(tok.getLoc(), builder.getType<async::TokenType>(), tok.source()) );
-        }
-        asyncOp = builder.create<mlir::async::ExecuteOp>(loc, /*results*/TypeRange(), /*dependencies*/dependencies, /*operands*/ValueRange());
-        Block *blockB = &asyncOp.body().front();
-        builder.setInsertionPointToStart(blockB);
+      SmallVector<Value> dependencies;
+      for (auto v : launchOp.asyncDependencies()) {
+        auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
+        dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(
+            tok.getLoc(), builder.getType<async::TokenType>(), tok.source()));
+      }
+      asyncOp = builder.create<mlir::async::ExecuteOp>(
+          loc, /*results*/ TypeRange(), /*dependencies*/ dependencies,
+          /*operands*/ ValueRange());
+      Block *blockB = &asyncOp.body().front();
+      builder.setInsertionPointToStart(blockB);
     }
 
     auto block = builder.create<mlir::scf::ParallelOp>(

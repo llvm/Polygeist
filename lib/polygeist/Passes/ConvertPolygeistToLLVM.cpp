@@ -419,7 +419,10 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     static int off = 0;
     off++;
     auto func = moduleBuilder.create<LLVM::LLVMFuncOp>(
-        execute.getLoc(), "kernelbody." + std::to_string(off), funcType);
+        execute.getLoc(),
+        "kernelbody." + std::to_string((long long int)&execute) + "." +
+            std::to_string(off),
+        funcType);
 
     rewriter.setInsertionPointToStart(func.addEntryBlock());
     BlockAndValueMapping valueMapping;
@@ -515,12 +518,17 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         for (auto v : crossing)
           types.push_back(v.getType());
         auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
-        
+
         auto mallocf = GetOrCreateMallocFunction(module);
-        
-        Value args[] = { rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(), ST)) };
-        mlir::Value alloc =
-          rewriter.create<LLVM::BitcastOp>(loc, LLVM::LLVMPointerType::get(ST), rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args).getResult(0));
+
+        Value args[] = {rewriter.create<arith::IndexCastOp>(
+            loc, rewriter.getI64Type(),
+            rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
+                                                   ST))};
+        mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
+            loc, LLVM::LLVMPointerType::get(ST),
+            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
+                .getResult(0));
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
