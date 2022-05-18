@@ -235,6 +235,8 @@ public:
 
   ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
 
+  ValueCategory VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr);
+
   ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
 
   ValueCategory VisitAtomicExpr(clang::AtomicExpr *expr);
