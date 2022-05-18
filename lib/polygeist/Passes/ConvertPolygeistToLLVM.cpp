@@ -418,8 +418,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     static int off = 0;
     off++;
-    auto func = moduleBuilder.create<LLVM::LLVMFuncOp>(
-        execute.getLoc(), "kernelbody." + std::to_string(off), funcType);
+    auto func = moduleBuilder.create<LLVM::LLVMFuncOp>(execute.getLoc(), "kernelbody." + std::to_string((long long int) &execute) + std::to_string(off), funcType);
 
     rewriter.setInsertionPointToStart(func.addEntryBlock());
     BlockAndValueMapping valueMapping;
