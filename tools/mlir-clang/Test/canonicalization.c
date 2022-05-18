@@ -5,10 +5,10 @@
 
 // CHECK-LABEL:   func @matrix_power(
 // CHECK:                       %[[VAL_0:.*]]: memref<20x20xi32>, %[[VAL_1:.*]]: memref<20xi32>, %[[VAL_2:.*]]: memref<20xi32>, %[[VAL_3:.*]]: memref<20xi32>)
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c20 = arith.constant 20 : index
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c20 = arith.constant 20 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c-1_i32 = arith.constant -1 : i32
 // CHECK-NEXT:     scf.for %arg4 = %c1 to %c20 step %c1 {
 // CHECK-NEXT:       %0 = arith.index_cast %arg4 : index to i32
 // CHECK-NEXT:       %1 = arith.addi %0, %c-1_i32 : i32

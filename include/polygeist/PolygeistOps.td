@@ -65,6 +65,16 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
+
+def StreamToTokenOp : Polygeist_Op<"stream2token", [
+  NoSideEffect
+]> {
+  let summary = "Extract an async stream from a cuda stream";
+
+  let arguments = (ins AnyType : $source);
+  let results = (outs AnyType : $result);
+}
+
 //===----------------------------------------------------------------------===//
 // Memref2PointerOp
 //===----------------------------------------------------------------------===//

@@ -296,9 +296,22 @@ ValueCategory MLIRScanner::CallHelper(
                     val, idx)));
       }
     }
-    auto op = builder.create<mlir::gpu::LaunchOp>(loc, blocks[0], blocks[1],
-                                                  blocks[2], threads[0],
-                                                  threads[1], threads[2]);
+    mlir::Value stream = nullptr;
+    SmallVector<mlir::Value, 1> asyncDependencies;
+    if (3 < CU->getConfig()->getNumArgs() &&
+        !isa<CXXDefaultArgExpr>(CU->getConfig()->getArg(3))) {
+      stream = Visit(CU->getConfig()->getArg(3)).getValue(builder);
+      stream = builder.create<polygeist::StreamToTokenOp>(
+          loc, builder.getType<gpu::AsyncTokenType>(), stream);
+      assert(stream);
+      asyncDependencies.push_back(stream);
+    }
+    auto op = builder.create<mlir::gpu::LaunchOp>(
+        loc, blocks[0], blocks[1], blocks[2], threads[0], threads[1],
+        threads[2],
+        /*dynamic shmem size*/ nullptr,
+        /*token type*/ stream ? stream.getType() : nullptr,
+        /*dependencies*/ asyncDependencies);
     auto oldpoint = builder.getInsertionPoint();
     auto *oldblock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&op.getRegion().front());

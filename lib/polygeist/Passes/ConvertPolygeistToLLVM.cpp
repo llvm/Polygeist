@@ -21,17 +21,24 @@
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Func/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
 using namespace mlir;
 using namespace polygeist;
+
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module);
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor
@@ -188,6 +195,20 @@ struct Pointer2MemrefOpLowering
   }
 };
 
+struct StreamToTokenOpLowering
+    : public ConvertOpToLLVMPattern<StreamToTokenOp> {
+  using ConvertOpToLLVMPattern<StreamToTokenOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(StreamToTokenOp op, OpAdaptor transformed,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    Value v[] = {transformed.source()};
+    rewriter.replaceOp(op, v);
+    return success();
+  }
+};
+
 struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
   using ConvertOpToLLVMPattern<TypeSizeOp>::ConvertOpToLLVMPattern;
 
@@ -321,6 +342,227 @@ struct URLLVMOpLowering
   }
 };
 
+// TODO lock this wrt module
+static LLVM::LLVMFuncOp addMocCUDAFunction(ModuleOp module, Type streamTy) {
+  const char fname[] = "fake_cuda_dispatch";
+
+  MLIRContext *ctx = module.getContext();
+  auto loc = module.getLoc();
+  auto moduleBuilder = ImplicitLocOpBuilder::atBlockEnd(loc, module.getBody());
+
+  for (auto fn : module.getBody()->getOps<LLVM::LLVMFuncOp>()) {
+    if (fn.getName() == fname)
+      return fn;
+  }
+
+  auto voidTy = LLVM::LLVMVoidType::get(ctx);
+  auto i8Ptr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+
+  auto resumeOp = moduleBuilder.create<LLVM::LLVMFuncOp>(
+      fname, LLVM::LLVMFunctionType::get(
+                 voidTy, {i8Ptr,
+                          LLVM::LLVMPointerType::get(
+                              LLVM::LLVMFunctionType::get(voidTy, {i8Ptr})),
+                          streamTy}));
+  resumeOp.setPrivate();
+
+  return resumeOp;
+}
+
+struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
+  using ConvertOpToLLVMPattern<async::ExecuteOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(async::ExecuteOp execute, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    ModuleOp module = execute->getParentOfType<ModuleOp>();
+
+    MLIRContext *ctx = module.getContext();
+    Location loc = execute.getLoc();
+
+    auto voidTy = LLVM::LLVMVoidType::get(ctx);
+    Type voidPtr = LLVM::LLVMPointerType::get(IntegerType::get(ctx, 8));
+
+    // Make sure that all constants will be inside the outlined async function
+    // to reduce the number of function arguments.
+    Region &funcReg = execute.body();
+
+    // Collect all outlined function inputs.
+    SetVector<mlir::Value> functionInputs;
+
+    getUsedValuesDefinedAbove(execute.body(), funcReg, functionInputs);
+    SmallVector<Value> toErase;
+    for (auto a : functionInputs) {
+      Operation *op = a.getDefiningOp();
+      if (op && op->hasTrait<OpTrait::ConstantLike>())
+        toErase.push_back(a);
+    }
+    for (auto a : toErase) {
+      functionInputs.remove(a);
+    }
+
+    // Collect types for the outlined function inputs and outputs.
+    TypeConverter *converter = getTypeConverter();
+    auto typesRange = llvm::map_range(functionInputs, [&](Value value) {
+      return converter->convertType(value.getType());
+    });
+    SmallVector<Type, 4> inputTypes(typesRange.begin(), typesRange.end());
+
+    Type ftypes[] = {voidPtr};
+    auto funcType = LLVM::LLVMFunctionType::get(voidTy, ftypes);
+
+    // TODO: Derive outlined function name from the parent FuncOp (support
+    // multiple nested async.execute operations).
+    auto moduleBuilder =
+        ImplicitLocOpBuilder::atBlockEnd(loc, module.getBody());
+
+    static int off = 0;
+    off++;
+    auto func = moduleBuilder.create<LLVM::LLVMFuncOp>(
+        execute.getLoc(),
+        "kernelbody." + std::to_string((long long int)&execute) + "." +
+            std::to_string(off),
+        funcType);
+
+    rewriter.setInsertionPointToStart(func.addEntryBlock());
+    BlockAndValueMapping valueMapping;
+    for (Value capture : toErase) {
+      Operation *op = capture.getDefiningOp();
+      for (auto r :
+           llvm::zip(op->getResults(),
+                     rewriter.clone(*op, valueMapping)->getResults())) {
+        valueMapping.map(rewriter.getRemappedValue(std::get<0>(r)),
+                         std::get<1>(r));
+      }
+    }
+    // Prepare for coroutine conversion by creating the body of the function.
+    {
+      // Map from function inputs defined above the execute op to the function
+      // arguments.
+      auto arg = func.getArgument(0);
+
+      if (functionInputs.size() == 0) {
+      } else if (functionInputs.size() == 1 &&
+                 converter->convertType(functionInputs[0].getType())
+                     .isa<LLVM::LLVMPointerType>()) {
+        valueMapping.map(
+            functionInputs[0],
+            rewriter.create<LLVM::BitcastOp>(
+                execute.getLoc(),
+                converter->convertType(functionInputs[0].getType()), arg));
+      } else if (functionInputs.size() == 1 &&
+                 converter->convertType(functionInputs[0].getType())
+                     .isa<IntegerType>()) {
+        valueMapping.map(
+            functionInputs[0],
+            rewriter.create<LLVM::PtrToIntOp>(
+                execute.getLoc(),
+                converter->convertType(functionInputs[0].getType()), arg));
+      } else {
+        SmallVector<Type> types;
+        for (auto v : functionInputs)
+          types.push_back(converter->convertType(v.getType()));
+        auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
+        auto alloc = rewriter.create<LLVM::BitcastOp>(
+            execute.getLoc(), LLVM::LLVMPointerType::get(ST), arg);
+        for (auto idx : llvm::enumerate(functionInputs)) {
+
+          mlir::Value idxs[] = {
+              rewriter.create<arith::ConstantIntOp>(loc, 0, 32),
+              rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
+          };
+          Value next = rewriter.create<LLVM::GEPOp>(
+              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
+              idxs);
+          valueMapping.map(idx.value(),
+                           rewriter.create<LLVM::LoadOp>(loc, next));
+        }
+        auto freef = GetOrCreateFreeFunction(module);
+        Value args[] = {arg};
+        rewriter.create<LLVM::CallOp>(loc, freef, args);
+      }
+
+      // Clone all operations from the execute operation body into the outlined
+      // function body.
+      for (Operation &op : execute.body().front().without_terminator())
+        rewriter.clone(op, valueMapping);
+
+      rewriter.create<LLVM::ReturnOp>(execute.getLoc(), ValueRange());
+    }
+
+    // Replace the original `async.execute` with a call to outlined function.
+    {
+      rewriter.setInsertionPoint(execute);
+      SmallVector<Value> crossing;
+      for (auto tup : llvm::zip(functionInputs, inputTypes)) {
+        Value val = std::get<0>(tup);
+        crossing.push_back(val);
+      }
+
+      SmallVector<Value> vals;
+      if (crossing.size() == 0) {
+        vals.push_back(
+            rewriter.create<LLVM::NullOp>(execute.getLoc(), voidPtr));
+      } else if (crossing.size() == 1 &&
+                 converter->convertType(crossing[0].getType())
+                     .isa<LLVM::LLVMPointerType>()) {
+        vals.push_back(rewriter.create<LLVM::BitcastOp>(execute.getLoc(),
+                                                        voidPtr, crossing[0]));
+      } else if (crossing.size() == 1 &&
+                 converter->convertType(crossing[0].getType())
+                     .isa<IntegerType>()) {
+        vals.push_back(rewriter.create<LLVM::IntToPtrOp>(execute.getLoc(),
+                                                         voidPtr, crossing[0]));
+      } else {
+        SmallVector<Type> types;
+        for (auto v : crossing)
+          types.push_back(v.getType());
+        auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
+
+        auto mallocf = GetOrCreateMallocFunction(module);
+
+        Value args[] = {rewriter.create<arith::IndexCastOp>(
+            loc, rewriter.getI64Type(),
+            rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
+                                                   ST))};
+        mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
+            loc, LLVM::LLVMPointerType::get(ST),
+            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
+                .getResult(0));
+        rewriter.setInsertionPoint(execute);
+        for (auto idx : llvm::enumerate(crossing)) {
+
+          mlir::Value idxs[] = {
+              rewriter.create<arith::ConstantIntOp>(loc, 0, 32),
+              rewriter.create<arith::ConstantIntOp>(loc, idx.index(), 32),
+          };
+          Value next = rewriter.create<LLVM::GEPOp>(
+              loc, LLVM::LLVMPointerType::get(idx.value().getType()), alloc,
+              idxs);
+          rewriter.create<LLVM::StoreOp>(loc, idx.value(), next);
+        }
+        vals.push_back(
+            rewriter.create<LLVM::BitcastOp>(execute.getLoc(), voidPtr, alloc));
+      }
+      vals.push_back(
+          rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
+      for (auto dep : execute.dependencies()) {
+        auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
+        vals.push_back(ctx.source());
+      }
+      assert(vals.size() == 3);
+
+      auto f = addMocCUDAFunction(execute->getParentOfType<ModuleOp>(),
+                                  vals.back().getType());
+
+      rewriter.create<LLVM::CallOp>(execute.getLoc(), f, vals);
+      rewriter.eraseOp(execute);
+    }
+
+    return success();
+  }
+};
+
 struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
   explicit GlobalOpTypeConversion(LLVMTypeConverter &converter)
       : OpConversionPattern<LLVM::GlobalOp>(converter,
@@ -381,73 +623,84 @@ struct ConvertPolygeistToLLVMPass
 
     options.dataLayout = llvm::DataLayout(this->dataLayout);
 
-    LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
-    RewritePatternSet patterns(&getContext());
-    populatePolygeistToLLVMConversionPatterns(converter, patterns);
-    populateSCFToControlFlowConversionPatterns(patterns);
-    cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
-    populateMemRefToLLVMConversionPatterns(converter, patterns);
-    populateFuncToLLVMConversionPatterns(converter, patterns);
-    populateMathToLLVMConversionPatterns(converter, patterns);
-    populateOpenMPToLLVMConversionPatterns(converter, patterns);
-    arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
+    for (int i = 0; i < 2; i++) {
 
-    patterns
-        .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
-            converter);
-    patterns.add<URLLVMOpLowering>(converter);
+      LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
+      RewritePatternSet patterns(&getContext());
+      populatePolygeistToLLVMConversionPatterns(converter, patterns);
+      populateSCFToControlFlowConversionPatterns(patterns);
+      cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
+      populateMemRefToLLVMConversionPatterns(converter, patterns);
+      populateFuncToLLVMConversionPatterns(converter, patterns);
+      populateMathToLLVMConversionPatterns(converter, patterns);
+      populateOpenMPToLLVMConversionPatterns(converter, patterns);
+      arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
 
-    // Legality callback for operations that checks whether their operand and
-    // results types are converted.
-    auto areAllTypesConverted = [&](Operation *op) -> Optional<bool> {
-      SmallVector<Type> convertedResultTypes;
-      if (failed(converter.convertTypes(op->getResultTypes(),
-                                        convertedResultTypes)))
-        return llvm::None;
-      SmallVector<Type> convertedOperandTypes;
-      if (failed(converter.convertTypes(op->getOperandTypes(),
-                                        convertedOperandTypes)))
-        return llvm::None;
-      return convertedResultTypes == op->getResultTypes() &&
-             convertedOperandTypes == op->getOperandTypes();
-    };
+      converter.addConversion([&](async::TokenType type) { return type; });
 
-    LLVMConversionTarget target(getContext());
-    target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
-        [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
-    target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
-                        scf::ExecuteRegionOp, func::FuncOp>();
-    target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
-                      omp::BarrierOp, omp::TaskwaitOp>();
-    target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(areAllTypesConverted);
-    target.addDynamicallyLegalOp<LLVM::GlobalOp>(
-        [&](LLVM::GlobalOp op) -> Optional<bool> {
-          if (converter.convertType(op.getGlobalType()) == op.getGlobalType())
-            return true;
+      patterns
+          .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
+              converter);
+      patterns.add<URLLVMOpLowering>(converter);
+
+      // Legality callback for operations that checks whether their operand and
+      // results types are converted.
+      auto areAllTypesConverted = [&](Operation *op) -> Optional<bool> {
+        SmallVector<Type> convertedResultTypes;
+        if (failed(converter.convertTypes(op->getResultTypes(),
+                                          convertedResultTypes)))
           return llvm::None;
-        });
-    target.addDynamicallyLegalOp<LLVM::ReturnOp>(
-        [&](LLVM::ReturnOp op) -> Optional<bool> {
-          // Outside global ops, defer to the normal type-based check. Note that
-          // the infrastructure will not do it automatically because per-op
-          // checks override dialect-level checks unconditionally.
-          if (!isa<LLVM::GlobalOp>(op->getParentOp()))
-            return areAllTypesConverted(op);
+        SmallVector<Type> convertedOperandTypes;
+        if (failed(converter.convertTypes(op->getOperandTypes(),
+                                          convertedOperandTypes)))
+          return llvm::None;
+        return convertedResultTypes == op->getResultTypes() &&
+               convertedOperandTypes == op->getOperandTypes();
+      };
 
-          SmallVector<Type> convertedOperandTypes;
-          if (failed(converter.convertTypes(op->getOperandTypes(),
-                                            convertedOperandTypes)))
+      LLVMConversionTarget target(getContext());
+      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
+          [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
+      target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
+                          scf::ExecuteRegionOp, func::FuncOp>();
+      target.addLegalOp<omp::TerminatorOp, omp::TaskyieldOp, omp::FlushOp,
+                        omp::YieldOp, omp::BarrierOp, omp::TaskwaitOp>();
+      target.addDynamicallyLegalDialect<LLVM::LLVMDialect>(
+          areAllTypesConverted);
+      target.addDynamicallyLegalOp<LLVM::GlobalOp>(
+          [&](LLVM::GlobalOp op) -> Optional<bool> {
+            if (converter.convertType(op.getGlobalType()) == op.getGlobalType())
+              return true;
             return llvm::None;
-          return convertedOperandTypes == op->getOperandTypes();
-        });
-    target.addIllegalOp<UnrealizedConversionCastOp>();
-    /*
-    target.addDynamicallyLegalOp<UnrealizedConversionCastOp>(
-        [&](Operation *op) { return op->getOperand(0).getType() !=
-    op->getResult(0).getType(); });
-        */
-    if (failed(applyPartialConversion(m, target, std::move(patterns))))
-      signalPassFailure();
+          });
+      target.addDynamicallyLegalOp<LLVM::ReturnOp>(
+          [&](LLVM::ReturnOp op) -> Optional<bool> {
+            // Outside global ops, defer to the normal type-based check. Note
+            // that the infrastructure will not do it automatically because
+            // per-op checks override dialect-level checks unconditionally.
+            if (!isa<LLVM::GlobalOp>(op->getParentOp()))
+              return areAllTypesConverted(op);
+
+            SmallVector<Type> convertedOperandTypes;
+            if (failed(converter.convertTypes(op->getOperandTypes(),
+                                              convertedOperandTypes)))
+              return llvm::None;
+            return convertedOperandTypes == op->getOperandTypes();
+          });
+      /*
+      target.addDynamicallyLegalOp<UnrealizedConversionCastOp>(
+          [&](Operation *op) { return op->getOperand(0).getType() !=
+      op->getResult(0).getType(); });
+          */
+
+      if (i == 1) {
+        target.addIllegalOp<UnrealizedConversionCastOp>();
+        patterns.add<AsyncOpLowering>(converter);
+        patterns.add<StreamToTokenOpLowering>(converter);
+      }
+      if (failed(applyPartialConversion(m, target, std::move(patterns))))
+        signalPassFailure();
+    }
   }
 };
 } // namespace

@@ -26,6 +26,7 @@
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -418,6 +419,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<func::FuncDialect>();
   context.getOrLoadDialect<DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();
+  context.getOrLoadDialect<mlir::async::AsyncDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();

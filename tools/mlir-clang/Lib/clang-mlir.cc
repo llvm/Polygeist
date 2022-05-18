@@ -718,8 +718,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
         return mlir::DenseElementsAttr();
       if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
         return DenseElementsAttr::getFromRawBuffer(
-            RankedTensorType::get(mt.getShape(), mt.getElementType()), attrs,
-            false);
+            RankedTensorType::get(mt.getShape(), mt.getElementType()), attrs);
       }
       return mlir::DenseElementsAttr();
     } else {

@@ -22,14 +22,14 @@ void whiletofor() {
 
 // TODO redundant for elim
 // CHECK: func @whiletofor()
-// CHECK-NEXT:     %c7_i32 = arith.constant 7 : i32
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c20_i32 = arith.constant 20 : i32
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c100 = arith.constant 100 : index
+// CHECK-DAG:     %c7_i32 = arith.constant 7 : i32
+// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
+// CHECK-DAG:     %c20_i32 = arith.constant 20 : i32
+// CHECK-DAG:     %c2_i32 = arith.constant 2 : i32
+// CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
+// CHECK-DAG:     %c1 = arith.constant 1 : index
+// CHECK-DAG:     %c0 = arith.constant 0 : index
+// CHECK-DAG:     %c100 = arith.constant 100 : index
 // CHECK-NEXT:     %0 = memref.alloca() : memref<100x100xi32>
 // CHECK-NEXT:     %1 = scf.for %arg0 = %c0 to %c100 step %c1 iter_args(%arg1 = %c7_i32) -> (i32) {
 // CHECK-NEXT:       %3 = arith.index_cast %arg1 : i32 to index
