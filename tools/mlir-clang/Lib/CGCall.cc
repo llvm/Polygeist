@@ -366,6 +366,17 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (valEmitted.second)
     return valEmitted.first;
 
+  switch (expr->getBuiltinCallee()) {
+  case clang::Builtin::BImove:
+  case clang::Builtin::BImove_if_noexcept:
+  case clang::Builtin::BIforward:
+  case clang::Builtin::BIas_const: {
+    auto V = Visit(expr->getArg(0));
+    return V;
+  }
+  default: break;
+  }
+
   if (auto *oc = dyn_cast<CXXOperatorCallExpr>(expr)) {
     if (oc->getOperator() == clang::OO_EqualEqual) {
       if (auto *lhs = dyn_cast<CXXTypeidExpr>(expr->getArg(0))) {
