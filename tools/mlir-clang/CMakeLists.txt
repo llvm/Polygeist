@@ -31,6 +31,10 @@ add_clang_executable(mlir-clang
   Lib/TypeUtils.cc
   Lib/CGCall.cc 
 )
+install(TARGETS mlir-clang
+EXPORT PolygeistTargets
+RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
+COMPONENT mlir-clang)
 
 target_include_directories(mlir-clang PRIVATE
   "${LLVM_SOURCE_DIR}/../clang/include"
