@@ -341,6 +341,22 @@ ValueCategory MLIRScanner::CallHelper(
   assert(0 && "no indirect");
 }
 
+std::pair<ValueCategory, bool>
+MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
+  switch (expr->getBuiltinCallee()) {
+  case clang::Builtin::BImove:
+  case clang::Builtin::BImove_if_noexcept:
+  case clang::Builtin::BIforward:
+  case clang::Builtin::BIas_const: {
+    auto V = Visit(expr->getArg(0));
+    return make_pair(V, true);
+  }
+  default:
+    break;
+  }
+  return make_pair(ValueCategory(), false);
+}
+
 ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   auto loc = getMLIRLocation(expr->getExprLoc());
@@ -365,6 +381,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     return valEmitted.first;
 
   valEmitted = EmitBuiltinOps(expr);
+  if (valEmitted.second)
+    return valEmitted.first;
+
+  valEmitted = EmitClangBuiltinCallExpr(expr);
   if (valEmitted.second)
     return valEmitted.first;
 

@@ -290,6 +290,9 @@ public:
              ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
              QualType retType, bool retReference, clang::Expr *expr);
 
+  std::pair<ValueCategory, bool>
+  EmitClangBuiltinCallExpr(clang::CallExpr *expr);
+
   std::pair<ValueCategory, bool> EmitGPUCallExpr(clang::CallExpr *expr);
 
   std::pair<ValueCategory, bool> EmitBuiltinOps(clang::CallExpr *expr);
