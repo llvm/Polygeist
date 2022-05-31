@@ -24,13 +24,20 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
 
-  set(LLVM_SOURCE_DIR ${CMAKE_SOURCE_DIR}/llvm-project/llvm)
   message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
   find_package(MLIR REQUIRED CONFIG)
 
   set(Clang_DIR ${CLANG_DIR})
   message(STATUS "Searching for ClangConfig.cmake in: ${Clang_DIR}")
   find_package(Clang REQUIRED CONFIG)
+
+  # This is exported if we are building against a build area.  If
+  # building against an install area, then assume we're using the
+  # submodule.
+  if(NOT LLVM_BUILD_MAIN_SRC_DIR)
+    set(LLVM_BUILD_MAIN_SRC_DIR ${CMAKE_SOURCE_DIR}/llvm-project/llvm)
+  endif()
+  set(LLVM_SOURCE_DIR ${LLVM_BUILD_MAIN_SRC_DIR} CACHE STRING "Location of LLVM source")
 
   message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
