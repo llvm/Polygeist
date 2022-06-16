@@ -1,2 +1,2 @@
 add_subdirectory(polygeist-opt)
-add_subdirectory(mlir-clang)
+add_subdirectory(cgeist)

@@ -7,7 +7,7 @@
 
 ### 0. Clone Polygeist
 ```sh
-git clone --recursive https://github.com/wsmoses/Polygeist.git
+git clone --recursive https://github.com/llvm/Polygeist
 cd Polygeist
 ```
 
@@ -41,7 +41,7 @@ cmake -G Ninja .. \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
-ninja check-mlir-clang
+ninja check-cgeist
 ```
 
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
@@ -60,5 +60,5 @@ cmake -G Ninja ../llvm-project/llvm \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
-ninja check-mlir-clang
+ninja check-cgeist
 ```
