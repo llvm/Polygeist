@@ -57,7 +57,7 @@ jobs:
         CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir;openmp" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
         cymbld & disown
         sleep 10
-        ninja -j125
+        ninja -j1024
 
     - name: mkdir
       run: mkdir build
