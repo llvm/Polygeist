@@ -956,9 +956,23 @@ MLIRScanner::VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr) {
                        /*isReference*/ false);
 }
 
+static const clang::ConstantArrayType *getCAT(const clang::Type *T) {
+  const clang::Type *Child;
+  if (auto CAT = dyn_cast<clang::ConstantArrayType>(T)) {
+    return CAT;
+  } else if (auto ET = dyn_cast<clang::ElaboratedType>(T)) {
+    Child = ET->getNamedType().getTypePtr();
+  } else if (auto TypeDefT = dyn_cast<clang::TypedefType>(T)) {
+    Child = TypeDefT->getUnqualifiedDesugaredType();
+  } else {
+    llvm_unreachable("Unhandled case\n");
+  }
+  return getCAT(Child);
+}
+
 ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
                                               ValueCategory tostore) {
-  auto CAT = dyn_cast<clang::ConstantArrayType>(expr->getType());
+  const clang::ConstantArrayType *CAT = getCAT(expr->getType().getTypePtr());
   llvm::errs() << "warning recomputing common in arrayinitloopexpr\n";
   std::vector<mlir::Value> start = {getConstantIndex(0)};
   std::vector<mlir::Value> sizes = {
