@@ -66,8 +66,8 @@ jobs:
         cd build
         ls ../mlir-build/lib/cmake/clang
         cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}}
-    - name: test mlir-clang
+    - name: test cgeist
       run: |
         cd build
         ninja check-polygeist-opt
-        ninja check-mlir-clang
+        ninja check-cgeist
