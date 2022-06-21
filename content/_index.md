@@ -27,7 +27,7 @@ Polygeist is composed of two pieces:
 For more information on Polygeist, please see:
 
 *   The Polygeist [installation guide](/Installation/)
-*   Polygeist toy example [toy example](/getting_started/Use_Polygeist.md)
+*   Polygeist [toy example](/getting_started/Use_Polygeist.md)
 
 ## Citing Polygeist
 

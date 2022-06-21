@@ -6,7 +6,7 @@ weight: 10
 ---
 
 The following shows a simple example where we use Polygesit to enter the MLIR
-lowering pipeline and raise the C code to the Affine dialect.
+lowering pipeline from C code.
 
 ## Simple matrix multiplication 
 
@@ -84,3 +84,17 @@ func.func @matmul(%arg0: memref<?x400xf32>, %arg1: memref<?x300xf32>,
   }
 }
 ```
+
+Some other useful commands
+
+* `-function=my_func` emits only `my_func`. If you are interested in printing all the functions, use `-function=*`. If you are working with C++, you need to use the mangled name.
+
+* `-show-ast` print the AST that goes as input to Polygesit.
+
+* `-immediate` print the IR right after AST traversal.
+
+* `-S` emits assembly.
+
+* `-emit-llvm` emits LLVM IR.
+
+* `O0`, `O1`, `O2` and `O3` controls the optimization level.
