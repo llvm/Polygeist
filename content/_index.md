@@ -15,10 +15,6 @@ by, for example, preserving high-level information such as structured control
 flow, OpenMP/GPU parallelism, and lowering C or C++ constructs to user-defined
 custom operations.
 
-The following shows a simple example where we use Polygesit to enter
-the MLIR lowering pipeline and raise the C code to the Affine dialect.
-
-
 ## Components
 
 Polygeist is composed of two pieces:
