@@ -1,11 +1,15 @@
 <!doctype html><html lang=en-us><head><meta charset=utf-8><meta http-equiv=x-ua-compatible content="IE=edge"><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Polygeist</title><meta name=description content="Polygeist MLIR Polyhedral Compiler for C/C++"><meta name=generator content="Hugo 0.74.3"><link href=https://polygeist.mit.edu/index.xml rel=alternate type=application/rss+xml><link rel=canonical href=https://polygeist.mit.edu/><link rel=stylesheet href=https://polygeist.mit.edu/css/theme.css><script src=https://use.fontawesome.com/releases/v5.0.6/js/all.js></script><link rel=stylesheet href=https://polygeist.mit.edu/css/chroma.min.css><script src=https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js></script><script src=https://cdn.jsdelivr.net/npm/jquery.easing@1.4.1/jquery.easing.min.js></script><script src=https://polygeist.mit.edu/js/bundle.js></script><link rel=icon href=/favicon.ico type=image/x-icon><script async src="https://www.googletagmanager.com/gtag/js?id=G-SBS5VNKHC1"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}
 gtag('js',new Date());gtag('config','G-SBS5VNKHC1');</script><style>:root{}</style></head><body><div class=container><header><h1><div><a href=/ style=text-decoration:none;color:#000><img src=https://polygeist.mit.edu//logo.svg width=40px align=absmiddle>
-Polygeist</a></div></h1><p class=description>Polygeist MLIR Polyhedral Compiler for C/C++</p></header><div class=global-menu><nav><ul><li><a href>Community</a></li><li><a href=https://github.com/wsmoses/Polygeist>Source</a></li><li><a href=https://github.com/wsmoses/Polygeist/issues>Bugs</a></li><li><a href=/getting_started/Faq/>FAQ</a></li></ul></nav></div><div class=content-container><main><h1 id=polygeist-overview>Polygeist Overview</h1><p>Polygeist is a new C and C++ frontend and compilation flow that connects the MLIR compiler
-infrastructure to cutting edge polyhedral optimization tools. Our goal with
-Polygeist is to connect decades of research in the polyhedral model to the new
-MLIR compiler infrastructure.</p><p>Figure below shows Polygeist&rsquo;s pipeline</p><div style=padding:2em><img src=/horizontal.svg width=500 align=center></div><p>The following shows a simple example where we use Polygesit to enter
-the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>mlir-clang gemm.c --function<span class=o>=</span>matmul --raise-scf-to-affine -S
-</code></pre></div><div class=highlight><pre class=chroma><code class=language-c data-lang=c><span class=cp>#define N 200;
+Polygeist</a></div></h1><p class=description>Polygeist MLIR Polyhedral Compiler for C/C++</p></header><div class=global-menu><nav><ul><li><a href>Community</a></li><li><a href=https://github.com/wsmoses/Polygeist>Source</a></li><li><a href=https://github.com/wsmoses/Polygeist/issues>Bugs</a></li><li><a href=/getting_started/Faq/>FAQ</a></li></ul></nav></div><div class=content-container><main><h1 id=polygeist-overview>Polygeist Overview</h1><p>The MLIR ecosystem is increasing but still misses a working C and C++ frontend.
+Certainly, Clang does a fantastic job targeting LLVM IR, but there are many
+more opportunities to consider by targeting MLIR from C++ before going down to
+LLVM IR. For example, we may want to connect C more easily with higher-level
+abstractions available in MLIR. In addition, to maintain C and C++ semantics
+by, for example, preserving high-level information such as structured control
+flow, OpenMP/GPU parallelism, and lowering C or C++ constructs to user-defined
+custom operations.</p><p>The following shows a simple example where we use Polygesit to enter
+the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><div class=highlight><pre class=chroma><code class=language-sh data-lang=sh>cgeist gemm.c -function<span class=o>=</span>matmul -raise-scf-to-affine -S
+</code></pre></div><div class=highlight><pre class=chroma><code class=language-c data-lang=c><span class=cp>#define N 200
 </span><span class=cp>#define M 300
 </span><span class=cp>#define K 400
 </span><span class=cp>#define DATA_TYPE float
@@ -35,7 +39,7 @@ the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><div c
   <span class=p>}</span>
   <span class=kt>return</span>
 <span class=p>}</span>
-</code></pre></div><h2 id=components>Components</h2><p>Polygeist is composed of three pieces:</p><ul><li>A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.</li><li>A set of compilation passes to raise SCF constructs to the Affine dialect.</li><li>A set of compilation passes to have a bi-directional conversion between MLIR and OpenScop exchange format.</li></ul><h2 id=more-resources>More resources</h2><p>For more information on Polygeist, please see:</p><ul><li>The Polygeist
+</code></pre></div><h2 id=components>Components</h2><p>Polygeist is composed of two pieces:</p><ul><li>A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.</li><li>A set of compilation passes to raise SCF constructs to the Affine dialect.</li></ul><h2 id=more-resources>More resources</h2><p>For more information on Polygeist, please see:</p><ul><li>The Polygeist
 <a href=/Installation/>installation guide</a></li></ul><h2 id=citing-polygeist>Citing Polygeist</h2><p>To cite Polygeist, please cite the following:</p><pre><code>@inproceedings{polygeistPACT,
   title = {Polygeist: Raising C to Polyhedral MLIR},
   author = {Moses, William S. and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
