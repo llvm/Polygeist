@@ -1199,6 +1199,9 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
     auto shape = std::vector<int64_t>(mt.getShape());
     mlir::Value args[1] = {count};
     arrayCons = alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+    if (expr->hasInitializer() && isa<InitListExpr>(expr->getInitializer()))
+      (void)InitializeValueByInitListExpr(alloc, expr->getInitializer());
+
   } else {
     auto i64 = mlir::IntegerType::get(count.getContext(), 64);
     auto typeSize = getTypeSize(expr->getAllocatedType());
