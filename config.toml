@@ -18,8 +18,8 @@ disablePathToLower = true
 [Params]
 
     # Souce Code repository section
-    description = "Polygeist MLIR Polyhedral Compiler for C/C++"
-    github_repository = "https://github.com/wsmoses/Polygeist"
+    description = "Polygeist MLIR Frontend for C or C++"
+    github_repository = "https://github.com/llvm/Polygeist"
     version = ""
 
     # Analytic section
@@ -51,19 +51,16 @@ disablePathToLower = true
     ]
 
 # Global menu section
-[[menu.main]]
-    name = "Community"
-    weight = 3
 
 [[menu.main]]
     name = "Source"
     weight = 10
-    url = "https://github.com/wsmoses/Polygeist"
+    url = "https://github.com/llvm/Polygeist"
 
 [[menu.main]]
     name = "Bugs"
     weight = 20
-    url = "https://github.com/wsmoses/Polygeist/issues"
+    url = "https://github.com/llvm/Polygeist/issues"
 
 [markup]
   [markup.goldmark]
