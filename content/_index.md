@@ -6,26 +6,24 @@ publishdate: 2018-11-23T15:26:15Z
 
 # Polygeist Overview
 
-Polygeist is a new C and C++ frontend and compilation flow that connects the MLIR compiler
-infrastructure to cutting edge polyhedral optimization tools. Our goal with
-Polygeist is to connect decades of research in the polyhedral model to the new
-MLIR compiler infrastructure.
-
-Figure below shows Polygeist's pipeline
-
-<div style="padding:2em">
-<img src="/horizontal.svg" width="500" align=center>
-</div> 
+The MLIR ecosystem is increasing but still misses a working C and C++ frontend.
+Certainly, Clang does a fantastic job targeting LLVM IR, but there are many
+more opportunities to consider by targeting MLIR from C++ before going down to
+LLVM IR. For example, we may want to connect C more easily with higher-level
+abstractions available in MLIR. In addition, to maintain C and C++ semantics
+by, for example, preserving high-level information such as structured control
+flow, OpenMP/GPU parallelism, and lowering C or C++ constructs to user-defined
+custom operations.
 
 The following shows a simple example where we use Polygesit to enter
 the MLIR lowering pipeline and raise the C code to the Affine dialect.
 
 ```sh
-mlir-clang gemm.c --function=matmul --raise-scf-to-affine -S
+cgeist gemm.c -function=matmul -raise-scf-to-affine -S
 ```
 
 ```c
-#define N 200;
+#define N 200
 #define M 300
 #define K 400
 #define DATA_TYPE float
@@ -62,11 +60,10 @@ func @matmul(%arg0: memref<?x400xf32>, %arg1: memref<?x300xf32>, %arg2: memref<?
 
 ## Components
 
-Polygeist is composed of three pieces:
+Polygeist is composed of two pieces:
 
 *   A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.
 *   A set of compilation passes to raise SCF constructs to the Affine dialect.
-*   A set of compilation passes to have a bi-directional conversion between MLIR and OpenScop exchange format.
 
 ## More resources
 

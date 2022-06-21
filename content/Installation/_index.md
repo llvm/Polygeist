@@ -11,10 +11,10 @@ weight: 5
 * make or ninja 
 
 ## Downloading Polygeist
-To start you should download Polygeist's code [Github](https://github.com/wsmoses/Polygeist).
+To start you should download Polygeist's code [Github](https://github.com/llvm/Polygeist).
 
 ```sh
-git clone --recursive https://github.com/wsmoses/Polygeist.git
+git clone --recursive https://github.com/llvm/Polygeist.git
 cd Polygeist
 ```
 
@@ -74,26 +74,14 @@ ninja
 We can run Polygeist's unit tests by running the following command.
 
 ```sh
-ninja check-mlir-clang
+ninja check-polygeist-opt && ninja check-cgeist
 ```
 
+`ninja check-polygeist-opt` runs the tests in `Polygeist/test/polygeist-opt`
 
-## Building Polygeist with Polymer
+`ninja check-cgeist` runs the tests in `Polygeist/tools/cgeist/Test`
+
+
+## Using Polygeist
 
 [Polymer](https://github.com/kumasento/polymer) applies polyhedral scheduling on MLIR Affine code and transforms them automatically for better locality and parallelism.
-
-Polymer is a submodule to Polygeist, and you can build Polymer together with Polygeist.
-
-In order to do that, please make sure you have already sync-ed up the submodules by -
-
-```
-git submodule init
-git submodule update --recursive
-```
-
-And you should find Polymer under `mlir/tools/polymer`.
-
-Next, make sure you have the Polymer option `ON` when calling `cmake` `-DBUILD_POLYMER=ON`.
-
-
-
