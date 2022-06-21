@@ -7,8 +7,7 @@ LLVM IR. For example, we may want to connect C more easily with higher-level
 abstractions available in MLIR. In addition, to maintain C and C++ semantics
 by, for example, preserving high-level information such as structured control
 flow, OpenMP/GPU parallelism, and lowering C or C++ constructs to user-defined
-custom operations.</p><p>The following shows a simple example where we use Polygesit to enter
-the MLIR lowering pipeline and raise the C code to the Affine dialect.</p><h2 id=components>Components</h2><p>Polygeist is composed of two pieces:</p><ul><li>A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.</li><li>A set of compilation passes to raise SCF constructs to the Affine dialect.</li></ul><h2 id=more-resources>More resources</h2><p>For more information on Polygeist, please see:</p><ul><li>The Polygeist
+custom operations.</p><h2 id=components>Components</h2><p>Polygeist is composed of two pieces:</p><ul><li>A frontend to emit MLIR SCF from a broad range of exisiting C or C++ code.</li><li>A set of compilation passes to raise SCF constructs to the Affine dialect.</li></ul><h2 id=more-resources>More resources</h2><p>For more information on Polygeist, please see:</p><ul><li>The Polygeist
 <a href=/Installation/>installation guide</a></li><li>Polygeist toy example
 <a href=/getting_started/Use_Polygeist/>toy example</a></li></ul><h2 id=citing-polygeist>Citing Polygeist</h2><p>To cite Polygeist, please cite the following:</p><pre><code>@inproceedings{polygeistPACT,
   title = {Polygeist: Raising C to Polyhedral MLIR},
