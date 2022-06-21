@@ -1,4 +1,3 @@
-// TODO: cgeist %s %stdinclude -S | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 -lm && %s.exec1 &> %s.out1
 // RUN: cgeist %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
