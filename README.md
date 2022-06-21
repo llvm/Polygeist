@@ -5,13 +5,13 @@
 - cmake
 - make or ninja
 
-### 0. Clone Polygeist
+### 1. Clone Polygeist
 ```sh
 git clone --recursive https://github.com/llvm/Polygeist
 cd Polygeist
 ```
 
-### 1. Install LLVM, MLIR, Clang, and Polygeist
+### 2. Install LLVM, MLIR, Clang, and Polygeist
 
 #### Option 1: Using pre-built LLVM, MLIR, and Clang
 
@@ -41,7 +41,7 @@ cmake -G Ninja .. \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
-ninja check-cgeist
+ninja check-polygeist-opt && ninja check-cgeist
 ```
 
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
@@ -60,5 +60,8 @@ cmake -G Ninja ../llvm-project/llvm \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
-ninja check-cgeist
+ninja check-polygeist-opt && ninja check-cgeist
 ```
+
+`ninja check-polygeist-opt` runs the tests in `Polygeist/test/polygeist-opt`
+`ninja check-cgeist` runs the tests in `Polygeist/tools/cgeist/Test`
