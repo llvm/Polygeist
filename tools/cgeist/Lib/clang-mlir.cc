@@ -1548,6 +1548,10 @@ const clang::FunctionDecl *MLIRScanner::EmitCallee(const Expr *E) {
     // Look through template substitutions.
   } else if (auto NTTP = dyn_cast<SubstNonTypeTemplateParmExpr>(E)) {
     return EmitCallee(NTTP->getReplacement());
+  } else if (auto UOp = dyn_cast<clang::UnaryOperator>(E)) {
+    if (UOp->getOpcode() == UnaryOperatorKind::UO_AddrOf) {
+      return EmitCallee(UOp->getSubExpr());
+    }
   }
 
   return nullptr;
