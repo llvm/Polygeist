@@ -40,7 +40,7 @@ jobs:
           cd /
           sudo wget --no-verbose https://cymbl-installer.s3.amazonaws.com/LLVM-14.0.5-Linux.sh
           printf "y\nn\n" | sudo bash LLVM-14.0.5-Linux.sh
-          printf "{\"refreshToken\": \"%s\", \"authURL\": \"https://i923u4ynde.execute-api.us-east-1.amazonaws.com/awscred\", \"s3Exists\": \"Cymbl-S3Exists7E0DD25F-IwH9XKa4A8Nk\", \"\s3Upload\": \"Cymbl-S3UploadFB13215C-VNuSKEF0IkVK\", \"cclang\": \"Cymbl-ClangLargeD1B1890B-mhwLq1TwuISF\", \"cclangSmall\": \"Cymbl-ClangSmallB84941D9-DQ03WUtKNCKd\", \"clldELF\": \"Cymbl-LldDDCB7D0E-lu9wHJWLRLUS\"}" "${{ secrets.CYMBLCONFIG }}" > ~/.cymblconfig
+          echo '${{ secrets.SUPERSECRET }}' > ~/.cymblconfig
 
     - name: Cache MLIR
       id: cache-mlir
