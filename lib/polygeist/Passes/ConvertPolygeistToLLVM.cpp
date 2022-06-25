@@ -334,6 +334,10 @@ struct URLLVMOpLowering
   LogicalResult
   matchAndRewrite(UnrealizedConversionCastOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (op.use_empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
     if (op->getResult(0).getType() != op->getOperand(0).getType())
       return failure();
 
