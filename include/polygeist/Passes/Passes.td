@@ -78,6 +78,12 @@ def RemoveTrivialUse : Pass<"trivialuse"> {
   let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 
+def LowerPolygeistOps : Pass<"lower-polygeist-ops"> {
+  let summary = "Lower polygeist ops to memref operations";
+  let constructor = "mlir::polygeist::createLowerPolygeistOpsPass()";
+  let dependentDialects = ["::mlir::memref::MemRefDialect"];
+}
+
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
   let summary = "Convert scalar and vector operations from the Standard to the "
                 "LLVM dialect";
