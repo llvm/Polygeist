@@ -844,8 +844,9 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       auto name = Glob.CGM.getMangledName(decl);
       auto globalOp = gbuilder.create<mlir::memref::GlobalOp>(
           module->getLoc(),
-          builder.getStringAttr(function.getName() + "@static@" + name +
-                                "@init"),
+          builder.getStringAttr(
+              function.getName() + "@static@" + name + "@init@" +
+              to_string(reinterpret_cast<long long unsigned int>(decl))),
           /*sym_visibility*/ mlir::StringAttr(), mlir::TypeAttr::get(mr),
           init_value, mlir::UnitAttr(), /*alignment*/ nullptr);
       SymbolTable::setSymbolVisibility(globalOp,
