@@ -6,13 +6,13 @@ int adder(int x) {
     return cur;
 }
 
-// CHECK:   memref.global "private" @"adder@static@cur@init" : memref<1xi1> = dense<true>
+// CHECK:   memref.global "private" @"adder@static@cur@init@{{.*}}" : memref<1xi1> = dense<true>
 // CHECK:   memref.global "private" @"adder@static@cur" : memref<1xi32> = uninitialized
 // CHECK:   func @adder(%arg0: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-DAG:     %false = arith.constant false
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-DAG:     %0 = memref.get_global @"adder@static@cur" : memref<1xi32>
-// CHECK-DAG:     %1 = memref.get_global @"adder@static@cur@init" : memref<1xi1>
+// CHECK-DAG:     %1 = memref.get_global @"adder@static@cur@init@{{.*}}" : memref<1xi1>
 // CHECK-NEXT:     %2 = affine.load %1[0] : memref<1xi1>
 // CHECK-NEXT:     scf.if %2 {
 // CHECK-NEXT:       affine.store %false, %1[0] : memref<1xi1>
