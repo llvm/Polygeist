@@ -49,6 +49,14 @@ cloneWithoutResults(mlir::AffineForOp op, mlir::PatternRewriter &rewriter,
                                       op.getStep());
 }
 
+static inline void clearBlock(mlir::Block *block,
+                              mlir::PatternRewriter &rewriter) {
+  for (auto &op : llvm::make_early_inc_range(llvm::reverse(*block))) {
+    assert(op.use_empty() && "expected 'op' to have no uses");
+    rewriter.eraseOp(&op);
+  }
+}
+
 static inline mlir::Block *getThenBlock(mlir::scf::IfOp op) {
   return op.thenBlock();
 }
