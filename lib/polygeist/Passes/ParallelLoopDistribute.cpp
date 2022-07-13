@@ -1775,13 +1775,21 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
     rewriter.eraseOp(o);
 }
 
-/// Splits if at barrier
+/// Splits if at barrier if it is directly nested in a parallel op
 template <typename T, bool UseMinCut>
 struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
   DistributeIfAroundBarrier(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
+    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+      LLVM_DEBUG(DBGS() << "[if-barrier-distribute] do not distribute ifs not "
+                           "directly nested in parallel ops\n");
+      return failure();
+    }
+
+    // TODO don't do this if the condition is not calculated in the pfor
+
     Block *thenBlock = getThenBlock(op);
     Block *elseBlock = getElseBlock(op);
     BarrierOp thenBarrier = nullptr;
@@ -1802,13 +1810,13 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
       elseBarrier = nullptr;
     }
 
+    // Find the values and allocas that cross the barriers
     llvm::SetVector<Operation *> preserveAllocasThen;
     llvm::SetVector<Value> crossingCacheThen;
     if (thenBarrier)
       getIfCrossingCache<UseMinCut>(rewriter, getThenBlock(op),
                                     preserveAllocasThen, crossingCacheThen,
                                     thenBarrier);
-
     llvm::SetVector<Operation *> preserveAllocasElse;
     llvm::SetVector<Value> crossingCacheElse;
     if (elseBarrier)
@@ -1816,30 +1824,30 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
                                     preserveAllocasElse, crossingCacheElse,
                                     elseBarrier);
 
+    // The lists of types of the yielded values must match between the then and
+    // else block, pad the unused values with undefs
     rewriter.setInsertionPointToStart(
         &((Operation *)op)
              ->getParentOfType<FunctionOpInterface>()
              ->getRegion(0)
              .front());
     SmallVector<Type> typesToYield;
-    llvm::SetVector<Value> combinedCrossingCache;
     llvm::SetVector<Value> crossingCacheElsePadded;
     llvm::SetVector<Value> crossingCacheThenPadded;
     for (auto v : crossingCacheThen) {
       typesToYield.push_back(v.getType());
-      combinedCrossingCache.insert(v);
       crossingCacheThenPadded.insert(v);
       crossingCacheElsePadded.insert(rewriter.create<LLVM::UndefOp>(
           rewriter.getUnknownLoc(), v.getType()));
     }
     for (auto v : crossingCacheElse) {
       typesToYield.push_back(v.getType());
-      combinedCrossingCache.insert(v);
       crossingCacheElsePadded.insert(v);
       crossingCacheThenPadded.insert(rewriter.create<LLVM::UndefOp>(
           rewriter.getUnknownLoc(), v.getType()));
     }
 
+    // Creat the post split ifs
     rewriter.setInsertionPoint(op);
     auto ifPre = rewriter.create<scf::IfOp>(
         op.getLoc(), TypeRange(typesToYield), op.getCondition(), true);
