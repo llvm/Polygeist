@@ -291,7 +291,7 @@ module {
   }
 }
 
-// CHECK:   func.func @t(%arg0: memref<?xf32>, %arg1: memref<?xmemref<?xf32>>, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32, %arg7: i32, %arg8: i32, %arg9: i32) -> i32 
+// CHECK:  func.func @t(%arg0: memref<?xf32>, %arg1: memref<?xmemref<?xf32>>, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: i32, %arg6: i32, %arg7: i32, %arg8: i32, %arg9: i32) -> i32
 // CHECK-NEXT:    %true = arith.constant true
 // CHECK-NEXT:    %cst = arith.constant 1.000000e+00 : f32
 // CHECK-NEXT:    %c2_i32 = arith.constant 2 : i32
@@ -611,25 +611,27 @@ module {
 // CHECK-NEXT:                    %84 = arith.addi %83, %c1_i32 : i32
 // CHECK-NEXT:                    %85 = arith.cmpi ne, %83, %53 : i32
 // CHECK-NEXT:                    scf.if %85 {
-// CHECK-NEXT:                      %90 = arith.cmpi ne, %80, %c0_i8 : i8
-// CHECK-NEXT:                      scf.if %90 {
-// CHECK-NEXT:                        %93 = memref.load %57[%arg16, %arg15] : memref<16x16xf32>
-// CHECK-NEXT:                        memref.store %93, %55[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                      %93 = arith.cmpi ne, %80, %c0_i8 : i8
+// CHECK-NEXT:                      scf.if %93 {
+// CHECK-NEXT:                        %94 = memref.load %57[%arg16, %arg15] : memref<16x16xf32>
+// CHECK-NEXT:                        memref.store %94, %55[%arg16, %arg15] : memref<16x16xf32>
 // CHECK-NEXT:                      }
-// CHECK-NEXT:                      %91 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                      %92 = "polygeist.subindex"(%91, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                      memref.store %84, %92[] : memref<i32>
 // CHECK-NEXT:                    } else {
-// CHECK-NEXT:                      %90 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
-// CHECK-NEXT:                      %91 = "polygeist.subindex"(%90, %arg16) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:                      memref.store %83, %91[] : memref<i32>
 // CHECK-NEXT:                    }
-// CHECK-NEXT:                    %86 = "polygeist.subindex"(%78, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
-// CHECK-NEXT:                    %87 = "polygeist.subindex"(%86, %arg16) : (memref<?xi8>, index) -> memref<i8>
-// CHECK-NEXT:                    memref.store %80, %87[] : memref<i8>
-// CHECK-NEXT:                    %88 = "polygeist.subindex"(%75, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
-// CHECK-NEXT:                    %89 = "polygeist.subindex"(%88, %arg16) : (memref<?xi1>, index) -> memref<i1>
-// CHECK-NEXT:                    memref.store %85, %89[] : memref<i1>
+// CHECK-NEXT:                    %86 = scf.if %85 -> (i32) {
+// CHECK-NEXT:                      scf.yield %84 : i32
+// CHECK-NEXT:                    } else {
+// CHECK-NEXT:                      scf.yield %83 : i32
+// CHECK-NEXT:                    }
+// CHECK-NEXT:                    %87 = "polygeist.subindex"(%74, %arg15) : (memref<?x?xi32>, index) -> memref<?xi32>
+// CHECK-NEXT:                    %88 = "polygeist.subindex"(%87, %arg16) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:                    memref.store %86, %88[] : memref<i32>
+// CHECK-NEXT:                    %89 = "polygeist.subindex"(%78, %arg15) : (memref<?x?xi8>, index) -> memref<?xi8>
+// CHECK-NEXT:                    %90 = "polygeist.subindex"(%89, %arg16) : (memref<?xi8>, index) -> memref<i8>
+// CHECK-NEXT:                    memref.store %80, %90[] : memref<i8>
+// CHECK-NEXT:                    %91 = "polygeist.subindex"(%75, %arg15) : (memref<?x?xi1>, index) -> memref<?xi1>
+// CHECK-NEXT:                    %92 = "polygeist.subindex"(%91, %arg16) : (memref<?xi1>, index) -> memref<i1>
+// CHECK-NEXT:                    memref.store %85, %92[] : memref<i1>
 // CHECK-NEXT:                    scf.yield
 // CHECK-NEXT:                  }
 // CHECK-NEXT:                }
@@ -659,4 +661,3 @@ module {
 // CHECK-NEXT:      scf.yield %arg11, %arg10, %54 : i32, i32, f32
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %39#0 : i32
-// CHECK-NEXT:  }

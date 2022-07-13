@@ -232,6 +232,7 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
 // CHECK:  func.func @add_if_barrier(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
@@ -246,24 +247,65 @@ module {
 // CHECK-NEXT:        func.call @use(%3) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
-// CHECK-NEXT:      scf.if %arg0 {
-// CHECK-NEXT:        memref.alloca_scope  {
-// CHECK-NEXT:          scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:            %1 = memref.load %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:      memref.alloca_scope  {
+// CHECK-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:          scf.if %arg0 {
 // CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
-// CHECK-NEXT:            scf.yield
+// CHECK-NEXT:          } else {
 // CHECK-NEXT:          }
-// CHECK-NEXT:          scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:            %1 = memref.load %0[%arg3] : memref<?xi32>
-// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
-// CHECK-NEXT:            scf.yield
-// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
 // CHECK-NEXT:        }
-// CHECK-NEXT:      } else {
+// CHECK-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:          scf.if %arg0 {
+// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
+// CHECK-NEXT:          } else {
+// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
+// CHECK-NEXT:        }
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
+// CHECK:  func.func @add_if_barrier_(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
+// CHECK-NEXT:    %c0 = arith.constant 0 : index
+// CHECK-NEXT:    %c1 = arith.constant 1 : index
+// CHECK-NEXT:    %c9 = arith.constant 9 : index
+// CHECK-NEXT:    memref.alloca_scope  {
+// CHECK-NEXT:      %0 = memref.alloca(%c9) : memref<?xi32>
+// CHECK-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:        %1 = memref.load %arg1[] : memref<i32>
+// CHECK-NEXT:        %2 = memref.load %arg2[] : memref<i32>
+// CHECK-NEXT:        %3 = arith.muli %1, %2 : i32
+// CHECK-NEXT:        memref.store %3, %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:        func.call @usememref(%arg1) : (memref<i32>) -> ()
+// CHECK-NEXT:        func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:        scf.yield
+// CHECK-NEXT:      }
+// CHECK-NEXT:      memref.alloca_scope  {
+// CHECK-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:          scf.if %arg0 {
+// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
+// CHECK-NEXT:          } else {
+// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
+// CHECK-NEXT:        }
+// CHECK-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg3] : memref<?xi32>
+// CHECK-NEXT:          scf.if %arg0 {
+// CHECK-NEXT:            func.call @use(%1) : (i32) -> ()
+// CHECK-NEXT:          } else {
+// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+// CHECK-NEXT:  }
+
 // CHECK:  func.func @mincut_for_barrier(%arg0: memref<i32>, %arg1: i1, %arg2: index)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
@@ -304,6 +346,7 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
 // CHECK:  func.func @mincut_if_barrier(%arg0: memref<i32>, %arg1: i1)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
@@ -319,34 +362,38 @@ module {
 // CHECK-NEXT:        func.call @use(%1) : (i32) -> ()
 // CHECK-NEXT:        scf.yield
 // CHECK-NEXT:      }
-// CHECK-NEXT:      scf.if %arg1 {
-// CHECK-NEXT:        memref.alloca_scope  {
-// CHECK-NEXT:          scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:            %1 = memref.load %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:            %2 = arith.addi %1, %c3_i32 : i32
-// CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
-// CHECK-NEXT:            %4 = arith.addi %1, %c1_i32 : i32
+// CHECK-NEXT:      memref.alloca_scope  {
+// CHECK-NEXT:        scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg2] : memref<?xi32>
+// CHECK-NEXT:          %2 = arith.addi %1, %c3_i32 : i32
+// CHECK-NEXT:          %3 = arith.addi %1, %c2_i32 : i32
+// CHECK-NEXT:          %4 = arith.addi %1, %c1_i32 : i32
+// CHECK-NEXT:          scf.if %arg1 {
 // CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
 // CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
 // CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
-// CHECK-NEXT:            scf.yield
+// CHECK-NEXT:          } else {
 // CHECK-NEXT:          }
-// CHECK-NEXT:          scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
-// CHECK-NEXT:            %1 = memref.load %0[%arg2] : memref<?xi32>
-// CHECK-NEXT:            %2 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:            %3 = arith.addi %1, %c2_i32 : i32
-// CHECK-NEXT:            %4 = arith.addi %1, %c3_i32 : i32
-// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
-// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
-// CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
-// CHECK-NEXT:            scf.yield
-// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
 // CHECK-NEXT:        }
-// CHECK-NEXT:      } else {
+// CHECK-NEXT:        scf.parallel (%arg2) = (%c0) to (%c9) step (%c1) {
+// CHECK-NEXT:          %1 = memref.load %0[%arg2] : memref<?xi32>
+// CHECK-NEXT:          %2 = arith.addi %1, %c1_i32 : i32
+// CHECK-NEXT:          %3 = arith.addi %1, %c2_i32 : i32
+// CHECK-NEXT:          %4 = arith.addi %1, %c3_i32 : i32
+// CHECK-NEXT:          scf.if %arg1 {
+// CHECK-NEXT:            func.call @use(%2) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%3) : (i32) -> ()
+// CHECK-NEXT:            func.call @use(%4) : (i32) -> ()
+// CHECK-NEXT:          } else {
+// CHECK-NEXT:          }
+// CHECK-NEXT:          scf.yield
+// CHECK-NEXT:        }
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
 // CHECK:  func.func @mincut(%arg0: memref<i32>, %arg1: memref<i32>)
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
