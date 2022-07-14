@@ -78,6 +78,10 @@ def RemoveTrivialUse : Pass<"trivialuse"> {
   let constructor = "mlir::polygeist::createRemoveTrivialUsePass()";
 }
 
+def TemporaryStorageElimination : Pass<"temp-storage-elimination"> {
+  let constructor = "mlir::polygeist::createTemporaryStorageEliminationPass()";
+}
+
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
   let summary = "Convert scalar and vector operations from the Standard to the "
                 "LLVM dialect";
