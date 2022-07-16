@@ -1,4 +1,13 @@
-#pragma once
+//===- Utils.h - Utilities for polygeist passes  -----------------* C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef POLYGEIST_PASSES_UTILS_H
+#define POLYGEIST_PASSES_UTILS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -13,6 +22,7 @@ cloneWithoutResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
   return rewriter.create<scf::IfOp>(
       op.getLoc(), types, mapping.lookupOrDefault(op.getCondition()), true);
 }
+
 static inline mlir::AffineIfOp
 cloneWithoutResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
                     mlir::BlockAndValueMapping mapping = {},
@@ -34,6 +44,7 @@ cloneWithoutResults(mlir::scf::ForOp op, mlir::PatternRewriter &rewriter,
       mapping.lookupOrDefault(op.getUpperBound()),
       mapping.lookupOrDefault(op.getStep()));
 }
+
 static inline mlir::AffineForOp
 cloneWithoutResults(mlir::AffineForOp op, mlir::PatternRewriter &rewriter,
                     mlir::BlockAndValueMapping mapping = {}) {
@@ -52,12 +63,15 @@ cloneWithoutResults(mlir::AffineForOp op, mlir::PatternRewriter &rewriter,
 static inline mlir::Block *getThenBlock(mlir::scf::IfOp op) {
   return op.thenBlock();
 }
+
 static inline mlir::Block *getThenBlock(mlir::AffineIfOp op) {
   return op.getThenBlock();
 }
+
 static inline mlir::Block *getElseBlock(mlir::scf::IfOp op) {
   return op.elseBlock();
 }
+
 static inline mlir::Block *getElseBlock(mlir::AffineIfOp op) {
   return op.getElseBlock();
 }
@@ -65,12 +79,15 @@ static inline mlir::Block *getElseBlock(mlir::AffineIfOp op) {
 static inline mlir::Region &getThenRegion(mlir::scf::IfOp op) {
   return op.getThenRegion();
 }
+
 static inline mlir::Region &getThenRegion(mlir::AffineIfOp op) {
   return op.thenRegion();
 }
+
 static inline mlir::Region &getElseRegion(mlir::scf::IfOp op) {
   return op.getElseRegion();
 }
+
 static inline mlir::Region &getElseRegion(mlir::AffineIfOp op) {
   return op.elseRegion();
 }
@@ -78,12 +95,15 @@ static inline mlir::Region &getElseRegion(mlir::AffineIfOp op) {
 static inline mlir::scf::YieldOp getThenYield(mlir::scf::IfOp op) {
   return op.thenYield();
 }
+
 static inline mlir::AffineYieldOp getThenYield(mlir::AffineIfOp op) {
   return llvm::cast<mlir::AffineYieldOp>(op.getThenBlock()->getTerminator());
 }
+
 static inline mlir::scf::YieldOp getElseYield(mlir::scf::IfOp op) {
   return op.elseYield();
 }
+
 static inline mlir::AffineYieldOp getElseYield(mlir::AffineIfOp op) {
   return llvm::cast<mlir::AffineYieldOp>(op.getElseBlock()->getTerminator());
 }
@@ -91,19 +111,26 @@ static inline mlir::AffineYieldOp getElseYield(mlir::AffineIfOp op) {
 static inline bool inBound(mlir::scf::IfOp op, mlir::Value v) {
   return op.getCondition() == v;
 }
+
 static inline bool inBound(mlir::AffineIfOp op, mlir::Value v) {
   return llvm::any_of(op.getOperands(), [&](mlir::Value e) { return e == v; });
 }
+
 static inline bool inBound(mlir::scf::ForOp op, mlir::Value v) {
   return op.getUpperBound() == v;
 }
+
 static inline bool inBound(mlir::AffineForOp op, mlir::Value v) {
   return llvm::any_of(op.getUpperBoundOperands(),
                       [&](mlir::Value e) { return e == v; });
 }
+
 static inline bool hasElse(mlir::scf::IfOp op) {
   return op.getElseRegion().getBlocks().size() > 0;
 }
+
 static inline bool hasElse(mlir::AffineIfOp op) {
   return op.elseRegion().getBlocks().size() > 0;
 }
+
+#endif // POLYGEIST_PASSES_UTILS_H
