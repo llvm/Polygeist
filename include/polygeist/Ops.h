@@ -9,14 +9,10 @@
 #ifndef POLYGEISTOPS_H
 #define POLYGEISTOPS_H
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/Support/CommandLine.h"
@@ -25,7 +21,7 @@
 #include "polygeist/PolygeistOps.h.inc"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"

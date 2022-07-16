@@ -1,14 +1,14 @@
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -88,7 +88,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
           size_t maxWidth = (rattr.getBitWidth() > sattr.getBitWidth())
                                 ? rattr.getBitWidth()
                                 : sattr.getBitWidth();
-          sameValue |= rattr.zextOrSelf(maxWidth) == sattr.zextOrSelf(maxWidth);
+          sameValue |= rattr.zext(maxWidth) == sattr.zext(maxWidth);
         }
 
       if (!std::get<1>(it).use_empty()) {

@@ -93,6 +93,11 @@ struct MLIRASTConsumer : public ASTConsumer {
             PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
         error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
+    llvm::errs() << "Setting opaque pointers to false\n";
+    lcontext.setOpaquePointers(false);
+    llvm::errs() << "has opaque pointer: "
+                 << lcontext.hasSetOpaquePointersValue() << "\n";
+    // assert(lcontext.hasSetOpaquePointersValue() == false);
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);

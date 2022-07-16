@@ -24,7 +24,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 
 using namespace mlir;
@@ -1596,7 +1596,6 @@ public:
 };
 */
 
-#include "mlir/Dialect/SCF/SCF.h"
 struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
   using OpRewritePattern<scf::IfOp>::OpRewritePattern;
 

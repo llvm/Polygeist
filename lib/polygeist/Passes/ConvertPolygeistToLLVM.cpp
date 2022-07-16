@@ -27,7 +27,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -605,11 +605,10 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
-  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, bool emitCWrappers,
-                             unsigned indexBitwidth, bool useAlignedAlloc,
+  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
+                             bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout) {
     this->useBarePtrCallConv = useBarePtrCallConv;
-    this->emitCWrappers = emitCWrappers;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
   }
@@ -621,7 +620,6 @@ struct ConvertPolygeistToLLVMPass
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
     options.useBarePtrCallConv = useBarePtrCallConv;
-    options.emitCWrappers = emitCWrappers;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
@@ -719,8 +717,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   bool useAlignedAlloc =
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv, options.emitCWrappers,
-      options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+      options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
+      options.dataLayout);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -728,6 +726,5 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, false, 64u, false,
-                                                      dl);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl);
 }
