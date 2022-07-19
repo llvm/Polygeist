@@ -86,7 +86,10 @@ static inline mlir::Block *getElseBlock(mlir::scf::IfOp op) {
   return op.elseBlock();
 }
 static inline mlir::Block *getElseBlock(mlir::AffineIfOp op) {
-  return op.getElseBlock();
+  if (op.hasElse())
+    return op.getElseBlock();
+  else
+    return nullptr;
 }
 
 static inline mlir::Region &getThenRegion(mlir::scf::IfOp op) {
