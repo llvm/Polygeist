@@ -1849,15 +1849,13 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 
     // Creat the post split ifs
     rewriter.setInsertionPoint(op);
-    auto ifPre = rewriter.create<scf::IfOp>(
-        op.getLoc(), TypeRange(typesToYield), op.getCondition(), true);
+    auto ifPre = cloneWithoutResults(op, rewriter, {}, typesToYield);
     if (thenBarrier) {
       rewriter.clone(*thenBarrier);
     } else {
       rewriter.clone(*elseBarrier);
     }
-    auto ifPost = rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(),
-                                             op.getCondition(), true);
+    auto ifPost = cloneWithResults(op, rewriter);
 
     BlockAndValueMapping mapping;
     int i = 0;
@@ -1877,8 +1875,12 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
 
       clearBlock(getThenBlock(ifPre), rewriter);
       rewriter.setInsertionPointToEnd(getThenBlock(ifPre));
-      rewriter.create<scf::YieldOp>(
-          op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
+      if (std::is_same<T, scf::IfOp>::value)
+        rewriter.create<scf::YieldOp>(
+            op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
+      else
+        rewriter.create<AffineYieldOp>(
+            op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
     }
     if (elseBarrier) {
       distributeBlockAroundBarrier(rewriter, preserveAllocasElse,
@@ -1892,8 +1894,12 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
       }
       clearBlock(getElseBlock(ifPre), rewriter);
       rewriter.setInsertionPointToEnd(getElseBlock(ifPre));
-      rewriter.create<scf::YieldOp>(
-          op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
+      if (std::is_same<T, scf::IfOp>::value)
+        rewriter.create<scf::YieldOp>(
+            op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
+      else
+        rewriter.create<AffineYieldOp>(
+            op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
     }
 
     rewriter.replaceOp(op, ifPost->getResults());
@@ -2386,7 +2392,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
           patterns.insert<
               Reg2MemFor<scf::ForOp, true>, Reg2MemFor<AffineForOp, true>,
               DistributeIfAroundBarrier<scf::IfOp, true>,
-              // DistributeIfAroundBarrier<AffineIfOp, true>,
+              DistributeIfAroundBarrier<AffineIfOp, true>,
               Reg2MemIf<scf::IfOp, true>, Reg2MemIf<AffineIfOp, true>,
               WrapForWithBarrier<true>, WrapAffineForWithBarrier<true>,
               WrapIfWithBarrier<scf::IfOp, true>,
@@ -2396,7 +2402,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
           patterns.insert<
               Reg2MemFor<scf::ForOp, false>, Reg2MemFor<AffineForOp, false>,
               DistributeIfAroundBarrier<scf::IfOp, false>,
-              // DistributeIfAroundBarrier<AffineIfOp, false>,
+              DistributeIfAroundBarrier<AffineIfOp, false>,
               Reg2MemIf<scf::IfOp, false>, Reg2MemIf<AffineIfOp, false>,
               WrapForWithBarrier<false>, WrapAffineForWithBarrier<false>,
               WrapIfWithBarrier<scf::IfOp, false>,

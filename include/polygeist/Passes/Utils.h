@@ -6,6 +6,25 @@
 #include "mlir/IR/IntegerSet.h"
 
 static inline mlir::scf::IfOp
+cloneWithResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
+                 mlir::BlockAndValueMapping mapping = {}) {
+  using namespace mlir;
+  return rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(),
+                                    mapping.lookupOrDefault(op.getCondition()),
+                                    true);
+}
+static inline mlir::AffineIfOp
+cloneWithResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
+                 mlir::BlockAndValueMapping mapping = {}) {
+  using namespace mlir;
+  SmallVector<mlir::Value> lower;
+  for (auto o : op.getOperands())
+    lower.push_back(mapping.lookupOrDefault(o));
+  return rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(),
+                                     op.getIntegerSet(), lower, true);
+}
+
+static inline mlir::scf::IfOp
 cloneWithoutResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
                     mlir::BlockAndValueMapping mapping = {},
                     mlir::TypeRange types = {}) {
