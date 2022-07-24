@@ -49,9 +49,9 @@ target_link_libraries(cgeist PRIVATE
   MLIRSupport
   MLIRIR
   MLIRAnalysis
-  MLIRLLVMIR
-  MLIRNVVMIR
-  MLIROpenMP
+  MLIRLLVMDialect
+  MLIRNVVMDialect
+  MLIROpenMPDialect
   MLIRGPUOps
   MLIRTransforms
   MLIRSCFToControlFlow

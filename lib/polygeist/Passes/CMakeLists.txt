@@ -22,18 +22,18 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRPolygeistPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
-  MLIRAsync
+  MLIRAffineDialect
+  MLIRAsyncDialect
   MLIRAffineUtils
-  MLIRFunc
+  MLIRFuncDialect
   MLIRFuncTransforms
   MLIRGPUOps
   MLIRIR
-  MLIRLLVMIR
-  MLIRMath
+  MLIRLLVMDialect
+  MLIRMathDialect
   MLIRMathToLLVM
-  MLIRMemRef
-  MLIRNVVMIR
+  MLIRMemRefDialect
+  MLIRNVVMDialect
   MLIRPass
   MLIRPolygeist
   MLIRSideEffectInterfaces

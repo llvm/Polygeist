@@ -8,7 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "utils.h"
 
 #define DEBUG_TYPE "CGCall"
