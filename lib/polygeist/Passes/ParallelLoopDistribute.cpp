@@ -1731,19 +1731,6 @@ struct HoistBarrierIf : public OpRewritePattern<IfType> {
       it++;
       for (; it != pop.getBody()->end(); ++it)
         rewriter.clone(*it, mapping);
-
-      /*
-      rewriter.startRootUpdate(newParallel);
-      for (auto tup : llvm::zip(newParallel.getBody()->getArguments(),
-                                pop.getBody()->getArguments()))
-        std::get<1>(tup).replaceUsesWithIf(
-            std::get<0>(tup), [&](OpOperand &opop) -> bool {
-              return newParallel->isAncestor(opop.getOwner());
-              //return getThenBlock(op)->getParent()->isAncestor(
-              //opop.getOwner()->getParentRegion());
-            });
-      rewriter.finalizeRootUpdate(newParallel);
-      */
     }
 
     // Else
@@ -1774,17 +1761,6 @@ struct HoistBarrierIf : public OpRewritePattern<IfType> {
       it++;
       for (; it != pop.getBody()->end(); ++it)
         rewriter.clone(*it, mapping);
-
-      /*
-      rewriter.startRootUpdate(newParallel);
-      for (auto tup : llvm::zip(newParallel.getBody()->getArguments(),
-                                pop.getBody()->getArguments()))
-        std::get<1>(tup).replaceUsesWithIf(
-            std::get<0>(tup), [&](OpOperand &opop) -> bool {
-              return newParallel->isAncestor(opop.getOwner());
-            });
-      rewriter.finalizeRootUpdate(newParallel);
-      */
     }
 
     rewriter.eraseOp(pop);
