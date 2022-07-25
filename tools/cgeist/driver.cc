@@ -31,8 +31,8 @@
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
-    llvm::errs() << "Creating pass\n";
+  llvm::errs() << "Creating pass\n";
   if (true) {
     optPM.addPass(mlir::createCSEPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -497,19 +497,19 @@ int main(int argc, char **argv) {
       if (ScalarReplacement)
         optPM.addPass(mlir::createAffineScalarReplacementPass());
     }
-      llvm::errs() << "Running pass1\n";
+    llvm::errs() << "Running pass1\n";
     if (mlir::failed(pm.run(module.get()))) {
       module->dump();
       return 4;
     }
-      llvm::errs() << "Verifying pass1\n";
+    llvm::errs() << "Verifying pass1\n";
     if (mlir::failed(mlir::verify(module.get()))) {
       module->dump();
       return 5;
     }
 
-   llvm::errs() << "pass1:\n";
-   module->dump();
+    llvm::errs() << "pass1:\n";
+    module->dump();
 
 #define optPM optPM2
 #define pm pm2
@@ -560,8 +560,8 @@ int main(int argc, char **argv) {
       }
     }
 
-   llvm::errs() << "pass2:\n";
-   module->dump();
+    llvm::errs() << "pass2:\n";
+    module->dump();
 
     if (CudaLower) {
       mlir::PassManager pm(&context);
