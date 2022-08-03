@@ -309,113 +309,6 @@ bool isIfOp(Operation *op) {
   return isa<scf::IfOp, AffineIfOp>(op);
 }
 
-Operation *getPrevNodeBeforeBarrier(Operation* op) {
-  Operation *prev = op->getPrevNode();
-  if (prev)
-    return prev;
-
-  Operation *parent = op->getParentOp();
-  if (isParallelOp(parent))
-    return nullptr;
-  else if (isIfOp(parent))
-    return parent->getPrevNode();
-  else
-    assert(0 && "We should never encounter a non parallel op or non if when iterating backwards from a barrier");
-}
-
-/// TODO comment
-template <typename IfOpType>
-static void findValuesUsedBelow(polygeist::BarrierOp barrier,
-                                IfOpType ifOp,
-                                llvm::SetVector<Value> &crossing,
-                                llvm::SetVector<Operation *> &preserveAllocas) {
-  llvm::SetVector<Operation *> descendantsUsed;
-
-  Operation *pop = ifOp->getParentOp();
-
-  // A set of pre-barrier operations which are potentially captured by a
-  // subsequent pre-barrier operation.
-  SmallVector<Operation *> Allocas;
-
-  for (Operation *it = ifOp->getPrevNode(); it != nullptr;
-       it = it->getPrevNode(it)) {
-    if (isa<memref::AllocaOp, LLVM::AllocaOp>(it))
-      Allocas.push_back(it);
-    for (Value value : it->getResults()) {
-      for (Operation *user : value.getUsers()) {
-
-        // If the user is nested in another op, find its ancestor op that lives
-        // in the same block as the barrier.
-        while (user->getBlock() != ifOp->getBlock() && user->getBlock() != barrier->getBlock())
-          user = user->getBlock()->getParentOp();
-
-        if (ifOp->isBeforeInBlock(user) || barrier->isBeforeInBlock(user)) {
-          crossing.insert(value);
-        }
-      }
-    }
-  }
-  for (Operation *it = barrier->getPrevNode(); it != nullptr;
-       it = it->getPrevNode(it)) {
-    if (isa<memref::AllocaOp, LLVM::AllocaOp>(it))
-      Allocas.push_back(it);
-    for (Value value : it->getResults()) {
-      for (Operation *user : value.getUsers()) {
-
-        // If the user is nested in another op, find its ancestor op that lives
-        // in the same block as the barrier.
-        while (user->getBlock() != barrier->getBlock())
-          user = user->getBlock()->getParentOp();
-
-        if (barrier->isBeforeInBlock(user)) {
-          crossing.insert(value);
-        }
-      }
-    }
-  }
-
-  llvm::SmallVector<std::pair<Operation *, Operation *>> todo;
-  for (auto *A : Allocas)
-    todo.emplace_back(A, A);
-
-  std::map<Operation *, SmallPtrSet<Operation *, 2>> descendants;
-  while (todo.size()) {
-    auto current = todo.back();
-    todo.pop_back();
-    if (descendants[current.first].count(current.second))
-      continue;
-    descendants[current.first].insert(current.second);
-    for (Value value : current.first->getResults()) {
-      for (Operation *user : value.getUsers()) {
-        Operation *origUser = user;
-        while (user->getBlock() != barrier->getBlock())
-          user = user->getBlock()->getParentOp();
-
-        if (!barrier->isBeforeInBlock(user)) {
-          if (couldWrite(origUser) ||
-              origUser->hasTrait<OpTrait::IsTerminator>()) {
-            preserveAllocas.insert(current.second);
-          }
-          if (!isa<LLVM::LoadOp, memref::LoadOp, AffineLoadOp>(origUser)) {
-            for (auto res : origUser->getResults()) {
-              if (crossing.contains(res)) {
-                preserveAllocas.insert(current.second);
-              }
-            }
-            todo.emplace_back(user, current.second);
-          }
-        }
-      }
-    }
-  }
-
-  for (auto v : crossing) {
-    if (isa<memref::AllocaOp, LLVM::AllocaOp>(v.getDefiningOp())) {
-      preserveAllocas.insert(v.getDefiningOp());
-    }
-  }
-}
-
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
 /// below `op`. Uses may be in nested regions.
@@ -791,313 +684,6 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
       op.getLowerBoundsOperands(), innerUpper, op.getUpperBoundsOperands(),
       innerStep);
   rewriter.eraseOp(&postLoop.getBody()->back());
-  return success();
-}
-
-template <typename ParallelOpType, typename IfOpType bool UseMinCut>
-static LogicalResult distributeAroundIfBarrier(ParallelOpType pop, IfOpType ifOp,
-                                             ParallelOpType &preLoop, ParallelOpType &postLoop,
-                                             PatternRewriter &rewriter) {
-  if (pop.getNumResults() != 0) {
-    LLVM_DEBUG(DBGS() << "[distribute-if] not matching reduction loops\n");
-    return failure();
-  }
-
-  if (!isNormalized(pop)) {
-    LLVM_DEBUG(DBGS() << "[distribute-if] non-normalized loop\n");
-    return failure();
-  }
-
-  Block *thenBlock = getThenBlock(ifOp);
-  Block *elseBlock = getElseBlock(ifOp);
-  BarrierOp thenBarrier = nullptr;
-  BarrierOp elseBarrier = nullptr;
-  if (thenBlock)
-    thenBarrier = getBarrierInBlock(getThenBlock(ifOp));
-  if (elseBlock)
-    elseBarrier = getBarrierInBlock(getElseBlock(ifOp));
-
-  if (!elseBarrier && !thenBarrier) {
-    LLVM_DEBUG(DBGS() << "[distribute-if] no barrier directly nested in if\n");
-    return failure();
-  }
-
-  if (!thenBarrier) {
-    rewriter.setInsertionPointToEnd(getThenBlock(ifOp));
-    rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), elseBarrier->getOperands());
-  }
-  // TODO I think we need to insert an else block if it doesn't exist
-  if (!elseBarrier) {
-    rewriter.setInsertionPointToEnd(getElseBlock(ifOp));
-    rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), thenBarrier->getOperands());
-  }
-
-  // TODO would be nice to know which ones are used by both then/else and below if
-  //llvm::SetVector<Value> usedBelowThen;
-  //llvm::SetVector<Value> usedBelowElse;
-  llvm::SetVector<Value> usedBelow;
-  llvm::SetVector<Operation *> preserveAllocas;
-
-  findValuesUsedBelow(thenBarrier, usedBelow, preserveAllocas);
-  findValuesUsedBelow(elseBarrier, usedBelow, preserveAllocas);
-
-  llvm::SetVector<Value> crossingCache;
-  if (UseMinCut) {
-
-    minCutCache(barrier, usedBelow, crossingCache);
-
-    LLVM_DEBUG(DBGS() << "[distribute] min cut cache optimisation: "
-                      << "preserveAllocas: " << preserveAllocas.size() << ", "
-                      << "usedBelow: " << usedBelow.size() << ", "
-                      << "crossingCache: " << crossingCache.size() << "\n");
-
-    // Recalculate values used below the barrier up to available ones
-    std::function<void(Operation *)> recalculateOp;
-    recalculateOp = [&recalculateOp, &barrier, &mapping,
-                     &rewriter](Operation *op) {
-      if (!pop->isProperAncestor(op))
-        return;
-
-      // We always have to recalculate operands of yields, otherwise check if we
-      // don't already have the results
-      if (!isa<scf::YieldOp, AffineYieldOp>(op) &&
-          llvm::all_of(op->getResults(),
-                       [&mapping](Value v) { return mapping.contains(v); }))
-        return;
-
-      for (Value operand : op->getOperands())
-        if (auto operandOp = operand.getDefiningOp())
-          recalculateOp(operandOp);
-      for (Region &region : op->getRegions())
-        for (auto &block : region)
-          for (auto &nestedOp : block)
-            recalculateOp(&nestedOp);
-
-      if (op->getBlock() == barrier->getBlock())
-        rewriter.clone(*op, mapping);
-      else
-        for (Value v : op->getResults())
-          mapping.map(v, v);
-    };
-
-    // TODO make a lambda for this to deduplicate
-
-    auto recalcAndRemap = [&](Operation *barrier) {
-      rewriter.setInsertionPointAfter(barrier);
-      BlockAndValueMapping mapping;
-      for (auto v : crossingCache)
-        mapping.map(v, v);
-      for (auto v : usedBelow) {
-        Operation *vOp = v.getDefiningOp();
-        assert(vOp && "values used below barrier must be results of operations");
-        recalculateOp(vOp);
-        // Remap the uses of the recalculated val below the barrier
-        for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-          auto *user = u.getOwner();
-          while (user != nullptr && user->getBlock() != barrier->getBlock())
-            user = user->getBlock()->getParentOp();
-          if (user && barrier->isBeforeInBlock(user)) {
-            rewriter.startRootUpdate(user);
-            u.set(mapping.lookup(v));
-            rewriter.finalizeRootUpdate(user);
-          }
-        }
-      }
-    };
-
-    recalcAndRemap(ifOp);
-    recalcAndRemap(thenBarrier);
-    recalcAndRemap(elseBarrier);
-
-  } else {
-    crossingCache = usedBelow;
-  }
-
-  for (auto *alloca : preserveAllocas) {
-    crossingCache.remove(alloca->getResult(0));
-  }
-
-  SmallVector<Value> iterCounts;
-
-  Block *outerBlock;
-  ParallelOpType outerLoop = nullptr;
-  memref::AllocaScopeOp outerEx = nullptr;
-
-  rewriter.setInsertionPoint(pop);
-  if (splitSubLoop(pop, rewriter, barrier, iterCounts, preLoop, postLoop,
-                   outerBlock, outerLoop, outerEx)
-          .failed())
-    return failure();
-
-  assert(iterCounts.size() == preLoop.getBody()->getArguments().size());
-
-  size_t outIdx = 0;
-  size_t inIdx = 0;
-  for (auto en : pop.getBody()->getArguments()) {
-    bool found = false;
-    for (auto v : barrier.getOperands())
-      if (v == en)
-        found = true;
-    if (found) {
-      en.replaceAllUsesWith(preLoop.getBody()->getArguments()[inIdx]);
-      inIdx++;
-    } else {
-      en.replaceAllUsesWith(outerLoop.getBody()->getArguments()[outIdx]);
-      outIdx++;
-    }
-  }
-  pop.getBody()->eraseArguments([](BlockArgument) { return true; });
-  rewriter.mergeBlocks(pop.getBody(), preLoop.getBody());
-
-  rewriter.setInsertionPoint(preLoop);
-  // Allocate space for values crossing the barrier.
-  SmallVector<Value> cacheAllocations;
-  SmallVector<Value> allocaAllocations;
-  cacheAllocations.reserve(crossingCache.size());
-  allocaAllocations.reserve(preserveAllocas.size());
-  auto mod = ((Operation *)pop)->getParentOfType<ModuleOp>();
-  assert(mod);
-  DataLayout DLI(mod);
-  auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
-    if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
-      allocations.push_back(cl.memref());
-    } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
-      allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
-          rewriter, v, iterCounts, true, &DLI));
-    } else {
-      allocations.push_back(
-          allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
-    }
-  };
-  for (Value v : crossingCache)
-    addToAllocations(v, cacheAllocations);
-  for (Operation *o : preserveAllocas)
-    addToAllocations(o->getResult(0), allocaAllocations);
-
-  // Allocate alloca's we need to preserve outside the loop
-  for (auto pair : llvm::zip(preserveAllocas, allocaAllocations)) {
-    Operation *o = std::get<0>(pair);
-    Value alloc = std::get<1>(pair);
-    if (auto ao = dyn_cast<memref::AllocaOp>(o)) {
-      for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
-        rewriter.setInsertionPoint(u.getOwner());
-        auto buf = alloc;
-        for (auto idx : preLoop.getBody()->getArguments()) {
-          auto mt0 = buf.getType().cast<MemRefType>();
-          std::vector<int64_t> shape(mt0.getShape());
-          assert(shape.size() > 0);
-          shape.erase(shape.begin());
-          auto mt = MemRefType::get(shape, mt0.getElementType(),
-                                    MemRefLayoutAttrInterface(),
-                                    // mt0.getLayout(),
-                                    mt0.getMemorySpace());
-          auto subidx = rewriter.create<polygeist::SubIndexOp>(alloc.getLoc(),
-                                                               mt, buf, idx);
-          buf = subidx;
-        }
-        u.set(buf);
-      }
-      rewriter.eraseOp(ao);
-    } else if (auto ao = dyn_cast<LLVM::AllocaOp>(o)) {
-      Value sz = ao.getArraySize();
-      rewriter.setInsertionPointAfter(alloc.getDefiningOp());
-      alloc =
-          rewriter.create<LLVM::BitcastOp>(ao.getLoc(), ao.getType(), alloc);
-      for (auto &u : llvm::make_early_inc_range(ao.getResult().getUses())) {
-        rewriter.setInsertionPoint(u.getOwner());
-        Value idx = nullptr;
-        // i0
-        // i0 * s1 + i1
-        // ( i0 * s1 + i1 ) * s2 + i2
-        for (auto pair :
-             llvm::zip(iterCounts, preLoop.getBody()->getArguments())) {
-          if (idx) {
-            idx = rewriter.create<arith::MulIOp>(ao.getLoc(), idx,
-                                                 std::get<0>(pair));
-            idx = rewriter.create<arith::AddIOp>(ao.getLoc(), idx,
-                                                 std::get<1>(pair));
-          } else
-            idx = std::get<1>(pair);
-        }
-        idx = rewriter.create<MulIOp>(ao.getLoc(), sz,
-                                      rewriter.create<arith::IndexCastOp>(
-                                          ao.getLoc(), sz.getType(), idx));
-        SmallVector<Value> vec = {idx};
-        u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
-                                           idx));
-      }
-    } else {
-      assert(false && "Wrong operation type in preserveAllocas");
-    }
-  }
-
-  // Store values in the min cache immediately when ready and reload them
-  // after the barrier
-  for (auto pair : llvm::zip(crossingCache, cacheAllocations)) {
-    Value v = std::get<0>(pair);
-    Value alloc = std::get<1>(pair);
-
-    // No need to store cache loads
-    if (!isa<polygeist::CacheLoad>(v.getDefiningOp())) {
-      // Store
-      rewriter.setInsertionPointAfter(v.getDefiningOp());
-      rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc,
-                                       preLoop.getBody()->getArguments());
-    }
-    // Reload
-    rewriter.setInsertionPointAfter(barrier);
-    Value reloaded = rewriter.create<polygeist::CacheLoad>(
-        v.getLoc(), alloc, preLoop.getBody()->getArguments());
-    for (auto &u : llvm::make_early_inc_range(v.getUses())) {
-      auto *user = u.getOwner();
-      while (user->getBlock() != barrier->getBlock())
-        user = user->getBlock()->getParentOp();
-
-      if (barrier->isBeforeInBlock(user)) {
-        rewriter.startRootUpdate(user);
-        u.set(reloaded);
-        rewriter.finalizeRootUpdate(user);
-      }
-    }
-  }
-
-  // Insert the terminator for the new loop immediately before the barrier.
-  rewriter.setInsertionPoint(barrier);
-  rewriter.clone(preLoop.getBody()->back());
-  Operation *postBarrier = barrier->getNextNode();
-  rewriter.eraseOp(barrier);
-
-  // Create the second loop.
-  rewriter.setInsertionPointToEnd(outerBlock);
-  if (outerLoop) {
-    if (isa<scf::ParallelOp>(outerLoop))
-      rewriter.create<scf::YieldOp>(pop.getLoc());
-    else {
-      assert(isa<AffineParallelOp>(outerLoop));
-      rewriter.create<AffineYieldOp>(pop.getLoc());
-    }
-  } else {
-    rewriter.create<memref::AllocaScopeReturnOp>(pop.getLoc());
-  }
-
-  // Recreate the operations in the new loop with new values.
-  rewriter.setInsertionPointToStart(postLoop.getBody());
-  BlockAndValueMapping mapping;
-  mapping.map(preLoop.getBody()->getArguments(),
-              postLoop.getBody()->getArguments());
-  SmallVector<Operation *> toDelete;
-  for (Operation *o = postBarrier; o != nullptr; o = o->getNextNode()) {
-    rewriter.clone(*o, mapping);
-    toDelete.push_back(o);
-  }
-
-  // Erase original operations and the barrier.
-  for (Operation *o : llvm::reverse(toDelete))
-    rewriter.eraseOp(o);
-
-  rewriter.eraseOp(pop);
-
-  LLVM_DEBUG(DBGS() << "[distribute] distributed around a barrier\n");
   return success();
 }
 
@@ -2291,13 +1877,6 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
   clearBlock(pre, rewriter);
   clearBlock(post, rewriter);
 
-  // Move alloca's we need to preserve outside the if
-  rewriter.setInsertionPoint(beforeBlocks);
-  for (auto alloca : preserveAllocas) {
-    auto newAlloca = rewriter.clone(*alloca);
-    rewriter.replaceOp(alloca, newAlloca->getResults());
-  }
-
   // Insert the body of the original block in the pre
   rewriter.mergeBlocks(original, pre);
 
@@ -2308,7 +1887,7 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
   Operation *postBarrier = barrier->getNextNode();
   rewriter.eraseOp(barrier);
 
-  // Recreate the operations in the new with new values.
+  // Recreate the operations in the new block with new values.
   rewriter.setInsertionPointToStart(post);
   SmallVector<Operation *> toDelete;
   for (Operation *o = postBarrier; o != nullptr; o = o->getNextNode()) {
@@ -2322,28 +1901,26 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
 }
 
 /// Splits if at barrier if it is directly nested in a parallel op
-template <typename T, bool UseMinCut>
-struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
-  DistributeIfAroundBarrier(MLIRContext *ctx) : OpRewritePattern<T>(ctx) {}
+template <typename IfOpType, bool UseMinCut>
+struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
+  DistributeIfAroundBarrier(MLIRContext *ctx) : OpRewritePattern<IfOpType>(ctx) {}
 
-  LogicalResult matchAndRewrite(T op,
+  LogicalResult matchAndRewrite(IfOpType ifOp,
                                 PatternRewriter &rewriter) const override {
-    if (!isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp())) {
+    if (!isa<scf::ParallelOp, AffineParallelOp>(ifOp->getParentOp())) {
       LLVM_DEBUG(DBGS() << "[if-barrier-distribute] do not distribute ifs not "
                            "directly nested in parallel ops\n");
       return failure();
     }
 
-    // TODO don't do this if the condition is not calculated in the pfor
-
-    Block *thenBlock = getThenBlock(op);
-    Block *elseBlock = getElseBlock(op);
+    Block *thenBlock = getThenBlock(ifOp);
+    Block *elseBlock = getElseBlock(ifOp);
     BarrierOp thenBarrier = nullptr;
     BarrierOp elseBarrier = nullptr;
     if (thenBlock)
-      thenBarrier = getBarrierInBlock(getThenBlock(op));
+      thenBarrier = getBarrierInBlock(getThenBlock(ifOp));
     if (elseBlock)
-      elseBarrier = getBarrierInBlock(getElseBlock(op));
+      elseBarrier = getBarrierInBlock(getElseBlock(ifOp));
 
     if (!(thenBarrier || elseBarrier)) {
       LLVM_DEBUG(DBGS() << "[if-barrier-distribute] no barrier in the if\n");
@@ -2356,116 +1933,99 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<T> {
       elseBarrier = nullptr;
     }
 
+    if (!thenBarrier) {
+      rewriter.setInsertionPointToEnd(getThenBlock(ifOp));
+      thenBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), elseBarrier->getOperands());
+    }
+    // TODO I think we need to insert an else block if it doesn't exist
+    if (!elseBarrier) {
+      rewriter.setInsertionPointToEnd(getElseBlock(ifOp));
+      elseBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), thenBarrier->getOperands());
+    }
+
     // Create new if
 
-    rewriter.setInsertionPoint(op);
-    auto ifPre = cloneWithoutResults(op, rewriter, {}, typesToYield);
+    rewriter.setInsertionPoint(ifOp);
+    auto ifPre = cloneWithoutResults(ifOp, rewriter);
     if (thenBarrier) {
       rewriter.clone(*thenBarrier);
     } else {
       rewriter.clone(*elseBarrier);
     }
-    auto ifPost = cloneWithResults(op, rewriter);
+    auto ifPost = cloneWithResults(ifOp, rewriter);
 
 
+    auto handleCase  = [&ifPre, &rewriter, &ifOp] (BarrierOp barrier, Block *block, Block *preBlock, Block *postBlock) {
+      assert(barrier);
+      // Find the values and allocas that cross the barriers
+      llvm::SetVector<Operation *> preserveAllocas;
+      llvm::SetVector<Value> crossingCache;
+      getIfCrossingCache<UseMinCut>(rewriter, block,
+                                    preserveAllocas, crossingCache,
+                                    barrier);
+
+      // Allocate space for values crossing the barrier.
 
 
-
-
-
-    // Find the values and allocas that cross the barriers
-    llvm::SetVector<Operation *> preserveAllocasThen;
-    llvm::SetVector<Value> crossingCacheThen;
-    if (thenBarrier)
-      getIfCrossingCache<UseMinCut>(rewriter, getThenBlock(op),
-                                    preserveAllocasThen, crossingCacheThen,
-                                    thenBarrier);
-    llvm::SetVector<Operation *> preserveAllocasElse;
-    llvm::SetVector<Value> crossingCacheElse;
-    if (elseBarrier)
-      getIfCrossingCache<UseMinCut>(rewriter, getElseBlock(op),
-                                    preserveAllocasElse, crossingCacheElse,
-                                    elseBarrier);
-
-    // The lists of types of the yielded values must match between the then and
-    // else block, pad the unused values with undefs
-    rewriter.setInsertionPointToStart(
-        &((Operation *)op)
-             ->getParentOfType<FunctionOpInterface>()
-             ->getRegion(0)
-             .front());
-    SmallVector<Type> typesToYield;
-    llvm::SetVector<Value> crossingCacheElsePadded;
-    llvm::SetVector<Value> crossingCacheThenPadded;
-    for (auto v : crossingCacheThen) {
-      typesToYield.push_back(v.getType());
-      crossingCacheThenPadded.insert(v);
-      crossingCacheElsePadded.insert(rewriter.create<LLVM::UndefOp>(
-          rewriter.getUnknownLoc(), v.getType()));
-    }
-    for (auto v : crossingCacheElse) {
-      typesToYield.push_back(v.getType());
-      crossingCacheElsePadded.insert(v);
-      crossingCacheThenPadded.insert(rewriter.create<LLVM::UndefOp>(
-          rewriter.getUnknownLoc(), v.getType()));
-    }
-
-    // Creat the post split ifs
-    rewriter.setInsertionPoint(op);
-    auto ifPre = cloneWithoutResults(op, rewriter, {}, typesToYield);
-    if (thenBarrier) {
-      rewriter.clone(*thenBarrier);
-    } else {
-      rewriter.clone(*elseBarrier);
-    }
-    auto ifPost = cloneWithResults(op, rewriter);
-
-    BlockAndValueMapping mapping;
-    int i = 0;
-    for (auto v : crossingCacheThen)
-      mapping.map(v, ifPre.getResult(i++));
-    for (auto v : crossingCacheElse)
-      mapping.map(v, ifPre.getResult(i++));
-
-    if (thenBarrier) {
-      distributeBlockAroundBarrier(rewriter, preserveAllocasThen,
-                                   crossingCacheThenPadded, getThenBlock(op),
-                                   getThenBlock(ifPre), getThenBlock(ifPost),
-                                   thenBarrier, ifPre, mapping);
-    } else {
-      clearBlock(getThenBlock(ifPost), rewriter);
-      rewriter.mergeBlocks(getThenBlock(op), getThenBlock(ifPost));
-
-      clearBlock(getThenBlock(ifPre), rewriter);
-      rewriter.setInsertionPointToEnd(getThenBlock(ifPre));
-      if (std::is_same<T, scf::IfOp>::value)
-        rewriter.create<scf::YieldOp>(
-            op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
-      else
-        rewriter.create<AffineYieldOp>(
-            op->getLoc(), ValueRange(crossingCacheThenPadded.getArrayRef()));
-    }
-    if (elseBarrier) {
-      distributeBlockAroundBarrier(rewriter, preserveAllocasElse,
-                                   crossingCacheElsePadded, getElseBlock(op),
-                                   getElseBlock(ifPre), getElseBlock(ifPost),
-                                   elseBarrier, ifPre, mapping);
-    } else {
-      if (elseBlock) {
-        clearBlock(getElseBlock(ifPost), rewriter);
-        rewriter.mergeBlocks(getElseBlock(op), getElseBlock(ifPost));
+      // Move alloca's we need to preserve outside the if
+      rewriter.setInsertionPoint(ifPre);
+      for (auto alloca : preserveAllocas) {
+        auto newAlloca = rewriter.clone(*alloca);
+        rewriter.replaceOp(alloca, newAlloca->getResults());
       }
-      clearBlock(getElseBlock(ifPre), rewriter);
-      rewriter.setInsertionPointToEnd(getElseBlock(ifPre));
-      if (std::is_same<T, scf::IfOp>::value)
-        rewriter.create<scf::YieldOp>(
-            op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
-      else
-        rewriter.create<AffineYieldOp>(
-            op->getLoc(), ValueRange(crossingCacheElsePadded.getArrayRef()));
-    }
 
-    rewriter.replaceOp(op, ifPost->getResults());
+      rewriter.setInsertionPoint(ifPre);
+      SmallVector<Value> cacheAllocations;
+      cacheAllocations.reserve(crossingCache.size());
+      auto mod = ((Operation *)ifOp)->getParentOfType<ModuleOp>();
+      assert(mod);
+      DataLayout DLI(mod);
+      for (Value v : crossingCache) {
+        if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
+          cacheAllocations.push_back(cl.memref());
+        } else {
+          //allocations.push_back(allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
+          cacheAllocations.push_back(rewriter.create<memref::AllocaOp>(ifOp->getLoc(), MemRefType::get({}, v.getType())));
+        }
+      }
+
+      // Store values in the min cache immediately when ready and reload them
+      // after the barrier
+      for (auto pair : llvm::zip(crossingCache, cacheAllocations)) {
+        Value v = std::get<0>(pair);
+        Value alloc = std::get<1>(pair);
+
+        // No need to store cache loads
+        if (!isa<polygeist::CacheLoad>(v.getDefiningOp())) {
+          // Store
+          rewriter.setInsertionPointAfter(v.getDefiningOp());
+          rewriter.create<memref::StoreOp>(v.getLoc(), v, alloc, ValueRange());
+        }
+        // Reload
+        rewriter.setInsertionPointAfter(barrier);
+        Value reloaded = rewriter.create<polygeist::CacheLoad>(v.getLoc(), alloc, ValueRange());
+        for (auto &u : llvm::make_early_inc_range(v.getUses())) {
+          auto *user = u.getOwner();
+          while (user->getBlock() != barrier->getBlock())
+            user = user->getBlock()->getParentOp();
+
+          if (barrier->isBeforeInBlock(user)) {
+            rewriter.startRootUpdate(user);
+            u.set(reloaded);
+            rewriter.finalizeRootUpdate(user);
+          }
+        }
+      }
+
+      BlockAndValueMapping mapping;
+
+      distributeBlockAroundBarrier(rewriter, preserveAllocas, crossingCache, block, preBlock, postBlock, barrier, ifPre, mapping);
+
+    };
+    handleCase(thenBarrier, getThenBlock(ifOp), getThenBlock(ifPre), getThenBlock(ifPost));
+    handleCase(elseBarrier, getElseBlock(ifOp), getElseBlock(ifPre), getElseBlock(ifPost));
+
+    rewriter.replaceOp(ifOp, ifPost->getResults());
 
     LLVM_DEBUG(DBGS() << "[distribute-if] distributed if around barrier\n");
     return success();
@@ -2956,13 +2516,17 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
                       HoistBarrierIf<AffineParallelOp, AffineIfOp>>(
           &getContext());
     } else {
+      if (method.contains("ifsplit")) {
+        patterns.insert<
+          DistributeIfAroundBarrier <scf::IfOp, UseMinCut>,
+          DistributeIfAroundBarrier <AffineIfOp, UseMinCut>>(&getContext());
+      }
       patterns.insert<WrapIfWithBarrier<scf::IfOp, UseMinCut>,
                       WrapIfWithBarrier<AffineIfOp, UseMinCut>,
                       InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
                       InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
                       InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                      InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(
-          &getContext());
+                      InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(&getContext());
     }
 
     patterns.insert<InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
