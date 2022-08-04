@@ -305,9 +305,7 @@ bool isParallelOp(Operation *op) {
   return isa<scf::ParallelOp, AffineParallelOp>(op);
 }
 
-bool isIfOp(Operation *op) {
-  return isa<scf::IfOp, AffineIfOp>(op);
-}
+bool isIfOp(Operation *op) { return isa<scf::IfOp, AffineIfOp>(op); }
 
 /// Populates `crossing` with values (op results) that are defined in the same
 /// block as `op` and above it, and used by at least one op in the same block
@@ -1902,7 +1900,8 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
 /// Splits if at barrier if it is directly nested in a parallel op
 template <typename IfOpType, bool UseMinCut>
 struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
-  DistributeIfAroundBarrier(MLIRContext *ctx) : OpRewritePattern<IfOpType>(ctx) {}
+  DistributeIfAroundBarrier(MLIRContext *ctx)
+      : OpRewritePattern<IfOpType>(ctx) {}
 
   LogicalResult matchAndRewrite(IfOpType ifOp,
                                 PatternRewriter &rewriter) const override {
@@ -1934,12 +1933,14 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
 
     if (!thenBarrier) {
       rewriter.setInsertionPoint(getThenBlock(ifOp)->getTerminator());
-      thenBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), elseBarrier->getOperands());
+      thenBarrier = rewriter.create<polygeist::BarrierOp>(
+          ifOp->getLoc(), elseBarrier->getOperands());
     }
     if (elseBlock) {
       if (!elseBarrier) {
         rewriter.setInsertionPoint(getElseBlock(ifOp)->getTerminator());
-        elseBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), thenBarrier->getOperands());
+        elseBarrier = rewriter.create<polygeist::BarrierOp>(
+            ifOp->getLoc(), thenBarrier->getOperands());
       }
     }
 
@@ -1954,19 +1955,18 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
     }
     auto ifPost = cloneWithResults(ifOp, rewriter);
 
-
-    auto handleCase  = [&ifPre, &rewriter, &ifOp] (BarrierOp barrier, Block *block, Block *preBlock, Block *postBlock) {
+    auto handleCase = [&ifPre, &rewriter, &ifOp](BarrierOp barrier,
+                                                 Block *block, Block *preBlock,
+                                                 Block *postBlock) {
       assert(barrier);
       assert(block);
       // Find the values and allocas that cross the barriers
       llvm::SetVector<Operation *> preserveAllocas;
       llvm::SetVector<Value> crossingCache;
-      getIfCrossingCache<UseMinCut>(rewriter, block,
-                                    preserveAllocas, crossingCache,
-                                    barrier);
+      getIfCrossingCache<UseMinCut>(rewriter, block, preserveAllocas,
+                                    crossingCache, barrier);
 
       // Allocate space for values crossing the barrier.
-
 
       // Move alloca's we need to preserve outside the if
       rewriter.setInsertionPoint(ifPre);
@@ -1985,8 +1985,10 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
         if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
           cacheAllocations.push_back(cl.memref());
         } else {
-          //allocations.push_back(allocateTemporaryBuffer<memref::AllocaOp>(rewriter, v, iterCounts));
-          cacheAllocations.push_back(rewriter.create<memref::AllocaOp>(ifOp->getLoc(), MemRefType::get({}, v.getType())));
+          // allocations.push_back(allocateTemporaryBuffer<memref::AllocaOp>(rewriter,
+          // v, iterCounts));
+          cacheAllocations.push_back(rewriter.create<memref::AllocaOp>(
+              ifOp->getLoc(), MemRefType::get({}, v.getType())));
         }
       }
 
@@ -2004,7 +2006,8 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
         }
         // Reload
         rewriter.setInsertionPointAfter(barrier);
-        Value reloaded = rewriter.create<polygeist::CacheLoad>(v.getLoc(), alloc, ValueRange());
+        Value reloaded = rewriter.create<polygeist::CacheLoad>(
+            v.getLoc(), alloc, ValueRange());
         for (auto &u : llvm::make_early_inc_range(v.getUses())) {
           auto *user = u.getOwner();
           while (user->getBlock() != barrier->getBlock())
@@ -2020,12 +2023,15 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
 
       BlockAndValueMapping mapping;
 
-      distributeBlockAroundBarrier(rewriter, preserveAllocas, crossingCache, block, preBlock, postBlock, barrier, ifPre, mapping);
-
+      distributeBlockAroundBarrier(rewriter, preserveAllocas, crossingCache,
+                                   block, preBlock, postBlock, barrier, ifPre,
+                                   mapping);
     };
-    handleCase(thenBarrier, getThenBlock(ifOp), getThenBlock(ifPre), getThenBlock(ifPost));
+    handleCase(thenBarrier, getThenBlock(ifOp), getThenBlock(ifPre),
+               getThenBlock(ifPost));
     if (elseBlock)
-      handleCase(elseBarrier, getElseBlock(ifOp), getElseBlock(ifPre), getElseBlock(ifPost));
+      handleCase(elseBarrier, getElseBlock(ifOp), getElseBlock(ifPre),
+                 getElseBlock(ifPost));
 
     rewriter.replaceOp(ifOp, ifPost->getResults());
 
@@ -2519,16 +2525,17 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
           &getContext());
     } else {
       if (method.contains("ifsplit")) {
-        patterns.insert<
-          DistributeIfAroundBarrier <scf::IfOp, UseMinCut>,
-          DistributeIfAroundBarrier <AffineIfOp, UseMinCut>>(&getContext());
+        patterns.insert<DistributeIfAroundBarrier<scf::IfOp, UseMinCut>,
+                        DistributeIfAroundBarrier<AffineIfOp, UseMinCut>>(
+            &getContext());
       }
       patterns.insert<WrapIfWithBarrier<scf::IfOp, UseMinCut>,
                       WrapIfWithBarrier<AffineIfOp, UseMinCut>,
                       InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
                       InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
                       InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                      InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(&getContext());
+                      InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(
+          &getContext());
     }
 
     patterns.insert<InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
