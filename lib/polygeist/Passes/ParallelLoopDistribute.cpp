@@ -1880,10 +1880,9 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
   // Insert the body of the original block in the pre
   rewriter.mergeBlocks(original, pre);
 
-  // Yield values in crossingCache from the block just before the barrier
+  // Yield before the barrier
   rewriter.setInsertionPoint(barrier);
-  rewriter.create<scf::YieldOp>(beforeBlocks->getLoc(),
-                                ValueRange(crossingCache.getArrayRef()));
+  rewriter.create<scf::YieldOp>(beforeBlocks->getLoc(), ValueRange());
   Operation *postBarrier = barrier->getNextNode();
   rewriter.eraseOp(barrier);
 
@@ -1934,13 +1933,14 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
     }
 
     if (!thenBarrier) {
-      rewriter.setInsertionPointToEnd(getThenBlock(ifOp));
+      rewriter.setInsertionPoint(getThenBlock(ifOp)->getTerminator());
       thenBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), elseBarrier->getOperands());
     }
-    // TODO I think we need to insert an else block if it doesn't exist
-    if (!elseBarrier) {
-      rewriter.setInsertionPointToEnd(getElseBlock(ifOp));
-      elseBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), thenBarrier->getOperands());
+    if (elseBlock) {
+      if (!elseBarrier) {
+        rewriter.setInsertionPoint(getElseBlock(ifOp)->getTerminator());
+        elseBarrier = rewriter.create<polygeist::BarrierOp>(ifOp->getLoc(), thenBarrier->getOperands());
+      }
     }
 
     // Create new if
@@ -1957,6 +1957,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
 
     auto handleCase  = [&ifPre, &rewriter, &ifOp] (BarrierOp barrier, Block *block, Block *preBlock, Block *postBlock) {
       assert(barrier);
+      assert(block);
       // Find the values and allocas that cross the barriers
       llvm::SetVector<Operation *> preserveAllocas;
       llvm::SetVector<Value> crossingCache;
@@ -2023,7 +2024,8 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
 
     };
     handleCase(thenBarrier, getThenBlock(ifOp), getThenBlock(ifPre), getThenBlock(ifPost));
-    handleCase(elseBarrier, getElseBlock(ifOp), getElseBlock(ifPre), getElseBlock(ifPost));
+    if (elseBlock)
+      handleCase(elseBarrier, getElseBlock(ifOp), getElseBlock(ifPre), getElseBlock(ifPost));
 
     rewriter.replaceOp(ifOp, ifPost->getResults());
 

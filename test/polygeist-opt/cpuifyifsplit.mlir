@@ -1,4 +1,6 @@
 // RUN: polygeist-opt --cpuify="method=distribute.mincut.ifhoist" --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute.mincut.ifsplit" --split-input-file %s | FileCheck %s -check-prefix=IFSPLIT
+
 
 module {
   func.func private @use(%arg0: i32)
@@ -193,3 +195,107 @@ module {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
+
+// IFSPLIT:  func.func @simple_if_split(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
+// IFSPLIT-DAG:    %c0 = arith.constant 0 : index
+// IFSPLIT-DAG:    %c1 = arith.constant 1 : index
+// IFSPLIT-DAG:    %c9 = arith.constant 9 : index
+// IFSPLIT-NEXT:    memref.alloca_scope  {
+// IFSPLIT-NEXT:      %0 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:      %1 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:        func.call @usei(%arg3) : (index) -> ()
+// IFSPLIT-NEXT:        scf.if %arg0 {
+// IFSPLIT-NEXT:          %2 = func.call @get() : () -> i32
+// IFSPLIT-NEXT:          %3 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %2, %3[] : memref<i32>
+// IFSPLIT-NEXT:          %4 = "polygeist.subindex"(%0, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %2, %4[] : memref<i32>
+// IFSPLIT-NEXT:        } else {
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:        scf.yield
+// IFSPLIT-NEXT:      }
+// IFSPLIT-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:        scf.if %arg0 {
+// IFSPLIT-NEXT:          %2 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          %3 = memref.load %2[] : memref<i32>
+// IFSPLIT-NEXT:          %4 = "polygeist.subindex"(%0, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          %5 = memref.load %4[] : memref<i32>
+// IFSPLIT-NEXT:          func.call @use(%5) : (i32) -> ()
+// IFSPLIT-NEXT:          func.call @use(%3) : (i32) -> ()
+// IFSPLIT-NEXT:        } else {
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:        func.call @usei(%arg3) : (index) -> ()
+// IFSPLIT-NEXT:        scf.yield
+// IFSPLIT-NEXT:      }
+// IFSPLIT-NEXT:    }
+// IFSPLIT-NEXT:    return
+// IFSPLIT-NEXT:  }
+
+// IFSPLIT:  func.func @simple_if_hoist(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
+// IFSPLIT-DAG:    %c0 = arith.constant 0 : index
+// IFSPLIT-DAG:    %c1 = arith.constant 1 : index
+// IFSPLIT-DAG:    %c9 = arith.constant 9 : index
+// IFSPLIT-NEXT:    scf.if %arg0 {
+// IFSPLIT-NEXT:      memref.alloca_scope  {
+// IFSPLIT-NEXT:        %0 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:        %1 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:          %2 = func.call @get() : () -> i32
+// IFSPLIT-NEXT:          memref.store %2, %0[%arg3] : memref<?xi32>
+// IFSPLIT-NEXT:          %3 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %2, %3[] : memref<i32>
+// IFSPLIT-NEXT:          scf.yield
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:        scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:          %2 = memref.load %0[%arg3] : memref<?xi32>
+// IFSPLIT-NEXT:          %3 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          %4 = memref.load %3[] : memref<i32>
+// IFSPLIT-NEXT:          func.call @use(%4) : (i32) -> ()
+// IFSPLIT-NEXT:          func.call @use(%2) : (i32) -> ()
+// IFSPLIT-NEXT:          scf.yield
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:      }
+// IFSPLIT-NEXT:    } else {
+// IFSPLIT-NEXT:    }
+// IFSPLIT-NEXT:    return
+// IFSPLIT-NEXT:  }
+
+// IFSPLIT:  func.func @simple_if_split_i32(%arg0: i1, %arg1: memref<i32>, %arg2: memref<i32>)
+// IFSPLIT-DAG:    %c0 = arith.constant 0 : index
+// IFSPLIT-DAG:    %c1 = arith.constant 1 : index
+// IFSPLIT-DAG:    %c9 = arith.constant 9 : index
+// IFSPLIT-NEXT:    memref.alloca_scope  {
+// IFSPLIT-NEXT:      %0 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:      %1 = memref.alloca(%c9) : memref<?xi32>
+// IFSPLIT-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:        func.call @usei(%arg3) : (index) -> ()
+// IFSPLIT-NEXT:        scf.if %arg0 {
+// IFSPLIT-NEXT:          %2 = func.call @get() : () -> i32
+// IFSPLIT-NEXT:          %3 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %2, %3[] : memref<i32>
+// IFSPLIT-NEXT:        } else {
+// IFSPLIT-NEXT:          %2 = func.call @get2() : () -> i32
+// IFSPLIT-NEXT:          func.call @use(%2) : (i32) -> ()
+// IFSPLIT-NEXT:          %3 = "polygeist.subindex"(%0, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %2, %3[] : memref<i32>
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:        scf.yield
+// IFSPLIT-NEXT:      }
+// IFSPLIT-NEXT:      scf.parallel (%arg3) = (%c0) to (%c9) step (%c1) {
+// IFSPLIT-NEXT:        scf.if %arg0 {
+// IFSPLIT-NEXT:          %4 = "polygeist.subindex"(%1, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          %5 = memref.load %4[] : memref<i32>
+// IFSPLIT-NEXT:          func.call @use(%5) : (i32) -> ()
+// IFSPLIT-NEXT:          %6 = "polygeist.subindex"(%0, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:          memref.store %5, %6[] : memref<i32>
+// IFSPLIT-NEXT:        } else {
+// IFSPLIT-NEXT:        }
+// IFSPLIT-NEXT:        %2 = "polygeist.subindex"(%0, %arg3) : (memref<?xi32>, index) -> memref<i32>
+// IFSPLIT-NEXT:        %3 = memref.load %2[] : memref<i32>
+// IFSPLIT-NEXT:        func.call @use(%3) : (i32) -> ()
+// IFSPLIT-NEXT:        scf.yield
+// IFSPLIT-NEXT:      }
+// IFSPLIT-NEXT:    }
+// IFSPLIT-NEXT:    return
+// IFSPLIT-NEXT:  }
