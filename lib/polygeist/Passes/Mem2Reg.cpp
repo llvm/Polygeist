@@ -19,6 +19,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/Dominance.h"
@@ -1263,6 +1264,19 @@ bool Mem2Reg::forwardStoreToLoad(
       captured = true;
     }
   }
+  bool SharedMemAddr = false;
+  if (auto MT = AI.getType().dyn_cast<MemRefType>()) {
+    if (auto ia = MT.getMemorySpace().dyn_cast_or_null<IntegerAttr>())
+      SharedMemAddr = ia.getValue() == 5;
+  } else {
+    auto PT = AI.getType().dyn_cast<LLVM::LLVMPointerType>();
+    SharedMemAddr = PT.getAddressSpace() == 5;
+  }
+  if (SharedMemAddr)
+    AI.getDefiningOp()->getParentOp()->walk([&](mlir::NVVM::Barrier0Op op) {
+      LLVM_DEBUG(llvm::dbgs() << "Unknown, potential store: " << *op << "\n");
+      AliasingStoreOperations.insert(op);
+    });
 
   if (captured) {
     if (capturedAliasing.count(AI.getDefiningOp()) == 0) {
