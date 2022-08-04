@@ -1651,32 +1651,32 @@ struct RotateWhile : public OpRewritePattern<scf::WhileOp> {
   }
 };
 
-// parallel{
-//   A()
-//   if {
-//     B()
-//   } else {
-//     C()
-//   }
-//   D()
-// }
-//
-// ->
-//
-// if {
-//   parallel {
-//     A()
-//     B()
-//     D()
-//   }
-// } else {
-//   parallel {
-//     A()
-//     C()
-//     D()
-//   }
-// }
-// where B or C contains a barrier
+/// parallel{
+///   A()
+///   if {
+///     B()
+///   } else {
+///     C()
+///   }
+///   D()
+/// }
+///
+/// ->
+///
+/// if {
+///   parallel {
+///     A()
+///     B()
+///     D()
+///   }
+/// } else {
+///   parallel {
+///     A()
+///     C()
+///     D()
+///   }
+/// }
+/// where B or C contains a barrier
 template <typename ParallelOpType, typename IfType>
 struct HoistBarrierIf : public OpRewritePattern<IfType> {
   HoistBarrierIf(MLIRContext *ctx) : OpRewritePattern<IfType>(ctx) {}
@@ -1856,9 +1856,6 @@ void getIfCrossingCache(mlir::PatternRewriter &rewriter, Block *original,
     crossingCache = usedBelow;
   }
 
-  // TODO we have to handle values that get used below the barrier just to get
-  // yielded vs values that get used besides the yield
-
   for (auto alloca : preserveAllocas) {
     crossingCache.remove(alloca->getResult(0));
   }
@@ -1898,6 +1895,30 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
 }
 
 /// Splits if at barrier if it is directly nested in a parallel op
+///
+/// parallel{
+///   A()
+///   if {
+///     B()
+///     barrier
+///     C()
+///   }
+///   D()
+/// }
+///
+/// ->
+///
+/// parallel{
+///   A()
+///   if {
+///     B()
+///   }
+///   barrier
+///   if {
+///     C()
+///   }
+///   D()
+/// }
 template <typename IfOpType, bool UseMinCut>
 struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
   DistributeIfAroundBarrier(MLIRContext *ctx)
