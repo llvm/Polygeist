@@ -1094,9 +1094,17 @@ bool Mem2Reg::forwardStoreToLoad(
                    << *AI.getDefiningOp()->getParentOfType<func::FuncOp>()
                    << "\n");
   bool captured = AI.getDefiningOp<memref::GetGlobalOp>();
+  bool SharedMemAddr = false;
   while (list.size()) {
     auto pair = list.front();
     auto val = pair.first;
+    if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+      if (auto ia = MT.getMemorySpace().dyn_cast_or_null<IntegerAttr>())
+        SharedMemAddr = ia.getValue() == 5;
+    } else {
+      auto PT = val.getType().dyn_cast<LLVM::LLVMPointerType>();
+      SharedMemAddr = PT.getAddressSpace() == 5;
+    }
     auto modified = pair.second;
     list.pop_front();
     for (auto *user : val.getUsers()) {
@@ -1263,14 +1271,6 @@ bool Mem2Reg::forwardStoreToLoad(
       AliasingStoreOperations.insert(user);
       captured = true;
     }
-  }
-  bool SharedMemAddr = false;
-  if (auto MT = AI.getType().dyn_cast<MemRefType>()) {
-    if (auto ia = MT.getMemorySpace().dyn_cast_or_null<IntegerAttr>())
-      SharedMemAddr = ia.getValue() == 5;
-  } else {
-    auto PT = AI.getType().dyn_cast<LLVM::LLVMPointerType>();
-    SharedMemAddr = PT.getAddressSpace() == 5;
   }
   if (SharedMemAddr)
     AI.getDefiningOp()->getParentOp()->walk([&](mlir::NVVM::Barrier0Op op) {
