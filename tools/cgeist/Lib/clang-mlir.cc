@@ -370,7 +370,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         alloc = abuilder.create<mlir::LLVM::AllocaOp>(
             varLoc, mlir::LLVM::LLVMPointerType::get(t, memspace),
             abuilder.create<arith::ConstantIntOp>(varLoc, 1, 64), 0);
-        if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
+        if (t.isa<mlir::IntegerType, mlir::FloatType>() && memspace == 0) {
           abuilder.create<LLVM::StoreOp>(
               varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
         }
@@ -388,7 +388,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       }
       alloc = abuilder.create<mlir::memref::CastOp>(
           varLoc, mlir::MemRefType::get(-1, t, {}, 0), alloc);
-      if (t.isa<mlir::IntegerType, mlir::FloatType>()) {
+      if (t.isa<mlir::IntegerType, mlir::FloatType>() && memspace == 0) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(loc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
             varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
