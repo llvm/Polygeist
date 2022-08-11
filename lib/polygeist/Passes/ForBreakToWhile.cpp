@@ -33,7 +33,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
     Block *body = forOp.getBody();
     if (!llvm::hasNItems(*body, 2))
       return failure();
-    auto conditional = cast<scf::IfOp>(body->front());
+    auto conditional = dyn_cast<scf::IfOp>(body->front());
     if (!conditional)
       return failure();
 
