@@ -477,6 +477,7 @@ struct WhileToForHelper {
       if (!sizeCheck)
         size--;
       if (size != 2) {
+        llvm::errs() << " bad size\n";
         return false;
       }
     }
@@ -493,13 +494,26 @@ struct WhileToForHelper {
     //   Namely, its next value adds to the previous with an invariant step.
     addIOp =
         endYield.getResults()[indVar.getArgNumber()].getDefiningOp<AddIOp>();
-    if (!addIOp) {
+    if (!addIOp && lookThrough) {
+      bool negateLookThrough = false;
+      while (auto neg = lookThrough.getDefiningOp<XOrIOp>())
+        if (matchPattern(neg.getOperand(1), m_One())) {
+          lookThrough = neg.getOperand(0);
+          negateLookThrough = !negateLookThrough;
+        }
+
       if (auto ifOp = endYield.getResults()[indVar.getArgNumber()]
                           .getDefiningOp<IfOp>()) {
+        Value condition = ifOp.getCondition();
+        while (auto neg = condition.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            condition = neg.getOperand(0);
+            negateLookThrough = !negateLookThrough;
+          }
         if (ifOp.getCondition() == lookThrough) {
           for (auto r : llvm::enumerate(ifOp.getResults())) {
             if (r.value() == endYield.getResults()[indVar.getArgNumber()]) {
-              addIOp = ifOp.thenYield()
+              addIOp = (negateLookThrough ? ifOp.elseYield() : ifOp.thenYield())
                            .getOperand(r.index())
                            .getDefiningOp<AddIOp>();
               break;
@@ -508,8 +522,16 @@ struct WhileToForHelper {
         }
       } else if (auto selOp = endYield.getResults()[indVar.getArgNumber()]
                                   .getDefiningOp<SelectOp>()) {
+        Value condition = selOp.getCondition();
+        while (auto neg = condition.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            condition = neg.getOperand(0);
+            negateLookThrough = !negateLookThrough;
+          }
         if (selOp.getCondition() == lookThrough)
-          addIOp = selOp.getTrueValue().getDefiningOp<AddIOp>();
+          addIOp =
+              (negateLookThrough ? selOp.getFalseValue() : selOp.getTrueValue())
+                  .getDefiningOp<AddIOp>();
       }
     }
     if (!addIOp) {
@@ -530,8 +552,9 @@ struct WhileToForHelper {
       }
     }
 
-    if (!step)
+    if (!step) {
       return false;
+    }
 
     // Cannot transform for if step is not loop-invariant
     if (auto *op = step.getDefiningOp()) {
@@ -754,8 +777,9 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       if (auto BA = extraCmp.dyn_cast<BlockArgument>()) {
         lookThrough = oldYield.getOperand(BA.getArgNumber());
       }
-      if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough))
+      if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough)) {
         continue;
+      }
 
       SmallVector<BlockArgument, 2> origBeforeArgs(
           loop.getBeforeArguments().begin(), loop.getBeforeArguments().end());
