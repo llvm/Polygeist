@@ -6,6 +6,7 @@
 #include <memory>
 namespace mlir {
 class PatternRewriter;
+class RewritePatternSet;
 class DominanceInfo;
 namespace polygeist {
 std::unique_ptr<Pass> createParallelLICMPass();
@@ -24,7 +25,9 @@ std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
+std::unique_ptr<Pass> createForBreakToWhilePass();
 
+void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
 } // namespace polygeist
 } // namespace mlir
 
@@ -37,6 +40,10 @@ namespace mlir {
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);
+
+namespace arith {
+class ArithmeticDialect;
+} // end namespace arith
 
 namespace scf {
 class SCFDialect;

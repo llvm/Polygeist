@@ -59,6 +59,12 @@ def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
 }
 
+def ForBreakToWhile : Pass<"for-break-to-while"> {
+  let summary = "Rewrite scf.for(scf.if) to scf.while";
+  let constructor = "mlir::polygeist::createForBreakToWhilePass()";
+  let dependentDialects = ["arith::ArithmeticDialect"];
+}
+
 def ParallelLICM : Pass<"parallel-licm"> {
   let summary = "Perform LICM on known parallel (and serial) loops";
   let constructor = "mlir::polygeist::createParallelLICMPass()";

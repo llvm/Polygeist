@@ -633,6 +633,7 @@ struct ConvertPolygeistToLLVMPass
       RewritePatternSet patterns(&getContext());
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
+      populateForBreakToWhilePatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
       populateMemRefToLLVMConversionPatterns(converter, patterns);
       populateFuncToLLVMConversionPatterns(converter, patterns);
