@@ -49,6 +49,193 @@ struct PropagateInLoopBody : public OpRewritePattern<scf::ForOp> {
   }
 };
 
+// %f = scf.for %c = true, %a = ...
+//    %r = if %c {
+//      %d = cond()
+//      %q = scf.if not %d {
+//        yield %a
+//      } else {
+//        %a2 = addi %a, ...
+//        yield %a2
+//      }
+//      yield %d, %q
+//    } else {
+//      yield %false, %a
+//    }
+//    yield %r#0, %r#1
+// }
+// no use of %f#1
+//
+// becomes
+//
+// %f = scf.for %c = true, %a = ...
+//    %r = if %c {
+//      %d = cond()
+//      %a2 = addi %a, ...
+//      yield %d, %a2
+//    } else {
+//      yield %false, %a
+//    }
+//    yield %r#0, %r#1
+// }
+// no use of %f#1
+//
+// and finally
+//
+// %f = scf.for %c = true, %a = ...
+//    %a2 = addi %a, ...
+//    %r = if %c {
+//      %d = cond()
+//      yield %d, %a2
+//    } else {
+//      yield %false, %a
+//    }
+//    yield %r#0, %a2
+// }
+// no use of %f#1
+struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
+  using OpRewritePattern<scf::ForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::ForOp forOp,
+                                PatternRewriter &rewriter) const final {
+    if (!forOp.hasIterOperands())
+      return failure();
+
+    Block &block = forOp.getRegion().front();
+    // First check there is an outermost if
+    auto outerIfOp = dyn_cast<scf::IfOp>(*block.begin());
+    if (!outerIfOp)
+      return failure();
+
+    auto condition = outerIfOp.getCondition();
+    //  and that the outermost if's condition is an iter arg of the for
+    auto condArg = condition.dyn_cast<BlockArgument>();
+    if (!condArg)
+      return failure();
+    if (condArg.getOwner()->getParentOp() != forOp)
+      return failure();
+    // which starts as true
+    if (!matchPattern(forOp.getIterOperands()[condArg.getArgNumber() - 1],
+                      m_One()))
+      return failure();
+    // and is false unless coming from inside the if
+    auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
+    auto opres =
+        yieldOp.getOperand(condArg.getArgNumber() - 1).dyn_cast<OpResult>();
+    if (!opres)
+      return failure();
+    if (opres.getOwner() != outerIfOp)
+      return failure();
+
+    if (!matchPattern(outerIfOp.elseYield().getOperand(opres.getResultNumber()),
+                      m_Zero()))
+      return failure();
+
+    bool changed = false;
+    for (auto it : llvm::zip(forOp.getRegionIterArgs(), yieldOp.getOperands(),
+                             forOp.getResults())) {
+      auto regionArg = std::get<0>(it);
+      Value yieldOperand = std::get<1>(it);
+      Value res = std::get<2>(it);
+
+      if (!res.use_empty())
+        continue;
+      if (opres.getResultNumber() == regionArg.getArgNumber() - 1)
+        continue;
+
+      auto opres2 = yieldOperand.dyn_cast<OpResult>();
+      if (!opres2)
+        continue;
+      if (opres2.getOwner() != outerIfOp)
+        continue;
+      auto topOp = outerIfOp.thenYield().getOperand(opres2.getResultNumber());
+
+      auto trueYield =
+          outerIfOp.thenYield().getOperand(opres.getResultNumber());
+      bool negated = false;
+      while (auto neg = trueYield.getDefiningOp<XOrIOp>())
+        if (matchPattern(neg.getOperand(1), m_One())) {
+          trueYield = neg.getOperand(0);
+          negated = !negated;
+        }
+
+      if (auto innerIfOp = topOp.getDefiningOp<scf::IfOp>()) {
+        Value ifcond = innerIfOp.getCondition();
+        while (auto neg = ifcond.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            ifcond = neg.getOperand(0);
+            negated = !negated;
+          }
+
+        if (ifcond == trueYield) {
+          auto idx = topOp.cast<OpResult>().getResultNumber();
+          Value val = (negated ? innerIfOp.elseYield() : innerIfOp.thenYield())
+                          .getOperand(idx);
+          Region *reg = (negated ? &innerIfOp.getElseRegion()
+                                 : &innerIfOp.getThenRegion());
+          if (reg->isAncestor(val.getParentRegion())) {
+            if (auto addi = val.getDefiningOp<arith::AddIOp>()) {
+              if (reg->isAncestor(addi.getOperand(0).getParentRegion()) ||
+                  reg->isAncestor(addi.getOperand(1).getParentRegion()))
+                continue;
+              rewriter.setInsertionPoint(innerIfOp);
+              val = rewriter.replaceOpWithNewOp<arith::AddIOp>(
+                  addi, addi.getOperand(0), addi.getOperand(1));
+            } else
+              continue;
+          }
+
+          rewriter.setInsertionPoint(innerIfOp);
+          auto cloned = rewriter.clone(*innerIfOp);
+          SmallVector<Value> results(cloned->getResults());
+          results[idx] = val;
+          rewriter.replaceOp(innerIfOp, results);
+          changed = true;
+          continue;
+        }
+      }
+
+      if (auto innerSelOp = topOp.getDefiningOp<arith::SelectOp>()) {
+        bool negated = false;
+        Value ifcond = innerSelOp.getCondition();
+        while (auto neg = ifcond.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            ifcond = neg.getOperand(0);
+            negated = !negated;
+          }
+        if (ifcond == trueYield) {
+          Value val = (negated ? innerSelOp.getFalseValue()
+                               : innerSelOp.getTrueValue());
+          Value results[] = {val};
+          rewriter.replaceOp(innerSelOp, results);
+          changed = true;
+          continue;
+        }
+      }
+
+      // Only do final hoisting on a variable which can be loop induction
+      // replaced.
+      //  Otherwise additional work is added outside the break
+      if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
+        if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
+          continue;
+
+        if (add.getOperand(0) != regionArg)
+          continue;
+        rewriter.setInsertionPoint(outerIfOp);
+        SmallVector<Value> results(yieldOp->getOperands());
+        results[regionArg.getArgNumber() - 1] =
+            rewriter.replaceOpWithNewOp<arith::AddIOp>(add, add.getOperand(0),
+                                                       add.getOperand(1));
+        rewriter.setInsertionPoint(yieldOp);
+        rewriter.replaceOpWithNewOp<scf::YieldOp>(yieldOp, results);
+        return success();
+      }
+    }
+    return success(changed);
+  }
+};
+
 struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
   using OpRewritePattern<scf::ForOp>::OpRewritePattern;
 
@@ -493,13 +680,26 @@ struct WhileToForHelper {
     //   Namely, its next value adds to the previous with an invariant step.
     addIOp =
         endYield.getResults()[indVar.getArgNumber()].getDefiningOp<AddIOp>();
-    if (!addIOp) {
+    if (!addIOp && lookThrough) {
+      bool negateLookThrough = false;
+      while (auto neg = lookThrough.getDefiningOp<XOrIOp>())
+        if (matchPattern(neg.getOperand(1), m_One())) {
+          lookThrough = neg.getOperand(0);
+          negateLookThrough = !negateLookThrough;
+        }
+
       if (auto ifOp = endYield.getResults()[indVar.getArgNumber()]
                           .getDefiningOp<IfOp>()) {
+        Value condition = ifOp.getCondition();
+        while (auto neg = condition.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            condition = neg.getOperand(0);
+            negateLookThrough = !negateLookThrough;
+          }
         if (ifOp.getCondition() == lookThrough) {
           for (auto r : llvm::enumerate(ifOp.getResults())) {
             if (r.value() == endYield.getResults()[indVar.getArgNumber()]) {
-              addIOp = ifOp.thenYield()
+              addIOp = (negateLookThrough ? ifOp.elseYield() : ifOp.thenYield())
                            .getOperand(r.index())
                            .getDefiningOp<AddIOp>();
               break;
@@ -508,8 +708,16 @@ struct WhileToForHelper {
         }
       } else if (auto selOp = endYield.getResults()[indVar.getArgNumber()]
                                   .getDefiningOp<SelectOp>()) {
+        Value condition = selOp.getCondition();
+        while (auto neg = condition.getDefiningOp<XOrIOp>())
+          if (matchPattern(neg.getOperand(1), m_One())) {
+            condition = neg.getOperand(0);
+            negateLookThrough = !negateLookThrough;
+          }
         if (selOp.getCondition() == lookThrough)
-          addIOp = selOp.getTrueValue().getDefiningOp<AddIOp>();
+          addIOp =
+              (negateLookThrough ? selOp.getFalseValue() : selOp.getTrueValue())
+                  .getDefiningOp<AddIOp>();
       }
     }
     if (!addIOp) {
@@ -530,8 +738,9 @@ struct WhileToForHelper {
       }
     }
 
-    if (!step)
+    if (!step) {
       return false;
+    }
 
     // Cannot transform for if step is not loop-invariant
     if (auto *op = step.getDefiningOp()) {
@@ -754,8 +963,9 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       if (auto BA = extraCmp.dyn_cast<BlockArgument>()) {
         lookThrough = oldYield.getOperand(BA.getArgNumber());
       }
-      if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough))
+      if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough)) {
         continue;
+      }
 
       SmallVector<BlockArgument, 2> origBeforeArgs(
           loop.getBeforeArguments().begin(), loop.getBeforeArguments().end());
@@ -1785,6 +1995,61 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
   }
 };
 
+// From SCF.cpp
+// Pattern to remove unused IfOp results.
+struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  void transferBody(Block *source, Block *dest, ArrayRef<OpResult> usedResults,
+                    PatternRewriter &rewriter) const {
+    // Move all operations to the destination block.
+    rewriter.mergeBlocks(source, dest);
+    // Replace the yield op by one that returns only the used values.
+    auto yieldOp = cast<scf::YieldOp>(dest->getTerminator());
+    SmallVector<Value, 4> usedOperands;
+    llvm::transform(usedResults, std::back_inserter(usedOperands),
+                    [&](OpResult result) {
+                      return yieldOp.getOperand(result.getResultNumber());
+                    });
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(usedOperands); });
+  }
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    // Compute the list of used results.
+    SmallVector<OpResult, 4> usedResults;
+    llvm::copy_if(op.getResults(), std::back_inserter(usedResults),
+                  [](OpResult result) { return !result.use_empty(); });
+
+    // Replace the operation if only a subset of its results have uses.
+    if (usedResults.size() == op.getNumResults())
+      return failure();
+
+    // Compute the result types of the replacement operation.
+    SmallVector<Type, 4> newTypes;
+    llvm::transform(usedResults, std::back_inserter(newTypes),
+                    [](OpResult result) { return result.getType(); });
+
+    // Create a replacement operation with empty then and else regions.
+    auto emptyBuilder = [](OpBuilder &, Location) {};
+    auto newOp = rewriter.create<IfOp>(op.getLoc(), newTypes, op.getCondition(),
+                                       emptyBuilder, emptyBuilder);
+
+    // Move the bodies and replace the terminators (note there is a then and
+    // an else region since the operation returns results).
+    transferBody(op.getBody(0), newOp.getBody(0), usedResults, rewriter);
+    transferBody(op.getBody(1), newOp.getBody(1), usedResults, rewriter);
+
+    // Replace the operation by the new one.
+    SmallVector<Value, 4> repResults(op.getNumResults());
+    for (const auto &en : llvm::enumerate(usedResults))
+      repResults[en.value().getResultNumber()] = newOp.getResult(en.index());
+    rewriter.replaceOp(op, repResults);
+    return success();
+  }
+};
+
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
@@ -1793,6 +2058,8 @@ void CanonicalizeFor::runOnOperation() {
           MoveWhileDown, MoveWhileDown2,
 
           ReplaceRedundantArgs,
+
+          ForBreakAddUpgrade, RemoveUnusedResults,
 
           MoveWhileAndDown, MoveWhileDown3, MoveWhileInvariantIfResult,
           WhileLogicalNegation, SubToAdd, WhileCmpOffset, WhileLICM,
