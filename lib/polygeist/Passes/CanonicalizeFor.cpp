@@ -119,9 +119,9 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
                       m_One()))
       return failure();
     // and is false unless coming from inside the if
-    auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
+    auto forYieldOp = cast<scf::YieldOp>(block.getTerminator());
     auto opres =
-        yieldOp.getOperand(condArg.getArgNumber() - 1).dyn_cast<OpResult>();
+        forYieldOp.getOperand(condArg.getArgNumber() - 1).dyn_cast<OpResult>();
     if (!opres)
       return failure();
     if (opres.getOwner() != outerIfOp)
@@ -132,18 +132,18 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
       return failure();
 
     bool changed = false;
-    for (auto it : llvm::zip(forOp.getRegionIterArgs(), yieldOp.getOperands(),
-                             forOp.getResults())) {
+    for (auto it :
+         llvm::zip(forOp.getRegionIterArgs(), forYieldOp.getOperands(),
+                   forOp.getResults(), forOp.getIterOperands())) {
       auto regionArg = std::get<0>(it);
-      Value yieldOperand = std::get<1>(it);
+      Value forYieldOperand = std::get<1>(it);
       Value res = std::get<2>(it);
+      Value iterOp = std::get<3>(it);
 
-      if (!res.use_empty())
-        continue;
       if (opres.getResultNumber() == regionArg.getArgNumber() - 1)
         continue;
 
-      auto opres2 = yieldOperand.dyn_cast<OpResult>();
+      auto opres2 = forYieldOperand.dyn_cast<OpResult>();
       if (!opres2)
         continue;
       if (opres2.getOwner() != outerIfOp)
@@ -168,30 +168,34 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
           }
 
         if (ifcond == trueYield) {
-          auto idx = topOp.cast<OpResult>().getResultNumber();
-          Value val = (negated ? innerIfOp.elseYield() : innerIfOp.thenYield())
-                          .getOperand(idx);
-          Region *reg = (negated ? &innerIfOp.getElseRegion()
-                                 : &innerIfOp.getThenRegion());
-          if (reg->isAncestor(val.getParentRegion())) {
-            if (auto addi = val.getDefiningOp<arith::AddIOp>()) {
-              if (reg->isAncestor(addi.getOperand(0).getParentRegion()) ||
-                  reg->isAncestor(addi.getOperand(1).getParentRegion()))
+          // If never used, can always pick the "continue" value
+          if (res.use_empty()) {
+            auto idx = topOp.cast<OpResult>().getResultNumber();
+            Value val =
+                (negated ? innerIfOp.elseYield() : innerIfOp.thenYield())
+                    .getOperand(idx);
+            Region *reg = (negated ? &innerIfOp.getElseRegion()
+                                   : &innerIfOp.getThenRegion());
+            if (reg->isAncestor(val.getParentRegion())) {
+              if (auto addi = val.getDefiningOp<arith::AddIOp>()) {
+                if (reg->isAncestor(addi.getOperand(0).getParentRegion()) ||
+                    reg->isAncestor(addi.getOperand(1).getParentRegion()))
+                  continue;
+                rewriter.setInsertionPoint(innerIfOp);
+                val = rewriter.replaceOpWithNewOp<arith::AddIOp>(
+                    addi, addi.getOperand(0), addi.getOperand(1));
+              } else
                 continue;
-              rewriter.setInsertionPoint(innerIfOp);
-              val = rewriter.replaceOpWithNewOp<arith::AddIOp>(
-                  addi, addi.getOperand(0), addi.getOperand(1));
-            } else
-              continue;
-          }
+            }
 
-          rewriter.setInsertionPoint(innerIfOp);
-          auto cloned = rewriter.clone(*innerIfOp);
-          SmallVector<Value> results(cloned->getResults());
-          results[idx] = val;
-          rewriter.replaceOp(innerIfOp, results);
-          changed = true;
-          continue;
+            rewriter.setInsertionPoint(innerIfOp);
+            auto cloned = rewriter.clone(*innerIfOp);
+            SmallVector<Value> results(cloned->getResults());
+            results[idx] = val;
+            rewriter.replaceOp(innerIfOp, results);
+            changed = true;
+            continue;
+          }
         }
       }
 
@@ -204,32 +208,66 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
             negated = !negated;
           }
         if (ifcond == trueYield) {
-          Value val = (negated ? innerSelOp.getFalseValue()
-                               : innerSelOp.getTrueValue());
-          Value results[] = {val};
-          rewriter.replaceOp(innerSelOp, results);
-          changed = true;
-          continue;
+          // If never used, can always pick the "continue" value
+          if (res.use_empty()) {
+            Value val = (negated ? innerSelOp.getFalseValue()
+                                 : innerSelOp.getTrueValue());
+            Value results[] = {val};
+            rewriter.replaceOp(innerSelOp, results);
+            changed = true;
+            continue;
+          }
+          bool seenSelf = false;
+          bool seenIllegal = false;
+          for (auto &u : regionArg.getUses()) {
+            if (u.getOwner() == innerSelOp &&
+                regionArg != innerSelOp.getCondition()) {
+              seenSelf = true;
+              continue;
+            }
+            if (u.getOwner() != outerIfOp.elseYield()) {
+              seenIllegal = true;
+              break;
+            }
+            if (u.getOperandNumber() != opres2.getResultNumber()) {
+              seenIllegal = true;
+              break;
+            }
+          }
+          // if this is only used by itself and yielding out of the for, remove
+          // the induction of the region arg and just simply set it to be the
+          // incoming iteration arg.
+          if (seenSelf && !seenIllegal) {
+            rewriter.setInsertionPoint(innerSelOp);
+            rewriter.replaceOpWithNewOp<arith::SelectOp>(
+                innerSelOp, innerSelOp.getCondition(),
+                negated ? iterOp : innerSelOp.getTrueValue(),
+                negated ? innerSelOp.getFalseValue() : iterOp);
+            changed = true;
+            continue;
+          }
         }
       }
 
       // Only do final hoisting on a variable which can be loop induction
       // replaced.
       //  Otherwise additional work is added outside the break
-      if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
-        if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
-          continue;
+      if (res.use_empty()) {
+        if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
+          if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
+            continue;
 
-        if (add.getOperand(0) != regionArg)
-          continue;
-        rewriter.setInsertionPoint(outerIfOp);
-        SmallVector<Value> results(yieldOp->getOperands());
-        results[regionArg.getArgNumber() - 1] =
-            rewriter.replaceOpWithNewOp<arith::AddIOp>(add, add.getOperand(0),
-                                                       add.getOperand(1));
-        rewriter.setInsertionPoint(yieldOp);
-        rewriter.replaceOpWithNewOp<scf::YieldOp>(yieldOp, results);
-        return success();
+          if (add.getOperand(0) != regionArg)
+            continue;
+          rewriter.setInsertionPoint(outerIfOp);
+          SmallVector<Value> results(forYieldOp->getOperands());
+          results[regionArg.getArgNumber() - 1] =
+              rewriter.replaceOpWithNewOp<arith::AddIOp>(add, add.getOperand(0),
+                                                         add.getOperand(1));
+          rewriter.setInsertionPoint(forYieldOp);
+          rewriter.replaceOpWithNewOp<scf::YieldOp>(forYieldOp, results);
+          return success();
+        }
       }
     }
     return success(changed);
