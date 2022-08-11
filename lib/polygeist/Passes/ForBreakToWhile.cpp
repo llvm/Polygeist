@@ -7,14 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
 
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Passes.h"
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/PatternMatch.h"
+
+using namespace mlir;
+using namespace mlir::scf;
+using namespace mlir::polygeist;
 
 namespace {
 
@@ -143,7 +149,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
   }
 };
 
-struct ForBreakToWhileLoop : public SCFForToWhileLoopBase<ForToWhileLoop> {
+struct ForBreakToWhileLoop : public ForBreakToWhileBase<ForBreakToWhileLoop> {
   void runOnOperation() override {
     auto *parentOp = getOperation();
     MLIRContext *ctx = parentOp->getContext();
@@ -153,6 +159,11 @@ struct ForBreakToWhileLoop : public SCFForToWhileLoopBase<ForToWhileLoop> {
   }
 };
 } // namespace
+
+void mlir::polygeist::populateForBreakToWhilePatterns(
+    RewritePatternSet &patterns) {
+  patterns.add<ForBreakLoweringPattern>(patterns.getContext(), /*benefit=*/3);
+}
 
 std::unique_ptr<Pass> mlir::polygeist::createForBreakToWhilePass() {
   return std::make_unique<ForBreakToWhileLoop>();
