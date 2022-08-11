@@ -252,20 +252,22 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
       // Only do final hoisting on a variable which can be loop induction
       // replaced.
       //  Otherwise additional work is added outside the break
-      if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
-        if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
-          continue;
+      if (res.use_empty()) {
+        if (auto add = topOp.getDefiningOp<arith::AddIOp>()) {
+          if (forOp.getRegion().isAncestor(add.getOperand(1).getParentRegion()))
+            continue;
 
-        if (add.getOperand(0) != regionArg)
-          continue;
-        rewriter.setInsertionPoint(outerIfOp);
-        SmallVector<Value> results(forYieldOp->getOperands());
-        results[regionArg.getArgNumber() - 1] =
-            rewriter.replaceOpWithNewOp<arith::AddIOp>(add, add.getOperand(0),
-                                                       add.getOperand(1));
-        rewriter.setInsertionPoint(forYieldOp);
-        rewriter.replaceOpWithNewOp<scf::YieldOp>(forYieldOp, results);
-        return success();
+          if (add.getOperand(0) != regionArg)
+            continue;
+          rewriter.setInsertionPoint(outerIfOp);
+          SmallVector<Value> results(forYieldOp->getOperands());
+          results[regionArg.getArgNumber() - 1] =
+              rewriter.replaceOpWithNewOp<arith::AddIOp>(add, add.getOperand(0),
+                                                         add.getOperand(1));
+          rewriter.setInsertionPoint(forYieldOp);
+          rewriter.replaceOpWithNewOp<scf::YieldOp>(forYieldOp, results);
+          return success();
+        }
       }
     }
     return success(changed);

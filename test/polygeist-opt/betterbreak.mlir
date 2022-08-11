@@ -41,7 +41,7 @@ module {
 // CHECK-NEXT:         %4 = arith.index_cast %arg2 : index to i32
 // CHECK-NEXT:         %5:2 = scf.if %arg4 -> (i32, i1) {
 // CHECK-NEXT:           %6 = "test.cond"() : () -> i1
-// CHECK-NEXT:           %7 = arith.select %6, %4, %arg3 : i32
+// CHECK-NEXT:           %7 = arith.select %6, %4, %c-1_i32 : i32
 // CHECK-NEXT:           %8 = arith.xori %6, %true : i1
 // CHECK-NEXT:           scf.yield %7, %8 : i32, i1
 // CHECK-NEXT:         } else {
