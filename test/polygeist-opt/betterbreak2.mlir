@@ -34,21 +34,20 @@ module {
 // CHECK-NEXT:    %c0 = arith.constant 0 : index
 // CHECK-NEXT:    %c1 = arith.constant 1 : index
 // CHECK-NEXT:    %c-1_i32 = arith.constant -1 : i32
-// CHECK-NEXT:    %c1_i32 = arith.constant 1 : i32
 // CHECK-NEXT:    %true = arith.constant true
 // CHECK-NEXT:    %false = arith.constant false
 // CHECK-NEXT:    %0:2 = scf.for %arg1 = %c0 to %arg0 step %c1 iter_args(%arg2 = %c-1_i32, %arg3 = %true) -> (i32, i1) {
 // CHECK-NEXT:      %1 = arith.index_cast %arg1 : index to i32
-// CHECK-NEXT:      %2 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:      %3:3 = scf.if %arg3 -> (i32, i32, i1) {
-// CHECK-NEXT:        %4 = "test.cond"() : () -> i1
-// CHECK-NEXT:        %5 = arith.select %4, %1, %arg2 : i32
-// CHECK-NEXT:        %6 = arith.xori %4, %true : i1
-// CHECK-NEXT:        scf.yield %5, %2, %6 : i32, i32, i1
-// CHECK-NEXT:      } else {
-// CHECK-NEXT:        scf.yield %arg2, %1, %false : i32, i32, i1
-// CHECK-NEXT:      }
-// CHECK-NEXT:      scf.yield %3#0, %3#2 : i32, i1
-// CHECK-NEXT:    }
+// CHECK-NEXT:       %2:2 = scf.if %arg3 -> (i32, i1) {
+// CHECK-NEXT:         %3 = "test.cond"() : () -> i1
+// CHECK-NEXT:         %4 = arith.select %3, %1, %arg2 : i32
+// CHECK-NEXT:         %5 = arith.xori %3, %true : i1
+// CHECK-NEXT:         scf.yield %4, %5 : i32, i1
+// CHECK-NEXT:       } else {
+// CHECK-NEXT:         scf.yield %arg2, %false : i32, i1
+// CHECK-NEXT:       }
+// CHECK-NEXT:       scf.yield %2#0, %2#1 : i32, i1
+// CHECK-NEXT:     }
 // CHECK-NEXT:    return %0#0 : i32
 // CHECK-NEXT:  }
+

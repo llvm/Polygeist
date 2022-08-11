@@ -146,7 +146,7 @@ module {
 // CHECK-DAG:     %c0 = arith.constant 0 : index
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-DAG:     %0 = arith.cmpi slt, %c0_i32, %arg2 : i32
-// CHECK-DAG:     %1:2 = scf.if %0 -> (i8, i32) {
+// CHECK-DAG:     %1 = scf.if %0 -> (i32) {
 // CHECK-DAG:       %2 = arith.index_cast %arg2 : i32 to index
 // CHECK-NEXT:       %3:3 = scf.for %arg5 = %c0 to %2 step %c1 iter_args(%arg6 = %arg0, %arg7 = %c0_i32, %arg8 = %true) -> (i8, i32, i1) {
 // CHECK-NEXT:         %4:3 = scf.if %arg8 -> (i8, i32, i1) {
@@ -163,9 +163,9 @@ module {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield %4#0, %4#1, %4#2 : i8, i32, i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.yield %3#0, %3#1 : i8, i32
+// CHECK-NEXT:       scf.yield %3#1 : i32
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %arg0, %c0_i32 : i8, i32
+// CHECK-NEXT:       scf.yield %c0_i32 : i32
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %1#1 : i32
+// CHECK-NEXT:     return %1 : i32
 // CHECK-NEXT:   }
