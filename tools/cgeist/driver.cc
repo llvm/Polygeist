@@ -157,6 +157,10 @@ static cl::opt<std::string> TargetTripleOpt("target", cl::init(""),
                                             cl::desc("Target triple"),
                                             cl::cat(toolOptions));
 
+static cl::opt<bool> InBoundsGEP("inbounds-gep", cl::init(false),
+                                 cl::desc("Use inbounds GEP operations"),
+                                 cl::cat(toolOptions));
+
 static cl::opt<int>
     CanonicalizeIterations("canonicalizeiters", cl::init(400),
                            cl::desc("Number of canonicalization iterations"));
@@ -762,6 +766,16 @@ int main(int argc, char **argv) {
       module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
+    }
+    if (InBoundsGEP) {
+      for (auto &F : *llvmModule) {
+        for (auto &BB : F) {
+          for (auto &I : BB) {
+            if (auto g = dyn_cast<GetElementPtrInst>(&I))
+              g->setIsInBounds(true);
+          }
+        }
+      }
     }
     llvmModule->setDataLayout(DL);
     llvmModule->setTargetTriple(triple.getTriple());
