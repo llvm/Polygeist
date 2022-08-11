@@ -132,12 +132,11 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
       return failure();
 
     bool changed = false;
-    for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
-                             yieldOp.getOperands(), forOp.getResults())) {
-      Value iterOperand = std::get<0>(it);
-      auto regionArg = std::get<1>(it);
-      Value yieldOperand = std::get<2>(it);
-      Value res = std::get<3>(it);
+    for (auto it : llvm::zip(forOp.getRegionIterArgs(), yieldOp.getOperands(),
+                             forOp.getResults())) {
+      auto regionArg = std::get<0>(it);
+      Value yieldOperand = std::get<1>(it);
+      Value res = std::get<2>(it);
 
       if (!res.use_empty())
         continue;
@@ -665,7 +664,6 @@ struct WhileToForHelper {
       if (!sizeCheck)
         size--;
       if (size != 2) {
-        llvm::errs() << " bad size\n";
         return false;
       }
     }
@@ -1997,6 +1995,61 @@ struct ReturnSq : public OpRewritePattern<ReturnOp> {
   }
 };
 
+// From SCF.cpp
+// Pattern to remove unused IfOp results.
+struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
+  using OpRewritePattern<IfOp>::OpRewritePattern;
+
+  void transferBody(Block *source, Block *dest, ArrayRef<OpResult> usedResults,
+                    PatternRewriter &rewriter) const {
+    // Move all operations to the destination block.
+    rewriter.mergeBlocks(source, dest);
+    // Replace the yield op by one that returns only the used values.
+    auto yieldOp = cast<scf::YieldOp>(dest->getTerminator());
+    SmallVector<Value, 4> usedOperands;
+    llvm::transform(usedResults, std::back_inserter(usedOperands),
+                    [&](OpResult result) {
+                      return yieldOp.getOperand(result.getResultNumber());
+                    });
+    rewriter.updateRootInPlace(yieldOp,
+                               [&]() { yieldOp->setOperands(usedOperands); });
+  }
+
+  LogicalResult matchAndRewrite(IfOp op,
+                                PatternRewriter &rewriter) const override {
+    // Compute the list of used results.
+    SmallVector<OpResult, 4> usedResults;
+    llvm::copy_if(op.getResults(), std::back_inserter(usedResults),
+                  [](OpResult result) { return !result.use_empty(); });
+
+    // Replace the operation if only a subset of its results have uses.
+    if (usedResults.size() == op.getNumResults())
+      return failure();
+
+    // Compute the result types of the replacement operation.
+    SmallVector<Type, 4> newTypes;
+    llvm::transform(usedResults, std::back_inserter(newTypes),
+                    [](OpResult result) { return result.getType(); });
+
+    // Create a replacement operation with empty then and else regions.
+    auto emptyBuilder = [](OpBuilder &, Location) {};
+    auto newOp = rewriter.create<IfOp>(op.getLoc(), newTypes, op.getCondition(),
+                                       emptyBuilder, emptyBuilder);
+
+    // Move the bodies and replace the terminators (note there is a then and
+    // an else region since the operation returns results).
+    transferBody(op.getBody(0), newOp.getBody(0), usedResults, rewriter);
+    transferBody(op.getBody(1), newOp.getBody(1), usedResults, rewriter);
+
+    // Replace the operation by the new one.
+    SmallVector<Value, 4> repResults(op.getNumResults());
+    for (const auto &en : llvm::enumerate(usedResults))
+      repResults[en.value().getResultNumber()] = newOp.getResult(en.index());
+    rewriter.replaceOp(op, repResults);
+    return success();
+  }
+};
+
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
@@ -2006,7 +2059,7 @@ void CanonicalizeFor::runOnOperation() {
 
           ReplaceRedundantArgs,
 
-          ForBreakAddUpgrade,
+          ForBreakAddUpgrade, RemoveUnusedResults,
 
           MoveWhileAndDown, MoveWhileDown3, MoveWhileInvariantIfResult,
           WhileLogicalNegation, SubToAdd, WhileCmpOffset, WhileLICM,
