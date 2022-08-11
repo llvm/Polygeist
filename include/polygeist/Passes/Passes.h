@@ -24,6 +24,7 @@ std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
+std::unique_ptr<Pass> createForBreakToWhilePass()
 
 } // namespace polygeist
 } // namespace mlir
@@ -37,6 +38,10 @@ namespace mlir {
 // Forward declaration from Dialect.h
 template <typename ConcreteDialect>
 void registerDialect(DialectRegistry &registry);
+
+namespace arith {
+class ArithmeticDialect;
+} // end namespace arith
 
 namespace scf {
 class SCFDialect;
