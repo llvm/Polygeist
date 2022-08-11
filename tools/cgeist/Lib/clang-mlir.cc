@@ -5475,6 +5475,29 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
       module.get()->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
                             translateDataLayout(DL, module->getContext()));
+
+      // Add target-cpu and target-features attributes to functions. If
+      // we have a decl for the function and it has a target attribute then
+      // parse that and add it to the feature set.
+      StringRef TargetCPU = Clang->getTarget().getTargetOpts().CPU;
+      StringRef TuneCPU = Clang->getTarget().getTargetOpts().TuneCPU;
+      std::vector<std::string> Features =
+          Clang->getTarget().getTargetOpts().Features;
+
+      if (!TargetCPU.empty()) {
+        module.get()->setAttr("polygeist.target-cpu",
+                              StringAttr::get(module->getContext(), TargetCPU));
+      }
+      if (!TuneCPU.empty()) {
+        module.get()->setAttr("polygeist.tune-cpu",
+                              StringAttr::get(module->getContext(), TuneCPU));
+      }
+      if (!Features.empty()) {
+        llvm::sort(Features);
+        module.get()->setAttr(
+            "polygeist.target-features",
+            StringAttr::get(module->getContext(), llvm::join(Features, ",")));
+      }
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
