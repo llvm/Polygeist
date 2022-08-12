@@ -28,9 +28,8 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
 
   LogicalResult matchAndRewrite(scf::ParallelOp nextParallel,
                                 PatternRewriter &rewriter) const override {
-    if (!(nextParallel->getParentOfType<scf::ParallelOp>()
-          // || nextParallel->getParentOfType<AffineParallelOp>()
-          ))
+    if (!(nextParallel->getParentOfType<scf::ParallelOp>() ||
+          nextParallel->getParentOfType<AffineParallelOp>()))
       return failure();
 
     SmallVector<Value> inds;
