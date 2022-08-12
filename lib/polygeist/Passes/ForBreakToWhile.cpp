@@ -82,9 +82,20 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
     auto *beforeBlock = rewriter.createBlock(
         &whileOp.getBefore(), whileOp.getBefore().begin(), lcvTypes, lcvLocs);
     rewriter.setInsertionPointToStart(&whileOp.getBefore().front());
-    Value cmpOp = rewriter.create<arith::CmpIOp>(
-        whileOp.getLoc(), arith::CmpIPredicate::slt,
-        beforeBlock->getArgument(0), forOp.getUpperBound());
+    Value cmpOp;
+    if (matchPattern(forOp.getStep(), m_One())) {
+      cmpOp = rewriter.create<arith::AndIOp>(
+          whileOp.getLoc(),
+          rewriter.create<arith::CmpIOp>(
+              whileOp.getLoc(), arith::CmpIPredicate::ne,
+              beforeBlock->getArgument(0), forOp.getUpperBound()),
+          rewriter.create<arith::CmpIOp>(
+              whileOp.getLoc(), arith::CmpIPredicate::slt,
+              forOp.getLowerBound(), forOp.getUpperBound()));
+    } else
+      cmpOp = rewriter.create<arith::CmpIOp>(
+          whileOp.getLoc(), arith::CmpIPredicate::slt,
+          beforeBlock->getArgument(0), forOp.getUpperBound());
     Value andOp = rewriter.create<arith::AndIOp>(
         whileOp.getLoc(), cmpOp, whileOp.getBeforeArguments()[iterArgPos + 1]);
     // TODO: consider not forwarding the condition variable.
