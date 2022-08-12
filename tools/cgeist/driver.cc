@@ -92,6 +92,10 @@ static cl::opt<bool> ParallelLICM("parallel-licm", cl::init(true),
 static cl::opt<bool> InnerSerialize("inner-serialize", cl::init(false),
                                     cl::desc("Turn on parallel licm"));
 
+static cl::opt<bool>
+    EarlyInnerSerialize("early-inner-serialize", cl::init(false),
+                        cl::desc("Perform early inner serialization"));
+
 static cl::opt<bool> ShowAST("show-ast", cl::init(false), cl::desc("Show AST"));
 
 static cl::opt<bool> ImmediateMLIR("immediate", cl::init(false),
@@ -686,6 +690,8 @@ int main(int argc, char **argv) {
           optPM.addPass(polygeist::createParallelLICMPass());
         else
           optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
+        if (EarlyInnerSerialize)
+          optPM.addPass(polygeist::createInnerSerializationPass());
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
