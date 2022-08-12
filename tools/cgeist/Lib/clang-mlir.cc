@@ -2512,27 +2512,27 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     LLVM::ICmpPredicate LPred;
     switch (BO->getOpcode()) {
     case clang::BinaryOperator::Opcode::BO_GT:
-      FPred = CmpFPredicate::UGT;
+      FPred = CmpFPredicate::OGT;
       IPred = signedType ? CmpIPredicate::sgt : CmpIPredicate::ugt,
       LPred = LLVM::ICmpPredicate::ugt;
       break;
     case clang::BinaryOperator::Opcode::BO_GE:
-      FPred = CmpFPredicate::UGE;
+      FPred = CmpFPredicate::OGE;
       IPred = signedType ? CmpIPredicate::sge : CmpIPredicate::uge,
       LPred = LLVM::ICmpPredicate::uge;
       break;
     case clang::BinaryOperator::Opcode::BO_LT:
-      FPred = CmpFPredicate::ULT;
+      FPred = CmpFPredicate::OLT;
       IPred = signedType ? CmpIPredicate::slt : CmpIPredicate::ult,
       LPred = LLVM::ICmpPredicate::ult;
       break;
     case clang::BinaryOperator::Opcode::BO_LE:
-      FPred = CmpFPredicate::ULE;
+      FPred = CmpFPredicate::OLE;
       IPred = signedType ? CmpIPredicate::sle : CmpIPredicate::ule,
       LPred = LLVM::ICmpPredicate::ule;
       break;
     case clang::BinaryOperator::Opcode::BO_EQ:
-      FPred = CmpFPredicate::UEQ;
+      FPred = CmpFPredicate::OEQ;
       IPred = CmpIPredicate::eq;
       LPred = LLVM::ICmpPredicate::eq;
       break;

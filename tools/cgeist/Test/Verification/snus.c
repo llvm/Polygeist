@@ -23,7 +23,7 @@ void kernel_nussinov(double* out, int n)  {
 // CHECK-NEXT:     %3 = affine.load %arg0[symbol(%[[i1]])] : memref<?xf64>
 // CHECK-NEXT:     %4 = affine.for %arg2 = 0 to 10 iter_args(%arg3 = %3) -> (f64) {
 // CHECK-NEXT:       %5 = affine.load %[[i0]][%arg2] : memref<20xf64>
-// CHECK-NEXT:       %6 = arith.cmpf uge, %arg3, %5 : f64
+// CHECK-NEXT:       %6 = arith.cmpf oge, %arg3, %5 : f64
 // CHECK-NEXT:       %7 = arith.select %6, %arg3, %5 : f64
 // CHECK-NEXT:       affine.yield %7 : f64
 // CHECK-NEXT:     }
