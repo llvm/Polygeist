@@ -42,6 +42,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "llvm/IR/Constants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
@@ -774,6 +775,42 @@ int main(int argc, char **argv) {
             if (auto g = dyn_cast<GetElementPtrInst>(&I))
               g->setIsInBounds(true);
           }
+        }
+      }
+    }
+    for (auto &F : *llvmModule) {
+      for (auto AttrName : {"target-cpu", "tune-cpu", "target-features"})
+        if (auto V = module.get()->getAttrOfType<mlir::StringAttr>(
+                (StringRef("polygeist.") + AttrName).str())) {
+          F.addFnAttr(AttrName, V.getValue());
+        }
+    }
+    if (auto F = llvmModule->getFunction("malloc")) {
+      // allocsize
+      for (auto Attr : {llvm::Attribute::InaccessibleMemOnly,
+                        llvm::Attribute::MustProgress, llvm::Attribute::NoFree,
+                        llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn})
+        F->addFnAttr(Attr);
+      F->addRetAttr(llvm::Attribute::NoAlias);
+      F->addRetAttr(llvm::Attribute::NoUndef);
+      SmallVector<llvm::Value *> todo = {F};
+      while (todo.size()) {
+        auto cur = todo.back();
+        todo.pop_back();
+        if (isa<llvm::Function>(cur)) {
+          for (auto u : cur->users())
+            todo.push_back(u);
+          continue;
+        }
+        if (auto CE = dyn_cast<llvm::ConstantExpr>(cur))
+          if (CE->isCast()) {
+            for (auto u : cur->users())
+              todo.push_back(u);
+            continue;
+          }
+        if (auto CI = dyn_cast<llvm::CallInst>(cur)) {
+          CI->addRetAttr(llvm::Attribute::NoAlias);
+          CI->addRetAttr(llvm::Attribute::NoUndef);
         }
       }
     }
