@@ -680,8 +680,11 @@ int main(int argc, char **argv) {
           optPM.addPass(polygeist::createParallelLICMPass());
         else
           optPM.addPass(mlir::createLoopInvariantCodeMotionPass());
-        if (EarlyInnerSerialize)
+        if (EarlyInnerSerialize) {
+          optPM.addPass(mlir::createLowerAffinePass());
           optPM.addPass(polygeist::createInnerSerializationPass());
+          optPM.addPass(polygeist::createCanonicalizeForPass());
+        }
         optPM.addPass(polygeist::createRaiseSCFToAffinePass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
