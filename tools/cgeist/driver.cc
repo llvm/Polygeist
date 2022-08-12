@@ -605,8 +605,11 @@ int main(int argc, char **argv) {
         noptPM2.addPass(polygeist::replaceAffineCFGPass());
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        if (LoopUnroll)
+        if (LoopUnroll) {
           noptPM2.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+          noptPM2.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+          noptPM2.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+        }
         noptPM2.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         noptPM2.addPass(mlir::createCSEPass());
@@ -691,8 +694,11 @@ int main(int argc, char **argv) {
         optPM.addPass(polygeist::replaceAffineCFGPass());
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-        if (LoopUnroll)
+        if (LoopUnroll) {
           optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+          optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+          optPM.addPass(mlir::createLoopUnrollPass(unrollSize, false, true));
+        }
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM.addPass(mlir::createCSEPass());
