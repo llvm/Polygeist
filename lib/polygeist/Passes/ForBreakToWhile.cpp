@@ -122,6 +122,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
     Block *thenEnd = &conditional.getThenRegion().back();
 
     rewriter.inlineRegionBefore(conditional.getThenRegion(), continuation);
+    rewriter.replaceOp(conditional, continueArgs);
 
     rewriter.setInsertionPointToEnd(currentBlock);
     SmallVector<Value> initArgs;
