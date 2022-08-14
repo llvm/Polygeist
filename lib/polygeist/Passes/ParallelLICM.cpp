@@ -272,8 +272,20 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
       else
         cond = b.create<arith::AndIOp>(looplike.getLoc(), cond, val);
     }
-    auto ifOp = b.create<scf::IfOp>(looplike.getLoc(), TypeRange(), cond);
-    looplike->moveBefore(ifOp.thenYield());
+    auto ifOp =
+        b.create<scf::IfOp>(looplike.getLoc(), looplike.getResultTypes(), cond,
+                            /*hasElse*/ !looplike.getResultTypes().empty());
+    if (!ifOp.thenBlock()->empty())
+      ifOp.thenBlock()->getTerminator()->erase();
+
+    looplike->moveBefore(ifOp.thenBlock(), ifOp.thenBlock()->begin());
+    looplike.replaceAllUsesWith(ifOp->getResults());
+    OpBuilder B(ifOp.thenBlock(), ifOp.thenBlock()->end());
+    B.create<scf::YieldOp>(looplike.getLoc(), looplike.getResults());
+    if (!looplike.getResultTypes().empty()) {
+      B.setInsertionPointToEnd(ifOp.elseBlock());
+      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getInitVals());
+    }
   }
   for (auto op : opsToMove)
     looplike.moveOutOfLoop(op);
@@ -364,9 +376,21 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
                         /*symbols*/ looplike.lowerBoundsMap().getNumSymbols() +
                             looplike.upperBoundsMap().getNumSymbols(),
                         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
-                                     values, /*else*/ false);
-    looplike->moveBefore(ifOp.getThenBlock()->getTerminator());
+    auto ifOp = b.create<AffineIfOp>(
+        looplike.getLoc(), looplike.getResultTypes(), iset, values,
+        /*hasElse*/ !looplike.getResultTypes().empty());
+    if (!ifOp.getThenBlock()->empty())
+      ifOp.getThenBlock()->getTerminator()->erase();
+
+    looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
+    looplike.replaceAllUsesWith(ifOp->getResults());
+    OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
+    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    if (!looplike.getResultTypes().empty()) {
+      B.setInsertionPointToEnd(ifOp.getElseBlock());
+      // TODO affine parallel initial value for reductions.
+      // B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+    }
   }
   for (auto op : opsToMove)
     looplike.moveOutOfLoop(op);
@@ -403,8 +427,20 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
         b.create<arith::AddIOp>(looplike.getLoc(), looplike.getLowerBound(),
                                 looplike.getStep()),
         looplike.getUpperBound());
-    auto ifOp = b.create<scf::IfOp>(looplike.getLoc(), TypeRange(), cond);
-    looplike->moveBefore(ifOp.thenYield());
+    auto ifOp =
+        b.create<scf::IfOp>(looplike.getLoc(), looplike.getResultTypes(), cond,
+                            /*hasElse*/ !looplike.getResultTypes().empty());
+    if (!ifOp.thenBlock()->empty())
+      ifOp.thenBlock()->getTerminator()->erase();
+
+    looplike->moveBefore(ifOp.thenBlock(), ifOp.thenBlock()->begin());
+    looplike.replaceAllUsesWith(ifOp->getResults());
+    OpBuilder B(ifOp.thenBlock(), ifOp.thenBlock()->end());
+    B.create<scf::YieldOp>(looplike.getLoc(), looplike.getResults());
+    if (!looplike.getResultTypes().empty()) {
+      B.setInsertionPointToEnd(ifOp.elseBlock());
+      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getIterOperands());
+    }
   }
   for (auto op : opsToMove)
     looplike.moveOutOfLoop(op);
@@ -494,9 +530,20 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
         /*symbols*/ looplike.getLowerBoundMap().getNumSymbols() +
             looplike.getUpperBoundMap().getNumSymbols(),
         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(looplike.getLoc(), TypeRange(), iset,
-                                     values, /*else*/ false);
-    looplike->moveBefore(ifOp.getThenBlock()->getTerminator());
+    auto ifOp = b.create<AffineIfOp>(
+        looplike.getLoc(), looplike.getResultTypes(), iset, values,
+        /*hasElse*/ !looplike.getResultTypes().empty());
+    if (!ifOp.getThenBlock()->empty())
+      ifOp.getThenBlock()->getTerminator()->erase();
+
+    looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
+    looplike.replaceAllUsesWith(ifOp->getResults());
+    OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
+    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    if (!looplike.getResultTypes().empty()) {
+      B.setInsertionPointToEnd(ifOp.getElseBlock());
+      B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+    }
   }
   for (auto op : opsToMove)
     looplike.moveOutOfLoop(op);
