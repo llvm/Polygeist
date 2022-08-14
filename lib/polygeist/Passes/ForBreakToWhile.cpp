@@ -43,108 +43,124 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
       return failure();
     unsigned iterArgPos = condition.getArgNumber() - 1;
 
-    // The condition is initially true and remains false once changed to false.
+    // The condition is initially <value> and remains false once changed to
+    // false. Moveover, values don't change after the condition is set to false.
     auto yield = cast<scf::YieldOp>(body->back());
     auto yieldedCondition = yield.getOperand(iterArgPos).dyn_cast<OpResult>();
     if (yieldedCondition.getOwner() != conditional)
       return failure();
-    unsigned conditionResPos = yieldedCondition.getResultNumber();
+
     Block *elseBlock = &conditional.getElseRegion().front();
     if (!llvm::hasSingleElement(*elseBlock))
       return failure();
-    auto elseYield = cast<scf::YieldOp>(elseBlock->front());
-    if (!matchPattern(elseYield.getOperand(conditionResPos), m_Zero()) ||
-        !matchPattern(forOp.getOpOperandForRegionIterArg(condition).get(),
-                      m_One()))
-      return failure();
 
-    // Generate type signature for the loop-carried values. The induction
-    // variable is placed first, followed by the forOp.iterArgs.
-    SmallVector<Type> lcvTypes;
-    SmallVector<Location> lcvLocs;
-    lcvTypes.push_back(forOp.getInductionVar().getType());
-    lcvLocs.push_back(forOp.getInductionVar().getLoc());
-    for (Value value : forOp.getInitArgs()) {
-      lcvTypes.push_back(value.getType());
-      lcvLocs.push_back(value.getLoc());
+    auto elseYield = cast<scf::YieldOp>(elseBlock->front());
+
+    Block *forBegin = &forOp.getRegion().front();
+    Block *forEnd = &forOp.getRegion().back();
+    auto forYield = cast<scf::YieldOp>(forEnd->getTerminator());
+    for (auto op : llvm::enumerate(forYield->getOperands())) {
+      auto opp = op.value().dyn_cast<OpResult>();
+      if (!opp) {
+        return failure();
+      }
+      if (opp.getOwner() != conditional)
+        return failure();
+
+      auto BA =
+          elseYield.getOperand(opp.getResultNumber()).dyn_cast<BlockArgument>();
+      if (!BA) {
+        if (iterArgPos == op.index())
+          if (matchPattern(elseYield.getOperand(opp.getResultNumber()),
+                           m_Zero()))
+            continue;
+
+        return failure();
+      }
+      if (BA.getOwner() != forBegin) {
+        return failure();
+      }
+      if (BA.getArgNumber() != op.index() + 1) {
+        return failure();
+      }
     }
 
+    SmallVector<Value> continueArgs;
+    for (auto op : forYield->getOperands()) {
+      if (auto opp = op.dyn_cast<OpResult>()) {
+        if (opp.getOwner() == conditional) {
+          continueArgs.push_back(
+              conditional.thenYield()->getOperand(opp.getResultNumber()));
+          continue;
+        }
+      }
+      continueArgs.push_back(op);
+    }
+
+    auto loc = forOp.getLoc();
+
     // Build scf.WhileOp
+
+    // Split the current block before the WhileOp to create the inlining point.
+    Block *currentBlock = rewriter.getInsertionBlock();
+    Block *remainingOpsBlock =
+        rewriter.splitBlock(currentBlock, rewriter.getInsertionPoint());
+
+    Block *continuation;
+    if (forOp.getNumResults() == 0) {
+      continuation = remainingOpsBlock;
+    } else {
+      continuation = rewriter.createBlock(
+          remainingOpsBlock, forOp.getResultTypes(),
+          SmallVector<Location>(forOp.getNumResults(), loc));
+      rewriter.create<cf::BranchOp>(loc, remainingOpsBlock);
+    }
+
+    rewriter.inlineRegionBefore(forOp.getRegion(), continuation);
+
+    Block *thenBegin = &conditional.getThenRegion().front();
+    Block *thenEnd = &conditional.getThenRegion().back();
+
+    rewriter.inlineRegionBefore(conditional.getThenRegion(), continuation);
+    rewriter.replaceOp(conditional, continueArgs);
+
+    rewriter.setInsertionPointToEnd(currentBlock);
     SmallVector<Value> initArgs;
     initArgs.push_back(forOp.getLowerBound());
     llvm::append_range(initArgs, forOp.getInitArgs());
-    auto whileOp = rewriter.create<WhileOp>(forOp.getLoc(), lcvTypes, initArgs,
-                                            forOp->getAttrs());
+    SmallVector<Value> preInitArgs(initArgs);
+    preInitArgs.erase(preInitArgs.begin());
+    rewriter.create<cf::CondBranchOp>(
+        loc,
+        rewriter.create<arith::AndIOp>(
+            loc,
+            rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                           forOp.getLowerBound(),
+                                           forOp.getUpperBound()),
+            preInitArgs[iterArgPos]),
+        forBegin, initArgs, continuation, preInitArgs);
 
-    // 'before' region contains the loop condition and its conjunction with the
-    // conditional condition, as well as forwarding of iteration arguments to
-    // the 'after' region.
-    auto *beforeBlock = rewriter.createBlock(
-        &whileOp.getBefore(), whileOp.getBefore().begin(), lcvTypes, lcvLocs);
-    rewriter.setInsertionPointToStart(&whileOp.getBefore().front());
-    Value cmpOp = rewriter.create<arith::CmpIOp>(
-        whileOp.getLoc(), arith::CmpIPredicate::slt,
-        beforeBlock->getArgument(0), forOp.getUpperBound());
-    Value andOp = rewriter.create<arith::AndIOp>(
-        whileOp.getLoc(), cmpOp, whileOp.getBeforeArguments()[iterArgPos + 1]);
-    // TODO: consider not forwarding the condition variable.
-    rewriter.create<scf::ConditionOp>(whileOp.getLoc(), andOp,
-                                      beforeBlock->getArguments());
+    rewriter.eraseOp(forYield);
+    rewriter.setInsertionPointToEnd(forEnd);
 
-    // Inline conditional body into the "after" region.
-    auto *afterBlock = rewriter.createBlock(
-        &whileOp.getAfter(), whileOp.getAfter().begin(), lcvTypes, lcvLocs);
+    rewriter.create<cf::BranchOp>(loc, thenBegin, ValueRange());
 
-    // Rewrite uses of the conditional block arguments to the new while-loop
-    // "after" arguments
-    SmallVector<Value> arguments;
-    for (BlockArgument barg : conditional.getBody(0)->getArguments()) {
-      auto conditionalOperand = conditional->getOperand(barg.getArgNumber())
-                                    .dyn_cast<BlockArgument>();
-      if (!conditionalOperand ||
-          conditionalOperand.getOwner()->getParentOp() != forOp) {
-        arguments.push_back(conditional->getOperand(barg.getArgNumber()));
-      } else {
-        arguments.push_back(
-            afterBlock->getArgument(conditionalOperand.getArgNumber()));
-      }
-    }
+    rewriter.eraseOp(cast<scf::YieldOp>(thenEnd->getTerminator()));
+    rewriter.setInsertionPointToEnd(thenEnd);
+    auto next = rewriter.create<arith::AddIOp>(loc, forBegin->getArgument(0),
+                                               forOp.getStep());
+    SmallVector<Value> innerExitArgs(continueArgs);
+    continueArgs.insert(continueArgs.begin(), next);
 
-    // Update uses of block args of the original loop.
-    for (BlockArgument arg : forOp.getBody()->getArguments()) {
-      for (OpOperand &use : llvm::make_early_inc_range(arg.getUses())) {
-        rewriter.updateRootInPlace(use.getOwner(), [&] {
-          use.set(afterBlock->getArgument(arg.getArgNumber()));
-        });
-      }
-    }
+    Value cmpOp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
+                                                 next, forOp.getUpperBound());
+    Value andOp =
+        rewriter.create<arith::AndIOp>(loc, cmpOp, innerExitArgs[iterArgPos]);
+    rewriter.create<cf::CondBranchOp>(loc, andOp, forBegin, continueArgs,
+                                      continuation, innerExitArgs);
 
-    // Inline the conditional body operations into 'after' region.
-    rewriter.mergeBlocks(conditional.getBody(0), afterBlock, arguments);
+    rewriter.replaceOp(forOp, continuation->getArguments());
 
-    // Add induction variable increment.
-    rewriter.setInsertionPoint(&afterBlock->back());
-    auto ivIncOp = rewriter.create<arith::AddIOp>(
-        whileOp.getLoc(), afterBlock->getArgument(0), forOp.getStep());
-
-    // Create a new yield.
-    auto thenYield = cast<scf::YieldOp>(afterBlock->back());
-    rewriter.setInsertionPointToEnd(afterBlock);
-    SmallVector<Value> yieldOperands;
-    yieldOperands.reserve(1 + yield.getNumOperands());
-    yieldOperands.push_back(ivIncOp);
-    for (Value operand : yield.getOperands()) {
-      auto operandOpResult = operand.dyn_cast<OpResult>();
-      if (operandOpResult && operandOpResult.getOwner() == conditional) {
-        yieldOperands.push_back(
-            thenYield.getOperand(operandOpResult.getResultNumber()));
-      } else {
-        yieldOperands.push_back(operand);
-      }
-    }
-
-    rewriter.replaceOpWithNewOp<scf::YieldOp>(thenYield, yieldOperands);
-    rewriter.replaceOp(forOp, whileOp.getResults().drop_front());
     return success();
   }
 };
@@ -154,7 +170,7 @@ struct ForBreakToWhileLoop : public ForBreakToWhileBase<ForBreakToWhileLoop> {
     auto *parentOp = getOperation();
     MLIRContext *ctx = parentOp->getContext();
     RewritePatternSet patterns(ctx);
-    patterns.add<ForBreakLoweringPattern>(ctx);
+    patterns.add<ForBreakLoweringPattern>(patterns.getContext(), /*benefit=*/3);
     (void)applyPatternsAndFoldGreedily(parentOp, std::move(patterns));
   }
 };
