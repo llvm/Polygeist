@@ -226,7 +226,8 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   for (auto &region : op->getRegions()) {
     for (auto &block : region) {
       for (auto &innerOp : block)
-        if (!canBeParallelHoisted(&innerOp, scope, willBeMoved2)) {
+        if (!canBeParallelHoisted(&innerOp, scope, willBeMoved2,
+                                  includeAfter)) {
           return false;
         } else
           willBeMoved2.insert(&innerOp);
