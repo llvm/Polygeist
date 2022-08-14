@@ -2587,7 +2587,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
     MT = MemRefType::get({}, MT.getElementType(), MemRefLayoutAttrInterface(),
                          MT.getMemorySpace());
 
-    auto newOp = rewriter.create<memref::AllocOp>(op.getLoc(), MT);
+    auto newOp = rewriter.create<memref::AllocaOp>(op.getLoc(), MT);
 
     for (auto u : llvm::make_early_inc_range(op->getResult(0).getUsers())) {
       rewriter.setInsertionPoint(u);
