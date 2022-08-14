@@ -43,12 +43,11 @@ module {
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     %0 = memref.alloca() : memref<f32>
 // CHECK-NEXT:     memref.store %cst, %0[] : memref<f32>
-// CHECK-NEXT:     %1 = arith.addi %arg1, %c1 : index
-// CHECK-NEXT:     %2 = arith.cmpi sle, %1, %arg2 : index
-// CHECK-NEXT:     scf.if %2 {
-// CHECK-NEXT:       %3 = memref.load %0[] : memref<f32>
+// CHECK-NEXT:     %[[i2:.+]] = arith.cmpi slt, %arg1, %arg2 : index
+// CHECK-NEXT:     scf.if %[[i2]] {
+// CHECK-NEXT:       %[[i3:.+]] = memref.load %0[] : memref<f32>
 // CHECK-NEXT:       scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
-// CHECK-NEXT:         func.call @use(%3) : (f32) -> ()
+// CHECK-NEXT:         func.call @use(%[[i3]]) : (f32) -> ()
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
@@ -59,13 +58,12 @@ module {
 // CHECK-DAG:     %cst = arith.constant 0.000000e+00 : f32
 // CHECK-DAG:     %c1 = arith.constant 1 : index
 // CHECK-NEXT:     %0 = memref.alloca() : memref<f32>
-// CHECK-NEXT:     %1 = arith.addi %arg1, %c1 : index
-// CHECK-NEXT:     %2 = arith.cmpi sle, %1, %arg2 : index
-// CHECK-NEXT:     scf.if %2 {
+// CHECK-NEXT:     %[[i2:.+]] = arith.cmpi slt, %arg1, %arg2 : index
+// CHECK-NEXT:     scf.if %[[i2]] {
 // CHECK-NEXT:       memref.store %cst, %0[] : memref<f32>
-// CHECK-NEXT:       %3 = memref.load %0[] : memref<f32>
+// CHECK-NEXT:       %[[i3:.+]] = memref.load %0[] : memref<f32>
 // CHECK-NEXT:       scf.parallel (%arg3) = (%arg1) to (%arg2) step (%c1) {
-// CHECK-NEXT:         func.call @use(%3) : (f32) -> ()
+// CHECK-NEXT:         func.call @use(%[[i3]]) : (f32) -> ()
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }

@@ -262,11 +262,8 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     Value cond = nullptr;
     for (auto pair : llvm::zip(looplike.getLowerBound(),
                                looplike.getUpperBound(), looplike.getStep())) {
-      auto val = b.create<arith::CmpIOp>(
-          looplike.getLoc(), CmpIPredicate::sle,
-          b.create<arith::AddIOp>(looplike.getLoc(), std::get<0>(pair),
-                                  std::get<2>(pair)),
-          std::get<1>(pair));
+      auto val = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
+                                         std::get<0>(pair), std::get<1>(pair));
       if (cond == nullptr)
         cond = val;
       else
@@ -422,11 +419,9 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
   // loop.
   if (opsToMove.size()) {
     OpBuilder b(looplike);
-    Value cond = b.create<arith::CmpIOp>(
-        looplike.getLoc(), CmpIPredicate::sle,
-        b.create<arith::AddIOp>(looplike.getLoc(), looplike.getLowerBound(),
-                                looplike.getStep()),
-        looplike.getUpperBound());
+    Value cond = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
+                                         looplike.getLowerBound(),
+                                         looplike.getUpperBound());
     auto ifOp =
         b.create<scf::IfOp>(looplike.getLoc(), looplike.getResultTypes(), cond,
                             /*hasElse*/ !looplike.getResultTypes().empty());
