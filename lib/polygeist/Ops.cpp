@@ -2598,7 +2598,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
       }
       if (auto load = dyn_cast<AffineLoadOp>(u)) {
         rewriter.replaceOpWithNewOp<AffineLoadOp>(
-            load, newOp, AffineMap::get(load.getContext()), ArrayRef<Value>());
+            load, newOp, AffineMap::get(op.getContext()), ArrayRef<Value>());
         continue;
       }
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
@@ -2643,7 +2643,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
             store, TypeRange(), cond, /*hasElse*/ false);
         rewriter.setInsertionPointToStart(ifOp.thenBlock());
         rewriter.create<AffineStoreOp>(loc, val, newOp,
-                                       AffineMap::get(store.getContext()),
+                                       AffineMap::get(op.getContext()),
                                        ArrayRef<Value>());
         continue;
       }
