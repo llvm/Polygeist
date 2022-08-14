@@ -26,6 +26,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IntegerSet.h"
 
 using namespace mlir;
 using namespace polygeist;
@@ -2497,18 +2498,206 @@ struct RankReduction : public OpRewritePattern<T> {
         continue;
       }
       if (auto load = dyn_cast<AffineLoadOp>(u)) {
-        rewriter.replaceOpWithNewOp<AffineLoadOp>(load, newOp, AffineMap(),
-                                                  ArrayRef<Value>());
+        rewriter.replaceOpWithNewOp<AffineLoadOp>(
+            load, newOp, AffineMap::get(load.getContext()), ArrayRef<Value>());
         continue;
       }
       if (auto store = dyn_cast<AffineStoreOp>(u)) {
         rewriter.replaceOpWithNewOp<AffineStoreOp>(
-            store, store.value(), newOp, AffineMap(), ArrayRef<Value>());
+            store, store.value(), newOp, AffineMap::get(store.getContext()),
+            ArrayRef<Value>());
         continue;
       }
     }
     rewriter.eraseOp(op);
     return success();
+  }
+};
+
+struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
+  using OpRewritePattern<memref::AllocaOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(memref::AllocaOp op,
+                                PatternRewriter &rewriter) const override {
+    mlir::Type Ty = op->getResult(0).getType();
+    MemRefType MT = Ty.cast<MemRefType>();
+    if (MT.getShape().size() == 0)
+      return failure();
+    SmallVector<uint64_t> v;
+    bool set = false;
+    for (auto u : op->getResult(0).getUsers()) {
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        if (!set) {
+          for (auto i : load.indices()) {
+            IntegerAttr constValue;
+            if (!matchPattern(i, m_Constant(&constValue)))
+              return failure();
+            v.push_back(constValue.getValue().getZExtValue());
+          }
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(load.indices(), v)) {
+            IntegerAttr constValue;
+            if (!matchPattern(std::get<0>(pair), m_Constant(&constValue)))
+              return failure();
+            if (constValue.getValue().getZExtValue() != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        SmallVector<Value> indices;
+        auto map = load.getAffineMapAttr().getValue();
+        if (!set) {
+          for (AffineExpr op : map.getResults()) {
+            auto opd = op.dyn_cast<AffineConstantExpr>();
+            if (!opd)
+              return failure();
+            v.push_back(opd.getValue());
+          }
+          set = true;
+        } else {
+          for (auto pair : llvm::zip(map.getResults(), v)) {
+            auto opd = std::get<0>(pair).dyn_cast<AffineConstantExpr>();
+            if (!opd)
+              return failure();
+            if (opd.getValue() != std::get<1>(pair))
+              return failure();
+          }
+        }
+        continue;
+      }
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        continue;
+      }
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        if (store.value() == op)
+          return failure();
+        continue;
+      }
+
+      return failure();
+    }
+    if (!set)
+      return failure();
+
+    MT = MemRefType::get({}, MT.getElementType(), MemRefLayoutAttrInterface(),
+                         MT.getMemorySpace());
+
+    auto newOp = rewriter.create<memref::AllocOp>(op.getLoc(), MT);
+
+    for (auto u : llvm::make_early_inc_range(op->getResult(0).getUsers())) {
+      rewriter.setInsertionPoint(u);
+      if (auto load = dyn_cast<memref::LoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(load, newOp,
+                                                    ArrayRef<Value>());
+        continue;
+      }
+      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<AffineLoadOp>(
+            load, newOp, AffineMap::get(load.getContext()), ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<memref::StoreOp>(u)) {
+        Value cond = nullptr;
+        for (auto pair : llvm::zip(store.indices(), v)) {
+          auto val = rewriter.create<arith::CmpIOp>(
+              store.getLoc(), CmpIPredicate::eq, std::get<0>(pair),
+              rewriter.create<arith::ConstantIndexOp>(store.getLoc(),
+                                                      std::get<1>(pair)));
+          if (cond == nullptr)
+            cond = val;
+          else
+            cond = rewriter.create<arith::AndIOp>(store.getLoc(), cond, val);
+        }
+        auto loc = store.getLoc();
+        auto val = store.value();
+        auto ifOp = rewriter.replaceOpWithNewOp<scf::IfOp>(
+            store, TypeRange(), cond, /*hasElse*/ false);
+        rewriter.setInsertionPointToStart(ifOp.thenBlock());
+        rewriter.create<memref::StoreOp>(loc, val, newOp, ArrayRef<Value>());
+        continue;
+      }
+      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+        Value cond = nullptr;
+        auto map = store.getAffineMapAttr().getValue();
+        for (auto pair : llvm::enumerate(v)) {
+          auto apply = rewriter.create<AffineApplyOp>(
+              store.getLoc(), map.getSliceMap(pair.index(), 1),
+              store.getMapOperands());
+          auto val = rewriter.create<arith::CmpIOp>(
+              store.getLoc(), CmpIPredicate::eq, apply.getResult(),
+              rewriter.create<arith::ConstantIndexOp>(store.getLoc(),
+                                                      pair.value()));
+          if (cond == nullptr)
+            cond = val;
+          else
+            cond = rewriter.create<arith::AndIOp>(store.getLoc(), cond, val);
+        }
+        auto loc = store.getLoc();
+        auto val = store.value();
+        auto ifOp = rewriter.replaceOpWithNewOp<scf::IfOp>(
+            store, TypeRange(), cond, /*hasElse*/ false);
+        rewriter.setInsertionPointToStart(ifOp.thenBlock());
+        rewriter.create<AffineStoreOp>(loc, val, newOp,
+                                       AffineMap::get(store.getContext()),
+                                       ArrayRef<Value>());
+        continue;
+      }
+    }
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.getNumResults() != 0)
+      return failure();
+    if (op.hasElse())
+      return failure();
+    auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
+    if (!par)
+      return failure();
+    if (par.getSteps().size() != op.getIntegerSet().getConstraints().size())
+      return failure();
+    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
+      auto opd = cst.value().dyn_cast<AffineDimExpr>();
+      if (!opd)
+        return failure();
+      if (op.getOperands()[opd.getPosition()] != par.getIVs()[cst.index()])
+        return failure();
+      if (!op.getIntegerSet().isEq(cst.index()))
+        return failure();
+
+      for (auto lb : par.getLowerBoundMap(cst.index()).getResults()) {
+        auto opd = lb.dyn_cast<AffineConstantExpr>();
+        if (!opd)
+          return failure();
+        if (opd.getValue() > 0)
+          return failure();
+      }
+      for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
+        auto opd = ub.dyn_cast<AffineConstantExpr>();
+        if (!opd)
+          return failure();
+        if (opd.getValue() <= 0)
+          return failure();
+      }
+    }
+    if (isa<AffineYieldOp>(op->getNextNode())) {
+      rewriter.eraseOp(op.getThenBlock()->getTerminator());
+      rewriter.mergeBlockBefore(op.getThenBlock(), par->getNextNode());
+      rewriter.eraseOp(op);
+      return success();
+    }
+    return failure();
   }
 };
 
@@ -2519,7 +2708,8 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  CmpProp, UndefCmpProp,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
-                 AlwaysAllocaScopeHoister<AffineForOp>,
+                 AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
+                 AffineIfSinking,
                  // RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
