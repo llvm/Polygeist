@@ -52,6 +52,31 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
+struct Serialize : public OpRewritePattern<scf::ParallelOp> {
+  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::ParallelOp nextParallel,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> inds;
+    scf::ForOp last = nullptr;
+    for (auto tup :
+         llvm::zip(nextParallel.getLowerBound(), nextParallel.getUpperBound(),
+                   nextParallel.getStep(), nextParallel.getInductionVars())) {
+      last =
+          rewriter.create<scf::ForOp>(nextParallel.getLoc(), std::get<0>(tup),
+                                      std::get<1>(tup), std::get<2>(tup));
+      inds.push_back(last.getInductionVar());
+      rewriter.setInsertionPointToStart(last.getBody());
+    }
+    rewriter.eraseOp(last.getBody()->getTerminator());
+    rewriter.mergeBlocks(&nextParallel.getRegion().front(), last.getBody(),
+                         inds);
+
+    rewriter.eraseOp(nextParallel);
+    return success();
+  }
+};
+
 void InnerSerialization::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<ParSerialize>(getOperation()->getContext());
@@ -61,5 +86,8 @@ void InnerSerialization::runOnOperation() {
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createInnerSerializationPass() {
+  return std::make_unique<InnerSerialization>();
+}
+std::unique_ptr<Pass> mlir::polygeist::createSerializationPass() {
   return std::make_unique<InnerSerialization>();
 }

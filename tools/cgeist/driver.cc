@@ -738,7 +738,8 @@ int main(int argc, char **argv) {
       mlir::PassManager pm2(&context);
       if (SCFOpenMP) {
         pm2.addPass(createConvertSCFToOpenMPPass());
-      }
+      } else
+        pm2.addPass(polygeist::createSerializationPass());
       pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (OpenMPOpt) {
         pm2.addPass(polygeist::createOpenMPOptPass());

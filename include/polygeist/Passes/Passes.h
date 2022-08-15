@@ -13,6 +13,7 @@ std::unique_ptr<Pass> createParallelLICMPass();
 std::unique_ptr<Pass> createMem2RegPass();
 std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createInnerSerializationPass();
+std::unique_ptr<Pass> createSerializationPass();
 std::unique_ptr<Pass> replaceAffineCFGPass();
 std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createCanonicalizeForPass();
