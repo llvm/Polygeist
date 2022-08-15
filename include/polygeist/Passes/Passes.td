@@ -41,6 +41,12 @@ def InnerSerialization : Pass<"inner-serialize"> {
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
 }
+def Serialization : Pass<"serialize"> {
+  let summary = "remove scf.barrier";
+  let constructor = "mlir::polygeist::createSerializationPass()";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+}
 
 def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";

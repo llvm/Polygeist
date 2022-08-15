@@ -21,6 +21,9 @@ namespace {
 struct InnerSerialization : public InnerSerializationBase<InnerSerialization> {
   void runOnOperation() override;
 };
+struct Serialization : public SerializationBase<Serialization> {
+  void runOnOperation() override;
+};
 } // namespace
 
 struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
@@ -85,9 +88,17 @@ void InnerSerialization::runOnOperation() {
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
 
+void Serialization::runOnOperation() {
+  mlir::RewritePatternSet rpl(getOperation()->getContext());
+  rpl.add<Serialize>(getOperation()->getContext());
+  GreedyRewriteConfig config;
+  config.maxIterations = 47;
+  (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
+}
+
 std::unique_ptr<Pass> mlir::polygeist::createInnerSerializationPass() {
   return std::make_unique<InnerSerialization>();
 }
 std::unique_ptr<Pass> mlir::polygeist::createSerializationPass() {
-  return std::make_unique<Serialize>();
+  return std::make_unique<Serialization>();
 }
