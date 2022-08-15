@@ -24,12 +24,13 @@ public:
   ValueCategory(mlir::Value val, bool isReference);
 
   // TODO: rename to 'loadVariable'? getValue seems to generic.
-  mlir::Value getValue(mlir::OpBuilder &builder) const;
-  void store(mlir::OpBuilder &builder, ValueCategory toStore,
-             bool isArray) const;
+  mlir::Value getValue(mlir::Location loc, mlir::OpBuilder &builder) const;
+  void store(mlir::Location loc, mlir::OpBuilder &builder,
+             ValueCategory toStore, bool isArray) const;
   // TODO: rename to storeVariable?
-  void store(mlir::OpBuilder &builder, mlir::Value toStore) const;
-  ValueCategory dereference(mlir::OpBuilder &builder) const;
+  void store(mlir::Location loc, mlir::OpBuilder &builder,
+             mlir::Value toStore) const;
+  ValueCategory dereference(mlir::Location loc, mlir::OpBuilder &builder) const;
 };
 
 #endif

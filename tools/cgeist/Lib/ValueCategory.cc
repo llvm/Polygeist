@@ -32,11 +32,11 @@ ValueCategory::ValueCategory(mlir::Value val, bool isReference)
   }
 }
 
-mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
+mlir::Value ValueCategory::getValue(mlir::Location loc,
+                                    mlir::OpBuilder &builder) const {
   assert(val && "must be not-null");
   if (!isReference)
     return val;
-  auto loc = builder.getUnknownLoc();
   if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
     return builder.create<mlir::LLVM::LoadOp>(loc, val);
   }
@@ -49,10 +49,10 @@ mlir::Value ValueCategory::getValue(mlir::OpBuilder &builder) const {
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
 
-void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
+void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
+                          mlir::Value toStore) const {
   assert(isReference && "must be a reference");
   assert(val && "expect not-null");
-  auto loc = builder.getUnknownLoc();
   if (auto pt = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
       if (pt.getElementType() == p2m.source().getType())
@@ -108,10 +108,10 @@ void ValueCategory::store(mlir::OpBuilder &builder, mlir::Value toStore) const {
   llvm_unreachable("type must be LLVMPointer or MemRef");
 }
 
-ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
+ValueCategory ValueCategory::dereference(mlir::Location loc,
+                                         mlir::OpBuilder &builder) const {
   assert(val && "val must be not-null");
 
-  auto loc = builder.getUnknownLoc();
   if (val.getType().isa<mlir::LLVM::LLVMPointerType>()) {
     if (!isReference)
       return ValueCategory(val, /*isReference*/ true);
@@ -145,8 +145,8 @@ ValueCategory ValueCategory::dereference(mlir::OpBuilder &builder) const {
 }
 
 // TODO: too long and difficult to understand.
-void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
-                          bool isArray) const {
+void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
+                          ValueCategory toStore, bool isArray) const {
   assert(toStore.val);
   if (isArray) {
     if (!toStore.isReference) {
@@ -154,7 +154,6 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
                    << toStore.isReference << " isar" << isArray << "\n";
     }
     assert(toStore.isReference);
-    auto loc = builder.getUnknownLoc();
     auto zeroIndex = builder.create<ConstantIndexOp>(loc, 0);
 
     if (auto smt = toStore.val.getType().dyn_cast<mlir::MemRefType>()) {
@@ -254,8 +253,8 @@ void ValueCategory::store(mlir::OpBuilder &builder, ValueCategory toStore,
             val, idx);
       }
     } else
-      store(builder, toStore.getValue(builder));
+      store(loc, builder, toStore.getValue(loc, builder));
   } else {
-    store(builder, toStore.getValue(builder));
+    store(loc, builder, toStore.getValue(loc, builder));
   }
 }

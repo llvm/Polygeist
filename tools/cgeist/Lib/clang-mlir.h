@@ -150,8 +150,6 @@ private:
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
 
-  // ValueCategory getValue(std::string name);
-
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
     auto &vec = bufs[t.getAsOpaquePointer()];

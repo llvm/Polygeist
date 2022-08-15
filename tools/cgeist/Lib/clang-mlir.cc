@@ -159,7 +159,8 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     } else {
       auto alloc = createAllocOp(val.getType(), parm, /*memspace*/ 0, isArray,
                                  /*LLVMABI*/ LLVMABI);
-      ValueCategory(alloc, /*isReference*/ true).store(builder, val);
+      ValueCategory(alloc, /*isReference*/ true)
+          .store(getMLIRLocation(parm->getBeginLoc()), builder, val);
     }
     i++;
   }
@@ -260,7 +261,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
           CommonFieldLookup(loc, CC->getThisObjectType(), field, ThisVal.val,
                             /*isLValue*/ false);
       assert(cfl.val);
-      cfl.store(builder, initexpr, isArray);
+      cfl.store(loc, builder, initexpr, isArray);
     }
   }
   if (auto CC = dyn_cast<CXXDestructorDecl>(fd)) {
@@ -362,7 +363,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       if (name)
         if (auto var = dyn_cast<VariableArrayType>(
                 name->getType()->getUnqualifiedDesugaredType())) {
-          auto len = Visit(var->getSizeExpr()).getValue(builder);
+          auto len = Visit(var->getSizeExpr()).getValue(varLoc, builder);
           alloc = builder.create<mlir::LLVM::AllocaOp>(
               varLoc, LLVM::LLVMPointerType::get(t, memspace), len);
           builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
@@ -413,7 +414,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
         mr = mlir::MemRefType::get(
             shape, mt.getElementType(), MemRefLayoutAttrInterface(),
             wrapIntegerMemorySpace(memspace, mt.getContext()));
-        auto len = Visit(var->getSizeExpr()).getValue(builder);
+        auto len = Visit(var->getSizeExpr()).getValue(varLoc, builder);
         len = builder.create<IndexCastOp>(varLoc, builder.getIndexType(), len);
         alloc = builder.create<mlir::memref::AllocaOp>(varLoc, mr, len);
         builder.create<polygeist::TrivialUseOp>(varLoc, alloc);
@@ -555,7 +556,7 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
                                       APFloat(ty.getFloatSemantics(), "0"), ty),
       alloc, getConstantIndex(0));
   builder.create<mlir::memref::StoreOp>(
-      iloc, Visit(expr->getSubExpr()).getValue(builder), alloc,
+      iloc, Visit(expr->getSubExpr()).getValue(iloc, builder), alloc,
       getConstantIndex(1));
   return ValueCategory(alloc,
                        /*isReference*/ true);
@@ -733,7 +734,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
       bool isArray = false;
       Glob.getMLIRType(expr->getType(), &isArray);
       ValueCategory sub = Visit(expr);
-      ValueCategory(toInit, /*isReference*/ true).store(builder, sub, isArray);
+      ValueCategory(toInit, /*isReference*/ true)
+          .store(loc, builder, sub, isArray);
       if (!sub.isReference)
         if (auto mt = toInit.getType().dyn_cast<MemRefType>()) {
           if (auto cop = sub.val.getDefiningOp<ConstantIntOp>())
@@ -792,7 +794,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
         assert(visit.isReference);
         inite = visit;
       } else {
-        inite = ValueCategory(visit.getValue(builder), /*isRef*/ false);
+        inite = ValueCategory(visit.getValue(varLoc, builder), /*isRef*/ false);
         if (!inite.val) {
           init->dump();
           assert(0 && inite.val);
@@ -876,7 +878,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     op = createAllocOp(subType, decl, memtype, isArray, LLVMABI);
 
   if (inite.val) {
-    ValueCategory(op, /*isReference*/ true).store(builder, inite, isArray);
+    ValueCategory(op, /*isReference*/ true)
+        .store(varLoc, builder, inite, isArray);
   } else if (auto init = decl->getInit()) {
     if (isa<InitListExpr>(init)) {
       InitializeValueByInitListExpr(op, init);
@@ -946,7 +949,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
   ArrayPtr = CommonArrayToPointer(loc, ArrayPtr);
 
   res = builder.create<LLVM::InsertValueOp>(loc, res.getType(), res,
-                                            ArrayPtr.getValue(builder),
+                                            ArrayPtr.getValue(loc, builder),
                                             builder.getI64ArrayAttr(0));
   Field++;
   auto iTy = getMLIRType(Field->getType()).cast<mlir::IntegerType>();
@@ -1015,7 +1018,7 @@ ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
     assert(tostore.isReference);
     bool isArray = false;
     Glob.getMLIRType(expr->getSubExpr()->getType(), &isArray);
-    alu.store(builder, val, isArray);
+    alu.store(loc, builder, val, isArray);
   }
 
   arrayinit.pop_back();
@@ -1096,7 +1099,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
               field, ThisVal.val, /*isLValue*/ false);
           assert(CaptureKinds.find(VD) != CaptureKinds.end());
           if (CaptureKinds[VD] == LambdaCaptureKind::LCK_ByRef)
-            result = result.dereference(builder);
+            result = result.dereference(loc, builder);
           goto endp;
         }
       }
@@ -1118,7 +1121,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
       CommonFieldLookup(loc, expr->getCallOperator()->getThisObjectType(),
                         field, op,
                         /*isLValue*/ false)
-          .store(builder, result, isArray);
+          .store(loc, builder, result, isArray);
     else {
       assert(CK == LambdaCaptureKind::LCK_ByRef);
       assert(result.isReference);
@@ -1138,7 +1141,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
       CommonFieldLookup(loc, expr->getCallOperator()->getThisObjectType(),
                         field, op,
                         /*isLValue*/ false)
-          .store(builder, val);
+          .store(loc, builder, val);
     }
   }
   return ValueCategory(op, /*isReference*/ true);
@@ -1147,6 +1150,7 @@ ValueCategory MLIRScanner::VisitLambdaExpr(clang::LambdaExpr *expr) {
 // TODO actually deallocate
 ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
     clang::MaterializeTemporaryExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
   auto v = Visit(expr->getSubExpr());
   if (!v.val) {
     expr->dump();
@@ -1169,7 +1173,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   auto op = createAllocOp(getMLIRType(expr->getSubExpr()->getType()), nullptr,
                           0, /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
 
-  ValueCategory(op, /*isRefererence*/ true).store(builder, v, isArray);
+  ValueCategory(op, /*isRefererence*/ true).store(loc, builder, v, isArray);
   return ValueCategory(op, /*isRefererence*/ true);
 }
 
@@ -1178,7 +1182,7 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr) {
   expr->dump();
   llvm::errs() << "warning not calling destructor on delete\n";
 
-  mlir::Value toDelete = Visit(expr->getArgument()).getValue(builder);
+  mlir::Value toDelete = Visit(expr->getArgument()).getValue(loc, builder);
 
   if (toDelete.getType().isa<mlir::MemRefType>()) {
     builder.create<mlir::memref::DeallocOp>(loc, toDelete);
@@ -1197,7 +1201,7 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   mlir::Value count;
 
   if (expr->isArray()) {
-    count = Visit(*expr->raw_arg_begin()).getValue(builder);
+    count = Visit(*expr->raw_arg_begin()).getValue(loc, builder);
     count = builder.create<IndexCastOp>(
         loc, mlir::IndexType::get(builder.getContext()), count);
   } else {
@@ -1210,7 +1214,8 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
   mlir::Value alloc;
   mlir::Value arrayCons;
   if (!expr->placement_arguments().empty()) {
-    mlir::Value val = Visit(*expr->placement_arg_begin()).getValue(builder);
+    mlir::Value val =
+        Visit(*expr->placement_arg_begin()).getValue(loc, builder);
     if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
       arrayCons = alloc =
           builder.create<polygeist::Pointer2MemrefOp>(loc, mt, val);
@@ -1478,7 +1483,7 @@ ValueCategory MLIRScanner::CommonArrayLookup(mlir::Location loc,
                                              mlir::Value idx,
                                              bool isImplicitRefResult,
                                              bool removeIndex) {
-  mlir::Value val = array.getValue(builder);
+  mlir::Value val = array.getValue(loc, builder);
   assert(val);
 
   if (val.getType().isa<LLVM::LLVMPointerType>()) {
@@ -1533,7 +1538,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr) {
   auto loc = getMLIRLocation(expr->getExprLoc());
   auto moo = Visit(expr->getLHS());
 
-  auto rhs = Visit(expr->getRHS()).getValue(builder);
+  auto rhs = Visit(expr->getRHS()).getValue(loc, builder);
   // Check the RHS has been successfully emitted
   assert(rhs);
   auto idx = castToIndex(getMLIRLocation(expr->getRBracketLoc()), rhs);
@@ -1599,7 +1604,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
           sr->getDecl()->getName() == "__log2f") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::Log2Op>(loc, args[0]),
@@ -1609,7 +1614,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "log") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::LogOp>(loc, args[0]),
@@ -1620,7 +1625,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
           (sr->getDecl()->getName() == "ceil")) {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<math::CeilOp>(loc, args[0]),
@@ -1632,7 +1637,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "sqrt")) {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::SqrtOp>(loc, args[0]),
@@ -1644,7 +1649,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
            sr->getDecl()->getName() == "exp")) {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::ExpOp>(loc, args[0]),
@@ -1654,7 +1659,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "sin") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::SinOp>(loc, args[0]),
@@ -1665,7 +1670,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() && sr->getDecl()->getName() == "cos") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         return make_pair(
             ValueCategory(builder.create<mlir::math::CosOp>(loc, args[0]),
@@ -1702,7 +1707,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
           sub = BC->getSubExpr();
-        mlir::Value arg = Visit(sub).getValue(builder);
+        mlir::Value arg = Visit(sub).getValue(loc, builder);
 
         if (arg.getType().isa<mlir::LLVM::LLVMPointerType>()) {
           auto callee = EmitCallee(expr->getCallee());
@@ -1730,7 +1735,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
           sub = BC->getSubExpr();
         {
-          auto dst = Visit(sub).getValue(builder);
+          auto dst = Visit(sub).getValue(loc, builder);
           if (auto omt = dst.getType().dyn_cast<MemRefType>()) {
             if (auto mt = omt.getElementType().dyn_cast<MemRefType>()) {
               auto shape = std::vector<int64_t>(mt.getShape());
@@ -1743,16 +1748,18 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                            ->getPointeeType());
               mlir::Value allocSize;
               if (sr->getDecl()->getName() == "cudaMallocPitch") {
-                mlir::Value width = Visit(expr->getArg(2)).getValue(builder);
-                mlir::Value height = Visit(expr->getArg(3)).getValue(builder);
+                mlir::Value width =
+                    Visit(expr->getArg(2)).getValue(loc, builder);
+                mlir::Value height =
+                    Visit(expr->getArg(3)).getValue(loc, builder);
                 // Not changing pitch from provided width here
                 // TODO can consider addition alignment considerations
                 Visit(expr->getArg(1))
-                    .dereference(builder)
-                    .store(builder, width);
+                    .dereference(loc, builder)
+                    .store(loc, builder, width);
                 allocSize = builder.create<MulIOp>(loc, width, height);
               } else
-                allocSize = Visit(expr->getArg(1)).getValue(builder);
+                allocSize = Visit(expr->getArg(1)).getValue(loc, builder);
               auto idxType = mlir::IndexType::get(builder.getContext());
               mlir::Value args[1] = {builder.create<DivUIOp>(
                   loc, builder.create<IndexCastOp>(loc, idxType, allocSize),
@@ -1767,7 +1774,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                       : mt,
                   args);
               ValueCategory(dst, /*isReference*/ true)
-                  .store(builder,
+                  .store(loc, builder,
                          builder.create<mlir::memref::CastOp>(loc, mt, alloc));
               auto retTy = getMLIRType(expr->getType());
               return make_pair(
@@ -1939,7 +1946,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   case clang::UnaryOperator::Opcode::UO_LNot: {
     assert(sub.val);
-    mlir::Value val = sub.getValue(builder);
+    mlir::Value val = sub.getValue(loc, builder);
 
     if (auto MT = val.getType().dyn_cast<mlir::MemRefType>()) {
       val = builder.create<polygeist::Memref2PointerOp>(
@@ -1973,7 +1980,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   case clang::UnaryOperator::Opcode::UO_Not: {
     assert(sub.val);
-    mlir::Value val = sub.getValue(builder);
+    mlir::Value val = sub.getValue(loc, builder);
 
     if (!val.getType().isa<mlir::IntegerType>()) {
       U->dump();
@@ -1986,7 +1993,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
                          /*isReference*/ false);
   }
   case clang::UnaryOperator::Opcode::UO_Deref: {
-    auto dref = sub.dereference(builder);
+    auto dref = sub.dereference(loc, builder);
     return dref;
   }
   case clang::UnaryOperator::Opcode::UO_AddrOf: {
@@ -2012,7 +2019,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     return sub;
   }
   case clang::UnaryOperator::Opcode::UO_Minus: {
-    mlir::Value val = sub.getValue(builder);
+    mlir::Value val = sub.getValue(loc, builder);
     auto ty = val.getType();
     if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
       if (auto CI = val.getDefiningOp<ConstantFloatOp>()) {
@@ -2041,7 +2048,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   case clang::UnaryOperator::Opcode::UO_PreInc:
   case clang::UnaryOperator::Opcode::UO_PostInc: {
     assert(sub.isReference);
-    auto prev = sub.getValue(builder);
+    auto prev = sub.getValue(loc, builder);
     auto ty = prev.getType();
 
     mlir::Value next;
@@ -2083,7 +2090,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
           loc, prev,
           builder.create<ConstantIntOp>(loc, 1, ty.cast<mlir::IntegerType>()));
     }
-    sub.store(builder, next);
+    sub.store(loc, builder, next);
 
     if (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PreInc)
       return sub;
@@ -2094,7 +2101,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   case clang::UnaryOperator::Opcode::UO_PostDec: {
     auto ty = getMLIRType(U->getType());
     assert(sub.isReference);
-    auto prev = sub.getValue(builder);
+    auto prev = sub.getValue(loc, builder);
 
     mlir::Value next;
     if (auto ft = ty.dyn_cast<mlir::FloatType>()) {
@@ -2125,7 +2132,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
           loc, prev,
           builder.create<ConstantIntOp>(loc, 1, ty.cast<mlir::IntegerType>()));
     }
-    sub.store(builder, next);
+    sub.store(loc, builder, next);
     return ValueCategory(
         (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
                                                                      : next,
@@ -2290,8 +2297,8 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
 
   switch (BO->getOp()) {
   case AtomicExpr::AtomicOp::AO__atomic_add_fetch: {
-    auto a0 = Visit(BO->getPtr()).getValue(builder);
-    auto a1 = Visit(BO->getVal1()).getValue(builder);
+    auto a0 = Visit(BO->getPtr()).getValue(loc, builder);
+    auto a1 = Visit(BO->getVal1()).getValue(loc, builder);
     auto ty = a1.getType();
     AtomicRMWKind op;
     LLVM::AtomicBinOp lop;
@@ -2359,7 +2366,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   switch (BO->getOpcode()) {
   case clang::BinaryOperator::Opcode::BO_LAnd: {
     mlir::Type types[] = {builder.getIntegerType(1)};
-    auto cond = lhs.getValue(builder);
+    auto cond = lhs.getValue(loc, builder);
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
@@ -2383,7 +2390,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     auto oldblock = builder.getInsertionBlock();
     builder.setInsertionPointToStart(&ifOp.getThenRegion().back());
 
-    auto rhs = Visit(BO->getRHS()).getValue(builder);
+    auto rhs = Visit(BO->getRHS()).getValue(loc, builder);
     assert(rhs != nullptr);
     if (auto LT = rhs.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
@@ -2408,7 +2415,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_LOr: {
     mlir::Type types[] = {builder.getIntegerType(1)};
-    auto cond = lhs.getValue(builder);
+    auto cond = lhs.getValue(loc, builder);
     auto prevTy = cond.getType().cast<mlir::IntegerType>();
     if (!prevTy.isInteger(1)) {
       cond = builder.create<arith::CmpIOp>(
@@ -2426,7 +2433,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     builder.create<mlir::scf::YieldOp>(loc, truearray);
 
     builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
-    auto rhs = Visit(BO->getRHS()).getValue(builder);
+    auto rhs = Visit(BO->getRHS()).getValue(loc, builder);
     if (!rhs.getType().cast<mlir::IntegerType>().isInteger(1)) {
       rhs = builder.create<arith::CmpIOp>(
           loc, CmpIPredicate::ne, rhs,
@@ -2458,8 +2465,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   switch (BO->getOpcode()) {
   case clang::BinaryOperator::Opcode::BO_Shr: {
-    auto lhsv = lhs.getValue(builder);
-    auto rhsv = rhs.getValue(builder);
+    auto lhsv = lhs.getValue(loc, builder);
+    auto rhsv = rhs.getValue(loc, builder);
     auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
     auto postTy = lhsv.getType().cast<mlir::IntegerType>();
     if (prevTy.getWidth() < postTy.getWidth())
@@ -2475,8 +2482,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                            /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_Shl: {
-    auto lhsv = lhs.getValue(builder);
-    auto rhsv = rhs.getValue(builder);
+    auto lhsv = lhs.getValue(loc, builder);
+    auto rhsv = rhs.getValue(loc, builder);
     auto prevTy = rhsv.getType().cast<mlir::IntegerType>();
     auto postTy = lhsv.getType().cast<mlir::IntegerType>();
     if (prevTy.getWidth() < postTy.getWidth())
@@ -2488,31 +2495,31 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
                          /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_And: {
-    return ValueCategory(builder.create<AndIOp>(loc, lhs.getValue(builder),
-                                                rhs.getValue(builder)),
+    return ValueCategory(builder.create<AndIOp>(loc, lhs.getValue(loc, builder),
+                                                rhs.getValue(loc, builder)),
                          /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_Xor: {
-    return ValueCategory(builder.create<XOrIOp>(loc, lhs.getValue(builder),
-                                                rhs.getValue(builder)),
+    return ValueCategory(builder.create<XOrIOp>(loc, lhs.getValue(loc, builder),
+                                                rhs.getValue(loc, builder)),
                          /*isReference*/ false);
   }
   case clang::BinaryOperator::Opcode::BO_Or: {
     // TODO short circuit
-    return ValueCategory(builder.create<OrIOp>(loc, lhs.getValue(builder),
-                                               rhs.getValue(builder)),
+    return ValueCategory(builder.create<OrIOp>(loc, lhs.getValue(loc, builder),
+                                               rhs.getValue(loc, builder)),
                          /*isReference*/ false);
   }
     {
-      auto lhs_v = lhs.getValue(builder);
+      auto lhs_v = lhs.getValue(loc, builder);
       mlir::Value res;
       if (lhs_v.getType().isa<mlir::FloatType>()) {
         res = builder.create<CmpFOp>(loc, CmpFPredicate::UGT, lhs_v,
-                                     rhs.getValue(builder));
+                                     rhs.getValue(loc, builder));
       } else {
         res = builder.create<CmpIOp>(
             loc, signedType ? CmpIPredicate::sgt : CmpIPredicate::ugt, lhs_v,
-            rhs.getValue(builder));
+            rhs.getValue(loc, builder));
       }
       return fixInteger(res);
     }
@@ -2567,8 +2574,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       llvm_unreachable("Unknown op in binary comparision switch");
     }
 
-    auto lhs_v = lhs.getValue(builder);
-    auto rhs_v = rhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
+    auto rhs_v = rhs.getValue(loc, builder);
     if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
       lhs_v = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
@@ -2588,55 +2595,55 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return fixInteger(res);
   }
   case clang::BinaryOperator::Opcode::BO_Mul: {
-    auto lhs_v = lhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
-          builder.create<arith::MulFOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<arith::MulFOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
     } else {
       return ValueCategory(
-          builder.create<arith::MulIOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<arith::MulIOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
     }
   }
   case clang::BinaryOperator::Opcode::BO_Div: {
-    auto lhs_v = lhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
-          builder.create<arith::DivFOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<arith::DivFOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
       ;
     } else {
       if (signedType)
-        return ValueCategory(
-            builder.create<arith::DivSIOp>(loc, lhs_v, rhs.getValue(builder)),
-            /*isReference*/ false);
+        return ValueCategory(builder.create<arith::DivSIOp>(
+                                 loc, lhs_v, rhs.getValue(loc, builder)),
+                             /*isReference*/ false);
       else
-        return ValueCategory(
-            builder.create<arith::DivUIOp>(loc, lhs_v, rhs.getValue(builder)),
-            /*isReference*/ false);
+        return ValueCategory(builder.create<arith::DivUIOp>(
+                                 loc, lhs_v, rhs.getValue(loc, builder)),
+                             /*isReference*/ false);
     }
   }
   case clang::BinaryOperator::Opcode::BO_Rem: {
-    auto lhs_v = lhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
-          builder.create<arith::RemFOp>(loc, lhs_v, rhs.getValue(builder)),
+          builder.create<arith::RemFOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
     } else {
       if (signedType)
-        return ValueCategory(
-            builder.create<arith::RemSIOp>(loc, lhs_v, rhs.getValue(builder)),
-            /*isReference*/ false);
+        return ValueCategory(builder.create<arith::RemSIOp>(
+                                 loc, lhs_v, rhs.getValue(loc, builder)),
+                             /*isReference*/ false);
       else
-        return ValueCategory(
-            builder.create<arith::RemUIOp>(loc, lhs_v, rhs.getValue(builder)),
-            /*isReference*/ false);
+        return ValueCategory(builder.create<arith::RemUIOp>(
+                                 loc, lhs_v, rhs.getValue(loc, builder)),
+                             /*isReference*/ false);
     }
   }
   case clang::BinaryOperator::Opcode::BO_Add: {
-    auto lhs_v = lhs.getValue(builder);
-    auto rhs_v = rhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
+    auto rhs_v = rhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
@@ -2671,8 +2678,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
   }
   case clang::BinaryOperator::Opcode::BO_Sub: {
-    auto lhs_v = lhs.getValue(builder);
-    auto rhs_v = rhs.getValue(builder);
+    auto lhs_v = lhs.getValue(loc, builder);
+    auto rhs_v = rhs.getValue(loc, builder);
     if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
       lhs_v = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
@@ -2716,7 +2723,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Assign: {
     assert(lhs.isReference);
-    mlir::Value tostore = rhs.getValue(builder);
+    mlir::Value tostore = rhs.getValue(loc, builder);
     mlir::Type subType;
     if (auto PT = lhs.val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>())
       subType = PT.getElementType();
@@ -2745,7 +2752,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
         }
       }
     }
-    lhs.store(builder, tostore);
+    lhs.store(loc, builder, tostore);
     return lhs;
   }
 
@@ -2755,11 +2762,11 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
   case clang::BinaryOperator::Opcode::BO_AddAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
     if (auto postTy = prev.getType().dyn_cast<mlir::FloatType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
+      mlir::Value rhsV = rhs.getValue(loc, builder);
       auto prevTy = rhsV.getType().cast<mlir::FloatType>();
       if (prevTy == postTy) {
       } else if (prevTy.getWidth() < postTy.getWidth()) {
@@ -2772,9 +2779,10 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else if (auto pt =
                    prev.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       result = builder.create<LLVM::GEPOp>(
-          loc, pt, prev, std::vector<mlir::Value>({rhs.getValue(builder)}));
+          loc, pt, prev,
+          std::vector<mlir::Value>({rhs.getValue(loc, builder)}));
     } else if (auto postTy = prev.getType().dyn_cast<mlir::IntegerType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
+      mlir::Value rhsV = rhs.getValue(loc, builder);
       auto prevTy = rhsV.getType().cast<mlir::IntegerType>();
       if (prevTy == postTy) {
       } else if (prevTy.getWidth() < postTy.getWidth()) {
@@ -2789,7 +2797,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       assert(rhsV.getType() == prev.getType());
       result = builder.create<AddIOp>(loc, prev, rhsV);
     } else if (auto postTy = prev.getType().dyn_cast<mlir::MemRefType>()) {
-      mlir::Value rhsV = rhs.getValue(builder);
+      mlir::Value rhsV = rhs.getValue(loc, builder);
       auto shape = std::vector<int64_t>(postTy.getShape());
       shape[0] = -1;
       postTy = mlir::MemRefType::get(shape, postTy.getElementType(),
@@ -2801,16 +2809,16 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else {
       assert(false && "Unsupported add assign type");
     }
-    lhs.store(builder, result);
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_SubAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
     if (prev.getType().isa<mlir::FloatType>()) {
-      auto right = rhs.getValue(builder);
+      auto right = rhs.getValue(loc, builder);
       if (right.getType() != prev.getType()) {
         auto prevTy = right.getType().cast<mlir::FloatType>();
         auto postTy = getMLIRType(BO->getType()).cast<mlir::FloatType>();
@@ -2828,18 +2836,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       assert(right.getType() == prev.getType());
       result = builder.create<SubFOp>(loc, prev, right);
     } else {
-      result = builder.create<SubIOp>(loc, prev, rhs.getValue(builder));
+      result = builder.create<SubIOp>(loc, prev, rhs.getValue(loc, builder));
     }
-    lhs.store(builder, result);
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_MulAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
     if (prev.getType().isa<mlir::FloatType>()) {
-      auto right = rhs.getValue(builder);
+      auto right = rhs.getValue(loc, builder);
       if (right.getType() != prev.getType()) {
         auto prevTy = right.getType().cast<mlir::FloatType>();
         auto postTy = getMLIRType(BO->getType()).cast<mlir::FloatType>();
@@ -2857,18 +2865,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       assert(right.getType() == prev.getType());
       result = builder.create<MulFOp>(loc, prev, right);
     } else {
-      result = builder.create<MulIOp>(loc, prev, rhs.getValue(builder));
+      result = builder.create<MulIOp>(loc, prev, rhs.getValue(loc, builder));
     }
-    lhs.store(builder, result);
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_DivAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
     if (prev.getType().isa<mlir::FloatType>()) {
-      mlir::Value val = rhs.getValue(builder);
+      mlir::Value val = rhs.getValue(loc, builder);
       auto prevTy = val.getType().cast<mlir::FloatType>();
       auto postTy = prev.getType().cast<mlir::FloatType>();
 
@@ -2880,79 +2888,79 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       result = builder.create<arith::DivFOp>(loc, prev, val);
     } else {
       if (signedType)
-        result =
-            builder.create<arith::DivSIOp>(loc, prev, rhs.getValue(builder));
+        result = builder.create<arith::DivSIOp>(loc, prev,
+                                                rhs.getValue(loc, builder));
       else
-        result =
-            builder.create<arith::DivUIOp>(loc, prev, rhs.getValue(builder));
+        result = builder.create<arith::DivUIOp>(loc, prev,
+                                                rhs.getValue(loc, builder));
     }
-    lhs.store(builder, result);
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_ShrAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
 
     if (signedType)
-      result = builder.create<ShRSIOp>(loc, prev, rhs.getValue(builder));
+      result = builder.create<ShRSIOp>(loc, prev, rhs.getValue(loc, builder));
     else
-      result = builder.create<ShRUIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
+      result = builder.create<ShRUIOp>(loc, prev, rhs.getValue(loc, builder));
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_ShlAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result =
-        builder.create<ShLIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
+        builder.create<ShLIOp>(loc, prev, rhs.getValue(loc, builder));
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_RemAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result;
 
     if (prev.getType().isa<mlir::FloatType>()) {
-      result = builder.create<RemFOp>(loc, prev, rhs.getValue(builder));
+      result = builder.create<RemFOp>(loc, prev, rhs.getValue(loc, builder));
     } else {
       if (signedType)
-        result = builder.create<RemSIOp>(loc, prev, rhs.getValue(builder));
+        result = builder.create<RemSIOp>(loc, prev, rhs.getValue(loc, builder));
       else
-        result = builder.create<RemUIOp>(loc, prev, rhs.getValue(builder));
+        result = builder.create<RemUIOp>(loc, prev, rhs.getValue(loc, builder));
     }
-    lhs.store(builder, result);
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_AndAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result =
-        builder.create<AndIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
+        builder.create<AndIOp>(loc, prev, rhs.getValue(loc, builder));
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_OrAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result =
-        builder.create<OrIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
+        builder.create<OrIOp>(loc, prev, rhs.getValue(loc, builder));
+    lhs.store(loc, builder, result);
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_XorAssign: {
     assert(lhs.isReference);
-    auto prev = lhs.getValue(builder);
+    auto prev = lhs.getValue(loc, builder);
 
     mlir::Value result =
-        builder.create<XOrIOp>(loc, prev, rhs.getValue(builder));
-    lhs.store(builder, result);
+        builder.create<XOrIOp>(loc, prev, rhs.getValue(loc, builder));
+    lhs.store(loc, builder, result);
     return lhs;
   }
 
@@ -3032,7 +3040,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(mlir::Location loc,
     }
     if (isLValue)
       commonGEP =
-          ValueCategory(commonGEP, /*isReference*/ true).getValue(builder);
+          ValueCategory(commonGEP, /*isReference*/ true).getValue(loc, builder);
     return ValueCategory(commonGEP, /*isReference*/ true);
   }
   auto mt = val.getType().cast<MemRefType>();
@@ -3054,7 +3062,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(mlir::Location loc,
   mlir::Value sub1 = builder.create<polygeist::SubIndexOp>(
       loc, mt1, sub0, getConstantIndex(fnum));
   if (isLValue)
-    sub1 = ValueCategory(sub1, /*isReference*/ true).getValue(builder);
+    sub1 = ValueCategory(sub1, /*isReference*/ true).getValue(loc, builder);
   return ValueCategory(sub1, /*isReference*/ true);
 }
 
@@ -3168,7 +3176,7 @@ MLIRScanner::VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr) {
       loc, cast<CXXMethodDecl>(EmittingFunctionDecl)->getThisObjectType(),
       expr->getField(), ThisVal.val, /*isLValue*/ false);
   assert(cfl.val);
-  cfl.store(builder, toset, isArray);
+  cfl.store(loc, builder, toset, isArray);
   return cfl;
 }
 
@@ -3207,7 +3215,7 @@ ValueCategory MLIRScanner::VisitMemberExpr(MemberExpr *ME) {
     if (!base.val) {
       ME->dump();
     }
-    base = base.dereference(builder);
+    base = base.dereference(loc, builder);
     OT = cast<clang::PointerType>(OT->getUnqualifiedDesugaredType())
              ->getPointeeType();
   }
@@ -3535,13 +3543,13 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                            ->getPointeeType());
               mlir::Value allocSize = builder.create<IndexCastOp>(
                   loc, mlir::IndexType::get(builder.getContext()),
-                  Visit(CI->getArg(0)).getValue(builder));
+                  Visit(CI->getArg(0)).getValue(loc, builder));
               if (sr->getDecl()->getName() == "calloc") {
                 allocSize = builder.create<MulIOp>(
                     loc, allocSize,
                     builder.create<arith::IndexCastOp>(
                         loc, mlir::IndexType::get(builder.getContext()),
-                        Visit(CI->getArg(1)).getValue(builder)));
+                        Visit(CI->getArg(1)).getValue(loc, builder)));
               }
               mlir::Value args[1] = {
                   builder.create<DivUIOp>(loc, allocSize, elemSize)};
@@ -3576,7 +3584,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (!se.val) {
       E->dump();
     }
-    auto scalar = se.getValue(builder);
+    auto scalar = se.getValue(loc, builder);
     if (auto spt = scalar.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nt = getMLIRType(E->getType());
       LLVM::LLVMPointerType pt = nt.dyn_cast<LLVM::LLVMPointerType>();
@@ -3665,7 +3673,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (isArray)
       return prev;
 
-    auto lres = prev.getValue(builder);
+    auto lres = prev.getValue(loc, builder);
     if (!prev.isReference) {
       E->dump();
       lres.dump();
@@ -3674,7 +3682,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return ValueCategory(lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     auto ty = getMLIRType(E->getType()).cast<mlir::FloatType>();
     bool signedType = true;
     if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
@@ -3693,7 +3701,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           /*isReference*/ false);
   }
   case clang::CastKind::CK_FloatingToIntegral: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     auto ty = getMLIRType(E->getType()).cast<mlir::IntegerType>();
     bool signedType = true;
     if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getType())) {
@@ -3712,7 +3720,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
           /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralCast: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     assert(scalar);
     auto postTy = getMLIRType(E->getType()).cast<mlir::IntegerType>();
     if (scalar.getType().isa<mlir::LLVM::LLVMPointerType>()) {
@@ -3783,7 +3791,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
   }
   case clang::CastKind::CK_FloatingCast: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     if (!scalar.getType().isa<mlir::FloatType>()) {
       E->dump();
       llvm::errs() << "scalar: " << scalar << "\n";
@@ -3847,7 +3855,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return nullptr;
   }
   case clang::CastKind::CK_PointerToBoolean: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     if (auto mt = scalar.getType().dyn_cast<mlir::MemRefType>()) {
       scalar = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(mt.getElementType()), scalar);
@@ -3864,7 +3872,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     assert(0 && "unhandled ptrtobool cast");
   }
   case clang::CastKind::CK_PointerToIntegral: {
-    auto scalar = Visit(E->getSubExpr()).getValue(builder);
+    auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
     if (auto mt = scalar.getType().dyn_cast<mlir::MemRefType>()) {
       scalar = builder.create<polygeist::Memref2PointerOp>(
           loc, LLVM::LLVMPointerType::get(mt.getElementType()), scalar);
@@ -3880,7 +3888,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     assert(0 && "unhandled ptrtoint cast");
   }
   case clang::CastKind::CK_IntegralToBoolean: {
-    auto res = Visit(E->getSubExpr()).getValue(builder);
+    auto res = Visit(E->getSubExpr()).getValue(loc, builder);
     auto prevTy = res.getType().cast<mlir::IntegerType>();
     res = builder.create<arith::CmpIOp>(
         loc, CmpIPredicate::ne, res,
@@ -3903,7 +3911,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     return ValueCategory(res, /*isReference*/ false);
   }
   case clang::CastKind::CK_FloatingToBoolean: {
-    auto res = Visit(E->getSubExpr()).getValue(builder);
+    auto res = Visit(E->getSubExpr()).getValue(loc, builder);
     auto prevTy = res.getType().cast<mlir::FloatType>();
     auto postTy = getMLIRType(E->getType()).cast<mlir::IntegerType>();
     bool signedType = true;
@@ -3931,7 +3939,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       E->dump();
     }
     assert(vc.val);
-    auto res = vc.getValue(builder);
+    auto res = vc.getValue(loc, builder);
     auto postTy = getMLIRType(E->getType());
     if (postTy.isa<LLVM::LLVMPointerType>())
       res = builder.create<LLVM::IntToPtrOp>(loc, postTy, res);
@@ -3955,7 +3963,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 ValueCategory
 MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   auto loc = getMLIRLocation(E->getExprLoc());
-  auto cond = Visit(E->getCond()).getValue(builder);
+  auto cond = Visit(E->getCond()).getValue(loc, builder);
   assert(cond != nullptr);
   if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
@@ -4001,7 +4009,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
             llvm::errs() << " trueExpr: " << trueExpr.val << "\n";
             assert(0);
           }
-      truev = trueExpr.getValue(builder);
+      truev = trueExpr.getValue(loc, builder);
     }
     assert(truev != nullptr);
     truearray.push_back(truev);
@@ -4018,7 +4026,7 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
       assert(falseExpr.isReference);
       falsev = falseExpr.val;
     } else
-      falsev = falseExpr.getValue(builder);
+      falsev = falseExpr.getValue(loc, builder);
     assert(falsev != nullptr);
     falsearray.push_back(falsev);
     builder.create<mlir::scf::YieldOp>(loc, falsearray);
@@ -4227,7 +4235,8 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     if (auto init = VD->getInit()) {
       MLIRScanner ms(*this, module, LTInfo);
       ms.setEntryAndAllocBlock(blk);
-      res = ms.Visit(const_cast<Expr *>(init)).getValue(builder);
+      res = ms.Visit(const_cast<Expr *>(init))
+                .getValue(getMLIRLocation(init->getBeginLoc()), builder);
     } else {
       res = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
     }
