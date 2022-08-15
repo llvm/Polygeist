@@ -1,6 +1,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/Passes.h"
 #include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -1910,6 +1911,10 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
       auto arg = std::get<0>(pair);
       auto afarg = std::get<1>(pair);
       auto res = std::get<2>(pair);
+      if (!op.getBefore().isAncestor(arg.getParentRegion())) {
+        res.replaceAllUsesWith(arg);
+        afarg.replaceAllUsesWith(arg);
+      }
       if (afarg.use_empty() && res.use_empty()) {
         eraseArgs.push_back((unsigned)i);
       } else if (valueOffsets.find(arg.getAsOpaquePointer()) !=
@@ -2088,6 +2093,129 @@ struct RemoveUnusedResults : public OpRewritePattern<IfOp> {
   }
 };
 
+// If and and with something is preventing creating a for
+// move the and into the after body guarded by an if
+struct WhileShiftToInduction : public OpRewritePattern<WhileOp> {
+  using OpRewritePattern<WhileOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(WhileOp loop,
+                                PatternRewriter &rewriter) const override {
+    auto condOp = loop.getConditionOp();
+
+    if (!llvm::hasNItems(loop.getBefore().back(), 2))
+      return failure();
+
+    auto cmpIOp = condOp.getCondition().getDefiningOp<CmpIOp>();
+    if (!cmpIOp) {
+      return failure();
+    }
+
+    if (cmpIOp.getPredicate() != CmpIPredicate::ugt)
+      return failure();
+
+    if (!matchPattern(cmpIOp.getRhs(), m_Zero()))
+      return failure();
+
+    auto indVar = cmpIOp.getLhs().dyn_cast<BlockArgument>();
+    if (!indVar)
+      return failure();
+
+    if (indVar.getOwner() != &loop.getBefore().front())
+      return failure();
+
+    auto endYield = cast<YieldOp>(loop.getAfter().back().getTerminator());
+
+    // Check that the block argument is actually an induction var:
+    //   Namely, its next value adds to the previous with an invariant step.
+    auto shiftOp =
+        endYield.getResults()[indVar.getArgNumber()].getDefiningOp<ShRUIOp>();
+    if (!shiftOp)
+      return failure();
+
+    if (!matchPattern(shiftOp.getRhs(), m_One()))
+      return failure();
+
+    auto prevIndVar = shiftOp.getLhs().dyn_cast<BlockArgument>();
+    if (!prevIndVar)
+      return failure();
+
+    if (prevIndVar.getOwner() != &loop.getAfter().front())
+      return failure();
+
+    if (condOp.getOperand(1 + prevIndVar.getArgNumber()) != indVar)
+      return failure();
+
+    auto startingV = loop.getInits()[indVar.getArgNumber()];
+
+    Value lz =
+        rewriter.create<math::CountLeadingZerosOp>(loop.getLoc(), startingV);
+    if (!lz.getType().isIndex())
+      lz = rewriter.create<IndexCastOp>(loop.getLoc(), rewriter.getIndexType(),
+                                        lz);
+
+    auto len = rewriter.create<SubIOp>(
+        loop.getLoc(),
+        rewriter.create<ConstantIndexOp>(
+            loop.getLoc(), indVar.getType().getIntOrFloatBitWidth()),
+        lz);
+
+    SmallVector<Value> newInits(loop.getInits());
+    newInits[indVar.getArgNumber()] =
+        rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
+    SmallVector<Type> postTys(loop.getResultTypes());
+    postTys.push_back(rewriter.getIndexType());
+
+    auto newWhile = rewriter.create<WhileOp>(loop.getLoc(), postTys, newInits);
+    rewriter.createBlock(&newWhile.getBefore());
+
+    BlockAndValueMapping map;
+    Value newIndVar;
+    for (auto a : loop.getBefore().front().getArguments()) {
+      auto arg = newWhile.getBefore().addArgument(
+          a == indVar ? rewriter.getIndexType() : a.getType(), a.getLoc());
+      if (a != indVar)
+        map.map(a, arg);
+      else
+        newIndVar = arg;
+    }
+
+    rewriter.setInsertionPointToEnd(&newWhile.getBefore().front());
+    Value newCmp = rewriter.create<CmpIOp>(cmpIOp.getLoc(), CmpIPredicate::ult,
+                                           newIndVar, len);
+    map.map(cmpIOp, newCmp);
+
+    Value newIndVarTyped = newIndVar;
+    if (newIndVarTyped.getType() != indVar.getType())
+      newIndVarTyped = rewriter.create<arith::IndexCastOp>(
+          shiftOp.getLoc(), indVar.getType(), newIndVar);
+    map.map(indVar, rewriter.create<ShRUIOp>(shiftOp.getLoc(), startingV,
+                                             newIndVarTyped));
+    SmallVector<Value> remapped;
+    for (auto o : condOp.getArgs())
+      remapped.push_back(map.lookup(o));
+    remapped.push_back(newIndVar);
+    rewriter.create<ConditionOp>(condOp.getLoc(), newCmp, remapped);
+
+    newWhile.getAfter().takeBody(loop.getAfter());
+
+    auto newPostInd = newWhile.getAfter().front().addArgument(
+        rewriter.getIndexType(), loop.getLoc());
+    auto yieldOp =
+        cast<scf::YieldOp>(newWhile.getAfter().front().getTerminator());
+    SmallVector<Value> yields(yieldOp.getOperands());
+    rewriter.setInsertionPointToEnd(&newWhile.getAfter().front());
+    yields[indVar.getArgNumber()] = rewriter.create<AddIOp>(
+        loop.getLoc(), newPostInd,
+        rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), 1));
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(yieldOp, yields);
+
+    SmallVector<Value> res(newWhile.getResults());
+    res.pop_back();
+    rewriter.replaceOp(loop, res);
+    return success();
+  }
+};
+
 void CanonicalizeFor::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<PropagateInLoopBody, ForOpInductionReplacement, RemoveUnusedArgs,
@@ -2096,6 +2224,8 @@ void CanonicalizeFor::runOnOperation() {
           MoveWhileDown, MoveWhileDown2,
 
           ReplaceRedundantArgs,
+
+          WhileShiftToInduction,
 
           ForBreakAddUpgrade, RemoveUnusedResults,
 
