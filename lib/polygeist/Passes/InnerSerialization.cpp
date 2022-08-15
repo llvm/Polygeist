@@ -89,5 +89,5 @@ std::unique_ptr<Pass> mlir::polygeist::createInnerSerializationPass() {
   return std::make_unique<InnerSerialization>();
 }
 std::unique_ptr<Pass> mlir::polygeist::createSerializationPass() {
-  return std::make_unique<InnerSerialization>();
+  return std::make_unique<Serialize>();
 }
