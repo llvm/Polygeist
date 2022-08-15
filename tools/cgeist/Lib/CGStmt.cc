@@ -28,6 +28,7 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
   auto *init = fors->getInit();
   if (auto *declStmt = dyn_cast<DeclStmt>(init))
     if (declStmt->isSingleDecl()) {
+      auto loc = getMLIRLocation(declStmt->getBeginLoc());
       auto *decl = declStmt->getSingleDecl();
       if (auto *varDecl = dyn_cast<VarDecl>(decl)) {
         if (varDecl->hasInit()) {
@@ -53,6 +54,7 @@ bool MLIRScanner::getLowerBound(clang::ForStmt *fors,
   if (auto *binOp = dyn_cast<clang::BinaryOperator>(init))
     if (binOp->getOpcode() == clang::BinaryOperator::Opcode::BO_Assign)
       if (auto *declRefStmt = dyn_cast<DeclRefExpr>(binOp->getLHS())) {
+        auto loc = getMLIRLocation(binOp->getExprLoc());
         mlir::Value val = Visit(binOp->getRHS()).getValue(builder);
         val = builder.create<IndexCastOp>(
             loc, mlir::IndexType::get(builder.getContext()), val);
@@ -88,6 +90,7 @@ bool MLIRScanner::getUpperBound(clang::ForStmt *fors,
   auto *cond = fors->getCond();
   if (auto *binaryOp = dyn_cast<clang::BinaryOperator>(cond)) {
     auto *lhs = binaryOp->getLHS();
+    auto loc = getMLIRLocation(binaryOp->getExprLoc());
     if (!matchIndvar(lhs, descr.getName()))
       return false;
 
@@ -385,6 +388,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
 
 ValueCategory
 MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *par) {
+  auto loc = getMLIRLocation(par->getBeginLoc());
   IfScope scope(*this);
 
   builder.create<omp::BarrierOp>(loc);
@@ -418,6 +422,7 @@ MLIRScanner::VisitOMPSingleDirective(clang::OMPSingleDirective *par) {
 
 ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *fors) {
   IfScope scope(*this);
+  auto loc = getMLIRLocation(fors->getBeginLoc());
 
   if (fors->getPreInits()) {
     Visit(fors->getPreInits());
@@ -524,6 +529,7 @@ ValueCategory
 MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
   IfScope scope(*this);
 
+  auto loc = getMLIRLocation(par->getBeginLoc());
   auto affineOp = builder.create<omp::ParallelOp>(loc);
 
   auto oldpoint = builder.getInsertionPoint();
@@ -591,6 +597,7 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
 ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     clang::OMPParallelForDirective *fors) {
   IfScope scope(*this);
+  auto loc = getMLIRLocation(fors->getBeginLoc());
 
   if (fors->getPreInits()) {
     Visit(fors->getPreInits());
@@ -863,14 +870,15 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
   assert(cond != nullptr);
   SmallVector<int64_t> caseVals;
 
-  auto er = builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  auto er = builder.create<scf::ExecuteRegionOp>(
+      getMLIRLocation(stmt->getSwitchLoc()), ArrayRef<mlir::Type>());
   er.getRegion().push_back(new Block());
   auto oldpoint2 = builder.getInsertionPoint();
   auto *oldblock2 = builder.getInsertionBlock();
 
   auto &exitB = *(new Block());
   builder.setInsertionPointToStart(&exitB);
-  builder.create<scf::YieldOp>(loc);
+  builder.create<scf::YieldOp>(getMLIRLocation(stmt->getSwitchLoc()));
   builder.setInsertionPointToStart(&exitB);
 
   SmallVector<Block *> blocks;
@@ -880,6 +888,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 
   for (auto *cse : stmt->getBody()->children()) {
     if (auto *cses = dyn_cast<CaseStmt>(cse)) {
+      auto loc = getMLIRLocation(cses->getCaseLoc());
       auto &condB = *(new Block());
 
       auto cval = Visit(cses->getLHS());
@@ -917,6 +926,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
                                             loops.back().keepRunning);
       Visit(cses->getSubStmt());
     } else if (auto *cses = dyn_cast<DefaultStmt>(cse)) {
+      auto loc = getMLIRLocation(cses->getDefaultLoc());
       auto &condB = *(new Block());
 
       if (inCase) {
@@ -954,6 +964,7 @@ ValueCategory MLIRScanner::VisitSwitchStmt(clang::SwitchStmt *stmt) {
 
   if (inCase)
     loops.pop_back();
+  auto loc = getMLIRLocation(stmt->getSwitchLoc());
   builder.create<mlir::cf::BranchOp>(loc, &exitB);
 
   er.getRegion().getBlocks().push_back(&exitB);
@@ -1022,6 +1033,7 @@ ValueCategory MLIRScanner::VisitCompoundStmt(clang::CompoundStmt *stmt) {
 
 ValueCategory MLIRScanner::VisitBreakStmt(clang::BreakStmt *stmt) {
   IfScope scope(*this);
+  auto loc = getMLIRLocation(stmt->getBreakLoc());
   assert(loops.size() && "must be non-empty");
   assert(loops.back().keepRunning && "keep running false");
   assert(loops.back().noBreak && "no break false");
@@ -1035,6 +1047,7 @@ ValueCategory MLIRScanner::VisitBreakStmt(clang::BreakStmt *stmt) {
 
 ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
   IfScope scope(*this);
+  auto loc = getMLIRLocation(stmt->getContinueLoc());
   assert(loops.size() && "must be non-empty");
   assert(loops.back().keepRunning && "keep running false");
   auto vfalse =
@@ -1044,6 +1057,7 @@ ValueCategory MLIRScanner::VisitContinueStmt(clang::ContinueStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
+  auto loc = getMLIRLocation(stmt->getIdentLoc());
   auto *toadd = builder.getInsertionBlock()->getParent();
   Block *labelB;
   auto found = labels.find(stmt);
@@ -1061,6 +1075,7 @@ ValueCategory MLIRScanner::VisitLabelStmt(clang::LabelStmt *stmt) {
 }
 
 ValueCategory MLIRScanner::VisitGotoStmt(clang::GotoStmt *stmt) {
+  auto loc = getMLIRLocation(stmt->getGotoLoc());
   auto *labelstmt = stmt->getLabel()->getStmt();
   Block *labelB;
   auto found = labels.find(labelstmt);
@@ -1084,6 +1099,8 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
   IfScope scope(*this);
   bool isArrayReturn = false;
   Glob.getMLIRType(EmittingFunctionDecl->getReturnType(), &isArrayReturn);
+
+  auto loc = getMLIRLocation(stmt->getReturnLoc());
 
   if (isArrayReturn) {
     auto rv = Visit(stmt->getRetValue());

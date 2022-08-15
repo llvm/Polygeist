@@ -84,6 +84,8 @@ ValueCategory MLIRScanner::CallHelper(
   SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getFunctionType();
 
+  auto loc = getMLIRLocation(expr->getExprLoc());
+
   size_t i = 0;
   // map from declaration name to mlir::value
   std::map<std::string, mlir::Value> mapFuncOperands;
@@ -421,9 +423,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             while (auto *CE = dyn_cast<llvm::ConstantExpr>(LC))
               LC = CE->getOperand(0);
             std::string val = cast<llvm::GlobalVariable>(LC)->getName().str();
-            return CommonArrayToPointer(ValueCategory(
-                Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
-                /*isReference*/ true));
+            return CommonArrayToPointer(
+                loc, ValueCategory(
+                         Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
+                         /*isReference*/ true));
           }
         }
     }
