@@ -268,7 +268,7 @@ void ParallelLower::runOnOperation() {
       callInliner(op);
 
     mlir::IRRewriter builder(launchOp.getContext());
-    auto loc = builder.getUnknownLoc();
+    auto loc = launchOp.getLoc();
 
     builder.setInsertionPoint(launchOp->getBlock(), launchOp->getIterator());
     auto zindex = builder.create<ConstantIndexOp>(loc, 0);

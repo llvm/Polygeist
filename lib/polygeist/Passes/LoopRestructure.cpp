@@ -292,9 +292,9 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
           if (Succs[j] == pseudoExit && Succs[1 - j] == Preds[1 - i]) {
             OpBuilder builder(Preds[i]->getTerminator());
             auto condBr = cast<cf::CondBranchOp>(Preds[i]->getTerminator());
-            auto ifOp = builder.create<scf::IfOp>(
-                builder.getUnknownLoc(), condTys, condBr.getCondition(),
-                /*hasElse*/ true);
+            auto ifOp = builder.create<scf::IfOp>(condBr.getLoc(), condTys,
+                                                  condBr.getCondition(),
+                                                  /*hasElse*/ true);
             Succs[j] = new Block();
             if (j == 0) {
               ifOp.getElseRegion().getBlocks().splice(
@@ -311,7 +311,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               assert(condTys.size() == condBr.getTrueOperands().size());
               OpBuilder tbuilder(&ifOp.getThenRegion().front(),
                                  ifOp.getThenRegion().front().begin());
-              tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys,
+              tbuilder.create<scf::YieldOp>(condBr.getLoc(), emptyTys,
                                             condBr.getTrueOperands());
             } else {
               if (!ifOp.getThenRegion().getBlocks().empty()) {
@@ -331,17 +331,16 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               OpBuilder tbuilder(&ifOp.getElseRegion().front(),
                                  ifOp.getElseRegion().front().begin());
               assert(condTys.size() == condBr.getFalseOperands().size());
-              tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys,
+              tbuilder.create<scf::YieldOp>(condBr.getLoc(), emptyTys,
                                             condBr.getFalseOperands());
             }
             auto *oldTerm = Succs[1 - j]->getTerminator();
             OpBuilder tbuilder(Succs[1 - j], Succs[1 - j]->end());
-            tbuilder.create<scf::YieldOp>(tbuilder.getUnknownLoc(), emptyTys,
+            tbuilder.create<scf::YieldOp>(condBr.getLoc(), emptyTys,
                                           oldTerm->getOperands());
             oldTerm->erase();
 
-            builder.create<scf::YieldOp>(builder.getUnknownLoc(),
-                                         ifOp->getResults());
+            builder.create<scf::YieldOp>(condBr.getLoc(), ifOp->getResults());
             condBr->erase();
 
             pseudoExit->erase();
@@ -385,9 +384,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
 
       // Copy the arguments across
       SmallVector<Type, 4> headerArgumentTypes(header->getArgumentTypes());
-      SmallVector<Location> locs(headerArgumentTypes.size(),
-                                 builder.getUnknownLoc());
-      wrapper->addArguments(headerArgumentTypes, locs);
+      SmallVector<Location, 4> headerArgumentLocs;
+      for (auto a : header->getArguments())
+        headerArgumentLocs.push_back(a.getLoc());
+      wrapper->addArguments(headerArgumentTypes, headerArgumentLocs);
 
       SmallVector<Value> valsCallingLoop;
       for (auto a : wrapper->getArguments())
@@ -405,8 +405,9 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 })) {
               preservedVals.emplace_back(V, headerArgumentTypes.size());
               headerArgumentTypes.push_back(V.getType());
-              valsCallingLoop.push_back(builder.create<mlir::LLVM::UndefOp>(
-                  builder.getUnknownLoc(), V.getType()));
+              headerArgumentLocs.push_back(V.getLoc());
+              valsCallingLoop.push_back(
+                  builder.create<mlir::LLVM::UndefOp>(V.getLoc(), V.getType()));
               header->addArgument(V.getType(), V.getLoc());
             }
           }
@@ -414,11 +415,18 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       }
 
       SmallVector<Type, 4> combinedTypes = headerArgumentTypes;
+      SmallVector<Location, 4> combinedLocs = headerArgumentLocs;
+
       SmallVector<Type, 4> returns(target->getArgumentTypes());
+      SmallVector<Location, 4> returnLocs;
+      for (auto a : target->getArguments())
+        returnLocs.push_back(a.getLoc());
       combinedTypes.append(returns);
+      combinedLocs.append(returnLocs);
+      assert(combinedTypes.size() == combinedLocs.size());
 
       auto loop = builder.create<mlir::scf::WhileOp>(
-          builder.getUnknownLoc(), combinedTypes, valsCallingLoop);
+          header->front().getLoc(), combinedTypes, valsCallingLoop);
       {
         SmallVector<Value, 4> RetVals;
         for (size_t i = 0; i < returns.size(); ++i) {
@@ -449,15 +457,18 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       SmallVector<Type, 4> tys = {builder.getI1Type()};
       for (auto t : combinedTypes)
         tys.push_back(t);
-      auto exec =
-          builder.create<scf::ExecuteRegionOp>(builder.getUnknownLoc(), tys);
+      SmallVector<Location, 4> locs = {region.getLoc()};
+      for (auto t : combinedLocs)
+        locs.push_back(t);
+      assert(tys.size() == locs.size());
+      auto exec = builder.create<scf::ExecuteRegionOp>(region.getLoc(), tys);
 
       {
         SmallVector<Value> yields;
         for (auto a : exec.getResults())
           yields.push_back(a);
         yields.erase(yields.begin());
-        builder.create<scf::ConditionOp>(builder.getUnknownLoc(),
+        builder.create<scf::ConditionOp>(header->getTerminator()->getLoc(),
                                          exec.getResult(0), yields);
       }
 
@@ -477,10 +488,10 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       Block *pseudoExit = new Block();
       {
         insertRegion.push_back(pseudoExit);
-        SmallVector<Location> locs(tys.size(), builder.getUnknownLoc());
         pseudoExit->addArguments(tys, locs);
         OpBuilder builder(pseudoExit, pseudoExit->begin());
         tys.clear();
+        locs.clear();
         builder.create<scf::YieldOp>(builder.getUnknownLoc(), tys,
                                      pseudoExit->getArguments());
       }
@@ -493,8 +504,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           if (successor == target) {
 
             OpBuilder builder(terminator);
-            auto vfalse = builder.create<arith::ConstantIntOp>(
-                builder.getUnknownLoc(), false, 1);
+            auto vfalse =
+                builder.create<arith::ConstantIntOp>(region.getLoc(), false, 1);
 
             SmallVector<Value> args = {vfalse};
             for (auto arg : header->getArguments())
@@ -547,17 +558,17 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
           if (successor == header) {
 
             OpBuilder builder(terminator);
-            auto vtrue = builder.create<arith::ConstantIntOp>(
-                builder.getUnknownLoc(), true, 1);
+            auto vtrue =
+                builder.create<arith::ConstantIntOp>(region.getLoc(), true, 1);
 
             if (auto op = dyn_cast<cf::BranchOp>(terminator)) {
               SmallVector<Value> args(op.getOperands());
               args.insert(args.begin(), vtrue);
               for (auto p : preservedVals)
                 args.push_back(p.first);
-              for (auto ty : returns) {
+              for (auto tup : llvm::zip(returns, returnLocs)) {
                 args.push_back(builder.create<mlir::LLVM::UndefOp>(
-                    builder.getUnknownLoc(), ty));
+                    std::get<1>(tup), std::get<0>(tup)));
               }
               terminator =
                   builder.create<cf::BranchOp>(op.getLoc(), pseudoExit, args);
@@ -571,18 +582,18 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 trueargs.insert(trueargs.begin(), vtrue);
                 for (auto pair : preservedVals)
                   trueargs.push_back(pair.first);
-                for (auto ty : returns) {
+                for (auto tup : llvm::zip(returns, returnLocs)) {
                   trueargs.push_back(builder.create<mlir::LLVM::UndefOp>(
-                      builder.getUnknownLoc(), ty));
+                      std::get<1>(tup), std::get<0>(tup)));
                 }
               }
               if (op.getFalseDest() == header) {
                 falseargs.insert(falseargs.begin(), vtrue);
                 for (auto pair : preservedVals)
                   falseargs.push_back(pair.first);
-                for (auto ty : returns) {
+                for (auto tup : llvm::zip(returns, returnLocs)) {
                   falseargs.push_back(builder.create<mlir::LLVM::UndefOp>(
-                      builder.getUnknownLoc(), ty));
+                      std::get<1>(tup), std::get<0>(tup)));
                 }
               }
               // Recreate the terminator and store it so that its other
@@ -600,8 +611,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       }
 
       Block *after = new Block();
-      SmallVector<Location> locs2(combinedTypes.size(), region.getLoc());
-      after->addArguments(combinedTypes, locs2);
+      after->addArguments(combinedTypes, combinedLocs);
       loop.getAfter().push_back(after);
       OpBuilder builder2(after, after->begin());
       SmallVector<Value, 4> yieldargs;
@@ -637,7 +647,8 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
       }
       header->eraseArguments([](BlockArgument) { return true; });
 
-      builder2.create<scf::YieldOp>(builder.getUnknownLoc(), yieldargs);
+      builder2.create<scf::YieldOp>(header->getTerminator()->getLoc(),
+                                    yieldargs);
       domInfo.invalidate(&insertRegion);
 
       assert(header->getParent() == &insertRegion);

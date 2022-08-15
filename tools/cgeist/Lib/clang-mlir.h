@@ -146,12 +146,9 @@ private:
   mlir::func::FuncOp function;
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   mlir::OpBuilder builder;
-  mlir::Location loc;
   mlir::Block *entryBlock;
   std::vector<LoopContext> loops;
   mlir::Block *allocationScope;
-
-  // ValueCategory getValue(std::string name);
 
   std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
   mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
@@ -161,6 +158,7 @@ private:
 
     mlir::OpBuilder subbuilder(builder.getContext());
     subbuilder.setInsertionPointToStart(allocationScope);
+    auto loc = subbuilder.getUnknownLoc();
 
     auto one = subbuilder.create<arith::ConstantIntOp>(loc, 1, 64);
     auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
@@ -173,8 +171,8 @@ private:
   llvm::Type *getLLVMType(clang::QualType t);
   mlir::Type getMLIRType(clang::QualType t);
 
-  mlir::Value getTypeSize(clang::QualType t);
-  mlir::Value getTypeAlign(clang::QualType t);
+  mlir::Value getTypeSize(mlir::Location loc, clang::QualType t);
+  mlir::Value getTypeAlign(mlir::Location loc, clang::QualType t);
 
   mlir::Value createAllocOp(mlir::Type t, VarDecl *name, uint64_t memspace,
                             bool isArray, bool LLVMABI);
@@ -338,12 +336,12 @@ public:
 
   ValueCategory VisitCastExpr(clang::CastExpr *E);
 
-  mlir::Value GetAddressOfBaseClass(mlir::Value obj,
+  mlir::Value GetAddressOfBaseClass(mlir::Location loc, mlir::Value obj,
                                     const CXXRecordDecl *DerivedClass,
                                     ArrayRef<const clang::Type *> BaseTypes,
                                     ArrayRef<bool> BaseVirtuals);
 
-  mlir::Value GetAddressOfDerivedClass(mlir::Value obj,
+  mlir::Value GetAddressOfDerivedClass(mlir::Location loc, mlir::Value obj,
                                        const CXXRecordDecl *DerivedClass,
                                        CastExpr::path_const_iterator Start,
                                        CastExpr::path_const_iterator End);
@@ -401,14 +399,15 @@ public:
 
   ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
 
-  ValueCategory CommonFieldLookup(clang::QualType OT, const FieldDecl *FD,
-                                  mlir::Value val, bool isLValue);
+  ValueCategory CommonFieldLookup(mlir::Location loc, clang::QualType OT,
+                                  const FieldDecl *FD, mlir::Value val,
+                                  bool isLValue);
 
-  ValueCategory CommonArrayLookup(ValueCategory val, mlir::Value idx,
-                                  bool isImplicitRefResult,
+  ValueCategory CommonArrayLookup(mlir::Location loc, ValueCategory val,
+                                  mlir::Value idx, bool isImplicitRefResult,
                                   bool removeIndex = true);
 
-  ValueCategory CommonArrayToPointer(ValueCategory val);
+  ValueCategory CommonArrayToPointer(mlir::Location loc, ValueCategory val);
 };
 
 #endif

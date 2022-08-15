@@ -922,7 +922,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
       } else
         res = arg;
       if (cst) {
-        res = rewriter.create<IndexCastOp>(rewriter.getUnknownLoc(), cst, res);
+        res = rewriter.create<IndexCastOp>(res.getLoc(), cst, res);
       }
       forArgs.push_back(res);
     }

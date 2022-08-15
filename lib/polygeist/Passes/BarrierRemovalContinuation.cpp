@@ -105,7 +105,7 @@ static void splitBlocksWithBarrier(Region &region) {
     Block *original = op->getBlock();
     Block *block = original->splitBlock(op->getNextNode());
     auto builder = OpBuilder::atBlockEnd(original);
-    builder.create<cf::BranchOp>(builder.getUnknownLoc(), block);
+    builder.create<cf::BranchOp>(op.getLoc(), block);
   }
 }
 

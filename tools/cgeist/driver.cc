@@ -66,6 +66,12 @@ static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
 static cl::opt<bool> EmitOpenMPIR("emit-openmpir", cl::init(false),
                                   cl::desc("Emit OpenMP IR"));
 
+static cl::opt<bool> EmitLLVMDialect("emit-llvm-dialect", cl::init(false),
+                                     cl::desc("Emit LLVM Dialect"));
+
+static cl::opt<bool> PrintDebugInfo("print-debug-info", cl::init(false),
+                                    cl::desc("Print debug info from MLIR"));
+
 static cl::opt<bool> EmitAssembly("S", cl::init(false),
                                   cl::desc("Emit Assembly"));
 
@@ -454,9 +460,13 @@ int main(int argc, char **argv) {
             DL);
   mlir::PassManager pm(&context);
 
+  OpPrintingFlags flags;
+  if (PrintDebugInfo)
+    flags.enableDebugInfo(/*pretty*/ false);
+
   if (ImmediateMLIR) {
     llvm::errs() << "<immediate: mlir>\n";
-    module->dump();
+    module->print(llvm::errs(), flags);
     llvm::errs() << "</immediate: mlir>\n";
   }
 
@@ -706,7 +716,7 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR) {
+    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
@@ -845,12 +855,12 @@ int main(int argc, char **argv) {
     }
 
   } else {
-    if (Output == "-")
-      module->print(outs());
-    else {
+    if (Output == "-") {
+      module->print(outs(), flags);
+    } else {
       std::error_code EC;
       llvm::raw_fd_ostream out(Output, EC);
-      module->print(out);
+      module->print(out, flags);
     }
   }
   return 0;

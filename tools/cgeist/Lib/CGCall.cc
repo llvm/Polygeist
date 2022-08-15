@@ -84,6 +84,8 @@ ValueCategory MLIRScanner::CallHelper(
   SmallVector<mlir::Value, 4> args;
   auto fnType = tocall.getFunctionType();
 
+  auto loc = getMLIRLocation(expr->getExprLoc());
+
   size_t i = 0;
   // map from declaration name to mlir::value
   std::map<std::string, mlir::Value> mapFuncOperands;
@@ -152,7 +154,7 @@ ValueCategory MLIRScanner::CallHelper(
                                        MemRefLayoutAttrInterface(),
                                        mt.getMemorySpace()));
         ValueCategory(alloc, /*isRef*/ true)
-            .store(builder, arg, /*isArray*/ isArray);
+            .store(loc, builder, arg, /*isArray*/ isArray);
         shape[0] = pshape;
         val = builder.create<mlir::memref::CastOp>(
             loc,
@@ -161,7 +163,7 @@ ValueCategory MLIRScanner::CallHelper(
                                   mt.getMemorySpace()),
             alloc);
       } else {
-        val = arg.getValue(builder);
+        val = arg.getValue(loc, builder);
         if (val.getType().isa<LLVM::LLVMPointerType>() &&
             expectedType.isa<MemRefType>()) {
           val = builder.create<polygeist::Pointer2MemrefOp>(loc, expectedType,
@@ -300,7 +302,7 @@ ValueCategory MLIRScanner::CallHelper(
     SmallVector<mlir::Value, 1> asyncDependencies;
     if (3 < CU->getConfig()->getNumArgs() &&
         !isa<CXXDefaultArgExpr>(CU->getConfig()->getArg(3))) {
-      stream = Visit(CU->getConfig()->getArg(3)).getValue(builder);
+      stream = Visit(CU->getConfig()->getArg(3)).getValue(loc, builder);
       stream = builder.create<polygeist::StreamToTokenOp>(
           loc, builder.getType<gpu::AsyncTokenType>(), stream);
       assert(stream);
@@ -367,7 +369,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           sr->getDecl()->getName() == "__shfl_up_sync") {
         std::vector<mlir::Value> args;
         for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         builder.create<gpu::ShuffleOp>(loc, );
         assert(0 && "__shfl_up_sync unhandled");
@@ -421,9 +423,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             while (auto *CE = dyn_cast<llvm::ConstantExpr>(LC))
               LC = CE->getOperand(0);
             std::string val = cast<llvm::GlobalVariable>(LC)->getName().str();
-            return CommonArrayToPointer(ValueCategory(
-                Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
-                /*isReference*/ true));
+            return CommonArrayToPointer(
+                loc, ValueCategory(
+                         Glob.GetOrCreateGlobalLLVMString(loc, builder, val),
+                         /*isReference*/ true));
           }
         }
     }
@@ -443,8 +446,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         for (auto *a : expr->arguments()) {
           args.push_back(Visit(a));
         }
-        auto a0 = args[0].getValue(builder);
-        auto a1 = args[1].getValue(builder);
+        auto a0 = args[0].getValue(loc, builder);
+        auto a1 = args[1].getValue(loc, builder);
         AtomicRMWKind op;
         LLVM::AtomicBinOp lop;
         if (sr->getDecl()->getName() == "atomicAdd") {
@@ -518,10 +521,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                      0),
           one, 0);
       ValueCategory(alloc, /*isRef*/ true)
-          .store(builder, sub, /*isArray*/ isArray);
+          .store(loc, builder, sub, /*isArray*/ isArray);
       sub = ValueCategory(alloc, /*isRef*/ true);
     }
-    auto val = sub.getValue(builder);
+    auto val = sub.getValue(loc, builder);
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
       auto nt = Glob.typeTranslator
                     .translateType(anonymize(getLLVMType(E->getType())))
@@ -546,7 +549,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         auto mlirType = getMLIRType(expr->getType());
         std::vector<mlir::Value> args;
         for (auto *a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(builder));
+          args.push_back(Visit(a).getValue(loc, builder));
         }
         if (args[1].getType().isa<mlir::IntegerType>())
           return ValueCategory(
@@ -1089,7 +1092,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             mlir::Value dst;
             ValueCategory vdst = Visit(dstSub);
             if (isa<clang::PointerType>(dstst)) {
-              dst = vdst.getValue(builder);
+              dst = vdst.getValue(loc, builder);
             } else {
               assert(vdst.isReference);
               dst = vdst.val;
@@ -1099,7 +1102,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               mlir::Value src;
               ValueCategory vsrc = Visit(srcSub);
               if (isa<clang::PointerType>(srcst)) {
-                src = vsrc.getValue(builder);
+                src = vsrc.getValue(loc, builder);
               } else {
                 assert(vsrc.isReference);
                 src = vsrc.val;
@@ -1113,13 +1116,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               if (srcArray && !dstArray)
                 elemSize = getTypeSize(QualType(selem, 0));
               mlir::Value size = builder.create<IndexCastOp>(
-                  loc, Visit(expr->getArg(2)).getValue(builder),
+                  loc, Visit(expr->getArg(2)).getValue(loc, builder),
                   mlir::IndexType::get(builder.getContext()));
               size = builder.create<DivUIOp>(
                   loc, size, builder.create<ConstantIndexOp>(loc, elemSize));
 
               if (sr->getDecl()->getName() == "cudaMemcpyToSymbol") {
-                mlir::Value offset = Visit(expr->getArg(3)).getValue(builder);
+                mlir::Value offset = Visit(expr->getArg(3)).getValue(loc, builder);
                 offset = builder.create<IndexCastOp>(
                     loc, offset, mlir::IndexType::get(builder.getContext()));
                 offset = builder.create<DivUIOp>(
@@ -1293,7 +1296,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             mlir::Value dst;
             ValueCategory vdst = Visit(dstSub);
             if (isa<clang::PointerType>(dstst)) {
-              dst = vdst.getValue(builder);
+              dst = vdst.getValue(loc, builder);
             } else {
               assert(vdst.isReference);
               dst = vdst.val;
@@ -1313,7 +1316,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
               auto elemSize = getTypeSize(elem);
               mlir::Value size = builder.create<IndexCastOp>(
-                  loc, Visit(expr->getArg(2)).getValue(builder),
+                  loc, Visit(expr->getArg(2)).getValue(loc, builder),
                   mlir::IndexType::get(builder.getContext()));
               size = builder.create<DivUIOp>(
                   loc, size, builder.create<ConstantIndexOp>(loc, elemSize));
@@ -1504,7 +1507,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       CC->getImplicitObjectArgument()->dump();
     }
     if (cast<MemberExpr>(CC->getCallee()->IgnoreParens())->isArrow()) {
-      obj = obj.dereference(builder);
+      obj = obj.dereference(loc, builder);
     }
     assert(obj.val);
     assert(obj.isReference);
