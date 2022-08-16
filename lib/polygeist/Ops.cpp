@@ -2672,7 +2672,8 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     op->walk([&](Operation *sub) {
       if (sub != op) {
         for (auto oper : sub->getOperands()) {
-          if (par.getRegion().isAncestor(((Value)oper).getParentRegion())) {
+          if (par.getRegion().isAncestor(((Value)oper).getParentRegion()) &&
+              !op.thenRegion().isAncestor(((Value)oper).getParentRegion())) {
             failed = true;
             return;
           }
