@@ -4106,8 +4106,8 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
               continue;
 
             bool legal = true;
-            for (Operation *mod = copyIntoBuffer->getNextNode(); mod != copyOutOfBuffer;
-                 mod = mod->getNextNode()) {
+            for (Operation *mod = copyIntoBuffer->getNextNode();
+                 mod != copyOutOfBuffer; mod = mod->getNextNode()) {
               if (!mod) {
                 legal = false;
                 break;
@@ -4126,17 +4126,21 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
               continue;
 
             assert(otherBuf.getType() == op.getType());
-           
-            rewriter.replaceOpWithIf(op, otherBuf.getResults(), nullptr, [&](OpOperand &use) {
-                Operation* owner = use.getOwner();
-                while(owner && owner->getBlock() != copyIntoBuffer->getBlock()) {
+
+            rewriter.replaceOpWithIf(
+                op, otherBuf.getResults(), nullptr, [&](OpOperand &use) {
+                  Operation *owner = use.getOwner();
+                  while (owner &&
+                         owner->getBlock() != copyIntoBuffer->getBlock()) {
                     owner = owner->getParentOp();
-                }
-                if (!owner) return false;
-                
-                return copyIntoBuffer->isBeforeInBlock(owner) && owner->isBeforeInBlock(copyOutOfBuffer);
-            });
-            
+                  }
+                  if (!owner)
+                    return false;
+
+                  return copyIntoBuffer->isBeforeInBlock(owner) &&
+                         owner->isBeforeInBlock(copyOutOfBuffer);
+                });
+
             rewriter.replaceOpInRegion(op, otherBuf, into..out);
 
             rewriter.setInsertionPoint(copyOutOfBuffer);
