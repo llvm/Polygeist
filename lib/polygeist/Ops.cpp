@@ -2665,38 +2665,125 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
     if (!par)
       return failure();
+    if (!isa<AffineYieldOp>(op->getNextNode()))
+      return failure();
+
+    bool failed = false;
+    op->walk([&](Operation *sub) {
+      if (sub != op) {
+        for (auto oper : sub->getOperands()) {
+          if (par.getRegion().isAncestor(((Value)oper).getParentRegion()) &&
+              !op.thenRegion().isAncestor(((Value)oper).getParentRegion())) {
+            failed = true;
+            return;
+          }
+        }
+      }
+    });
+    if (failed)
+      return failure();
+
     if (par.getSteps().size() != op.getIntegerSet().getConstraints().size())
       return failure();
+
     for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
       auto opd = cst.value().dyn_cast<AffineDimExpr>();
-      if (!opd)
+      if (!opd) {
+        opd = (-cst.value()).dyn_cast<AffineDimExpr>();
+      }
+      if (!opd) {
         return failure();
-      if (op.getOperands()[opd.getPosition()] != par.getIVs()[cst.index()])
+      }
+      if (op.getOperands()[opd.getPosition()] != par.getIVs()[cst.index()]) {
         return failure();
-      if (!op.getIntegerSet().isEq(cst.index()))
+      }
+      if (!op.getIntegerSet().isEq(cst.index())) {
         return failure();
+      }
 
       for (auto lb : par.getLowerBoundMap(cst.index()).getResults()) {
         auto opd = lb.dyn_cast<AffineConstantExpr>();
-        if (!opd)
+        if (!opd) {
           return failure();
-        if (opd.getValue() > 0)
+        }
+        if (opd.getValue() > 0) {
           return failure();
+        }
       }
       for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
         auto opd = ub.dyn_cast<AffineConstantExpr>();
-        if (!opd)
+        if (!opd) {
           return failure();
-        if (opd.getValue() <= 0)
+        }
+        if (opd.getValue() <= 0) {
           return failure();
+        }
       }
     }
-    if (isa<AffineYieldOp>(op->getNextNode())) {
-      rewriter.eraseOp(op.getThenBlock()->getTerminator());
-      rewriter.mergeBlockBefore(op.getThenBlock(), par->getNextNode());
-      rewriter.eraseOp(op);
+
+    rewriter.eraseOp(op.getThenBlock()->getTerminator());
+    rewriter.mergeBlockBefore(op.getThenBlock(), par->getNextNode());
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
+                                Region &region, ValueRange blockArgs = {}) {
+  assert(llvm::hasSingleElement(region) && "expected single-region block");
+  Block *block = &region.front();
+  Operation *terminator = block->getTerminator();
+  ValueRange results = terminator->getOperands();
+  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.replaceOp(op, results);
+  rewriter.eraseOp(terminator);
+}
+
+struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<AffineExpr> todo;
+    bool knownFalse = false;
+    bool removed = false;
+    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
+      auto opd = cst.value().dyn_cast<AffineConstantExpr>();
+      if (!opd) {
+        todo.push_back(cst.value());
+        continue;
+      }
+      removed = true;
+
+      if (op.getIntegerSet().isEq(cst.index())) {
+        if (opd.getValue() != 0) {
+          knownFalse = true;
+          break;
+        }
+      }
+      if (!(opd.getValue() >= 0)) {
+        knownFalse = true;
+        break;
+      }
+    }
+
+    if (knownFalse) {
+      todo.clear();
+    }
+
+    if (todo.size() == 0) {
+
+      if (!knownFalse)
+        replaceOpWithRegion(rewriter, op, op.thenRegion());
+      else if (!op.elseRegion().empty())
+        replaceOpWithRegion(rewriter, op, op.elseRegion());
+      else
+        rewriter.eraseOp(op);
+
       return success();
     }
+    // TODO can reduce the number of conditions, even if cannot eliminate
+    // entirely.
     return failure();
   }
 };
@@ -2709,7 +2796,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
                  AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
-                 AffineIfSinking,
+                 AffineIfSinking, AffineIfSimplification,
                  // RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
