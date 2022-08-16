@@ -3157,15 +3157,192 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
   }
 };
 
+struct MergeNestedAffineParallelLoops
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = op.getLoopBody().front();
+    if (!llvm::hasSingleElement(outerBody.without_terminator()))
+      return failure();
+
+    auto innerOp = dyn_cast<AffineParallelOp>(outerBody.front());
+    if (!innerOp)
+      return failure();
+
+    for (auto val : outerBody.getArguments())
+      if (llvm::is_contained(innerOp.getLowerBoundsOperands(), val) ||
+          llvm::is_contained(innerOp.getUpperBoundsOperands(), val))
+        return failure();
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty() || !innerOp.reductions().empty())
+      return failure();
+
+    SmallVector<Type> newTypes(op.getResultTypes());
+    for (auto T : innerOp.getResultTypes())
+      newTypes.push_back(T);
+
+    ArrayRef<Attribute> reductions;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+    SmallVector<Value> lboundValues;
+    SmallVector<Value> uboundValues;
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(op.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(op.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(innerOp.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(innerOp.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          innerOp.getLowerBoundsOperands()[i + innerOp.lowerBoundsMap()
+                                                   .getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          innerOp.getUpperBoundsOperands()[i + innerOp.upperBoundsMap()
+                                                   .getNumDims()]);
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    for (auto e : innerOp.lowerBoundsMap()
+                      .shiftDims(op.lowerBoundsMap().getNumDims())
+                      .shiftSymbols(op.lowerBoundsMap().getNumSymbols())
+                      .getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : innerOp.upperBoundsMap()
+                      .shiftDims(op.upperBoundsMap().getNumDims())
+                      .shiftSymbols(op.upperBoundsMap().getNumSymbols())
+                      .getResults()) {
+      ubounds.push_back(e);
+    }
+
+    SmallVector<Value> operands = lboundValues;
+    operands.append(uboundValues);
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : innerOp.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+    for (auto U : innerOp.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<int64_t> steps;
+    for (auto U : op.steps())
+      steps.push_back(U.cast<IntegerAttr>().getValue().getZExtValue());
+    for (auto U : innerOp.steps())
+      steps.push_back(U.cast<IntegerAttr>().getValue().getZExtValue());
+
+    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+        op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
+        AffineMapAttr::get(
+            AffineMap::get(op.lowerBoundsMap().getNumDims() +
+                               innerOp.lowerBoundsMap().getNumDims(),
+                           op.lowerBoundsMap().getNumSymbols() +
+                               innerOp.lowerBoundsMap().getNumSymbols(),
+                           lbounds, op.getContext())),
+        rewriter.getI32TensorAttr(lboundGroup),
+        AffineMapAttr::get(
+            AffineMap::get(op.upperBoundsMap().getNumDims() +
+                               innerOp.upperBoundsMap().getNumDims(),
+                           op.upperBoundsMap().getNumSymbols() +
+                               innerOp.upperBoundsMap().getNumSymbols(),
+                           ubounds, op.getContext())),
+        rewriter.getI32TensorAttr(uboundGroup), rewriter.getI64ArrayAttr(steps),
+        operands);
+
+    rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
+                                affineLoop.getRegion().begin());
+    auto yld = affineLoop.getBody()->getTerminator();
+    rewriter.eraseOp(innerOp.getBody()->getTerminator());
+    SmallVector<Value> post;
+    for (auto v : innerOp.getIVs()) {
+      post.push_back(
+          affineLoop.getBody()->addArgument(v.getType(), v.getLoc()));
+    }
+    rewriter.mergeBlockBefore(innerOp.getBody(), yld, post);
+    return success();
+  }
+};
+
+struct PrepMergeNestedAffineParallelLoops
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp oop,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = oop.getLoopBody().front();
+    AffineParallelOp innerOp = nullptr;
+    SmallVector<Operation *> toMove;
+    for (auto &op : outerBody) {
+      if (auto innerOp2 = dyn_cast<AffineParallelOp>(&op)) {
+        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+          return failure();
+        }
+        innerOp = innerOp2;
+        continue;
+      }
+      if (isReadNone(&op)) {
+        if (!isa<AffineYieldOp>(&op))
+          toMove.push_back(&op);
+        continue;
+      }
+
+      return failure();
+    }
+
+    if (!innerOp || !toMove.size()) {
+      return failure();
+    }
+
+    BlockAndValueMapping map;
+    rewriter.setInsertionPointToStart(innerOp.getBody());
+    for (auto o : toMove) {
+      rewriter.replaceOp(o, rewriter.clone(*o)->getResults());
+    }
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
-                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
-                 CmpProp, UndefCmpProp,
-                 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
-                 AlwaysAllocaScopeHoister<scf::ForOp>,
-                 AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
-                 AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
-                 // RankReduction<memref::AllocaOp, scf::ParallelOp>,
-                 AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
+  results.insert<
+      TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext, UndefProp<ExtUIOp>,
+      UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
+      AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+      AlwaysAllocaScopeHoister<scf::ForOp>,
+      AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
+      AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
+      MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
+      // RankReduction<memref::AllocaOp, scf::ParallelOp>,
+      AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
