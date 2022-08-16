@@ -35,6 +35,10 @@ using namespace mlir::arith;
 llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
+namespace mlir {
+bool isSideEffectFree(Operation *op);
+}
+
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
@@ -3311,7 +3315,7 @@ struct PrepMergeNestedAffineParallelLoops
         innerOp = innerOp2;
         continue;
       }
-      if (isReadNone(&op)) {
+      if (isSideEffectFree(&op)) {
         if (!isa<AffineYieldOp>(&op))
           toMove.push_back(&op);
         continue;
