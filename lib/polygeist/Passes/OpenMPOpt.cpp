@@ -100,6 +100,11 @@ bool isReadNone(Operation *op) {
   return false;
 }
 
+Value getBase(Value v);
+bool isStackAlloca(Value v);
+bool isCaptured(Value v, Operation *potentialUser = nullptr,
+                bool *seenuse = nullptr);
+
 bool mayReadFrom(Operation *op, Value val) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
   if (hasRecursiveEffects) {
@@ -128,13 +133,15 @@ bool mayReadFrom(Operation *op, Value val) {
     }
     return false;
   }
+  if (isa<LLVM::CallOp, func::CallOp>(op)) {
+    auto base = getBase(val);
+    bool seenuse = false;
+    if (isStackAlloca(base) && !isCaptured(base, op, &seenuse) && !seenuse) {
+      return false;
+    }
+  }
   return true;
 }
-
-Value getBase(Value v);
-bool isStackAlloca(Value v);
-bool isCaptured(Value v, Operation *potentialUser = nullptr,
-                bool *seenuse = nullptr);
 
 bool mayWriteTo(Operation *op, Value val, bool ignoreBarrier) {
   bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();

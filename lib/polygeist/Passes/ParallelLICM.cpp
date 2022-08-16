@@ -228,6 +228,8 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       for (auto &innerOp : block)
         if (!canBeParallelHoisted(&innerOp, scope, willBeMoved2,
                                   includeAfter)) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << " - cannot hoist due to inner: " << innerOp << "\n");
           return false;
         } else
           willBeMoved2.insert(&innerOp);
@@ -248,7 +250,7 @@ bool below(Value bval, int64_t val) {
             dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
       for (auto ub : afFor.getUpperBoundMap().getResults()) {
         if (!below(ub, afFor.getUpperBoundMap().getNumDims(),
-                   afFor.getUpperBoundOperands(), val))
+                   afFor.getUpperBoundOperands(), val + 1))
           return false;
       }
       return true;
@@ -258,7 +260,7 @@ bool below(Value bval, int64_t val) {
       for (auto ub :
            afFor.getUpperBoundMap(baval.getArgNumber()).getResults()) {
         if (!below(ub, afFor.upperBoundsMap().getNumDims(),
-                   afFor.getUpperBoundsOperands(), val))
+                   afFor.getUpperBoundsOperands(), val + 1))
           return false;
       }
       return true;
@@ -267,13 +269,13 @@ bool below(Value bval, int64_t val) {
     if (scf::ForOp afFor =
             dyn_cast<scf::ForOp>(baval.getOwner()->getParentOp())) {
       if (baval.getArgNumber() == 0) {
-        return below(afFor.getUpperBound(), val);
+        return below(afFor.getUpperBound(), val + 1);
       }
     }
 
     if (scf::ParallelOp afFor =
             dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
-      return below(afFor.getUpperBound()[baval.getArgNumber()], val);
+      return below(afFor.getUpperBound()[baval.getArgNumber()], val + 1);
     }
   }
 
@@ -318,8 +320,9 @@ bool isSpeculatable(Operation *op) {
         AffineMap map = load.getAffineMapAttr().getValue();
         for (auto idx : llvm::enumerate(map.getResults())) {
           if (!below(idx.value(), map.getNumDims(), load.getMapOperands(),
-                     S[idx.index()]))
+                     S[idx.index()])) {
             return false;
+          }
         }
         return true;
       }
@@ -593,7 +596,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
                                                      bool checkSpeculative) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
-        for (Operation &op : block.without_terminator())
+        for (Operation &op : block.without_terminator()) {
           if ((!checkSpeculative || isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
@@ -602,6 +605,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
           } else {
             recur(&op, /*checkSpeculative*/ true);
           }
+        }
   };
   recur(looplike, /*checkSpeculative*/ false);
 
