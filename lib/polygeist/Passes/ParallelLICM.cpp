@@ -236,8 +236,127 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   return true;
 }
 
+bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
+
+bool below(Value bval, int64_t val) {
+  // Unknown size currently unhandled.
+  if (val == -1)
+    return false;
+
+  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+    if (AffineForOp afFor =
+            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+      for (auto ub : afFor.getUpperBoundMap().getResults()) {
+        if (!below(ub, afFor.getUpperBoundMap().getNumDims(),
+                   afFor.getUpperBoundOperands(), val))
+          return false;
+      }
+      return true;
+    }
+    if (AffineParallelOp afFor =
+            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+      for (auto ub :
+           afFor.getUpperBoundMap(baval.getArgNumber()).getResults()) {
+        if (!below(ub, afFor.upperBoundsMap().getNumDims(),
+                   afFor.getUpperBoundsOperands(), val))
+          return false;
+      }
+      return true;
+    }
+
+    if (scf::ForOp afFor =
+            dyn_cast<scf::ForOp>(baval.getOwner()->getParentOp())) {
+      if (baval.getArgNumber() == 0) {
+        return below(afFor.getUpperBound(), val);
+      }
+    }
+
+    if (scf::ParallelOp afFor =
+            dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
+      return below(afFor.getUpperBound()[baval.getArgNumber()], val);
+    }
+  }
+
+  IntegerAttr iattr;
+  if (matchPattern(bval, m_Constant(&iattr))) {
+    return iattr.getValue().getSExtValue() < val;
+  }
+
+  return false;
+}
+
+bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
+  // Unknown size currently unhandled.
+  if (val == -1)
+    return false;
+
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
+    if (opd.getValue() < val)
+      return true;
+    return false;
+  }
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
+    return below(operands[opd.getPosition()], val);
+  }
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
+    return below(operands[opd.getPosition() + numDim], val);
+  }
+  return false;
+}
+
+bool isSpeculatable(Operation *op) {
+  if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
+    // If the op has no side-effects, it is speculatable.
+    if (memInterface.hasNoEffect())
+      return true;
+
+    if (auto load = dyn_cast<AffineLoadOp>(op)) {
+      Value ptr = load.memref();
+      if (ptr.getDefiningOp<memref::AllocOp>() ||
+          ptr.getDefiningOp<memref::AllocaOp>()) {
+        auto S = ptr.getType().cast<MemRefType>().getShape();
+        AffineMap map = load.getAffineMapAttr().getValue();
+        for (auto idx : llvm::enumerate(map.getResults())) {
+          if (!below(idx.value(), map.getNumDims(), load.getMapOperands(),
+                     S[idx.index()]))
+            return false;
+        }
+        return true;
+      }
+    }
+
+    if (auto load = dyn_cast<memref::LoadOp>(op)) {
+      Value ptr = load.memref();
+      if (ptr.getDefiningOp<memref::AllocOp>() ||
+          ptr.getDefiningOp<memref::AllocaOp>()) {
+        auto S = ptr.getType().cast<MemRefType>().getShape();
+        for (auto idx : llvm::enumerate(load.indices())) {
+          if (!below(idx.value(), S[idx.index()]))
+            return false;
+        }
+        return true;
+      }
+    }
+
+    // If the op does not have recursive side effects, then it is not
+    // speculatable.
+    if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+      return false;
+  } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    // Otherwise, if the op does not implement the memory effect interface and
+    // it does not have recursive side effects, then it cannot be speculated.
+    return false;
+  }
+
+  // Recurse into the regions and ensure that all nested ops can also be moved.
+  for (Region &region : op->getRegions())
+    for (Operation &op : region.getOps())
+      if (!isSpeculatable(&op))
+        return false;
+  return true;
+}
+
 void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
-  auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -247,18 +366,25 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
   // Do not use walk here, as we do not want to go into nested regions and hoist
   // operations from there. These regions might have semantics unknown to this
   // rewriting. If the nested regions are loops, they will have been processed.
-  for (auto &block : loopBody) {
-    for (auto &op : block.without_terminator()) {
-      if (canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
-        opsToMove.push_back(&op);
-        willBeMovedSet.insert(&op);
-      }
-    }
-  }
+
+  std::function<void(Operation *, bool)> recur = [&](Operation *metaop,
+                                                     bool checkSpeculative) {
+    for (Region &region : metaop->getRegions())
+      for (Block &block : region)
+        for (Operation &op : block.without_terminator())
+          if ((!checkSpeculative || isSpeculatable(&op)) &&
+              canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
+            opsToMove.push_back(&op);
+            willBeMovedSet.insert(&op);
+          } else {
+            recur(&op, /*checkSpeculative*/ true);
+          }
+  };
+  recur(looplike, /*checkSpeculative*/ false);
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (opsToMove.size()) {
+  if (!llvm::all_of(opsToMove, isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = nullptr;
     for (auto pair : llvm::zip(looplike.getLowerBound(),
@@ -292,7 +418,6 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 
 // TODO affine parallel licm
 void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
-  auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -302,18 +427,24 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
   // Do not use walk here, as we do not want to go into nested regions and hoist
   // operations from there. These regions might have semantics unknown to this
   // rewriting. If the nested regions are loops, they will have been processed.
-  for (auto &block : loopBody) {
-    for (auto &op : block.without_terminator()) {
-      if (canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
-        opsToMove.push_back(&op);
-        willBeMovedSet.insert(&op);
-      }
-    }
-  }
+  std::function<void(Operation *, bool)> recur = [&](Operation *metaop,
+                                                     bool checkSpeculative) {
+    for (Region &region : metaop->getRegions())
+      for (Block &block : region)
+        for (Operation &op : block.without_terminator())
+          if ((!checkSpeculative || isSpeculatable(&op)) &&
+              canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
+            opsToMove.push_back(&op);
+            willBeMovedSet.insert(&op);
+          } else {
+            recur(&op, /*checkSpeculative*/ true);
+          }
+  };
+  recur(looplike, /*checkSpeculative*/ false);
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (opsToMove.size()) {
+  if (!llvm::all_of(opsToMove, isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
@@ -396,7 +527,6 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
 }
 
 void moveSerialLoopInvariantCode(scf::ForOp looplike) {
-  auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -406,19 +536,25 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
   // Do not use walk here, as we do not want to go into nested regions and hoist
   // operations from there. These regions might have semantics unknown to this
   // rewriting. If the nested regions are loops, they will have been processed.
-  for (auto &block : loopBody) {
-    for (auto &op : block.without_terminator()) {
-      if (canBeParallelHoisted(&op, looplike, willBeMovedSet,
-                               /*checkAfter*/ true)) {
-        opsToMove.push_back(&op);
-        willBeMovedSet.insert(&op);
-      }
-    }
-  }
+  std::function<void(Operation *, bool)> recur = [&](Operation *metaop,
+                                                     bool checkSpeculative) {
+    for (Region &region : metaop->getRegions())
+      for (Block &block : region)
+        for (Operation &op : block.without_terminator())
+          if ((!checkSpeculative || isSpeculatable(&op)) &&
+              canBeParallelHoisted(&op, looplike, willBeMovedSet,
+                                   /*checkAfter*/ true)) {
+            opsToMove.push_back(&op);
+            willBeMovedSet.insert(&op);
+          } else {
+            recur(&op, /*checkSpeculative*/ true);
+          }
+  };
+  recur(looplike, /*checkSpeculative*/ false);
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (opsToMove.size()) {
+  if (!llvm::all_of(opsToMove, isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
                                          looplike.getLowerBound(),
@@ -444,7 +580,6 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
 }
 
 void moveSerialLoopInvariantCode(AffineForOp looplike) {
-  auto &loopBody = looplike.getLoopBody();
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -454,19 +589,25 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
   // Do not use walk here, as we do not want to go into nested regions and hoist
   // operations from there. These regions might have semantics unknown to this
   // rewriting. If the nested regions are loops, they will have been processed.
-  for (auto &block : loopBody) {
-    for (auto &op : block.without_terminator()) {
-      if (canBeParallelHoisted(&op, looplike, willBeMovedSet,
-                               /*checkAfter*/ true)) {
-        opsToMove.push_back(&op);
-        willBeMovedSet.insert(&op);
-      }
-    }
-  }
+  std::function<void(Operation *, bool)> recur = [&](Operation *metaop,
+                                                     bool checkSpeculative) {
+    for (Region &region : metaop->getRegions())
+      for (Block &block : region)
+        for (Operation &op : block.without_terminator())
+          if ((!checkSpeculative || isSpeculatable(&op)) &&
+              canBeParallelHoisted(&op, looplike, willBeMovedSet,
+                                   /*checkAfter*/ true)) {
+            opsToMove.push_back(&op);
+            willBeMovedSet.insert(&op);
+          } else {
+            recur(&op, /*checkSpeculative*/ true);
+          }
+  };
+  recur(looplike, /*checkSpeculative*/ false);
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (opsToMove.size()) {
+  if (!llvm::all_of(opsToMove, isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
