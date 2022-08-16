@@ -2691,8 +2691,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
 
     for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
       if (!op.getIntegerSet().isEq(cst.index())) {
-        remaining.push_back(cst.value());
-        continue;
+        return failure();
       }
 
       auto opd = cst.value().dyn_cast<AffineDimExpr>();
@@ -2700,8 +2699,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
         opd = (-cst.value()).dyn_cast<AffineDimExpr>();
       }
       if (!opd) {
-        remaining.push_back(cst.value());
-        continue;
+        return failure();
       }
       auto ival = op.getOperands()[opd.getPosition()].dyn_cast<BlockArgument>();
       if (!ival)
