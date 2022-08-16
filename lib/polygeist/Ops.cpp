@@ -3951,6 +3951,234 @@ struct RemoveAffineParallelSingleIter
   }
 };
 
+template <typename T> struct BufferElimination : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  static bool legalFor(T op, AffineForOp afFor) {
+    for (auto lb : afFor.getLowerBoundMap().getResults()) {
+      auto opd = lb.dyn_cast<AffineConstantExpr>();
+      if (!opd)
+        return false;
+      if (opd.getValue() != 0)
+        return false;
+    }
+    auto S = op.getType().getShape();
+    if (S.size() != 1)
+      return false;
+
+    for (auto lb : afFor.getUpperBoundMap().getResults()) {
+      if (auto opd = lb.dyn_cast<AffineConstantExpr>()) {
+        if (S[0] != -1) {
+          if (S[0] != opd.getValue())
+            return false;
+        } else {
+          IntegerAttr iattr;
+          if (!matchPattern(op.getOperand(0), m_Constant(&iattr)))
+            return false;
+          if (iattr.getValue() != opd.getValue())
+            return false;
+        }
+        continue;
+      }
+      if (auto opd = lb.dyn_cast<AffineDimExpr>()) {
+        if (S[0] != -1)
+          return false;
+        if (afFor.getUpperBoundOperands()[opd.getPosition()] !=
+            op.getOperand(0))
+          return false;
+        continue;
+      }
+      if (auto opd = lb.dyn_cast<AffineSymbolExpr>()) {
+        if (S[0] != -1)
+          return false;
+        if (afFor.getUpperBoundOperands()
+                [opd.getPosition() + afFor.getUpperBoundMap().getNumDims()] !=
+            op.getOperand(0))
+          return false;
+        continue;
+      }
+
+      return false;
+    }
+    return true;
+  }
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+    for (auto U : op->getResult(0).getUsers()) {
+      if (!isa<AffineLoadOp, AffineStoreOp, memref::LoadOp, memref::StoreOp,
+               memref::DeallocOp>(U))
+        return failure();
+    }
+    for (auto U : op->getResult(0).getUsers()) {
+      if (auto load = dyn_cast<AffineLoadOp>(U)) {
+        AffineMap map = load.getAffineMapAttr().getValue();
+        if (map.getNumResults() != 1)
+          continue;
+        auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
+        if (!opd)
+          continue;
+        auto val = ((Value)load.getMapOperands()[opd.getPosition()])
+                       .dyn_cast<BlockArgument>();
+        if (!val)
+          continue;
+
+        AffineForOp copyOutOfBuffer =
+            dyn_cast<AffineForOp>(val.getOwner()->getParentOp());
+        if (!copyOutOfBuffer)
+          continue;
+        if (copyOutOfBuffer.getNumResults())
+          continue;
+
+        if (!legalFor(op, copyOutOfBuffer))
+          continue;
+
+        if (load->getParentOp() != copyOutOfBuffer)
+          continue;
+        if (!llvm::hasNItems(*copyOutOfBuffer.getBody(), 3))
+          continue;
+
+        auto store = dyn_cast<AffineStoreOp>(load->getNextNode());
+        if (!store)
+          continue;
+
+        Value otherBuf = store.memref();
+
+        if (load.getAffineMapAttr().getValue() !=
+            store.getAffineMapAttr().getValue())
+          continue;
+        if (!llvm::all_of(
+                llvm::zip(load.getMapOperands(), store.getMapOperands()),
+                [](std::tuple<Value, Value> v) -> bool {
+                  return std::get<0>(v) == std::get<1>(v);
+                }))
+          continue;
+
+        // Needs to be noalias, otherwise we cannot tell if intermediate users
+        // also use the other buffer.
+        if (!(otherBuf.getDefiningOp<memref::AllocOp>()) &&
+            !(otherBuf.getDefiningOp<memref::AllocaOp>()))
+          continue;
+
+        for (auto U2 : otherBuf.getUsers()) {
+          if (auto load = dyn_cast<AffineLoadOp>(U2)) {
+            AffineMap map = load.getAffineMapAttr().getValue();
+            if (map.getNumResults() != 1)
+              continue;
+            auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
+            if (!opd)
+              continue;
+            auto val = ((Value)load.getMapOperands()[opd.getPosition()])
+                           .dyn_cast<BlockArgument>();
+            if (!val)
+              continue;
+
+            AffineForOp copyIntoBuffer =
+                dyn_cast<AffineForOp>(val.getOwner()->getParentOp());
+            if (!copyIntoBuffer)
+              continue;
+            if (copyIntoBuffer.getNumResults())
+              continue;
+
+            if (load->getParentOp() != copyIntoBuffer)
+              continue;
+            if (!llvm::hasNItems(*copyIntoBuffer.getBody(), 3))
+              continue;
+
+            auto store = dyn_cast<AffineStoreOp>(load->getNextNode());
+            if (!store)
+              continue;
+
+            if (load.getAffineMapAttr().getValue() !=
+                store.getAffineMapAttr().getValue())
+              continue;
+            if (!llvm::all_of(
+                    llvm::zip(load.getMapOperands(), store.getMapOperands()),
+                    [](std::tuple<Value, Value> v) -> bool {
+                      return std::get<0>(v) == std::get<1>(v);
+                    }))
+              continue;
+
+            if (store.memref() != op)
+              continue;
+
+            if (copyIntoBuffer->getBlock() != copyOutOfBuffer->getBlock())
+              continue;
+
+            bool legal = true;
+            for (Operation *mod = copyIntoBuffer->getNextNode(); mod != copyOutOfBuffer;
+                 mod = mod->getNextNode()) {
+              if (!mod) {
+                legal = false;
+                break;
+              }
+              for (auto U3 : otherBuf.getUsers()) {
+                if (mod->isAncestor(U3)) {
+                  legal = false;
+                  break;
+                }
+              }
+            }
+            if (!legal)
+              continue;
+
+            if (!legalFor(op, copyIntoBuffer))
+              continue;
+
+            assert(otherBuf.getType() == op.getType());
+           
+            rewriter.replaceOpWithIf(op, otherBuf.getResults(), nullptr, [&](OpOperand &use) {
+                Operation* owner = use.getOwner();
+                while(owner && owner->getBlock() != copyIntoBuffer->getBlock()) {
+                    owner = owner->getParentOp();
+                }
+                if (!owner) return false;
+                
+                return copyIntoBuffer->isBeforeInBlock(owner) && owner->isBeforeInBlock(copyOutOfBuffer);
+            });
+            
+            rewriter.replaceOpInRegion(op, otherBuf, into..out);
+
+            rewriter.setInsertionPoint(copyOutOfBuffer);
+            rewriter.clone(*copyIntoBuffer);
+            rewriter.eraseOp(copyOutOfBuffer);
+            rewriter.eraseOp(copyIntoBuffer);
+            // TODO remove
+            //
+            //    %op = alloc
+            //    stuff(op)
+            //
+            //    copyIntoBuffer(op, otherBuf)
+            //
+            //    stuffToReplace(op)
+            //
+            //    copyOutOfBuffer(otherBuf, op)
+            //
+            //    stuff2(op)
+            //
+            //
+            //    BECOMES
+            //
+            //    %op = alloc
+            //    stuff(op)
+            //
+            //
+            //    stuffToReplace(otherBuf)
+            //
+            //    # ERASED copyOutOfBuffer(otherBuf, op)
+            //    copyIntoBuffer(op, otherBuf)
+            //
+            //    stuff2(op)
+            //
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -3962,6 +4190,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
+      BufferElimination<memref::AllocaOp>, BufferElimination<memref::AllocOp>,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
