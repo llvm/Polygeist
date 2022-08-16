@@ -2653,138 +2653,6 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(AffineIfOp op,
-                                PatternRewriter &rewriter) const override {
-    if (op.getNumResults() != 0)
-      return failure();
-    if (op.hasElse())
-      return failure();
-    auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
-    if (!par)
-      return failure();
-    if (!isa<AffineYieldOp>(op->getNextNode()))
-      return failure();
-
-    bool failed = false;
-    op->walk([&](Operation *sub) {
-      if (sub != op) {
-        for (auto oper : sub->getOperands()) {
-          if (par.getRegion().isAncestor(((Value)oper).getParentRegion()) &&
-              !op.thenRegion().isAncestor(((Value)oper).getParentRegion())) {
-            failed = true;
-            return;
-          }
-        }
-      }
-    });
-    if (failed)
-      return failure();
-
-    SmallVector<bool> doneVars(par.getSteps().size(), false);
-    SmallVector<bool> doneConstraints(
-        op.getIntegerSet().getConstraints().size(), false);
-
-    SmallVector<AffineExpr> remaining;
-
-    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
-      if (!op.getIntegerSet().isEq(cst.index())) {
-        return failure();
-      }
-
-      auto opd = cst.value().dyn_cast<AffineDimExpr>();
-      if (!opd) {
-        opd = (-cst.value()).dyn_cast<AffineDimExpr>();
-      }
-      if (!opd) {
-        return failure();
-      }
-      auto ival = op.getOperands()[opd.getPosition()].dyn_cast<BlockArgument>();
-      if (!ival)
-        return failure();
-
-      if (ival.getOwner()->getParentOp() != par) {
-        remaining.push_back(cst.value());
-        continue;
-      }
-
-      for (auto lb : par.getLowerBoundMap(cst.index()).getResults()) {
-        auto opd = lb.dyn_cast<AffineConstantExpr>();
-        if (!opd) {
-          return failure();
-        }
-        if (opd.getValue() > 0) {
-          return failure();
-        }
-      }
-
-      for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
-        auto opd = ub.dyn_cast<AffineConstantExpr>();
-        if (!opd) {
-          return failure();
-        }
-        if (opd.getValue() <= 0) {
-          return failure();
-        }
-      }
-
-      if (doneVars[ival.getArgNumber()])
-        return failure();
-      doneVars[ival.getArgNumber()] = true;
-      doneConstraints[cst.index()];
-    }
-
-    SmallVector<AffineExpr> dimReplacements;
-    SmallVector<Value> newVals;
-    size_t avail = 0;
-    for (size_t i = 0; i < op.getIntegerSet().getNumDims(); i++) {
-      auto ival = op.getOperands()[i].dyn_cast<BlockArgument>();
-      assert(ival);
-      if (ival.getOwner()->getParentOp() == par) {
-        if (doneVars[ival.getArgNumber()]) {
-          dimReplacements.push_back(getAffineConstantExpr(0, op.getContext()));
-          continue;
-        }
-      }
-      dimReplacements.push_back(getAffineDimExpr(avail, op.getContext()));
-      newVals.push_back(op.getOperands()[i]);
-      avail++;
-    }
-
-    SmallVector<AffineExpr> symReplacements;
-    SmallVector<Value> symVals;
-    for (size_t i = 0; i < op.getIntegerSet().getNumSymbols(); i++) {
-      symReplacements.push_back(getAffineSymbolExpr(i, op.getContext()));
-      newVals.push_back(op.getOperands()[i + op.getIntegerSet().getNumDims()]);
-    }
-
-    auto iset = op.getIntegerSet().replaceDimsAndSymbols(
-        dimReplacements, symReplacements, avail,
-        op.getIntegerSet().getNumSymbols());
-
-    rewriter.setInsertionPoint(par->getNextNode());
-
-    auto newIf = rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(), iset,
-                                             newVals, /*hasElse*/ false);
-    newIf.thenRegion().takeBody(op.thenRegion());
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
-                                Region &region, ValueRange blockArgs = {}) {
-  assert(llvm::hasSingleElement(region) && "expected single-region block");
-  Block *block = &region.front();
-  Operation *terminator = block->getTerminator();
-  ValueRange results = terminator->getOperands();
-  rewriter.mergeBlockBefore(block, op, blockArgs);
-  rewriter.replaceOp(op, results);
-  rewriter.eraseOp(terminator);
-}
-
 bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
 
 bool aboveEq(Value bval, int64_t val) {
@@ -2864,6 +2732,189 @@ bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   return false;
 }
 
+struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp op,
+                                PatternRewriter &rewriter) const override {
+    if (op.getNumResults() != 0)
+      return failure();
+    if (op.hasElse())
+      return failure();
+    auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
+    if (!par)
+      return failure();
+
+    bool sink = true;
+    bool hoist = true;
+    for (auto node = op->getNextNode(); node; node = node->getNextNode()) {
+      if (!isReadNone(node)) {
+        sink = false;
+        break;
+      }
+    }
+    for (auto node = op->getPrevNode(); node; node = node->getPrevNode()) {
+      if (!isReadNone(node)) {
+        hoist = false;
+        break;
+      }
+    }
+    if (!sink && !hoist)
+      return failure();
+
+    SmallVector<bool> doneVars(par.getSteps().size(), false);
+    SmallVector<bool> doneConstraints(
+        op.getIntegerSet().getConstraints().size(), false);
+
+    SmallVector<AffineExpr> remaining;
+    SmallVector<bool> isEq;
+    SmallVector<Value> dimVals;
+    SmallVector<Value> symVals;
+
+    SmallVector<AffineExpr> dimReplacements;
+
+    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumDims(); ++idx) {
+      dimReplacements.push_back(
+          getAffineDimExpr(dimVals.size(), op.getContext()));
+      dimVals.push_back(par.getUpperBoundsOperands()[idx]);
+    }
+    SmallVector<AffineExpr> symReplacements;
+    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumSymbols(); ++idx) {
+      symReplacements.push_back(
+          getAffineSymbolExpr(dimVals.size(), op.getContext()));
+      symVals.push_back(
+          par.getUpperBoundsOperands()[idx +
+                                       par.upperBoundsMap().getNumDims()]);
+    }
+
+    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
+      if (!op.getIntegerSet().isEq(cst.index())) {
+        return failure();
+      }
+
+      auto opd = cst.value().dyn_cast<AffineDimExpr>();
+      if (!opd) {
+        return failure();
+      }
+      auto ival = op.getOperands()[opd.getPosition()].dyn_cast<BlockArgument>();
+      if (!ival) {
+        return failure();
+      }
+
+      if (ival.getOwner()->getParentOp() != par) {
+        remaining.push_back(getAffineDimExpr(dimVals.size(), op.getContext()));
+        dimVals.push_back(ival);
+        isEq.push_back(op.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      if (doneVars[ival.getArgNumber()]) {
+        return failure();
+      }
+
+      if (!aboveEq(ival, 0)) {
+        return failure();
+      }
+
+      // TODO make this a check in the below at runtime
+      // rather than at compile time.
+
+      for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
+        auto ub2 = ub.replaceDimsAndSymbols(dimReplacements, symReplacements);
+        remaining.push_back(ub2 - 1);
+        isEq.push_back(false);
+      }
+      doneVars[ival.getArgNumber()] = true;
+      doneConstraints[cst.index()];
+    }
+
+    if (!llvm::all_of(doneVars, [](bool b) { return b; })) {
+      return failure();
+    }
+
+    bool failed = false;
+    SmallVector<Operation *> toSink;
+    std::function<void(Value)> recur = [&](Value v) {
+      if (!par.getRegion().isAncestor(v.getParentRegion()) ||
+          op.thenRegion().isAncestor(v.getParentRegion()))
+        return;
+      if (auto ba = v.dyn_cast<BlockArgument>()) {
+        if (ba.getOwner()->getParentOp() == par) {
+          return;
+        }
+      }
+      Operation *vo = v.getDefiningOp();
+      if (!vo) {
+        failed = true;
+        return;
+      }
+      if (isReadNone(vo)) {
+        toSink.push_back(vo);
+        for (auto oper : vo->getOperands())
+          recur(oper);
+        return;
+      }
+      failed = true;
+      return;
+    };
+    op->walk([&](Operation *sub) {
+      if (sub != op) {
+        for (auto oper : sub->getOperands())
+          recur(oper);
+      }
+    });
+    if (failed)
+      return failure();
+
+    auto iset =
+        IntegerSet::get(dimVals.size(), symVals.size(), remaining, isEq);
+
+    SmallVector<Value> newVals(dimVals);
+    newVals.append(symVals);
+
+    if (sink)
+      rewriter.setInsertionPoint(par->getNextNode());
+
+    BlockAndValueMapping map;
+    auto c0 = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
+    for (auto i : par.getIVs()) {
+      map.map(i, c0);
+      for (auto &val : newVals)
+        if (val == i)
+          val = c0;
+    }
+
+    auto newIf = rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(), iset,
+                                             newVals, /*hasElse*/ false);
+    rewriter.eraseBlock(newIf.getThenBlock());
+    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
+                                newIf.thenRegion().begin());
+    rewriter.eraseOp(op);
+    rewriter.setInsertionPointToStart(newIf.getThenBlock());
+    for (auto o : llvm::reverse(toSink)) {
+      auto nop = rewriter.clone(*o, map);
+      rewriter.replaceOpWithinBlock(o, nop->getResults(), newIf.getThenBlock());
+    }
+    for (auto i : par.getIVs()) {
+      i.replaceUsesWithIf(c0, [&](OpOperand &user) {
+        return newIf->isAncestor(user.getOwner());
+      });
+    }
+    return success();
+  }
+};
+
+static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
+                                Region &region, ValueRange blockArgs = {}) {
+  assert(llvm::hasSingleElement(region) && "expected single-region block");
+  Block *block = &region.front();
+  Operation *terminator = block->getTerminator();
+  ValueRange results = terminator->getOperands();
+  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.replaceOp(op, results);
+  rewriter.eraseOp(terminator);
+}
+
 struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
   using OpRewritePattern<AffineIfOp>::OpRewritePattern;
 
@@ -2898,6 +2949,31 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
               continue;
             }
           }
+        }
+
+        bool canRemove = false;
+        for (auto paren = op->getParentOfType<AffineIfOp>(); paren;
+             paren = paren->getParentOfType<AffineIfOp>()) {
+          for (auto cst2 : paren.getIntegerSet().getConstraints()) {
+            if (cst2 == cst.value() &&
+                paren.getIntegerSet().getNumDims() ==
+                    op.getIntegerSet().getNumDims() &&
+                paren.getIntegerSet().getNumSymbols() ==
+                    op.getIntegerSet().getNumSymbols() &&
+                llvm::all_of(llvm::zip(paren.getOperands(), op.getOperands()),
+                             [](std::tuple<Value, Value> p) {
+                               return std::get<0>(p) == std::get<1>(p);
+                             })) {
+              canRemove = true;
+              break;
+            }
+          }
+          if (canRemove)
+            break;
+        }
+        if (canRemove) {
+          removed = true;
+          continue;
         }
 
         todo.push_back(cst.value());
@@ -2944,9 +3020,137 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
     auto newIf =
         rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(), iset,
                                     op.getOperands(), /*hasElse*/ false);
-    newIf.thenRegion().takeBody(op.thenRegion());
-    newIf.elseRegion().takeBody(op.elseRegion());
+    rewriter.eraseBlock(newIf.getThenBlock());
+    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
+                                newIf.thenRegion().begin());
+    rewriter.inlineRegionBefore(op.elseRegion(), newIf.elseRegion(),
+                                newIf.elseRegion().begin());
     rewriter.replaceOp(op, newIf.getResults());
+    return success();
+  }
+};
+
+struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    Block *parent = nextIf->getBlock();
+    if (nextIf == &parent->front())
+      return failure();
+
+    auto prevIf = dyn_cast<AffineIfOp>(nextIf->getPrevNode());
+    if (!prevIf)
+      return failure();
+
+    // Determine the logical then/else blocks when prevIf's
+    // condition is used. Null means the block does not exist
+    // in that case (e.g. empty else). If neither of these
+    // are set, the two conditions cannot be compared.
+    Block *nextThen = nullptr;
+    Block *nextElse = nullptr;
+
+    if (nextIf.getIntegerSet() == prevIf.getIntegerSet() &&
+        llvm::all_of(llvm::zip(nextIf.getOperands(), prevIf.getOperands()),
+                     [](std::tuple<Value, Value> p) {
+                       return std::get<0>(p) == std::get<1>(p);
+                     })) {
+      nextThen = nextIf.getThenBlock();
+      if (!nextIf.elseRegion().empty())
+        nextElse = nextIf.getElseBlock();
+    }
+
+    if (!nextThen && !nextElse)
+      return failure();
+
+    SmallVector<Value> prevElseYielded;
+    if (!prevIf.elseRegion().empty())
+      prevElseYielded =
+          cast<AffineYieldOp>(prevIf.getElseBlock()->getTerminator())
+              .getOperands();
+    // Replace all uses of return values of op within nextIf with the
+    // corresponding yields
+    for (auto it :
+         llvm::zip(prevIf.getResults(),
+                   cast<AffineYieldOp>(prevIf.getThenBlock()->getTerminator())
+                       .getOperands(),
+                   prevElseYielded))
+      for (OpOperand &use :
+           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
+        if (nextThen && nextThen->getParent()->isAncestor(
+                            use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<1>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        } else if (nextElse && nextElse->getParent()->isAncestor(
+                                   use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<2>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        }
+      }
+
+    SmallVector<Type> mergedTypes(prevIf.getResultTypes());
+    llvm::append_range(mergedTypes, nextIf.getResultTypes());
+
+    AffineIfOp combinedIf = rewriter.create<AffineIfOp>(
+        nextIf.getLoc(), mergedTypes, prevIf.getIntegerSet(),
+        prevIf.getOperands(), /*hasElse=*/false);
+    rewriter.eraseBlock(&combinedIf.thenRegion().back());
+
+    rewriter.inlineRegionBefore(prevIf.thenRegion(), combinedIf.thenRegion(),
+                                combinedIf.thenRegion().begin());
+
+    if (nextThen) {
+      AffineYieldOp thenYield =
+          cast<AffineYieldOp>(combinedIf.getThenBlock()->getTerminator());
+      AffineYieldOp thenYield2 = cast<AffineYieldOp>(nextThen->getTerminator());
+      rewriter.mergeBlocks(nextThen, combinedIf.getThenBlock());
+      rewriter.setInsertionPointToEnd(combinedIf.getThenBlock());
+
+      SmallVector<Value> mergedYields(thenYield.getOperands());
+      llvm::append_range(mergedYields, thenYield2.getOperands());
+      rewriter.create<AffineYieldOp>(thenYield2.getLoc(), mergedYields);
+      rewriter.eraseOp(thenYield);
+      rewriter.eraseOp(thenYield2);
+    }
+
+    rewriter.inlineRegionBefore(prevIf.elseRegion(), combinedIf.elseRegion(),
+                                combinedIf.elseRegion().begin());
+
+    if (nextElse) {
+      if (combinedIf.elseRegion().empty()) {
+        rewriter.inlineRegionBefore(*nextElse->getParent(),
+                                    combinedIf.elseRegion(),
+                                    combinedIf.elseRegion().begin());
+      } else {
+        AffineYieldOp elseYield =
+            cast<AffineYieldOp>(combinedIf.getElseBlock()->getTerminator());
+        AffineYieldOp elseYield2 =
+            cast<AffineYieldOp>(nextElse->getTerminator());
+        rewriter.mergeBlocks(nextElse, combinedIf.getElseBlock());
+
+        rewriter.setInsertionPointToEnd(combinedIf.getElseBlock());
+
+        SmallVector<Value> mergedElseYields(elseYield.getOperands());
+        llvm::append_range(mergedElseYields, elseYield2.getOperands());
+
+        rewriter.create<AffineYieldOp>(elseYield2.getLoc(), mergedElseYields);
+        rewriter.eraseOp(elseYield);
+        rewriter.eraseOp(elseYield2);
+      }
+    }
+
+    SmallVector<Value> prevValues;
+    SmallVector<Value> nextValues;
+    for (const auto &pair : llvm::enumerate(combinedIf.getResults())) {
+      if (pair.index() < prevIf.getNumResults())
+        prevValues.push_back(pair.value());
+      else
+        nextValues.push_back(pair.value());
+    }
+    rewriter.replaceOp(prevIf, prevValues);
+    rewriter.replaceOp(nextIf, nextValues);
     return success();
   }
 };
@@ -2959,7 +3163,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                  AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
                  AlwaysAllocaScopeHoister<scf::ForOp>,
                  AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
-                 AffineIfSinking, AffineIfSimplification,
+                 AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
                  // RankReduction<memref::AllocaOp, scf::ParallelOp>,
                  AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
