@@ -2874,6 +2874,8 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
 
     if (sink)
       rewriter.setInsertionPoint(par->getNextNode());
+    else
+      rewriter.setInsertionPoint(par);
 
     BlockAndValueMapping map;
     auto c0 = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
