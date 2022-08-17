@@ -3411,6 +3411,9 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
     if (!op.reductions().empty())
       return failure();
 
+    if (innerOp.hasElse())
+      return failure();
+
     SmallVector<int32_t> lboundGroup;
     SmallVector<int32_t> uboundGroup;
     for (auto U : op.lowerBoundsGroups())
