@@ -3402,7 +3402,8 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
       auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
                                std::map<size_t, AffineExpr> &indUsage,
-                               bool &legal) -> AffineExpr {
+                               bool &legal,
+                               bool *failure = nullptr) -> AffineExpr {
         AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
         SmallVector<AffineExpr> todo = {cst};
         legal = true;
@@ -3417,11 +3418,13 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
             auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
             if (!ival || ival.getOwner()->getParentOp() != op) {
               rhs = rhs + dim;
+              if (failure)
+                *failure = true;
               continue;
             }
             if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
               legal = false;
-              break;
+              continue;
             }
             indUsage[ival.getArgNumber()] =
                 getAffineConstantExpr(1, op.getContext());
@@ -3437,7 +3440,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
               if (!(bop.getRHS().isa<AffineConstantExpr>() ||
                     bop.getRHS().isa<AffineSymbolExpr>())) {
                 legal = false;
-                break;
+                continue;
               }
 
               if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
@@ -3448,17 +3451,21 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
                   // While legal, this may run before parallel merging
                   // and prevent parallel fusion
                   legal = false;
-                  break;
+                  if (failure)
+                    *failure = true;
+                  continue;
                 }
                 if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
                   legal = false;
-                  break;
+                  continue;
                 }
                 indUsage[ival.getArgNumber()] = bop.getRHS();
                 continue;
               }
             }
           }
+          if (failure)
+            *failure = true;
           legal = false;
           break;
         }
@@ -3467,8 +3474,11 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
       bool legal;
       std::map<size_t, AffineExpr> indUsage;
-      AffineExpr rhs =
-          getIndUsage(cst.value(), innerOp.getOperands(), indUsage, legal);
+      bool failureV = false;
+      AffineExpr rhs = getIndUsage(cst.value(), innerOp.getOperands(), indUsage,
+                                   legal, &failureV);
+      if (failureV)
+        return failure();
 
       if (!legal || indUsage.size() == 0) {
         remaining.push_back(cst.value());
@@ -3542,7 +3552,6 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
             continue;
           }
 
-          size_t bound;
           if (uboundGroup[pair.value().second] != 1) {
             legal = false;
             break;
