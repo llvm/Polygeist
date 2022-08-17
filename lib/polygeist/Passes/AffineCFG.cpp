@@ -1071,7 +1071,7 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
         auto expr = dims[0] - dims[1];
         if (cmpi.getPredicate() == CmpIPredicate::sgt ||
             cmpi.getPredicate() == CmpIPredicate::ugt)
-          expr = expr + 1;
+          expr = expr - 1;
         exprs.push_back(expr);
       }
   } break;
