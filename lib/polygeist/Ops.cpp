@@ -3265,10 +3265,10 @@ struct MergeNestedAffineParallelLoops
       uboundGroup.push_back(U.getZExtValue());
 
     SmallVector<int64_t> steps;
-    for (auto U : op.steps())
-      steps.push_back(U.cast<IntegerAttr>().getValue().getZExtValue());
-    for (auto U : innerOp.steps())
-      steps.push_back(U.cast<IntegerAttr>().getValue().getZExtValue());
+    for (auto U : op.getSteps())
+      steps.push_back(U);
+    for (auto U : innerOp.getSteps())
+      steps.push_back(U);
 
     AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
         op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
@@ -3313,6 +3313,8 @@ struct PrepMergeNestedAffineParallelLoops
     SmallVector<Operation *> toMove;
     for (auto &op : outerBody) {
       if (auto innerOp2 = dyn_cast<AffineParallelOp>(&op)) {
+        if (innerOp)
+          return failure();
         if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
           return failure();
         }
@@ -3341,6 +3343,251 @@ struct PrepMergeNestedAffineParallelLoops
   }
 };
 
+struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = op.getLoopBody().front();
+
+    AffineIfOp innerOp = nullptr;
+    for (auto &op : outerBody) {
+      if (auto innerOp2 = dyn_cast<AffineIfOp>(&op)) {
+        if (innerOp)
+          return failure();
+        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+          return failure();
+        }
+        innerOp = innerOp2;
+        continue;
+      }
+      if (!isReadOnly(&op))
+        return failure();
+    }
+
+    if (!innerOp)
+      return failure();
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty())
+      return failure();
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    bool changed = false;
+    SmallVector<AffineExpr> remaining;
+    SmallVector<bool> isEq;
+    for (auto cst : llvm::enumerate(innerOp.getIntegerSet().getConstraints())) {
+      if (innerOp.getIntegerSet().isEq(cst.index())) {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      AffineExpr rhs = getAffineConstantExpr(0, op.getContext());
+      SmallVector<AffineExpr> todo = {cst.value()};
+      std::map<size_t, AffineExpr> indUsage;
+      bool legal = true;
+      while (todo.size()) {
+        auto cur = todo.back();
+        todo.pop_back();
+        if (cur.isa<AffineConstantExpr>() || cur.isa<AffineSymbolExpr>()) {
+          rhs = rhs + cur;
+          continue;
+        }
+        if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
+          auto ival = innerOp.getOperands()[dim.getPosition()]
+                          .dyn_cast<BlockArgument>();
+          if (!ival || ival.getOwner()->getParentOp() != op) {
+            rhs = rhs + dim;
+            continue;
+          }
+          if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+            legal = false;
+            break;
+          }
+          indUsage[ival.getArgNumber()] =
+              getAffineConstantExpr(1, op.getContext());
+          continue;
+        }
+        if (auto bop = cur.dyn_cast<AffineBinaryOpExpr>()) {
+          if (bop.getKind() == AffineExprKind::Add) {
+            todo.push_back(bop.getLHS());
+            todo.push_back(bop.getRHS());
+            continue;
+          }
+          if (bop.getKind() == AffineExprKind::Mul) {
+            if (!(bop.getRHS().isa<AffineConstantExpr>() ||
+                  bop.getRHS().isa<AffineSymbolExpr>())) {
+              legal = false;
+              break;
+            }
+
+            if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
+              auto ival = innerOp.getOperands()[dim.getPosition()]
+                              .dyn_cast<BlockArgument>();
+              if (!ival || ival.getOwner()->getParentOp() != op) {
+                rhs = rhs + bop;
+                continue;
+              }
+              if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+                legal = false;
+                break;
+              }
+              indUsage[ival.getArgNumber()] = bop.getRHS();
+              continue;
+            }
+          }
+        }
+        legal = false;
+        break;
+      }
+      if (!legal || indUsage.size() != 1) {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+      auto pair = *indUsage.begin();
+      auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
+      if (!affCst) {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      // currently aff * idx + stuff >= 0
+      // currently aff * idx >= -stuff
+      //    idx >= (-stuff).floorDiv(aff)   OR   idx <= ...
+
+      if (affCst.getValue() < 0)
+        rhs = rhs.floorDiv(-affCst.getValue()) + 1;
+      else {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      changed = true;
+
+      size_t off = 0;
+      for (size_t i = 0; i < pair.first; i++)
+        off += uboundGroup[i];
+
+      if (auto newCst = rhs.dyn_cast<AffineConstantExpr>()) {
+          bool seen = false;
+          for (size_t i=0; i<uboundGroup[pair.first]; i++) {
+              if (auto oldCst = ubounds[i].dyn_cast<AffineConstantExpr>()) {
+                  seen = true;
+                  if (newCst.getValue() < oldCst.getValue())
+                      ubounds[i] = rhs;
+              }
+          }
+          if (seen) continue;
+      }
+      ubounds.insert(ubounds.begin() + off,
+                     rhs.shiftDims(innerOp.getIntegerSet().getNumDims(),
+                                   op.upperBoundsMap().getNumDims())
+                         .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
+                                       op.upperBoundsMap().getNumSymbols()));
+
+      uboundGroup[pair.first]++;
+    }
+
+    if (!changed)
+      return failure();
+
+    SmallVector<Value> lboundValues;
+    SmallVector<Value> uboundValues;
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(op.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(op.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.getIntegerSet().getNumDims(); i++)
+      uboundValues.push_back(innerOp.getOperands()[i]);
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.getIntegerSet().getNumSymbols(); i++)
+      uboundValues.push_back(
+          innerOp.getOperands()[i + innerOp.getIntegerSet().getNumDims()]);
+
+    SmallVector<Value> operands = lboundValues;
+    operands.append(uboundValues);
+
+    ArrayRef<Attribute> reductions;
+
+    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+        op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
+        AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
+                                          op.lowerBoundsMap().getNumSymbols(),
+                                          lbounds, op.getContext())),
+        rewriter.getI32TensorAttr(lboundGroup),
+        AffineMapAttr::get(
+            AffineMap::get(op.upperBoundsMap().getNumDims() +
+                               innerOp.getIntegerSet().getNumDims(),
+                           op.upperBoundsMap().getNumSymbols() +
+                               innerOp.getIntegerSet().getNumSymbols(),
+                           ubounds, op.getContext())),
+        rewriter.getI32TensorAttr(uboundGroup), op.stepsAttr(), operands);
+
+    rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
+                                affineLoop.getRegion().begin());
+
+    rewriter.setInsertionPoint(innerOp);
+
+    if (remaining.empty()) {
+      auto yld = cast<AffineYieldOp>(innerOp.getThenBlock()->getTerminator());
+      SmallVector<Value> toRet(yld.getOperands());
+      rewriter.eraseOp(yld);
+      rewriter.mergeBlockBefore(innerOp.getThenBlock(), innerOp);
+      rewriter.replaceOp(innerOp, toRet);
+    } else {
+      AffineIfOp newIf = rewriter.create<AffineIfOp>(
+          innerOp.getLoc(), innerOp.getResultTypes(),
+          IntegerSet::get(innerOp.getIntegerSet().getNumDims(),
+                          innerOp.getIntegerSet().getNumSymbols(), remaining,
+                          isEq),
+          innerOp.getOperands(), /*hasElse*/ false);
+
+      rewriter.eraseBlock(newIf.getThenBlock());
+
+      rewriter.inlineRegionBefore(innerOp.thenRegion(), newIf.thenRegion(),
+                                  newIf.thenRegion().begin());
+      rewriter.inlineRegionBefore(innerOp.elseRegion(), newIf.elseRegion(),
+                                  newIf.elseRegion().begin());
+
+      rewriter.replaceOp(innerOp, newIf->getResults());
+      rewriter.replaceOp(op, affineLoop->getResults());
+    }
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -3351,6 +3598,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
+      MergeNestedAffineParallelIf,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }

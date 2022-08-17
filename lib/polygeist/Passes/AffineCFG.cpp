@@ -1069,7 +1069,8 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
         AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
                               b.getAffineSymbolExpr(2 * exprs.size() + 1)};
         auto expr = dims[0] - dims[1];
-        if (cmpi.getPredicate() == CmpIPredicate::sgt)
+        if (cmpi.getPredicate() == CmpIPredicate::sgt ||
+            cmpi.getPredicate() == CmpIPredicate::ugt)
           expr = expr + 1;
         exprs.push_back(expr);
       }
@@ -1102,7 +1103,8 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
         AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
                               b.getAffineSymbolExpr(2 * exprs.size() + 1)};
         auto expr = dims[1] - dims[0];
-        if (cmpi.getPredicate() == CmpIPredicate::slt)
+        if (cmpi.getPredicate() == CmpIPredicate::slt ||
+            cmpi.getPredicate() == CmpIPredicate::ult)
           expr = expr - 1;
         exprs.push_back(expr);
       }
