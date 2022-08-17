@@ -279,9 +279,22 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
     auto decast = t;
-    while (auto idx = decast.getDefiningOp<IndexCastOp>()) {
-      decast = idx.getIn();
+    while (true) {
+      if (auto idx = decast.getDefiningOp<IndexCastOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      if (auto idx = decast.getDefiningOp<ExtUIOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      if (auto idx = decast.getDefiningOp<ExtSIOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      break;
     }
+
     if (!isValidSymbolInt(t, /*recur*/ false)) {
       t = decast;
     }
@@ -938,6 +951,12 @@ bool isValidIndex(Value val) {
     return true;
 
   if (auto cast = val.getDefiningOp<IndexCastOp>())
+    return isValidIndex(cast.getOperand());
+
+  if (auto cast = val.getDefiningOp<ExtSIOp>())
+    return isValidIndex(cast.getOperand());
+
+  if (auto cast = val.getDefiningOp<ExtUIOp>())
     return isValidIndex(cast.getOperand());
 
   if (auto bop = val.getDefiningOp<AddIOp>())
