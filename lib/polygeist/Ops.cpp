@@ -4005,11 +4005,9 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    for (auto U : op->getResult(0).getUsers()) {
-      if (!isa<AffineLoadOp, AffineStoreOp, memref::LoadOp, memref::StoreOp,
-               memref::DeallocOp>(U))
-        return failure();
-    }
+    if (isCaptured(op))
+      return failure();
+
     for (auto U : op->getResult(0).getUsers()) {
       if (auto load = dyn_cast<AffineLoadOp>(U)) {
         AffineMap map = load.getAffineMapAttr().getValue();
@@ -4128,7 +4126,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
             assert(otherBuf.getType() == op.getType());
 
             rewriter.replaceOpWithIf(
-                op, otherBuf.getResults(), nullptr, [&](OpOperand &use) {
+                op, otherBuf, nullptr, [&](OpOperand &use) {
                   Operation *owner = use.getOwner();
                   while (owner &&
                          owner->getBlock() != copyIntoBuffer->getBlock()) {
@@ -4140,8 +4138,6 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
                   return copyIntoBuffer->isBeforeInBlock(owner) &&
                          owner->isBeforeInBlock(copyOutOfBuffer);
                 });
-
-            rewriter.replaceOpInRegion(op, otherBuf, into..out);
 
             rewriter.setInsertionPoint(copyOutOfBuffer);
             rewriter.clone(*copyIntoBuffer);
@@ -4183,6 +4179,30 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
   }
 };
 
+template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(T alloc,
+                                PatternRewriter &rewriter) const override {
+    if (llvm::any_of(alloc->getUsers(), [&](Operation *op) {
+          if (auto storeOp = dyn_cast<memref::StoreOp>(op))
+            return storeOp.value() == alloc;
+          if (auto storeOp = dyn_cast<AffineStoreOp>(op))
+            return storeOp.value() == alloc;
+          if (auto storeOp = dyn_cast<LLVM::StoreOp>(op))
+            return storeOp.getValue() == alloc;
+          return !isa<memref::DeallocOp>(op);
+        }))
+      return failure();
+
+    for (Operation *user : llvm::make_early_inc_range(alloc->getUsers()))
+      rewriter.eraseOp(user);
+
+    rewriter.eraseOp(alloc);
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -4195,6 +4215,8 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
       BufferElimination<memref::AllocaOp>, BufferElimination<memref::AllocOp>,
+      SimplifyDeadAllocV2<memref::AllocaOp>,
+      SimplifyDeadAllocV2<memref::AllocOp>, SimplifyDeadAllocV2<LLVM::AllocaOp>,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
