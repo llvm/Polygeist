@@ -2703,6 +2703,10 @@ bool aboveEq(Value bval, int64_t val) {
     return iattr.getValue().getSExtValue() >= val;
   }
 
+  if (auto icast = bval.getDefiningOp<IndexCastOp>()) {
+    return aboveEq(icast.getOperand(), val);
+  }
+
   return false;
 }
 

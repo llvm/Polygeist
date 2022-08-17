@@ -24,6 +24,7 @@ using namespace mlir::arith;
 using namespace polygeist;
 
 bool isReadOnly(Operation *op);
+bool aboveEq(Value, int64_t);
 
 // isValidSymbol, even if not index
 bool isValidSymbolInt(Value value, bool recur = true) {
@@ -1037,6 +1038,21 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
     exprs.push_back(dims[0] - dims[1]);
   } break;
 
+  case CmpIPredicate::ugt:
+  case CmpIPredicate::uge:
+    for (auto lhspack : lhs)
+      if (!aboveEq(lhspack, 0)) {
+        LLVM_DEBUG(llvm::dbgs() << "illegal greater lhs icmp: " << cmpi << " - "
+                                << lhspack << "\n");
+        return false;
+      }
+    for (auto rhspack : rhs)
+      if (!aboveEq(rhspack, 0)) {
+        LLVM_DEBUG(llvm::dbgs() << "illegal greater rhs icmp: " << cmpi << " - "
+                                << rhspack << "\n");
+        return false;
+      }
+
   case CmpIPredicate::sge:
   case CmpIPredicate::sgt: {
     // if lhs >=? rhs
@@ -1059,6 +1075,21 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
       }
   } break;
 
+  case CmpIPredicate::ult:
+  case CmpIPredicate::ule:
+    for (auto lhspack : lhs)
+      if (!aboveEq(lhspack, 0)) {
+        LLVM_DEBUG(llvm::dbgs() << "illegal less lhs icmp: " << cmpi << " - "
+                                << lhspack << "\n");
+        return false;
+      }
+    for (auto rhspack : rhs)
+      if (!aboveEq(rhspack, 0)) {
+        LLVM_DEBUG(llvm::dbgs() << "illegal less rhs icmp: " << cmpi << " - "
+                                << rhspack << "\n");
+        return false;
+      }
+
   case CmpIPredicate::slt:
   case CmpIPredicate::sle: {
     if (lhs_min || rhs_max)
@@ -1078,10 +1109,6 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   } break;
 
   case CmpIPredicate::ne:
-  case CmpIPredicate::ult:
-  case CmpIPredicate::ule:
-  case CmpIPredicate::ugt:
-  case CmpIPredicate::uge:
     LLVM_DEBUG(llvm::dbgs() << "illegal icmp: " << cmpi << "\n");
     return false;
   }
