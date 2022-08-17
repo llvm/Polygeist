@@ -119,7 +119,7 @@ module  {
 // CHECK-NEXT:   }
 
 
-// CHECK:   func.func private @runUS(%arg0 : index)
+// CHECK:   func.func private @runUS(%arg0: index)
 // CHECK-NEXT:   func.func private @runUS(%arg0: index) {
 // CHECK-NEXT:     %0 = memref.alloca(%arg0) : memref<?xi32>
 // CHECK-NEXT:     affine.for %arg1 = 0 to 22 {
