@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" --allow-unregistered-dialect --canonicalize --split-input-file %s | FileCheck %s
 
 module {
   func.func private @print()
@@ -29,6 +29,7 @@ module {
         }
         scf.yield
       }
+      "test.use"(%0) : (!llvm.ptr<i8>) -> ()
       scf.yield
     }
     return
@@ -96,6 +97,7 @@ module {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
+// CHECK-NEXT:       "test.use"(%0) : (!llvm.ptr<i8>) -> ()
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
