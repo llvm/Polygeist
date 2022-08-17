@@ -3599,10 +3599,20 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
           }
           multiplierToInd[-affCst.getValue()] = pair.first;
         }
-        size_t prevMultiplier;
-        for (auto &pair : llvm::enumerate(llvm::reverse(multiplierToInd))) {
-          if (pair.index() == 0) {
-            prevMultiplier = pair.value().first;
+        SmallVector<size_t> Multipliers;
+        for (auto &pair : multiplierToInd) {
+          Multipliers.push_back(pair.first);
+        }
+
+        size_t SmallestBlockArg;
+
+        for (auto &pair : llvm::enumerate(multiplierToInd)) {
+
+          if (pair.index() == 0)
+            SmallestBlockArg = pair.value().second;
+
+          // Largest multiplier doesn't need to bounds check
+          if (pair.index() == multiplierToInd.size() - 1) {
             continue;
           }
 
@@ -3614,7 +3624,8 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
           for (size_t i = 0; i < pair.value().second; i++)
             off += uboundGroup[i];
           if (auto cst = ubounds[off].dyn_cast<AffineConstantExpr>()) {
-            if (cst.getValue() * pair.value().first != prevMultiplier) {
+            if (cst.getValue() * pair.value().first !=
+                Multipliers[pair.index() + 1]) {
               legal = false;
               break;
             }
@@ -3634,83 +3645,137 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
             legal = false;
             break;
           }
-
-          prevMultiplier = pair.value().second;
         }
 
         // TODO check all users are affine sums like this.
+        std::map<size_t, IndexCastOp> idxCasts;
+        SmallVector<Operation *> affineMapUsers;
         for (auto &pair : multiplierToInd) {
           if (legal == false)
             break;
+          IndexCastOp idxCst = nullptr;
           for (auto U : op.getIVs()[pair.second].getUsers()) {
             // TODO expand the be proportional to, not just equal weight exprs
             if (auto AL = dyn_cast<AffineLoadOp>(U)) {
-              for (auto expr : AL.getAffineMap().getResults()) {
-                bool sublegal;
-                std::map<size_t, AffineExpr> subIndUsage;
-                getIndUsage(expr, AL.getMapOperands(), subIndUsage, sublegal);
-                size_t count = 0;
-                for (auto &pair : indUsage) {
-                  auto found = subIndUsage.find(pair.first);
-                  if (found != subIndUsage.end()) {
-                    if (pair.second != -found->second)
-                      legal = false;
-                    count++;
-                  }
-                }
-                if (!sublegal ||
-                    (count != 0 && count != multiplierToInd.size())) {
-                  legal = false;
-                  break;
-                }
-              }
+              affineMapUsers.push_back(AL);
             } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
               if (AS.value() == op.getIVs()[pair.second]) {
                 legal = false;
                 break;
               }
-              for (auto expr : AS.getAffineMap().getResults()) {
-                bool sublegal;
-                std::map<size_t, AffineExpr> subIndUsage;
-                getIndUsage(expr, AS.getMapOperands(), subIndUsage, sublegal);
-                size_t count = 0;
-                for (auto &pair : indUsage) {
-                  auto found = subIndUsage.find(pair.first);
-                  if (found != subIndUsage.end()) {
-                    if (pair.second != -found->second)
-                      legal = false;
-                    count++;
-                  }
-                }
-                if (!sublegal ||
-                    (count != 0 && count != multiplierToInd.size())) {
-                  legal = false;
-                  break;
-                }
-              }
+              affineMapUsers.push_back(AS);
             } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
-              for (auto expr : AI.getIntegerSet().getConstraints()) {
-                bool sublegal;
-                std::map<size_t, AffineExpr> subIndUsage;
-                getIndUsage(expr, AI.getOperands(), subIndUsage, sublegal);
-                size_t count = 0;
-                for (auto &pair : indUsage) {
-                  auto found = subIndUsage.find(pair.first);
-                  if (found != subIndUsage.end()) {
-                    if (pair.second != found->second)
-                      legal = false;
-                    count++;
-                  }
-                }
-                if (!sublegal ||
-                    (count != 0 && count != multiplierToInd.size())) {
-                  legal = false;
-                  break;
-                }
-              }
+              affineMapUsers.push_back(AI);
+            } else if (auto idx = dyn_cast<IndexCastOp>(U)) {
+              if (idxCst) {
+                legal = false;
+                break;
+              } else
+                idxCst = idx;
             } else {
               legal = false;
               break;
+            }
+          }
+          if (idxCst)
+            idxCasts[pair.second] = idxCst;
+        }
+        for (auto U : affineMapUsers) {
+          SmallVector<AffineExpr> exprs;
+          ValueRange operands;
+          if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+            for (auto E : AL.getAffineMap().getResults())
+              exprs.push_back(E);
+            operands = AL.getMapOperands();
+          } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+            for (auto E : AS.getAffineMap().getResults())
+              exprs.push_back(E);
+            operands = AS.getMapOperands();
+          } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+            for (auto E : AI.getIntegerSet().getConstraints())
+              exprs.push_back(E);
+            operands = AI.getOperands();
+          } else {
+            llvm_unreachable("Unknown affine use type");
+          }
+
+          for (auto expr : exprs) {
+            bool sublegal;
+            std::map<size_t, AffineExpr> subIndUsage;
+            getIndUsage(expr, operands, subIndUsage, sublegal);
+            size_t count = 0;
+            for (auto &pair : indUsage) {
+              auto found = subIndUsage.find(pair.first);
+              if (found != subIndUsage.end()) {
+                auto startFound = subIndUsage.find(SmallestBlockArg);
+                auto startPrev = indUsage.find(SmallestBlockArg);
+                if (startFound == subIndUsage.end())
+                  legal = false;
+                else if (startFound->second * pair.second !=
+                         startPrev->second * found->second)
+                  legal = false;
+                count++;
+              }
+            }
+            if (!sublegal || (count != 0 && count != multiplierToInd.size())) {
+              legal = false;
+              break;
+            }
+          }
+        }
+
+        if (idxCasts.size()) {
+          if (idxCasts.size() != multiplierToInd.size()) {
+            legal = false;
+          } else {
+            Value val = nullptr;
+            for (auto &pair : llvm::enumerate(multiplierToInd)) {
+              IndexCastOp idxCst = idxCasts[pair.value().second];
+              auto multiplier = pair.value().first;
+
+              Value mulIdx;
+              if (multiplier != 1) {
+                if (!idxCst.getResult().hasOneUse()) {
+                  legal = false;
+                  break;
+                }
+                MulIOp mul = dyn_cast<MulIOp>(*idxCst.getResult().user_begin());
+
+                IntegerAttr iattr;
+                if (!matchPattern(mul.getRhs(), m_Constant(&iattr))) {
+                  legal = false;
+                  break;
+                }
+                if (iattr.getValue() != multiplier) {
+                  legal = false;
+                  break;
+                }
+                mulIdx = mul;
+              } else {
+                mulIdx = idxCst;
+              }
+
+              if (!val) {
+                val = mulIdx;
+              } else {
+                if (!val.hasOneUse()) {
+                  legal = false;
+                  break;
+                }
+
+                AddIOp nex = dyn_cast<AddIOp>(*val.user_begin());
+
+                if ((nex.getRhs() == val && nex.getLhs() == mulIdx) ||
+                    (nex.getLhs() == val && nex.getRhs() == mulIdx)) {
+                  val = mulIdx;
+                } else {
+                  legal = false;
+                  break;
+                }
+              }
+
+              if (pair.index() != multiplierToInd.size() - 1) {
+              }
             }
           }
         }
