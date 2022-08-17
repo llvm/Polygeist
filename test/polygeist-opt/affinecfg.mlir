@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --affine-cfg --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --affine-cfg --split-input-file --allow-unregistered-dialect %s | FileCheck %s
 module {
   func.func @_Z7runTestiPPc(%arg0: index, %arg2: memref<?xi32>) {
     %c0_i32 = arith.constant 0 : i32
@@ -135,3 +135,31 @@ func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) 
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// -----
+
+module {
+  func.func @c(%71: memref<?xf32>, %39: i64) {
+      affine.parallel (%arg2, %arg3) = (0, 0) to (42, 512) {
+        %262 = arith.index_cast %arg2 : index to i32
+        %a264 = arith.extsi %262 : i32 to i64
+        %268 = arith.cmpi slt, %a264, %39 : i64
+        scf.if %268 {
+          "test.something"() : () -> ()
+        }
+      }
+    return
+  }
+}
+
+// CHECK: #set = affine_set<(d0)[s0] : (-d0 + s0 - 1 >= 0)>
+// CHECK:   func.func @c(%arg0: memref<?xf32>, %arg1: i64) {
+// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i64 to index
+// CHECK-NEXT:     affine.parallel (%arg2, %arg3) = (0, 0) to (42, 512) {
+// CHECK-NEXT:       affine.if #set(%arg2)[%0] {
+// CHECK-NEXT:         "test.something"() : () -> ()
+// CHECK-NEXT:       }
+// CHECK-NEXT:     }
+// CHECK-NEXT:     return
+// CHECK-NEXT:   }
+

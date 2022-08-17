@@ -26,31 +26,61 @@ using namespace polygeist;
 bool isReadOnly(Operation *op);
 bool aboveEq(Value, int64_t);
 
+bool isValidSymbolInt(Value value, bool recur = true);
+bool isValidSymbolInt(Operation *defOp, bool recur) {
+  Attribute operandCst;
+  if (matchPattern(defOp, m_Constant(&operandCst)))
+    return true;
+
+  if (recur) {
+    if (isa<SelectOp, IndexCastOp, AddIOp, MulIOp, DivSIOp, DivUIOp, RemSIOp,
+            RemUIOp, SubIOp, CmpIOp, TruncIOp, ExtUIOp, ExtSIOp>(defOp))
+      if (llvm::all_of(defOp->getOperands(), [&](Value v) {
+            bool b = isValidSymbolInt(v, recur);
+            // if (!b)
+            //	LLVM_DEBUG(llvm::dbgs() << "illegal isValidSymbolInt: "
+            //<< value << " due to " << v << "\n");
+            return b;
+          }))
+        return true;
+    if (auto ifOp = dyn_cast<scf::IfOp>(defOp)) {
+      if (isValidSymbolInt(ifOp.getCondition(), recur)) {
+        if (llvm::all_of(
+                ifOp.thenBlock()->without_terminator(),
+                [&](Operation &o) { return isValidSymbolInt(&o, recur); }) &&
+            llvm::all_of(
+                ifOp.elseBlock()->without_terminator(),
+                [&](Operation &o) { return isValidSymbolInt(&o, recur); }))
+          return true;
+      }
+    }
+    if (auto ifOp = dyn_cast<AffineIfOp>(defOp)) {
+      if (llvm::all_of(ifOp.getOperands(),
+                       [&](Value o) { return isValidSymbolInt(o, recur); }))
+        if (llvm::all_of(
+                ifOp.getThenBlock()->without_terminator(),
+                [&](Operation &o) { return isValidSymbolInt(&o, recur); }) &&
+            llvm::all_of(
+                ifOp.getElseBlock()->without_terminator(),
+                [&](Operation &o) { return isValidSymbolInt(&o, recur); }))
+          return true;
+    }
+  }
+  return false;
+}
+
 // isValidSymbol, even if not index
-bool isValidSymbolInt(Value value, bool recur = true) {
+bool isValidSymbolInt(Value value, bool recur) {
   // Check that the value is a top level value.
   if (isTopLevelValue(value))
     return true;
 
   if (auto *defOp = value.getDefiningOp()) {
-    Attribute operandCst;
-    if (matchPattern(defOp, m_Constant(&operandCst)))
+    if (isValidSymbolInt(defOp, recur))
       return true;
-
-    if (recur) {
-      if (isa<SelectOp, IndexCastOp, AddIOp, MulIOp, DivSIOp, DivUIOp, RemSIOp,
-              RemUIOp, SubIOp, CmpIOp>(defOp))
-        if (llvm::all_of(defOp->getOperands(), [&](Value v) {
-              bool b = isValidSymbolInt(v, true);
-              // if (!b)
-              //	LLVM_DEBUG(llvm::dbgs() << "illegal isValidSymbolInt: "
-              //<< value << " due to " << v << "\n");
-              return b;
-            }))
-          return true;
-    }
     return isValidSymbol(value, getAffineScope(defOp));
   }
+
   return false;
 }
 
@@ -189,7 +219,22 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       return nullptr;
     }
     Operation *front = nullptr;
-    for (auto o : op->getOperands()) {
+    SmallVector<Value> ops;
+    std::function<void(Operation *)> getAllOps = [&](Operation *todo) {
+      for (auto v : todo->getOperands()) {
+        if (llvm::all_of(op->getRegions(), [&](Region &r) {
+              return !r.isAncestor(v.getParentRegion());
+            }))
+          ops.push_back(v);
+      }
+      for (auto &r : todo->getRegions()) {
+        for (auto &b : r.getBlocks())
+          for (auto &o2 : b.without_terminator())
+            getAllOps(&o2);
+      }
+    };
+    getAllOps(op);
+    for (auto o : ops) {
       Operation *next;
       if (auto *op = o.getDefiningOp()) {
         if (Value nv = fix(o, index)) {
@@ -234,9 +279,22 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
     auto decast = t;
-    while (auto idx = decast.getDefiningOp<IndexCastOp>()) {
-      decast = idx.getIn();
+    while (true) {
+      if (auto idx = decast.getDefiningOp<IndexCastOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      if (auto idx = decast.getDefiningOp<ExtUIOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      if (auto idx = decast.getDefiningOp<ExtSIOp>()) {
+        decast = idx.getIn();
+        continue;
+      }
+      break;
     }
+
     if (!isValidSymbolInt(t, /*recur*/ false)) {
       t = decast;
     }
@@ -893,6 +951,12 @@ bool isValidIndex(Value val) {
     return true;
 
   if (auto cast = val.getDefiningOp<IndexCastOp>())
+    return isValidIndex(cast.getOperand());
+
+  if (auto cast = val.getDefiningOp<ExtSIOp>())
+    return isValidIndex(cast.getOperand());
+
+  if (auto cast = val.getDefiningOp<ExtUIOp>())
     return isValidIndex(cast.getOperand());
 
   if (auto bop = val.getDefiningOp<AddIOp>())
