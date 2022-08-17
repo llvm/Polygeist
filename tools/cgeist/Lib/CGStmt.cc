@@ -822,6 +822,8 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
 ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   IfScope scope(*this);
   auto loc = getMLIRLocation(stmt->getIfLoc());
+  if (auto declStmt = stmt->getConditionVariableDeclStmt())
+    Visit(declStmt);
   auto cond = Visit(stmt->getCond()).getValue(loc, builder);
   assert(cond != nullptr && "must be a non-null");
 
