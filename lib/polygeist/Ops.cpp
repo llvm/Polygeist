@@ -35,6 +35,10 @@ using namespace mlir::arith;
 llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
+namespace mlir {
+bool isSideEffectFree(Operation *op);
+}
+
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
@@ -2653,6 +2657,89 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
+bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
+
+bool aboveEq(Value bval, int64_t val) {
+  // Unknown size currently unhandled.
+  if (val == -1)
+    return false;
+
+  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+    if (AffineForOp afFor =
+            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+      for (auto lb : afFor.getLowerBoundMap().getResults()) {
+        if (!aboveEq(lb, afFor.getLowerBoundMap().getNumDims(),
+                     afFor.getLowerBoundOperands(), val))
+          return false;
+      }
+      return true;
+    }
+    if (AffineParallelOp afFor =
+            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+      for (auto lb :
+           afFor.getLowerBoundMap(baval.getArgNumber()).getResults()) {
+        if (!aboveEq(lb, afFor.lowerBoundsMap().getNumDims(),
+                     afFor.getLowerBoundsOperands(), val))
+          return false;
+      }
+      return true;
+    }
+
+    if (scf::ForOp afFor =
+            dyn_cast<scf::ForOp>(baval.getOwner()->getParentOp())) {
+      if (baval.getArgNumber() == 0) {
+        return aboveEq(afFor.getLowerBound(), val);
+      }
+    }
+
+    if (scf::ParallelOp afFor =
+            dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
+      return aboveEq(afFor.getLowerBound()[baval.getArgNumber()], val);
+    }
+  }
+
+  IntegerAttr iattr;
+  if (matchPattern(bval, m_Constant(&iattr))) {
+    return iattr.getValue().getSExtValue() >= val;
+  }
+
+  if (auto icast = bval.getDefiningOp<IndexCastOp>()) {
+    return aboveEq(icast.getOperand(), val);
+  }
+
+  return false;
+}
+
+bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
+  // Unknown size currently unhandled.
+  if (val == -1)
+    return false;
+
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
+    if (opd.getValue() >= val)
+      return true;
+    return false;
+  }
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
+    return aboveEq(operands[opd.getPosition()], val);
+  }
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
+    return aboveEq(operands[opd.getPosition() + numDim], val);
+  }
+
+  if (auto bop = expr.dyn_cast<AffineBinaryOpExpr>()) {
+    if (bop.getKind() == AffineExprKind::Add) {
+      return aboveEq(bop.getLHS(), numDim, operands, val) &&
+             aboveEq(bop.getRHS(), numDim, operands, val);
+    }
+    if (bop.getKind() == AffineExprKind::Mul && val == 0) {
+      return aboveEq(bop.getLHS(), numDim, operands, val) &&
+             aboveEq(bop.getRHS(), numDim, operands, val);
+    }
+  }
+  return false;
+}
+
 struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
   using OpRewritePattern<AffineIfOp>::OpRewritePattern;
 
@@ -2665,65 +2752,164 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
     if (!par)
       return failure();
-    if (!isa<AffineYieldOp>(op->getNextNode()))
+
+    bool sink = true;
+    bool hoist = true;
+    for (auto node = op->getNextNode(); node; node = node->getNextNode()) {
+      if (!isReadNone(node)) {
+        sink = false;
+        break;
+      }
+    }
+    for (auto node = op->getPrevNode(); node; node = node->getPrevNode()) {
+      if (!isReadNone(node)) {
+        hoist = false;
+        break;
+      }
+    }
+    if (!sink && !hoist)
       return failure();
 
+    SmallVector<bool> doneVars(par.getSteps().size(), false);
+    SmallVector<bool> doneConstraints(
+        op.getIntegerSet().getConstraints().size(), false);
+
+    SmallVector<AffineExpr> remaining;
+    SmallVector<bool> isEq;
+    SmallVector<Value> dimVals;
+    SmallVector<Value> symVals;
+
+    SmallVector<AffineExpr> dimReplacements;
+
+    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumDims(); ++idx) {
+      dimReplacements.push_back(
+          getAffineDimExpr(dimVals.size(), op.getContext()));
+      dimVals.push_back(par.getUpperBoundsOperands()[idx]);
+    }
+    SmallVector<AffineExpr> symReplacements;
+    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumSymbols(); ++idx) {
+      symReplacements.push_back(
+          getAffineSymbolExpr(dimVals.size(), op.getContext()));
+      symVals.push_back(
+          par.getUpperBoundsOperands()[idx +
+                                       par.upperBoundsMap().getNumDims()]);
+    }
+
+    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
+      if (!op.getIntegerSet().isEq(cst.index())) {
+        return failure();
+      }
+
+      auto opd = cst.value().dyn_cast<AffineDimExpr>();
+      if (!opd) {
+        return failure();
+      }
+      auto ival = op.getOperands()[opd.getPosition()].dyn_cast<BlockArgument>();
+      if (!ival) {
+        return failure();
+      }
+
+      if (ival.getOwner()->getParentOp() != par) {
+        remaining.push_back(getAffineDimExpr(dimVals.size(), op.getContext()));
+        dimVals.push_back(ival);
+        isEq.push_back(op.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      if (doneVars[ival.getArgNumber()]) {
+        return failure();
+      }
+
+      if (!aboveEq(ival, 0)) {
+        return failure();
+      }
+
+      // TODO make this a check in the below at runtime
+      // rather than at compile time.
+
+      for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
+        auto ub2 = ub.replaceDimsAndSymbols(dimReplacements, symReplacements);
+        remaining.push_back(ub2 - 1);
+        isEq.push_back(false);
+      }
+      doneVars[ival.getArgNumber()] = true;
+      doneConstraints[cst.index()];
+    }
+
+    if (!llvm::all_of(doneVars, [](bool b) { return b; })) {
+      return failure();
+    }
+
     bool failed = false;
+    SmallVector<Operation *> toSink;
+    std::function<void(Value)> recur = [&](Value v) {
+      if (!par.getRegion().isAncestor(v.getParentRegion()) ||
+          op.thenRegion().isAncestor(v.getParentRegion()))
+        return;
+      if (auto ba = v.dyn_cast<BlockArgument>()) {
+        if (ba.getOwner()->getParentOp() == par) {
+          return;
+        }
+      }
+      Operation *vo = v.getDefiningOp();
+      if (!vo) {
+        failed = true;
+        return;
+      }
+      if (isReadNone(vo)) {
+        toSink.push_back(vo);
+        for (auto oper : vo->getOperands())
+          recur(oper);
+        return;
+      }
+      failed = true;
+      return;
+    };
     op->walk([&](Operation *sub) {
       if (sub != op) {
-        for (auto oper : sub->getOperands()) {
-          if (par.getRegion().isAncestor(((Value)oper).getParentRegion()) &&
-              !op.thenRegion().isAncestor(((Value)oper).getParentRegion())) {
-            failed = true;
-            return;
-          }
-        }
+        for (auto oper : sub->getOperands())
+          recur(oper);
       }
     });
     if (failed)
       return failure();
 
-    if (par.getSteps().size() != op.getIntegerSet().getConstraints().size())
-      return failure();
+    auto iset =
+        IntegerSet::get(dimVals.size(), symVals.size(), remaining, isEq);
 
-    for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
-      auto opd = cst.value().dyn_cast<AffineDimExpr>();
-      if (!opd) {
-        opd = (-cst.value()).dyn_cast<AffineDimExpr>();
-      }
-      if (!opd) {
-        return failure();
-      }
-      if (op.getOperands()[opd.getPosition()] != par.getIVs()[cst.index()]) {
-        return failure();
-      }
-      if (!op.getIntegerSet().isEq(cst.index())) {
-        return failure();
-      }
+    SmallVector<Value> newVals(dimVals);
+    newVals.append(symVals);
 
-      for (auto lb : par.getLowerBoundMap(cst.index()).getResults()) {
-        auto opd = lb.dyn_cast<AffineConstantExpr>();
-        if (!opd) {
-          return failure();
-        }
-        if (opd.getValue() > 0) {
-          return failure();
-        }
-      }
-      for (auto ub : par.getUpperBoundMap(cst.index()).getResults()) {
-        auto opd = ub.dyn_cast<AffineConstantExpr>();
-        if (!opd) {
-          return failure();
-        }
-        if (opd.getValue() <= 0) {
-          return failure();
-        }
-      }
+    if (sink)
+      rewriter.setInsertionPoint(par->getNextNode());
+    else
+      rewriter.setInsertionPoint(par);
+
+    BlockAndValueMapping map;
+    auto c0 = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
+    for (auto i : par.getIVs()) {
+      map.map(i, c0);
+      for (auto &val : newVals)
+        if (val == i)
+          val = c0;
     }
 
-    rewriter.eraseOp(op.getThenBlock()->getTerminator());
-    rewriter.mergeBlockBefore(op.getThenBlock(), par->getNextNode());
+    auto newIf = rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(), iset,
+                                             newVals, /*hasElse*/ false);
+    rewriter.eraseBlock(newIf.getThenBlock());
+    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
+                                newIf.thenRegion().begin());
     rewriter.eraseOp(op);
+    rewriter.setInsertionPointToStart(newIf.getThenBlock());
+    for (auto o : llvm::reverse(toSink)) {
+      auto nop = rewriter.clone(*o, map);
+      rewriter.replaceOpWithinBlock(o, nop->getResults(), newIf.getThenBlock());
+    }
+    for (auto i : par.getIVs()) {
+      i.replaceUsesWithIf(c0, [&](OpOperand &user) {
+        return newIf->isAncestor(user.getOwner());
+      });
+    }
     return success();
   }
 };
@@ -2745,12 +2931,104 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
   LogicalResult matchAndRewrite(AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<AffineExpr> todo;
+    SmallVector<bool> eqFlags;
     bool knownFalse = false;
     bool removed = false;
     for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
       auto opd = cst.value().dyn_cast<AffineConstantExpr>();
       if (!opd) {
+        if (op.getIntegerSet().isEq(cst.index())) {
+          if (auto bop = cst.value().dyn_cast<AffineBinaryOpExpr>()) {
+            if (bop.getKind() == AffineExprKind::Mul &&
+                bop.getRHS().getKind() == AffineExprKind::Constant) {
+              removed = true;
+              if (bop.getRHS().cast<AffineConstantExpr>().getValue() != 0) {
+                todo.push_back(bop.getLHS());
+                eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
+              }
+              continue;
+            }
+            if (bop.getKind() == AffineExprKind::Add &&
+                aboveEq(bop, op.getIntegerSet().getNumDims(), op.getOperands(),
+                        0)) {
+              todo.push_back(bop.getLHS());
+              eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
+              todo.push_back(bop.getRHS());
+              eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
+              removed = true;
+              continue;
+            }
+          }
+        }
+
+        bool canRemove = false;
+        for (auto paren = op->getParentOfType<AffineIfOp>(); paren;
+             paren = paren->getParentOfType<AffineIfOp>()) {
+          for (auto cst2 : paren.getIntegerSet().getConstraints()) {
+            if (paren.elseRegion().isAncestor(op->getParentRegion()))
+              continue;
+            if (cst2 == cst.value() &&
+                paren.getIntegerSet().getNumDims() ==
+                    op.getIntegerSet().getNumDims() &&
+                paren.getIntegerSet().getNumSymbols() ==
+                    op.getIntegerSet().getNumSymbols() &&
+                llvm::all_of(llvm::zip(paren.getOperands(), op.getOperands()),
+                             [](std::tuple<Value, Value> p) {
+                               return std::get<0>(p) == std::get<1>(p);
+                             })) {
+              canRemove = true;
+              break;
+            }
+          }
+          if (canRemove)
+            break;
+        }
+        //// expr -1 >= 0    => expr > 0
+        if (!op.getIntegerSet().isEq(cst.index())) {
+          auto expr = cst.value() + 1;
+          for (auto paren = op->getParentOfType<AffineParallelOp>(); paren;
+               paren = paren->getParentOfType<AffineParallelOp>()) {
+            if (canRemove)
+              break;
+            for (auto tup : llvm::enumerate(paren.getSteps())) {
+              bool found = false;
+              for (auto ub : paren.getUpperBoundMap(tup.index()).getResults()) {
+                if (auto exprS = expr.dyn_cast<AffineSymbolExpr>()) {
+                  if (auto ubS = ub.dyn_cast<AffineSymbolExpr>()) {
+                    if (op.getOperands()[exprS.getPosition() +
+                                         op.getIntegerSet().getNumDims()] ==
+                        paren.getUpperBoundsOperands()[ubS.getPosition() +
+                                                       paren.upperBoundsMap()
+                                                           .getNumDims()]) {
+
+                      found = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              if (!found)
+                continue;
+
+              if (!aboveEq(paren.getIVs()[tup.index()], 0))
+                continue;
+
+              canRemove = true;
+              break;
+            }
+          }
+          if (auto bop = cst.value().dyn_cast<AffineBinaryOpExpr>()) {
+            if (bop.getKind() == AffineExprKind::Add) {
+            }
+          }
+        }
+        if (canRemove) {
+          removed = true;
+          continue;
+        }
+
         todo.push_back(cst.value());
+        eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
         continue;
       }
       removed = true;
@@ -2782,21 +3060,908 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
 
       return success();
     }
-    // TODO can reduce the number of conditions, even if cannot eliminate
-    // entirely.
-    return failure();
+
+    if (!removed)
+      return failure();
+
+    auto iset =
+        IntegerSet::get(op.getIntegerSet().getNumDims(),
+                        op.getIntegerSet().getNumSymbols(), todo, eqFlags);
+
+    auto newIf =
+        rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(), iset,
+                                    op.getOperands(), /*hasElse*/ false);
+    rewriter.eraseBlock(newIf.getThenBlock());
+    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
+                                newIf.thenRegion().begin());
+    rewriter.inlineRegionBefore(op.elseRegion(), newIf.elseRegion(),
+                                newIf.elseRegion().begin());
+    rewriter.replaceOp(op, newIf.getResults());
+    return success();
+  }
+};
+
+struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
+  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineIfOp nextIf,
+                                PatternRewriter &rewriter) const override {
+    Block *parent = nextIf->getBlock();
+    if (nextIf == &parent->front())
+      return failure();
+
+    auto prevIf = dyn_cast<AffineIfOp>(nextIf->getPrevNode());
+    if (!prevIf)
+      return failure();
+
+    // Determine the logical then/else blocks when prevIf's
+    // condition is used. Null means the block does not exist
+    // in that case (e.g. empty else). If neither of these
+    // are set, the two conditions cannot be compared.
+    Block *nextThen = nullptr;
+    Block *nextElse = nullptr;
+
+    if (nextIf.getIntegerSet() == prevIf.getIntegerSet() &&
+        llvm::all_of(llvm::zip(nextIf.getOperands(), prevIf.getOperands()),
+                     [](std::tuple<Value, Value> p) {
+                       return std::get<0>(p) == std::get<1>(p);
+                     })) {
+      nextThen = nextIf.getThenBlock();
+      if (!nextIf.elseRegion().empty())
+        nextElse = nextIf.getElseBlock();
+    }
+
+    if (!nextThen && !nextElse)
+      return failure();
+
+    SmallVector<Value> prevElseYielded;
+    if (!prevIf.elseRegion().empty())
+      prevElseYielded =
+          cast<AffineYieldOp>(prevIf.getElseBlock()->getTerminator())
+              .getOperands();
+    // Replace all uses of return values of op within nextIf with the
+    // corresponding yields
+    for (auto it :
+         llvm::zip(prevIf.getResults(),
+                   cast<AffineYieldOp>(prevIf.getThenBlock()->getTerminator())
+                       .getOperands(),
+                   prevElseYielded))
+      for (OpOperand &use :
+           llvm::make_early_inc_range(std::get<0>(it).getUses())) {
+        if (nextThen && nextThen->getParent()->isAncestor(
+                            use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<1>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        } else if (nextElse && nextElse->getParent()->isAncestor(
+                                   use.getOwner()->getParentRegion())) {
+          rewriter.startRootUpdate(use.getOwner());
+          use.set(std::get<2>(it));
+          rewriter.finalizeRootUpdate(use.getOwner());
+        }
+      }
+
+    SmallVector<Type> mergedTypes(prevIf.getResultTypes());
+    llvm::append_range(mergedTypes, nextIf.getResultTypes());
+
+    AffineIfOp combinedIf = rewriter.create<AffineIfOp>(
+        nextIf.getLoc(), mergedTypes, prevIf.getIntegerSet(),
+        prevIf.getOperands(), /*hasElse=*/false);
+    rewriter.eraseBlock(&combinedIf.thenRegion().back());
+
+    rewriter.inlineRegionBefore(prevIf.thenRegion(), combinedIf.thenRegion(),
+                                combinedIf.thenRegion().begin());
+
+    if (nextThen) {
+      AffineYieldOp thenYield =
+          cast<AffineYieldOp>(combinedIf.getThenBlock()->getTerminator());
+      AffineYieldOp thenYield2 = cast<AffineYieldOp>(nextThen->getTerminator());
+      rewriter.mergeBlocks(nextThen, combinedIf.getThenBlock());
+      rewriter.setInsertionPointToEnd(combinedIf.getThenBlock());
+
+      SmallVector<Value> mergedYields(thenYield.getOperands());
+      llvm::append_range(mergedYields, thenYield2.getOperands());
+      rewriter.create<AffineYieldOp>(thenYield2.getLoc(), mergedYields);
+      rewriter.eraseOp(thenYield);
+      rewriter.eraseOp(thenYield2);
+    }
+
+    rewriter.inlineRegionBefore(prevIf.elseRegion(), combinedIf.elseRegion(),
+                                combinedIf.elseRegion().begin());
+
+    if (nextElse) {
+      if (combinedIf.elseRegion().empty()) {
+        rewriter.inlineRegionBefore(*nextElse->getParent(),
+                                    combinedIf.elseRegion(),
+                                    combinedIf.elseRegion().begin());
+      } else {
+        AffineYieldOp elseYield =
+            cast<AffineYieldOp>(combinedIf.getElseBlock()->getTerminator());
+        AffineYieldOp elseYield2 =
+            cast<AffineYieldOp>(nextElse->getTerminator());
+        rewriter.mergeBlocks(nextElse, combinedIf.getElseBlock());
+
+        rewriter.setInsertionPointToEnd(combinedIf.getElseBlock());
+
+        SmallVector<Value> mergedElseYields(elseYield.getOperands());
+        llvm::append_range(mergedElseYields, elseYield2.getOperands());
+
+        rewriter.create<AffineYieldOp>(elseYield2.getLoc(), mergedElseYields);
+        rewriter.eraseOp(elseYield);
+        rewriter.eraseOp(elseYield2);
+      }
+    }
+
+    SmallVector<Value> prevValues;
+    SmallVector<Value> nextValues;
+    for (const auto &pair : llvm::enumerate(combinedIf.getResults())) {
+      if (pair.index() < prevIf.getNumResults())
+        prevValues.push_back(pair.value());
+      else
+        nextValues.push_back(pair.value());
+    }
+    rewriter.replaceOp(prevIf, prevValues);
+    rewriter.replaceOp(nextIf, nextValues);
+    return success();
+  }
+};
+
+struct MergeNestedAffineParallelLoops
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = op.getLoopBody().front();
+    if (!llvm::hasSingleElement(outerBody.without_terminator()))
+      return failure();
+
+    auto innerOp = dyn_cast<AffineParallelOp>(outerBody.front());
+    if (!innerOp)
+      return failure();
+
+    for (auto val : outerBody.getArguments())
+      if (llvm::is_contained(innerOp.getLowerBoundsOperands(), val) ||
+          llvm::is_contained(innerOp.getUpperBoundsOperands(), val))
+        return failure();
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty() || !innerOp.reductions().empty())
+      return failure();
+
+    SmallVector<Type> newTypes(op.getResultTypes());
+    for (auto T : innerOp.getResultTypes())
+      newTypes.push_back(T);
+
+    ArrayRef<Attribute> reductions;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+    SmallVector<Value> lboundValues;
+    SmallVector<Value> uboundValues;
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(op.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(op.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(innerOp.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(innerOp.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          innerOp.getLowerBoundsOperands()[i + innerOp.lowerBoundsMap()
+                                                   .getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          innerOp.getUpperBoundsOperands()[i + innerOp.upperBoundsMap()
+                                                   .getNumDims()]);
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    for (auto e : innerOp.lowerBoundsMap()
+                      .shiftDims(op.lowerBoundsMap().getNumDims())
+                      .shiftSymbols(op.lowerBoundsMap().getNumSymbols())
+                      .getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : innerOp.upperBoundsMap()
+                      .shiftDims(op.upperBoundsMap().getNumDims())
+                      .shiftSymbols(op.upperBoundsMap().getNumSymbols())
+                      .getResults()) {
+      ubounds.push_back(e);
+    }
+
+    SmallVector<Value> operands = lboundValues;
+    operands.append(uboundValues);
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : innerOp.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+    for (auto U : innerOp.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<int64_t> steps;
+    for (auto U : op.getSteps())
+      steps.push_back(U);
+    for (auto U : innerOp.getSteps())
+      steps.push_back(U);
+
+    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+        op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
+        AffineMapAttr::get(
+            AffineMap::get(op.lowerBoundsMap().getNumDims() +
+                               innerOp.lowerBoundsMap().getNumDims(),
+                           op.lowerBoundsMap().getNumSymbols() +
+                               innerOp.lowerBoundsMap().getNumSymbols(),
+                           lbounds, op.getContext())),
+        rewriter.getI32TensorAttr(lboundGroup),
+        AffineMapAttr::get(
+            AffineMap::get(op.upperBoundsMap().getNumDims() +
+                               innerOp.upperBoundsMap().getNumDims(),
+                           op.upperBoundsMap().getNumSymbols() +
+                               innerOp.upperBoundsMap().getNumSymbols(),
+                           ubounds, op.getContext())),
+        rewriter.getI32TensorAttr(uboundGroup), rewriter.getI64ArrayAttr(steps),
+        operands);
+
+    rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
+                                affineLoop.getRegion().begin());
+    auto yld = affineLoop.getBody()->getTerminator();
+    rewriter.eraseOp(innerOp.getBody()->getTerminator());
+    SmallVector<Value> post;
+    for (auto v : innerOp.getIVs()) {
+      post.push_back(
+          affineLoop.getBody()->addArgument(v.getType(), v.getLoc()));
+    }
+    rewriter.mergeBlockBefore(innerOp.getBody(), yld, post);
+    return success();
+  }
+};
+
+struct PrepMergeNestedAffineParallelLoops
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp oop,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = oop.getLoopBody().front();
+    AffineParallelOp innerOp = nullptr;
+    SmallVector<Operation *> toMove;
+    for (auto &op : outerBody) {
+      if (auto innerOp2 = dyn_cast<AffineParallelOp>(&op)) {
+        if (innerOp)
+          return failure();
+        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+          return failure();
+        }
+        innerOp = innerOp2;
+        continue;
+      }
+      if (isSideEffectFree(&op)) {
+        if (!isa<AffineYieldOp>(&op))
+          toMove.push_back(&op);
+        continue;
+      }
+
+      return failure();
+    }
+
+    if (!innerOp || !toMove.size()) {
+      return failure();
+    }
+
+    BlockAndValueMapping map;
+    rewriter.setInsertionPointToStart(innerOp.getBody());
+    for (auto o : toMove) {
+      rewriter.replaceOp(o, rewriter.clone(*o)->getResults());
+    }
+    return success();
+  }
+};
+
+struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    Block &outerBody = op.getLoopBody().front();
+
+    AffineIfOp innerOp = nullptr;
+    for (auto &op : outerBody) {
+      if (auto innerOp2 = dyn_cast<AffineIfOp>(&op)) {
+        if (innerOp)
+          return failure();
+        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+          return failure();
+        }
+        innerOp = innerOp2;
+        continue;
+      }
+      if (!isReadOnly(&op))
+        return failure();
+    }
+
+    if (!innerOp)
+      return failure();
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty())
+      return failure();
+
+    if (innerOp.hasElse())
+      return failure();
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    bool changed = false;
+    SmallVector<AffineExpr> remaining;
+    SmallVector<bool> isEq;
+    for (auto cst : llvm::enumerate(innerOp.getIntegerSet().getConstraints())) {
+      if (innerOp.getIntegerSet().isEq(cst.index())) {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
+                               std::map<size_t, AffineExpr> &indUsage,
+                               bool &legal,
+                               bool *failure = nullptr) -> AffineExpr {
+        AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
+        SmallVector<AffineExpr> todo = {cst};
+        legal = true;
+        while (todo.size()) {
+          auto cur = todo.back();
+          todo.pop_back();
+          if (cur.isa<AffineConstantExpr>() || cur.isa<AffineSymbolExpr>()) {
+            rhs = rhs + cur;
+            continue;
+          }
+          if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
+            auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+            if (!ival || ival.getOwner()->getParentOp() != op) {
+              rhs = rhs + dim;
+              if (failure)
+                *failure = true;
+              continue;
+            }
+            if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+              legal = false;
+              continue;
+            }
+            indUsage[ival.getArgNumber()] =
+                getAffineConstantExpr(1, op.getContext());
+            continue;
+          }
+          if (auto bop = cur.dyn_cast<AffineBinaryOpExpr>()) {
+            if (bop.getKind() == AffineExprKind::Add) {
+              todo.push_back(bop.getLHS());
+              todo.push_back(bop.getRHS());
+              continue;
+            }
+            if (bop.getKind() == AffineExprKind::Mul) {
+              if (!(bop.getRHS().isa<AffineConstantExpr>() ||
+                    bop.getRHS().isa<AffineSymbolExpr>())) {
+                legal = false;
+                continue;
+              }
+
+              if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
+                auto ival =
+                    operands[dim.getPosition()].dyn_cast<BlockArgument>();
+                if (!ival || ival.getOwner()->getParentOp() != op) {
+                  rhs = rhs + bop;
+                  // While legal, this may run before parallel merging
+                  // and prevent parallel fusion
+                  legal = false;
+                  if (failure)
+                    *failure = true;
+                  continue;
+                }
+                if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+                  legal = false;
+                  continue;
+                }
+                indUsage[ival.getArgNumber()] = bop.getRHS();
+                continue;
+              }
+            }
+          }
+          if (failure)
+            *failure = true;
+          legal = false;
+          break;
+        }
+        return rhs;
+      };
+
+      bool legal;
+      std::map<size_t, AffineExpr> indUsage;
+      bool failureV = false;
+      AffineExpr rhs = getIndUsage(cst.value(), innerOp.getOperands(), indUsage,
+                                   legal, &failureV);
+      if (failureV)
+        return failure();
+
+      if (!legal || indUsage.size() == 0) {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+      if (indUsage.size() == 1) {
+        auto pair = *indUsage.begin();
+        auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
+        if (!affCst) {
+          remaining.push_back(cst.value());
+          isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+          continue;
+        }
+
+        // currently aff * idx + stuff >= 0
+        // currently aff * idx >= -stuff
+        //    idx >= (-stuff).floorDiv(aff)   OR   idx <= ...
+
+        if (affCst.getValue() < 0)
+          rhs = rhs.floorDiv(-affCst.getValue()) + 1;
+        else {
+          remaining.push_back(cst.value());
+          isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+          continue;
+        }
+
+        changed = true;
+
+        size_t off = 0;
+        for (size_t i = 0; i < pair.first; i++)
+          off += uboundGroup[i];
+
+        if (auto newCst = rhs.dyn_cast<AffineConstantExpr>()) {
+          bool seen = false;
+          for (size_t i = 0; i < uboundGroup[pair.first]; i++) {
+            if (auto oldCst = ubounds[i].dyn_cast<AffineConstantExpr>()) {
+              seen = true;
+              if (newCst.getValue() < oldCst.getValue())
+                ubounds[i] = rhs;
+            }
+          }
+          if (seen)
+            continue;
+        }
+        ubounds.insert(
+            ubounds.begin() + off,
+            rhs.shiftDims(innerOp.getIntegerSet().getNumDims(),
+                          op.upperBoundsMap().getNumDims())
+                .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
+                              op.upperBoundsMap().getNumSymbols()));
+
+        uboundGroup[pair.first]++;
+      } else {
+        std::map<size_t, size_t> multiplierToInd;
+        bool legal = true;
+        for (auto &pair : indUsage) {
+          auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
+          if (!affCst || affCst.getValue() >= 0 ||
+              multiplierToInd.find(affCst.getValue()) !=
+                  multiplierToInd.end()) {
+            legal = false;
+            break;
+          }
+          multiplierToInd[-affCst.getValue()] = pair.first;
+        }
+        size_t prevMultiplier;
+        for (auto &pair : llvm::enumerate(llvm::reverse(multiplierToInd))) {
+          if (pair.index() == 0) {
+            prevMultiplier = pair.value().first;
+            continue;
+          }
+
+          if (uboundGroup[pair.value().second] != 1) {
+            legal = false;
+            break;
+          }
+          size_t off = 0;
+          for (size_t i = 0; i < pair.value().second; i++)
+            off += uboundGroup[i];
+          if (auto cst = ubounds[off].dyn_cast<AffineConstantExpr>()) {
+            if (cst.getValue() * pair.value().first != prevMultiplier) {
+              legal = false;
+              break;
+            }
+          } else {
+            legal = false;
+            break;
+          }
+          off = 0;
+          for (size_t i = 0; i < pair.value().second; i++)
+            off += lboundGroup[i];
+          if (auto cst = lbounds[off].dyn_cast<AffineConstantExpr>()) {
+            if (cst.getValue() != 0) {
+              legal = false;
+              break;
+            }
+          } else {
+            legal = false;
+            break;
+          }
+
+          prevMultiplier = pair.value().second;
+        }
+
+        // TODO check all users are affine sums like this.
+        for (auto &pair : multiplierToInd) {
+          if (legal == false)
+            break;
+          for (auto U : op.getIVs()[pair.second].getUsers()) {
+            // TODO expand the be proportional to, not just equal weight exprs
+            if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+              for (auto expr : AL.getAffineMap().getResults()) {
+                bool sublegal;
+                std::map<size_t, AffineExpr> subIndUsage;
+                getIndUsage(expr, AL.getMapOperands(), subIndUsage, sublegal);
+                size_t count = 0;
+                for (auto &pair : indUsage) {
+                  auto found = subIndUsage.find(pair.first);
+                  if (found != subIndUsage.end()) {
+                    if (pair.second != -found->second)
+                      legal = false;
+                    count++;
+                  }
+                }
+                if (!sublegal ||
+                    (count != 0 && count != multiplierToInd.size())) {
+                  legal = false;
+                  break;
+                }
+              }
+            } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+              if (AS.value() == op.getIVs()[pair.second]) {
+                legal = false;
+                break;
+              }
+              for (auto expr : AS.getAffineMap().getResults()) {
+                bool sublegal;
+                std::map<size_t, AffineExpr> subIndUsage;
+                getIndUsage(expr, AS.getMapOperands(), subIndUsage, sublegal);
+                size_t count = 0;
+                for (auto &pair : indUsage) {
+                  auto found = subIndUsage.find(pair.first);
+                  if (found != subIndUsage.end()) {
+                    if (pair.second != -found->second)
+                      legal = false;
+                    count++;
+                  }
+                }
+                if (!sublegal ||
+                    (count != 0 && count != multiplierToInd.size())) {
+                  legal = false;
+                  break;
+                }
+              }
+            } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+              for (auto expr : AI.getIntegerSet().getConstraints()) {
+                bool sublegal;
+                std::map<size_t, AffineExpr> subIndUsage;
+                getIndUsage(expr, AI.getOperands(), subIndUsage, sublegal);
+                size_t count = 0;
+                for (auto &pair : indUsage) {
+                  auto found = subIndUsage.find(pair.first);
+                  if (found != subIndUsage.end()) {
+                    if (pair.second != found->second)
+                      legal = false;
+                    count++;
+                  }
+                }
+                if (!sublegal ||
+                    (count != 0 && count != multiplierToInd.size())) {
+                  legal = false;
+                  break;
+                }
+              }
+            } else {
+              legal = false;
+              break;
+            }
+          }
+        }
+
+        if (legal) {
+          for (auto &pair : llvm::enumerate(multiplierToInd)) {
+
+            size_t off = 0;
+            for (size_t i = 0; i < pair.value().second; i++)
+              off += uboundGroup[i];
+            if (pair.index() == 0) {
+              ubounds[off] =
+                  (rhs.floorDiv(pair.value().first) + 1)
+                      .shiftDims(innerOp.getIntegerSet().getNumDims(),
+                                 op.upperBoundsMap().getNumDims())
+                      .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
+                                    op.upperBoundsMap().getNumSymbols());
+
+              auto last = (*(--multiplierToInd.end()));
+              size_t lastoff = 0;
+              for (size_t i = 0; i < last.second; i++)
+                lastoff += uboundGroup[i];
+
+              for (size_t i = 0; i < uboundGroup[last.second]; i++) {
+                AffineExpr trueMax = last.first * ubounds[i + lastoff];
+                if (auto newCst = ubounds[off].dyn_cast<AffineConstantExpr>()) {
+                  if (auto oldCst = trueMax.dyn_cast<AffineConstantExpr>()) {
+                    if (oldCst.getValue() < newCst.getValue()) {
+                      ubounds[off] = trueMax;
+                      continue;
+                    }
+                  }
+                }
+                //
+                ubounds.insert(ubounds.begin() + off, trueMax);
+                uboundGroup[pair.value().second]++;
+              }
+              continue;
+            }
+
+            ubounds[off] = getAffineConstantExpr(1, op.getContext());
+          }
+          changed = true;
+          continue;
+        }
+
+        // i -> 1->100
+        // j -> 1->4
+        // k -> ?
+        // i + 100*j + 400*k
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+    }
+
+    if (!changed)
+      return failure();
+
+    SmallVector<Value> lboundValues;
+    SmallVector<Value> uboundValues;
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+      lboundValues.push_back(op.getLowerBoundsOperands()[i]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+      uboundValues.push_back(op.getUpperBoundsOperands()[i]);
+
+    for (size_t i = 0; i < innerOp.getIntegerSet().getNumDims(); i++)
+      uboundValues.push_back(innerOp.getOperands()[i]);
+
+    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+      lboundValues.push_back(
+          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+      uboundValues.push_back(
+          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+
+    for (size_t i = 0; i < innerOp.getIntegerSet().getNumSymbols(); i++)
+      uboundValues.push_back(
+          innerOp.getOperands()[i + innerOp.getIntegerSet().getNumDims()]);
+
+    SmallVector<Value> operands = lboundValues;
+    operands.append(uboundValues);
+
+    ArrayRef<Attribute> reductions;
+
+    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+        op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
+        AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
+                                          op.lowerBoundsMap().getNumSymbols(),
+                                          lbounds, op.getContext())),
+        rewriter.getI32TensorAttr(lboundGroup),
+        AffineMapAttr::get(
+            AffineMap::get(op.upperBoundsMap().getNumDims() +
+                               innerOp.getIntegerSet().getNumDims(),
+                           op.upperBoundsMap().getNumSymbols() +
+                               innerOp.getIntegerSet().getNumSymbols(),
+                           ubounds, op.getContext())),
+        rewriter.getI32TensorAttr(uboundGroup), op.stepsAttr(), operands);
+
+    rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
+                                affineLoop.getRegion().begin());
+
+    rewriter.setInsertionPoint(innerOp);
+
+    if (remaining.empty()) {
+      auto yld = cast<AffineYieldOp>(innerOp.getThenBlock()->getTerminator());
+      SmallVector<Value> toRet(yld.getOperands());
+      rewriter.eraseOp(yld);
+      rewriter.mergeBlockBefore(innerOp.getThenBlock(), innerOp);
+      rewriter.replaceOp(innerOp, toRet);
+    } else {
+      AffineIfOp newIf = rewriter.create<AffineIfOp>(
+          innerOp.getLoc(), innerOp.getResultTypes(),
+          IntegerSet::get(innerOp.getIntegerSet().getNumDims(),
+                          innerOp.getIntegerSet().getNumSymbols(), remaining,
+                          isEq),
+          innerOp.getOperands(), /*hasElse*/ false);
+
+      rewriter.eraseBlock(newIf.getThenBlock());
+
+      rewriter.inlineRegionBefore(innerOp.thenRegion(), newIf.thenRegion(),
+                                  newIf.thenRegion().begin());
+      rewriter.inlineRegionBefore(innerOp.elseRegion(), newIf.elseRegion(),
+                                  newIf.elseRegion().begin());
+
+      rewriter.replaceOp(innerOp, newIf->getResults());
+      rewriter.replaceOp(op, affineLoop->getResults());
+    }
+    return success();
+  }
+};
+
+struct RemoveAffineParallelSingleIter
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty())
+      return failure();
+
+    ArrayRef<Attribute> reductions;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<int64_t> steps;
+    for (auto U : op.getSteps())
+      steps.push_back(U);
+
+    Block *Tmp = new Block();
+    SmallVector<Value> replacements;
+    bool changed = false;
+    for (ssize_t idx = steps.size() - 1; idx >= 0; idx--) {
+      replacements.insert(replacements.begin(),
+                          Tmp->insertArgument((unsigned)0,
+                                              op.getIVs()[idx].getType(),
+                                              op.getIVs()[idx].getLoc()));
+      if (lboundGroup[idx] != 1)
+        continue;
+      if (uboundGroup[idx] != 1)
+        continue;
+      size_t loff = 0;
+      for (size_t i = 0; i < idx; i++)
+        loff += lboundGroup[i];
+
+      size_t uoff = 0;
+      for (size_t i = 0; i < idx; i++)
+        uoff += uboundGroup[i];
+
+      auto lb = lbounds[loff].dyn_cast<AffineConstantExpr>();
+      if (!lb)
+        continue;
+      auto ub = ubounds[uoff].dyn_cast<AffineConstantExpr>();
+      if (!ub)
+        continue;
+      if (lb.getValue() >= ub.getValue())
+        continue;
+      if (lb.getValue() + steps[idx] >= ub.getValue()) {
+        Tmp->eraseArgument(0);
+        replacements[0] =
+            rewriter.create<ConstantIndexOp>(op.getLoc(), lb.getValue());
+        lboundGroup.erase(lboundGroup.begin() + idx);
+        uboundGroup.erase(uboundGroup.begin() + idx);
+        lbounds.erase(lbounds.begin() + loff);
+        ubounds.erase(ubounds.begin() + uoff);
+        steps.erase(steps.begin() + idx);
+        changed = true;
+        continue;
+      }
+      continue;
+    }
+    if (!changed) {
+      delete Tmp;
+      return failure();
+    }
+
+    if (steps.size() == 0) {
+      delete Tmp;
+
+      auto yld = cast<AffineYieldOp>(op.getBody()->getTerminator());
+      SmallVector<Value> toRet(yld.getOperands());
+      rewriter.eraseOp(yld);
+      rewriter.mergeBlockBefore(op.getBody(), op, replacements);
+      rewriter.replaceOp(op, toRet);
+    } else {
+
+      AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+          op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
+          AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
+                                            op.lowerBoundsMap().getNumSymbols(),
+                                            lbounds, op.getContext())),
+          rewriter.getI32TensorAttr(lboundGroup),
+          AffineMapAttr::get(AffineMap::get(op.upperBoundsMap().getNumDims(),
+                                            op.upperBoundsMap().getNumSymbols(),
+                                            ubounds, op.getContext())),
+          rewriter.getI32TensorAttr(uboundGroup),
+          rewriter.getI64ArrayAttr(steps), op.getOperands());
+
+      affineLoop.getRegion().getBlocks().push_back(Tmp);
+      if (rewriter.getListener())
+        rewriter.getListener()->notifyBlockCreated(Tmp);
+
+      rewriter.mergeBlocks(op.getBody(), affineLoop.getBody(), replacements);
+      rewriter.replaceOp(op, affineLoop->getResults());
+    }
+
+    return success();
   }
 };
 
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
-  results.insert<TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext,
-                 UndefProp<ExtUIOp>, UndefProp<ExtSIOp>, UndefProp<TruncIOp>,
-                 CmpProp, UndefCmpProp,
-                 AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
-                 AlwaysAllocaScopeHoister<scf::ForOp>,
-                 AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
-                 AffineIfSinking, AffineIfSimplification,
-                 // RankReduction<memref::AllocaOp, scf::ParallelOp>,
-                 AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
+  results.insert<
+      TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext, UndefProp<ExtUIOp>,
+      UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
+      AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
+      AlwaysAllocaScopeHoister<scf::ForOp>,
+      AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
+      AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
+      MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
+      MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
+      // RankReduction<memref::AllocaOp, scf::ParallelOp>,
+      AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
