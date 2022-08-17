@@ -3585,8 +3585,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
               for (auto expr : AL.getAffineMap().getResults()) {
                 bool sublegal;
                 std::map<size_t, AffineExpr> subIndUsage;
-                AffineExpr rhs = getIndUsage(expr, AL.getMapOperands(),
-                                             subIndUsage, sublegal);
+                getIndUsage(expr, AL.getMapOperands(), subIndUsage, sublegal);
                 size_t count = 0;
                 for (auto &pair : indUsage) {
                   auto found = subIndUsage.find(pair.first);
@@ -3610,8 +3609,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
               for (auto expr : AS.getAffineMap().getResults()) {
                 bool sublegal;
                 std::map<size_t, AffineExpr> subIndUsage;
-                AffineExpr rhs = getIndUsage(expr, AS.getMapOperands(),
-                                             subIndUsage, sublegal);
+                getIndUsage(expr, AS.getMapOperands(), subIndUsage, sublegal);
                 size_t count = 0;
                 for (auto &pair : indUsage) {
                   auto found = subIndUsage.find(pair.first);
@@ -3631,8 +3629,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
               for (auto expr : AI.getIntegerSet().getConstraints()) {
                 bool sublegal;
                 std::map<size_t, AffineExpr> subIndUsage;
-                AffineExpr rhs =
-                    getIndUsage(expr, AI.getOperands(), subIndUsage, sublegal);
+                getIndUsage(expr, AI.getOperands(), subIndUsage, sublegal);
                 size_t count = 0;
                 for (auto &pair : indUsage) {
                   auto found = subIndUsage.find(pair.first);
@@ -3786,6 +3783,121 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
   }
 };
 
+struct RemoveAffineParallelSingleIter
+    : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+
+    // Reductions are not supported yet.
+    if (!op.reductions().empty())
+      return failure();
+
+    ArrayRef<Attribute> reductions;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
+
+    for (auto e : op.lowerBoundsMap().getResults()) {
+      lbounds.push_back(e);
+    }
+
+    for (auto e : op.upperBoundsMap().getResults()) {
+      ubounds.push_back(e);
+    }
+
+    SmallVector<int32_t> lboundGroup;
+    SmallVector<int32_t> uboundGroup;
+    for (auto U : op.lowerBoundsGroups())
+      lboundGroup.push_back(U.getZExtValue());
+    for (auto U : op.upperBoundsGroups())
+      uboundGroup.push_back(U.getZExtValue());
+
+    SmallVector<int64_t> steps;
+    for (auto U : op.getSteps())
+      steps.push_back(U);
+
+    Block *Tmp = new Block();
+    SmallVector<Value> replacements;
+    bool changed = false;
+    for (ssize_t idx = steps.size() - 1; idx >= 0; idx--) {
+      replacements.insert(replacements.begin(),
+                          Tmp->insertArgument((unsigned)0,
+                                              op.getIVs()[idx].getType(),
+                                              op.getIVs()[idx].getLoc()));
+      if (lboundGroup[idx] != 1)
+        continue;
+      if (uboundGroup[idx] != 1)
+        continue;
+      size_t loff = 0;
+      for (size_t i = 0; i < idx; i++)
+        loff += lboundGroup[i];
+
+      size_t uoff = 0;
+      for (size_t i = 0; i < idx; i++)
+        uoff += uboundGroup[i];
+
+      auto lb = lbounds[loff].dyn_cast<AffineConstantExpr>();
+      if (!lb)
+        continue;
+      auto ub = ubounds[uoff].dyn_cast<AffineConstantExpr>();
+      if (!ub)
+        continue;
+      if (lb.getValue() >= ub.getValue())
+        continue;
+      if (lb.getValue() + steps[idx] >= ub.getValue()) {
+        Tmp->eraseArgument(0);
+        replacements[0] =
+            rewriter.create<ConstantIndexOp>(op.getLoc(), lb.getValue());
+        lboundGroup.erase(lboundGroup.begin() + idx);
+        uboundGroup.erase(uboundGroup.begin() + idx);
+        lbounds.erase(lbounds.begin() + loff);
+        ubounds.erase(ubounds.begin() + uoff);
+        steps.erase(steps.begin() + idx);
+        changed = true;
+        continue;
+      }
+      continue;
+    }
+    if (!changed) {
+      delete Tmp;
+      return failure();
+    }
+
+    if (steps.size() == 0) {
+      delete Tmp;
+
+      auto yld = cast<AffineYieldOp>(op.getBody()->getTerminator());
+      SmallVector<Value> toRet(yld.getOperands());
+      rewriter.eraseOp(yld);
+      rewriter.mergeBlockBefore(op.getBody(), op, replacements);
+      rewriter.replaceOp(op, toRet);
+    } else {
+
+      AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+          op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
+          AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
+                                            op.lowerBoundsMap().getNumSymbols(),
+                                            lbounds, op.getContext())),
+          rewriter.getI32TensorAttr(lboundGroup),
+          AffineMapAttr::get(AffineMap::get(op.upperBoundsMap().getNumDims(),
+                                            op.upperBoundsMap().getNumSymbols(),
+                                            ubounds, op.getContext())),
+          rewriter.getI32TensorAttr(uboundGroup),
+          rewriter.getI64ArrayAttr(steps), op.getOperands());
+
+      affineLoop.getRegion().getBlocks().push_back(Tmp);
+      if (rewriter.getListener())
+        rewriter.getListener()->notifyBlockCreated(Tmp);
+
+      rewriter.mergeBlocks(op.getBody(), affineLoop.getBody(), replacements);
+      rewriter.replaceOp(op, affineLoop->getResults());
+    }
+
+    return success();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -3796,7 +3908,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
-      MergeNestedAffineParallelIf,
+      MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
