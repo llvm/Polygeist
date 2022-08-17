@@ -2981,6 +2981,45 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
           if (canRemove)
             break;
         }
+        //// expr -1 >= 0    => expr > 0
+        if (!op.getIntegerSet().isEq(cst.index())) {
+          auto expr = cst.value() + 1;
+          for (auto paren = op->getParentOfType<AffineParallelOp>(); paren;
+               paren = paren->getParentOfType<AffineParallelOp>()) {
+            if (canRemove)
+              break;
+            for (auto tup : llvm::enumerate(paren.getSteps())) {
+              bool found = false;
+              for (auto ub : paren.getUpperBoundMap(tup.index()).getResults()) {
+                if (auto exprS = expr.dyn_cast<AffineSymbolExpr>()) {
+                  if (auto ubS = ub.dyn_cast<AffineSymbolExpr>()) {
+                    if (op.getOperands()[exprS.getPosition() +
+                                         op.getIntegerSet().getNumDims()] ==
+                        paren.getUpperBoundsOperands()[ubS.getPosition() +
+                                                       paren.upperBoundsMap()
+                                                           .getNumDims()]) {
+
+                      found = true;
+                      break;
+                    }
+                  }
+                }
+              }
+              if (!found)
+                continue;
+
+              if (!aboveEq(paren.getIVs()[tup.index()], 0))
+                continue;
+
+              canRemove = true;
+              break;
+            }
+          }
+          if (auto bop = cst.value().dyn_cast<AffineBinaryOpExpr>()) {
+            if (bop.getKind() == AffineExprKind::Add) {
+            }
+          }
+        }
         if (canRemove) {
           removed = true;
           continue;
