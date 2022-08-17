@@ -2965,6 +2965,8 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         for (auto paren = op->getParentOfType<AffineIfOp>(); paren;
              paren = paren->getParentOfType<AffineIfOp>()) {
           for (auto cst2 : paren.getIntegerSet().getConstraints()) {
+            if (paren.elseRegion().isAncestor(op->getParentRegion()))
+              continue;
             if (cst2 == cst.value() &&
                 paren.getIntegerSet().getNumDims() ==
                     op.getIntegerSet().getNumDims() &&
