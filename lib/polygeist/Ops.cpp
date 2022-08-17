@@ -1218,7 +1218,12 @@ public:
         todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
         todo.push_back(ext.getIn());
-      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+      else if (auto ext = len.getDefiningOp<arith::TruncIOp>()) {
+        if (APInt(64, width).isPowerOf2() &&
+            ext.getType().getIntOrFloatBitWidth() >
+                APInt(64, width).nearestLogBase2())
+          todo.push_back(ext.getIn());
+      } else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
         todo.push_back(ext.getIn());
       else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
         todo.push_back(mul.getLhs());
@@ -1314,7 +1319,12 @@ public:
         todo.push_back(ext.getIn());
       else if (auto ext = len.getDefiningOp<arith::ExtSIOp>())
         todo.push_back(ext.getIn());
-      else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
+      else if (auto ext = len.getDefiningOp<arith::TruncIOp>()) {
+        if (APInt(64, width).isPowerOf2() &&
+            ext.getType().getIntOrFloatBitWidth() >
+                APInt(64, width).nearestLogBase2())
+          todo.push_back(ext.getIn());
+      } else if (auto ext = len.getDefiningOp<arith::IndexCastOp>())
         todo.push_back(ext.getIn());
       else if (auto mul = len.getDefiningOp<arith::MulIOp>()) {
         todo.push_back(mul.getLhs());
