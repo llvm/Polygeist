@@ -2669,7 +2669,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
 
 bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
   if (auto icast = bval.getDefiningOp<IndexCastOp>()) {
-    return valueCmp(cmp, icast, val);
+    return valueCmp(cmp, icast.getIn(), val);
   }
 
   IntegerAttr iattr;
@@ -4580,51 +4580,32 @@ template <typename T> struct AffineBufferElimination : public OpRewritePattern<T
   using OpRewritePattern<T>::OpRewritePattern;
 
   static bool legalFor(T op, AffineForOp afFor) {
-    for (auto lb : afFor.getLowerBoundMap().getResults()) {
-      auto opd = lb.dyn_cast<AffineConstantExpr>();
-      if (!opd)
-        return false;
-      if (opd.getValue() != 0)
-        return false;
-    }
     auto S = op.getType().getShape();
     if (S.size() != 1)
       return false;
 
-    for (auto lb : afFor.getUpperBoundMap().getResults()) {
-      if (auto opd = lb.dyn_cast<AffineConstantExpr>()) {
-        if (S[0] != -1) {
-          if (S[0] != opd.getValue())
-            return false;
-        } else {
-          IntegerAttr iattr;
-          if (!matchPattern(op.getOperand(0), m_Constant(&iattr)))
-            return false;
-          if (iattr.getValue() != opd.getValue())
-            return false;
-        }
-        continue;
-      }
-      if (auto opd = lb.dyn_cast<AffineDimExpr>()) {
-        if (S[0] != -1)
-          return false;
-        if (afFor.getUpperBoundOperands()[opd.getPosition()] !=
-            op.getOperand(0))
-          return false;
-        continue;
-      }
-      if (auto opd = lb.dyn_cast<AffineSymbolExpr>()) {
-        if (S[0] != -1)
-          return false;
-        if (afFor.getUpperBoundOperands()
-                [opd.getPosition() + afFor.getUpperBoundMap().getNumDims()] !=
-            op.getOperand(0))
-          return false;
-        continue;
-      }
+    size_t opidx = 0;
+    for (size_t i = 0; i < S.size(); i++) {
+      if (!valueCmp(Cmp::EQ, afFor.getLowerBoundMap().getResults()[i],
+                    afFor.getLowerBoundMap().getNumDims(),
+                    afFor.getLowerBoundOperands(), 0))
+        return false;
 
-      return false;
+      if (S[i] == -1) {
+        Value ubval = op.getOperands()[i];
+        opidx++;
+        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
+                      afFor.getUpperBoundMap().getNumDims(),
+                      afFor.getUpperBoundOperands(), ubval))
+          return false;
+      } else {
+        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
+                      afFor.getUpperBoundMap().getNumDims(),
+                      afFor.getUpperBoundOperands(), S[i]))
+          return false;
+      }
     }
+
     return true;
   }
 
@@ -4669,9 +4650,17 @@ template <typename T> struct AffineBufferElimination : public OpRewritePattern<T
 
     if (store->getBlock() != loadVal->getBlock()) return failure();
     
+    int opn = 0;
     for (auto pair : llvm::enumerate(op.getType().getShape())) {
         if (pair.second() == -1) return failure();
-        if (!aboveEq(store.getAffineMap()[pair.first()], store.getAffineMap().getNumDims(), store.getMapOperands(), pair.second))
+        bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
+                   ValueOrInt lb, ValueOrInt ub) {
+        ValueOrInt val(pair.second());
+        if (pair.second() == -1) {
+            val = ValueOrInt(op.getOperands()[opn]);
+            opn++;
+        } 
+        if (!rangeIncludes(store.getAffineMap()[pair.first()], store.getAffineMap().getNumDims(), store.getMapOperands(), pair.second))
     }
 
     ... TODO...
