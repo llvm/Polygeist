@@ -119,7 +119,7 @@ module {
 // CHECK-NEXT:   }
 
 // CHECK:   func.func @f5(%arg0: memref<512xf64>, %arg1: memref<512xf64>, %arg2: index, %arg3: index) {
-// CHECK-NEXT:     affine.parallel (%arg4) = (0) to (min(symbol(%arg3) * 100, symbol(%arg2))) {
+// CHECK-NEXT:     affine.parallel (%arg4) = (0) to (min(symbol(%arg2), symbol(%arg3) * 100)) {
 // CHECK-NEXT:       %0 = affine.load %arg0[0] : memref<512xf64>
 // CHECK-NEXT:       %1 = affine.load %arg1[%arg4 + 1] : memref<512xf64>
 // CHECK-NEXT:       %2 = arith.addf %0, %1 : f64

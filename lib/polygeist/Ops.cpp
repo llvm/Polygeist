@@ -28,7 +28,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
 
-#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "polygeist"
@@ -3856,302 +3856,56 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
       if (failureV)
         return failure();
 
-      if (!legal || indUsage.size() == 0) {
+      if (!legal || indUsage.size() != 1) {
         remaining.push_back(cst.value());
         isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
         continue;
       }
-      if (indUsage.size() == 1) {
-        auto pair = *indUsage.begin();
-        auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
-        if (!affCst) {
-          remaining.push_back(cst.value());
-          isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
-          continue;
-        }
-
-        // currently aff * idx + stuff >= 0
-        // currently aff * idx >= -stuff
-        //    idx >= (-stuff).floorDiv(aff)   OR   idx <= ...
-
-        if (affCst.getValue() < 0)
-          rhs = rhs.floorDiv(-affCst.getValue()) + 1;
-        else {
-          remaining.push_back(cst.value());
-          isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
-          continue;
-        }
-
-        changed = true;
-
-        size_t off = 0;
-        for (size_t i = 0; i < pair.first; i++)
-          off += uboundGroup[i];
-
-        if (auto newCst = rhs.dyn_cast<AffineConstantExpr>()) {
-          bool seen = false;
-          for (size_t i = 0; i < uboundGroup[pair.first]; i++) {
-            if (auto oldCst = ubounds[i].dyn_cast<AffineConstantExpr>()) {
-              seen = true;
-              if (newCst.getValue() < oldCst.getValue())
-                ubounds[i] = rhs;
-            }
-          }
-          if (seen)
-            continue;
-        }
-        ubounds.insert(
-            ubounds.begin() + off,
-            rhs.shiftDims(innerOp.getIntegerSet().getNumDims(),
-                          op.upperBoundsMap().getNumDims())
-                .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
-                              op.upperBoundsMap().getNumSymbols()));
-
-        uboundGroup[pair.first]++;
-      } else {
-        std::map<size_t, size_t> multiplierToInd;
-        bool legal = true;
-        for (auto &pair : indUsage) {
-          auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
-          if (!affCst || affCst.getValue() >= 0 ||
-              multiplierToInd.find(affCst.getValue()) !=
-                  multiplierToInd.end()) {
-            legal = false;
-            break;
-          }
-          multiplierToInd[-affCst.getValue()] = pair.first;
-        }
-        SmallVector<size_t> Multipliers;
-        for (auto &pair : multiplierToInd) {
-          Multipliers.push_back(pair.first);
-        }
-
-        size_t SmallestBlockArg;
-
-        for (auto &pair : llvm::enumerate(multiplierToInd)) {
-
-          if (pair.index() == 0)
-            SmallestBlockArg = pair.value().second;
-
-          // Largest multiplier doesn't need to bounds check
-          if (pair.index() == multiplierToInd.size() - 1) {
-            continue;
-          }
-
-          if (uboundGroup[pair.value().second] != 1) {
-            legal = false;
-            break;
-          }
-          size_t off = 0;
-          for (size_t i = 0; i < pair.value().second; i++)
-            off += uboundGroup[i];
-          if (auto cst = ubounds[off].dyn_cast<AffineConstantExpr>()) {
-            if (cst.getValue() * pair.value().first !=
-                Multipliers[pair.index() + 1]) {
-              legal = false;
-              break;
-            }
-          } else {
-            legal = false;
-            break;
-          }
-          off = 0;
-          for (size_t i = 0; i < pair.value().second; i++)
-            off += lboundGroup[i];
-          if (auto cst = lbounds[off].dyn_cast<AffineConstantExpr>()) {
-            if (cst.getValue() != 0) {
-              legal = false;
-              break;
-            }
-          } else {
-            legal = false;
-            break;
-          }
-        }
-
-        // TODO check all users are affine sums like this.
-        std::map<size_t, IndexCastOp> idxCasts;
-        SmallVector<Operation *> affineMapUsers;
-        for (auto &pair : multiplierToInd) {
-          if (legal == false)
-            break;
-          IndexCastOp idxCst = nullptr;
-          for (auto U : op.getIVs()[pair.second].getUsers()) {
-            // TODO expand the be proportional to, not just equal weight exprs
-            if (auto AL = dyn_cast<AffineLoadOp>(U)) {
-              affineMapUsers.push_back(AL);
-            } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
-              if (AS.value() == op.getIVs()[pair.second]) {
-                legal = false;
-                break;
-              }
-              affineMapUsers.push_back(AS);
-            } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
-              affineMapUsers.push_back(AI);
-            } else if (auto idx = dyn_cast<IndexCastOp>(U)) {
-              if (idxCst) {
-                legal = false;
-                break;
-              } else
-                idxCst = idx;
-            } else {
-              legal = false;
-              break;
-            }
-          }
-          if (idxCst)
-            idxCasts[pair.second] = idxCst;
-        }
-        for (auto U : affineMapUsers) {
-          SmallVector<AffineExpr> exprs;
-          ValueRange operands;
-          if (auto AL = dyn_cast<AffineLoadOp>(U)) {
-            for (auto E : AL.getAffineMap().getResults())
-              exprs.push_back(E);
-            operands = AL.getMapOperands();
-          } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
-            for (auto E : AS.getAffineMap().getResults())
-              exprs.push_back(E);
-            operands = AS.getMapOperands();
-          } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
-            for (auto E : AI.getIntegerSet().getConstraints())
-              exprs.push_back(E);
-            operands = AI.getOperands();
-          } else {
-            llvm_unreachable("Unknown affine use type");
-          }
-
-          for (auto expr : exprs) {
-            bool sublegal;
-            std::map<size_t, AffineExpr> subIndUsage;
-            getIndUsage(expr, operands, subIndUsage, sublegal);
-            size_t count = 0;
-            for (auto &pair : indUsage) {
-              auto found = subIndUsage.find(pair.first);
-              if (found != subIndUsage.end()) {
-                auto startFound = subIndUsage.find(SmallestBlockArg);
-                auto startPrev = indUsage.find(SmallestBlockArg);
-                if (startFound == subIndUsage.end())
-                  legal = false;
-                else if (startFound->second * pair.second !=
-                         startPrev->second * found->second)
-                  legal = false;
-                count++;
-              }
-            }
-            if (!sublegal || (count != 0 && count != multiplierToInd.size())) {
-              legal = false;
-              break;
-            }
-          }
-        }
-
-        if (idxCasts.size()) {
-          if (idxCasts.size() != multiplierToInd.size()) {
-            legal = false;
-          } else {
-            Value val = nullptr;
-            for (auto &pair : llvm::enumerate(multiplierToInd)) {
-              IndexCastOp idxCst = idxCasts[pair.value().second];
-              auto multiplier = pair.value().first;
-
-              Value mulIdx;
-              if (multiplier != 1) {
-                if (!idxCst.getResult().hasOneUse()) {
-                  legal = false;
-                  break;
-                }
-                MulIOp mul = dyn_cast<MulIOp>(*idxCst.getResult().user_begin());
-
-                IntegerAttr iattr;
-                if (!matchPattern(mul.getRhs(), m_Constant(&iattr))) {
-                  legal = false;
-                  break;
-                }
-                if (iattr.getValue() != multiplier) {
-                  legal = false;
-                  break;
-                }
-                mulIdx = mul;
-              } else {
-                mulIdx = idxCst;
-              }
-
-              if (!val) {
-                val = mulIdx;
-              } else {
-                if (!val.hasOneUse()) {
-                  legal = false;
-                  break;
-                }
-
-                AddIOp nex = dyn_cast<AddIOp>(*val.user_begin());
-
-                if ((nex.getRhs() == val && nex.getLhs() == mulIdx) ||
-                    (nex.getLhs() == val && nex.getRhs() == mulIdx)) {
-                  val = mulIdx;
-                } else {
-                  legal = false;
-                  break;
-                }
-              }
-
-              if (pair.index() != multiplierToInd.size() - 1) {
-              }
-            }
-          }
-        }
-
-        if (legal) {
-          for (auto &pair : llvm::enumerate(multiplierToInd)) {
-
-            size_t off = 0;
-            for (size_t i = 0; i < pair.value().second; i++)
-              off += uboundGroup[i];
-            if (pair.index() == 0) {
-              ubounds[off] =
-                  (rhs.floorDiv(pair.value().first) + 1)
-                      .shiftDims(innerOp.getIntegerSet().getNumDims(),
-                                 op.upperBoundsMap().getNumDims())
-                      .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
-                                    op.upperBoundsMap().getNumSymbols());
-
-              auto last = (*(--multiplierToInd.end()));
-              size_t lastoff = 0;
-              for (size_t i = 0; i < last.second; i++)
-                lastoff += uboundGroup[i];
-
-              for (size_t i = 0; i < uboundGroup[last.second]; i++) {
-                AffineExpr trueMax = last.first * ubounds[i + lastoff];
-                if (auto newCst = ubounds[off].dyn_cast<AffineConstantExpr>()) {
-                  if (auto oldCst = trueMax.dyn_cast<AffineConstantExpr>()) {
-                    if (oldCst.getValue() < newCst.getValue()) {
-                      ubounds[off] = trueMax;
-                      continue;
-                    }
-                  }
-                }
-                //
-                ubounds.insert(ubounds.begin() + off, trueMax);
-                uboundGroup[pair.value().second]++;
-              }
-              continue;
-            }
-
-            ubounds[off] = getAffineConstantExpr(1, op.getContext());
-          }
-          changed = true;
-          continue;
-        }
-
-        // i -> 1->100
-        // j -> 1->4
-        // k -> ?
-        // i + 100*j + 400*k
+      auto pair = *indUsage.begin();
+      auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
+      if (!affCst) {
         remaining.push_back(cst.value());
         isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
         continue;
       }
+
+      // currently aff * idx + stuff >= 0
+      // currently aff * idx >= -stuff
+      //    idx >= (-stuff).floorDiv(aff)   OR   idx <= ...
+
+      if (affCst.getValue() < 0)
+        rhs = rhs.floorDiv(-affCst.getValue()) + 1;
+      else {
+        remaining.push_back(cst.value());
+        isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
+        continue;
+      }
+
+      changed = true;
+
+      size_t off = 0;
+      for (size_t i = 0; i < pair.first; i++)
+        off += uboundGroup[i];
+
+      if (auto newCst = rhs.dyn_cast<AffineConstantExpr>()) {
+        bool seen = false;
+        for (size_t i = 0; i < uboundGroup[pair.first]; i++) {
+          if (auto oldCst = ubounds[i].dyn_cast<AffineConstantExpr>()) {
+            seen = true;
+            if (newCst.getValue() < oldCst.getValue())
+              ubounds[i] = rhs;
+          }
+        }
+        if (seen)
+          continue;
+      }
+      ubounds.insert(ubounds.begin() + off,
+                     rhs.shiftDims(innerOp.getIntegerSet().getNumDims(),
+                                   op.upperBoundsMap().getNumDims())
+                         .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
+                                       op.upperBoundsMap().getNumSymbols()));
+
+      uboundGroup[pair.first]++;
     }
 
     if (!changed)
@@ -4230,6 +3984,334 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
       rewriter.replaceOp(op, affineLoop->getResults());
     }
     return success();
+  }
+};
+
+struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp op,
+                                PatternRewriter &rewriter) const override {
+    // Reductions are not supported yet.
+    if (!op.reductions().empty())
+      return failure();
+
+    auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
+                             std::map<size_t, AffineExpr> &indUsage,
+                             bool &legal) -> AffineExpr {
+      AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
+      SmallVector<AffineExpr> todo = {cst};
+      legal = true;
+      while (todo.size()) {
+        auto cur = todo.back();
+        todo.pop_back();
+        if (cur.isa<AffineConstantExpr>() || cur.isa<AffineSymbolExpr>()) {
+          rhs = rhs + cur;
+          continue;
+        }
+        if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
+          auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+          if (!ival || ival.getOwner()->getParentOp() != op) {
+            rhs = rhs + dim;
+            continue;
+          }
+          if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+            legal = false;
+            continue;
+          }
+          indUsage[ival.getArgNumber()] =
+              getAffineConstantExpr(1, op.getContext());
+          continue;
+        }
+        if (auto bop = cur.dyn_cast<AffineBinaryOpExpr>()) {
+          if (bop.getKind() == AffineExprKind::Add) {
+            todo.push_back(bop.getLHS());
+            todo.push_back(bop.getRHS());
+            continue;
+          }
+          if (bop.getKind() == AffineExprKind::Mul) {
+            if (!(bop.getRHS().isa<AffineConstantExpr>() ||
+                  bop.getRHS().isa<AffineSymbolExpr>())) {
+              legal = false;
+              continue;
+            }
+
+            if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
+              auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+              if (!ival || ival.getOwner()->getParentOp() != op) {
+                rhs = rhs + bop;
+                continue;
+              }
+              if (indUsage.find(ival.getArgNumber()) != indUsage.end()) {
+                legal = false;
+                continue;
+              }
+              indUsage[ival.getArgNumber()] = bop.getRHS();
+              continue;
+            }
+          }
+        }
+        legal = false;
+        break;
+      }
+      return rhs;
+    };
+
+    // TODO check all users are affine sums like this.
+    std::map<size_t, IndexCastOp> idxCasts;
+    SetVector<Operation *> affineMapUsers;
+    SmallVector<bool> legality;
+    SmallVector<ValueOrInt> fixedUpperBounds;
+    for (auto iv : op.getIVs()) {
+      bool legal = true;
+      IndexCastOp idxCst = nullptr;
+
+      for (auto lb : op.getLowerBoundMap(iv.getArgNumber()).getResults()) {
+        if (auto cst = lb.dyn_cast<AffineConstantExpr>()) {
+          if (cst.getValue() != 0) {
+            legal = false;
+            break;
+          }
+        } else {
+          legal = false;
+          break;
+        }
+      }
+      bool seenub = false;
+      for (auto ub : op.getUpperBoundMap(iv.getArgNumber()).getResults()) {
+        if (seenub) {
+          legal = false;
+          break;
+        }
+        seenub = true;
+        if (auto cst = ub.dyn_cast<AffineConstantExpr>()) {
+          fixedUpperBounds.push_back(ValueOrInt(cst.getValue()));
+        } else if (auto dim = ub.dyn_cast<AffineDimExpr>()) {
+          fixedUpperBounds.push_back(
+              ValueOrInt(op.getUpperBoundsOperands()[dim.getPosition()]));
+        } else if (auto sym = ub.dyn_cast<AffineSymbolExpr>()) {
+          fixedUpperBounds.push_back(ValueOrInt(
+              op.getUpperBoundsOperands()[op.upperBoundsMap().getNumDims() +
+                                          sym.getPosition()]));
+        } else {
+          legal = false;
+          fixedUpperBounds.push_back(ValueOrInt(0));
+        }
+      }
+
+      SmallVector<Operation *, 1> affineMapUsers_t;
+      for (auto U : iv.getUsers()) {
+        SmallVector<AffineExpr> exprs;
+        ValueRange operands;
+        if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+          for (auto E : AL.getAffineMap().getResults())
+            exprs.push_back(E);
+          operands = AL.getMapOperands();
+          affineMapUsers_t.push_back(U);
+        } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+          if (AS.value() == iv)
+            legal = false;
+          for (auto E : AS.getAffineMap().getResults())
+            exprs.push_back(E);
+          operands = AS.getMapOperands();
+          affineMapUsers_t.push_back(U);
+        } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+          for (auto E : AI.getIntegerSet().getConstraints())
+            exprs.push_back(E);
+          operands = AI.getOperands();
+          affineMapUsers_t.push_back(U);
+        } else if (auto idx = dyn_cast<IndexCastOp>(U)) {
+          if (idxCst) {
+            legal = false;
+            break;
+          } else
+            idxCst = idx;
+        } else {
+          legal = false;
+          break;
+        }
+        for (auto expr : exprs) {
+          bool flegal = true;
+          std::map<size_t, AffineExpr> indUsage;
+          getIndUsage(expr, operands, indUsage, flegal);
+          if (!flegal || indUsage.size() < 2) {
+            legal = false;
+            break;
+          }
+        }
+      }
+      legality.push_back(legal);
+      if (legal) {
+        for (auto o : affineMapUsers_t) {
+          affineMapUsers.insert(o);
+        }
+        if (idxCst)
+          idxCasts[iv.getArgNumber()] = idxCst;
+      }
+    }
+    for (auto tup : llvm::zip(op.getIVs(), legality)) {
+      if (!std::get<1>(tup))
+        for (auto U : std::get<0>(tup).getUsers())
+          if (affineMapUsers.count(U))
+            affineMapUsers.remove(U);
+    }
+    for (auto U : affineMapUsers) {
+      SmallVector<AffineExpr> exprs;
+      ValueRange operands;
+      size_t numDim;
+      if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+        for (auto E : AL.getAffineMap().getResults())
+          exprs.push_back(E);
+        operands = AL.getMapOperands();
+        numDim = AL.getAffineMap().getNumDims();
+      } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+        for (auto E : AS.getAffineMap().getResults())
+          exprs.push_back(E);
+        operands = AS.getMapOperands();
+        numDim = AS.getAffineMap().getNumDims();
+      } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+        for (auto E : AI.getIntegerSet().getConstraints())
+          exprs.push_back(E);
+        operands = AI.getOperands();
+        numDim = AI.getIntegerSet().getNumDims();
+      } else {
+        llvm_unreachable("Unknown affine use type");
+      }
+
+      for (auto expr : exprs) {
+        bool flegal;
+        std::map<size_t, AffineExpr> indUsage;
+        getIndUsage(expr, operands, indUsage, flegal);
+
+        for (auto pair1 : indUsage) {
+          for (auto pair2 : indUsage) {
+            if (pair1.first == pair2.first)
+              continue;
+            if (auto cst = pair1.second.dyn_cast<AffineConstantExpr>()) {
+              if (cst.getValue() == -1) {
+                pair2.second = -pair2.second;
+                pair1.second = -pair1.second;
+              } else if (cst.getValue() != 1)
+                continue;
+            } else
+              continue;
+
+            if (!valueCmp(Cmp::EQ, pair2.second, numDim, operands,
+                          fixedUpperBounds[pair1.first]))
+              continue;
+
+            if (idxCasts.count(pair1.first) != idxCasts.count(pair2.first))
+              continue;
+
+            bool legalPair = true;
+            for (auto U : affineMapUsers) {
+              if (!legalPair)
+                break;
+              SmallVector<AffineExpr> exprs;
+              ValueRange operands;
+              if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+                for (auto E : AL.getAffineMap().getResults())
+                  exprs.push_back(E);
+                operands = AL.getMapOperands();
+              } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+                for (auto E : AS.getAffineMap().getResults())
+                  exprs.push_back(E);
+                operands = AS.getMapOperands();
+              } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+                for (auto E : AI.getIntegerSet().getConstraints())
+                  exprs.push_back(E);
+                operands = AI.getOperands();
+              } else {
+                llvm_unreachable("Unknown affine use type");
+              }
+
+              for (auto expr : exprs) {
+                if (!legalPair)
+                  break;
+                bool sublegal;
+                std::map<size_t, AffineExpr> subIndUsage;
+                getIndUsage(expr, operands, subIndUsage, sublegal);
+                auto find1 = subIndUsage.find(pair1.first);
+                auto find2 = subIndUsage.find(pair2.first);
+
+                if (find1 == subIndUsage.end() && find2 == subIndUsage.end())
+                  continue;
+                if (find1 == subIndUsage.end() || find2 == subIndUsage.end()) {
+                  legalPair = false;
+                  break;
+                }
+                if (find1->second * pair2.second !=
+                    find2->second * pair1.second) {
+                  legalPair = false;
+                  break;
+                }
+              }
+            }
+
+            if (idxCasts.count(pair1.first)) {
+              Value val = idxCasts[pair1.first];
+              if (!val.hasOneUse())
+                continue;
+              AddIOp add = dyn_cast<AddIOp>(*val.user_begin());
+              if (!add)
+                continue;
+              Value other = (add.getLhs() == val) ? add.getRhs() : add.getLhs();
+
+              MulIOp mul = other.getDefiningOp<MulIOp>();
+              if (mul.getLhs() == idxCasts[pair2.first]) {
+                if (!valueCmp(Cmp::EQ, mul.getRhs(),
+                              fixedUpperBounds[pair1.first]))
+                  continue;
+              } else {
+                if (mul.getRhs() != idxCasts[pair2.first])
+                  continue;
+                if (!valueCmp(Cmp::EQ, mul.getLhs(),
+                              fixedUpperBounds[pair1.first]))
+                  continue;
+              }
+              if (!mul->getResult(0).hasOneUse())
+                continue;
+              if (!idxCasts[pair2.first]->getResult(0).hasOneUse())
+                continue;
+            }
+
+            SmallVector<int32_t> uboundGroup;
+            for (auto U : op.upperBoundsGroups())
+              uboundGroup.push_back(U.getZExtValue());
+
+            SmallVector<AffineExpr> ubounds;
+
+            for (auto e : op.upperBoundsMap().getResults()) {
+              ubounds.push_back(e);
+            }
+
+            size_t off1 = 0;
+            for (size_t i = 0; i < pair1.first; i++)
+              off1 += uboundGroup[i];
+            size_t off2 = 0;
+            for (size_t i = 0; i < pair2.first; i++)
+              off2 += uboundGroup[i];
+
+            ubounds[off1] = ubounds[off1] * ubounds[off2];
+            ubounds[off2] = getAffineConstantExpr(1, op.getContext());
+
+            AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+                op.getLoc(), op.getResultTypes(), op.reductionsAttr(),
+                op.lowerBoundsMapAttr(), op.lowerBoundsGroupsAttr(),
+                AffineMapAttr::get(
+                    AffineMap::get(op.upperBoundsMap().getNumDims(),
+                                   op.upperBoundsMap().getNumSymbols(), ubounds,
+                                   op.getContext())),
+                op.upperBoundsGroupsAttr(), op.stepsAttr(), op.getOperands());
+
+            rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
+                                        affineLoop.getRegion().begin());
+            return success();
+          }
+        }
+      }
+    }
+    return failure();
   }
 };
 
@@ -4905,7 +4987,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AffineBufferElimination<memref::AllocOp>,
       SimplifyDeadAllocV2<memref::AllocaOp>,
       SimplifyDeadAllocV2<memref::AllocOp>, SimplifyDeadAllocV2<LLVM::AllocaOp>,
-      MulDivMul,
+      MulDivMul, MergeParallelInductions,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
