@@ -2628,7 +2628,17 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
         Reg2MemFor<scf::ForOp, UseMinCut>, Reg2MemFor<AffineForOp, UseMinCut>,
         Reg2MemIf<scf::IfOp, UseMinCut>, Reg2MemIf<AffineIfOp, UseMinCut>,
         WrapForWithBarrier<UseMinCut>, WrapAffineForWithBarrier<UseMinCut>,
-        WrapWhileWithBarrier<UseMinCut>>(&getContext());
+        WrapWhileWithBarrier<UseMinCut>,
+        InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
+        InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
+        InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
+        InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+        InterchangeWhilePFor<scf::ParallelOp>,
+        InterchangeWhilePFor<AffineParallelOp>,
+        InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
+        InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
+        InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
+        InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(&getContext());
     if (method.contains("ifhoist")) {
       patterns.insert<HoistBarrierIf<scf::ParallelOp, scf::IfOp>,
                       HoistBarrierIf<scf::ParallelOp, AffineIfOp>,
@@ -2645,28 +2655,16 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
             &getContext());
       }
       patterns.insert<WrapIfWithBarrier<scf::IfOp, UseMinCut>,
-                      WrapIfWithBarrier<AffineIfOp, UseMinCut>,
-                      InterchangeForIfPFor<scf::ParallelOp, scf::IfOp>,
-                      InterchangeForIfPFor<AffineParallelOp, scf::IfOp>,
-                      InterchangeForIfPFor<scf::ParallelOp, AffineIfOp>,
-                      InterchangeForIfPFor<AffineParallelOp, AffineIfOp>>(
-          &getContext());
+                      WrapIfWithBarrier<AffineIfOp, UseMinCut>>(&getContext());
     }
 
-    patterns.insert<InterchangeForIfPFor<scf::ParallelOp, scf::ForOp>,
-                    InterchangeForIfPFor<AffineParallelOp, scf::ForOp>,
-                    InterchangeForIfPFor<scf::ParallelOp, AffineForOp>,
-                    InterchangeForIfPFor<AffineParallelOp, AffineForOp>,
+    patterns.insert<
+        // NormalizeLoop,
+        NormalizeParallel,
+        // RotateWhile,
 
-                    InterchangeWhilePFor<scf::ParallelOp>,
-                    InterchangeWhilePFor<AffineParallelOp>,
-                    // NormalizeLoop,
-                    NormalizeParallel,
-                    // RotateWhile,
-
-                    DistributeAroundBarrier<scf::ParallelOp, UseMinCut>,
-                    DistributeAroundBarrier<AffineParallelOp, UseMinCut>>(
-        &getContext());
+        DistributeAroundBarrier<scf::ParallelOp, UseMinCut>,
+        DistributeAroundBarrier<AffineParallelOp, UseMinCut>>(&getContext());
   }
   CPUifyPass() = default;
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
