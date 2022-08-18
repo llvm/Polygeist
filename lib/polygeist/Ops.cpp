@@ -28,6 +28,8 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
+
 using namespace mlir;
 using namespace polygeist;
 using namespace mlir::arith;
@@ -4575,43 +4577,14 @@ template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
   }
 };
 
-#if 0
 template <typename T> struct AffineBufferElimination : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
-
-  static bool legalFor(T op, AffineForOp afFor) {
-    auto S = op.getType().getShape();
-    if (S.size() != 1)
-      return false;
-
-    size_t opidx = 0;
-    for (size_t i = 0; i < S.size(); i++) {
-      if (!valueCmp(Cmp::EQ, afFor.getLowerBoundMap().getResults()[i],
-                    afFor.getLowerBoundMap().getNumDims(),
-                    afFor.getLowerBoundOperands(), 0))
-        return false;
-
-      if (S[i] == -1) {
-        Value ubval = op.getOperands()[i];
-        opidx++;
-        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
-                      afFor.getUpperBoundMap().getNumDims(),
-                      afFor.getUpperBoundOperands(), ubval))
-          return false;
-      } else {
-        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
-                      afFor.getUpperBoundMap().getNumDims(),
-                      afFor.getUpperBoundOperands(), S[i]))
-          return false;
-      }
-    }
-
-    return true;
-  }
-
+  
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
     AffineStoreOp store = nullptr;
+    if (op.getType().getMemorySpace() != 0)
+        return failure();
     SmallVector<AffineLoadOp> loads;
     SmallVector<memref::DeallocOp> deallocs;
     for (auto U : op->getResult(0).getUsers()) {
@@ -4636,6 +4609,9 @@ template <typename T> struct AffineBufferElimination : public OpRewritePattern<T
     if (!otherBuf.getDefiningOp<memref::AllocaOp>() && !otherBuf.getDefiningOp<memref::AllocOp>())
         return failure();
     
+    if (otherBuf.getType().cast<MemRefType>().getMemorySpace() != 0)
+        return failure();
+    
     SmallVector<AffineStoreOp> interferingStores;
     for (auto U : otherBuf.getUsers()) {
         if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
@@ -4651,23 +4627,155 @@ template <typename T> struct AffineBufferElimination : public OpRewritePattern<T
     if (store->getBlock() != loadVal->getBlock()) return failure();
     
     int opn = 0;
+    // Ensure the one store fully covers the space.
+
+    // Note: this may not actually necessary, since if there's only one store,
+    //   which is at the same level
+
+    // 1) Check that each memref index expression covers all bounds
     for (auto pair : llvm::enumerate(op.getType().getShape())) {
-        if (pair.second() == -1) return failure();
-        bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
-                   ValueOrInt lb, ValueOrInt ub) {
-        ValueOrInt val(pair.second());
-        if (pair.second() == -1) {
+        ValueOrInt val(pair.value());
+        if (pair.value() == -1) {
             val = ValueOrInt(op.getOperands()[opn]);
             opn++;
         } 
-        if (!rangeIncludes(store.getAffineMap()[pair.first()], store.getAffineMap().getNumDims(), store.getMapOperands(), pair.second))
+        AffineExpr aexpr = store.getAffineMap().getResult(pair.index());
+        AffineDimExpr adim = aexpr.dyn_cast<AffineDimExpr>();
+        if (!adim) return failure();
+        Value auval = store.getMapOperands()[adim.getPosition()];
+        BlockArgument bval = auval.dyn_cast<BlockArgument>();
+        if (!bval) return failure();
+        if (!rangeIncludes(bval, 0, val))
+            return failure();
+    }
+    if (store.getAffineMap().getNumSymbols()) return failure();
+    // 2) Ensure all operands in the map are direct, guaranteed to execute parents
+    //  (e.g. this is not contained within if statements and thus conditionally executed)
+    //  note that even an intervening for statement can act as a conditional for 0 .. cond
+    SmallPtrSet<Operation*, 1> boundContainers;
+    for (auto V : store.getMapOperands()) {
+        auto BA = V.dyn_cast<BlockArgument>();
+        if (!BA) return failure();
+        Operation* parent = BA.getOwner()->getParentOp();
+
+        // Ensure this is a for dimension, not an induction var.
+        //  Also check other operands which may exist are positive Ranged.
+        if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+            if (BA.getArgNumber() != 0) return failure();
+        } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+            if (BA.getArgNumber() != 0) return failure();
+        } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
+            if (BA.getArgNumber() >= fOp.getInductionVars().size()) return failure();
+            for (auto iv : fOp.getInductionVars())
+                if (!rangeIncludes(iv, 0, 1))
+                    return failure();
+        } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+            if (BA.getArgNumber() >= fOp.getIVs().size()) return failure();
+            for (auto iv : fOp.getIVs())
+                if (!rangeIncludes(iv, 0, 1))
+                    return failure();
+                
+        } else {
+            return failure()
+        }
+        boundContainers.insert(parent);
+    }
+    if (!boundContainers.count(store->getParentOp()))
+        return failure();
+    // Check containers all the way up to allocation op are guaranteed
+    // to execute.
+    Operation* prevParent = nullptr;
+    for (auto c : boundContainers) {
+        Operation *cur = c;
+        while (true) {
+            if (cur == op->getParentOp()) {
+                prevParent = cur;
+                break;
+            }
+            if (boundContainers.count(cur))
+                break;
+            if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+                if (!rangeIncludes(fOp.getIV(), 0, 1)) return failure();
+            } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+                if (!rangeIncludes(fOp.getIV(), 0, 1)) return failure();
+            } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
+                for (auto iv : fOp.getIVs())
+                    if (!rangeIncludes(iv, 0, 1))
+                        return failure();
+            } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+                for (auto iv : fOp.getIVs())
+                    if (!rangeIncludes(iv, 0, 1))
+                        return failure();
+                    
+            } else {
+                return failure()
+            }
+            cur = cur->getParentOp();
+        }
+    }
+    assert(cur);
+    for (auto ist : interferingStores) {
+        if (prevParent->isAncestor(ist)) return failure();
+    }
+    
+    bool changed = false;
+    for(auto tc = prevParent->getNextNode(); tc; tc = tc->getNextNode()) {
+        bool legal = true;
+        for (auto ist : interferingStores) {
+            if (tc->isAncestor(ist)) {
+                legal = false;
+                break;
+            }
+        }
+        if (!legal) break;
+
+        for (auto &ld : loads) {
+            if (!ld) continue;
+            if (tc->isAncestor(ld)) {
+                auto composed = ld.getAffineMap().compose(store.getAffineMap()).shiftDims(loadVal.getAffineMap().getNumDims()).shiftSymbols(loadVal.getAffineMap().getNumSymbols());
+                SmallVector<AffineExpr> dimReplacements;
+                SmallVector<AffineExpr> symReplacements;
+                for (auto pair : llvm::enumerate(loadVal.getMapOperands())) {
+                    AffineExpr cur = (pair.index() < loadVal.getAffineMap().getNumDims()) ?  
+                        getAffineDimExpr(pair.index(), ld.getContext()) :
+                        getAffineSymbolExpr(pair.index() - loadVal.getAffineMap().getNumDims(), ld.getContext());
+                    bool seen = false;
+                    for (auto p2 : llvm::enumerate(store.getMapOperands())) {
+                        if (p2.value() == pair.value()) {
+                            if (seen) return failure();
+                            cur = composed.getResult(p2.index());
+                            seen = true;
+                        }
+                    }
+                    if (pair.index() < loadVal.getAffineMap().getNumDims())
+                      dimReplacements.push_back(cur);
+                    else
+                      symReplacements.push_back(cur);
+                }
+                auto newMap = loadVal.getAffineMap().replaceDimsAndSymbols(dimReplacements, symReplacements, 
+                        composed.getNumDims(), composed.getNumSymbols());
+
+                SmallVector<Value> vals;
+                for (size_t i=0; i<loadVal.getAffineMap().getNumDims(); i++)
+                    vals.push_back(loadVal.getMapOperands()[i]);
+                for (size_t i=0; i<ld.getAffineMap().getNumDims(); i++)
+                    vals.push_back(ld.getMapOperands()[i]);
+                for (size_t i=0; i<loadVal.getAffineMap().getNumSymbols(); i++)
+                    vals.push_back(loadVal.getMapOperands()[i+loadVal.getAffineMap().getNumDims()]);
+                for (size_t i=0; i<ld.getAffineMap().getNumSymbols(); i++)
+                    vals.push_back(ld.getMapOperands()[i+ld.getAffineMap().getNumDims()]);
+
+                rewriter.replaceOpWithNewOp<AffineLoadOp>(ld, ld.memref(), newMap, vals);
+                rewriter.eraseOp(ld);
+                ld = nullptr;
+                changed = true;
+            }
+        }
     }
 
-    ... TODO...
-    return failure();
+    return success(changed);
   }
 };
-#endif
 
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
@@ -4681,6 +4789,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
       BufferElimination<memref::AllocaOp>, BufferElimination<memref::AllocOp>,
+      AffineBufferElimination<memref::AllocaOp>, AffineBufferElimination<memref::AllocOp>,
       SimplifyDeadAllocV2<memref::AllocaOp>,
       SimplifyDeadAllocV2<memref::AllocOp>, SimplifyDeadAllocV2<LLVM::AllocaOp>,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
