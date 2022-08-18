@@ -4620,6 +4620,8 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
       LLVM_DEBUG(llvm::dbgs() << " + unknown user " << *U << "\n");
       return failure();
     }
+    if (!store)
+      return failure();
     AffineLoadOp loadVal = store.value().getDefiningOp<AffineLoadOp>();
     if (!loadVal)
       return failure();
