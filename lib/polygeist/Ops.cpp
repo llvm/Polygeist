@@ -4971,7 +4971,6 @@ struct MulDivMul : public OpRewritePattern<arith::MulIOp> {
   }
 };
 
-
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
