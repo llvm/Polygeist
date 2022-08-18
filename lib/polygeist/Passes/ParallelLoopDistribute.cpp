@@ -157,6 +157,22 @@ static bool arePreceedingOpsFullyRecomputable(Operation *op,
   return true;
 }
 
+static bool isRecomputableSimple(Operation *op) {
+  if (isa<polygeist::BarrierOp>(op))
+    return false;
+
+  SmallVector<MemoryEffects::EffectInstance> effects;
+  collectEffects(op, effects, /*ignoreBarriers*/ false);
+
+  if (effects.size() == 0)
+    return true;
+  for (auto it : effects)
+    if (!isa<MemoryEffects::Read>(it.getEffect()))
+      return false;
+
+  return true;
+}
+
 static bool isRecomputableAfterDistribute(Operation *op,
                                           polygeist::BarrierOp barrier) {
   // The below logic should not disagree with the logic in interchange and wrap,
@@ -1919,14 +1935,15 @@ void distributeBlockAroundBarrier(mlir::PatternRewriter &rewriter,
 ///   }
 ///   D()
 /// }
-template <typename IfOpType, bool UseMinCut>
+template <typename IfOpType, typename ParallelOpType, bool UseMinCut>
 struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
   DistributeIfAroundBarrier(MLIRContext *ctx)
       : OpRewritePattern<IfOpType>(ctx) {}
 
   LogicalResult matchAndRewrite(IfOpType ifOp,
                                 PatternRewriter &rewriter) const override {
-    if (!isa<scf::ParallelOp, AffineParallelOp>(ifOp->getParentOp())) {
+    ParallelOpType pop = dyn_cast<ParallelOpType>(ifOp->getParentOp());
+    if (!pop) {
       LLVM_DEBUG(DBGS() << "[if-barrier-distribute] do not distribute ifs not "
                            "directly nested in parallel ops\n");
       return failure();
@@ -1965,16 +1982,52 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
       }
     }
 
-    // Create new if
+    // Hoist the if condition calculation outside the parallel region
+    BlockAndValueMapping mapping;
+    mapping.map(pop.getBody()->getArguments(), getLowerBounds(pop, rewriter));
+    rewriter.setInsertionPoint(pop);
+    std::function<void(Value)> recalculateVal;
+    recalculateVal = [&recalculateVal, &pop, &mapping, &ifOp,
+                      &rewriter](Value val) {
+      Operation *op = val.getDefiningOp();
 
+      if (!op)
+        return;
+      if (mapping.contains(val))
+        return;
+      if (!pop->isProperAncestor(op))
+        return;
+      if (!isRecomputableSimple(op))
+        return;
+
+      for (Value operand : op->getOperands())
+        recalculateVal(operand);
+      for (Region &region : op->getRegions())
+        for (auto &block : region)
+          for (auto &nestedOp : block)
+            for (auto res : nestedOp.getResults())
+              recalculateVal(res);
+
+      if (op->getBlock() == ifOp->getBlock())
+        auto cloned = rewriter.clone(*op, mapping);
+      else
+        for (Value v : op->getResults())
+          mapping.map(v, v);
+    };
+
+    for (auto oper : ifOp->getOperands())
+      recalculateVal(oper);
+
+    // Create new if
     rewriter.setInsertionPoint(ifOp);
-    auto ifPre = cloneWithoutResults(ifOp, rewriter);
+    auto ifPre = cloneWithoutResults(ifOp, rewriter, mapping);
     if (thenBarrier) {
       rewriter.clone(*thenBarrier);
     } else {
       rewriter.clone(*elseBarrier);
     }
-    auto ifPost = cloneWithResults(ifOp, rewriter);
+    auto ifPost = cloneWithResults(ifOp, rewriter, mapping);
+    mapping.clear();
 
     auto handleCase = [&ifPre, &rewriter, &ifOp](BarrierOp barrier,
                                                  Block *block, Block *preBlock,
@@ -2546,8 +2599,11 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
           &getContext());
     } else {
       if (method.contains("ifsplit")) {
-        patterns.insert<DistributeIfAroundBarrier<scf::IfOp, UseMinCut>,
-                        DistributeIfAroundBarrier<AffineIfOp, UseMinCut>>(
+        patterns.insert<
+            DistributeIfAroundBarrier<scf::IfOp, AffineParallelOp, UseMinCut>,
+            DistributeIfAroundBarrier<AffineIfOp, AffineParallelOp, UseMinCut>,
+            DistributeIfAroundBarrier<scf::IfOp, scf::ParallelOp, UseMinCut>,
+            DistributeIfAroundBarrier<AffineIfOp, scf::ParallelOp, UseMinCut>>(
             &getContext());
       }
       patterns.insert<WrapIfWithBarrier<scf::IfOp, UseMinCut>,
