@@ -4873,6 +4873,22 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
   }
 };
 
+struct MulDivMul : public OpRewritePattern<arith::MulIOp> {
+  using OpRewritePattern<MulIOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(MulIOp op,
+                                PatternRewriter &rewriter) const override {
+    if (auto div = op.getLhs().getDefiningOp<arith::DivUIOp>()) {
+      if (auto mul = div.getLhs().getDefiningOp<arith::MulIOp>()) {
+        if (op.getRhs() == div.getRhs() && mul.getRhs() == op.getRhs()) {
+          rewriter.replaceOp(op, mul->getResults());
+          return success();
+        }
+      }
+    }
+    return failure();
+  }
+};
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -4889,6 +4905,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AffineBufferElimination<memref::AllocOp>,
       SimplifyDeadAllocV2<memref::AllocaOp>,
       SimplifyDeadAllocV2<memref::AllocOp>, SimplifyDeadAllocV2<LLVM::AllocaOp>,
+      MulDivMul,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
