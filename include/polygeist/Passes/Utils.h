@@ -6,6 +6,25 @@
 #include "mlir/IR/IntegerSet.h"
 
 static inline mlir::scf::IfOp
+cloneWithResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
+                 mlir::BlockAndValueMapping mapping = {}) {
+  using namespace mlir;
+  return rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(),
+                                    mapping.lookupOrDefault(op.getCondition()),
+                                    true);
+}
+static inline mlir::AffineIfOp
+cloneWithResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
+                 mlir::BlockAndValueMapping mapping = {}) {
+  using namespace mlir;
+  SmallVector<mlir::Value> lower;
+  for (auto o : op.getOperands())
+    lower.push_back(mapping.lookupOrDefault(o));
+  return rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(),
+                                     op.getIntegerSet(), lower, true);
+}
+
+static inline mlir::scf::IfOp
 cloneWithoutResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
                     mlir::BlockAndValueMapping mapping = {},
                     mlir::TypeRange types = {}) {
@@ -49,6 +68,14 @@ cloneWithoutResults(mlir::AffineForOp op, mlir::PatternRewriter &rewriter,
                                       op.getStep());
 }
 
+static inline void clearBlock(mlir::Block *block,
+                              mlir::PatternRewriter &rewriter) {
+  for (auto &op : llvm::make_early_inc_range(llvm::reverse(*block))) {
+    assert(op.use_empty() && "expected 'op' to have no uses");
+    rewriter.eraseOp(&op);
+  }
+}
+
 static inline mlir::Block *getThenBlock(mlir::scf::IfOp op) {
   return op.thenBlock();
 }
@@ -59,7 +86,10 @@ static inline mlir::Block *getElseBlock(mlir::scf::IfOp op) {
   return op.elseBlock();
 }
 static inline mlir::Block *getElseBlock(mlir::AffineIfOp op) {
-  return op.getElseBlock();
+  if (op.hasElse())
+    return op.getElseBlock();
+  else
+    return nullptr;
 }
 
 static inline mlir::Region &getThenRegion(mlir::scf::IfOp op) {
