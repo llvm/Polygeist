@@ -157,22 +157,6 @@ static bool arePreceedingOpsFullyRecomputable(Operation *op,
   return true;
 }
 
-static bool isRecomputableSimple(Operation *op) {
-  if (isa<polygeist::BarrierOp>(op))
-    return false;
-
-  SmallVector<MemoryEffects::EffectInstance> effects;
-  collectEffects(op, effects, /*ignoreBarriers*/ false);
-
-  if (effects.size() == 0)
-    return true;
-  for (auto it : effects)
-    if (!isa<MemoryEffects::Read>(it.getEffect()))
-      return false;
-
-  return true;
-}
-
 static bool isRecomputableAfterDistribute(Operation *op,
                                           polygeist::BarrierOp barrier) {
   // The below logic should not disagree with the logic in interchange and wrap,
@@ -1940,6 +1924,54 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
   DistributeIfAroundBarrier(MLIRContext *ctx)
       : OpRewritePattern<IfOpType>(ctx) {}
 
+  static bool isRecomputableCond(Operation *op, IfOpType ifOp) {
+
+    if (isa<polygeist::BarrierOp>(op))
+      return false;
+
+    SmallVector<MemoryEffects::EffectInstance> effects;
+    collectEffects(op, effects, /*ignoreBarriers*/ false);
+
+    if (effects.size() == 0)
+      return true;
+    for (auto it : effects)
+      if (!isa<MemoryEffects::Read>(it.getEffect()))
+        return false;
+
+    // op now only has read effects
+
+    // It is recomputable if nothing else may write to where it reads from from
+    // after the previous barrier (begin) up to next barrier after the IfOp
+
+    Operation *begin = op;
+    Operation *front = &ifOp->getBlock()->front();
+    while (true) {
+      if (begin == front)
+        break;
+      Operation *prev = begin->getPrevNode();
+      if (isa<polygeist::BarrierOp>(prev))
+        break;
+      begin = prev;
+    }
+    Operation *end = ifOp;
+    while (true) {
+      end = end->getNextNode();
+      if (end == nullptr)
+        break;
+      if (isa<polygeist::BarrierOp>(end))
+        break;
+    }
+
+    for (auto it : effects) {
+      assert(isa<MemoryEffects::Read>(it.getEffect()));
+      if (Value v = it.getValue())
+        for (Operation *op = begin; op != end; op = op->getNextNode())
+          if (mayWriteTo(op, v, /*ignoreBarrier*/ true))
+            return false;
+    }
+    return true;
+  }
+
   LogicalResult matchAndRewrite(IfOpType ifOp,
                                 PatternRewriter &rewriter) const override {
     ParallelOpType pop = dyn_cast<ParallelOpType>(ifOp->getParentOp());
@@ -1998,7 +2030,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
         return;
       if (!pop->isProperAncestor(op))
         return;
-      if (!isRecomputableSimple(op)) {
+      if (!isRecomputableCond(op, ifOp)) {
         condRecomputable = false;
         return;
       }
