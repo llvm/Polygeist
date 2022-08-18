@@ -24,7 +24,6 @@ using namespace mlir::arith;
 using namespace polygeist;
 
 bool isReadOnly(Operation *op);
-bool aboveEq(Value, int64_t);
 
 bool isValidSymbolInt(Value value, bool recur = true);
 bool isValidSymbolInt(Operation *defOp, bool recur) {
@@ -1105,13 +1104,13 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   case CmpIPredicate::ugt:
   case CmpIPredicate::uge:
     for (auto lhspack : lhs)
-      if (!aboveEq(lhspack, 0)) {
+      if (!valueCmp(Cmp::GE, lhspack, 0)) {
         LLVM_DEBUG(llvm::dbgs() << "illegal greater lhs icmp: " << cmpi << " - "
                                 << lhspack << "\n");
         return false;
       }
     for (auto rhspack : rhs)
-      if (!aboveEq(rhspack, 0)) {
+      if (!valueCmp(Cmp::GE, rhspack, 0)) {
         LLVM_DEBUG(llvm::dbgs() << "illegal greater rhs icmp: " << cmpi << " - "
                                 << rhspack << "\n");
         return false;
@@ -1143,13 +1142,13 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
   case CmpIPredicate::ult:
   case CmpIPredicate::ule:
     for (auto lhspack : lhs)
-      if (!aboveEq(lhspack, 0)) {
+      if (!valueCmp(Cmp::GE, lhspack, 0)) {
         LLVM_DEBUG(llvm::dbgs() << "illegal less lhs icmp: " << cmpi << " - "
                                 << lhspack << "\n");
         return false;
       }
     for (auto rhspack : rhs)
-      if (!aboveEq(rhspack, 0)) {
+      if (!valueCmp(Cmp::GE, rhspack, 0)) {
         LLVM_DEBUG(llvm::dbgs() << "illegal less rhs icmp: " << cmpi << " - "
                                 << rhspack << "\n");
         return false;

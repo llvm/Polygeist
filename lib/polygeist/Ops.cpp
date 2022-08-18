@@ -2667,85 +2667,401 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
+bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
+  if (auto icast = bval.getDefiningOp<IndexCastOp>()) {
+    return valueCmp(cmp, icast, val);
+  }
 
-bool aboveEq(Value bval, int64_t val) {
-  // Unknown size currently unhandled.
-  if (val == -1)
-    return false;
+  IntegerAttr iattr;
+  if (matchPattern(bval, m_Constant(&iattr))) {
+    switch (cmp) {
+    case Cmp::EQ:
+      return val == iattr.getValue();
+    case Cmp::LT:
+      return val > iattr.getValue();
+    case Cmp::LE:
+      return val >= iattr.getValue();
+    case Cmp::GT:
+      return val < iattr.getValue();
+    case Cmp::GE:
+      return val <= iattr.getValue();
+    }
+  }
 
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
     if (AffineForOp afFor =
             dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
-      for (auto lb : afFor.getLowerBoundMap().getResults()) {
-        if (!aboveEq(lb, afFor.getLowerBoundMap().getNumDims(),
-                     afFor.getLowerBoundOperands(), val))
+      auto for_lb = afFor.getLowerBoundMap().getResults()[baval.getArgNumber()];
+      auto for_ub = afFor.getUpperBoundMap().getResults()[baval.getArgNumber()];
+      switch (cmp) {
+      // \forall i \in [LB, UB) == k   => LB == k and UB == k+1
+      case Cmp::EQ: {
+        if (!valueCmp(Cmp::EQ, for_lb, afFor.getLowerBoundMap().getNumDims(),
+                      afFor.getLowerBoundOperands(), val))
           return false;
+        if (!val.isValue) {
+          if (!valueCmp(Cmp::EQ, for_ub, afFor.getUpperBoundMap().getNumDims(),
+                        afFor.getUpperBoundOperands(), val.i_val + 1))
+            return false;
+          return true;
+        }
+        return false;
       }
-      return true;
+      // \forall i \in [LB, UB) < k   => UB <= k
+      case Cmp::LT: {
+        return valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundMap().getNumDims(),
+                        afFor.getUpperBoundOperands(), val);
+      }
+      // \forall i \in [LB, UB) <= k   => UB-1 <= k  => UB <= k+1
+      case Cmp::LE: {
+        if (!val.isValue) {
+          return valueCmp(Cmp::LE, for_ub,
+                          afFor.getUpperBoundMap().getNumDims(),
+                          afFor.getUpperBoundOperands(), val.i_val + 1);
+        }
+        return valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundMap().getNumDims(),
+                        afFor.getUpperBoundOperands(), val);
+      }
+      // \forall i \in [LB, UB) > k   => LB > k
+      case Cmp::GT: {
+        return valueCmp(Cmp::GT, for_lb, afFor.getLowerBoundMap().getNumDims(),
+                        afFor.getLowerBoundOperands(), val);
+      }
+      // \forall i \in [LB, UB) >= k   => LB >= k
+      case Cmp::GE: {
+        return valueCmp(Cmp::GE, for_lb, afFor.getLowerBoundMap().getNumDims(),
+                        afFor.getLowerBoundOperands(), val);
+      }
+      }
     }
     if (AffineParallelOp afFor =
             dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
-      for (auto lb :
-           afFor.getLowerBoundMap(baval.getArgNumber()).getResults()) {
-        if (!aboveEq(lb, afFor.lowerBoundsMap().getNumDims(),
-                     afFor.getLowerBoundsOperands(), val))
-          return false;
+      switch (cmp) {
+      // \forall i \in [max(LB...), min(UB...)) == k   => all(LB == k) and
+      // all(UB == k+1)
+      case Cmp::EQ: {
+        for (auto for_lb :
+             afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
+          if (!valueCmp(Cmp::EQ, for_lb, afFor.lowerBoundsMap().getNumDims(),
+                        afFor.getLowerBoundsOperands(), val))
+            return false;
+        if (!val.isValue) {
+          for (auto for_ub :
+               afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
+            if (!valueCmp(Cmp::EQ, for_ub, afFor.upperBoundsMap().getNumDims(),
+                          afFor.getUpperBoundsOperands(), val.i_val + 1))
+              return false;
+          return true;
+        }
+        return false;
       }
-      return true;
+      // \forall i \in [max(LB...), min(UB...)) < k   => any(UB <= k)
+      case Cmp::LT: {
+        for (auto for_ub :
+             afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
+          if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+                       afFor.getUpperBoundsOperands(), val))
+            return true;
+        return false;
+      }
+      // \forall i \in [max(LB...), min(UB...)) <= k   => any(UB-1 <= k)  =>
+      // any(UB <= k+1)
+      case Cmp::LE: {
+        if (!val.isValue) {
+          for (auto for_ub :
+               afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
+            if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+                         afFor.getUpperBoundsOperands(), val.i_val + 1))
+              return true;
+          return false;
+        }
+
+        for (auto for_ub :
+             afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
+          if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+                       afFor.getUpperBoundsOperands(), val))
+            return true;
+        return false;
+      }
+      // \forall i \in [max(LB...), min(UB...)) > k   => any(LB > k)
+      case Cmp::GT: {
+        for (auto for_lb :
+             afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
+          if (valueCmp(Cmp::GT, for_lb, afFor.lowerBoundsMap().getNumDims(),
+                       afFor.getLowerBoundsOperands(), val))
+            return true;
+        return false;
+      }
+      // \forall i \in [max(LB...), min(UB...)) >= k   => any(LB >= k)
+      case Cmp::GE: {
+        for (auto for_lb :
+             afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
+          if (valueCmp(Cmp::GE, for_lb, afFor.lowerBoundsMap().getNumDims(),
+                       afFor.getLowerBoundsOperands(), val))
+            return true;
+        return false;
+      }
+      }
     }
 
     if (scf::ForOp afFor =
             dyn_cast<scf::ForOp>(baval.getOwner()->getParentOp())) {
       if (baval.getArgNumber() == 0) {
-        return aboveEq(afFor.getLowerBound(), val);
+        auto for_lb = afFor.getLowerBound();
+        auto for_ub = afFor.getUpperBound();
+        switch (cmp) {
+        // \forall i \in [LB, UB) == k   => LB == k and UB == k+1
+        case Cmp::EQ: {
+          if (!valueCmp(Cmp::EQ, for_lb, val))
+            return false;
+          if (!val.isValue) {
+            if (!valueCmp(Cmp::EQ, for_ub, val.i_val + 1))
+              return false;
+            return true;
+          }
+          return false;
+        }
+        // \forall i \in [LB, UB) < k   => UB <= k
+        case Cmp::LT: {
+          return valueCmp(Cmp::LE, for_ub, val);
+        }
+        // \forall i \in [LB, UB) <= k   => UB-1 <= k  => UB <= k+1
+        case Cmp::LE: {
+          if (!val.isValue) {
+            return valueCmp(Cmp::LE, for_ub, val.i_val + 1);
+          }
+          return valueCmp(Cmp::LE, for_ub, val);
+        }
+        // \forall i \in [LB, UB) > k   => LB > k
+        case Cmp::GT: {
+          return valueCmp(Cmp::GT, for_lb, val);
+        }
+        // \forall i \in [LB, UB) >= k   => LB >= k
+        case Cmp::GE: {
+          return valueCmp(Cmp::GE, for_lb, val);
+        }
+        }
       }
     }
 
     if (scf::ParallelOp afFor =
             dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
-      return aboveEq(afFor.getLowerBound()[baval.getArgNumber()], val);
+      auto for_lb = afFor.getLowerBound()[baval.getArgNumber()];
+      auto for_ub = afFor.getUpperBound()[baval.getArgNumber()];
+      switch (cmp) {
+      // \forall i \in [LB, UB) == k   => LB == k and UB == k+1
+      case Cmp::EQ: {
+        if (!valueCmp(Cmp::EQ, for_lb, val))
+          return false;
+        if (!val.isValue) {
+          if (!valueCmp(Cmp::EQ, for_ub, val.i_val + 1))
+            return false;
+          return true;
+        }
+        return false;
+      }
+      // \forall i \in [LB, UB) < k   => UB <= k
+      case Cmp::LT: {
+        return valueCmp(Cmp::LE, for_ub, val);
+      }
+      // \forall i \in [LB, UB) <= k   => UB-1 <= k  => UB <= k+1
+      case Cmp::LE: {
+        if (!val.isValue) {
+          return valueCmp(Cmp::LE, for_ub, val.i_val + 1);
+        }
+        return valueCmp(Cmp::LE, for_ub, val);
+      }
+      // \forall i \in [LB, UB) > k   => LB > k
+      case Cmp::GT: {
+        return valueCmp(Cmp::GT, for_lb, val);
+      }
+      // \forall i \in [LB, UB) >= k   => LB >= k
+      case Cmp::GE: {
+        return valueCmp(Cmp::GE, for_lb, val);
+      }
+      }
+    }
+  }
+  if (val.isValue && val.v_val == bval) {
+    switch (cmp) {
+    case Cmp::EQ:
+      return true;
+    case Cmp::LT:
+      return false;
+    case Cmp::LE:
+      return true;
+    case Cmp::GT:
+      return false;
+    case Cmp::GE:
+      return true;
+    }
+  }
+  return false;
+}
+
+bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
+              ValueOrInt val) {
+
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
+    switch (cmp) {
+    case Cmp::EQ:
+      return val == opd.getValue();
+    case Cmp::LT:
+      return val > opd.getValue();
+    case Cmp::LE:
+      return val >= opd.getValue();
+    case Cmp::GT:
+      return val < opd.getValue();
+    case Cmp::GE:
+      return val <= opd.getValue();
+    }
+  }
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
+    return valueCmp(cmp, operands[opd.getPosition()], val);
+  }
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
+    return valueCmp(cmp, operands[opd.getPosition() + numDim], val);
+  }
+
+  if (auto bop = expr.dyn_cast<AffineBinaryOpExpr>()) {
+    if (bop.getKind() == AffineExprKind::Add) {
+      switch (cmp) {
+      case Cmp::EQ:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(cmp, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val));
+      case Cmp::LT:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(Cmp::LE, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(Cmp::LE, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val)) ||
+               (valueCmp(Cmp::LE, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(cmp, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(Cmp::LE, bop.getRHS(), numDim, operands, val));
+      case Cmp::LE:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(cmp, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val));
+      case Cmp::GT:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(Cmp::GE, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(Cmp::GE, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val)) ||
+               (valueCmp(Cmp::GE, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(cmp, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(Cmp::GE, bop.getRHS(), numDim, operands, val));
+      case Cmp::GE:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(cmp, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val));
+      }
+    }
+    if (bop.getKind() == AffineExprKind::Mul && val == 0) {
+      switch (cmp) {
+      case Cmp::EQ:
+        return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) ||
+                valueCmp(cmp, bop.getRHS(), numDim, operands, val));
+      case Cmp::LT:
+        return (valueCmp(Cmp::LT, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(Cmp::GT, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(Cmp::GT, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(Cmp::LT, bop.getRHS(), numDim, operands, val));
+      case Cmp::LE:
+        return valueCmp(Cmp::EQ, bop.getLHS(), numDim, operands, val) ||
+               valueCmp(Cmp::EQ, bop.getRHS(), numDim, operands, val) ||
+               ((valueCmp(Cmp::GE, bop.getLHS(), numDim, operands, 0) &&
+                 valueCmp(Cmp::LE, bop.getRHS(), numDim, operands, val)) ||
+                (valueCmp(Cmp::LE, bop.getLHS(), numDim, operands, 0) &&
+                 valueCmp(Cmp::GE, bop.getRHS(), numDim, operands, val)));
+      case Cmp::GT:
+        return (valueCmp(Cmp::LT, bop.getLHS(), numDim, operands, val) &&
+                valueCmp(Cmp::LT, bop.getRHS(), numDim, operands, 0)) ||
+               (valueCmp(Cmp::GT, bop.getLHS(), numDim, operands, 0) &&
+                valueCmp(Cmp::GT, bop.getRHS(), numDim, operands, val));
+      case Cmp::GE:
+        return valueCmp(Cmp::EQ, bop.getLHS(), numDim, operands, val) ||
+               valueCmp(Cmp::EQ, bop.getRHS(), numDim, operands, val) ||
+               ((valueCmp(Cmp::GE, bop.getLHS(), numDim, operands, 0) &&
+                 valueCmp(Cmp::GE, bop.getRHS(), numDim, operands, val)) ||
+                (valueCmp(Cmp::LE, bop.getLHS(), numDim, operands, 0) &&
+                 valueCmp(Cmp::LE, bop.getRHS(), numDim, operands, val)));
+      }
+    }
+  }
+  return false;
+}
+
+// Range is [lb, ub)
+bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
+  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+    if (AffineForOp afFor =
+            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+      return valueCmp(
+                 Cmp::LE,
+                 afFor.getLowerBoundMap().getResults()[baval.getArgNumber()],
+                 afFor.getLowerBoundMap().getNumDims(),
+                 afFor.getLowerBoundOperands(), lb) &&
+             valueCmp(
+                 Cmp::GE,
+                 afFor.getUpperBoundMap().getResults()[baval.getArgNumber()],
+                 afFor.getUpperBoundMap().getNumDims(),
+                 afFor.getUpperBoundOperands(), ub);
+    }
+    //  \forall i in [max(LB...),  min(UB)...] is a superset of [lb, ub)
+    if (AffineParallelOp afFor =
+            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+      for (auto flb : afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
+        if (!valueCmp(Cmp::LE, flb, afFor.lowerBoundsMap().getNumDims(),
+                      afFor.getLowerBoundsOperands(), lb))
+          return false;
+
+      for (auto ulb : afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
+        if (!valueCmp(Cmp::GE, ulb, afFor.upperBoundsMap().getNumDims(),
+                      afFor.getUpperBoundsOperands(), ub))
+          return false;
+    }
+
+    if (scf::ForOp afFor =
+            dyn_cast<scf::ForOp>(baval.getOwner()->getParentOp())) {
+      if (baval.getArgNumber() == 0) {
+        auto flb = afFor.getLowerBound();
+        auto fub = afFor.getUpperBound();
+        return valueCmp(Cmp::LE, flb, lb) && valueCmp(Cmp::GE, fub, ub);
+      }
+    }
+
+    if (scf::ParallelOp afFor =
+            dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
+      auto flb = afFor.getLowerBound()[baval.getArgNumber()];
+      auto fub = afFor.getUpperBound()[baval.getArgNumber()];
+      return valueCmp(Cmp::LE, flb, lb) && valueCmp(Cmp::GE, fub, ub);
     }
   }
 
   IntegerAttr iattr;
   if (matchPattern(bval, m_Constant(&iattr))) {
-    return iattr.getValue().getSExtValue() >= val;
-  }
-
-  if (auto icast = bval.getDefiningOp<IndexCastOp>()) {
-    return aboveEq(icast.getOperand(), val);
+    return lb == iattr.getValue() && ub == iattr.getValue() + 1;
   }
 
   return false;
 }
 
-bool aboveEq(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
-  // Unknown size currently unhandled.
-  if (val == -1)
-    return false;
-
+// Range is [lb, ub)
+bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
+                   ValueOrInt lb, ValueOrInt ub) {
   if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
-    if (opd.getValue() >= val)
-      return true;
-    return false;
+    return lb == opd.getValue() && ub == opd.getValue() + 1;
   }
   if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
-    return aboveEq(operands[opd.getPosition()], val);
+    return rangeIncludes(operands[opd.getPosition()], lb, ub);
   }
   if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
-    return aboveEq(operands[opd.getPosition() + numDim], val);
-  }
-
-  if (auto bop = expr.dyn_cast<AffineBinaryOpExpr>()) {
-    if (bop.getKind() == AffineExprKind::Add) {
-      return aboveEq(bop.getLHS(), numDim, operands, val) &&
-             aboveEq(bop.getRHS(), numDim, operands, val);
-    }
-    if (bop.getKind() == AffineExprKind::Mul && val == 0) {
-      return aboveEq(bop.getLHS(), numDim, operands, val) &&
-             aboveEq(bop.getRHS(), numDim, operands, val);
-    }
+    return rangeIncludes(operands[opd.getPosition() + numDims], lb, ub);
   }
   return false;
 }
@@ -2830,7 +3146,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
         return failure();
       }
 
-      if (!aboveEq(ival, 0)) {
+      if (!valueCmp(Cmp::GE, ival, 0)) {
         return failure();
       }
 
@@ -2959,8 +3275,8 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
               continue;
             }
             if (bop.getKind() == AffineExprKind::Add &&
-                aboveEq(bop, op.getIntegerSet().getNumDims(), op.getOperands(),
-                        0)) {
+                valueCmp(Cmp::GE, bop, op.getIntegerSet().getNumDims(),
+                         op.getOperands(), 0)) {
               todo.push_back(bop.getLHS());
               eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
               todo.push_back(bop.getRHS());
@@ -3020,7 +3336,7 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
               if (!found)
                 continue;
 
-              if (!aboveEq(paren.getIVs()[tup.index()], 0))
+              if (!valueCmp(Cmp::GE, paren.getIVs()[tup.index()], 0))
                 continue;
 
               canRemove = true;
@@ -4030,51 +4346,32 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   static bool legalFor(T op, AffineForOp afFor) {
-    for (auto lb : afFor.getLowerBoundMap().getResults()) {
-      auto opd = lb.dyn_cast<AffineConstantExpr>();
-      if (!opd)
-        return false;
-      if (opd.getValue() != 0)
-        return false;
-    }
     auto S = op.getType().getShape();
     if (S.size() != 1)
       return false;
 
-    for (auto lb : afFor.getUpperBoundMap().getResults()) {
-      if (auto opd = lb.dyn_cast<AffineConstantExpr>()) {
-        if (S[0] != -1) {
-          if (S[0] != opd.getValue())
-            return false;
-        } else {
-          IntegerAttr iattr;
-          if (!matchPattern(op.getOperand(0), m_Constant(&iattr)))
-            return false;
-          if (iattr.getValue() != opd.getValue())
-            return false;
-        }
-        continue;
-      }
-      if (auto opd = lb.dyn_cast<AffineDimExpr>()) {
-        if (S[0] != -1)
-          return false;
-        if (afFor.getUpperBoundOperands()[opd.getPosition()] !=
-            op.getOperand(0))
-          return false;
-        continue;
-      }
-      if (auto opd = lb.dyn_cast<AffineSymbolExpr>()) {
-        if (S[0] != -1)
-          return false;
-        if (afFor.getUpperBoundOperands()
-                [opd.getPosition() + afFor.getUpperBoundMap().getNumDims()] !=
-            op.getOperand(0))
-          return false;
-        continue;
-      }
+    size_t opidx = 0;
+    for (size_t i = 0; i < S.size(); i++) {
+      if (!valueCmp(Cmp::EQ, afFor.getLowerBoundMap().getResults()[i],
+                    afFor.getLowerBoundMap().getNumDims(),
+                    afFor.getLowerBoundOperands(), 0))
+        return false;
 
-      return false;
+      if (S[i] == -1) {
+        Value ubval = op.getOperands()[i];
+        opidx++;
+        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
+                      afFor.getUpperBoundMap().getNumDims(),
+                      afFor.getUpperBoundOperands(), ubval))
+          return false;
+      } else {
+        if (!valueCmp(Cmp::EQ, afFor.getUpperBoundMap().getResults()[i],
+                      afFor.getUpperBoundMap().getNumDims(),
+                      afFor.getUpperBoundOperands(), S[i]))
+          return false;
+      }
     }
+
     return true;
   }
 
@@ -4277,6 +4574,111 @@ template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
     return success();
   }
 };
+
+#if 0
+template <typename T> struct AffineBufferElimination : public OpRewritePattern<T> {
+  using OpRewritePattern<T>::OpRewritePattern;
+
+  static bool legalFor(T op, AffineForOp afFor) {
+    for (auto lb : afFor.getLowerBoundMap().getResults()) {
+      auto opd = lb.dyn_cast<AffineConstantExpr>();
+      if (!opd)
+        return false;
+      if (opd.getValue() != 0)
+        return false;
+    }
+    auto S = op.getType().getShape();
+    if (S.size() != 1)
+      return false;
+
+    for (auto lb : afFor.getUpperBoundMap().getResults()) {
+      if (auto opd = lb.dyn_cast<AffineConstantExpr>()) {
+        if (S[0] != -1) {
+          if (S[0] != opd.getValue())
+            return false;
+        } else {
+          IntegerAttr iattr;
+          if (!matchPattern(op.getOperand(0), m_Constant(&iattr)))
+            return false;
+          if (iattr.getValue() != opd.getValue())
+            return false;
+        }
+        continue;
+      }
+      if (auto opd = lb.dyn_cast<AffineDimExpr>()) {
+        if (S[0] != -1)
+          return false;
+        if (afFor.getUpperBoundOperands()[opd.getPosition()] !=
+            op.getOperand(0))
+          return false;
+        continue;
+      }
+      if (auto opd = lb.dyn_cast<AffineSymbolExpr>()) {
+        if (S[0] != -1)
+          return false;
+        if (afFor.getUpperBoundOperands()
+                [opd.getPosition() + afFor.getUpperBoundMap().getNumDims()] !=
+            op.getOperand(0))
+          return false;
+        continue;
+      }
+
+      return false;
+    }
+    return true;
+  }
+
+  LogicalResult matchAndRewrite(T op,
+                                PatternRewriter &rewriter) const override {
+    AffineStoreOp store = nullptr;
+    SmallVector<AffineLoadOp> loads;
+    SmallVector<memref::DeallocOp> deallocs;
+    for (auto U : op->getResult(0).getUsers()) {
+        if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
+            if (store) return failure();
+            store = store2;
+            continue;
+        }
+        if (auto load = dyn_cast<AffineLoadOp>(U)) {
+            loads.push_back(load);
+        }
+        if (auto load = dyn_cast<memref::DeallocOp>(U)) {
+            deallocs.push_back(load);
+        }
+        return failure();
+    }
+    AffineLoadOp loadVal = store.value().getDefiningOp<AffineLoadOp>();
+    if (!loadVal) return failure();
+
+    auto otherBuf = store.memref();
+    
+    if (!otherBuf.getDefiningOp<memref::AllocaOp>() && !otherBuf.getDefiningOp<memref::AllocOp>())
+        return failure();
+    
+    SmallVector<AffineStoreOp> interferingStores;
+    for (auto U : otherBuf.getUsers()) {
+        if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
+            interferingStores.push_back(store2);
+            continue;
+        }
+        if (isa<AffineLoadOp, memref::DeallocOp>(U)) {
+            continue;
+        }
+        return failure();
+    }
+
+    if (store->getBlock() != loadVal->getBlock()) return failure();
+    
+    for (auto pair : llvm::enumerate(op.getType().getShape())) {
+        if (pair.second() == -1) return failure();
+        if (!aboveEq(store.getAffineMap()[pair.first()], store.getAffineMap().getNumDims(), store.getMapOperands(), pair.second))
+    }
+
+    ... TODO...
+    return failure();
+  }
+};
+#endif
 
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
