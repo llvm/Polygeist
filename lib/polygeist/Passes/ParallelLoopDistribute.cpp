@@ -1983,11 +1983,12 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
     }
 
     // Hoist the if condition calculation outside the parallel region
+    rewriter.setInsertionPoint(pop);
     BlockAndValueMapping mapping;
     mapping.map(pop.getBody()->getArguments(), getLowerBounds(pop, rewriter));
-    rewriter.setInsertionPoint(pop);
     std::function<void(Value)> recalculateVal;
-    recalculateVal = [&recalculateVal, &pop, &mapping, &ifOp,
+    bool condRecomputable = true;
+    recalculateVal = [&recalculateVal, &condRecomputable, &pop, &mapping, &ifOp,
                       &rewriter](Value val) {
       Operation *op = val.getDefiningOp();
 
@@ -1997,8 +1998,10 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
         return;
       if (!pop->isProperAncestor(op))
         return;
-      if (!isRecomputableSimple(op))
+      if (!isRecomputableSimple(op)) {
+        condRecomputable = false;
         return;
+      }
 
       for (Value operand : op->getOperands())
         recalculateVal(operand);
@@ -2017,6 +2020,9 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
 
     for (auto oper : ifOp->getOperands())
       recalculateVal(oper);
+
+    if (!condRecomputable)
+      mapping.clear();
 
     // Create new if
     rewriter.setInsertionPoint(ifOp);
