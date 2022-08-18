@@ -4805,8 +4805,8 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           continue;
         if (tc->isAncestor(ld)) {
           auto composed =
-              ld.getAffineMap()
-                  .compose(store.getAffineMap())
+              store.getAffineMap()
+                  .compose(ld.getAffineMap())
                   .shiftDims(loadVal.getAffineMap().getNumDims())
                   .shiftSymbols(loadVal.getAffineMap().getNumSymbols());
           SmallVector<AffineExpr> dimReplacements;
