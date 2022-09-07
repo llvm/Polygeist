@@ -25,11 +25,14 @@
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
+#include "mlir/Dialect/GPU/Passes.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -62,6 +65,9 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
+
+static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
+                               cl::desc("Emit CUDA code"));
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
@@ -417,6 +423,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
+  mlir::registerGpuSerializeToCubinPass();
   MLIRContext context(registry);
 
   context.disableMultithreading();
@@ -717,6 +724,31 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
+
+
+    if (EmitCuda) {
+      pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      /*
+      // TODO temp
+      {
+        pm.run(module.get());
+        module->walk([&](mlir::gpu::GPUModuleOp m) {
+          m->setAttr(mlir::gpu::getDefaultGpuBinaryAnnotation(), StringAttr::get(&context, "CUBIN")); });
+
+        //auto binaryAttr = kernelModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation);
+      }
+      */
+      mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
+      gpuPM.addPass(mlir::createLowerAffinePass());
+      gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      // TODO specify index width for the conversion?
+      gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
+      pm.run(module.get()); module->dump();
+      pm.addPass(mlir::createGpuToLLVMConversionPass());
+      pm.run(module.get()); module->dump();
+    }
+
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
@@ -759,7 +791,9 @@ int main(int argc, char **argv) {
           module->dump();
           return 4;
         }
+
       }
+
     } else {
 
       if (mlir::failed(pm.run(module.get()))) {

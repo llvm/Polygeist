@@ -1823,8 +1823,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
                       ? mlir::MemRefType::get(
                             shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface(),
-                            wrapIntegerMemorySpace(1, mt.getContext()))
+                            MemRefLayoutAttrInterface())
                       : mt,
                   args);
               ValueCategory(dst, /*isReference*/ true)
