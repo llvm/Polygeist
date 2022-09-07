@@ -1489,7 +1489,10 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         llvm::errs() << " call: " << called << "\n";
       }
     }
-    return ValueCategory(called, isReference);
+    if (called)
+      return ValueCategory(called, isReference);
+    else
+      return ValueCategory();
   }
 
   auto tocall = EmitDirectCallee(callee);
