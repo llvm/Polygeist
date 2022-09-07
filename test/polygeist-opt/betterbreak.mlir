@@ -34,7 +34,7 @@ module {
 // CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %0 = arith.cmpi slt, %c0_i32, %arg1 : i32
+// CHECK-NEXT:     %0 = arith.cmpi sgt, %arg1, %c0_i32 : i32
 // CHECK-NEXT:     %1 = scf.if %0 -> (i32) {
 // CHECK-NEXT:       %2 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:       %3:2 = scf.for %arg2 = %c0 to %2 step %c1 iter_args(%arg3 = %c-1_i32, %arg4 = %true) -> (i32, i1) {

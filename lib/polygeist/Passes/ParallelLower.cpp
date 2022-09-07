@@ -532,7 +532,7 @@ void ParallelLower::runOnOperation() {
           call.getLoc(), 0,
           call.getResult(0).getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
-      call.replaceAllUsesWith(vals);
+      call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
     } else if (call.getCallee() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);

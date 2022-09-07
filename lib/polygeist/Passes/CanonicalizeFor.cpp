@@ -1399,13 +1399,13 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                                condArgs);
 
-      BitVector indices;
+      BitVector toErase(afterB->getNumArguments());
       for (int i = m.size() - 1; i >= 0; i--) {
         assert(m[i].first.getType() == m[i].second.getType());
         m[i].first.replaceAllUsesWith(m[i].second);
-        indices.push_back(m[i].first.getArgNumber());
+        toErase[m[i].first.getArgNumber()] = true;
       }
-      afterB->eraseArguments(indices);
+      afterB->eraseArguments(toErase);
 
       rewriter.eraseOp(ifOp.thenYield());
       Block *thenB = ifOp.thenBlock();
@@ -1688,7 +1688,7 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
                                 PatternRewriter &rewriter) const override {
     scf::ConditionOp term =
         cast<scf::ConditionOp>(op.getBefore().front().getTerminator());
-    BitVector toErase;
+    SmallVector<unsigned int, 2> toErase;
     SmallVector<Value, 2> newOps;
     SmallVector<Value, 2> condOps;
     SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(),
@@ -1739,8 +1739,11 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
 
     condOps.append(newOps.begin(), newOps.end());
 
+    BitVector toEraseVec(op.getAfter().front().getNumArguments());
+    for (auto argNum : toErase)
+      toEraseVec[argNum] = true;
     rewriter.updateRootInPlace(
-        term, [&] { op.getAfter().front().eraseArguments(toErase); });
+        term, [&] { op.getAfter().front().eraseArguments(toEraseVec); });
     rewriter.setInsertionPoint(term);
     rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                              condOps);
@@ -1916,26 +1919,27 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
         afarg.replaceAllUsesWith(arg);
       }
       if (afarg.use_empty() && res.use_empty()) {
-        eraseArgs.push_back((unsigned)i);
+        eraseArgs.push_back(true);
       } else if (valueOffsets.find(arg.getAsOpaquePointer()) !=
                  valueOffsets.end()) {
         resultOffsets[i] = valueOffsets[arg.getAsOpaquePointer()];
         afarg.replaceAllUsesWith(
             resultArgs[valueOffsets[arg.getAsOpaquePointer()]]);
-        eraseArgs.push_back((unsigned)i);
+        eraseArgs.push_back(true);
       } else {
         valueOffsets[arg.getAsOpaquePointer()] = keepArgs.size();
         resultOffsets[i] = keepArgs.size();
         resultArgs.push_back(afarg);
         conds.push_back(arg);
         keepArgs.push_back((unsigned)i);
+        eraseArgs.push_back(false);
         tys.push_back(arg.getType());
       }
       i++;
     }
     assert(i == op.getAfter().front().getArguments().size());
 
-    if (eraseArgs.size() != 0) {
+    if (eraseArgs.any()) {
 
       rewriter.setInsertionPoint(term);
       rewriter.replaceOpWithNewOp<scf::ConditionOp>(term, term.getCondition(),
