@@ -53,6 +53,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRNVVMDialect
   MLIROpenMPDialect
   MLIRGPUOps
+  MLIRGPUTransforms
   MLIRTransforms
   MLIRSCFToControlFlow
   MLIRFuncToLLVM
@@ -65,6 +66,8 @@ target_link_libraries(cgeist PRIVATE
   MLIRSCFToOpenMP
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
+  MLIRGPUToNVVMTransforms
+  MLIRGPUToGPURuntimeTransforms
 
   clangAST
   clangBasic

@@ -1960,8 +1960,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
                   (str != "cudaMallocHost" && !CudaLower)
                       ? mlir::MemRefType::get(
                             shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface(),
-                            wrapIntegerMemorySpace(1, mt.getContext()))
+                            MemRefLayoutAttrInterface())
                       : mt,
                   args);
               mlir::Value allocv = alloc;
