@@ -5445,6 +5445,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     const ArgStringList *args = &cmd->getArguments();
 
+    Clang->getInvocation().getCodeGenOpts().OpaquePointers = false;
     Success = CompilerInvocation::CreateFromArgs(Clang->getInvocation(), *args,
                                                  Diags);
     Clang->getInvocation().getFrontendOpts().DisableFree = false;
