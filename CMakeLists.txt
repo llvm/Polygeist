@@ -22,7 +22,7 @@ set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(polygeist LANGUAGES CXX C)
 
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to conform to")
+  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
   message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
   find_package(MLIR REQUIRED CONFIG)

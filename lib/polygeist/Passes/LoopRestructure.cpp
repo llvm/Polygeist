@@ -12,7 +12,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
@@ -300,7 +300,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getElseRegion().getBlocks().splice(
                   ifOp.getElseRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              SmallVector<unsigned, 4> idx;
+              BitVector idx;
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getFalseOperand(i));
@@ -320,7 +320,7 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getThenRegion().getBlocks().splice(
                   ifOp.getThenRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              SmallVector<unsigned, 4> idx;
+              BitVector idx;
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getTrueOperand(i));

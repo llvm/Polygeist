@@ -12,8 +12,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -483,7 +483,7 @@ static bool isNormalized(AffineParallelOp op) {
       return ce.getValue() == 0;
     return false;
   };
-  return llvm::all_of(op.lowerBoundsMap().getResults(), isZero) &&
+  return llvm::all_of(op.getLowerBoundsMap().getResults(), isZero) &&
          llvm::all_of(op.getSteps(), [](int64_t s) { return s == 1; });
 }
 
@@ -614,12 +614,12 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
       if (v == std::get<0>(en.value()))
         found = true;
     if (found) {
-      innerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      innerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      innerLower.push_back(op.getLowerBoundsMap().getSliceMap(en.index(), 1));
+      innerUpper.push_back(op.getUpperBoundsMap().getSliceMap(en.index(), 1));
       innerStep.push_back(std::get<1>(en.value()));
     } else {
-      outerLower.push_back(op.lowerBoundsMap().getSliceMap(en.index(), 1));
-      outerUpper.push_back(op.upperBoundsMap().getSliceMap(en.index(), 1));
+      outerLower.push_back(op.getLowerBoundsMap().getSliceMap(en.index(), 1));
+      outerUpper.push_back(op.getUpperBoundsMap().getSliceMap(en.index(), 1));
       outerStep.push_back(std::get<1>(en.value()));
     }
     idx++;
@@ -644,16 +644,16 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
     auto expr = (std::get<1>(tup).getResult(0) -
                  std::get<0>(tup)
                      .getResult(0)
-                     .shiftDims(op.lowerBoundsMap().getNumDims(),
-                                op.upperBoundsMap().getNumDims())
-                     .shiftSymbols(op.lowerBoundsMap().getNumSymbols(),
-                                   op.upperBoundsMap().getNumSymbols()))
+                     .shiftDims(op.getLowerBoundsMap().getNumDims(),
+                                op.getUpperBoundsMap().getNumDims())
+                     .shiftSymbols(op.getLowerBoundsMap().getNumSymbols(),
+                                   op.getUpperBoundsMap().getNumSymbols()))
                     .floorDiv(std::get<2>(tup));
     SmallVector<Value> symbols;
     SmallVector<Value> dims;
     size_t idx = 0;
     for (auto v : op.getUpperBoundsOperands()) {
-      if (idx < op.upperBoundsMap().getNumDims())
+      if (idx < op.getUpperBoundsMap().getNumDims())
         dims.push_back(v);
       else
         symbols.push_back(v);
@@ -661,7 +661,7 @@ LogicalResult splitSubLoop(AffineParallelOp op, PatternRewriter &rewriter,
     }
     idx = 0;
     for (auto v : op.getLowerBoundsOperands()) {
-      if (idx < op.lowerBoundsMap().getNumDims())
+      if (idx < op.getLowerBoundsMap().getNumDims())
         dims.push_back(v);
       else
         symbols.push_back(v);
@@ -818,7 +818,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   DataLayout DLI(mod);
   auto addToAllocations = [&](Value v, SmallVector<Value> &allocations) {
     if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
-      allocations.push_back(cl.memref());
+      allocations.push_back(cl.getMemref());
     } else if (auto ao = v.getDefiningOp<LLVM::AllocaOp>()) {
       allocations.push_back(allocateTemporaryBuffer<LLVM::AllocaOp>(
           rewriter, v, iterCounts, true, &DLI));
@@ -1290,7 +1290,7 @@ mlir::OperandRange getLowerBounds(scf::ParallelOp op,
 SmallVector<Value> getLowerBounds(AffineParallelOp op,
                                   PatternRewriter &rewriter) {
   SmallVector<Value> vals;
-  for (AffineExpr expr : op.lowerBoundsMap().getResults()) {
+  for (AffineExpr expr : op.getLowerBoundsMap().getResults()) {
     vals.push_back(rewriter
                        .create<AffineApplyOp>(op.getLoc(), expr,
                                               op.getLowerBoundsOperands())
@@ -2111,7 +2111,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
       DataLayout DLI(mod);
       for (Value v : crossingCache) {
         if (auto cl = v.getDefiningOp<polygeist::CacheLoad>()) {
-          cacheAllocations.push_back(cl.memref());
+          cacheAllocations.push_back(cl.getMemref());
         } else {
           // allocations.push_back(allocateTemporaryBuffer<memref::AllocaOp>(rewriter,
           // v, iterCounts));
@@ -2260,8 +2260,8 @@ bool isEquivalent(Value a, Value b) {
     return false;
   if (auto sa = a.getDefiningOp<polygeist::SubIndexOp>()) {
     if (auto sb = b.getDefiningOp<polygeist::SubIndexOp>()) {
-      return isEquivalent(sa.source(), sb.source()) &&
-             isEquivalent(sa.index(), sb.index());
+      return isEquivalent(sa.getSource(), sb.getSource()) &&
+             isEquivalent(sa.getIndex(), sb.getIndex());
     }
   }
   return false;
@@ -2294,7 +2294,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
       bool usesMustStore = false;
       for (auto user : res.getUsers()) {
         if (auto storeOp = dyn_cast<memref::StoreOp>(user)) {
-          if (storeOp.memref() == res) {
+          if (storeOp.getMemref() == res) {
             usesMustStore = true;
             break;
           }
@@ -2304,14 +2304,14 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           }
           for (auto nex = op->getNextNode(); nex != storeOp;
                nex = nex->getNextNode()) {
-            if (!mayReadFrom(nex, storeOp.memref()))
+            if (!mayReadFrom(nex, storeOp.getMemref()))
               continue;
             usesMustStore = true;
             break;
           }
           // TODO check that memref operands are recomputable at this location
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -2340,9 +2340,9 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           if (!usesMustStore) {
             Value val = std::get<1>(tup);
             if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+              if (isEquivalent(cl.getMemref(), storeOp.getMemref()) &&
                   cl->getBlock() == storeOp->getBlock() &&
-                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                  llvm::all_of(llvm::zip(cl.getIndices(), storeOp.getIndices()),
                                [](std::tuple<Value, Value> t) {
                                  return isEquivalent(std::get<0>(t),
                                                      std::get<1>(t));
@@ -2350,7 +2350,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
                 bool same = true;
                 for (Operation *op = cl->getNextNode(); op != storeOp;
                      op = op->getNextNode()) {
-                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                  if (mayWriteTo(op, cl.getMemref(), /*ignoreBarrier*/ true)) {
                     same = false;
                     break;
                   }
@@ -2361,9 +2361,9 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             }
             val = std::get<2>(tup);
             if (auto cl = val.getDefiningOp<polygeist::CacheLoad>()) {
-              if (isEquivalent(cl.memref(), storeOp.memref()) &&
+              if (isEquivalent(cl.getMemref(), storeOp.getMemref()) &&
                   cl->getBlock() == storeOp->getBlock() &&
-                  llvm::all_of(llvm::zip(cl.indices(), storeOp.indices()),
+                  llvm::all_of(llvm::zip(cl.getIndices(), storeOp.getIndices()),
                                [](std::tuple<Value, Value> t) {
                                  return isEquivalent(std::get<0>(t),
                                                      std::get<1>(t));
@@ -2371,7 +2371,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
                 bool same = true;
                 for (Operation *op = cl->getNextNode(); op != storeOp;
                      op = op->getNextNode()) {
-                  if (mayWriteTo(op, cl.memref(), /*ignoreBarrier*/ true)) {
+                  if (mayWriteTo(op, cl.getMemref(), /*ignoreBarrier*/ true)) {
                     same = false;
                     break;
                   }
@@ -2410,8 +2410,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             continue;
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -2436,11 +2436,11 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             rewriter.clone(*op, map);
           }
           SmallVector<Value> inds;
-          for (auto ind : storeOp.indices())
+          for (auto ind : storeOp.getIndices())
             inds.push_back(map.lookupOrDefault(ind));
           // Only erase during the else, since we need that there
           rewriter.create<memref::StoreOp>(
-              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.memref()),
+              storeOp.getLoc(), val, map.lookupOrDefault(storeOp.getMemref()),
               inds);
         }
       } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
@@ -2469,8 +2469,8 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           }
           BlockAndValueMapping map;
           SetVector<Operation *> seen;
-          SmallVector<Value> todo = {storeOp.memref()};
-          for (auto ind : storeOp.indices())
+          SmallVector<Value> todo = {storeOp.getMemref()};
+          for (auto ind : storeOp.getIndices())
             todo.push_back(ind);
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
@@ -2496,11 +2496,11 @@ struct Reg2MemIf : public OpRewritePattern<T> {
             rewriter.clone(*op, map);
           }
           SmallVector<Value> inds;
-          for (auto ind : storeOp.indices())
+          for (auto ind : storeOp.getIndices())
             inds.push_back(map.lookupOrDefault(ind));
 
           rewriter.replaceOpWithNewOp<memref::StoreOp>(
-              storeOp, val, map.lookupOrDefault(storeOp.memref()), inds);
+              storeOp, val, map.lookupOrDefault(storeOp.getMemref()), inds);
         }
       } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
         rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
@@ -2630,7 +2630,7 @@ struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
   LogicalResult matchAndRewrite(polygeist::CacheLoad op,
                                 PatternRewriter &rewriter) const override {
     auto memrefLoad =
-        rewriter.create<memref::LoadOp>(op.getLoc(), op.memref(), op.indices());
+        rewriter.create<memref::LoadOp>(op.getLoc(), op.getMemref(), op.getIndices());
     rewriter.replaceOp(op, memrefLoad.getResult());
     return success();
   }

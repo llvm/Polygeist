@@ -10,6 +10,6 @@ MLIRPolygeistOpsIncGen
 
 LINK_LIBS PUBLIC
 MLIRIR
-MLIRMemRef
+MLIRMemRefDialect
 )
 add_subdirectory(Passes)

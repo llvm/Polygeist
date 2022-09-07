@@ -2,8 +2,8 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
-#include "mlir/Dialect/SCF/Passes.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Matchers.h"
@@ -314,7 +314,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
           size_t maxWidth = (rattr.getBitWidth() > sattr.getBitWidth())
                                 ? rattr.getBitWidth()
                                 : sattr.getBitWidth();
-          sameValue |= rattr.zextOrSelf(maxWidth) == sattr.zextOrSelf(maxWidth);
+          sameValue |= rattr.zext(maxWidth) == sattr.zext(maxWidth);
         }
 
       if (!std::get<1>(it).use_empty()) {
@@ -1399,7 +1399,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
       rewriter.replaceOpWithNewOp<ConditionOp>(term, term.getCondition(),
                                                condArgs);
 
-      SmallVector<unsigned> indices;
+      BitVector indices;
       for (int i = m.size() - 1; i >= 0; i--) {
         assert(m[i].first.getType() == m[i].second.getType());
         m[i].first.replaceAllUsesWith(m[i].second);
@@ -1688,7 +1688,7 @@ struct MoveWhileDown3 : public OpRewritePattern<WhileOp> {
                                 PatternRewriter &rewriter) const override {
     scf::ConditionOp term =
         cast<scf::ConditionOp>(op.getBefore().front().getTerminator());
-    SmallVector<unsigned, 2> toErase;
+    BitVector toErase;
     SmallVector<Value, 2> newOps;
     SmallVector<Value, 2> condOps;
     SmallVector<BlockArgument, 2> origAfterArgs(op.getAfterArguments().begin(),
@@ -1898,7 +1898,7 @@ struct RemoveUnusedCondVar : public OpRewritePattern<WhileOp> {
                                 PatternRewriter &rewriter) const override {
     auto term = cast<scf::ConditionOp>(op.getBefore().front().getTerminator());
     SmallVector<Value, 4> conds;
-    SmallVector<unsigned, 4> eraseArgs;
+    BitVector eraseArgs;
     SmallVector<unsigned, 4> keepArgs;
     SmallVector<Type, 4> tys;
     unsigned i = 0;

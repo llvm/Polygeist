@@ -24,7 +24,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
 
@@ -280,12 +280,12 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
               u))
         continue;
       if (auto s = dyn_cast<memref::StoreOp>(u)) {
-        if (s.value() == v)
+        if (s.getValue() == v)
           return true;
         continue;
       }
       if (auto s = dyn_cast<AffineStoreOp>(u)) {
-        if (s.value() == v)
+        if (s.getValue() == v)
           return true;
         continue;
       }
@@ -337,15 +337,15 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
 Value getBase(Value v) {
   while (true) {
     if (auto s = v.getDefiningOp<SubIndexOp>()) {
-      v = s.source();
+      v = s.getSource();
       continue;
     }
     if (auto s = v.getDefiningOp<Memref2PointerOp>()) {
-      v = s.source();
+      v = s.getSource();
       continue;
     }
     if (auto s = v.getDefiningOp<Pointer2MemrefOp>()) {
-      v = s.source();
+      v = s.getSource();
       continue;
     }
     if (auto s = v.getDefiningOp<LLVM::GEPOp>()) {
@@ -361,7 +361,7 @@ Value getBase(Value v) {
       continue;
     }
     if (auto s = v.getDefiningOp<memref::CastOp>()) {
-      v = s.source();
+      v = s.getSource();
       continue;
     }
     break;
@@ -461,7 +461,7 @@ public:
 
   LogicalResult matchAndRewrite(memref::CastOp castOp,
                                 PatternRewriter &rewriter) const override {
-    auto subindexOp = castOp.source().getDefiningOp<SubIndexOp>();
+    auto subindexOp = castOp.getSource().getDefiningOp<SubIndexOp>();
     if (!subindexOp)
       return failure();
 
@@ -469,11 +469,11 @@ public:
         subindexOp.getType().cast<MemRefType>().getShape().size())
       return failure();
     if (castOp.getType().cast<MemRefType>().getElementType() !=
-        subindexOp.result().getType().cast<MemRefType>().getElementType())
+        subindexOp.getResult().getType().cast<MemRefType>().getElementType())
       return failure();
 
     rewriter.replaceOpWithNewOp<SubIndexOp>(
-        castOp, castOp.getType(), subindexOp.source(), subindexOp.index());
+        castOp, castOp.getType(), subindexOp.getSource(), subindexOp.getIndex());
     return success();
   }
 };
@@ -486,25 +486,25 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp subViewOp,
                                 PatternRewriter &rewriter) const override {
-    auto prevOp = subViewOp.source().getDefiningOp<SubIndexOp>();
+    auto prevOp = subViewOp.getSource().getDefiningOp<SubIndexOp>();
     if (!prevOp)
       return failure();
 
-    auto mt0 = prevOp.source().getType().cast<MemRefType>();
+    auto mt0 = prevOp.getSource().getType().cast<MemRefType>();
     auto mt1 = prevOp.getType().cast<MemRefType>();
     auto mt2 = subViewOp.getType().cast<MemRefType>();
     if (mt0.getShape().size() == mt2.getShape().size() &&
         mt1.getShape().size() == mt0.getShape().size() + 1) {
-      rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2, prevOp.source(),
-                                              subViewOp.index());
+      rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2, prevOp.getSource(),
+                                              subViewOp.getIndex());
       return success();
     }
     if (mt0.getShape().size() == mt2.getShape().size() &&
         mt1.getShape().size() == mt0.getShape().size()) {
       rewriter.replaceOpWithNewOp<SubIndexOp>(
-          subViewOp, mt2, prevOp.source(),
-          rewriter.create<AddIOp>(prevOp.getLoc(), subViewOp.index(),
-                                  prevOp.index()));
+          subViewOp, mt2, prevOp.getSource(),
+          rewriter.create<AddIOp>(prevOp.getLoc(), subViewOp.getIndex(),
+                                  prevOp.getIndex()));
       return success();
     }
     return failure();
@@ -518,20 +518,20 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp subViewOp,
                                 PatternRewriter &rewriter) const override {
-    auto prev = subViewOp.source().getType().cast<MemRefType>();
+    auto prev = subViewOp.getSource().getType().cast<MemRefType>();
     auto post = subViewOp.getType().cast<MemRefType>();
     bool legal = prev.getShape().size() == post.getShape().size();
     if (legal) {
 
-      auto cidx = subViewOp.index().getDefiningOp<ConstantIndexOp>();
+      auto cidx = subViewOp.getIndex().getDefiningOp<ConstantIndexOp>();
       if (!cidx)
         return failure();
 
-      if (cidx.value() != 0)
+      if (cidx.getValue() != 0)
         return failure();
 
       rewriter.replaceOpWithNewOp<memref::CastOp>(subViewOp, post,
-                                                  subViewOp.source());
+                                                  subViewOp.getSource());
       return success();
     }
 
@@ -546,8 +546,8 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp op,
                                 PatternRewriter &rewriter) const override {
-    auto srcMemRefType = op.source().getType().cast<MemRefType>();
-    auto resMemRefType = op.result().getType().cast<MemRefType>();
+    auto srcMemRefType = op.getSource().getType().cast<MemRefType>();
+    auto resMemRefType = op.getResult().getType().cast<MemRefType>();
     auto dims = srcMemRefType.getShape().size();
 
     // For now, restrict subview lowering to statically defined memref's
@@ -560,7 +560,7 @@ public:
 
     // Build offset, sizes and strides
     SmallVector<OpFoldResult> sizes(dims, rewriter.getIndexAttr(0));
-    sizes[0] = op.index();
+    sizes[0] = op.getIndex();
     SmallVector<OpFoldResult> offsets(dims);
     for (auto dim : llvm::enumerate(srcMemRefType.getShape())) {
       if (dim.index() == 0)
@@ -575,7 +575,7 @@ public:
                                          srcMemRefType.getElementType());
 
     rewriter.replaceOpWithNewOp<memref::SubViewOp>(
-        op, subMemRefType, op.source(), sizes, offsets, strides);
+        op, subMemRefType, op.getSource(), sizes, offsets, strides);
 
     return success();
   }
@@ -596,13 +596,13 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp op,
                                 PatternRewriter &rewriter) const override {
-    auto srcOp = op.source().getDefiningOp<SubIndexOp>();
+    auto srcOp = op.getSource().getDefiningOp<SubIndexOp>();
     if (!srcOp)
       return failure();
 
-    auto preMemRefType = srcOp.source().getType().cast<MemRefType>();
-    auto srcMemRefType = op.source().getType().cast<MemRefType>();
-    auto resMemRefType = op.result().getType().cast<MemRefType>();
+    auto preMemRefType = srcOp.getSource().getType().cast<MemRefType>();
+    auto srcMemRefType = op.getSource().getType().cast<MemRefType>();
+    auto resMemRefType = op.getResult().getType().cast<MemRefType>();
 
     // Check that this is indeed a rank reducing operation
     if (srcMemRefType.getShape().size() !=
@@ -615,8 +615,8 @@ public:
 
     // Valid optimization target; perform the substitution.
     rewriter.replaceOpWithNewOp<SubIndexOp>(
-        op, op.result().getType(), srcOp.source(),
-        rewriter.create<arith::AddIOp>(op.getLoc(), op.index(), srcOp.index()));
+        op, op.getResult().getType(), srcOp.getSource(),
+        rewriter.create<arith::AddIOp>(op.getLoc(), op.getIndex(), srcOp.getIndex()));
     return success();
   }
 };
@@ -639,106 +639,106 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
       if (auto dealloc = dyn_cast<memref::DeallocOp>(use.getOwner())) {
         changed = true;
         rewriter.replaceOpWithNewOp<memref::DeallocOp>(dealloc,
-                                                       subindex.source());
+                                                       subindex.getSource());
       } else if (auto loadOp = dyn_cast<memref::LoadOp>(use.getOwner())) {
-        if (loadOp.memref() == subindex) {
+        if (loadOp.getMemref() == subindex) {
           SmallVector<Value, 4> indices = loadOp.indices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
                   .size()) {
             assert(indices.size() > 0);
             indices[0] = rewriter.create<AddIOp>(subindex.getLoc(), indices[0],
-                                                 subindex.index());
+                                                 subindex.getIndex());
           } else {
             assert(subindex.getType().cast<MemRefType>().getShape().size() +
                        1 ==
-                   subindex.source()
+                   subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size());
-            indices.insert(indices.begin(), subindex.index());
+            indices.insert(indices.begin(), subindex.getIndex());
           }
 
-          assert(subindex.source()
+          assert(subindex.getSource()
                      .getType()
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
-          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.source(),
+          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.getSource(),
                                                       indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           SmallVector<Value, 4> indices = storeOp.indices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
                   .size()) {
             assert(indices.size() > 0);
             indices[0] = rewriter.create<AddIOp>(subindex.getLoc(), indices[0],
-                                                 subindex.index());
+                                                 subindex.getIndex());
           } else {
             assert(subindex.getType().cast<MemRefType>().getShape().size() +
                        1 ==
-                   subindex.source()
+                   subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size());
-            indices.insert(indices.begin(), subindex.index());
+            indices.insert(indices.begin(), subindex.getIndex());
           }
-          assert(subindex.source()
+          assert(subindex.getSource()
                      .getType()
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
           rewriter.replaceOpWithNewOp<memref::StoreOp>(
-              storeOp, storeOp.value(), subindex.source(), indices);
+              storeOp, storeOp.getValue(), subindex.getSource(), indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<memref::AtomicRMWOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           SmallVector<Value, 4> indices = storeOp.indices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
                   .size()) {
             assert(indices.size() > 0);
             indices[0] = rewriter.create<AddIOp>(subindex.getLoc(), indices[0],
-                                                 subindex.index());
+                                                 subindex.getIndex());
           } else {
             assert(subindex.getType().cast<MemRefType>().getShape().size() +
                        1 ==
-                   subindex.source()
+                   subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size());
-            indices.insert(indices.begin(), subindex.index());
+            indices.insert(indices.begin(), subindex.getIndex());
           }
-          assert(subindex.source()
+          assert(subindex.getSource()
                      .getType()
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
           rewriter.replaceOpWithNewOp<memref::AtomicRMWOp>(
-              storeOp, storeOp.getType(), storeOp.kind(), storeOp.value(),
-              subindex.source(), indices);
+              storeOp, storeOp.getType(), storeOp.kind(), storeOp.getValue(),
+              subindex.getSource(), indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -746,7 +746,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
 
             std::vector<Value> indices;
             auto map = storeOp.getAffineMap();
-            indices.push_back(subindex.index());
+            indices.push_back(subindex.getIndex());
             for (size_t i = 0; i < map.getNumResults(); i++) {
               auto apply = rewriter.create<AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
@@ -754,20 +754,20 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
               indices.push_back(apply->getResult(0));
             }
 
-            assert(subindex.source()
+            assert(subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::StoreOp>(
-                storeOp, storeOp.value(), subindex.source(), indices);
+                storeOp, storeOp.getValue(), subindex.getSource(), indices);
             changed = true;
           }
         }
       } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -775,20 +775,20 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
 
             std::vector<Value> indices;
             auto map = storeOp.getAffineMap();
-            indices.push_back(subindex.index());
+            indices.push_back(subindex.getIndex());
             for (size_t i = 0; i < map.getNumResults(); i++) {
               auto apply = rewriter.create<AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
             }
-            assert(subindex.source()
+            assert(subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::LoadOp>(
-                storeOp, subindex.source(), indices);
+                storeOp, subindex.getSource(), indices);
             changed = true;
           }
         }
@@ -838,12 +838,12 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
       if (auto dealloc = dyn_cast<memref::DeallocOp>(use.getOwner())) {
         changed = true;
         rewriter.replaceOpWithNewOp<memref::DeallocOp>(dealloc,
-                                                       subindex.source());
+                                                       subindex.getSource());
       } else if (auto loadOp = dyn_cast<memref::LoadOp>(use.getOwner())) {
-        if (loadOp.memref() == subindex) {
+        if (loadOp.getMemref() == subindex) {
           SmallVector<Value, 4> indices = loadOp.indices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -853,7 +853,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
                 rewriter.create<AddIOp>(subindex.getLoc(), indices[0], off);
           } else {
             if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-                subindex.source()
+                subindex.getSource()
                     .getType()
                     .cast<MemRefType>()
                     .getShape()
@@ -865,20 +865,20 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             }
           }
 
-          assert(subindex.source()
+          assert(subindex.getSource()
                      .getType()
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
-          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.source(),
+          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.getSource(),
                                                       indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           SmallVector<Value, 4> indices = storeOp.indices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -888,7 +888,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
                 rewriter.create<AddIOp>(subindex.getLoc(), indices[0], off);
           } else {
             if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-                subindex.source()
+                subindex.getSource()
                     .getType()
                     .cast<MemRefType>()
                     .getShape()
@@ -904,7 +904,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             }
           }
 
-          if (subindex.source()
+          if (subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -912,19 +912,19 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             llvm::errs() << " storeOp: " << storeOp << " - subidx: " << subindex
                          << "\n";
           }
-          assert(subindex.source()
+          assert(subindex.getSource()
                      .getType()
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
           rewriter.replaceOpWithNewOp<memref::StoreOp>(
-              storeOp, storeOp.value(), subindex.source(), indices);
+              storeOp, storeOp.getValue(), subindex.getSource(), indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -940,20 +940,20 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
               indices.push_back(apply->getResult(0));
             }
 
-            assert(subindex.source()
+            assert(subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::StoreOp>(
-                storeOp, storeOp.value(), subindex.source(), indices);
+                storeOp, storeOp.getValue(), subindex.getSource(), indices);
             changed = true;
           }
         }
       } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
-        if (storeOp.memref() == subindex) {
+        if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
-              subindex.source()
+              subindex.getSource()
                   .getType()
                   .cast<MemRefType>()
                   .getShape()
@@ -968,13 +968,13 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
             }
-            assert(subindex.source()
+            assert(subindex.getSource()
                        .getType()
                        .cast<MemRefType>()
                        .getShape()
                        .size() == indices.size());
             rewriter.replaceOpWithNewOp<memref::LoadOp>(
-                storeOp, subindex.source(), indices);
+                storeOp, subindex.getSource(), indices);
             changed = true;
           }
         }
@@ -999,11 +999,11 @@ struct SelectOfCast : public OpRewritePattern<SelectOp> {
     if (!cst2)
       return failure();
 
-    if (cst1.source().getType() != cst2.source().getType())
+    if (cst1.getSource().getType() != cst2.getSource().getType())
       return failure();
 
     auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
-                                            cst1.source(), cst2.source());
+                                            cst1.getSource(), cst2.getSource());
 
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), newSel);
     return success();
@@ -1024,13 +1024,13 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
     if (!cst2)
       return failure();
 
-    if (cst1.source().getType() != cst2.source().getType())
+    if (cst1.getSource().getType() != cst2.getSource().getType())
       return failure();
 
     auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
-                                            cst1.source(), cst2.source());
+                                            cst1.getSource(), cst2.getSource());
     auto newIdx = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
-                                            cst1.index(), cst2.index());
+                                            cst1.getIndex(), cst2.getIndex());
     rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.getType(), newSel, newIdx);
     return success();
   }
@@ -1072,18 +1072,18 @@ template <typename T> struct LoadSelect : public OpRewritePattern<T> {
 };
 
 template <> Value LoadSelect<memref::LoadOp>::ptr(memref::LoadOp op) {
-  return op.memref();
+  return op.getMemref();
 }
 template <>
 MutableOperandRange LoadSelect<memref::LoadOp>::ptrMutable(memref::LoadOp op) {
-  return op.memrefMutable();
+  return op.getMemrefMutable();
 }
 template <> Value LoadSelect<AffineLoadOp>::ptr(AffineLoadOp op) {
-  return op.memref();
+  return op.getMemref();
 }
 template <>
 MutableOperandRange LoadSelect<AffineLoadOp>::ptrMutable(AffineLoadOp op) {
-  return op.memrefMutable();
+  return op.getMemrefMutable();
 }
 template <> Value LoadSelect<LLVM::LoadOp>::ptr(LLVM::LoadOp op) {
   return op.getAddr();
@@ -1110,20 +1110,20 @@ public:
 
   LogicalResult matchAndRewrite(Pointer2MemrefOp op,
                                 PatternRewriter &rewriter) const override {
-    auto src = op.source().getDefiningOp<Memref2PointerOp>();
+    auto src = op.getSource().getDefiningOp<Memref2PointerOp>();
     if (!src)
       return failure();
-    if (src.source().getType().cast<MemRefType>().getShape().size() !=
+    if (src.getSource().getType().cast<MemRefType>().getShape().size() !=
         op.getType().cast<MemRefType>().getShape().size())
       return failure();
-    if (src.source().getType().cast<MemRefType>().getElementType() !=
+    if (src.getSource().getType().cast<MemRefType>().getElementType() !=
         op.getType().cast<MemRefType>().getElementType())
       return failure();
-    if (src.source().getType().cast<MemRefType>().getMemorySpace() !=
+    if (src.getSource().getType().cast<MemRefType>().getMemorySpace() !=
         op.getType().cast<MemRefType>().getMemorySpace())
       return failure();
 
-    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), src.source());
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), src.getSource());
     return success();
   }
 };
@@ -1134,16 +1134,16 @@ public:
 
   LogicalResult matchAndRewrite(Memref2PointerOp op,
                                 PatternRewriter &rewriter) const override {
-    auto src = op.source().getDefiningOp<SubIndexOp>();
+    auto src = op.getSource().getDefiningOp<SubIndexOp>();
     if (!src)
       return failure();
 
-    if (src.source().getType().cast<MemRefType>().getShape().size() != 1)
+    if (src.getSource().getType().cast<MemRefType>().getShape().size() != 1)
       return failure();
 
-    Value idx[] = {src.index()};
+    Value idx[] = {src.getIndex()};
     auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
-    auto MET = src.source().getType().cast<MemRefType>().getElementType();
+    auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
     if (PET != MET) {
       auto ps = rewriter.create<polygeist::TypeSizeOp>(
           op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
@@ -1157,7 +1157,7 @@ public:
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
         op, op.getType(),
         rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                          src.source()),
+                                          src.getSource()),
         idx);
     return success();
   }
@@ -1177,13 +1177,13 @@ public:
     if (!dst)
       return failure();
 
-    auto dstTy = dst.source().getType().cast<MemRefType>();
+    auto dstTy = dst.getSource().getType().cast<MemRefType>();
 
     Value srcv = op.getSrc();
     auto src = srcv.getDefiningOp<polygeist::Memref2PointerOp>();
     if (!src)
       return failure();
-    auto srcTy = src.source().getType().cast<MemRefType>();
+    auto srcTy = src.getSource().getType().cast<MemRefType>();
     if (srcTy.getShape().size() != dstTy.getShape().size())
       return failure();
 
@@ -1267,8 +1267,8 @@ public:
 
     rewriter.create<memref::StoreOp>(
         op.getLoc(),
-        rewriter.create<memref::LoadOp>(op.getLoc(), src.source(), idxs),
-        dst.source(), idxs);
+        rewriter.create<memref::LoadOp>(op.getLoc(), src.getSource(), idxs),
+        dst.getSource(), idxs);
 
     rewriter.eraseOp(op);
     return success();
@@ -1288,7 +1288,7 @@ public:
     if (!dst)
       return failure();
 
-    auto dstTy = dst.source().getType().cast<MemRefType>();
+    auto dstTy = dst.getSource().getType().cast<MemRefType>();
     Type elTy = dstTy.getElementType();
 
     if (!elTy.isa<IntegerType, FloatType>())
@@ -1377,7 +1377,7 @@ public:
       idxs.push_back(forOp.getInductionVar());
     }
 
-    rewriter.create<memref::StoreOp>(op.getLoc(), val, dst.source(), idxs);
+    rewriter.create<memref::StoreOp>(op.getLoc(), val, dst.getSource(), idxs);
 
     rewriter.eraseOp(op);
     return success();
@@ -1385,22 +1385,22 @@ public:
 };
 
 OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
-  if (auto subindex = source().getDefiningOp<SubIndexOp>()) {
-    if (auto cop = subindex.index().getDefiningOp<ConstantIndexOp>()) {
-      if (cop.value() == 0) {
-        sourceMutable().assign(subindex.source());
-        return result();
+  if (auto subindex = getSource().getDefiningOp<SubIndexOp>()) {
+    if (auto cop = subindex.getIndex().getDefiningOp<ConstantIndexOp>()) {
+      if (cop.getValue() == 0) {
+        getSourceMutable().assign(subindex.getSource());
+        return getResult();
       }
     }
   }
   /// Simplify memref2pointer(cast(x)) to memref2pointer(x)
-  if (auto mc = source().getDefiningOp<memref::CastOp>()) {
-    sourceMutable().assign(mc.source());
-    return result();
+  if (auto mc = getSource().getDefiningOp<memref::CastOp>()) {
+    getSourceMutable().assign(mc.getSource());
+    return getResult();
   }
-  if (auto mc = source().getDefiningOp<polygeist::Pointer2MemrefOp>()) {
-    if (mc.source().getType() == getType()) {
-      return mc.source();
+  if (auto mc = getSource().getDefiningOp<polygeist::Pointer2MemrefOp>()) {
+    if (mc.getSource().getType() == getType()) {
+      return mc.getSource();
     }
   }
   return nullptr;
@@ -1421,12 +1421,12 @@ public:
 
   LogicalResult matchAndRewrite(memref::CastOp op,
                                 PatternRewriter &rewriter) const override {
-    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    auto src = op.getSource().getDefiningOp<Pointer2MemrefOp>();
     if (!src)
       return failure();
 
     rewriter.replaceOpWithNewOp<polygeist::Pointer2MemrefOp>(op, op.getType(),
-                                                             src.source());
+                                                             src.getSource());
     return success();
   }
 };
@@ -1439,12 +1439,12 @@ public:
 
   LogicalResult matchAndRewrite(Memref2PointerOp op,
                                 PatternRewriter &rewriter) const override {
-    auto src = op.source().getDefiningOp<Pointer2MemrefOp>();
+    auto src = op.getSource().getDefiningOp<Pointer2MemrefOp>();
     if (!src)
       return failure();
 
     rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, op.getType(),
-                                                 src.source());
+                                                 src.getSource());
     return success();
   }
 };
@@ -1461,7 +1461,7 @@ public:
 
   LogicalResult matchAndRewrite(Op op,
                                 PatternRewriter &rewriter) const override {
-    Value opPtr = op.memref();
+    Value opPtr = op.getMemref();
     Pointer2MemrefOp src = opPtr.getDefiningOp<polygeist::Pointer2MemrefOp>();
     if (!src)
       return failure();
@@ -1471,8 +1471,8 @@ public:
     // Fantastic optimization, disabled for now to make a hard debug case easier
     // to find.
     if (auto before =
-            src.source().getDefiningOp<polygeist::Memref2PointerOp>()) {
-      auto mt0 = before.source().getType().cast<MemRefType>();
+            src.getSource().getDefiningOp<polygeist::Memref2PointerOp>()) {
+      auto mt0 = before.getSource().getType().cast<MemRefType>();
       if (mt0.getElementType() == mt.getElementType()) {
         auto sh0 = mt0.getShape();
         auto sh = mt.getShape();
@@ -1485,7 +1485,7 @@ public:
             }
           }
           if (eq) {
-            op.memrefMutable().assign(before.source());
+            op.getMemrefMutable().assign(before.getSource());
             return success();
           }
         }
@@ -1496,7 +1496,7 @@ public:
       if (mt.getShape()[i] == ShapedType::kDynamicSize)
         return failure();
 
-    Value val = src.source();
+    Value val = src.getSource();
     if (val.getType().cast<LLVM::LLVMPointerType>().getElementType() !=
         mt.getElementType())
       val = rewriter.create<LLVM::BitcastOp>(
@@ -1554,7 +1554,7 @@ Value MetaPointer2Memref<memref::StoreOp>::computeIndex(
 template <>
 void MetaPointer2Memref<memref::StoreOp>::rewrite(
     memref::StoreOp op, Value ptr, PatternRewriter &rewriter) const {
-  rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
+  rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getValue(), ptr);
 }
 
 template <>
@@ -1584,7 +1584,7 @@ Value MetaPointer2Memref<AffineStoreOp>::computeIndex(
 template <>
 void MetaPointer2Memref<AffineStoreOp>::rewrite(
     AffineStoreOp op, Value ptr, PatternRewriter &rewriter) const {
-  rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.value(), ptr);
+  rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getValue(), ptr);
 }
 
 // Below is actually wrong as and(40, 1) != 0   !=== and(40 != 0, 1 != 0) =
@@ -1616,7 +1616,7 @@ public:
 };
 */
 
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
   using OpRewritePattern<scf::IfOp>::OpRewritePattern;
 
@@ -1646,7 +1646,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     //  }
 
     Value nextIfCondition = nullptr;
-    bool thenRegion = true;
+    bool getThenRegion = true;
     for (auto it :
          llvm::zip(prevIf.getResults(), prevIf.elseYield().getOperands(),
                    prevIf.thenYield().getOperands())) {
@@ -1654,18 +1654,18 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
         if (matchPattern(std::get<1>(it), m_Zero()) ||
             std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<2>(it);
-          thenRegion = true;
+          getThenRegion = true;
         } else if (matchPattern(std::get<2>(it), m_Zero()) ||
                    std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
           nextIfCondition = std::get<1>(it);
-          thenRegion = false;
+          getThenRegion = false;
         } else
           return failure();
       }
     }
 
-    YieldOp yield = thenRegion ? prevIf.thenYield() : prevIf.elseYield();
-    YieldOp otherYield = thenRegion ? prevIf.elseYield() : prevIf.thenYield();
+    YieldOp yield = getThenRegion ? prevIf.thenYield() : prevIf.elseYield();
+    YieldOp otherYield = getThenRegion ? prevIf.elseYield() : prevIf.thenYield();
 
     // If the nextIf has an else region that computes, fail as this won't be
     // duplicated in the previous else.
@@ -1819,7 +1819,7 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
                                                       storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
-        rewriter.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.getMemref(),
                                                     indices);
       } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
         std::vector<Value> indices;
@@ -1830,8 +1830,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
                                                       storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
-        rewriter.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
-                                                     storeOp.memref(), indices);
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.getValue(),
+                                                     storeOp.getMemref(), indices);
       }
     }
     rewriter.finalizeRootUpdate(prevOp);
@@ -1895,56 +1895,56 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
-  if (auto mc = source().getDefiningOp<LLVM::BitcastOp>()) {
-    sourceMutable().assign(mc.getArg());
-    return result();
+  if (auto mc = getSource().getDefiningOp<LLVM::BitcastOp>()) {
+    getSourceMutable().assign(mc.getArg());
+    return getResult();
   }
-  if (auto mc = source().getDefiningOp<LLVM::AddrSpaceCastOp>()) {
-    sourceMutable().assign(mc.getArg());
-    return result();
+  if (auto mc = getSource().getDefiningOp<LLVM::AddrSpaceCastOp>()) {
+    getSourceMutable().assign(mc.getArg());
+    return getResult();
   }
-  if (auto mc = source().getDefiningOp<LLVM::GEPOp>()) {
-    for (auto idx : mc.getIndices()) {
+  if (auto mc = getSource().getDefiningOp<LLVM::GEPOp>()) {
+    for (auto idx : mc.getDynamicIndices()) {
       assert(idx);
       if (!matchPattern(idx, m_Zero()))
         return nullptr;
     }
-    auto staticIndices = mc.getStructIndices().getValues<int32_t>();
+    auto staticIndices = mc.getRawConstantIndices();
     for (auto pair : llvm::enumerate(staticIndices)) {
       if (pair.value() != LLVM::GEPOp::kDynamicIndex)
         if (pair.value() != 0)
           return nullptr;
     }
 
-    sourceMutable().assign(mc.getBase());
-    return result();
+    getSourceMutable().assign(mc.getBase());
+    return getResult();
   }
-  if (auto mc = source().getDefiningOp<polygeist::Memref2PointerOp>()) {
-    if (mc.source().getType() == getType()) {
-      return mc.source();
+  if (auto mc = getSource().getDefiningOp<polygeist::Memref2PointerOp>()) {
+    if (mc.getSource().getType() == getType()) {
+      return mc.getSource();
     }
   }
   return nullptr;
 }
 
 OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
-  if (result().getType() == source().getType()) {
-    if (matchPattern(index(), m_Zero()))
-      return source();
+  if (getResult().getType() == getSource().getType()) {
+    if (matchPattern(getIndex(), m_Zero()))
+      return getSource();
   }
   /// Replace subindex(cast(x)) with subindex(x)
-  if (auto castOp = source().getDefiningOp<memref::CastOp>()) {
+  if (auto castOp = getSource().getDefiningOp<memref::CastOp>()) {
     if (castOp.getType().cast<MemRefType>().getElementType() ==
-        result().getType().cast<MemRefType>().getElementType()) {
-      sourceMutable().assign(castOp.source());
-      return result();
+        getResult().getType().cast<MemRefType>().getElementType()) {
+      getSourceMutable().assign(castOp.getSource());
+      return getResult();
     }
   }
   return nullptr;
 }
 
 OpFoldResult TypeSizeOp::fold(ArrayRef<Attribute> operands) {
-  Type T = sourceAttr().getValue();
+  Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
     return IntegerAttr::get(getResult().getType(),
@@ -1957,7 +1957,7 @@ struct TypeSizeCanonicalize : public OpRewritePattern<TypeSizeOp> {
 
   LogicalResult matchAndRewrite(TypeSizeOp op,
                                 PatternRewriter &rewriter) const override {
-    Type T = op.sourceAttr().getValue();
+    Type T = op.getSourceAttr().getValue();
     if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
       DataLayout DLI(op->getParentOfType<ModuleOp>());
       rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(op,
@@ -1974,7 +1974,7 @@ void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
 }
 
 OpFoldResult TypeAlignOp::fold(ArrayRef<Attribute> operands) {
-  Type T = sourceAttr().getValue();
+  Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
     return IntegerAttr::get(getResult().getType(),
@@ -1987,7 +1987,7 @@ struct TypeAlignCanonicalize : public OpRewritePattern<TypeAlignOp> {
 
   LogicalResult matchAndRewrite(TypeAlignOp op,
                                 PatternRewriter &rewriter) const override {
-    Type T = op.sourceAttr().getValue();
+    Type T = op.getSourceAttr().getValue();
     if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
       DataLayout DLI(op->getParentOfType<ModuleOp>());
       rewriter.replaceOpWithNewOp<arith::ConstantIndexOp>(
@@ -2452,7 +2452,7 @@ struct RankReduction : public OpRewritePattern<T> {
       }
 
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
-        if (store.value() == op)
+        if (store.getValue() == op)
           return failure();
         if (!set) {
           for (auto i : store.indices())
@@ -2468,7 +2468,7 @@ struct RankReduction : public OpRewritePattern<T> {
       }
 
       if (auto store = dyn_cast<AffineStoreOp>(u)) {
-        if (store.value() == op)
+        if (store.getValue() == op)
           return failure();
         SmallVector<Value> indices;
         auto map = store.getAffineMapAttr().getValue();
@@ -2512,7 +2512,7 @@ struct RankReduction : public OpRewritePattern<T> {
         continue;
       }
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
-        rewriter.replaceOpWithNewOp<memref::StoreOp>(store, store.value(),
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(store, store.getValue(),
                                                      newOp, ArrayRef<Value>());
         continue;
       }
@@ -2523,7 +2523,7 @@ struct RankReduction : public OpRewritePattern<T> {
       }
       if (auto store = dyn_cast<AffineStoreOp>(u)) {
         rewriter.replaceOpWithNewOp<AffineStoreOp>(
-            store, store.value(), newOp, AffineMap::get(store.getContext()),
+            store, store.getValue(), newOp, AffineMap::get(store.getContext()),
             ArrayRef<Value>());
         continue;
       }
@@ -2588,12 +2588,12 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         continue;
       }
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
-        if (store.value() == op)
+        if (store.getValue() == op)
           return failure();
         continue;
       }
       if (auto store = dyn_cast<AffineStoreOp>(u)) {
-        if (store.value() == op)
+        if (store.getValue() == op)
           return failure();
         continue;
       }
@@ -2633,7 +2633,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
             cond = rewriter.create<arith::AndIOp>(store.getLoc(), cond, val);
         }
         auto loc = store.getLoc();
-        auto val = store.value();
+        auto val = store.getValue();
         auto ifOp = rewriter.replaceOpWithNewOp<scf::IfOp>(
             store, TypeRange(), cond, /*hasElse*/ false);
         rewriter.setInsertionPointToStart(ifOp.thenBlock());
@@ -2657,7 +2657,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
             cond = rewriter.create<arith::AndIOp>(store.getLoc(), cond, val);
         }
         auto loc = store.getLoc();
-        auto val = store.value();
+        auto val = store.getValue();
         auto ifOp = rewriter.replaceOpWithNewOp<scf::IfOp>(
             store, TypeRange(), cond, /*hasElse*/ false);
         rewriter.setInsertionPointToStart(ifOp.thenBlock());
@@ -2747,13 +2747,13 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
       case Cmp::EQ: {
         for (auto for_lb :
              afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
-          if (!valueCmp(Cmp::EQ, for_lb, afFor.lowerBoundsMap().getNumDims(),
+          if (!valueCmp(Cmp::EQ, for_lb, afFor.getLowerBoundsMap().getNumDims(),
                         afFor.getLowerBoundsOperands(), val))
             return false;
         if (!val.isValue) {
           for (auto for_ub :
                afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-            if (!valueCmp(Cmp::EQ, for_ub, afFor.upperBoundsMap().getNumDims(),
+            if (!valueCmp(Cmp::EQ, for_ub, afFor.getUpperBoundsMap().getNumDims(),
                           afFor.getUpperBoundsOperands(), val.i_val + 1))
               return false;
           return true;
@@ -2764,7 +2764,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
       case Cmp::LT: {
         for (auto for_ub :
              afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-          if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+          if (valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundsMap().getNumDims(),
                        afFor.getUpperBoundsOperands(), val))
             return true;
         return false;
@@ -2775,7 +2775,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
         if (!val.isValue) {
           for (auto for_ub :
                afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-            if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+            if (valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundsMap().getNumDims(),
                          afFor.getUpperBoundsOperands(), val.i_val + 1))
               return true;
           return false;
@@ -2783,7 +2783,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
 
         for (auto for_ub :
              afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-          if (valueCmp(Cmp::LE, for_ub, afFor.upperBoundsMap().getNumDims(),
+          if (valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundsMap().getNumDims(),
                        afFor.getUpperBoundsOperands(), val))
             return true;
         return false;
@@ -2792,7 +2792,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
       case Cmp::GT: {
         for (auto for_lb :
              afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
-          if (valueCmp(Cmp::GT, for_lb, afFor.lowerBoundsMap().getNumDims(),
+          if (valueCmp(Cmp::GT, for_lb, afFor.getLowerBoundsMap().getNumDims(),
                        afFor.getLowerBoundsOperands(), val))
             return true;
         return false;
@@ -2801,7 +2801,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
       case Cmp::GE: {
         for (auto for_lb :
              afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
-          if (valueCmp(Cmp::GE, for_lb, afFor.lowerBoundsMap().getNumDims(),
+          if (valueCmp(Cmp::GE, for_lb, afFor.getLowerBoundsMap().getNumDims(),
                        afFor.getLowerBoundsOperands(), val))
             return true;
         return false;
@@ -3021,12 +3021,12 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
     if (AffineParallelOp afFor =
             dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
       for (auto flb : afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
-        if (!valueCmp(Cmp::LE, flb, afFor.lowerBoundsMap().getNumDims(),
+        if (!valueCmp(Cmp::LE, flb, afFor.getLowerBoundsMap().getNumDims(),
                       afFor.getLowerBoundsOperands(), lb))
           return false;
 
       for (auto ulb : afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-        if (!valueCmp(Cmp::GE, ulb, afFor.upperBoundsMap().getNumDims(),
+        if (!valueCmp(Cmp::GE, ulb, afFor.getUpperBoundsMap().getNumDims(),
                       afFor.getUpperBoundsOperands(), ub))
           return false;
       return true;
@@ -3113,18 +3113,18 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
 
     SmallVector<AffineExpr> dimReplacements;
 
-    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumDims(); ++idx) {
+    for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumDims(); ++idx) {
       dimReplacements.push_back(
           getAffineDimExpr(dimVals.size(), op.getContext()));
       dimVals.push_back(par.getUpperBoundsOperands()[idx]);
     }
     SmallVector<AffineExpr> symReplacements;
-    for (unsigned idx = 0; idx < par.upperBoundsMap().getNumSymbols(); ++idx) {
+    for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumSymbols(); ++idx) {
       symReplacements.push_back(
           getAffineSymbolExpr(dimVals.size(), op.getContext()));
       symVals.push_back(
           par.getUpperBoundsOperands()[idx +
-                                       par.upperBoundsMap().getNumDims()]);
+                                       par.getUpperBoundsMap().getNumDims()]);
     }
 
     for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
@@ -3176,7 +3176,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     SmallVector<Operation *> toSink;
     std::function<void(Value)> recur = [&](Value v) {
       if (!par.getRegion().isAncestor(v.getParentRegion()) ||
-          op.thenRegion().isAncestor(v.getParentRegion()))
+          op.getThenRegion().isAncestor(v.getParentRegion()))
         return;
       if (auto ba = v.dyn_cast<BlockArgument>()) {
         if (ba.getOwner()->getParentOp() == par) {
@@ -3229,8 +3229,8 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     auto newIf = rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(), iset,
                                              newVals, /*hasElse*/ false);
     rewriter.eraseBlock(newIf.getThenBlock());
-    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
-                                newIf.thenRegion().begin());
+    rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
+                                newIf.getThenRegion().begin());
     rewriter.eraseOp(op);
     rewriter.setInsertionPointToStart(newIf.getThenBlock());
     for (auto o : llvm::reverse(toSink)) {
@@ -3297,7 +3297,7 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         for (auto paren = op->getParentOfType<AffineIfOp>(); paren;
              paren = paren->getParentOfType<AffineIfOp>()) {
           for (auto cst2 : paren.getIntegerSet().getConstraints()) {
-            if (paren.elseRegion().isAncestor(op->getParentRegion()))
+            if (paren.getElseRegion().isAncestor(op->getParentRegion()))
               continue;
             if (cst2 == cst.value() &&
                 paren.getIntegerSet().getNumDims() ==
@@ -3330,7 +3330,7 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
                     if (op.getOperands()[exprS.getPosition() +
                                          op.getIntegerSet().getNumDims()] ==
                         paren.getUpperBoundsOperands()[ubS.getPosition() +
-                                                       paren.upperBoundsMap()
+                                                       paren.getUpperBoundsMap()
                                                            .getNumDims()]) {
 
                       found = true;
@@ -3384,9 +3384,9 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
     if (todo.size() == 0) {
 
       if (!knownFalse)
-        replaceOpWithRegion(rewriter, op, op.thenRegion());
-      else if (!op.elseRegion().empty())
-        replaceOpWithRegion(rewriter, op, op.elseRegion());
+        replaceOpWithRegion(rewriter, op, op.getThenRegion());
+      else if (!op.getElseRegion().empty())
+        replaceOpWithRegion(rewriter, op, op.getElseRegion());
       else
         rewriter.eraseOp(op);
 
@@ -3404,10 +3404,10 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(), iset,
                                     op.getOperands(), /*hasElse*/ false);
     rewriter.eraseBlock(newIf.getThenBlock());
-    rewriter.inlineRegionBefore(op.thenRegion(), newIf.thenRegion(),
-                                newIf.thenRegion().begin());
-    rewriter.inlineRegionBefore(op.elseRegion(), newIf.elseRegion(),
-                                newIf.elseRegion().begin());
+    rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
+                                newIf.getThenRegion().begin());
+    rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
+                                newIf.getElseRegion().begin());
     rewriter.replaceOp(op, newIf.getResults());
     return success();
   }
@@ -3439,7 +3439,7 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
                        return std::get<0>(p) == std::get<1>(p);
                      })) {
       nextThen = nextIf.getThenBlock();
-      if (!nextIf.elseRegion().empty())
+      if (!nextIf.getElseRegion().empty())
         nextElse = nextIf.getElseBlock();
     }
 
@@ -3447,7 +3447,7 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
       return failure();
 
     SmallVector<Value> prevElseYielded;
-    if (!prevIf.elseRegion().empty())
+    if (!prevIf.getElseRegion().empty())
       prevElseYielded =
           cast<AffineYieldOp>(prevIf.getElseBlock()->getTerminator())
               .getOperands();
@@ -3479,10 +3479,10 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
     AffineIfOp combinedIf = rewriter.create<AffineIfOp>(
         nextIf.getLoc(), mergedTypes, prevIf.getIntegerSet(),
         prevIf.getOperands(), /*hasElse=*/false);
-    rewriter.eraseBlock(&combinedIf.thenRegion().back());
+    rewriter.eraseBlock(&combinedIf.getThenRegion().back());
 
-    rewriter.inlineRegionBefore(prevIf.thenRegion(), combinedIf.thenRegion(),
-                                combinedIf.thenRegion().begin());
+    rewriter.inlineRegionBefore(prevIf.getThenRegion(), combinedIf.getThenRegion(),
+                                combinedIf.getThenRegion().begin());
 
     if (nextThen) {
       AffineYieldOp thenYield =
@@ -3498,14 +3498,14 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
       rewriter.eraseOp(thenYield2);
     }
 
-    rewriter.inlineRegionBefore(prevIf.elseRegion(), combinedIf.elseRegion(),
-                                combinedIf.elseRegion().begin());
+    rewriter.inlineRegionBefore(prevIf.getElseRegion(), combinedIf.getElseRegion(),
+                                combinedIf.getElseRegion().begin());
 
     if (nextElse) {
-      if (combinedIf.elseRegion().empty()) {
+      if (combinedIf.getElseRegion().empty()) {
         rewriter.inlineRegionBefore(*nextElse->getParent(),
-                                    combinedIf.elseRegion(),
-                                    combinedIf.elseRegion().begin());
+                                    combinedIf.getElseRegion(),
+                                    combinedIf.getElseRegion().begin());
       } else {
         AffineYieldOp elseYield =
             cast<AffineYieldOp>(combinedIf.getElseBlock()->getTerminator());
@@ -3558,7 +3558,7 @@ struct MergeNestedAffineParallelLoops
         return failure();
 
     // Reductions are not supported yet.
-    if (!op.reductions().empty() || !innerOp.reductions().empty())
+    if (!op.getReductions().empty() || !innerOp.getReductions().empty())
       return failure();
 
     SmallVector<Type> newTypes(op.getResultTypes());
@@ -3571,54 +3571,54 @@ struct MergeNestedAffineParallelLoops
     SmallVector<Value> lboundValues;
     SmallVector<Value> uboundValues;
 
-    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < op.getLowerBoundsMap().getNumDims(); i++)
       lboundValues.push_back(op.getLowerBoundsOperands()[i]);
 
-    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < op.getUpperBoundsMap().getNumDims(); i++)
       uboundValues.push_back(op.getUpperBoundsOperands()[i]);
 
-    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < innerOp.getLowerBoundsMap().getNumDims(); i++)
       lboundValues.push_back(innerOp.getLowerBoundsOperands()[i]);
 
-    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < innerOp.getUpperBoundsMap().getNumDims(); i++)
       uboundValues.push_back(innerOp.getUpperBoundsOperands()[i]);
 
-    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < op.getLowerBoundsMap().getNumSymbols(); i++)
       lboundValues.push_back(
-          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+          op.getLowerBoundsOperands()[i + op.getLowerBoundsMap().getNumDims()]);
 
-    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < op.getUpperBoundsMap().getNumSymbols(); i++)
       uboundValues.push_back(
-          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+          op.getUpperBoundsOperands()[i + op.getUpperBoundsMap().getNumDims()]);
 
-    for (size_t i = 0; i < innerOp.lowerBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < innerOp.getLowerBoundsMap().getNumSymbols(); i++)
       lboundValues.push_back(
-          innerOp.getLowerBoundsOperands()[i + innerOp.lowerBoundsMap()
+          innerOp.getLowerBoundsOperands()[i + innerOp.getLowerBoundsMap()
                                                    .getNumDims()]);
 
-    for (size_t i = 0; i < innerOp.upperBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < innerOp.getUpperBoundsMap().getNumSymbols(); i++)
       uboundValues.push_back(
-          innerOp.getUpperBoundsOperands()[i + innerOp.upperBoundsMap()
+          innerOp.getUpperBoundsOperands()[i + innerOp.getUpperBoundsMap()
                                                    .getNumDims()]);
 
-    for (auto e : op.lowerBoundsMap().getResults()) {
+    for (auto e : op.getLowerBoundsMap().getResults()) {
       lbounds.push_back(e);
     }
 
-    for (auto e : op.upperBoundsMap().getResults()) {
+    for (auto e : op.getUpperBoundsMap().getResults()) {
       ubounds.push_back(e);
     }
 
-    for (auto e : innerOp.lowerBoundsMap()
-                      .shiftDims(op.lowerBoundsMap().getNumDims())
-                      .shiftSymbols(op.lowerBoundsMap().getNumSymbols())
+    for (auto e : innerOp.getLowerBoundsMap()
+                      .shiftDims(op.getLowerBoundsMap().getNumDims())
+                      .shiftSymbols(op.getLowerBoundsMap().getNumSymbols())
                       .getResults()) {
       lbounds.push_back(e);
     }
 
-    for (auto e : innerOp.upperBoundsMap()
-                      .shiftDims(op.upperBoundsMap().getNumDims())
-                      .shiftSymbols(op.upperBoundsMap().getNumSymbols())
+    for (auto e : innerOp.getUpperBoundsMap()
+                      .shiftDims(op.getUpperBoundsMap().getNumDims())
+                      .shiftSymbols(op.getUpperBoundsMap().getNumSymbols())
                       .getResults()) {
       ubounds.push_back(e);
     }
@@ -3628,13 +3628,13 @@ struct MergeNestedAffineParallelLoops
 
     SmallVector<int32_t> lboundGroup;
     SmallVector<int32_t> uboundGroup;
-    for (auto U : op.lowerBoundsGroups())
+    for (auto U : op.getLowerBoundsGroups())
       lboundGroup.push_back(U.getZExtValue());
-    for (auto U : innerOp.lowerBoundsGroups())
+    for (auto U : innerOp.getLowerBoundsGroups())
       lboundGroup.push_back(U.getZExtValue());
-    for (auto U : op.upperBoundsGroups())
+    for (auto U : op.getUpperBoundsGroups())
       uboundGroup.push_back(U.getZExtValue());
-    for (auto U : innerOp.upperBoundsGroups())
+    for (auto U : innerOp.getUpperBoundsGroups())
       uboundGroup.push_back(U.getZExtValue());
 
     SmallVector<int64_t> steps;
@@ -3646,17 +3646,17 @@ struct MergeNestedAffineParallelLoops
     AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
         op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
         AffineMapAttr::get(
-            AffineMap::get(op.lowerBoundsMap().getNumDims() +
-                               innerOp.lowerBoundsMap().getNumDims(),
-                           op.lowerBoundsMap().getNumSymbols() +
-                               innerOp.lowerBoundsMap().getNumSymbols(),
+            AffineMap::get(op.getLowerBoundsMap().getNumDims() +
+                               innerOp.getLowerBoundsMap().getNumDims(),
+                           op.getLowerBoundsMap().getNumSymbols() +
+                               innerOp.getLowerBoundsMap().getNumSymbols(),
                            lbounds, op.getContext())),
         rewriter.getI32TensorAttr(lboundGroup),
         AffineMapAttr::get(
-            AffineMap::get(op.upperBoundsMap().getNumDims() +
-                               innerOp.upperBoundsMap().getNumDims(),
-                           op.upperBoundsMap().getNumSymbols() +
-                               innerOp.upperBoundsMap().getNumSymbols(),
+            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
+                               innerOp.getUpperBoundsMap().getNumDims(),
+                           op.getUpperBoundsMap().getNumSymbols() +
+                               innerOp.getUpperBoundsMap().getNumSymbols(),
                            ubounds, op.getContext())),
         rewriter.getI32TensorAttr(uboundGroup), rewriter.getI64ArrayAttr(steps),
         operands);
@@ -3742,7 +3742,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
       return failure();
 
     // Reductions are not supported yet.
-    if (!op.reductions().empty())
+    if (!op.getReductions().empty())
       return failure();
 
     if (innerOp.hasElse())
@@ -3750,19 +3750,19 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
     SmallVector<int32_t> lboundGroup;
     SmallVector<int32_t> uboundGroup;
-    for (auto U : op.lowerBoundsGroups())
+    for (auto U : op.getLowerBoundsGroups())
       lboundGroup.push_back(U.getZExtValue());
-    for (auto U : op.upperBoundsGroups())
+    for (auto U : op.getUpperBoundsGroups())
       uboundGroup.push_back(U.getZExtValue());
 
     SmallVector<AffineExpr> lbounds;
     SmallVector<AffineExpr> ubounds;
 
-    for (auto e : op.lowerBoundsMap().getResults()) {
+    for (auto e : op.getLowerBoundsMap().getResults()) {
       lbounds.push_back(e);
     }
 
-    for (auto e : op.upperBoundsMap().getResults()) {
+    for (auto e : op.getUpperBoundsMap().getResults()) {
       ubounds.push_back(e);
     }
 
@@ -3901,9 +3901,9 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
       }
       ubounds.insert(ubounds.begin() + off,
                      rhs.shiftDims(innerOp.getIntegerSet().getNumDims(),
-                                   op.upperBoundsMap().getNumDims())
+                                   op.getUpperBoundsMap().getNumDims())
                          .shiftSymbols(innerOp.getIntegerSet().getNumSymbols(),
-                                       op.upperBoundsMap().getNumSymbols()));
+                                       op.getUpperBoundsMap().getNumSymbols()));
 
       uboundGroup[pair.first]++;
     }
@@ -3914,22 +3914,22 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
     SmallVector<Value> lboundValues;
     SmallVector<Value> uboundValues;
 
-    for (size_t i = 0; i < op.lowerBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < op.getLowerBoundsMap().getNumDims(); i++)
       lboundValues.push_back(op.getLowerBoundsOperands()[i]);
 
-    for (size_t i = 0; i < op.upperBoundsMap().getNumDims(); i++)
+    for (size_t i = 0; i < op.getUpperBoundsMap().getNumDims(); i++)
       uboundValues.push_back(op.getUpperBoundsOperands()[i]);
 
     for (size_t i = 0; i < innerOp.getIntegerSet().getNumDims(); i++)
       uboundValues.push_back(innerOp.getOperands()[i]);
 
-    for (size_t i = 0; i < op.lowerBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < op.getLowerBoundsMap().getNumSymbols(); i++)
       lboundValues.push_back(
-          op.getLowerBoundsOperands()[i + op.lowerBoundsMap().getNumDims()]);
+          op.getLowerBoundsOperands()[i + op.getLowerBoundsMap().getNumDims()]);
 
-    for (size_t i = 0; i < op.upperBoundsMap().getNumSymbols(); i++)
+    for (size_t i = 0; i < op.getUpperBoundsMap().getNumSymbols(); i++)
       uboundValues.push_back(
-          op.getUpperBoundsOperands()[i + op.upperBoundsMap().getNumDims()]);
+          op.getUpperBoundsOperands()[i + op.getUpperBoundsMap().getNumDims()]);
 
     for (size_t i = 0; i < innerOp.getIntegerSet().getNumSymbols(); i++)
       uboundValues.push_back(
@@ -3942,17 +3942,17 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
     AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
         op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-        AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
-                                          op.lowerBoundsMap().getNumSymbols(),
+        AffineMapAttr::get(AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+                                          op.getLowerBoundsMap().getNumSymbols(),
                                           lbounds, op.getContext())),
         rewriter.getI32TensorAttr(lboundGroup),
         AffineMapAttr::get(
-            AffineMap::get(op.upperBoundsMap().getNumDims() +
+            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
                                innerOp.getIntegerSet().getNumDims(),
-                           op.upperBoundsMap().getNumSymbols() +
+                           op.getUpperBoundsMap().getNumSymbols() +
                                innerOp.getIntegerSet().getNumSymbols(),
                            ubounds, op.getContext())),
-        rewriter.getI32TensorAttr(uboundGroup), op.stepsAttr(), operands);
+        rewriter.getI32TensorAttr(uboundGroup), op.getStepsAttr(), operands);
 
     rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                 affineLoop.getRegion().begin());
@@ -3975,10 +3975,10 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
       rewriter.eraseBlock(newIf.getThenBlock());
 
-      rewriter.inlineRegionBefore(innerOp.thenRegion(), newIf.thenRegion(),
-                                  newIf.thenRegion().begin());
-      rewriter.inlineRegionBefore(innerOp.elseRegion(), newIf.elseRegion(),
-                                  newIf.elseRegion().begin());
+      rewriter.inlineRegionBefore(innerOp.getThenRegion(), newIf.getThenRegion(),
+                                  newIf.getThenRegion().begin());
+      rewriter.inlineRegionBefore(innerOp.getElseRegion(), newIf.getElseRegion(),
+                                  newIf.getElseRegion().begin());
 
       rewriter.replaceOp(innerOp, newIf->getResults());
       rewriter.replaceOp(op, affineLoop->getResults());
@@ -3993,7 +3993,7 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
   LogicalResult matchAndRewrite(AffineParallelOp op,
                                 PatternRewriter &rewriter) const override {
     // Reductions are not supported yet.
-    if (!op.reductions().empty())
+    if (!op.getReductions().empty())
       return failure();
 
     auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
@@ -4091,7 +4091,7 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
               ValueOrInt(op.getUpperBoundsOperands()[dim.getPosition()]));
         } else if (auto sym = ub.dyn_cast<AffineSymbolExpr>()) {
           fixedUpperBounds.push_back(ValueOrInt(
-              op.getUpperBoundsOperands()[op.upperBoundsMap().getNumDims() +
+              op.getUpperBoundsOperands()[op.getUpperBoundsMap().getNumDims() +
                                           sym.getPosition()]));
         } else {
           legal = false;
@@ -4109,7 +4109,7 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
           operands = AL.getMapOperands();
           affineMapUsers_t.push_back(U);
         } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
-          if (AS.value() == iv)
+          if (AS.getValue() == iv)
             legal = false;
           for (auto E : AS.getAffineMap().getResults())
             exprs.push_back(E);
@@ -4276,12 +4276,12 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
             }
 
             SmallVector<int32_t> uboundGroup;
-            for (auto U : op.upperBoundsGroups())
+            for (auto U : op.getUpperBoundsGroups())
               uboundGroup.push_back(U.getZExtValue());
 
             SmallVector<AffineExpr> ubounds;
 
-            for (auto e : op.upperBoundsMap().getResults()) {
+            for (auto e : op.getUpperBoundsMap().getResults()) {
               ubounds.push_back(e);
             }
 
@@ -4296,13 +4296,13 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
             ubounds[off2] = getAffineConstantExpr(1, op.getContext());
 
             AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-                op.getLoc(), op.getResultTypes(), op.reductionsAttr(),
-                op.lowerBoundsMapAttr(), op.lowerBoundsGroupsAttr(),
+                op.getLoc(), op.getResultTypes(), op.getReductionsAttr(),
+                op.getLowerBoundsMapAttr(), op.getLowerBoundsGroupsAttr(),
                 AffineMapAttr::get(
-                    AffineMap::get(op.upperBoundsMap().getNumDims(),
-                                   op.upperBoundsMap().getNumSymbols(), ubounds,
+                    AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                                   op.getUpperBoundsMap().getNumSymbols(), ubounds,
                                    op.getContext())),
-                op.upperBoundsGroupsAttr(), op.stepsAttr(), op.getOperands());
+                op.getUpperBoundsGroupsAttr(), op.getStepsAttr(), op.getOperands());
 
             rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                         affineLoop.getRegion().begin());
@@ -4323,26 +4323,26 @@ struct RemoveAffineParallelSingleIter
                                 PatternRewriter &rewriter) const override {
 
     // Reductions are not supported yet.
-    if (!op.reductions().empty())
+    if (!op.getReductions().empty())
       return failure();
 
     ArrayRef<Attribute> reductions;
     SmallVector<AffineExpr> lbounds;
     SmallVector<AffineExpr> ubounds;
 
-    for (auto e : op.lowerBoundsMap().getResults()) {
+    for (auto e : op.getLowerBoundsMap().getResults()) {
       lbounds.push_back(e);
     }
 
-    for (auto e : op.upperBoundsMap().getResults()) {
+    for (auto e : op.getUpperBoundsMap().getResults()) {
       ubounds.push_back(e);
     }
 
     SmallVector<int32_t> lboundGroup;
     SmallVector<int32_t> uboundGroup;
-    for (auto U : op.lowerBoundsGroups())
+    for (auto U : op.getLowerBoundsGroups())
       lboundGroup.push_back(U.getZExtValue());
-    for (auto U : op.upperBoundsGroups())
+    for (auto U : op.getUpperBoundsGroups())
       uboundGroup.push_back(U.getZExtValue());
 
     SmallVector<int64_t> steps;
@@ -4408,12 +4408,12 @@ struct RemoveAffineParallelSingleIter
 
       AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
           op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-          AffineMapAttr::get(AffineMap::get(op.lowerBoundsMap().getNumDims(),
-                                            op.lowerBoundsMap().getNumSymbols(),
+          AffineMapAttr::get(AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+                                            op.getLowerBoundsMap().getNumSymbols(),
                                             lbounds, op.getContext())),
           rewriter.getI32TensorAttr(lboundGroup),
-          AffineMapAttr::get(AffineMap::get(op.upperBoundsMap().getNumDims(),
-                                            op.upperBoundsMap().getNumSymbols(),
+          AffineMapAttr::get(AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                                            op.getUpperBoundsMap().getNumSymbols(),
                                             ubounds, op.getContext())),
           rewriter.getI32TensorAttr(uboundGroup),
           rewriter.getI64ArrayAttr(steps), op.getOperands());
@@ -4500,7 +4500,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
         if (!store)
           continue;
 
-        Value otherBuf = store.memref();
+        Value otherBuf = store.getMemref();
 
         if (load.getAffineMapAttr().getValue() !=
             store.getAffineMapAttr().getValue())
@@ -4557,7 +4557,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
                     }))
               continue;
 
-            if (store.memref() != op)
+            if (store.getMemref() != op)
               continue;
 
             if (copyIntoBuffer->getBlock() != copyOutOfBuffer->getBlock())
@@ -4646,9 +4646,9 @@ template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
                                 PatternRewriter &rewriter) const override {
     if (llvm::any_of(alloc->getUsers(), [&](Operation *op) {
           if (auto storeOp = dyn_cast<memref::StoreOp>(op))
-            return storeOp.value() == alloc;
+            return storeOp.getValue() == alloc;
           if (auto storeOp = dyn_cast<AffineStoreOp>(op))
-            return storeOp.value() == alloc;
+            return storeOp.getValue() == alloc;
           if (auto storeOp = dyn_cast<LLVM::StoreOp>(op))
             return storeOp.getValue() == alloc;
           return !isa<memref::DeallocOp>(op);
@@ -4677,7 +4677,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     SmallVector<AffineLoadOp> loads;
     for (auto U : op->getResult(0).getUsers()) {
       if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
-        if (store2.value() == op->getResult(0)) {
+        if (store2.getValue() == op->getResult(0)) {
           LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
           return failure();
         }
@@ -4704,11 +4704,11 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     }
     if (!store)
       return failure();
-    AffineLoadOp loadVal = store.value().getDefiningOp<AffineLoadOp>();
+    AffineLoadOp loadVal = store.getValue().getDefiningOp<AffineLoadOp>();
     if (!loadVal)
       return failure();
 
-    auto otherBuf = loadVal.memref();
+    auto otherBuf = loadVal.getMemref();
 
     if (!otherBuf.getDefiningOp<memref::AllocaOp>() &&
         !otherBuf.getDefiningOp<memref::AllocOp>())
@@ -4722,7 +4722,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     SmallVector<Operation *> interferingStores;
     for (auto U : otherBuf.getUsers()) {
       if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
-        if (store2.value() == otherBuf) {
+        if (store2.getValue() == otherBuf) {
           LLVM_DEBUG(llvm::dbgs() << " + storing loadVal ptr " << *U << "\n");
           return failure();
         }
@@ -4730,7 +4730,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         continue;
       }
       if (auto store2 = dyn_cast<memref::StoreOp>(U)) {
-        if (store2.value() == otherBuf) {
+        if (store2.getValue() == otherBuf) {
           LLVM_DEBUG(llvm::dbgs() << " + storing loadVal ptr " << *U << "\n");
           return failure();
         }
@@ -4943,7 +4943,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
                 ld.getMapOperands()[i + ld.getAffineMap().getNumDims()]);
 
           rewriter.setInsertionPoint(ld);
-          rewriter.replaceOpWithNewOp<AffineLoadOp>(ld, loadVal.memref(),
+          rewriter.replaceOpWithNewOp<AffineLoadOp>(ld, loadVal.getMemref(),
                                                     newMap, vals);
 
           ld = nullptr;
