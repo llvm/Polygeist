@@ -30,7 +30,7 @@ double *bar(double *w, double *s) {
 //  CHECK-DAG:    %0 = memref.alloca() : memref<f64>
 // CHECK-NEXT:    scf.parallel (%arg2) = (%c0) to (%c2) step (%c1) {
 // CHECK-NEXT:      %1 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:      %2 = arith.cmpi eq, %c0_i32, %1 : i32
+// CHECK-NEXT:      %2 = arith.cmpi eq, %1, %c0_i32 : i32
 // CHECK-NEXT:      scf.if %2 {
 // CHECK-NEXT:        %3 = memref.load %arg1[%c0] : memref<?xf64>
 // CHECK-NEXT:        memref.store %3, %0[] : memref<f64>

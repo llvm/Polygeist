@@ -27,7 +27,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -53,19 +53,19 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = subViewOp.getLoc();
 
-    if (!subViewOp.source().getType().isa<MemRefType>()) {
+    if (!subViewOp.getSource().getType().isa<MemRefType>()) {
       llvm::errs() << " func: " << subViewOp->getParentOfType<func::FuncOp>()
                    << "\n";
-      llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.source()
+      llvm::errs() << " sub: " << subViewOp << " - " << subViewOp.getSource()
                    << "\n";
     }
-    auto sourceMemRefType = subViewOp.source().getType().cast<MemRefType>();
+    auto sourceMemRefType = subViewOp.getSource().getType().cast<MemRefType>();
 
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
-    MemRefDescriptor targetMemRef(transformed.source());
+    MemRefDescriptor targetMemRef(transformed.getSource());
     Value prev = targetMemRef.alignedPtr(rewriter, loc);
-    Value idxs[] = {transformed.index()};
+    Value idxs[] = {transformed.getIndex()};
 
     SmallVector<Value, 4> sizes;
     SmallVector<Value, 4> strides;
@@ -104,7 +104,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
     if (false) {
       Value baseOffset = targetMemRef.offset(rewriter, loc);
       Value stride = targetMemRef.stride(rewriter, loc, 0);
-      Value offset = transformed.index();
+      Value offset = transformed.getIndex();
       Value mul = rewriter.create<LLVM::MulOp>(loc, offset, stride);
       baseOffset = rewriter.create<LLVM::AddOp>(loc, baseOffset, mul);
       targetMemRef.setOffset(rewriter, loc, baseOffset);
@@ -131,8 +131,8 @@ struct Memref2PointerOpLowering
 
     // MemRefDescriptor sourceMemRef(operands.front());
     MemRefDescriptor targetMemRef(
-        transformed
-            .source()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
+        transformed.getSource()); // MemRefDescriptor::undef(rewriter, loc,
+                                  // targetDescTy);
 
     // Offset.
     Value baseOffset = targetMemRef.offset(rewriter, loc);
@@ -160,7 +160,7 @@ struct Pointer2MemrefOpLowering
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
     auto ptr = rewriter.create<LLVM::BitcastOp>(
-        op.getLoc(), descr.getElementPtrType(), adaptor.source());
+        op.getLoc(), descr.getElementPtrType(), adaptor.getSource());
 
     // Extract all strides and offsets and verify they are static.
     int64_t offset;
@@ -203,7 +203,7 @@ struct StreamToTokenOpLowering
   matchAndRewrite(StreamToTokenOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Value v[] = {transformed.source()};
+    Value v[] = {transformed.getSource()};
     rewriter.replaceOp(op, v);
     return success();
   }
@@ -216,7 +216,7 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
   matchAndRewrite(TypeSizeOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Type NT = op.sourceAttr().getValue();
+    Type NT = op.getSourceAttr().getValue();
     if (auto T = getTypeConverter()->convertType(NT)) {
       NT = T;
     }
@@ -231,7 +231,7 @@ struct TypeSizeOpLowering : public ConvertOpToLLVMPattern<TypeSizeOp> {
       return success();
     }
 
-    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+    if (NT != op.getSourceAttr().getValue() || type != op.getType()) {
       rewriter.replaceOpWithNewOp<TypeSizeOp>(op, type, NT);
       return success();
     }
@@ -246,7 +246,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
   matchAndRewrite(TypeAlignOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
 
-    Type NT = op.sourceAttr().getValue();
+    Type NT = op.getSourceAttr().getValue();
     if (auto T = getTypeConverter()->convertType(NT)) {
       NT = T;
     }
@@ -261,7 +261,7 @@ struct TypeAlignOpLowering : public ConvertOpToLLVMPattern<TypeAlignOp> {
       return success();
     }
 
-    if (NT != op.sourceAttr().getValue() || type != op.getType()) {
+    if (NT != op.getSourceAttr().getValue() || type != op.getType()) {
       rewriter.replaceOpWithNewOp<TypeAlignOp>(op, type, NT);
       return success();
     }
@@ -532,7 +532,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
         mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
             loc, LLVM::LLVMPointerType::get(ST),
             rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult(0));
+                .getResult());
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -552,7 +552,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
       for (auto dep : execute.dependencies()) {
         auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
-        vals.push_back(ctx.source());
+        vals.push_back(ctx.getSource());
       }
       assert(vals.size() == 3);
 
@@ -596,7 +596,7 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   matchAndRewrite(LLVM::ReturnOp op, LLVM::ReturnOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto replacement =
-        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArgs());
+        rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(op, adaptor.getArg());
     replacement->setAttrs(adaptor.getAttributes());
     return success();
   }
@@ -605,11 +605,10 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
-  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, bool emitCWrappers,
-                             unsigned indexBitwidth, bool useAlignedAlloc,
+  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
+                             bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout) {
     this->useBarePtrCallConv = useBarePtrCallConv;
-    this->emitCWrappers = emitCWrappers;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
   }
@@ -621,7 +620,6 @@ struct ConvertPolygeistToLLVMPass
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
     options.useBarePtrCallConv = useBarePtrCallConv;
-    options.emitCWrappers = emitCWrappers;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
 
@@ -720,8 +718,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   bool useAlignedAlloc =
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv, options.emitCWrappers,
-      options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+      options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
+      options.dataLayout);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -729,6 +727,5 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, false, 64u, false,
-                                                      dl);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl);
 }

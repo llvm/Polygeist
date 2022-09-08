@@ -10,7 +10,7 @@
 #include "TypeUtils.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "utils.h"
 #include "clang/AST/Attr.h"
@@ -950,14 +950,14 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   res = builder.create<LLVM::InsertValueOp>(loc, res.getType(), res,
                                             ArrayPtr.getValue(loc, builder),
-                                            builder.getI64ArrayAttr(0));
+                                            builder.getDenseI64ArrayAttr(0));
   Field++;
   auto iTy = getMLIRType(Field->getType()).cast<mlir::IntegerType>();
   res = builder.create<LLVM::InsertValueOp>(
       loc, res.getType(), res,
       builder.create<arith::ConstantIntOp>(
           loc, ArrayType->getSize().getZExtValue(), iTy.getWidth()),
-      builder.getI64ArrayAttr(1));
+      builder.getDenseI64ArrayAttr(1));
   return ValueCategory(res, /*isRef*/ false);
 }
 
@@ -5445,6 +5445,7 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
 
     const ArgStringList *args = &cmd->getArguments();
 
+    Clang->getInvocation().getCodeGenOpts().OpaquePointers = false;
     Success = CompilerInvocation::CreateFromArgs(Clang->getInvocation(), *args,
                                                  Diags);
     Clang->getInvocation().getFrontendOpts().DisableFree = false;

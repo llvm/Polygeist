@@ -17,10 +17,10 @@
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/GPU/GPUDialect.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
@@ -281,7 +281,8 @@ void ParallelLower::runOnOperation() {
       for (auto v : launchOp.asyncDependencies()) {
         auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
         dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(
-            tok.getLoc(), builder.getType<async::TokenType>(), tok.source()));
+            tok.getLoc(), builder.getType<async::TokenType>(),
+            tok.getSource()));
       }
       asyncOp = builder.create<mlir::async::ExecuteOp>(
           loc, /*results*/ TypeRange(), /*dependencies*/ dependencies,
@@ -417,8 +418,8 @@ void ParallelLower::runOnOperation() {
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.value(),
-                                                  storeOp.memref(), indices);
+      builder.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.getValue(),
+                                                  storeOp.getMemref(), indices);
     });
 
     container.walk([&](AffineLoadOp storeOp) {
@@ -430,7 +431,7 @@ void ParallelLower::runOnOperation() {
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
-      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.memref(),
+      builder.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.getMemref(),
                                                  indices);
     });
     builder.eraseOp(launchOp);
@@ -439,8 +440,8 @@ void ParallelLower::runOnOperation() {
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
-    if (call.getCallee().getValue() == "cudaMemcpy" ||
-        call.getCallee().getValue() == "cudaMemcpyAsync") {
+    if (call.getCallee().value() == "cudaMemcpy" ||
+        call.getCallee().value() == "cudaMemcpyAsync") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
@@ -449,7 +450,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemcpyToSymbol") {
+    } else if (call.getCallee().value() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemcpyOp>(
@@ -462,7 +463,7 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMemset") {
+    } else if (call.getCallee().value() == "cudaMemset") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
       bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
@@ -474,8 +475,8 @@ void ParallelLower::runOnOperation() {
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaMalloc" ||
-               call.getCallee().getValue() == "cudaMallocHost") {
+    } else if (call.getCallee().value() == "cudaMalloc" ||
+               call.getCallee().value() == "cudaMallocHost") {
       auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
@@ -483,18 +484,18 @@ void ParallelLower::runOnOperation() {
         args[0] =
             bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
       mlir::Value alloc =
-          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult(0);
+          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult();
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaFree" ||
-               call.getCallee().getValue() == "cudaFreeHost") {
+    } else if (call.getCallee().value() == "cudaFree" ||
+               call.getCallee().value() == "cudaFreeHost") {
       auto mf = GetOrCreateFreeFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
@@ -502,24 +503,24 @@ void ParallelLower::runOnOperation() {
       {
         auto retv = bz.create<ConstantIntOp>(
             call.getLoc(), 0,
-            call.getResult(0).getType().cast<IntegerType>().getWidth());
+            call.getResult().getType().cast<IntegerType>().getWidth());
         Value vals[] = {retv};
         call.replaceAllUsesWith(ArrayRef<Value>(vals));
         call.erase();
       }
-    } else if (call.getCallee().getValue() == "cudaDeviceSynchronize") {
+    } else if (call.getCallee().value() == "cudaDeviceSynchronize") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
-    } else if (call.getCallee().getValue() == "cudaGetLastError") {
+    } else if (call.getCallee().value() == "cudaGetLastError") {
       OpBuilder bz(call);
       auto retv = bz.create<ConstantIntOp>(
           call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
+          call.getResult().getType().cast<IntegerType>().getWidth());
       Value vals[] = {retv};
       call.replaceAllUsesWith(ArrayRef<Value>(vals));
       call.erase();
