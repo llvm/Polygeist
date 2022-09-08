@@ -300,13 +300,11 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getElseRegion().getBlocks().splice(
                   ifOp.getElseRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              BitVector idx;
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getFalseOperand(i));
-                idx.push_back(i);
               }
-              Succs[1 - j]->eraseArguments(idx);
+              Succs[1 - j]->eraseArguments([](BlockArgument) { return true; });
               assert(!ifOp.getElseRegion().getBlocks().empty());
               assert(condTys.size() == condBr.getTrueOperands().size());
               OpBuilder tbuilder(&ifOp.getThenRegion().front(),
@@ -320,13 +318,11 @@ bool LoopRestructure::removeIfFromRegion(DominanceInfo &domInfo, Region &region,
               ifOp.getThenRegion().getBlocks().splice(
                   ifOp.getThenRegion().getBlocks().end(), region.getBlocks(),
                   Succs[1 - j]);
-              BitVector idx;
               for (size_t i = 0; i < Succs[1 - j]->getNumArguments(); ++i) {
                 Succs[1 - j]->getArgument(i).replaceAllUsesWith(
                     condBr.getTrueOperand(i));
-                idx.push_back(i);
               }
-              Succs[1 - j]->eraseArguments(idx);
+              Succs[1 - j]->eraseArguments([](BlockArgument) { return true; });
               assert(!ifOp.getElseRegion().getBlocks().empty());
               OpBuilder tbuilder(&ifOp.getElseRegion().front(),
                                  ifOp.getElseRegion().front().begin());
