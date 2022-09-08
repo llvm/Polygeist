@@ -281,7 +281,8 @@ void ParallelLower::runOnOperation() {
       for (auto v : launchOp.asyncDependencies()) {
         auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
         dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(
-            tok.getLoc(), builder.getType<async::TokenType>(), tok.getSource()));
+            tok.getLoc(), builder.getType<async::TokenType>(),
+            tok.getSource()));
       }
       asyncOp = builder.create<mlir::async::ExecuteOp>(
           loc, /*results*/ TypeRange(), /*dependencies*/ dependencies,

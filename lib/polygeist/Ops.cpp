@@ -472,8 +472,9 @@ public:
         subindexOp.getResult().getType().cast<MemRefType>().getElementType())
       return failure();
 
-    rewriter.replaceOpWithNewOp<SubIndexOp>(
-        castOp, castOp.getType(), subindexOp.getSource(), subindexOp.getIndex());
+    rewriter.replaceOpWithNewOp<SubIndexOp>(castOp, castOp.getType(),
+                                            subindexOp.getSource(),
+                                            subindexOp.getIndex());
     return success();
   }
 };
@@ -495,8 +496,8 @@ public:
     auto mt2 = subViewOp.getType().cast<MemRefType>();
     if (mt0.getShape().size() == mt2.getShape().size() &&
         mt1.getShape().size() == mt0.getShape().size() + 1) {
-      rewriter.replaceOpWithNewOp<SubIndexOp>(subViewOp, mt2, prevOp.getSource(),
-                                              subViewOp.getIndex());
+      rewriter.replaceOpWithNewOp<SubIndexOp>(
+          subViewOp, mt2, prevOp.getSource(), subViewOp.getIndex());
       return success();
     }
     if (mt0.getShape().size() == mt2.getShape().size() &&
@@ -616,7 +617,8 @@ public:
     // Valid optimization target; perform the substitution.
     rewriter.replaceOpWithNewOp<SubIndexOp>(
         op, op.getResult().getType(), srcOp.getSource(),
-        rewriter.create<arith::AddIOp>(op.getLoc(), op.getIndex(), srcOp.getIndex()));
+        rewriter.create<arith::AddIOp>(op.getLoc(), op.getIndex(),
+                                       srcOp.getIndex()));
     return success();
   }
 };
@@ -668,8 +670,8 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
-          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.getSource(),
-                                                      indices);
+          rewriter.replaceOpWithNewOp<memref::LoadOp>(
+              loadOp, subindex.getSource(), indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
@@ -870,8 +872,8 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
                      .cast<MemRefType>()
                      .getShape()
                      .size() == indices.size());
-          rewriter.replaceOpWithNewOp<memref::LoadOp>(loadOp, subindex.getSource(),
-                                                      indices);
+          rewriter.replaceOpWithNewOp<memref::LoadOp>(
+              loadOp, subindex.getSource(), indices);
           changed = true;
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
@@ -1123,7 +1125,8 @@ public:
         op.getType().cast<MemRefType>().getMemorySpace())
       return failure();
 
-    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), src.getSource());
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(),
+                                                src.getSource());
     return success();
   }
 };
@@ -1665,7 +1668,8 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
     }
 
     YieldOp yield = getThenRegion ? prevIf.thenYield() : prevIf.elseYield();
-    YieldOp otherYield = getThenRegion ? prevIf.elseYield() : prevIf.thenYield();
+    YieldOp otherYield =
+        getThenRegion ? prevIf.elseYield() : prevIf.thenYield();
 
     // If the nextIf has an else region that computes, fail as this won't be
     // duplicated in the previous else.
@@ -1819,8 +1823,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
                                                       storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
-        rewriter.replaceOpWithNewOp<memref::LoadOp>(storeOp, storeOp.getMemref(),
-                                                    indices);
+        rewriter.replaceOpWithNewOp<memref::LoadOp>(
+            storeOp, storeOp.getMemref(), indices);
       } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
         std::vector<Value> indices;
         auto map = storeOp.getAffineMap();
@@ -1830,8 +1834,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
                                                       storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
-        rewriter.replaceOpWithNewOp<memref::StoreOp>(storeOp, storeOp.getValue(),
-                                                     storeOp.getMemref(), indices);
+        rewriter.replaceOpWithNewOp<memref::StoreOp>(
+            storeOp, storeOp.getValue(), storeOp.getMemref(), indices);
       }
     }
     rewriter.finalizeRootUpdate(prevOp);
@@ -2753,7 +2757,8 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
         if (!val.isValue) {
           for (auto for_ub :
                afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-            if (!valueCmp(Cmp::EQ, for_ub, afFor.getUpperBoundsMap().getNumDims(),
+            if (!valueCmp(Cmp::EQ, for_ub,
+                          afFor.getUpperBoundsMap().getNumDims(),
                           afFor.getUpperBoundsOperands(), val.i_val + 1))
               return false;
           return true;
@@ -2775,7 +2780,8 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
         if (!val.isValue) {
           for (auto for_ub :
                afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-            if (valueCmp(Cmp::LE, for_ub, afFor.getUpperBoundsMap().getNumDims(),
+            if (valueCmp(Cmp::LE, for_ub,
+                         afFor.getUpperBoundsMap().getNumDims(),
                          afFor.getUpperBoundsOperands(), val.i_val + 1))
               return true;
           return false;
@@ -3119,7 +3125,8 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
       dimVals.push_back(par.getUpperBoundsOperands()[idx]);
     }
     SmallVector<AffineExpr> symReplacements;
-    for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumSymbols(); ++idx) {
+    for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumSymbols();
+         ++idx) {
       symReplacements.push_back(
           getAffineSymbolExpr(dimVals.size(), op.getContext()));
       symVals.push_back(
@@ -3481,7 +3488,8 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
         prevIf.getOperands(), /*hasElse=*/false);
     rewriter.eraseBlock(&combinedIf.getThenRegion().back());
 
-    rewriter.inlineRegionBefore(prevIf.getThenRegion(), combinedIf.getThenRegion(),
+    rewriter.inlineRegionBefore(prevIf.getThenRegion(),
+                                combinedIf.getThenRegion(),
                                 combinedIf.getThenRegion().begin());
 
     if (nextThen) {
@@ -3498,7 +3506,8 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
       rewriter.eraseOp(thenYield2);
     }
 
-    rewriter.inlineRegionBefore(prevIf.getElseRegion(), combinedIf.getElseRegion(),
+    rewriter.inlineRegionBefore(prevIf.getElseRegion(),
+                                combinedIf.getElseRegion(),
                                 combinedIf.getElseRegion().begin());
 
     if (nextElse) {
@@ -3942,9 +3951,9 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
     AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
         op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-        AffineMapAttr::get(AffineMap::get(op.getLowerBoundsMap().getNumDims(),
-                                          op.getLowerBoundsMap().getNumSymbols(),
-                                          lbounds, op.getContext())),
+        AffineMapAttr::get(AffineMap::get(
+            op.getLowerBoundsMap().getNumDims(),
+            op.getLowerBoundsMap().getNumSymbols(), lbounds, op.getContext())),
         rewriter.getI32TensorAttr(lboundGroup),
         AffineMapAttr::get(
             AffineMap::get(op.getUpperBoundsMap().getNumDims() +
@@ -3975,9 +3984,11 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
       rewriter.eraseBlock(newIf.getThenBlock());
 
-      rewriter.inlineRegionBefore(innerOp.getThenRegion(), newIf.getThenRegion(),
+      rewriter.inlineRegionBefore(innerOp.getThenRegion(),
+                                  newIf.getThenRegion(),
                                   newIf.getThenRegion().begin());
-      rewriter.inlineRegionBefore(innerOp.getElseRegion(), newIf.getElseRegion(),
+      rewriter.inlineRegionBefore(innerOp.getElseRegion(),
+                                  newIf.getElseRegion(),
                                   newIf.getElseRegion().begin());
 
       rewriter.replaceOp(innerOp, newIf->getResults());
@@ -4300,9 +4311,10 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
                 op.getLowerBoundsMapAttr(), op.getLowerBoundsGroupsAttr(),
                 AffineMapAttr::get(
                     AffineMap::get(op.getUpperBoundsMap().getNumDims(),
-                                   op.getUpperBoundsMap().getNumSymbols(), ubounds,
-                                   op.getContext())),
-                op.getUpperBoundsGroupsAttr(), op.getStepsAttr(), op.getOperands());
+                                   op.getUpperBoundsMap().getNumSymbols(),
+                                   ubounds, op.getContext())),
+                op.getUpperBoundsGroupsAttr(), op.getStepsAttr(),
+                op.getOperands());
 
             rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                         affineLoop.getRegion().begin());
@@ -4408,13 +4420,15 @@ struct RemoveAffineParallelSingleIter
 
       AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
           op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-          AffineMapAttr::get(AffineMap::get(op.getLowerBoundsMap().getNumDims(),
-                                            op.getLowerBoundsMap().getNumSymbols(),
-                                            lbounds, op.getContext())),
+          AffineMapAttr::get(
+              AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+                             op.getLowerBoundsMap().getNumSymbols(), lbounds,
+                             op.getContext())),
           rewriter.getI32TensorAttr(lboundGroup),
-          AffineMapAttr::get(AffineMap::get(op.getUpperBoundsMap().getNumDims(),
-                                            op.getUpperBoundsMap().getNumSymbols(),
-                                            ubounds, op.getContext())),
+          AffineMapAttr::get(
+              AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                             op.getUpperBoundsMap().getNumSymbols(), ubounds,
+                             op.getContext())),
           rewriter.getI32TensorAttr(uboundGroup),
           rewriter.getI64ArrayAttr(steps), op.getOperands());
 

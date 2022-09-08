@@ -12,8 +12,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -2629,8 +2629,8 @@ struct LowerCacheLoad : public OpRewritePattern<polygeist::CacheLoad> {
 
   LogicalResult matchAndRewrite(polygeist::CacheLoad op,
                                 PatternRewriter &rewriter) const override {
-    auto memrefLoad =
-        rewriter.create<memref::LoadOp>(op.getLoc(), op.getMemref(), op.getIndices());
+    auto memrefLoad = rewriter.create<memref::LoadOp>(
+        op.getLoc(), op.getMemref(), op.getIndices());
     rewriter.replaceOp(op, memrefLoad.getResult());
     return success();
   }

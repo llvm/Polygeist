@@ -305,7 +305,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           (t.getDefiningOp<AddIOp>() || t.getDefiningOp<SubIOp>() ||
            (t.getDefiningOp<MulIOp>() &&
             ((isValidIndex(t.getDefiningOp()->getOperand(0)) &&
-             isValidSymbolInt(t.getDefiningOp()->getOperand(1))) ||
+              isValidSymbolInt(t.getDefiningOp()->getOperand(1))) ||
              (isValidIndex(t.getDefiningOp()->getOperand(1)) &&
               isValidSymbolInt(t.getDefiningOp()->getOperand(0)))) &&
             !(fix(t.getDefiningOp()->getOperand(0), false) &&
@@ -1347,8 +1347,9 @@ void AffineFixup<AffinePrefetchOp>::replaceAffineOp(
     PatternRewriter &rewriter, AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<AffinePrefetchOp>(
-      prefetch, prefetch.getMemref(), map, mapOperands, prefetch.getLocalityHint(),
-      prefetch.getIsWrite(), prefetch.getIsDataCache());
+      prefetch, prefetch.getMemref(), map, mapOperands,
+      prefetch.getLocalityHint(), prefetch.getIsWrite(),
+      prefetch.getIsDataCache());
 }
 template <>
 void AffineFixup<AffineStoreOp>::replaceAffineOp(
@@ -1523,9 +1524,11 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
           ifOp.elseYield(), ifOp.elseYield().getOperands());
     }
 
-    rewriter.inlineRegionBefore(ifOp.getThenRegion(), affineIfOp.getThenRegion(),
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(),
+                                affineIfOp.getThenRegion(),
                                 affineIfOp.getThenRegion().begin());
-    rewriter.inlineRegionBefore(ifOp.getElseRegion(), affineIfOp.getElseRegion(),
+    rewriter.inlineRegionBefore(ifOp.getElseRegion(),
+                                affineIfOp.getElseRegion(),
                                 affineIfOp.getElseRegion().begin());
 
     rewriter.replaceOp(ifOp, affineIfOp.getResults());

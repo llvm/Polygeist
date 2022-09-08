@@ -131,8 +131,8 @@ struct Memref2PointerOpLowering
 
     // MemRefDescriptor sourceMemRef(operands.front());
     MemRefDescriptor targetMemRef(
-        transformed
-            .getSource()); // MemRefDescriptor::undef(rewriter, loc, targetDescTy);
+        transformed.getSource()); // MemRefDescriptor::undef(rewriter, loc,
+                                  // targetDescTy);
 
     // Offset.
     Value baseOffset = targetMemRef.offset(rewriter, loc);
@@ -605,8 +605,8 @@ struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   ConvertPolygeistToLLVMPass() = default;
-  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv,
-                             unsigned indexBitwidth, bool useAlignedAlloc,
+  ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
+                             bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
@@ -718,8 +718,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
   bool useAlignedAlloc =
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
-      options.useBarePtrCallConv,
-      options.getIndexBitwidth(), useAlignedAlloc, options.dataLayout);
+      options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
+      options.dataLayout);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -727,6 +727,5 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false,
-                                                      dl);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl);
 }
