@@ -32,7 +32,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
-#include "mlir/Dialect/GPU/Passes.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -744,6 +744,9 @@ int main(int argc, char **argv) {
       gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       // TODO specify index width for the conversion?
       gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
+      pm.run(module.get()); module->dump();
+      // TODO specify triple, arch, features
+      pm.addPass(mlir::createGpuSerializeToCubinPass());
       pm.run(module.get()); module->dump();
       pm.addPass(mlir::createGpuToLLVMConversionPass());
       pm.run(module.get()); module->dump();
