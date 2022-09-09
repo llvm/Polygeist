@@ -564,6 +564,13 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__builtin_expect") {
+        return Visit(expr->getArg(0));
+      }
+    }
+  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+      if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "__builtin_addressof") {
         auto V = Visit(expr->getArg(0));
         assert(V.isReference);
