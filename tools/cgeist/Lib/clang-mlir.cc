@@ -491,8 +491,7 @@ MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
         base.val, idxs);
 
     result = ValueCategory(base.val, true);
-  }
-  if (const auto mt = et.dyn_cast<MemRefType>()) {
+  } else if (const auto mt = et.dyn_cast<MemRefType>()) {
     auto shape = std::vector<int64_t>(mt.getShape());
 
     if (shape.size() == 1) {
@@ -509,6 +508,8 @@ MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
 
     result = CommonArrayLookup(exprLoc, base, castToIndex(accLoc, idxs[1]),
                                base.isReference);
+  } else {
+    llvm_unreachable("Unexpected MLIR type received");
   }
 
   return result;
