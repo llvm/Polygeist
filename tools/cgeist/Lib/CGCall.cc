@@ -565,6 +565,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
       if (sr->getDecl()->getIdentifier() &&
           sr->getDecl()->getName() == "__builtin_expect") {
+        llvm::errs() << "warning, ignoring __builtin_expect\n";
         return Visit(expr->getArg(0));
       }
     }
