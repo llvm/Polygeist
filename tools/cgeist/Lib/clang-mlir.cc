@@ -463,28 +463,56 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
 ValueCategory
 MLIRScanner::VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr) {
   auto base = Visit(expr->getBase());
+
   SmallVector<uint32_t, 4> indices;
   expr->getEncodedElementAccess(indices);
   assert(indices.size() == 1 &&
          "The support for higher dimensions to be implemented.");
-  auto loc = getMLIRLocation(expr->getExprLoc());
-  auto idx = castToIndex(getMLIRLocation(expr->getAccessorLoc()),
-                         builder.create<ConstantIntOp>(loc, indices[0], 32));
+
   assert(base.isReference);
   base.isReference = false;
-  auto mt = base.val.getType().cast<MemRefType>();
-  auto shape = std::vector<int64_t>(mt.getShape());
-  if (shape.size() == 1) {
-    shape[0] = -1;
+
+  const auto et = base.val.getType();
+  assert(et.isa<LLVM::LLVMPointerType>() || et.isa<MemRefType>());
+
+  ValueCategory result = nullptr;
+  const auto exprLoc = getMLIRLocation(expr->getExprLoc());
+  const auto accLoc = getMLIRLocation(expr->getAccessorLoc());
+  const mlir::Value idxs[2] = {
+      builder.create<ConstantIntOp>(exprLoc, 0, 32),
+      builder.create<ConstantIntOp>(exprLoc, indices[0], 32),
+  };
+
+  if (const auto pt = et.dyn_cast<LLVM::LLVMPointerType>()) {
+    auto pt0 =
+        pt.getElementType().cast<mlir::LLVM::LLVMArrayType>().getElementType();
+    base.val = builder.create<mlir::LLVM::GEPOp>(
+        exprLoc, mlir::LLVM::LLVMPointerType::get(pt0, pt.getAddressSpace()),
+        base.val, idxs);
+
+    result = ValueCategory(base.val, true);
+  } else if (const auto mt = et.dyn_cast<MemRefType>()) {
+    auto shape = std::vector<int64_t>(mt.getShape());
+
+    if (shape.size() == 1) {
+      shape[0] = -1;
+    } else {
+      shape.erase(shape.begin());
+    }
+
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    base.val = builder.create<polygeist::SubIndexOp>(
+        exprLoc, mt0, base.val, castToIndex(accLoc, idxs[0]));
+
+    result = CommonArrayLookup(exprLoc, base, castToIndex(accLoc, idxs[1]),
+                               base.isReference);
   } else {
-    shape.erase(shape.begin());
+    llvm_unreachable("Unexpected MLIR type received");
   }
-  auto mt0 =
-      mlir::MemRefType::get(shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface(), mt.getMemorySpace());
-  base.val = builder.create<polygeist::SubIndexOp>(loc, mt0, base.val,
-                                                   getConstantIndex(0));
-  return CommonArrayLookup(loc, base, idx, base.isReference);
+
+  return result;
 }
 
 ValueCategory MLIRScanner::VisitConstantExpr(clang::ConstantExpr *expr) {
@@ -5108,8 +5136,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
     if (!memRefABI || !allowMerge ||
         ET.isa<LLVM::LLVMPointerType, LLVM::LLVMArrayType,
-               LLVM::LLVMFunctionType, LLVM::LLVMStructType>())
-      return LLVM::LLVMFixedVectorType::get(ET, size);
+               LLVM::LLVMFunctionType, LLVM::LLVMStructType>()) {
+      if (mlir::LLVM::LLVMFixedVectorType::isValidElementType(ET)) {
+        return mlir::LLVM::LLVMFixedVectorType::get(ET, size);
+      }
+      return mlir::LLVM::LLVMArrayType::get(ET, size);
+    }
     if (implicitRef)
       *implicitRef = true;
     return mlir::MemRefType::get({size}, ET);
