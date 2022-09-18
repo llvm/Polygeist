@@ -20,27 +20,27 @@
 #include <clang/Frontend/Utils.h>
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
-#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Verifier.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -68,7 +68,7 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
-                               cl::desc("Emit CUDA code"));
+                              cl::desc("Emit CUDA code"));
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
@@ -723,8 +723,6 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-
-
     if (EmitCuda) {
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -743,7 +741,8 @@ int main(int argc, char **argv) {
       //
       // need to tag functions to delete somehow
       //
-      // or delete all unused private functions which should remove all device side cuda functions
+      // or delete all unused private functions which should remove all device
+      // side cuda functions
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 7;
@@ -805,21 +804,42 @@ int main(int argc, char **argv) {
         // options.useBarePtrCallConv = true;
 
         if (EmitCuda) {
-          pm3.addPass(polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
+          pm3.addPass(
+              polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           // TODO specify cubin pass params
           gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
-          // using the default "+ptx60" for the last arg here fails with the following:
+          // using the default "+ptx60" for the last arg here fails with the
+          // following:
           //
-          // loc("vecadd.cu":132:5): error: cuLinkAddData( linkState, CUjitInputType::CU_JIT_INPUT_PTX, const_cast<void *>(static_cast<const void *>(isa.c_str())), isa.length(), kernelName.c_str(), 0, nullptr, nullptr ) failed with error code a PTX JIT compilation failed[
-          // ptxas application ptx input, line 466; error   : Feature 'labels1 - labels2 expression in .section' requires PTX ISA .version 7.5 or later
-          // ptxas application ptx input, line 467; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
-          // ptxas application ptx input, line 525; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
-          // ptxas application ptx input, line 529; error   : Feature 'labels1 - labels2 expression in .section' requires PTX ISA .version 7.5 or later
-          // ptxas application ptx input, line 530; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
-          // ptxas application ptx input, line 536; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
-          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda",  "sm_35",  "+ptx75"));
-
+          // loc("vecadd.cu":132:5): error: cuLinkAddData( linkState,
+          // CUjitInputType::CU_JIT_INPUT_PTX, const_cast<void
+          // *>(static_cast<const void *>(isa.c_str())), isa.length(),
+          // kernelName.c_str(), 0, nullptr, nullptr ) failed with error code a
+          // PTX JIT compilation failed[
+          //
+          // ptxas application ptx input, line 466; error   : Feature 'labels1 -
+          // labels2 expression in .section' requires PTX ISA .version 7.5 or
+          // later
+          //
+          // ptxas application ptx input, line 467; error   : Feature 'Defining
+          // labels in .section' requires PTX ISA .version 7.0 or later
+          //
+          // ptxas application ptx input, line 525; error   : Feature 'Defining
+          // labels in .section' requires PTX ISA .version 7.0 or later
+          //
+          // ptxas application ptx input, line 529; error   : Feature 'labels1 -
+          // labels2 expression in .section' requires PTX ISA .version 7.5 or
+          // later
+          //
+          // ptxas application ptx input, line 530; error   : Feature 'Defining
+          // labels in .section' requires PTX ISA .version 7.0 or later
+          //
+          // ptxas application ptx input, line 536; error   : Feature 'Defining
+          // labels in .section' requires PTX ISA .version 7.0 or later
+          //
+          gpuPM.addPass(mlir::createGpuSerializeToCubinPass(
+              "nvptx64-nvidia-cuda", "sm_35", "+ptx75"));
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
@@ -829,7 +849,6 @@ int main(int argc, char **argv) {
           module->dump();
           return 4;
         }
-
       }
 
     } else {
@@ -844,7 +863,6 @@ int main(int argc, char **argv) {
       return 5;
     }
   }
-
 
   if (EmitLLVM || !EmitAssembly) {
     llvm::LLVMContext llvmContext;
