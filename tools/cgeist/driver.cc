@@ -728,38 +728,13 @@ int main(int argc, char **argv) {
 
 
     if (EmitCuda) {
+      pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 8;
       }
-      /*
-      auto DL = translateDataLayout(llvm::DataLayout(module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue()), module.get()->getContext());
-      std::string dlStr;
-      llvm::raw_string_ostream dlOs(dlStr);
-      AsmPrinter::Impl dlPrImpl(dlOs);
-      AsmPrinter dlPr(dlPrImpl);
-      dyn_cast<DataLayoutSpecAttr>(DL).print(dlPr);
-      dlOs.flush();
-      */
-      // TODO get this data layout string from somewhere
-      StringRef dlStr = "#dlti.dl_spec<#dlti.dl_entry<\"dlti.endianness\", \"little\">, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<i128, dense<128> : vector<2xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>>";
-      pm.addPass(mlir::createGpuKernelOutliningPass(dlStr));
-      //pm.addPass(mlir::createGpuKernelOutliningPass());
-      // Assign the correct data layout and triple to the gpu modules
-      /*
-      module->walk([&](mlir::gpu::GPUModuleOp gpum) {
-        auto triple = module.get()->getAttr(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str()));
-        auto DL = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue();
-        gpum->setAttr(LLVM::LLVMDialect::getTargetTripleAttrName(), triple);
-        gpum->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
-                      StringAttr::get(gpum->getContext(), DL));
-        //gpum->setAttr(DLTIDialect::kDataLayoutAttrName, translateDataLayout(llvm::DataLayout(DL), module.get()->getContext())); //dataLayoutSpec);
-        gpum->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(), translateDataLayout(llvm::DataLayout(DL), gpum->getContext()));
-      });
-      module->dump();
-      */
 
-      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
       gpuPM.addPass(mlir::createLowerAffinePass());
       gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -830,29 +805,51 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-
         if (EmitCuda) {
+          pm3.addPass(polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
+          llvm::errs() << "aftergpupolytollvm\n";
+          if (mlir::failed(pm3.run(module.get()))) {
+            module->dump();
+            return 9;
+          }
+          module->dump();
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           // TODO specify cubin pass params
           gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
-          gpuPM.addPass(mlir::createGpuSerializeToCubinPass());
+          // using the default "+ptx60" for the last arg here fails with the following:
+          //
+          // loc("vecadd.cu":132:5): error: cuLinkAddData( linkState, CUjitInputType::CU_JIT_INPUT_PTX, const_cast<void *>(static_cast<const void *>(isa.c_str())), isa.length(), kernelName.c_str(), 0, nullptr, nullptr ) failed with error code a PTX JIT compilation failed[
+          // ptxas application ptx input, line 466; error   : Feature 'labels1 - labels2 expression in .section' requires PTX ISA .version 7.5 or later
+          // ptxas application ptx input, line 467; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
+          // ptxas application ptx input, line 525; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
+          // ptxas application ptx input, line 529; error   : Feature 'labels1 - labels2 expression in .section' requires PTX ISA .version 7.5 or later
+          // ptxas application ptx input, line 530; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
+          // ptxas application ptx input, line 536; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
 
-          pm3.run(module.get());
+          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda",  "sm_35",  "+ptx75"));
+
           llvm::errs() << "createGpuSerializeToCubinPass\n";
+          pm3.run(module.get());
           module->dump();
+
+          //pm3.addPass(mlir::createGpuToLLVMConversionPass());
+
+          //llvm::errs() << "createGpuToLLVMConversionPass\n";
+          //pm3.run(module.get());
+          //module->dump();
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
+        llvm::errs() << "afterpolytollvm\n";
+        if (mlir::failed(pm3.run(module.get()))) {
+          module->dump();
+          return 10;
+        }
+        module->dump();
         // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
         if (EmitCuda) {
-
-          pm3.addPass(mlir::createGpuToLLVMConversionPass());
-
-          pm3.run(module.get());
-          llvm::errs() << "createGpuToLLVMConversionPass\n";
-          module->dump();
         }
 
         if (mlir::failed(pm3.run(module.get()))) {

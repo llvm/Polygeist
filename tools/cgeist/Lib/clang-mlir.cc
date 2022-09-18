@@ -1747,16 +1747,16 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         builder.create<mlir::NVVM::Barrier0Op>(loc);
         return make_pair(ValueCategory(), true);
       }
-      if (sr->getDecl()->getIdentifier() &&
+      if (sr->getDecl()->getIdentifier() && CudaLower &&
           sr->getDecl()->getName() == "cudaFuncSetCacheConfig") {
         llvm::errs() << " Not emitting GPU option: cudaFuncSetCacheConfig\n";
         return make_pair(ValueCategory(), true);
       }
       // TODO move free out.
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "free" ||
+          (sr->getDecl()->getName() == "free" || ((
            sr->getDecl()->getName() == "cudaFree" ||
-           sr->getDecl()->getName() == "cudaFreeHost")) {
+           sr->getDecl()->getName() == "cudaFreeHost") && CudaLower))) {
 
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
@@ -1781,7 +1781,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         // TODO remove me when the free is removed.
         return make_pair(ValueCategory(), true);
       }
-      if (sr->getDecl()->getIdentifier() &&
+      if (sr->getDecl()->getIdentifier() && CudaLower &&
           (sr->getDecl()->getName() == "cudaMalloc" ||
            sr->getDecl()->getName() == "cudaMallocHost" ||
            sr->getDecl()->getName() == "cudaMallocPitch")) {
