@@ -5148,6 +5148,12 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
   mlir::func::FuncOp function = mlir::func::FuncOp(mlir::func::FuncOp::create(
       getMLIRLocation(FD->getLocation()), name, funcType));
 
+  /*
+  if ((FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) && !FD->hasAttr<CUDAHostAttr>()) {
+    function->setAttr("polygeist.device_only_func", StringAttr::get(&context, "1"));
+  }
+  */
+
   if (LV == llvm::GlobalValue::InternalLinkage ||
       LV == llvm::GlobalValue::PrivateLinkage || !FD->isDefined() ||
       FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) {
@@ -6022,6 +6028,19 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
             "polygeist.target-features",
             StringAttr::get(module->getContext(), llvm::join(Features, ",")));
       }
+    }
+
+    if (jobTriple.isNVPTX()) {
+      triple = jobTriple;
+      module.get()->setAttr(
+                            StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str()),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getTriple().getTriple()));
+      DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
+      module.get()->setAttr(
+                            StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str()),
+          StringAttr::get(module->getContext(),
+                          Clang->getTarget().getDataLayoutString()));
     }
 
     for (const auto &FIF : Clang->getFrontendOpts().Inputs) {
