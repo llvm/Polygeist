@@ -30,11 +30,16 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "polygeist/Ops.h"
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
@@ -1328,21 +1333,24 @@ populateCStyleFuncLoweringPatterns(RewritePatternSet &patterns,
 //===-----------------------------------------------------------------------===/
 
 namespace {
+
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
+  bool onlyGpuModules;
   ConvertPolygeistToLLVMPass() = default;
   ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
                              bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout,
-                             bool useCStyleMemRef) {
+                             bool useCStyleMemRef,
+                             bool onlyGpuModules) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
     this->useCStyleMemRef = useCStyleMemRef;
+    this->onlyGpuModules = onlyGpuModules;
   }
 
-  void runOnOperation() override {
-    ModuleOp m = getOperation();
+  void convertModule(ModuleOp m) {
     const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
 
     if (useCStyleMemRef && useBarePtrCallConv) {
@@ -1353,7 +1361,7 @@ struct ConvertPolygeistToLLVMPass
     }
 
     LowerToLLVMOptions options(&getContext(),
-                               dataLayoutAnalysis.getAtOrAbove(m));
+                                dataLayoutAnalysis.getAtOrAbove(m));
     options.useBarePtrCallConv = useBarePtrCallConv;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
@@ -1417,6 +1425,11 @@ struct ConvertPolygeistToLLVMPass
                    ReturnOpTypeConversion, GetFuncOpConversion>(converter);
       patterns.add<URLLVMOpLowering>(converter);
 
+      bool kernelBarePtrCallConv = false;
+      populateGpuToLLVMConversionPatterns(converter, patterns, gpu::getDefaultGpuBinaryAnnotation(),
+                                          kernelBarePtrCallConv);
+
+
       // Legality callback for operations that checks whether their operand and
       // results types are converted.
       auto areAllTypesConverted = [&](Operation *op) -> Optional<bool> {
@@ -1429,7 +1442,7 @@ struct ConvertPolygeistToLLVMPass
                                           convertedOperandTypes)))
           return llvm::None;
         return convertedResultTypes == op->getResultTypes() &&
-               convertedOperandTypes == op->getOperandTypes();
+                convertedOperandTypes == op->getOperandTypes();
       };
 
       LLVMConversionTarget target(getContext());
@@ -1482,8 +1495,43 @@ struct ConvertPolygeistToLLVMPass
         signalPassFailure();
     }
   }
+
+  void runOnOperation() override {
+    ModuleOp m = getOperation();
+    m->walk([&](mlir::gpu::GPUModuleOp gpum) {
+      mlir::ModuleOp tmpModule(mlir::ModuleOp::create(mlir::OpBuilder(m->getContext()).getUnknownLoc()));
+      // Prepare DL, triple attributes
+      auto triple = m->getAttr(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+      auto DL = m->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue();
+      tmpModule->setAttr(LLVM::LLVMDialect::getTargetTripleAttrName(), triple);
+      tmpModule->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
+                         StringAttr::get(tmpModule->getContext(), DL));
+      tmpModule->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(), translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
+
+      tmpModule->getRegion(0).takeBody(gpum->getRegion(0));
+      convertModule(tmpModule);
+      gpum->getRegion(0).takeBody(tmpModule->getRegion(0));
+      tmpModule->erase();
+    });
+    if (!onlyGpuModules)
+      convertModule(m);
+  }
 };
 } // namespace
+
+std::unique_ptr<Pass> mlir::polygeist::createConvertGpuModulePolygeistToLLVMPass(
+    const LowerToLLVMOptions &options) {
+  auto allocLowering = options.allocLowering;
+  // There is no way to provide additional patterns for pass, so
+  // AllocLowering::None will always fail.
+  assert(allocLowering != LowerToLLVMOptions::AllocLowering::None &&
+         "LLVMLoweringPass doesn't support AllocLowering::None");
+  bool useAlignedAlloc =
+      (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(
+      options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
+      options.dataLayout, true);
+}
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
     const LowerToLLVMOptions &options, bool useCStyleMemRef) {
@@ -1496,7 +1544,7 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
-      options.dataLayout, useCStyleMemRef);
+    options.dataLayout, useCStyleMemRef, false);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -1505,5 +1553,13 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
   return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl,
-                                                      /*usecstylememref*/ true);
+                                                      /*usecstylememref*/ true, /* gpu module only */ false);
+}
+
+std::unique_ptr<Pass> mlir::polygeist::createConvertGpuModulePolygeistToLLVMPass() {
+  // TODO: meaningful arguments to this pass should be specified as
+  // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
+  // default values to allow for pass creation.
+  auto dl = llvm::DataLayout("");
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl, true);
 }
