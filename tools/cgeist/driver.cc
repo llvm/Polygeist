@@ -40,6 +40,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
@@ -727,29 +728,72 @@ int main(int argc, char **argv) {
 
 
     if (EmitCuda) {
-      pm.addPass(mlir::createGpuKernelOutliningPass());
-      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      /*
-      // TODO temp
-      {
-        pm.run(module.get());
-        module->walk([&](mlir::gpu::GPUModuleOp m) {
-          m->setAttr(mlir::gpu::getDefaultGpuBinaryAnnotation(), StringAttr::get(&context, "CUBIN")); });
-
-        //auto binaryAttr = kernelModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation);
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 8;
       }
+      /*
+      auto DL = translateDataLayout(llvm::DataLayout(module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue()), module.get()->getContext());
+      std::string dlStr;
+      llvm::raw_string_ostream dlOs(dlStr);
+      AsmPrinter::Impl dlPrImpl(dlOs);
+      AsmPrinter dlPr(dlPrImpl);
+      dyn_cast<DataLayoutSpecAttr>(DL).print(dlPr);
+      dlOs.flush();
       */
+      // TODO get this data layout string from somewhere
+      StringRef dlStr = "#dlti.dl_spec<#dlti.dl_entry<\"dlti.endianness\", \"little\">, #dlti.dl_entry<i64, dense<64> : vector<2xi32>>, #dlti.dl_entry<i128, dense<128> : vector<2xi32>>, #dlti.dl_entry<i1, dense<8> : vector<2xi32>>, #dlti.dl_entry<i8, dense<8> : vector<2xi32>>, #dlti.dl_entry<i16, dense<16> : vector<2xi32>>, #dlti.dl_entry<i32, dense<32> : vector<2xi32>>, #dlti.dl_entry<f16, dense<16> : vector<2xi32>>, #dlti.dl_entry<f64, dense<64> : vector<2xi32>>, #dlti.dl_entry<f128, dense<128> : vector<2xi32>>>";
+      pm.addPass(mlir::createGpuKernelOutliningPass(dlStr));
+      //pm.addPass(mlir::createGpuKernelOutliningPass());
+      // Assign the correct data layout and triple to the gpu modules
+      /*
+      module->walk([&](mlir::gpu::GPUModuleOp gpum) {
+        auto triple = module.get()->getAttr(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+        auto DL = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue();
+        gpum->setAttr(LLVM::LLVMDialect::getTargetTripleAttrName(), triple);
+        gpum->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
+                      StringAttr::get(gpum->getContext(), DL));
+        //gpum->setAttr(DLTIDialect::kDataLayoutAttrName, translateDataLayout(llvm::DataLayout(DL), module.get()->getContext())); //dataLayoutSpec);
+        gpum->setAttr(("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(), translateDataLayout(llvm::DataLayout(DL), gpum->getContext()));
+      });
+      module->dump();
+      */
+
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
       gpuPM.addPass(mlir::createLowerAffinePass());
       gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       // TODO specify index width for the conversion?
       gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
-      pm.run(module.get()); module->dump();
-      // TODO specify triple, arch, features
-      pm.addPass(mlir::createGpuSerializeToCubinPass());
-      pm.run(module.get()); module->dump();
-      pm.addPass(mlir::createGpuToLLVMConversionPass());
-      pm.run(module.get()); module->dump();
+
+      // TODO make a pass for this
+      //
+      // need to tag functions to delete somehow
+      //
+      // or delete all unused private functions which should remove all device side cuda functions
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 7;
+      }
+      llvm::errs() << "beforeerase\n";
+      module->dump();
+      SmallVector<Operation *> toErase;
+      module->walk([&](mlir::LLVM::LLVMFuncOp fop) {
+        if (fop.getName().contains("_device_stub_") &&
+            isa<ModuleOp>(fop->getParentOp()))
+          toErase.push_back(fop);
+      });
+      module->walk([&](mlir::func::FuncOp fop) {
+        if (fop.getName().contains("_device_stub_") &&
+            isa<ModuleOp>(fop->getParentOp()))
+          toErase.push_back(fop);
+      });
+      for (auto fop : toErase) {
+        fop->erase();
+      }
+      llvm::errs() << "aftererase\n";
+
+      module->dump();
     }
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
@@ -786,10 +830,31 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-        pm3.addPass(
-            polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
+
+        if (EmitCuda) {
+          mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+          // TODO specify cubin pass params
+          gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
+          gpuPM.addPass(mlir::createGpuSerializeToCubinPass());
+
+          pm3.run(module.get());
+          llvm::errs() << "createGpuSerializeToCubinPass\n";
+          module->dump();
+        }
+
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
         // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
+        if (EmitCuda) {
+
+          pm3.addPass(mlir::createGpuToLLVMConversionPass());
+
+          pm3.run(module.get());
+          llvm::errs() << "createGpuToLLVMConversionPass\n";
+          module->dump();
+        }
+
         if (mlir::failed(pm3.run(module.get()))) {
           module->dump();
           return 4;
@@ -809,6 +874,7 @@ int main(int argc, char **argv) {
       return 5;
     }
   }
+
 
   if (EmitLLVM || !EmitAssembly) {
     llvm::LLVMContext llvmContext;
