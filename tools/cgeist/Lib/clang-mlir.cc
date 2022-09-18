@@ -1754,9 +1754,10 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       }
       // TODO move free out.
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "free" || ((
-           sr->getDecl()->getName() == "cudaFree" ||
-           sr->getDecl()->getName() == "cudaFreeHost") && CudaLower))) {
+          (sr->getDecl()->getName() == "free" ||
+           ((sr->getDecl()->getName() == "cudaFree" ||
+             sr->getDecl()->getName() == "cudaFreeHost") &&
+            CudaLower))) {
 
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
@@ -1821,9 +1822,8 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (sr->getDecl()->getName() != "cudaMallocHost" && !CudaLower)
-                      ? mlir::MemRefType::get(
-                            shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface())
+                      ? mlir::MemRefType::get(shape, mt.getElementType(),
+                                              MemRefLayoutAttrInterface())
                       : mt,
                   args);
               ValueCategory(dst, /*isReference*/ true)
@@ -4807,8 +4807,10 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
       getMLIRLocation(FD->getLocation()), name, funcType));
 
   /*
-  if ((FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) && !FD->hasAttr<CUDAHostAttr>()) {
-    function->setAttr("polygeist.device_only_func", StringAttr::get(&context, "1"));
+  if ((FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) &&
+  !FD->hasAttr<CUDAHostAttr>()) {
+    function->setAttr("polygeist.device_only_func", StringAttr::get(&context,
+  "1"));
   }
   */
 
@@ -5691,12 +5693,14 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     if (jobTriple.isNVPTX()) {
       triple = jobTriple;
       module.get()->setAttr(
-                            StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str()),
+          StringRef("polygeist.gpu_module." +
+                    LLVM::LLVMDialect::getTargetTripleAttrName().str()),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getTriple().getTriple()));
       DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
       module.get()->setAttr(
-                            StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str()),
+          StringRef("polygeist.gpu_module." +
+                    LLVM::LLVMDialect::getDataLayoutAttrName().str()),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getDataLayoutString()));
     }
