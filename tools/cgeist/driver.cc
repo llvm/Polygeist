@@ -805,14 +805,9 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
+
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
-          llvm::errs() << "aftergpupolytollvm\n";
-          if (mlir::failed(pm3.run(module.get()))) {
-            module->dump();
-            return 9;
-          }
-          module->dump();
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           // TODO specify cubin pass params
           gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
@@ -825,32 +820,12 @@ int main(int argc, char **argv) {
           // ptxas application ptx input, line 529; error   : Feature 'labels1 - labels2 expression in .section' requires PTX ISA .version 7.5 or later
           // ptxas application ptx input, line 530; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
           // ptxas application ptx input, line 536; error   : Feature 'Defining labels in .section' requires PTX ISA .version 7.0 or later
-
           gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda",  "sm_35",  "+ptx75"));
 
-          llvm::errs() << "createGpuSerializeToCubinPass\n";
-          pm3.run(module.get());
-          module->dump();
-
-          //pm3.addPass(mlir::createGpuToLLVMConversionPass());
-
-          //llvm::errs() << "createGpuToLLVMConversionPass\n";
-          //pm3.run(module.get());
-          //module->dump();
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
-        llvm::errs() << "afterpolytollvm\n";
-        if (mlir::failed(pm3.run(module.get()))) {
-          module->dump();
-          return 10;
-        }
-        module->dump();
-        // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-
-        if (EmitCuda) {
-        }
 
         if (mlir::failed(pm3.run(module.get()))) {
           module->dump();
