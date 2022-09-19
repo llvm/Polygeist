@@ -5147,13 +5147,10 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
   mlir::func::FuncOp function = mlir::func::FuncOp(mlir::func::FuncOp::create(
       getMLIRLocation(FD->getLocation()), name, funcType));
 
-  /*
   if ((FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) &&
-  !FD->hasAttr<CUDAHostAttr>()) {
-    function->setAttr("polygeist.device_only_func", StringAttr::get(&context,
-  "1"));
+      !FD->hasAttr<CUDAHostAttr>()) {
+    function->setAttr("polygeist.device_only_func", StringAttr::get(builder.getContext(), "1"));
   }
-  */
 
   if (LV == llvm::GlobalValue::InternalLinkage ||
       LV == llvm::GlobalValue::PrivateLinkage || !FD->isDefined() ||
