@@ -765,15 +765,6 @@ int main(int argc, char **argv) {
         // options.useBarePtrCallConv = true;
 
         if (EmitCuda) {
-
-          {
-            mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
-            gpuPM.addPass(mlir::createLowerAffinePass());
-            gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-            // TODO specify index width for the conversion?
-            gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
-          }
-
           pm3.addPass(
               polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
 
@@ -810,7 +801,7 @@ int main(int argc, char **argv) {
           // labels in .section' requires PTX ISA .version 7.0 or later
           //
           gpuPM.addPass(mlir::createGpuSerializeToCubinPass(
-              "nvptx64-nvidia-cuda", "sm_35", "+ptx75"));
+              "nvptx64-nvidia-cuda", "sm_60", "+ptx75"));
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));

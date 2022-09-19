@@ -24,6 +24,7 @@
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -36,12 +37,14 @@
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Transforms/RegionUtils.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Ops.h"
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 
@@ -757,7 +760,6 @@ protected:
   }
 };
 
-<<<<<<< HEAD
 /// Pattern for lowering automatic stack allocations.
 struct CAllocaOpLowering : public AllocLikeOpLowering<memref::AllocaOp> {
 public:
@@ -1337,8 +1339,6 @@ populateCStyleFuncLoweringPatterns(RewritePatternSet &patterns,
 
 namespace {
 
-=======
->>>>>>> 8c8cdf1d00d3 (clang-format)
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   bool onlyGpuModules;
@@ -1355,7 +1355,7 @@ struct ConvertPolygeistToLLVMPass
     this->onlyGpuModules = onlyGpuModules;
   }
 
-  void convertModule(ModuleOp m) {
+  void convertModule(ModuleOp m, bool gpuModule) {
     const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
 
     if (useCStyleMemRef && useBarePtrCallConv) {
@@ -1364,9 +1364,18 @@ struct ConvertPolygeistToLLVMPass
       signalPassFailure();
       return;
     }
+    if (gpuModule) {
+      // Request C wrapper emission.
+      for (auto func : m.getOps<func::FuncOp>()) {
+        func->setAttr(LLVM::LLVMDialect::getEmitCWrapperAttrName(),
+                      UnitAttr::get(&getContext()));
+      }
+    }
 
     LowerToLLVMOptions options(&getContext(),
                                dataLayoutAnalysis.getAtOrAbove(m));
+    // TODO need to tweak options.indexBitwidth in some cases? consult
+    // LowerGpuOpsToNVVMOpsPass
     options.useBarePtrCallConv = useBarePtrCallConv;
     if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
       options.overrideIndexBitwidth(indexBitwidth);
@@ -1411,6 +1420,18 @@ struct ConvertPolygeistToLLVMPass
     for (int i = 0; i < 2; i++) {
 
       RewritePatternSet patterns(&getContext());
+
+      if (gpuModule) {
+        // Apply in-dialect lowering first. In-dialect lowering will replace ops
+        // which need to be lowered further, which is not supported by a single
+        // conversion pass.
+        RewritePatternSet gpuPatterns(&getContext());
+        populateGpuRewritePatterns(gpuPatterns);
+        (void)applyPatternsAndFoldGreedily(m, std::move(gpuPatterns));
+
+        populateGpuToNVVMConversionPatterns(converter, patterns);
+      }
+
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
       populateSCFToControlFlowConversionPatterns(patterns);
       populateForBreakToWhilePatterns(patterns);
@@ -1451,6 +1472,16 @@ struct ConvertPolygeistToLLVMPass
       };
 
       LLVMConversionTarget target(getContext());
+      if (gpuModule) {
+        target.addIllegalOp<func::FuncOp>();
+        target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
+        target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+        target.addIllegalDialect<gpu::GPUDialect>();
+        target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::Exp2Op, LLVM::FAbsOp,
+                            LLVM::FCeilOp, LLVM::FFloorOp, LLVM::LogOp, LLVM::Log10Op,
+                            LLVM::Log2Op, LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
+        target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
+      }
       target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
           [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
       target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
@@ -1523,12 +1554,12 @@ struct ConvertPolygeistToLLVMPass
           translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
 
       tmpModule->getRegion(0).takeBody(gpum->getRegion(0));
-      convertModule(tmpModule);
+      convertModule(tmpModule, /* gpuModule */ true);
       gpum->getRegion(0).takeBody(tmpModule->getRegion(0));
       tmpModule->erase();
     });
     if (!onlyGpuModules)
-      convertModule(m);
+      convertModule(m, /* gpuModule */ false);
   }
 };
 } // namespace
