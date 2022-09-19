@@ -728,46 +728,7 @@ int main(int argc, char **argv) {
     if (EmitCuda) {
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 8;
-      }
-
-      mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
-      gpuPM.addPass(mlir::createLowerAffinePass());
-      gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      // TODO specify index width for the conversion?
-      gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
-
-      // TODO make a pass for this
-      //
-      // need to tag functions to delete somehow
-      //
-      // or delete all unused private functions which should remove all device
-      // side cuda functions
-      if (mlir::failed(pm.run(module.get()))) {
-        module->dump();
-        return 7;
-      }
-      llvm::errs() << "beforeerase\n";
-      module->dump();
-      SmallVector<Operation *> toErase;
-      module->walk([&](mlir::LLVM::LLVMFuncOp fop) {
-        if (fop.getName().contains("_device_stub_") &&
-            isa<ModuleOp>(fop->getParentOp()))
-          toErase.push_back(fop);
-      });
-      module->walk([&](mlir::func::FuncOp fop) {
-        if (fop.getName().contains("_device_stub_") &&
-            isa<ModuleOp>(fop->getParentOp()))
-          toErase.push_back(fop);
-      });
-      for (auto fop : toErase) {
-        fop->erase();
-      }
-      llvm::errs() << "aftererase\n";
-
-      module->dump();
+      pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
@@ -806,8 +767,18 @@ int main(int argc, char **argv) {
         // options.useBarePtrCallConv = true;
 
         if (EmitCuda) {
+
+          {
+            mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+            gpuPM.addPass(mlir::createLowerAffinePass());
+            gpuPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+            // TODO specify index width for the conversion?
+            gpuPM.addPass(mlir::createLowerGpuOpsToNVVMOpsPass());
+          }
+
           pm3.addPass(
               polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
+
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           // TODO specify cubin pass params
           gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
