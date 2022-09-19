@@ -758,10 +758,10 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   return nullptr;
 }
 
-ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
+ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
   IfScope scope(*this);
 
-  auto loc = getMLIRLocation(fors->getLParenLoc());
+  auto loc = getMLIRLocation(stmt->getLParenLoc());
 
   auto i1Ty = builder.getIntegerType(1);
   auto type = mlir::MemRefType::get({}, i1Ty, {}, 0);
@@ -782,7 +782,9 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
 
   builder.setInsertionPointToStart(&condB);
 
-  if (auto *s = fors->getCond()) {
+  if (auto declStmt = stmt->getConditionVariableDeclStmt())
+    Visit(declStmt);
+  if (auto *s = stmt->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
@@ -809,7 +811,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
                                            std::vector<mlir::Value>()),
       loops.back().keepRunning, std::vector<mlir::Value>());
 
-  Visit(fors->getBody());
+  Visit(stmt->getBody());
   loops.pop_back();
 
   builder.create<mlir::cf::BranchOp>(loc, &condB);
@@ -822,6 +824,8 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *fors) {
 ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
   IfScope scope(*this);
   auto loc = getMLIRLocation(stmt->getIfLoc());
+  if (auto declStmt = stmt->getConditionVariableDeclStmt())
+    Visit(declStmt);
   auto cond = Visit(stmt->getCond()).getValue(loc, builder);
   assert(cond != nullptr && "must be a non-null");
 
