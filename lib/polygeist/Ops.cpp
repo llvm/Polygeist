@@ -5005,3 +5005,19 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       // RankReduction<memref::AllocaOp, scf::ParallelOp>,
       AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
+
+//===----------------------------------------------------------------------===//
+// GetFuncOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult GetFuncOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  // Verify that the result type is same as the type of the referenced
+  // memref.global op.
+  auto global =
+      symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, getNameAttr());
+  if (!global)
+    return emitOpError("'")
+           << getName() << "' does not reference a valid global funcOp";
+
+  return success();
+}

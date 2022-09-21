@@ -589,6 +589,29 @@ struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
   }
 };
 
+struct GetFuncOpConversion : public OpConversionPattern<polygeist::GetFuncOp> {
+  explicit GetFuncOpConversion(LLVMTypeConverter &converter)
+      : OpConversionPattern<polygeist::GetFuncOp>(converter,
+                                                  &converter.getContext()) {}
+
+  LogicalResult
+  matchAndRewrite(polygeist::GetFuncOp op,
+                  polygeist::GetFuncOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    TypeConverter *converter = getTypeConverter();
+    Type retType = op.getType();
+
+    Type convertedType = converter->convertType(retType);
+    if (!convertedType)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<LLVM::AddressOfOp>(op, convertedType,
+                                                   op.getName());
+
+    return success();
+  }
+};
+
 struct ReturnOpTypeConversion : public ConvertOpToLLVMPattern<LLVM::ReturnOp> {
   using ConvertOpToLLVMPattern<LLVM::ReturnOp>::ConvertOpToLLVMPattern;
 
@@ -641,9 +664,8 @@ struct ConvertPolygeistToLLVMPass
 
       converter.addConversion([&](async::TokenType type) { return type; });
 
-      patterns
-          .add<LLVMOpLowering, GlobalOpTypeConversion, ReturnOpTypeConversion>(
-              converter);
+      patterns.add<LLVMOpLowering, GlobalOpTypeConversion,
+                   ReturnOpTypeConversion, GetFuncOpConversion>(converter);
       patterns.add<URLLVMOpLowering>(converter);
 
       // Legality callback for operations that checks whether their operand and

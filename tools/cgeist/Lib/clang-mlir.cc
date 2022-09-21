@@ -3098,10 +3098,19 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   auto loc = getMLIRLocation(E->getLocation());
   auto name = E->getDecl()->getName().str();
 
-  if (auto tocall = dyn_cast<FunctionDecl>(E->getDecl()))
-    return ValueCategory(builder.create<LLVM::AddressOfOp>(
-                             loc, Glob.GetOrCreateLLVMFunction(tocall)),
+  if (auto tocall = dyn_cast<FunctionDecl>(E->getDecl())) {
+    auto f = Glob.GetOrCreateMLIRFunction(tocall);
+    auto FT = f.getFunctionType();
+    mlir::Type RT = LLVM::LLVMVoidType::get(f.getContext());
+    if (FT.getNumResults() != 0)
+      RT = FT.getResult(0);
+    LLVM::LLVMFunctionType LFT = LLVM::LLVMFunctionType::get(
+        RT, FT.getInputs(), /*unsupported presentlyFT.isVariadic()*/ false);
+
+    return ValueCategory(builder.create<polygeist::GetFuncOp>(
+                             loc, LLVM::LLVMPointerType::get(LFT), f.getName()),
                          /*isReference*/ true);
+  }
 
   if (auto VD = dyn_cast<VarDecl>(E->getDecl())) {
     if (Captures.find(VD) != Captures.end()) {
