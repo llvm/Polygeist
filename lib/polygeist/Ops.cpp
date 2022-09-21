@@ -5011,8 +5011,8 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 LogicalResult GetFuncOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  // Verify that the result type is same as the type of the referenced
-  // memref.global op.
+  // TODO: Verify that the result type is same as the type of the referenced
+  // func.func op.
   auto global =
       symbolTable.lookupNearestSymbolFrom<func::FuncOp>(*this, getNameAttr());
   if (!global)
