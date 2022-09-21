@@ -725,6 +725,7 @@ int main(int argc, char **argv) {
 
     if (EmitCuda) {
       pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(polygeist::createConvertParallelToGPUPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
