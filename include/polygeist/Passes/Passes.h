@@ -32,6 +32,7 @@ std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createConvertGpuModulePolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass> createRemoveDeviceFunctionsPass();
+std::unique_ptr<Pass> createConvertParallelToGPUPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
 } // namespace polygeist

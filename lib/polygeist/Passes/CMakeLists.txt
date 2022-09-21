@@ -15,6 +15,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   InnerSerialization.cpp
   ForBreakToWhile.cpp
   RemoveDeviceFunctions.cpp
+  ConvertParallelToGPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
