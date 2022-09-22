@@ -24,7 +24,7 @@ std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
-createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options);
+createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options, bool useCStyleMemRef);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 

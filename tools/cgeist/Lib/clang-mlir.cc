@@ -60,9 +60,14 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
 
+static cl::opt<bool> CStyleMemRef("c-style-memref", cl::init(true),
+                                  cl::desc("Use c style memrefs when possible"));
+
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
                       cl::desc("Use literal LLVM ABI for structs"));
+
+
 
 bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   if (!CombinedStructABI)
@@ -5196,8 +5201,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                         : cast<clang::ReferenceType>(t)->getPointeeType(),
                     &subRef, /*allowMerge*/ true);
 
-    if (!memRefABI ||
-        subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
+    if (!memRefABI)
+      return LLVM::LLVMPointerType::get(subType);
+    
+    if (!CStyleMemRef && subType.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType,
                     LLVM::LLVMPointerType, LLVM::LLVMFunctionType>())
       return LLVM::LLVMPointerType::get(subType);
 
@@ -5205,8 +5212,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       if (subType.isa<MemRefType>()) {
         assert(subRef);
         return subType;
-      } else
-        return LLVM::LLVMPointerType::get(subType);
+      } else {
+        if (!CStyleMemRef)
+          return LLVM::LLVMPointerType::get(subType);
+      }
     }
 
     if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
@@ -5218,8 +5227,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         return mlir::MemRefType::get(shape2, mt.getElementType(),
                                      MemRefLayoutAttrInterface(),
                                      mt.getMemorySpace());
-      } else
-        return LLVM::LLVMPointerType::get(subType);
+      } else {
+        if (!CStyleMemRef)
+          return LLVM::LLVMPointerType::get(subType);
+      }
     }
 
     if (isa<clang::RecordType>(PTT))

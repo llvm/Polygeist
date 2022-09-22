@@ -1207,10 +1207,12 @@ struct ConvertPolygeistToLLVMPass
   ConvertPolygeistToLLVMPass() = default;
   ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
                              bool useAlignedAlloc,
-                             const llvm::DataLayout &dataLayout) {
+                             const llvm::DataLayout &dataLayout,
+                             bool useCStyleMemRef) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
+    this->useCStyleMemRef = useCStyleMemRef;
   }
 
   void runOnOperation() override {
@@ -1352,7 +1354,7 @@ struct ConvertPolygeistToLLVMPass
 } // namespace
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
-    const LowerToLLVMOptions &options) {
+    const LowerToLLVMOptions &options, bool useCStyleMemRef) {
   auto allocLowering = options.allocLowering;
   // There is no way to provide additional patterns for pass, so
   // AllocLowering::None will always fail.
@@ -1362,7 +1364,7 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
-      options.dataLayout);
+      options.dataLayout, useCStyleMemRef);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -1370,5 +1372,5 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl, /*usecstylememref*/true);
 }

@@ -761,7 +761,7 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
         // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (mlir::failed(pm3.run(module.get()))) {
