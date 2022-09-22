@@ -75,6 +75,12 @@ int main(int argc, char **argv) {
   mlir::registerAffinePasses();
 
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(*ctx);
+  });
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
+    LLVM::LLVMArrayType::attachInterface<MemRefInsider>(*ctx);
+  });
+  registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMPointerType::attachInterface<MemRefInsider>(*ctx);
   });
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {

@@ -446,7 +446,9 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
 
+  LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
+  LLVM::LLVMArrayType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
   IndexType::attachInterface<PtrElementModel<IndexType>>(context);
@@ -761,7 +763,8 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
+        pm3.addPass(
+            polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
         // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (mlir::failed(pm3.run(module.get()))) {
