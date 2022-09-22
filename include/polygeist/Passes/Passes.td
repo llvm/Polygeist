@@ -130,7 +130,11 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp">
     Option<"dataLayout", "data-layout", "std::string",
            /*default=*/"\"\"",
            "String description (LLVM format) of the data layout that is "
-           "expected on the produced module">
+           "expected on the produced module">,
+    Option<"useCStyleMemRef", "use-c-style-memref", "bool",
+           /*default=*/"true",
+           "Use C-style nested-array lowering of memref instead of "
+           "the default MLIR descriptor structure">
   ];
 }
 
