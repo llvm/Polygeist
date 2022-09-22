@@ -472,6 +472,12 @@ int main(int argc, char **argv) {
     llvm::errs() << "</immediate: mlir>\n";
   }
 
+  int optLevel = 0;
+  if (Opt0) optLevel = 0;
+  if (Opt1) optLevel = 1;
+  if (Opt2) optLevel = 2;
+  if (Opt3) optLevel = 3;
+
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
@@ -801,8 +807,7 @@ int main(int argc, char **argv) {
           // ptxas application ptx input, line 536; error   : Feature 'Defining
           // labels in .section' requires PTX ISA .version 7.0 or later
           //
-          gpuPM.addPass(mlir::createGpuSerializeToCubinPass(
-              "nvptx64-nvidia-cuda", "sm_60", "+ptx75"));
+          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", "sm_60", "+ptx75", optLevel));
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
