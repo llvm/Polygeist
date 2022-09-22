@@ -8,10 +8,9 @@ To run it:
 
 ```sh
 # At the root directory of Polymer
-./scripts/get-polygeist.sh
+./scripts/build-with-polygeist.sh
 ```
 
 At the end of this script, `check-polymer` will be launched to perform the regression tests.
 
 Also, the `build` directory in the Polygeist project will be symlinked to the root of Polymer. You can access to all the binaries over there.
-
