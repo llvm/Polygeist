@@ -3297,8 +3297,8 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
 
     // Add the offset.
 
-    mlir::Type nt = getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(Base->getType()));
+    mlir::Type nt = getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+        QualType(RD->getTypeForDecl(), 0)));
 
     mlir::Value Offset = nullptr;
     if (isLLVMStructABI(RD, /*ST*/ nullptr)) {
@@ -3326,16 +3326,18 @@ mlir::Value MLIRScanner::GetAddressOfDerivedClass(
     }
 
     mlir::Value ptr = value;
-    if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>())
+    if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
       ptr = builder.create<LLVM::BitcastOp>(
           loc,
           LLVM::LLVMPointerType::get(builder.getI8Type(), PT.getAddressSpace()),
           ptr);
-    else
+    } else {
+      unsigned memorySpace =
+          ptr.getType().cast<mlir::MemRefType>().getMemorySpaceAsInt();
       ptr = builder.create<polygeist::Memref2PointerOp>(
-          loc,
-          LLVM::LLVMPointerType::get(builder.getI8Type(), PT.getAddressSpace()),
+          loc, LLVM::LLVMPointerType::get(builder.getI8Type(), memorySpace),
           ptr);
+    }
 
     mlir::Value idx[] = {Offset};
     ptr = builder.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idx);
@@ -3511,7 +3513,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       if (auto MT = ptr.getType().dyn_cast<MemRefType>())
         nullptr_llvm =
             builder.create<polygeist::Pointer2MemrefOp>(loc, MT, nullptr_llvm);
-      val = builder.create<arith::SelectOp>(loc, ne, val, nullptr_llvm);
+      val = builder.create<arith::SelectOp>(loc, ne, ptr, nullptr_llvm);
     }
     return ValueCategory(val, se.isReference);
   }
