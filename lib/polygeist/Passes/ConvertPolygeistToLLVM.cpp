@@ -132,6 +132,13 @@ struct Memref2PointerOpLowering
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
+    if (transformed.getSource().getType().isa<LLVM::LLVMPointerType>()) {
+      auto ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(),
+                                                  transformed.getSource());
+      rewriter.replaceOp(op, {ptr});
+      return success();
+    }
+
     // MemRefDescriptor sourceMemRef(operands.front());
     MemRefDescriptor targetMemRef(
         transformed.getSource()); // MemRefDescriptor::undef(rewriter, loc,
@@ -161,6 +168,11 @@ struct Pointer2MemrefOpLowering
     // MemRefDescriptor sourceMemRef(operands.front());
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
+    if (auto PT = convertedType.dyn_cast<LLVM::LLVMPointerType>()) {
+      rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, PT, adaptor.getSource());
+      return success();
+    }
+
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
     auto ptr = rewriter.create<LLVM::BitcastOp>(
         op.getLoc(), descr.getElementPtrType(), adaptor.getSource());
@@ -1372,5 +1384,6 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   // Option<...>'s to the pass in Passes.td. For now, we'll provide some dummy
   // default values to allow for pass creation.
   auto dl = llvm::DataLayout("");
-  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl, /*usecstylememref*/true);
+  return std::make_unique<ConvertPolygeistToLLVMPass>(false, 64u, false, dl,
+                                                      /*usecstylememref*/ true);
 }
