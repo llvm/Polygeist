@@ -723,12 +723,20 @@ public:
       return rewriter.notifyMatchFailure(loc, "unsupported alignment");
 
     Value outerSize = getOuterSize(allocOp, adaptor, rewriter);
+    Value totalSize = outerSize;
+    if (originalType.getRank() > 1) {
+      int64_t innerSizes = 1;
+      for (int64_t size : originalType.getShape().drop_front())
+        innerSizes *= size;
+      totalSize = rewriter.createOrFold<LLVM::MulOp>(
+          loc, outerSize, createIndexConstant(rewriter, loc, innerSizes));
+    }
     Value null = rewriter.create<LLVM::NullOp>(loc, convertedType);
     auto next =
         rewriter.create<LLVM::GEPOp>(loc, convertedType, null, LLVM::GEPArg(1));
     Value elementSize =
         rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), next);
-    Value size = rewriter.create<LLVM::MulOp>(loc, outerSize, elementSize);
+    Value size = rewriter.create<LLVM::MulOp>(loc, totalSize, elementSize);
 
     auto module = allocOp->getParentOfType<ModuleOp>();
     LLVM::LLVMFuncOp mallocFunc =
