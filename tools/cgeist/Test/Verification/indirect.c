@@ -18,10 +18,13 @@ int main() {
 // CHECK-DAG:     %c3_i32 = arith.constant 3 : i32
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = llvm.mlir.addressof @str0 : !llvm.ptr<array<11 x i8>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<11 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %2 = polygeist.get_func @square : !llvm.ptr<func<i32 (i32)>>
-// CHECK-NEXT:     %3 = call @meta(%2, %c3_i32) : (!llvm.ptr<func<i32 (i32)>>, i32) -> i32
-// CHECK-NEXT:     %4 = llvm.call @printf(%1, %c3_i32, %3) : (!llvm.ptr<i8>, i32, i32) -> i32
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<array<11 x
+// i8>>) -> !llvm.ptr<i8> CHECK-NEXT:     %2 = polygeist.get_func @square :
+// !llvm.ptr<func<i32 (i32)>> CHECK-NEXT:     %3 =
+// "polygeist.pointer2memref"(%2) : (!llvm.ptr<func<i32 (i32)>>) ->
+// memref<?x!llvm.func<i32 (i32)>> CHECK-NEXT:     %4 = call @meta(%3, %c3_i32)
+// : (memref<?x!llvm.func<i32 (i32)>>, i32) -> i32 CHECK-NEXT:     %5 =
+// llvm.call @printf(%1, %c3_i32, %4) : (!llvm.ptr<i8>, i32, i32) -> i32
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
 
