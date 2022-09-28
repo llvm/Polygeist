@@ -1,4 +1,5 @@
 // RUN: cgeist %s --function=foo -S | FileCheck %s
+
 char* foo(float *dvalue) {
 	return (char *)(dvalue);
 }

@@ -19,6 +19,8 @@ using namespace mlir::arith;
 using namespace mlir::func;
 using namespace mlirclang;
 
+extern llvm::cl::opt<bool> CStyleMemRef;
+
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
 /// callee arg type. We only deal with the cast where src and dst have the same
 /// shape size and elem type, and just the first shape differs: src has -1 and
@@ -1418,47 +1420,49 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       "cudaOccupancyMaxActiveBlocksPerMultiprocessor",
       "cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
       "cudaEventRecord"};
-  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      StringRef name;
-      if (auto *CC = dyn_cast<CXXConstructorDecl>(sr->getDecl()))
-        name =
-            Glob.CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
-      else if (auto *CC = dyn_cast<CXXDestructorDecl>(sr->getDecl()))
-        name =
-            Glob.CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
-      else if (sr->getDecl()->hasAttr<CUDAGlobalAttr>())
-        name = Glob.CGM.getMangledName(GlobalDecl(
-            cast<FunctionDecl>(sr->getDecl()), KernelReferenceKind::Kernel));
-      else
-        name = Glob.CGM.getMangledName(sr->getDecl());
-      if (funcs.count(name.str()) || name.startswith("mkl_") ||
-          name.startswith("MKL_") || name.startswith("cublas") ||
-          name.startswith("cblas_")) {
+  if (!CStyleMemRef) {
+    if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+      if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+        StringRef name;
+        if (auto *CC = dyn_cast<CXXConstructorDecl>(sr->getDecl()))
+          name = Glob.CGM.getMangledName(
+              GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+        else if (auto *CC = dyn_cast<CXXDestructorDecl>(sr->getDecl()))
+          name = Glob.CGM.getMangledName(
+              GlobalDecl(CC, CXXDtorType::Dtor_Complete));
+        else if (sr->getDecl()->hasAttr<CUDAGlobalAttr>())
+          name = Glob.CGM.getMangledName(GlobalDecl(
+              cast<FunctionDecl>(sr->getDecl()), KernelReferenceKind::Kernel));
+        else
+          name = Glob.CGM.getMangledName(sr->getDecl());
+        if (funcs.count(name.str()) || name.startswith("mkl_") ||
+            name.startswith("MKL_") || name.startswith("cublas") ||
+            name.startswith("cblas_")) {
 
-        std::vector<mlir::Value> args;
-        for (auto *a : expr->arguments()) {
-          args.push_back(getLLVM(a));
-        }
-        mlir::Value called;
+          std::vector<mlir::Value> args;
+          for (auto *a : expr->arguments()) {
+            args.push_back(getLLVM(a));
+          }
+          mlir::Value called;
 
-        if (callee) {
-          auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
-          called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
-                       .getResult();
-        } else {
-          args.insert(args.begin(), getLLVM(expr->getCallee()));
-          SmallVector<mlir::Type> RTs = {Glob.typeTranslator.translateType(
-              anonymize(getLLVMType(expr->getType())))};
-          if (RTs[0].isa<LLVM::LLVMVoidType>())
-            RTs.clear();
-          called =
-              builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult();
+          if (callee) {
+            auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
+            called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
+                         .getResult();
+          } else {
+            args.insert(args.begin(), getLLVM(expr->getCallee()));
+            SmallVector<mlir::Type> RTs = {Glob.typeTranslator.translateType(
+                anonymize(getLLVMType(expr->getType())))};
+            if (RTs[0].isa<LLVM::LLVMVoidType>())
+              RTs.clear();
+            called =
+                builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult();
+          }
+          return ValueCategory(called, /*isReference*/ expr->isLValue() ||
+                                           expr->isXValue());
         }
-        return ValueCategory(called, /*isReference*/ expr->isLValue() ||
-                                         expr->isXValue());
       }
-    }
+  }
 
   if (!callee || callee->isVariadic()) {
     bool isReference = expr->isLValue() || expr->isXValue();

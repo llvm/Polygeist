@@ -66,6 +66,23 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
 
     auto viewMemRefType = subViewOp.getType().cast<MemRefType>();
 
+    if (transformed.getSource().getType().isa<LLVM::LLVMPointerType>()) {
+      SmallVector<Value, 2> indices = {transformed.getIndex()};
+      auto t = transformed.getSource().getType().cast<LLVM::LLVMPointerType>();
+      if (viewMemRefType.getShape().size() !=
+          sourceMemRefType.getShape().size()) {
+        auto zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
+        indices.push_back(zero);
+        t = LLVM::LLVMPointerType::get(
+            t.getElementType().cast<LLVM::LLVMArrayType>().getElementType(),
+            t.getAddressSpace());
+      }
+      auto ptr = rewriter.create<LLVM::GEPOp>(loc, t, transformed.getSource(),
+                                              indices);
+      rewriter.replaceOp(subViewOp, {ptr});
+      return success();
+    }
+
     MemRefDescriptor targetMemRef(transformed.getSource());
     Value prev = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {transformed.getIndex()};

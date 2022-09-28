@@ -60,9 +60,8 @@ static cl::opt<bool> memRefABI("memref-abi", cl::init(true),
 cl::opt<std::string> PrefixABI("prefix-abi", cl::init(""),
                                cl::desc("Prefix for emitted symbols"));
 
-static cl::opt<bool>
-    CStyleMemRef("c-style-memref", cl::init(true),
-                 cl::desc("Use c style memrefs when possible"));
+cl::opt<bool> CStyleMemRef("c-style-memref", cl::init(true),
+                           cl::desc("Use c style memrefs when possible"));
 
 static cl::opt<bool>
     CombinedStructABI("struct-abi", cl::init(true),
@@ -4692,7 +4691,7 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
         }
       }
     }
-    if (llvmType) {
+    if (llvmType && !CStyleMemRef) {
       types.push_back(typeTranslator.translateType(
           anonymize(getLLVMType(parm->getType()))));
     } else {
