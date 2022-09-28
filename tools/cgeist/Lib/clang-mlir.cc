@@ -3658,7 +3658,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
                                  loc, ty, scalar, getConstantIndex(0)),
                              /*isReference*/ false);
       }
-      if (ut.getShape().size() != mt.getShape().size()) {
+      if (ut.getShape().size() != mt.getShape().size() ||
+          ut.getElementType() != mt.getElementType()) {
         return ValueCategory(
             builder.create<polygeist::Pointer2MemrefOp>(
                 loc, ty,
