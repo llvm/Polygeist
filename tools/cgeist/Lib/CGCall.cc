@@ -982,43 +982,45 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
-  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if ((sr->getDecl()->getIdentifier() &&
-           (sr->getDecl()->getName() == "fscanf" ||
-            sr->getDecl()->getName() == "scanf" ||
-            sr->getDecl()->getName() == "__isoc99_sscanf" ||
-            sr->getDecl()->getName() == "sscanf")) ||
-          (isa<CXXOperatorCallExpr>(expr) &&
-           cast<CXXOperatorCallExpr>(expr)->getOperator() ==
-               OO_GreaterGreater)) {
-        const auto *tocall = EmitCallee(expr->getCallee());
-        auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
+  if (!CStyleMemRef) {
+    if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
+      if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
+        if ((sr->getDecl()->getIdentifier() &&
+             (sr->getDecl()->getName() == "fscanf" ||
+              sr->getDecl()->getName() == "scanf" ||
+              sr->getDecl()->getName() == "__isoc99_sscanf" ||
+              sr->getDecl()->getName() == "sscanf")) ||
+            (isa<CXXOperatorCallExpr>(expr) &&
+             cast<CXXOperatorCallExpr>(expr)->getOperator() ==
+             OO_GreaterGreater)) {
+          const auto *tocall = EmitCallee(expr->getCallee());
+          auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
-        std::vector<mlir::Value> args;
-        std::vector<std::pair<mlir::Value, mlir::Value>> ops;
-        std::map<const void *, size_t> counts;
-        for (auto *a : expr->arguments()) {
-          auto v = getLLVM(a);
-          if (auto toptr = v.getDefiningOp<polygeist::Memref2PointerOp>()) {
-            auto T = toptr.getType().cast<LLVM::LLVMPointerType>();
-            auto idx = counts[T.getAsOpaquePointer()]++;
-            auto aop = allocateBuffer(idx, T);
-            args.push_back(aop.getResult());
-            ops.emplace_back(aop.getResult(), toptr.getSource());
-          } else
-            args.push_back(v);
+          std::vector<mlir::Value> args;
+          std::vector<std::pair<mlir::Value, mlir::Value>> ops;
+          std::map<const void *, size_t> counts;
+          for (auto *a : expr->arguments()) {
+            auto v = getLLVM(a);
+            if (auto toptr = v.getDefiningOp<polygeist::Memref2PointerOp>()) {
+              auto T = toptr.getType().cast<LLVM::LLVMPointerType>();
+              auto idx = counts[T.getAsOpaquePointer()]++;
+              auto aop = allocateBuffer(idx, T);
+              args.push_back(aop.getResult());
+              ops.emplace_back(aop.getResult(), toptr.getSource());
+            } else
+              args.push_back(v);
+          }
+          auto called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
+          for (auto pair : ops) {
+            auto lop = builder.create<mlir::LLVM::LoadOp>(loc, pair.first);
+            builder.create<mlir::memref::StoreOp>(
+                                                  loc, lop, pair.second,
+                                                  std::vector<mlir::Value>({getConstantIndex(0)}));
+          }
+          return ValueCategory(called.getResult(), /*isReference*/ false);
         }
-        auto called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args);
-        for (auto pair : ops) {
-          auto lop = builder.create<mlir::LLVM::LoadOp>(loc, pair.first);
-          builder.create<mlir::memref::StoreOp>(
-              loc, lop, pair.second,
-              std::vector<mlir::Value>({getConstantIndex(0)}));
-        }
-        return ValueCategory(called.getResult(), /*isReference*/ false);
       }
-    }
+  }
 
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
     if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {

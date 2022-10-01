@@ -82,9 +82,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
                                               indices);
       std::vector ptrs = {ptr.getResult()};
       rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(
-          subViewOp,
-          LLVM::LLVMPointerType::get(viewMemRefType.getElementType(),
-                                     viewMemRefType.getMemorySpaceAsInt()),
+          subViewOp, getTypeConverter()->convertType(subViewOp.getType()),
           ptrs);
       return success();
     }

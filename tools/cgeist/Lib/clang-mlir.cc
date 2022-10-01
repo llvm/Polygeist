@@ -330,13 +330,16 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
   }
 
   Stmt *stmt = fd->getBody();
-  assert(stmt);
-  if (ShowAST) {
-    stmt->dump();
-  }
-  Visit(stmt);
+  if (stmt) {
+    if (ShowAST) {
+      stmt->dump();
+    }
+    Visit(stmt);
 
-  loc = getMLIRLocation(stmt->getEndLoc());
+    loc = getMLIRLocation(stmt->getEndLoc());
+  } else {
+    loc = getMLIRLocation(fd->getEndLoc());
+  }
 
   if (function.getFunctionType().getResults().size()) {
     mlir::Value vals[1] = {
@@ -1260,6 +1263,13 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
     mlir::Value val =
         Visit(*expr->placement_arg_begin()).getValue(loc, builder);
     if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+      if (auto mtin = val.getType().dyn_cast<mlir::MemRefType>()) {
+        val = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(mtin.getElementType(),
+                                       mtin.getMemorySpaceAsInt()),
+            val);
+      }
       arrayCons = alloc =
           builder.create<polygeist::Pointer2MemrefOp>(loc, mt, val);
     } else {
@@ -1987,13 +1997,19 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
 
     if (auto MT = val.getType().dyn_cast<mlir::MemRefType>()) {
       val = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+          loc,
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
+          val);
     }
+    auto postTy = getMLIRType(U->getType()).cast<mlir::IntegerType>();
 
     if (auto LT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
-      auto ne = builder.create<mlir::LLVM::ICmpOp>(
+      mlir::Value ne = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::eq, val, nullptr_llvm);
+      if (postTy.getWidth() > 1)
+        ne = builder.create<arith::ExtUIOp>(loc, postTy, ne);
       return ValueCategory(ne, /*isReference*/ false);
     }
 
@@ -2010,7 +2026,6 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     auto c1 = builder.create<ConstantIntOp>(loc, 1, val.getType());
     mlir::Value res = builder.create<XOrIOp>(loc, val, c1);
 
-    auto postTy = getMLIRType(U->getType()).cast<mlir::IntegerType>();
     if (postTy.getWidth() > 1)
       res = builder.create<arith::ExtUIOp>(loc, postTy, res);
     return ValueCategory(res, /*isReference*/ false);
@@ -3196,14 +3211,22 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     }
 
     auto gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"");
-    auto gv2 = builder.create<memref::GetGlobalOp>(loc, gv.first.type(),
-                                                   gv.first.getName());
+
+    auto mt = gv.first.type();
+    auto gv2 = builder.create<memref::GetGlobalOp>(loc, mt, gv.first.getName());
+    auto shape = std::vector<int64_t>(mt.getShape());
+    shape[0] = -1;
+    auto val = builder.create<memref::CastOp>(
+        loc,
+        MemRefType::get(shape, mt.getElementType(), MemRefLayoutAttrInterface(),
+                        mt.getMemorySpace()),
+        gv2);
     bool isArray = gv.second;
     // TODO check reference
     if (isArray)
-      return ValueCategory(gv2, /*isReference*/ true);
+      return ValueCategory(val, /*isReference*/ true);
     else
-      return ValueCategory(gv2, /*isReference*/ true);
+      return ValueCategory(val, /*isReference*/ true);
     // return gv2;
   }
   E->dump();
@@ -4089,7 +4112,14 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
 
   auto trueExpr = Visit(E->getTrueExpr());
 
-  bool isReference = E->isLValue() || E->isXValue();
+  builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
+
+  auto falseExpr = Visit(E->getFalseExpr());
+
+  bool isReference = E->isLValue() || E->isXValue() ||
+                     (trueExpr.isReference && falseExpr.isReference);
+
+  builder.setInsertionPointToEnd(&ifOp.getThenRegion().back());
 
   std::vector<mlir::Value> truearray;
   if (!E->getType()->isVoidType()) {
@@ -4117,9 +4147,8 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
     builder.create<mlir::scf::YieldOp>(loc, truearray);
   }
 
-  builder.setInsertionPointToStart(&ifOp.getElseRegion().back());
+  builder.setInsertionPointToEnd(&ifOp.getElseRegion().back());
 
-  auto falseExpr = Visit(E->getFalseExpr());
   std::vector<mlir::Value> falsearray;
   if (!E->getType()->isVoidType()) {
     mlir::Value falsev;
@@ -4795,7 +4824,6 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
 void MLIRASTConsumer::run() {
   while (functionsToEmit.size()) {
     const FunctionDecl *FD = functionsToEmit.front();
-    assert(FD->getBody());
     functionsToEmit.pop_front();
     assert(FD->getTemplatedKind() != FunctionDecl::TK_FunctionTemplate);
     assert(FD->getTemplatedKind() !=
