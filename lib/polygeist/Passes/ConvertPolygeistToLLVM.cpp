@@ -40,7 +40,8 @@
 using namespace mlir;
 using namespace polygeist;
 
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module);
+mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg);
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
 /// Conversion pattern that transforms a subview op into:
@@ -555,16 +556,13 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           types.push_back(v.getType());
         auto ST = LLVM::LLVMStructType::getLiteral(ctx, types);
 
-        auto mallocf = GetOrCreateMallocFunction(module);
-
-        Value args[] = {rewriter.create<arith::IndexCastOp>(
+        Value arg = rewriter.create<arith::IndexCastOp>(
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
-                                                   ST))};
+                                                   ST));
         mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
             loc, LLVM::LLVMPointerType::get(ST),
-            rewriter.create<mlir::LLVM::CallOp>(loc, mallocf, args)
-                .getResult());
+            callMalloc(rewriter, module, loc, arg));
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -729,6 +727,7 @@ public:
   LogicalResult
   matchAndRewrite(memref::AllocOp allocOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    auto module = allocOp->getParentOfType<ModuleOp>();
     Location loc = allocOp.getLoc();
     MemRefType originalType = allocOp.getType();
     auto convertedType = getTypeConverter()
@@ -755,15 +754,21 @@ public:
         rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), next);
     Value size = rewriter.create<LLVM::MulOp>(loc, totalSize, elementSize);
 
-    auto module = allocOp->getParentOfType<ModuleOp>();
-    LLVM::LLVMFuncOp mallocFunc =
-        getTypeConverter()->getOptions().useGenericFunctions
-            ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType())
-            : LLVM::lookupOrCreateMallocFn(module, getIndexType());
-    Value allocated =
-        rewriter.create<LLVM::CallOp>(loc, mallocFunc, size).getResult();
-    rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
-                                                 allocated);
+    if (auto F = module.lookupSymbol<mlir::func::FuncOp>("malloc")) {
+      Value allocated =
+          rewriter.create<func::CallOp>(loc, F, size).getResult(0);
+      rewriter.replaceOpWithNewOp<polygeist::Memref2PointerOp>(
+          allocOp, convertedType, allocated);
+    } else {
+      LLVM::LLVMFuncOp mallocFunc =
+          getTypeConverter()->getOptions().useGenericFunctions
+              ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType())
+              : LLVM::lookupOrCreateMallocFn(module, getIndexType());
+      Value allocated =
+          rewriter.create<LLVM::CallOp>(loc, mallocFunc, size).getResult();
+      rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
+                                                   allocated);
+    }
     return success();
   }
 };
@@ -777,13 +782,20 @@ public:
   matchAndRewrite(memref::DeallocOp deallocOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     auto module = deallocOp->getParentOfType<ModuleOp>();
-    LLVM::LLVMFuncOp freeFunc =
-        getTypeConverter()->getOptions().useGenericFunctions
-            ? LLVM::lookupOrCreateGenericFreeFn(module)
-            : LLVM::lookupOrCreateFreeFn(module);
-    Value casted = rewriter.create<LLVM::BitcastOp>(
-        deallocOp->getLoc(), getVoidPtrType(), adaptor.getMemref());
-    rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc, casted);
+    if (auto F = module.lookupSymbol<mlir::func::FuncOp>("free")) {
+      Value casted = rewriter.create<polygeist::Pointer2MemrefOp>(
+          deallocOp->getLoc(), MemRefType::get({-1}, rewriter.getI8Type()),
+          adaptor.getMemref());
+      rewriter.replaceOpWithNewOp<func::CallOp>(deallocOp, F, casted);
+    } else {
+      LLVM::LLVMFuncOp freeFunc =
+          getTypeConverter()->getOptions().useGenericFunctions
+              ? LLVM::lookupOrCreateGenericFreeFn(module)
+              : LLVM::lookupOrCreateFreeFn(module);
+      Value casted = rewriter.create<LLVM::BitcastOp>(
+          deallocOp->getLoc(), getVoidPtrType(), adaptor.getMemref());
+      rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc, casted);
+    }
     return success();
   }
 };

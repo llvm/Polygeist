@@ -41,7 +41,8 @@ emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   return iterationCounts;
 }
 
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(mlir::ModuleOp module);
+mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg);
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
 
 template <typename T>
@@ -91,6 +92,7 @@ mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
   return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
 }
 
+/*
 template <>
 mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
@@ -113,7 +115,7 @@ mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
                                            value.getLoc(), sz.getType(), iter));
   }
   auto m = val->getParentOfType<ModuleOp>();
-  auto allocfn = GetOrCreateMallocFunction(m);
-  return rewriter.create<LLVM::CallOp>(value.getLoc(), allocfn, sz);
+  return callMalloc(rewriter, m, value.getLoc(), sz);
 }
+*/
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_

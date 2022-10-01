@@ -1281,16 +1281,10 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
       (void)InitializeValueByInitListExpr(alloc, expr->getInitializer());
 
   } else {
-    auto i64 = mlir::IntegerType::get(count.getContext(), 64);
     auto typeSize = getTypeSize(loc, expr->getAllocatedType());
-    mlir::Value args[1] = {builder.create<arith::MulIOp>(loc, typeSize, count)};
-    args[0] = builder.create<IndexCastOp>(loc, i64, args[0]);
+    mlir::Value arg = builder.create<arith::MulIOp>(loc, typeSize, count);
     arrayCons = alloc = builder.create<mlir::LLVM::BitcastOp>(
-        loc, ty,
-        builder
-            .create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateMallocFunction(),
-                                        args)
-            ->getResult(0));
+        loc, ty, Glob.CallMalloc(builder, loc, arg));
     auto PT = ty.cast<LLVM::LLVMPointerType>();
     if (expr->isArray())
       arrayCons = builder.create<mlir::LLVM::BitcastOp>(
@@ -2410,6 +2404,13 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   case clang::BinaryOperator::Opcode::BO_LAnd: {
     mlir::Type types[] = {builder.getIntegerType(1)};
     auto cond = lhs.getValue(loc, builder);
+    if (auto mt = cond.getType().dyn_cast<mlir::MemRefType>()) {
+      cond = builder.create<polygeist::Memref2PointerOp>(
+          loc,
+          LLVM::LLVMPointerType::get(mt.getElementType(),
+                                     mt.getMemorySpaceAsInt()),
+          cond);
+    }
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
@@ -4058,6 +4059,13 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   auto loc = getMLIRLocation(E->getExprLoc());
   auto cond = Visit(E->getCond()).getValue(loc, builder);
   assert(cond != nullptr);
+  if (auto mt = cond.getType().dyn_cast<mlir::MemRefType>()) {
+    cond = builder.create<polygeist::Memref2PointerOp>(
+        loc,
+        LLVM::LLVMPointerType::get(mt.getElementType(),
+                                   mt.getMemorySpaceAsInt()),
+        cond);
+  }
   if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
     cond = builder.create<mlir::LLVM::ICmpOp>(
@@ -4145,21 +4153,42 @@ ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
   return off;
 }
 
-mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateMallocFunction() {
+mlir::Value MLIRASTConsumer::CallMalloc(mlir::OpBuilder &builder,
+                                        mlir::Location loc, mlir::Value arg) {
+  mlir::OpBuilder fbuilder(module->getContext());
+  fbuilder.setInsertionPointToStart(module->getBody());
   std::string name = "malloc";
-  if (llvmFunctions.find(name) != llvmFunctions.end()) {
-    return llvmFunctions[name];
-  }
   auto ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+  if (CStyleMemRef) {
+    if (functions.find(name) == functions.end()) {
+      auto funcType = fbuilder.getFunctionType(
+          types, mlir::MemRefType::get({-1}, builder.getI8Type()));
+      functions[name] =
+          fbuilder.create<mlir::func::FuncOp>(module->getLoc(), name, funcType);
+    }
+    std::vector args = {arg};
+    auto callOp =
+        builder.create<mlir::func::CallOp>(loc, functions[name], args);
 
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  mlir::OpBuilder builder(module->getContext());
-  builder.setInsertionPointToStart(module->getBody());
-  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
-             module->getLoc(), name, llvmFnType, lnk);
+    return callOp->getResult(0);
+  } else {
+
+    if (llvmFunctions.find(name) == llvmFunctions.end()) {
+      auto llvmFnType = LLVM::LLVMFunctionType::get(
+          LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
+          false);
+      LLVM::Linkage lnk = LLVM::Linkage::External;
+      llvmFunctions[name] = fbuilder.create<LLVM::LLVMFuncOp>(
+          module->getLoc(), name, llvmFnType, lnk);
+    }
+    auto i64 = mlir::IntegerType::get(ctx, 64);
+    arg = builder.create<IndexCastOp>(loc, i64, arg);
+    std::vector args = {arg};
+    auto callOp =
+        builder.create<mlir::LLVM::CallOp>(loc, llvmFunctions[name], args);
+    return callOp->getResult(0);
+  }
 }
 mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
   std::string name = "free";
@@ -4729,6 +4758,7 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
   }
   mlir::OpBuilder builder(module->getContext());
   auto funcType = builder.getFunctionType(types, rettypes);
+
   mlir::func::FuncOp function = mlir::func::FuncOp(mlir::func::FuncOp::create(
       getMLIRLocation(FD->getLocation()), name, funcType));
 
@@ -5247,7 +5277,12 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
     if (PTT->isVoidType()) {
       llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
-      return typeTranslator.translateType(T);
+      auto MT = typeTranslator.translateType(T);
+      if (!CStyleMemRef)
+        return MT;
+      else
+        return MemRefType::get(
+            {-1}, MT.cast<LLVM::LLVMPointerType>().getElementType());
     }
     bool subRef = false;
     auto subType =

@@ -147,24 +147,35 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 // TODO
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
-  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc"))))
-    return fn;
-  auto *ctx = module->getContext();
-  mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+  std::vector args = {arg};
+  if (auto fn = dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
+          module, builder.getStringAttr("malloc")))) {
+    return ibuilder.create<mlir::func::CallOp>(loc, fn, args)->getResult(0);
+  }
+  if (!dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(
+          module, builder.getStringAttr("malloc")))) {
+    auto *ctx = module->getContext();
+    mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
+    auto llvmFnType = LLVM::LLVMFunctionType::get(
+        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
+        false);
 
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  builder.setInsertionPointToStart(module.getBody());
-  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
-                                          lnk);
+    LLVM::Linkage lnk = LLVM::Linkage::External;
+    builder.setInsertionPointToStart(module.getBody());
+    builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
+                                     lnk);
+  }
+
+  auto fn = cast<LLVM::LLVMFuncOp>(
+      symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc")));
+  return ibuilder.create<mlir::LLVM::CallOp>(loc, fn, args)->getResult(0);
 }
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
   static std::mutex _mutex;
@@ -477,14 +488,11 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee().value() == "cudaMalloc" ||
                call.getCallee().value() == "cudaMallocHost") {
-      auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
-      Value args[] = {call.getOperand(1)};
-      if (args[0].getType().cast<IntegerType>().getWidth() < 64)
-        args[0] =
-            bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
-      mlir::Value alloc =
-          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult();
+      Value arg = call.getOperand(1);
+      if (arg.getType().cast<IntegerType>().getWidth() < 64)
+        arg = bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), arg);
+      mlir::Value alloc = callMalloc(bz, getOperation(), call.getLoc(), arg);
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
       {
         auto retv = bz.create<ConstantIntOp>(

@@ -249,6 +249,13 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     if (auto *s = fors->getCond()) {
       auto condRes = Visit(s);
       auto cond = condRes.getValue(loc, builder);
+      if (auto mt = cond.getType().dyn_cast<mlir::MemRefType>()) {
+        cond = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(mt.getElementType(),
+                                       mt.getMemorySpaceAsInt()),
+            cond);
+      }
       if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
         auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
         cond = builder.create<mlir::LLVM::ICmpOp>(
