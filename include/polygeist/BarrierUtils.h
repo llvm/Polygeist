@@ -92,7 +92,6 @@ mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
   return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
 }
 
-/*
 template <>
 mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
@@ -117,5 +116,5 @@ mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
   auto m = val->getParentOfType<ModuleOp>();
   return callMalloc(rewriter, m, value.getLoc(), sz);
 }
-*/
+
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_

@@ -992,7 +992,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               sr->getDecl()->getName() == "sscanf")) ||
             (isa<CXXOperatorCallExpr>(expr) &&
              cast<CXXOperatorCallExpr>(expr)->getOperator() ==
-             OO_GreaterGreater)) {
+                 OO_GreaterGreater)) {
           const auto *tocall = EmitCallee(expr->getCallee());
           auto strcmpF = Glob.GetOrCreateLLVMFunction(tocall);
 
@@ -1014,8 +1014,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           for (auto pair : ops) {
             auto lop = builder.create<mlir::LLVM::LoadOp>(loc, pair.first);
             builder.create<mlir::memref::StoreOp>(
-                                                  loc, lop, pair.second,
-                                                  std::vector<mlir::Value>({getConstantIndex(0)}));
+                loc, lop, pair.second,
+                std::vector<mlir::Value>({getConstantIndex(0)}));
           }
           return ValueCategory(called.getResult(), /*isReference*/ false);
         }
