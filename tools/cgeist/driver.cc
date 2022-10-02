@@ -212,6 +212,7 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   void *P = (void *)(intptr_t)GetExecutablePath;
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
+
 static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
@@ -220,9 +221,8 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::cl::ResetAllOptionOccurrences();
 
   llvm::BumpPtrAllocator A;
-  llvm::StringSaver Saver(A);
-  llvm::cl::ExpandResponseFiles(Saver, &llvm::cl::TokenizeGNUCommandLine, ArgV,
-                                /*MarkEOLs=*/false);
+  llvm::cl::ExpansionContext ECtx(A, llvm::cl::TokenizeGNUCommandLine);
+  ECtx.expandResponseFiles(ArgV);
   StringRef Tool = ArgV[1];
   void *GetExecutablePathVP = (void *)(intptr_t)GetExecutablePath;
   if (Tool == "-cc1")
@@ -446,7 +446,9 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::linalg::LinalgDialect>();
   context.getOrLoadDialect<mlir::polygeist::PolygeistDialect>();
 
+  LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMPointerType::attachInterface<MemRefInsider>(context);
+  LLVM::LLVMArrayType::attachInterface<MemRefInsider>(context);
   LLVM::LLVMStructType::attachInterface<MemRefInsider>(context);
   MemRefType::attachInterface<PtrElementModel<MemRefType>>(context);
   IndexType::attachInterface<PtrElementModel<IndexType>>(context);
@@ -761,7 +763,8 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options));
+        pm3.addPass(
+            polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
         // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (mlir::failed(pm3.run(module.get()))) {

@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polygeist/Ops.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/AffineExpr.h"
@@ -20,7 +20,7 @@
 #include "polygeist/PolygeistOps.cpp.inc"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/Utils/Utils.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -384,7 +384,7 @@ static bool mayAlias(Value v, Value v2) {
 
   if (auto glob = v.getDefiningOp<memref::GetGlobalOp>()) {
     if (auto Aglob = v2.getDefiningOp<memref::GetGlobalOp>()) {
-      return glob.name() == Aglob.name();
+      return glob.getName() == Aglob.getName();
     }
   }
 
@@ -644,7 +644,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
                                                        subindex.getSource());
       } else if (auto loadOp = dyn_cast<memref::LoadOp>(use.getOwner())) {
         if (loadOp.getMemref() == subindex) {
-          SmallVector<Value, 4> indices = loadOp.indices();
+          SmallVector<Value, 4> indices = loadOp.getIndices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
               subindex.getSource()
                   .getType()
@@ -676,7 +676,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
-          SmallVector<Value, 4> indices = storeOp.indices();
+          SmallVector<Value, 4> indices = storeOp.getIndices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
               subindex.getSource()
                   .getType()
@@ -707,7 +707,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
         }
       } else if (auto storeOp = dyn_cast<memref::AtomicRMWOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
-          SmallVector<Value, 4> indices = storeOp.indices();
+          SmallVector<Value, 4> indices = storeOp.getIndices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
               subindex.getSource()
                   .getType()
@@ -733,7 +733,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
                      .getShape()
                      .size() == indices.size());
           rewriter.replaceOpWithNewOp<memref::AtomicRMWOp>(
-              storeOp, storeOp.getType(), storeOp.kind(), storeOp.getValue(),
+              storeOp, storeOp.getType(), storeOp.getKind(), storeOp.getValue(),
               subindex.getSource(), indices);
           changed = true;
         }
@@ -843,7 +843,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
                                                        subindex.getSource());
       } else if (auto loadOp = dyn_cast<memref::LoadOp>(use.getOwner())) {
         if (loadOp.getMemref() == subindex) {
-          SmallVector<Value, 4> indices = loadOp.indices();
+          SmallVector<Value, 4> indices = loadOp.getIndices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
               subindex.getSource()
                   .getType()
@@ -878,7 +878,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
         }
       } else if (auto storeOp = dyn_cast<memref::StoreOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
-          SmallVector<Value, 4> indices = storeOp.indices();
+          SmallVector<Value, 4> indices = storeOp.getIndices();
           if (subindex.getType().cast<MemRefType>().getShape().size() ==
               subindex.getSource()
                   .getType()
@@ -1539,7 +1539,7 @@ public:
 template <>
 Value MetaPointer2Memref<memref::LoadOp>::computeIndex(
     memref::LoadOp op, size_t i, PatternRewriter &rewriter) const {
-  return op.indices()[i];
+  return op.getIndices()[i];
 }
 
 template <>
@@ -1551,7 +1551,7 @@ void MetaPointer2Memref<memref::LoadOp>::rewrite(
 template <>
 Value MetaPointer2Memref<memref::StoreOp>::computeIndex(
     memref::StoreOp op, size_t i, PatternRewriter &rewriter) const {
-  return op.indices()[i];
+  return op.getIndices()[i];
 }
 
 template <>
@@ -2551,7 +2551,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
     for (auto u : op->getResult(0).getUsers()) {
       if (auto load = dyn_cast<memref::LoadOp>(u)) {
         if (!set) {
-          for (auto i : load.indices()) {
+          for (auto i : load.getIndices()) {
             IntegerAttr constValue;
             if (!matchPattern(i, m_Constant(&constValue)))
               return failure();
@@ -2559,7 +2559,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
           }
           set = true;
         } else {
-          for (auto pair : llvm::zip(load.indices(), v)) {
+          for (auto pair : llvm::zip(load.getIndices(), v)) {
             IntegerAttr constValue;
             if (!matchPattern(std::get<0>(pair), m_Constant(&constValue)))
               return failure();
@@ -2626,7 +2626,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
       }
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
         Value cond = nullptr;
-        for (auto pair : llvm::zip(store.indices(), v)) {
+        for (auto pair : llvm::zip(store.getIndices(), v)) {
           auto val = rewriter.create<arith::CmpIOp>(
               store.getLoc(), CmpIPredicate::eq, std::get<0>(pair),
               rewriter.create<arith::ConstantIndexOp>(store.getLoc(),

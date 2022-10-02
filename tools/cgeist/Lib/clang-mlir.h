@@ -104,8 +104,9 @@ struct MLIRASTConsumer : public ASTConsumer {
                                              bool getDeviceStub = false);
 
   mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
-  mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction();
   mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction();
+  mlir::Value CallMalloc(mlir::OpBuilder &builder, mlir::Location loc,
+                         mlir::Value arg);
 
   mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD,
                                              std::string prefix = "");

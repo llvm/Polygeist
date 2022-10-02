@@ -16,9 +16,10 @@ float func(struct OperandInfo* op) {
 }
 }
 
-// CHECK:   func @func(%arg0: !llvm.ptr<struct<(i8, ptr<i8>, i8)>>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[i2:.+]] = llvm.getelementptr %arg0[0, 1] : (!llvm.ptr<struct<(i8, ptr<i8>, i8)>>) -> !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:     %[[i3:.+]] = llvm.load %[[i2]] : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:     %[[i4:.+]] = call @_Z5hloadPKv(%[[i3]]) : (!llvm.ptr<i8>) -> f32
-// CHECK-NEXT:     return %[[i4]] : f32
+// CHECK:   func.func @func(%arg0: memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> f32 
+// CHECK-NEXT:     %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> !llvm.ptr<!llvm.struct<(i8, memref<?xi8>, i8)>>
+// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 1] : (!llvm.ptr<!llvm.struct<(i8, memref<?xi8>, i8)>>) -> !llvm.ptr<memref<?xi8>>
+// CHECK-NEXT:     %2 = llvm.load %1 : !llvm.ptr<memref<?xi8>>
+// CHECK-NEXT:     %3 = call @_Z5hloadPKv(%2) : (memref<?xi8>) -> f32
+// CHECK-NEXT:     return %3 : f32
 // CHECK-NEXT:   }

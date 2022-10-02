@@ -8,15 +8,16 @@
 
 #include "PassDetails.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "polygeist/Passes/Passes.h"
 
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/PatternMatch.h"
+
+#include "polygeist/Passes/Passes.h"
 
 using namespace mlir;
 using namespace mlir::scf;

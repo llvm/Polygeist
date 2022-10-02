@@ -15,7 +15,7 @@
 #include "PassDetails.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -1333,7 +1333,7 @@ bool Mem2Reg::forwardStoreToLoad(
                 }
                 if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
                   if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
-                    if (glob.name() != Aglob.name())
+                    if (glob.getName() != Aglob.getName())
                       continue;
                   } else
                     continue;
@@ -2027,7 +2027,7 @@ void Mem2Reg::runOnOperation() {
             }
             toErase.push_back(U);
           } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
-            if (SO.value() == val) {
+            if (SO.getValue() == val) {
               error = true;
               break;
             }

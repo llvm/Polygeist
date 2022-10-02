@@ -28,7 +28,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
@@ -147,24 +147,35 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 // TODO
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
+mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
   mlir::OpBuilder builder(module.getContext());
   SymbolTableCollection symbolTable;
-  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc"))))
-    return fn;
-  auto *ctx = module->getContext();
-  mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types, false);
+  std::vector args = {arg};
+  if (auto fn = dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
+          module, builder.getStringAttr("malloc")))) {
+    return ibuilder.create<mlir::func::CallOp>(loc, fn, args)->getResult(0);
+  }
+  if (!dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(
+          module, builder.getStringAttr("malloc")))) {
+    auto *ctx = module->getContext();
+    mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
+    auto llvmFnType = LLVM::LLVMFunctionType::get(
+        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
+        false);
 
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  builder.setInsertionPointToStart(module.getBody());
-  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
-                                          lnk);
+    LLVM::Linkage lnk = LLVM::Linkage::External;
+    builder.setInsertionPointToStart(module.getBody());
+    builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
+                                     lnk);
+  }
+
+  auto fn = cast<LLVM::LLVMFuncOp>(
+      symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc")));
+  return ibuilder.create<mlir::LLVM::CallOp>(loc, fn, args)->getResult(0);
 }
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
   static std::mutex _mutex;
@@ -276,9 +287,9 @@ void ParallelLower::runOnOperation() {
     auto oneindex = builder.create<ConstantIndexOp>(loc, 1);
 
     async::ExecuteOp asyncOp = nullptr;
-    if (!llvm::empty(launchOp.asyncDependencies())) {
+    if (!llvm::empty(launchOp.getAsyncDependencies())) {
       SmallVector<Value> dependencies;
-      for (auto v : launchOp.asyncDependencies()) {
+      for (auto v : launchOp.getAsyncDependencies()) {
         auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();
         dependencies.push_back(builder.create<polygeist::StreamToTokenOp>(
             tok.getLoc(), builder.getType<async::TokenType>(),
@@ -287,14 +298,14 @@ void ParallelLower::runOnOperation() {
       asyncOp = builder.create<mlir::async::ExecuteOp>(
           loc, /*results*/ TypeRange(), /*dependencies*/ dependencies,
           /*operands*/ ValueRange());
-      Block *blockB = &asyncOp.body().front();
+      Block *blockB = asyncOp.getBody();
       builder.setInsertionPointToStart(blockB);
     }
 
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
-        std::vector<Value>(
-            {launchOp.gridSizeX(), launchOp.gridSizeY(), launchOp.gridSizeZ()}),
+        std::vector<Value>({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
+                            launchOp.getGridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB = &block.getRegion().front();
 
@@ -302,8 +313,8 @@ void ParallelLower::runOnOperation() {
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
-        std::vector<Value>({launchOp.blockSizeX(), launchOp.blockSizeY(),
-                            launchOp.blockSizeZ()}),
+        std::vector<Value>({launchOp.getBlockSizeX(), launchOp.getBlockSizeY(),
+                            launchOp.getBlockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *threadB = &threadr.getRegion().front();
 
@@ -312,12 +323,12 @@ void ParallelLower::runOnOperation() {
     SmallVector<Value> launchArgs;
     llvm::append_range(launchArgs, blockB->getArguments());
     llvm::append_range(launchArgs, threadB->getArguments());
-    launchArgs.push_back(launchOp.gridSizeX());
-    launchArgs.push_back(launchOp.gridSizeY());
-    launchArgs.push_back(launchOp.gridSizeZ());
-    launchArgs.push_back(launchOp.blockSizeX());
-    launchArgs.push_back(launchOp.blockSizeY());
-    launchArgs.push_back(launchOp.blockSizeZ());
+    launchArgs.push_back(launchOp.getGridSizeX());
+    launchArgs.push_back(launchOp.getGridSizeY());
+    launchArgs.push_back(launchOp.getGridSizeZ());
+    launchArgs.push_back(launchOp.getBlockSizeX());
+    launchArgs.push_back(launchOp.getBlockSizeY());
+    launchArgs.push_back(launchOp.getBlockSizeZ());
     builder.mergeBlockBefore(&launchOp.getRegion().front(),
                              threadr.getRegion().front().getTerminator(),
                              launchArgs);
@@ -326,11 +337,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::gpu::BlockIdOp bidx) {
       int idx = -1;
-      if (bidx.dimension() == gpu::Dimension::x)
+      if (bidx.getDimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == gpu::Dimension::y)
+      else if (bidx.getDimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == gpu::Dimension::z)
+      else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -366,11 +377,11 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
       int idx = -1;
-      if (bidx.dimension() == gpu::Dimension::x)
+      if (bidx.getDimension() == gpu::Dimension::x)
         idx = 0;
-      else if (bidx.dimension() == gpu::Dimension::y)
+      else if (bidx.getDimension() == gpu::Dimension::y)
         idx = 1;
-      else if (bidx.dimension() == gpu::Dimension::z)
+      else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
         assert(0 && "illegal dimension");
@@ -385,12 +396,12 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::GridDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == gpu::Dimension::x)
-        val = launchOp.gridSizeX();
-      else if (bidx.dimension() == gpu::Dimension::y)
-        val = launchOp.gridSizeY();
-      else if (bidx.dimension() == gpu::Dimension::z)
-        val = launchOp.gridSizeZ();
+      if (bidx.getDimension() == gpu::Dimension::x)
+        val = launchOp.getGridSizeX();
+      else if (bidx.getDimension() == gpu::Dimension::y)
+        val = launchOp.getGridSizeY();
+      else if (bidx.getDimension() == gpu::Dimension::z)
+        val = launchOp.getGridSizeZ();
       else
         assert(0 && "illegal dimension");
       builder.replaceOp(bidx, val);
@@ -398,12 +409,12 @@ void ParallelLower::runOnOperation() {
 
     container.walk([&](gpu::BlockDimOp bidx) {
       Value val = nullptr;
-      if (bidx.dimension() == gpu::Dimension::x)
-        val = launchOp.blockSizeX();
-      else if (bidx.dimension() == gpu::Dimension::y)
-        val = launchOp.blockSizeY();
-      else if (bidx.dimension() == gpu::Dimension::z)
-        val = launchOp.blockSizeZ();
+      if (bidx.getDimension() == gpu::Dimension::x)
+        val = launchOp.getBlockSizeX();
+      else if (bidx.getDimension() == gpu::Dimension::y)
+        val = launchOp.getBlockSizeY();
+      else if (bidx.getDimension() == gpu::Dimension::z)
+        val = launchOp.getBlockSizeZ();
       else
         assert(0 && "illegal dimension");
       builder.replaceOp(bidx, val);
@@ -477,14 +488,11 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee().value() == "cudaMalloc" ||
                call.getCallee().value() == "cudaMallocHost") {
-      auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
-      Value args[] = {call.getOperand(1)};
-      if (args[0].getType().cast<IntegerType>().getWidth() < 64)
-        args[0] =
-            bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), args[0]);
-      mlir::Value alloc =
-          bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args).getResult();
+      Value arg = call.getOperand(1);
+      if (arg.getType().cast<IntegerType>().getWidth() < 64)
+        arg = bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), arg);
+      mlir::Value alloc = callMalloc(bz, getOperation(), call.getLoc(), arg);
       bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
       {
         auto retv = bz.create<ConstantIntOp>(
@@ -538,12 +546,27 @@ void ParallelLower::runOnOperation() {
     } else if (call.getCallee() == "cudaMemcpyToSymbol") {
       OpBuilder bz(call);
       auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
+      auto dst = call.getOperand(0);
+      if (auto mt = dst.getType().cast<MemRefType>()) {
+        dst = bz.create<polygeist::Memref2PointerOp>(
+            call.getLoc(),
+            LLVM::LLVMPointerType::get(mt.getElementType(),
+                                       mt.getMemorySpaceAsInt()),
+            dst);
+      }
+      auto src = call.getOperand(1);
+      if (auto mt = src.getType().cast<MemRefType>()) {
+        src = bz.create<polygeist::Memref2PointerOp>(
+            call.getLoc(),
+            LLVM::LLVMPointerType::get(mt.getElementType(),
+                                       mt.getMemorySpaceAsInt()),
+            src);
+      }
       bz.create<LLVM::MemcpyOp>(
           call.getLoc(),
-          bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
-                                 call.getOperand(0),
+          bz.create<LLVM::GEPOp>(call.getLoc(), dst.getType(), dst,
                                  std::vector<Value>({call.getOperand(3)})),
-          call.getOperand(1), call.getOperand(2),
+          src, call.getOperand(2),
           /*isVolatile*/ falsev);
       call.replaceAllUsesWith(
           bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));

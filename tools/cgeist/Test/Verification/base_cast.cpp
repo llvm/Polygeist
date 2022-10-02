@@ -40,25 +40,24 @@ int main() {
     D d;
     c.val3 = 2;
     d.val3 = 2;
-    return 
-      castAtoC(&c)->val3 + // expect nonzero offset due to A -> C
-      castBtoD(&d)->val3 + 
-      castAtoD(&d)->val3;  // expect nonzero offset due to A -> C
+    return castAtoC(&c)->val3 + // expect nonzero offset due to A -> C
+           castBtoD(&d)->val3 +
+           castAtoD(&d)->val3; // expect nonzero offset due to A -> C
 }
 
 // CHECK:   func.func @_Z8castAtoCP1A(
 // CHECK-NEXT:     polygeist.memref2pointer
 // CHECK-NEXT:     llvm.getelementptr {{.*}}[-1]
-// CHECK-NEXT:     llvm.bitcast
+// CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
 // CHECK:   func.func @_Z8castBtoDP1B(
 // CHECK-NEXT:     polygeist.memref2pointer
-// CHECK-NEXT:     llvm.bitcast
+// CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
 // CHECK:   func.func @_Z8castAtoDP1A(
 // CHECK-NEXT:     polygeist.memref2pointer
 // CHECK-NEXT:     llvm.getelementptr {{.*}}[-1]
-// CHECK-NEXT:     llvm.bitcast
+// CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
 // CHECK:    func.func @main()
 // CHECK:    call @_Z8castAtoCP1A(

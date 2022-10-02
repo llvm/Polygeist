@@ -17,7 +17,7 @@
 #include "mlir/IR/Block.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SetVector.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 std::pair<mlir::Block *, mlir::Block::iterator>
 findInsertionPointAfterLoopOperands(mlir::scf::ParallelOp op);
@@ -41,14 +41,15 @@ emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   return iterationCounts;
 }
 
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(mlir::ModuleOp module);
+mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg);
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
 
 template <typename T>
-static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
-                                 mlir::ValueRange iterationCounts,
-                                 bool alloca = true,
-                                 mlir::DataLayout *DLI = nullptr) {
+static mlir::Value
+allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
+                        mlir::ValueRange iterationCounts, bool alloca = true,
+                        mlir::DataLayout *DLI = nullptr) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
                                   ShapedType::kDynamicSize);
@@ -75,7 +76,7 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
 }
 
 template <>
-mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
+mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
     mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
   using namespace mlir;
@@ -92,7 +93,7 @@ mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
 }
 
 template <>
-mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
     mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
   using namespace mlir;
@@ -113,7 +114,7 @@ mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
                                            value.getLoc(), sz.getType(), iter));
   }
   auto m = val->getParentOfType<ModuleOp>();
-  auto allocfn = GetOrCreateMallocFunction(m);
-  return rewriter.create<LLVM::CallOp>(value.getLoc(), allocfn, sz);
+  return callMalloc(rewriter, m, value.getLoc(), sz);
 }
+
 #endif // MLIR_LIB_DIALECT_SCF_TRANSFORMS_BARRIERUTILS_H_

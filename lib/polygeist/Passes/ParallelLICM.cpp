@@ -1,7 +1,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -329,11 +329,11 @@ bool isSpeculatable(Operation *op) {
     }
 
     if (auto load = dyn_cast<memref::LoadOp>(op)) {
-      Value ptr = load.memref();
+      Value ptr = load.getMemref();
       if (ptr.getDefiningOp<memref::AllocOp>() ||
           ptr.getDefiningOp<memref::AllocaOp>()) {
         auto S = ptr.getType().cast<MemRefType>().getShape();
-        for (auto idx : llvm::enumerate(load.indices())) {
+        for (auto idx : llvm::enumerate(load.getIndices())) {
           if (!below(idx.value(), S[idx.index()]))
             return false;
         }
