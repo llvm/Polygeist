@@ -425,12 +425,14 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
-    Region &funcReg = *execute.getBody()->getParent();;
+    Region &funcReg = *execute.getBody()->getParent();
+    ;
 
     // Collect all outlined function inputs.
     SetVector<mlir::Value> functionInputs;
 
-    getUsedValuesDefinedAbove(*execute.getBody()->getParent(), funcReg, functionInputs);
+    getUsedValuesDefinedAbove(*execute.getBody()->getParent(), funcReg,
+                              functionInputs);
     SmallVector<Value> toErase;
     for (auto a : functionInputs) {
       Operation *op = a.getDefiningOp();

@@ -304,8 +304,8 @@ void ParallelLower::runOnOperation() {
 
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
-        std::vector<Value>(
-            {launchOp.getGridSizeX(), launchOp.getGridSizeY(), launchOp.getGridSizeZ()}),
+        std::vector<Value>({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
+                            launchOp.getGridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB = &block.getRegion().front();
 

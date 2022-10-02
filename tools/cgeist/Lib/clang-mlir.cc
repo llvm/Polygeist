@@ -3730,7 +3730,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       auto ty = mlir::MemRefType::get(mt.getShape(), mt.getElementType(),
                                       MemRefLayoutAttrInterface(),
                                       ut.getMemorySpace());
-      if (ut.getShape().size() == mt.getShape().size() + 1) {
+      if (ut.getShape().size() == mt.getShape().size() + 1 &&
+          ut.getElementType() == mt.getElementType()) {
         return ValueCategory(builder.create<mlir::polygeist::SubIndexOp>(
                                  loc, ty, scalar, getConstantIndex(0)),
                              /*isReference*/ false);

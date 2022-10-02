@@ -10,19 +10,21 @@ void testArrayInitExpr()
   };
 }
 
-// CHECK:   func.func private @_ZZ17testArrayInitExprvEN3$_0C1EOS_(%arg0: memref<?x!llvm.struct<(array<4 x i32>)>>, %arg1: memref<?x!llvm.struct<(array<4 x i32>)>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!llvm.struct<(array<4 x i32>)>>) -> !llvm.ptr<struct<(array<4 x i32>)>>
-// CHECK-NEXT:     %1 = llvm.getelementptr %0[0, 0] : (!llvm.ptr<struct<(array<4 x i32>)>>) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:     %2 = "polygeist.memref2pointer"(%arg1) : (memref<?x!llvm.struct<(array<4 x i32>)>>) -> !llvm.ptr<struct<(array<4 x i32>)>>
-// CHECK-NEXT:     %3 = llvm.getelementptr %2[0, 0] : (!llvm.ptr<struct<(array<4 x i32>)>>) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:     %4 = llvm.bitcast %3 : !llvm.ptr<array<4 x i32>> to !llvm.ptr<i32>
-// CHECK-NEXT:     %5 = llvm.bitcast %1 : !llvm.ptr<array<4 x i32>> to !llvm.ptr<i32>
-// CHECK-NEXT:     affine.for %arg2 = 0 to 4 {
-// CHECK-NEXT:       %6 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:       %7 = llvm.getelementptr %4[%6] : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:       %8 = llvm.load %7 : !llvm.ptr<i32>
-// CHECK-NEXT:       %9 = llvm.getelementptr %5[%6] : (!llvm.ptr<i32>, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:       llvm.store %8, %9 : !llvm.ptr<i32>
-// CHECK-NEXT:     }
+// CHECK:   func.func @_Z17testArrayInitExprv()
+// CHECK-NEXT:     %c4_i32 = arith.constant 4 : i32
+// CHECK-NEXT:     %c3_i32 = arith.constant 3 : i32
+// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
+// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
+// CHECK-NEXT:     %0 = memref.alloca() : memref<1x!llvm.struct<(array<4 x i32>)>>
+// CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<1x!llvm.struct<(array<4 x i32>)>>) -> !llvm.ptr<struct<(array<4 x i32>)>>
+// CHECK-NEXT:     %2 = llvm.getelementptr %1[0, 0] : (!llvm.ptr<struct<(array<4 x i32>)>>) -> !llvm.ptr<array<4 x i32>>
+// CHECK-NEXT:     %3 = llvm.bitcast %2 : !llvm.ptr<array<4 x i32>> to !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c1_i32, %3 : !llvm.ptr<i32>
+// CHECK-NEXT:     %4 = llvm.getelementptr %3[1] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c2_i32, %4 : !llvm.ptr<i32>
+// CHECK-NEXT:     %5 = llvm.getelementptr %3[2] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c3_i32, %5 : !llvm.ptr<i32>
+// CHECK-NEXT:     %6 = llvm.getelementptr %3[3] : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
+// CHECK-NEXT:     llvm.store %c4_i32, %6 : !llvm.ptr<i32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

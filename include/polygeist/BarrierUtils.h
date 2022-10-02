@@ -46,10 +46,10 @@ mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
 
 template <typename T>
-static mlir::Value allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
-                                 mlir::ValueRange iterationCounts,
-                                 bool alloca = true,
-                                 mlir::DataLayout *DLI = nullptr) {
+static mlir::Value
+allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
+                        mlir::ValueRange iterationCounts, bool alloca = true,
+                        mlir::DataLayout *DLI = nullptr) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
                                   ShapedType::kDynamicSize);
