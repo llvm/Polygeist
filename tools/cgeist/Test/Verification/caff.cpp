@@ -35,9 +35,9 @@ unsigned long long int div_kernel_cuda(ASmallVectorTemplateCommon<AOperandInfo> 
 // CHECK-NEXT:     %2 = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%arg0) : (memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
 // CHECK-NEXT:     %3 = llvm.bitcast %1 : !llvm.ptr<i8> to !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
 // CHECK-NEXT:     %4 = "polygeist.memref2pointer"(%2) : (memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>) -> !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     %5 = llvm.ptrtoint %4 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
-// CHECK-NEXT:     %6 = llvm.ptrtoint %3 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
-// CHECK-NEXT:     %7 = arith.subi %6, %5 : i64
+// CHECK-DAG:     %[[i5:.+]] = llvm.ptrtoint %4 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
+// CHECK-DAG:     %[[i6:.+]] = llvm.ptrtoint %3 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
+// CHECK-NEXT:     %7 = arith.subi %[[i6]], %[[i5]] : i64
 // CHECK-NEXT:     %8 = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xi8>, i8, i8)>} : () -> index
 // CHECK-NEXT:     %9 = arith.index_cast %8 : index to i64
 // CHECK-NEXT:     %10 = arith.divsi %7, %9 : i64

@@ -13,8 +13,8 @@ double alloc() {
 // CHECK-NEXT:     %0 = memref.alloca() : memref<1x2xi64>
 // CHECK-NEXT:     %1 = memref.cast %0 : memref<1x2xi64> to memref<?x2xi64>
 // CHECK-NEXT:     %2 = llvm.mlir.null : !llvm.ptr<i8>
-// CHECK-NEXT:     %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<i8>) -> memref<?xi8>
-// CHECK-NEXT:     %4 = call @gettimeofday(%1, %3) : (memref<?x2xi64>, memref<?xi8>) -> i32
+// CHECK-NEXT:     %3 = "polygeist.pointer2memref"(%2) : (!llvm.ptr<i8>) -> memref
+// CHECK-NEXT:     %4 = call @gettimeofday(%1, %3) : (memref<?x2xi64>, memref
 // CHECK-NEXT:     %5 = affine.load %0[0, 0] : memref<1x2xi64>
 // CHECK-NEXT:     %6 = arith.sitofp %5 : i64 to f64
 // CHECK-NEXT:     %7 = affine.load %0[0, 1] : memref<1x2xi64>
