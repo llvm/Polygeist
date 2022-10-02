@@ -12,7 +12,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Analysis/DataLayoutAnalysis.h"
-#include "mlir/Conversion/ArithmeticToLLVM/ArithmeticToLLVM.h"
+#include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -425,12 +425,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
-    Region &funcReg = execute.body();
+    Region &funcReg = *execute.getBody()->getParent();;
 
     // Collect all outlined function inputs.
     SetVector<mlir::Value> functionInputs;
 
-    getUsedValuesDefinedAbove(execute.body(), funcReg, functionInputs);
+    getUsedValuesDefinedAbove(*execute.getBody()->getParent(), funcReg, functionInputs);
     SmallVector<Value> toErase;
     for (auto a : functionInputs) {
       Operation *op = a.getDefiningOp();
@@ -524,7 +524,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       // Clone all operations from the execute operation body into the outlined
       // function body.
-      for (Operation &op : execute.body().front().without_terminator())
+      for (Operation &op : execute.getBody()->without_terminator())
         rewriter.clone(op, valueMapping);
 
       rewriter.create<LLVM::ReturnOp>(execute.getLoc(), ValueRange());
@@ -583,7 +583,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       }
       vals.push_back(
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
-      for (auto dep : execute.dependencies()) {
+      for (auto dep : execute.getDependencies()) {
         auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
         vals.push_back(ctx.getSource());
       }
@@ -738,7 +738,7 @@ public:
                              .dyn_cast_or_null<LLVM::LLVMPointerType>();
     if (!convertedType)
       return rewriter.notifyMatchFailure(loc, "unsupported memref type");
-    if (adaptor.alignment() && adaptor.alignment().value() != 0)
+    if (adaptor.getAlignment() && adaptor.getAlignment().value() != 0)
       return rewriter.notifyMatchFailure(loc, "unsupported alignment");
 
     Value outerSize = getOuterSize(allocOp, adaptor, rewriter);
@@ -1335,7 +1335,7 @@ struct ConvertPolygeistToLLVMPass
       }
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
-      arith::populateArithmeticToLLVMConversionPatterns(converter, patterns);
+      arith::populateArithToLLVMConversionPatterns(converter, patterns);
 
       converter.addConversion([&](async::TokenType type) { return type; });
 

@@ -8,7 +8,7 @@
 
 #include "clang-mlir.h"
 #include "TypeUtils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Target/LLVMIR/Import.h"
@@ -661,7 +661,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
   }
 
   while (auto CO = toInit.getDefiningOp<memref::CastOp>())
-    toInit = CO.source();
+    toInit = CO.getSource();
 
   // Recursively visit the initialization expression following the linear
   // increment of the memory address.
@@ -888,7 +888,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     } else {
       auto gv = Glob.GetOrCreateGlobal(
           decl, (function.getName() + "@static@").str(), /*tryInit*/ false);
-      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.type(),
+      op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
                                                 gv.first.getName());
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
@@ -3212,7 +3212,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
 
     auto gv = Glob.GetOrCreateGlobal(VD, /*prefix=*/"");
 
-    auto mt = gv.first.type();
+    auto mt = gv.first.getType();
     auto gv2 = builder.create<memref::GetGlobalOp>(loc, mt, gv.first.getName());
     auto shape = std::vector<int64_t>(mt.getShape());
     shape[0] = -1;
@@ -4580,7 +4580,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
         init->dump();
         llvm::errs() << " warning not initializing global: " << name << "\n";
       } else {
-        globalOp.initial_valueAttr(initial_value);
+        globalOp.setInitialValueAttr(initial_value);
       }
       delete B;
     }

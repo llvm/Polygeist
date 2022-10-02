@@ -17,7 +17,7 @@
 #include "mlir/IR/Block.h"
 #include "polygeist/Ops.h"
 #include "llvm/ADT/SetVector.h"
-#include <mlir/Dialect/Arithmetic/IR/Arithmetic.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
 
 std::pair<mlir::Block *, mlir::Block::iterator>
 findInsertionPointAfterLoopOperands(mlir::scf::ParallelOp op);
@@ -46,7 +46,7 @@ mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
 
 template <typename T>
-static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
+static mlir::Value allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
                                  mlir::ValueRange iterationCounts,
                                  bool alloca = true,
                                  mlir::DataLayout *DLI = nullptr) {
@@ -76,7 +76,7 @@ static T allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
 }
 
 template <>
-mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
+mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
     mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
   using namespace mlir;
@@ -93,7 +93,7 @@ mlir::LLVM::AllocaOp allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
 }
 
 template <>
-mlir::LLVM::CallOp allocateTemporaryBuffer<mlir::LLVM::CallOp>(
+mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
     mlir::OpBuilder &rewriter, mlir::Value value,
     mlir::ValueRange iterationCounts, bool alloca, mlir::DataLayout *DLI) {
   using namespace mlir;
