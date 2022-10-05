@@ -15,11 +15,11 @@ struct latLong *bar(struct latLong *a, int b) {
 
 // CHECK:  func.func @foo(%arg0: memref<?x2xi32>, %arg1: memref<?x2xi32>) -> i32
 // CHECK-NEXT:    %c8_i64 = arith.constant 8 : i64
-// CHECK-NEXT:    %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
-// CHECK-NEXT:    %1 = "polygeist.memref2pointer"(%arg1) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
-// CHECK-NEXT:    %2 = llvm.ptrtoint %0 : !llvm.ptr<array<2 x i32>> to i64
-// CHECK-NEXT:    %3 = llvm.ptrtoint %1 : !llvm.ptr<array<2 x i32>> to i64
-// CHECK-NEXT:    %4 = arith.subi %2, %3 : i64
+// CHECK-DAG:    %[[i0:.*]] = "polygeist.memref2pointer"(%arg0) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
+// CHECK-DAG:    %[[i1:.*]] = "polygeist.memref2pointer"(%arg1) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
+// CHECK-DAG:    %[[i2:.*]] = llvm.ptrtoint %[[i0]] : !llvm.ptr<array<2 x i32>> to i64
+// CHECK-DAG:    %[[i3:.*]] = llvm.ptrtoint %[[i1]] : !llvm.ptr<array<2 x i32>> to i64
+// CHECK-NEXT:    %4 = arith.subi %[[i2]], %[[i3]] : i64
 // CHECK-NEXT:    %5 = arith.divsi %4, %c8_i64 : i64
 // CHECK-NEXT:    %6 = arith.trunci %5 : i64 to i32
 // CHECK-NEXT:    return %6 : i32
