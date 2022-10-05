@@ -2740,12 +2740,20 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     auto lhs_v = lhs.getValue(loc, builder);
     auto rhs_v = rhs.getValue(loc, builder);
     if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      mlir::Type innerType = mt.getElementType();
+      auto shape = mt.getShape();
+      for (size_t i = 1; i < shape.size(); i++)
+        innerType = LLVM::LLVMArrayType::get(innerType, shape[i]);
       lhs_v = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), lhs_v);
+          loc, LLVM::LLVMPointerType::get(innerType), lhs_v);
     }
     if (auto mt = rhs_v.getType().dyn_cast<mlir::MemRefType>()) {
+      mlir::Type innerType = mt.getElementType();
+      auto shape = mt.getShape();
+      for (size_t i = 1; i < shape.size(); i++)
+        innerType = LLVM::LLVMArrayType::get(innerType, shape[i]);
       rhs_v = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), rhs_v);
+          loc, LLVM::LLVMPointerType::get(innerType), rhs_v);
     }
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       assert(rhs_v.getType() == lhs_v.getType());
