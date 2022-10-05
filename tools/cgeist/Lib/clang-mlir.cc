@@ -5149,7 +5149,8 @@ MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD,
 
   if ((FD->hasAttr<CUDAGlobalAttr>() || FD->hasAttr<CUDADeviceAttr>()) &&
       !FD->hasAttr<CUDAHostAttr>()) {
-    function->setAttr("polygeist.device_only_func", StringAttr::get(builder.getContext(), "1"));
+    function->setAttr("polygeist.device_only_func",
+                      StringAttr::get(builder.getContext(), "1"));
   }
 
   if (LV == llvm::GlobalValue::InternalLinkage ||
