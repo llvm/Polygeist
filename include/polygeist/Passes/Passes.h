@@ -24,12 +24,9 @@ std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass();
 std::unique_ptr<Pass>
-createConvertGpuModulePolygeistToLLVMPass(const LowerToLLVMOptions &options);
-std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef);
+                                 bool useCStyleMemRef, bool onlyGpuModules);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
-std::unique_ptr<Pass> createConvertGpuModulePolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass> createRemoveDeviceFunctionsPass();
 std::unique_ptr<Pass> createConvertParallelToGPUPass();
