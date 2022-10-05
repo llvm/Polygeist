@@ -774,12 +774,10 @@ int main(int argc, char **argv) {
         // options.useBarePtrCallConv = true;
 
         if (EmitCuda) {
-          pm3.addPass(
-              polygeist::createConvertGpuModulePolygeistToLLVMPass(options));
+          pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ true));
 
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           // TODO specify cubin pass params
-          gpuPM.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
           // using the default "+ptx60" for the last arg here fails with the
           // following:
           //
@@ -812,7 +810,7 @@ int main(int argc, char **argv) {
           gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", "sm_60", "+ptx75", optLevel));
         }
 
-        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ false));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
         if (mlir::failed(pm3.run(module.get()))) {
