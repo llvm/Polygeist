@@ -1642,7 +1642,6 @@ struct ConvertPolygeistToLLVMPass
 
       Block *block = &tmpModule->getRegion(0).front();
       gpum->moveBefore(block, block->end());
-      tmpModule->dump();
       convertModule(tmpModule, /* gpuModule */ true);
       block = &m->getRegion(0).front();
       gpum->moveBefore(block, block->end());
