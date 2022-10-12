@@ -1701,7 +1701,11 @@ struct ConvertPolygeistToLLVMPass
 
   void runOnOperation() override {
     ModuleOp m = getOperation();
+    std::vector<mlir::gpu::GPUModuleOp> gpuModules;
     m->walk([&](mlir::gpu::GPUModuleOp gpum) {
+      gpuModules.push_back(gpum);
+    });
+    for (auto gpum : gpuModules) {
       mlir::ModuleOp tmpModule(mlir::ModuleOp::create(
           mlir::OpBuilder(m->getContext()).getUnknownLoc()));
       // Prepare DL, triple attributes
@@ -1726,7 +1730,7 @@ struct ConvertPolygeistToLLVMPass
       block = &m->getRegion(0).front();
       gpum->moveBefore(block, block->end());
       tmpModule->erase();
-    });
+    }
     if (!onlyGpuModules)
       convertModule(m, /* gpuModule */ false);
   }
