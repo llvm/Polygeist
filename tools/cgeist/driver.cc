@@ -730,8 +730,8 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createSymbolDCEPass());
 
     if (EmitCuda) {
-      pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(polygeist::createConvertParallelToGPUPass());
+      pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
