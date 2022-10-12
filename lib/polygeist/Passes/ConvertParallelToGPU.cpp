@@ -32,7 +32,7 @@ struct SharedLLVMAllocaToGlobal : public OpRewritePattern<LLVM::AllocaOp> {
 
     auto type = PT.getElementType();
     auto loc = ao->getLoc();
-    auto name = "shared_mem." + std::to_string((long long int)(Operation *)ao);
+    auto name = "shared_mem_" + std::to_string((long long int)(Operation *)ao);
 
     auto module = ao->getParentOfType<gpu::GPUModuleOp>();
     if (!module) {
@@ -61,9 +61,9 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
       return failure();
     }
 
-    auto type = mt.getElementType();
+    auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {}, /* memspace */ 3);
     auto loc = ao->getLoc();
-    auto name = "shared_mem." + std::to_string((long long int)(Operation *)ao);
+    auto name = "shared_mem_" + std::to_string((long long int)(Operation *)ao);
 
     auto module = ao->getParentOfType<gpu::GPUModuleOp>();
     if (!module) {
@@ -74,8 +74,8 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
 
     auto initial_value = rewriter.getUnitAttr();
     auto globalOp = rewriter.create<memref::GlobalOp>(loc, rewriter.getStringAttr(name),
-                                                      mlir::StringAttr(), mlir::TypeAttr::get(type),
-                                                      initial_value, mlir::UnitAttr(), /*alignment*/ nullptr);
+                                                      /* sym_visibility */ mlir::StringAttr(), mlir::TypeAttr::get(type),
+                                                      initial_value, mlir::UnitAttr(), /* alignment */ nullptr);
     rewriter.setInsertionPoint(ao);
     auto getGlobalOp = rewriter.create<memref::GetGlobalOp>(loc, type, name);
 
