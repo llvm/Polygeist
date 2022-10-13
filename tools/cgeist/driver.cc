@@ -460,6 +460,14 @@ int main(int argc, char **argv) {
   llvm::DataLayout DL("");
   parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple,
             DL);
+
+  StringRef gpuTriple;
+  StringRef gpuDL;
+  if (EmitCuda) {
+    gpuTriple = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str())).getValue();
+    gpuDL = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue();
+  }
+
   mlir::PassManager pm(&context);
 
   OpPrintingFlags flags;
@@ -730,11 +738,13 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createSymbolDCEPass());
 
     if (EmitCuda) {
-      pm.addPass(polygeist::createConvertParallelToGPUPass());
+      // TODO pass in gpuDL, the format is weird
+      pm.addPass(mlir::createGpuKernelOutliningPass());
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
-      pm.addPass(mlir::createGpuKernelOutliningPass());
+      // TODO split parallel-to-gpu in two part before/after outlining
+      pm.addPass(polygeist::createConvertParallelToGPUPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
