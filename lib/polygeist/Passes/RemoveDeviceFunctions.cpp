@@ -19,6 +19,13 @@ using namespace polygeist;
 
 namespace {
 
+void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
+  rewriter.create<func::ReturnOp>(rewriter.getUnknownLoc());
+}
+void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
+  rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(), std::vector<Value>{});
+}
+
 template <typename FuncType>
 struct RemoveFunction : public OpRewritePattern<FuncType> {
   using OpRewritePattern<FuncType>::OpRewritePattern;
@@ -29,10 +36,18 @@ struct RemoveFunction : public OpRewritePattern<FuncType> {
       return failure();
     }
     auto V = f->getAttr("polygeist.device_only_func");
-    if (!V && isa<ModuleOp>(f->getParentOp())) {
+    if (!V) {
       return failure();
     }
     rewriter.eraseOp(f);
+    // TODO leave an empty function to pass to cudaSetCacheConfig
+    //Region *region = &f.getBody();
+    //if (region->empty())
+    //  return failure();
+    //rewriter.eraseBlock(&region->front());
+    //region->push_back(new Block());
+    //rewriter.setInsertionPointToEnd(&region->front());
+    //insertReturn(rewriter, f);
     return success();
   }
 };

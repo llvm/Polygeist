@@ -575,7 +575,7 @@ int main(int argc, char **argv) {
       }
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 6;
       }
     }
 
@@ -644,7 +644,7 @@ int main(int argc, char **argv) {
       }
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 7;
       }
     }
 
@@ -733,6 +733,9 @@ int main(int argc, char **argv) {
 
     if (EmitCuda) {
       pm.addPass(polygeist::createConvertParallelToGPUPass());
+      // TODO maybe preserve info about which original kernel corresponds to
+      // which outlined kernel, might be useful for calls to
+      // cudaFuncSetCacheConfig e.g.
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
@@ -746,7 +749,7 @@ int main(int argc, char **argv) {
       // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 8;
       }
       mlir::PassManager pm2(&context);
       if (SCFOpenMP) {
@@ -763,7 +766,7 @@ int main(int argc, char **argv) {
       pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm2.run(module.get()))) {
         module->dump();
-        return 4;
+        return 9;
       }
       if (!EmitOpenMPIR) {
         module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
@@ -815,7 +818,7 @@ int main(int argc, char **argv) {
 
         if (mlir::failed(pm3.run(module.get()))) {
           module->dump();
-          return 4;
+          return 10;
         }
       }
 
@@ -823,7 +826,7 @@ int main(int argc, char **argv) {
 
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 11;
       }
     }
     if (mlir::failed(mlir::verify(module.get()))) {
