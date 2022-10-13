@@ -328,6 +328,60 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
 }
 
 namespace {
+
+// Transform globals in GPUModules to GPU Symbols
+// TODO LLVM version
+struct GPUGlobalSymbolConversion : public OpRewritePattern<memref::GlobalOp> {
+  using OpRewritePattern<memref::GlobalOp>::OpRewritePattern;
+
+  LogicalResult
+  matchAndRewrite(memref::GlobalOp globalOp, PatternRewriter &rewriter) const override {
+    if (!isa<gpu::GPUModuleOp>(globalOp->getParentOp())) {
+      return failure();
+    }
+    auto loc = globalOp->getLoc();
+    auto mt = globalOp.getType();
+    auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {}, /* memspace */ 4);
+    auto memSpace = mt.getMemorySpaceAsInt();
+    if (memSpace != 0) {
+      return failure();
+    }
+    // In the case of cuda TODO
+    // using clang: dso_local addrspace(4) externally_initialized global zeroinitializer
+    // current cgeist: local_unnamed_addr addrspace(4) global [5 x float] undef
+    mlir::Attribute initial_value = rewriter.getUnitAttr();
+    if (globalOp.getInitialValue())
+      initial_value = globalOp.getInitialValue().value();
+    rewriter.replaceOpWithNewOp<memref::GlobalOp>(globalOp, rewriter.getStringAttr(globalOp.getSymName()),
+                                                  /* sym_visibility */ mlir::StringAttr(), mlir::TypeAttr::get(type),
+                                                  initial_value, mlir::UnitAttr(), /* alignment */ nullptr);
+    return success();
+  }
+};
+
+// Transform globals in GPUModules to GPU Symbols
+// TODO LLVM version
+struct GPUGetGlobalSymbolConversion : public OpRewritePattern<memref::GetGlobalOp> {
+  using OpRewritePattern<memref::GetGlobalOp>::OpRewritePattern;
+
+  LogicalResult
+  matchAndRewrite(memref::GetGlobalOp ggo, PatternRewriter &rewriter) const override {
+    if (!ggo->getParentOfType<gpu::GPUModuleOp>()) {
+      return failure();
+    }
+    auto loc = ggo->getLoc();
+    auto mt = ggo.getType();
+    if (mt.getMemorySpaceAsInt() != 0) {
+      return failure();
+    }
+    auto newMT = MemRefType::get(mt.getShape(), mt.getElementType(), {}, /* memspace */ 4);
+    auto newGetGlobalOp = rewriter.create<memref::GetGlobalOp>(loc, newMT, ggo.getName());
+    auto castOp = rewriter.create<memref::CastOp>(loc, mt, newGetGlobalOp.getResult());
+    rewriter.replaceOp(ggo, castOp->getResults());
+    return success();
+  }
+};
+
 struct LLVMOpLowering : public ConversionPattern {
   explicit LLVMOpLowering(LLVMTypeConverter &converter)
       : ConversionPattern(converter, Pattern::MatchAnyOpTypeTag(), 1,
@@ -1512,6 +1566,9 @@ struct ConvertPolygeistToLLVMPass
         // conversion pass.
         RewritePatternSet gpuPatterns(&getContext());
         populateGpuRewritePatterns(gpuPatterns);
+        gpuPatterns.insert<GPUGlobalSymbolConversion>(&getContext());
+        gpuPatterns.insert<GPUGetGlobalSymbolConversion>(&getContext());
+
         (void)applyPatternsAndFoldGreedily(m, std::move(gpuPatterns));
 
         // Insert our custom version of GPUFuncLowering
