@@ -5508,7 +5508,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
                       std::string fn, std::vector<std::string> includeDirs,
                       std::vector<std::string> defines,
                       mlir::OwningOpRef<mlir::ModuleOp> &module,
-                      llvm::Triple &triple, llvm::DataLayout &DL) {
+                      llvm::Triple &triple, llvm::DataLayout &DL,
+                      llvm::Triple &gpuTriple, llvm::DataLayout &gpuDL) {
 
   IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
   // Buffer diagnostics from argument parsing so that we can output them using a
@@ -5689,13 +5690,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     }
 
     if (jobTriple.isNVPTX()) {
-      triple = jobTriple;
+      gpuTriple = jobTriple;
       module.get()->setAttr(
           StringRef("polygeist.gpu_module." +
                     LLVM::LLVMDialect::getTargetTripleAttrName().str()),
           StringAttr::get(module->getContext(),
                           Clang->getTarget().getTriple().getTriple()));
-      DL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
+      gpuDL = llvm::DataLayout(Clang->getTarget().getDataLayoutString());
       module.get()->setAttr(
           StringRef("polygeist.gpu_module." +
                     LLVM::LLVMDialect::getDataLayoutAttrName().str()),
