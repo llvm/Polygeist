@@ -458,15 +458,10 @@ int main(int argc, char **argv) {
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
+  llvm::Triple gpuTriple;
+  llvm::DataLayout gpuDL("");
   parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple,
-            DL);
-
-  StringRef gpuTriple;
-  StringRef gpuDL;
-  if (EmitCuda) {
-    gpuTriple = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getTargetTripleAttrName().str())).getValue();
-    gpuDL = module.get()->getAttrOfType<mlir::StringAttr>(StringRef("polygeist.gpu_module." + LLVM::LLVMDialect::getDataLayoutAttrName().str())).getValue();
-  }
+            DL, gpuTriple, gpuDL);
 
   mlir::PassManager pm(&context);
 
@@ -485,6 +480,17 @@ int main(int argc, char **argv) {
   if (Opt1) optLevel = 1;
   if (Opt2) optLevel = 2;
   if (Opt3) optLevel = 3;
+
+  auto convertGepInBounds = [](llvm::Module &llvmModule) {
+    for (auto &F : llvmModule) {
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (auto g = dyn_cast<GetElementPtrInst>(&I))
+            g->setIsInBounds(true);
+        }
+      }
+    }
+  };
 
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
@@ -852,14 +858,7 @@ int main(int argc, char **argv) {
       return -1;
     }
     if (InBoundsGEP) {
-      for (auto &F : *llvmModule) {
-        for (auto &BB : F) {
-          for (auto &I : BB) {
-            if (auto g = dyn_cast<GetElementPtrInst>(&I))
-              g->setIsInBounds(true);
-          }
-        }
-      }
+      convertGepInBounds(*llvmModule);
     }
     for (auto &F : *llvmModule) {
       for (auto AttrName : {"target-cpu", "tune-cpu", "target-features"})
