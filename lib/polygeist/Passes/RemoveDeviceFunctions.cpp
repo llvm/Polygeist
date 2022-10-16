@@ -39,6 +39,9 @@ struct RemoveFunction : public OpRewritePattern<FuncType> {
     if (!V) {
       return failure();
     }
+    Region *region = &f.getBody();
+    if (region->empty())
+      return failure();
     rewriter.eraseOp(f);
     // TODO leave an empty function to pass to cudaSetCacheConfig
     //Region *region = &f.getBody();
