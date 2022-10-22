@@ -260,7 +260,6 @@ bool isReadNone(Operation *op) {
   return false;
 }
 
-
 class BarrierHoist final : public OpRewritePattern<BarrierOp> {
 public:
   using OpRewritePattern<BarrierOp>::OpRewritePattern;
