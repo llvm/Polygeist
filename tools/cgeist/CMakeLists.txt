@@ -31,6 +31,12 @@ add_clang_executable(cgeist
   Lib/TypeUtils.cc
   Lib/CGCall.cc 
 )
+if(POLYGEIST_ENABLE_CUDA)
+  target_compile_definitions(obj.MLIRPolygeistTransforms
+    PRIVATE
+    POLYGEIST_ENABLE_CUDA=1
+  )
+endif()
 install(TARGETS cgeist
 EXPORT PolygeistTargets
 RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
