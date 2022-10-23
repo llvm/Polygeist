@@ -1287,6 +1287,7 @@ protected:
 
 static constexpr const char *kGpuBinaryStorageSuffix = "_gpubin_cst";
 static constexpr const char *kGpuModuleCtorSuffix = "_gpubin_ctor";
+static constexpr const char *kGpuModuleDtorSuffix = "_gpubin_dtor";
 
 class ConvertLaunchFuncOpToGpuRuntimeCallPattern
     : public ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp> {
@@ -1435,23 +1436,28 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   assert(kernelModule && "expected a kernel module");
 
   auto getFuncGlobalName = [] (StringRef moduleName, StringRef name) {
-    return std::string(llvm::formatv("{0}_{1}_fun_ptr", moduleName, name));
+    return std::string(llvm::formatv("polygeist_{0}_{1}_fun_ptr", moduleName, name));
   };
 
 
-  // Build module constructor
+  // Build module constructor and destructor
   ModuleOp moduleOp = launchOp->getParentOfType<ModuleOp>();
   {
     auto loc = moduleOp.getLoc();
+    // TODO is it okay to be using OpBuilder's in op rewriter?
     OpBuilder moduleBuilder(moduleOp.getBodyRegion());
     SmallString<128> ctorNameBuffer(kernelModule.getName());
     ctorNameBuffer.append(kGpuModuleCtorSuffix);
     LLVM::LLVMFuncOp ctor = dyn_cast_or_null<LLVM::LLVMFuncOp>(SymbolTable::lookupSymbolIn(moduleOp, ctorNameBuffer));
+    SmallString<128> dtorNameBuffer(kernelModule.getName());
+    dtorNameBuffer.append(kGpuModuleDtorSuffix);
+    LLVM::LLVMFuncOp dtor = dyn_cast_or_null<LLVM::LLVMFuncOp>(SymbolTable::lookupSymbolIn(moduleOp, dtorNameBuffer));
     if (!ctor) {
+      assert(!dtor && "gpu module constructor does not exist but destructor does");
       ctor = moduleBuilder.create<LLVM::LLVMFuncOp>(loc, ctorNameBuffer,
                                                     LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(moduleOp.getContext()), {}));
-      OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.setInsertionPointToStart(ctor.addEntryBlock());
+      dtor = moduleBuilder.create<LLVM::LLVMFuncOp>(loc, dtorNameBuffer,
+                                                    LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(moduleOp.getContext()), {}));
 
       auto binaryAttr =
         kernelModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation);
@@ -1460,34 +1466,50 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           << "missing " << gpuBinaryAnnotation << " attribute";
         return failure();
       }
+
+      auto moduleName = launchOp.getKernelModuleName().getValue();
+
+      OpBuilder ctorBuilder(moduleOp->getContext());
+      ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock());
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
       Value data =
-        LLVM::createGlobalString(loc, rewriter, nameBuffer.str(),
+        LLVM::createGlobalString(loc, ctorBuilder, nameBuffer.str(),
                                  binaryAttr.getValue(), LLVM::Linkage::Internal);
-      auto module = moduleLoadCallBuilder.create(loc, rewriter, data);
-
-      //kernelModule->walk([&](LLVM::LLVMFuncOp f) {
+      auto module = moduleLoadCallBuilder.create(loc, ctorBuilder, data);
+      auto moduleGlobalName = std::string(llvm::formatv("polygeist_{0}_module_ptr", moduleName));
+      auto moduleGlobal = moduleBuilder.create<LLVM::GlobalOp>(loc, llvmPointerType, /* isConstant */ false, LLVM::Linkage::Internal, moduleGlobalName, mlir::Attribute(),
+                                                    /* alignment */ 0, /* addrSpace */ 0);
+      auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
+      ctorBuilder.create<LLVM::StoreOp>(loc, module->getResult(0), aoo->getResult(0));
       for (Operation &op : kernelModule->getRegion(0).front()) {
         LLVM::LLVMFuncOp f = dyn_cast<LLVM::LLVMFuncOp>(op);
         if (!f)
           continue;
         if (!f->getAttr("gpu.kernel"))
           continue;
-        auto moduleName = launchOp.getKernelModuleName().getValue();
         auto kernelName = generateKernelNameConstant(launchOp.getKernelModuleName().getValue(),
-                                                     f.getName(), loc, rewriter);
-        auto function = moduleGetFunctionCallBuilder.create(loc, rewriter, {module.getResult(), kernelName});
+                                                     f.getName(), loc, ctorBuilder);
+        auto function = moduleGetFunctionCallBuilder.create(loc, ctorBuilder, {module.getResult(), kernelName});
         std::string funcGlobalName = getFuncGlobalName(moduleName, f.getName());
         auto funcGlobal = moduleBuilder.create<LLVM::GlobalOp>(loc, llvmPointerType, /* isConstant */ false, LLVM::Linkage::Internal, funcGlobalName, mlir::Attribute(),
                                                     /* alignment */ 0, /* addrSpace */ 0);
-        auto aoo = rewriter.create<LLVM::AddressOfOp>(loc, funcGlobal);
-        rewriter.create<LLVM::StoreOp>(loc, function->getResult(0), aoo->getResult(0));
+        auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, funcGlobal);
+        ctorBuilder.create<LLVM::StoreOp>(loc, function->getResult(0), aoo->getResult(0));
       }
-      //});
-      rewriter.create<LLVM::ReturnOp>(loc, ValueRange());
+      ctorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
       ArrayRef<Attribute> ctors = {FlatSymbolRefAttr::get(ctor)};
       moduleBuilder.create<LLVM::GlobalCtorsOp>(loc, moduleBuilder.getArrayAttr(ctors), moduleBuilder.getI32ArrayAttr({100}));
+      {
+        OpBuilder dtorBuilder(moduleOp->getContext());
+        dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock());
+        auto aoo = dtorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
+        auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
+        moduleUnloadCallBuilder.create(loc, dtorBuilder, module.getResult());
+        dtorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
+        ArrayRef<Attribute> dtors = {FlatSymbolRefAttr::get(dtor)};
+        moduleBuilder.create<LLVM::GlobalDtorsOp>(loc, moduleBuilder.getArrayAttr(dtors), moduleBuilder.getI32ArrayAttr({100}));
+      }
     }
   }
 
