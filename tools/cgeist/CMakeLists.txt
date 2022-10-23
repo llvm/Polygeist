@@ -32,7 +32,7 @@ add_clang_executable(cgeist
   Lib/CGCall.cc 
 )
 if(POLYGEIST_ENABLE_CUDA)
-  target_compile_definitions(obj.MLIRPolygeistTransforms
+  target_compile_definitions(cgeist
     PRIVATE
     POLYGEIST_ENABLE_CUDA=1
   )
