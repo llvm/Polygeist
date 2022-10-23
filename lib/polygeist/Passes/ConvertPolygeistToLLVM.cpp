@@ -1570,13 +1570,11 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   auto aoo = rewriter.create<LLVM::AddressOfOp>(loc, funcGlobal);
   auto function = rewriter.create<LLVM::LoadOp>(loc, aoo);
 
-  bool EmitCuda = true;
   Value zero = rewriter.create<LLVM::ConstantOp>(loc, llvmInt32Type, 0);
   auto nullpointer = rewriter.create<LLVM::NullOp>(loc, llvmPointerType);
   Value stream =
       adaptor.getAsyncDependencies().empty()
-    ? (EmitCuda ? nullpointer : streamCreateCallBuilder.create(loc, rewriter, {}).getResult())
-       : adaptor.getAsyncDependencies().front();
+    ? nullpointer : adaptor.getAsyncDependencies().front();
   // Create array of pointers to kernel arguments.
   auto kernelParams = generateParamsArray(launchOp, adaptor, rewriter);
   auto nullpointerpointer = rewriter.create<LLVM::NullOp>(loc, llvmPointerPointerType);
@@ -1593,13 +1591,6 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   if (launchOp.getAsyncToken()) {
     // Async launch: make dependent ops use the same stream.
     rewriter.replaceOp(launchOp, {stream});
-  } else if (!EmitCuda) {
-    // Synchronize with host and destroy stream. This must be the stream created
-    // above (with no other uses) because we check that the synchronous version
-    // does not have any async dependencies.
-    streamSynchronizeCallBuilder.create(loc, rewriter, stream);
-    streamDestroyCallBuilder.create(loc, rewriter, stream);
-    rewriter.eraseOp(launchOp);
   } else {
     rewriter.eraseOp(launchOp);
   }
