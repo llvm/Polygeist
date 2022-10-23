@@ -807,8 +807,10 @@ int main(int argc, char **argv) {
           std::string arch = CUDAGPUArch;
           if (arch == "")
             arch = "sm_60";
+          // TODO use the clang cuda toolchain or CudaInstallationDetector to
+          // get the ptxas and libdevice paths
           gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
-              "nvptx64-nvidia-cuda", arch, "+ptx74", optLevel,
+              gpuTriple.getTriple(), arch, "+ptx74", optLevel,
               "/usr/local/cuda/bin/ptxas",
               "/usr/local/cuda/nvvm/libdevice/libdevice.10.bc"));
         }

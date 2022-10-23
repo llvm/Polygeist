@@ -244,7 +244,7 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   }
 
   std::vector<StringRef> Argv;
-  Argv.push_back(ptxasExe.c_str());
+  Argv.push_back(ptxasExe);
   Argv.push_back(llvm::Triple(triple).isArch64Bit() ? "-m64" : "-m32");
   Argv.push_back("--gpu-name");
   Argv.push_back(chip.c_str());
@@ -254,7 +254,6 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   Argv.push_back("--output-file");
   Argv.push_back(tmpOutput->TmpName);
   Argv.push_back(tmpInput->TmpName);
-  Argv.push_back(nullptr);
 
   llvm::sys::ExecuteAndWait(ptxasExe.c_str(), Argv);
 
