@@ -9,9 +9,9 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #define DEBUG_TYPE "remove-device-functions"
 
 using namespace mlir;
@@ -23,7 +23,8 @@ void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
   rewriter.create<func::ReturnOp>(rewriter.getUnknownLoc());
 }
 void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
-  rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(), std::vector<Value>{});
+  rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(),
+                                  std::vector<Value>{});
 }
 
 template <typename FuncType>
@@ -44,13 +45,13 @@ struct RemoveFunction : public OpRewritePattern<FuncType> {
       return failure();
     rewriter.eraseOp(f);
     // TODO leave an empty function to pass to cudaSetCacheConfig
-    //Region *region = &f.getBody();
-    //if (region->empty())
+    // Region *region = &f.getBody();
+    // if (region->empty())
     //  return failure();
-    //rewriter.eraseBlock(&region->front());
-    //region->push_back(new Block());
-    //rewriter.setInsertionPointToEnd(&region->front());
-    //insertReturn(rewriter, f);
+    // rewriter.eraseBlock(&region->front());
+    // region->push_back(new Block());
+    // rewriter.setInsertionPointToEnd(&region->front());
+    // insertReturn(rewriter, f);
     return success();
   }
 };
@@ -61,17 +62,19 @@ struct RemoveDeviceFunctionsPass
   void runOnOperation() override {
     ModuleOp m = getOperation();
     RewritePatternSet patterns(&getContext());
-    patterns.insert<RemoveFunction<func::FuncOp>,RemoveFunction<LLVM::LLVMFuncOp>>(&getContext());
+    patterns
+        .insert<RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
+            &getContext());
     GreedyRewriteConfig config;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                            std::move(patterns), config))) {
+    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                            config))) {
       signalPassFailure();
       return;
     }
   }
 };
 
-}
+} // namespace
 
 std::unique_ptr<Pass> mlir::polygeist::createRemoveDeviceFunctionsPass() {
   return std::make_unique<RemoveDeviceFunctionsPass>();

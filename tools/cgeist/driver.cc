@@ -464,8 +464,8 @@ int main(int argc, char **argv) {
   llvm::DataLayout DL("");
   llvm::Triple gpuTriple;
   llvm::DataLayout gpuDL("");
-  parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple,
-            DL, gpuTriple, gpuDL);
+  parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple, DL,
+            gpuTriple, gpuDL);
 
   mlir::PassManager pm(&context);
 
@@ -480,10 +480,14 @@ int main(int argc, char **argv) {
   }
 
   int optLevel = 0;
-  if (Opt0) optLevel = 0;
-  if (Opt1) optLevel = 1;
-  if (Opt2) optLevel = 2;
-  if (Opt3) optLevel = 3;
+  if (Opt0)
+    optLevel = 0;
+  if (Opt1)
+    optLevel = 1;
+  if (Opt2)
+    optLevel = 2;
+  if (Opt3)
+    optLevel = 3;
 
   auto convertGepInBounds = [](llvm::Module &llvmModule) {
     for (auto &F : llvmModule) {
@@ -798,19 +802,22 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_CUDA
         if (EmitCuda) {
-          pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ true));
+          pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
+              options, CStyleMemRef, /* onlyGpuModules */ true));
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
 
           std::string arch = CUDAGPUArch;
           if (arch == "")
             arch = "sm_60";
-          gpuPM.addPass(polygeist::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", arch, "+ptx74", optLevel,
-                                                                 "/usr/local/cuda/bin/ptxas",
-                                                                 "/usr/local/cuda/nvvm/libdevice/libdevice.10.bc"));
+          gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
+              "nvptx64-nvidia-cuda", arch, "+ptx74", optLevel,
+              "/usr/local/cuda/bin/ptxas",
+              "/usr/local/cuda/nvvm/libdevice/libdevice.10.bc"));
         }
 #endif
 
-        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ false));
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
+            options, CStyleMemRef, /* onlyGpuModules */ false));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
         if (mlir::failed(pm3.run(module.get()))) {
