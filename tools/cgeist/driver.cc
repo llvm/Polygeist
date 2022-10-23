@@ -67,8 +67,10 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
+#if POLYGEIST_ENABLE_CUDA
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
+#endif
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
@@ -422,7 +424,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
-  mlir::registerGpuSerializeToCubinPass();
+  polygeist::registerGpuSerializeToCubinPass();
   MLIRContext context(registry);
 
   context.disableMultithreading();
@@ -743,6 +745,7 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
+#if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
@@ -754,6 +757,7 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
+#endif
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
@@ -790,6 +794,7 @@ int main(int argc, char **argv) {
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
 
+#if POLYGEIST_ENABLE_CUDA
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ true));
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
@@ -797,8 +802,11 @@ int main(int argc, char **argv) {
           std::string arch = CUDAGPUArch;
           if (arch == "")
             arch = "sm_60";
-          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", arch, "+ptx74", optLevel));
+          gpuPM.addPass(polygeist::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", arch, "+ptx74", optLevel,
+                                                                 "/usr/local/cuda/bin/ptxas",
+                                                                 "/usr/local/cuda/nvvm/libdevice/libdevice.10.bc"));
         }
+#endif
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ false));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
