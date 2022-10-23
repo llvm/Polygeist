@@ -792,39 +792,12 @@ int main(int argc, char **argv) {
 
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ true));
-
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
-          // TODO specify cubin pass params
-          // using the default "+ptx60" for the last arg here fails with the
-          // following:
-          //
-          // loc("vecadd.cu":132:5): error: cuLinkAddData( linkState,
-          // CUjitInputType::CU_JIT_INPUT_PTX, const_cast<void
-          // *>(static_cast<const void *>(isa.c_str())), isa.length(),
-          // kernelName.c_str(), 0, nullptr, nullptr ) failed with error code a
-          // PTX JIT compilation failed[
-          //
-          // ptxas application ptx input, line 466; error   : Feature 'labels1 -
-          // labels2 expression in .section' requires PTX ISA .version 7.5 or
-          // later
-          //
-          // ptxas application ptx input, line 467; error   : Feature 'Defining
-          // labels in .section' requires PTX ISA .version 7.0 or later
-          //
-          // ptxas application ptx input, line 525; error   : Feature 'Defining
-          // labels in .section' requires PTX ISA .version 7.0 or later
-          //
-          // ptxas application ptx input, line 529; error   : Feature 'labels1 -
-          // labels2 expression in .section' requires PTX ISA .version 7.5 or
-          // later
-          //
-          // ptxas application ptx input, line 530; error   : Feature 'Defining
-          // labels in .section' requires PTX ISA .version 7.0 or later
-          //
-          // ptxas application ptx input, line 536; error   : Feature 'Defining
-          // labels in .section' requires PTX ISA .version 7.0 or later
-          //
-          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", "sm_60", "+ptx75", optLevel));
+
+          std::string arch = CUDAGPUArch;
+          if (arch == "")
+            arch = "sm_60";
+          gpuPM.addPass(mlir::createGpuSerializeToCubinPass("nvptx64-nvidia-cuda", arch, "+ptx74", optLevel));
         }
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef, /* onlyGpuModules */ false));
