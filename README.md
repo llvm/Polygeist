@@ -46,6 +46,8 @@ ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
 
+To enable compilation to cuda add `-DPOLYGEIST_ENABLE_CUDA=1`
+
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
 
 Polygeist can also be built as an external LLVM project using [LLVM_EXTERNAL_PROJECTS](https://llvm.org/docs/CMake.html#llvm-related-variables).
