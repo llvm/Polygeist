@@ -8,6 +8,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -22,12 +23,10 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-
 #include "polygeist/BarrierUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
-#include <mlir/Dialect/Arith/IR/Arith.h>
 
 #include <deque>
 

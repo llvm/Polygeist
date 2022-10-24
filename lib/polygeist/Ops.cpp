@@ -27,6 +27,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/IntegerSet.h"
+#include "mlir/Transforms/SideEffectUtils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
@@ -39,10 +40,6 @@ using namespace mlir::arith;
 
 llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
-
-namespace mlir {
-bool isSideEffectFree(Operation *op);
-}
 
 //===----------------------------------------------------------------------===//
 // BarrierOp
@@ -76,7 +73,7 @@ bool collectEffects(Operation *op,
     llvm::append_range(effects, localEffects);
     return true;
   }
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
         for (auto &innerOp : block)
@@ -200,7 +197,7 @@ void BarrierOp::getEffects(
 }
 
 bool isReadOnly(Operation *op) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {
@@ -230,7 +227,7 @@ bool isReadOnly(Operation *op) {
 }
 
 bool isReadNone(Operation *op) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {
@@ -2330,7 +2327,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
 static bool isOpItselfPotentialAutomaticAllocation(Operation *op) {
   // This op itself doesn't create a stack allocation,
   // the inner allocation should be handled separately.
-  if (op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+  if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
     return false;
   MemoryEffectOpInterface interface = dyn_cast<MemoryEffectOpInterface>(op);
   if (!interface)
@@ -2477,11 +2474,11 @@ struct RankReduction : public OpRewritePattern<T> {
       }
       if (auto load = dyn_cast<memref::LoadOp>(u)) {
         if (!set) {
-          for (auto i : load.indices())
+          for (auto i : load.getIndices())
             v.push_back(i);
           set = true;
         } else {
-          for (auto pair : llvm::zip(load.indices(), v)) {
+          for (auto pair : llvm::zip(load.getIndices(), v)) {
             if (std::get<0>(pair) != std::get<1>(pair))
               return failure();
           }
@@ -2506,7 +2503,7 @@ struct RankReduction : public OpRewritePattern<T> {
             v.push_back(i);
           set = true;
         } else {
-          for (auto pair : llvm::zip(load.indices(), v)) {
+          for (auto pair : llvm::zip(load.getIndices(), v)) {
             if (std::get<0>(pair) != std::get<1>(pair))
               return failure();
           }
@@ -2518,11 +2515,11 @@ struct RankReduction : public OpRewritePattern<T> {
         if (store.getValue() == op)
           return failure();
         if (!set) {
-          for (auto i : store.indices())
+          for (auto i : store.getIndices())
             v.push_back(i);
           set = true;
         } else {
-          for (auto pair : llvm::zip(store.indices(), v)) {
+          for (auto pair : llvm::zip(store.getIndices(), v)) {
             if (std::get<0>(pair) != std::get<1>(pair))
               return failure();
           }
@@ -2550,7 +2547,7 @@ struct RankReduction : public OpRewritePattern<T> {
             v.push_back(i);
           set = true;
         } else {
-          for (auto pair : llvm::zip(store.indices(), v)) {
+          for (auto pair : llvm::zip(store.getIndices(), v)) {
             if (std::get<0>(pair) != std::get<1>(pair))
               return failure();
           }
@@ -3762,7 +3759,7 @@ struct PrepMergeNestedAffineParallelLoops
         innerOp = innerOp2;
         continue;
       }
-      if (isSideEffectFree(&op)) {
+      if (isMemoryEffectFree(&op)) {
         if (!isa<AffineYieldOp>(&op))
           toMove.push_back(&op);
         continue;
