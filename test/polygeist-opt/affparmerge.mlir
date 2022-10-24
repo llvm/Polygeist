@@ -16,11 +16,11 @@ module {
 
 }
 
-// CHECK:   func.func @f(%arg0: index, %arg1: memref<?xf64>) {
-// CHECK-NEXT:     affine.parallel (%arg2) = (0) to (symbol(%arg0) * 512) {
-// CHECK-NEXT:       %0 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:       %1 = arith.sitofp %0 : i32 to f64
-// CHECK-NEXT:       affine.store %1, %arg1[%arg2] : memref<?xf64>
+// CHECK:   func.func @f(%[[arg0:.+]]: index, %[[arg1:.+]]: memref<?xf64>) {
+// CHECK-NEXT:     affine.parallel (%[[arg2:.+]]) = (0) to (symbol(%[[arg0]]) * 512) {
+// CHECK-NEXT:       %[[V0:.+]] = arith.index_cast %[[arg2]] : index to i32
+// CHECK-NEXT:       %[[V1:.+]] = arith.sitofp %[[V0]] : i32 to f64
+// CHECK-NEXT:       affine.store %[[V1]], %arg1[%[[arg2]]] : memref<?xf64>
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

@@ -26,22 +26,22 @@ module  {
   }
 }
 
-// CHECK:   func.func @h(%arg0: i1, %arg1: i1, %arg2: i1)
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %c5_i32 = arith.constant 5 : i32
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
+// CHECK:   func.func @h(%[[arg0:.+]]: i1, %[[arg1:.+]]: i1, %[[arg2:.+]]: i1)
+// CHECK-NEXT:     %[[c1_i32:.+]] = arith.constant 1 : i32
+// CHECK-NEXT:     %[[c5_i32:.+]] = arith.constant 5 : i32
+// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
 // CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
-// CHECK-NEXT:     %0 = llvm.mlir.undef : i32
-// CHECK-NEXT:     scf.if %arg1 {
+// CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.undef : i32
+// CHECK-NEXT:     scf.if %[[arg1]] {
 // CHECK-NEXT:       scf.execute_region {
 // CHECK-NEXT:         scf.yield
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %1 = scf.if %arg2 -> (i32) {
-// CHECK-NEXT:         scf.yield %c5_i32 : i32
+// CHECK-NEXT:       %[[V1:.+]] = scf.if %[[arg2]] -> (i32) {
+// CHECK-NEXT:         scf.yield %[[c5_i32]] : i32
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %c0_i32 : i32
+// CHECK-NEXT:         scf.yield %[[c0_i32]] : i32
 // CHECK-NEXT:       }
-// CHECK-NEXT:       llvm.call @print(%1) : (i32) -> ()
+// CHECK-NEXT:       llvm.call @print(%[[V1]]) : (i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

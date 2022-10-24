@@ -23,19 +23,19 @@ module {
   }
 }
 
-// CHECK:   func.func @_Z26__device_stub__hotspotOpt1PfS_S_fiiifffffff(%arg0: f32, %arg1: i1, %arg2: i1, %arg3: f32) -> f32 {
-// CHECK-NEXT:     %0 = llvm.mlir.undef : f32
-// CHECK-NEXT:     %1:2 = scf.if %arg1 -> (f32, f32) {
-// CHECK-NEXT:       scf.yield %arg0, %0 : f32, f32
+// CHECK:   func.func @_Z26__device_stub__hotspotOpt1PfS_S_fiiifffffff(%[[arg0:.+]]: f32, %[[arg1:.+]]: i1, %[[arg2:.+]]: i1, %[[arg3:.+]]: f32) -> f32 {
+// CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.undef : f32
+// CHECK-NEXT:     %[[V1:.+]]:2 = scf.if %[[arg1]] -> (f32, f32) {
+// CHECK-NEXT:       scf.yield %[[arg0]], %[[V0]] : f32, f32
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %0, %arg3 : f32, f32
+// CHECK-NEXT:       scf.yield %[[V0]], %[[arg3]] : f32, f32
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %2 = scf.if %arg2 -> (f32) {
-// CHECK-NEXT:       scf.yield %1#0 : f32
+// CHECK-NEXT:     %[[V2:.+]] = scf.if %[[arg2]] -> (f32) {
+// CHECK-NEXT:       scf.yield %[[V1]]#0 : f32
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %1#1 : f32
+// CHECK-NEXT:       scf.yield %[[V1]]#1 : f32
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %2 : f32
+// CHECK-NEXT:     return %[[V2]] : f32
 // CHECK-NEXT:   }
 
 // ----
@@ -69,26 +69,26 @@ func.func @_Z3runiPPc(%arg2: i1) -> !llvm.ptr<i8> {
 
 }
 
-// CHECK:     func.func @_Z3runiPPc(%arg0: i1) -> !llvm.ptr<i8> {
-// CHECK-NEXT:       %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:       %0 = llvm.alloca %c1_i64 x !llvm.ptr<i8> : (i64) -> !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:       %1 = llvm.mlir.null : !llvm.ptr<i8>
-// CHECK-NEXT:       scf.if %arg0 {
-// CHECK-NEXT:         %3 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:         %4 = llvm.icmp "eq" %3, %1 : !llvm.ptr<i8>
-// CHECK-NEXT:         %5 = scf.if %4 -> (!llvm.ptr<i8>) {
-// CHECK-NEXT:           %6 = scf.if %arg0 -> (!llvm.ptr<i8>) {
-// CHECK-NEXT:             %7 = func.call @gen() : () -> !llvm.ptr<i8>
-// CHECK-NEXT:             llvm.store %7, %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:             scf.yield %7 : !llvm.ptr<i8>
+// CHECK:     func.func @_Z3runiPPc(%[[arg0:.+]]: i1) -> !llvm.ptr<i8> {
+// CHECK-NEXT:       %[[c1_i64:.+]] = arith.constant 1 : i64
+// CHECK-NEXT:       %[[V0:.+]] = llvm.alloca %[[c1_i64]] x !llvm.ptr<i8> : (i64) -> !llvm.ptr<ptr<i8>>
+// CHECK-NEXT:       %[[V1:.+]] = llvm.mlir.null : !llvm.ptr<i8>
+// CHECK-NEXT:       scf.if %[[arg0]] {
+// CHECK-NEXT:         %[[V3:.+]] = llvm.load %[[V0]] : !llvm.ptr<ptr<i8>>
+// CHECK-NEXT:         %[[V4:.+]] = llvm.icmp "eq" %[[V3]], %[[V1]] : !llvm.ptr<i8>
+// CHECK-NEXT:         %[[V5:.+]] = scf.if %[[V4]] -> (!llvm.ptr<i8>) {
+// CHECK-NEXT:           %[[V6:.+]] = scf.if %[[arg0]] -> (!llvm.ptr<i8>) {
+// CHECK-NEXT:             %[[V7:.+]] = func.call @gen() : () -> !llvm.ptr<i8>
+// CHECK-NEXT:             llvm.store %[[V7]], %[[V0]] : !llvm.ptr<ptr<i8>>
+// CHECK-NEXT:             scf.yield %[[V7]] : !llvm.ptr<i8>
 // CHECK-NEXT:           } else {
-// CHECK-NEXT:             scf.yield %3 : !llvm.ptr<i8>
+// CHECK-NEXT:             scf.yield %[[V3]] : !llvm.ptr<i8>
 // CHECK-NEXT:           }
-// CHECK-NEXT:           scf.yield %6 : !llvm.ptr<i8>
+// CHECK-NEXT:           scf.yield %[[V6]] : !llvm.ptr<i8>
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           scf.yield %3 : !llvm.ptr<i8>
+// CHECK-NEXT:           scf.yield %[[V3]] : !llvm.ptr<i8>
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %2 = llvm.load %0 : !llvm.ptr<ptr<i8>>
-// CHECK-NEXT:       return %2 : !llvm.ptr<i8>
+// CHECK-NEXT:       %[[V2:.+]] = llvm.load %[[V0]] : !llvm.ptr<ptr<i8>>
+// CHECK-NEXT:       return %[[V2]] : !llvm.ptr<i8>
 

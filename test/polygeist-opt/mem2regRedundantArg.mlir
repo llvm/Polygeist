@@ -24,21 +24,21 @@ module {
   }
 }
 
-// CHECK:   func.func @kernel_correlation(%arg0: memref<?xf64>) {
-// CHECK-NEXT:     %cst = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c10 = arith.constant 10 : index
-// CHECK-NEXT:     cf.br ^bb1(%c0 : index)
-// CHECK-NEXT:   ^bb1(%0: index):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:     %1 = arith.cmpi slt, %0, %c10 : index
-// CHECK-NEXT:     %2 = arith.andi %1, %true : i1
-// CHECK-NEXT:     cf.cond_br %2, ^bb2, ^bb3
+// CHECK:   func.func @kernel_correlation(%[[arg0:.+]]: memref<?xf64>) {
+// CHECK-NEXT:     %[[cst:.+]] = arith.constant 0.000000e+00 : f64
+// CHECK-NEXT:     %[[true:.+]] = arith.constant true
+// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-NEXT:     %[[c10:.+]] = arith.constant 10 : index
+// CHECK-NEXT:     cf.br ^bb1(%[[c0]] : index)
+// CHECK-NEXT:   ^bb1(%[[V0:.+]]: index):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:     %[[V1:.+]] = arith.cmpi slt, %[[V0]], %[[c10]] : index
+// CHECK-NEXT:     %[[V2:.+]] = arith.andi %[[V1]], %[[true]] : i1
+// CHECK-NEXT:     cf.cond_br %[[V2]], ^bb2, ^bb3
 // CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     memref.store %cst, %arg0[%0] : memref<?xf64>
-// CHECK-NEXT:     %3 = arith.addi %0, %c1 : index
-// CHECK-NEXT:     cf.br ^bb1(%3 : index)
+// CHECK-NEXT:     memref.store %[[cst]], %[[arg0]][%[[V0]]] : memref<?xf64>
+// CHECK-NEXT:     %[[V3:.+]] = arith.addi %[[V0]], %[[c1]] : index
+// CHECK-NEXT:     cf.br ^bb1(%[[V3]] : index)
 // CHECK-NEXT:   ^bb3:  // pred: ^bb1
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

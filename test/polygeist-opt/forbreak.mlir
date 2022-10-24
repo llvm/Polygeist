@@ -22,23 +22,23 @@ module {
   }
 }
 
-// CHECK:   func.func @get_neighbor_index(%arg0: i1, %arg1: i32, %arg2: i1) -> i32 {
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c10 = arith.constant 10 : index
-// CHECK-NEXT:     cf.cond_br %arg2, ^bb1(%c0 : index), ^bb3(%arg1 : i32)
-// CHECK-NEXT:   ^bb1(%0: index):  // 2 preds: ^bb0, ^bb2
+// CHECK:   func.func @get_neighbor_index(%[[arg0:.+]]: i1, %[[arg1:.+]]: i32, %[[arg2:.+]]: i1) -> i32 {
+// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-NEXT:     %[[c10:.+]] = arith.constant 10 : index
+// CHECK-NEXT:     cf.cond_br %[[arg2]], ^bb1(%[[c0]] : index), ^bb3(%[[arg1]] : i32)
+// CHECK-NEXT:   ^bb1(%[[V0:.+]]: index):  // 2 preds: ^bb0, ^bb2
 // CHECK-NEXT:     cf.br ^bb2
 // CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     %1 = "test.cond"() : () -> i1
-// CHECK-NEXT:     %2 = "test.val"() : () -> i32
-// CHECK-NEXT:     %3 = "test.val2"() : () -> i1
-// CHECK-NEXT:     %4 = arith.addi %0, %c1 : index
-// CHECK-NEXT:     %5 = arith.cmpi slt, %4, %c10 : index
-// CHECK-NEXT:     %6 = arith.andi %5, %1 : i1
-// CHECK-NEXT:     cf.cond_br %6, ^bb1(%4 : index), ^bb3(%2 : i32)
-// CHECK-NEXT:   ^bb3(%7: i32):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:     %[[V1:.+]] = "test.cond"() : () -> i1
+// CHECK-NEXT:     %[[V2:.+]] = "test.val"() : () -> i32
+// CHECK-NEXT:     %[[V3:.+]] = "test.val2"() : () -> i1
+// CHECK-NEXT:     %[[V4:.+]] = arith.addi %[[V0]], %[[c1]] : index
+// CHECK-NEXT:     %[[V5:.+]] = arith.cmpi slt, %[[V4]], %[[c10]] : index
+// CHECK-NEXT:     %[[V6:.+]] = arith.andi %[[V5]], %[[V1]] : i1
+// CHECK-NEXT:     cf.cond_br %[[V6]], ^bb1(%[[V4]] : index), ^bb3(%[[V2]] : i32)
+// CHECK-NEXT:   ^bb3(%[[V7:.+]]: i32):  // 2 preds: ^bb0, ^bb2
 // CHECK-NEXT:     cf.br ^bb4
 // CHECK-NEXT:   ^bb4:  // pred: ^bb3
-// CHECK-NEXT:     return %7 : i32
+// CHECK-NEXT:     return %[[V7]] : i32
 // CHECK-NEXT:   }

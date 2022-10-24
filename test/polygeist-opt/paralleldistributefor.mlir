@@ -17,22 +17,22 @@ module {
   }
 }
 
-// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%arg0: memref<?xf32>, %arg1: index, %arg2: f32, %arg3: i1, %arg4: i1) {
-// CHECK-DAG:     %c1 = arith.constant 1 : index
-// CHECK-DAG:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %0 = memref.alloca() : memref<16x16xi1>
-// CHECK-NEXT:     affine.parallel (%arg5, %arg6) = (0, 0) to (16, 16) {
-// CHECK-NEXT:       memref.store %arg3, %0[%arg5, %arg6] : memref<16x16xi1>
+// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%[[arg0:.+]]: memref<?xf32>, %[[arg1:.+]]: index, %[[arg2:.+]]: f32, %[[arg3:.+]]: i1, %[[arg4:.+]]: i1) {
+// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<16x16xi1>
+// CHECK-NEXT:     affine.parallel (%[[arg5:.+]], %[[arg6:.+]]) = (0, 0) to (16, 16) {
+// CHECK-NEXT:       memref.store %[[arg3]], %[[V0]][%[[arg5]], %[[arg6]]] : memref<16x16xi1>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     scf.for %arg5 = %c0 to %arg1 step %c1 {
-// CHECK-NEXT:       affine.parallel (%arg6, %arg7) = (0, 0) to (16, 16) {
-// CHECK-NEXT:         affine.store %arg2, %arg0[%arg6] : memref<?xf32>
-// CHECK-NEXT:         memref.store %arg4, %0[%arg6, %arg7] : memref<16x16xi1>
+// CHECK-NEXT:     scf.for %[[arg5:.+]] = %[[c0]] to %[[arg1]] step %[[c1]] {
+// CHECK-NEXT:       affine.parallel (%[[arg6:.+]], %[[arg7:.+]]) = (0, 0) to (16, 16) {
+// CHECK-NEXT:         affine.store %[[arg2]], %[[arg0]][%[[arg6]]] : memref<?xf32>
+// CHECK-NEXT:         memref.store %[[arg4]], %[[V0]][%[[arg6]], %[[arg7]]] : memref<16x16xi1>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
-// CHECK-NEXT:     affine.parallel (%arg5, %arg6) = (0, 0) to (16, 16) {
-// CHECK-NEXT:       %1 = memref.load %0[%arg5, %arg6] : memref<16x16xi1>
-// CHECK-NEXT:       func.call @use(%1) : (i1) -> ()
+// CHECK-NEXT:     affine.parallel (%[[arg5:.+]], %[[arg6:.+]]) = (0, 0) to (16, 16) {
+// CHECK-NEXT:       %[[V1:.+]] = memref.load %[[V0]][%[[arg5]], %[[arg6]]] : memref<16x16xi1>
+// CHECK-NEXT:       func.call @use(%[[V1]]) : (i1) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

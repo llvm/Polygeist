@@ -17,11 +17,11 @@ module {
 }
 
 
-// CHECK:   func.func @_Z7runTestiPPc(%arg0: index, %arg1: memref<?xi32>) {
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     affine.for %arg2 = 0 to 2 {
-// CHECK-NEXT:       affine.for %arg3 = 0 to 2 {
-// CHECK-NEXT:         affine.store %c0_i32, %arg1[%arg3 + %arg2 * (symbol(%arg0) + 1)] : memref<?xi32>
+// CHECK:   func.func @_Z7runTestiPPc(%[[arg0:.+]]: index, %[[arg1:.+]]: memref<?xi32>) {
+// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
+// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to 2 {
+// CHECK-NEXT:       affine.for %[[arg3:.+]] = 0 to 2 {
+// CHECK-NEXT:         affine.store %c0_i32, %arg1[%[[arg3]] + %[[arg2]] * (symbol(%[[arg0]]) + 1)] : memref<?xi32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
@@ -48,10 +48,10 @@ func.func @kernel_nussinov(%arg0: i32, %arg2: memref<i32>) {
 }
 
 // CHECK: #set = affine_set<(d0) : (d0 + 40 >= 0)>
-// CHECK:   func.func @kernel_nussinov(%arg0: i32, %arg1: memref<i32>) {
-// CHECK-NEXT:     affine.for %arg2 = 0 to 60 {
-// CHECK-NEXT:       affine.if #set(%arg2) {
-// CHECK-NEXT:         affine.store %arg0, %arg1[] : memref<i32>
+// CHECK:   func.func @kernel_nussinov(%[[arg0:.+]]: i32, %[[arg1:.+]]: memref<i32>) {
+// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to 60 {
+// CHECK-NEXT:       affine.if #set(%[[arg2]]) {
+// CHECK-NEXT:         affine.store %[[arg0]], %[[arg1]][] : memref<i32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
@@ -85,17 +85,17 @@ module {
 }
 
 // CHECK: #set = affine_set<()[s0] : (s0 - 1 >= 0)>
-// CHECK:   func.func @minif(%arg0: i32, %arg1: i32, %arg2: index) {
-// CHECK-NEXT:     %0 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:     %1 = arith.muli %0, %arg1 : i32
-// CHECK-NEXT:     %2 = arith.divui %1, %arg1 : i32
-// CHECK-NEXT:     %3 = arith.muli %2, %arg1 : i32
-// CHECK-NEXT:     %4 = arith.subi %arg0, %3 : i32
-// CHECK-NEXT:     %5 = arith.cmpi sle, %arg1, %4 : i32
-// CHECK-NEXT:     %6 = arith.select %5, %arg1, %4 : i32
-// CHECK-NEXT:     %7 = arith.index_cast %6 : i32 to index
-// CHECK-NEXT:     affine.for %arg3 = 0 to 10 {
-// CHECK-NEXT:       affine.if #set()[%7] {
+// CHECK:   func.func @minif(%[[arg0:.+]]: i32, %[[arg1:.+]]: i32, %[[arg2:.+]]: index) {
+// CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg2]] : index to i32
+// CHECK-NEXT:     %[[V1:.+]] = arith.muli %[[V0]], %[[arg1]] : i32
+// CHECK-NEXT:     %[[V2:.+]] = arith.divui %[[V1]], %[[arg1]] : i32
+// CHECK-NEXT:     %[[V3:.+]] = arith.muli %[[V2]], %[[arg1]] : i32
+// CHECK-NEXT:     %[[V4:.+]] = arith.subi %[[arg0]], %[[V3]] : i32
+// CHECK-NEXT:     %[[V5:.+]] = arith.cmpi sle, %[[arg1]], %[[V4]] : i32
+// CHECK-NEXT:     %[[V6:.+]] = arith.select %5, %[[arg1]], %[[V4]] : i32
+// CHECK-NEXT:     %[[V7:.+]] = arith.index_cast %[[V6]] : i32 to index
+// CHECK-NEXT:     affine.for %[[arg3:.+]] = 0 to 10 {
+// CHECK-NEXT:       affine.if #set()[%[[V7]]] {
 // CHECK-NEXT:         func.call @run() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
@@ -123,15 +123,15 @@ func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) 
 }
 }
 
-// CHECK:   func.func @_Z7runTestiPPc(%arg0: i32, %arg1: memref<?xi32>, %arg2: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %c16_i32 = arith.constant 16 : i32
-// CHECK-NEXT:     %0 = llvm.call @atoi(%arg2) : (!llvm.ptr<i8>) -> i32
-// CHECK-NEXT:     %1 = arith.index_cast %0 : i32 to index
-// CHECK-NEXT:     %2 = arith.divsi %0, %c16_i32 : i32
-// CHECK-NEXT:     %3 = arith.index_cast %2 : i32 to index
-// CHECK-NEXT:     affine.for %arg3 = 1 to 10 {
-// CHECK-NEXT:       affine.store %c2_i32, %arg1[%arg3 * symbol(%1) + symbol(%1) + symbol(%3)] : memref<?xi32>
+// CHECK:   func.func @_Z7runTestiPPc(%[[arg0:.+]]: i32, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     %[[c2_i32:.+]] = arith.constant 2 : i32
+// CHECK-NEXT:     %[[c16_i32:.+]] = arith.constant 16 : i32
+// CHECK-NEXT:     %[[V0:.+]] = llvm.call @atoi(%[[arg2]]) : (!llvm.ptr<i8>) -> i32
+// CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %[[V0]] : i32 to index
+// CHECK-NEXT:     %[[V2:.+]] = arith.divsi %[[V0]], %[[c16_i32]] : i32
+// CHECK-NEXT:     %[[V3:.+]] = arith.index_cast %[[V2]] : i32 to index
+// CHECK-NEXT:     affine.for %[[arg3:.+]] = 1 to 10 {
+// CHECK-NEXT:       affine.store %[[c2_i32]], %[[arg1]][%[[arg3]] * symbol(%1) + symbol(%1) + symbol(%[[V3]])] : memref<?xi32>
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
@@ -153,10 +153,10 @@ module {
 }
 
 // CHECK: #set = affine_set<(d0)[s0] : (-d0 + s0 - 1 >= 0)>
-// CHECK:   func.func @c(%arg0: memref<?xf32>, %arg1: i64) {
-// CHECK-NEXT:     %0 = arith.index_cast %arg1 : i64 to index
-// CHECK-NEXT:     affine.parallel (%arg2, %arg3) = (0, 0) to (42, 512) {
-// CHECK-NEXT:       affine.if #set(%arg2)[%0] {
+// CHECK:   func.func @c(%[[arg0:.+]]: memref<?xf32>, %[[arg1]]: i64) {
+// CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg1]] : i64 to index
+// CHECK-NEXT:     affine.parallel (%[[arg2:.+]], %[[arg3:.+]]) = (0, 0) to (42, 512) {
+// CHECK-NEXT:       affine.if #set(%[[arg2]])[%[[V0]]] {
 // CHECK-NEXT:         "test.something"() : () -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }

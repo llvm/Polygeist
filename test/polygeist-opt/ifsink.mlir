@@ -35,26 +35,26 @@ module {
 }
 
 // CHECK:   func.func @bpnn_train_cuda() {
-// CHECK-NEXT:     affine.parallel (%arg0) = (0) to (16) {
+// CHECK-NEXT:     affine.parallel (%[[arg0:.+]]) = (0) to (16) {
 // CHECK-NEXT:       "test.pre"() : () -> ()
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %0 = "test.create"() : () -> i32
-// CHECK-NEXT:     "test.use"(%0) : (i32) -> ()
+// CHECK-NEXT:     %[[V0:.+]] = "test.create"() : () -> i32
+// CHECK-NEXT:     "test.use"(%[[V0]]) : (i32) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func.func @bpnn_train_cuda1() {
-// CHECK-NEXT:     affine.parallel (%arg0) = (0) to (16) {
+// CHECK-NEXT:     affine.parallel (%[[arg0:.+]]) = (0) to (16) {
 // CHECK-NEXT:       "test.pre"() : () -> ()
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %0 = "test.create"() : () -> i32
-// CHECK-NEXT:     "test.use"(%0) : (i32) -> ()
+// CHECK-NEXT:     %[[V0:.+]] = "test.create"() : () -> i32
+// CHECK-NEXT:     "test.use"(%[[V0]]) : (i32) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func.func @bpnn_train_cuda2() {
-// CHECK-NEXT:     affine.parallel (%arg0) = (0) to (16) {
-// CHECK-NEXT:       %0 = "test.create"() : () -> i32
-// CHECK-NEXT:       affine.if #set(%arg0) {
-// CHECK-NEXT:         "test.use"(%0) : (i32) -> ()
+// CHECK-NEXT:     affine.parallel (%[[arg0:.+]]) = (0) to (16) {
+// CHECK-NEXT:       %[[V0:.+]] = "test.create"() : () -> i32
+// CHECK-NEXT:       affine.if #set(%[[arg0]]) {
+// CHECK-NEXT:         "test.use"(%[[V0]]) : (i32) -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

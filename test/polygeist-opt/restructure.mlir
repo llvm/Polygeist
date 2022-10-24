@@ -17,27 +17,27 @@ func.func @kernel_gemm(%arg0: i64) -> i1 {
 }
 
 
-// CHECK:   func.func @kernel_gemm(%arg0: i64) -> i1 {
-// CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.mlir.undef : i1
-// CHECK-NEXT:     %1:2 = scf.while (%arg1 = %c0_i64, %arg2 = %0) : (i64, i1) -> (i64, i1) {
-// CHECK-NEXT:       %2 = arith.cmpi slt, %arg1, %c0_i64 : i64
-// CHECK-NEXT:       %3 = arith.cmpi sle, %arg1, %arg0 : i64
-// CHECK-NEXT:       %false = arith.constant false
-// CHECK-NEXT:       %4:3 = scf.if %3 -> (i1, i64, i1) {
-// CHECK-NEXT:         %5 = arith.addi %arg1, %c1_i64 : i64
-// CHECK-NEXT:         %true = arith.constant true
-// CHECK-NEXT:         scf.yield %true, %5, %2 : i1, i64, i1
+// CHECK:   func.func @kernel_gemm(%[[arg0:.+]]: i64) -> i1 {
+// CHECK-NEXT:     %[[c0_i64:.+]] = arith.constant 0 : i64
+// CHECK-NEXT:     %[[c1_i64:.+]] = arith.constant 1 : i64
+// CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.undef : i1
+// CHECK-NEXT:     %[[V1:.+]]:2 = scf.while (%[[arg1:.+]] = %[[c0_i64]], %[[arg2:.+]] = %[[V0]]) : (i64, i1) -> (i64, i1) {
+// CHECK-NEXT:       %[[V2:.+]] = arith.cmpi slt, %[[arg1]], %[[c0_i64]] : i64
+// CHECK-NEXT:       %[[V3:.+]] = arith.cmpi sle, %[[arg1]], %[[arg0]] : i64
+// CHECK-NEXT:       %[[false:.+]] = arith.constant false
+// CHECK-NEXT:       %[[V4:.+]]:3 = scf.if %[[V3]] -> (i1, i64, i1) {
+// CHECK-NEXT:         %[[V5:.+]] = arith.addi %[[arg1]], %[[c1_i64]] : i64
+// CHECK-NEXT:         %[[true:.+]] = arith.constant true
+// CHECK-NEXT:         scf.yield %[[true]], %[[V5]], %[[V2]] : i1, i64, i1
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %false, %arg1, %2 : i1, i64, i1
+// CHECK-NEXT:         scf.yield %[[false]], %[[arg1]], %[[V2]] : i1, i64, i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.condition(%4#0) %4#1, %4#2 : i64, i1
+// CHECK-NEXT:       scf.condition(%[[V4]]#0) %[[V4]]#1, %[[V4]]#2 : i64, i1
 // CHECK-NEXT:     } do {
-// CHECK-NEXT:     ^bb0(%arg1: i64, %arg2: i1):  
-// CHECK-NEXT:       scf.yield %arg1, %arg2 : i64, i1
+// CHECK-NEXT:     ^bb0(%[[arg1]]: i64, %[[arg2]]: i1):
+// CHECK-NEXT:       scf.yield %[[arg1]], %[[arg2]] : i64, i1
 // CHECK-NEXT:     }
-// CHECK-NEXT:     return %1#1 : i1
+// CHECK-NEXT:     return %[[V1]]#1 : i1
 // CHECK-NEXT:   }
 
 
@@ -70,38 +70,38 @@ func.func @kernel_gemm(%arg0: i64) -> i1 {
   }
 
 
-// CHECK:   func.func @gcd(%arg0: i32, %arg1: i32) -> i32 {
-// CHECK-DAG:     %c0_i32 = arith.constant 0 : i32
-// CHECK-DAG:     %true = arith.constant true
-// CHECK-NEXT:     %0 = memref.alloca() : memref<i32>
-// CHECK-NEXT:     %1 = memref.alloca() : memref<i32>
-// CHECK-NEXT:     %2 = memref.alloca() : memref<i32>
-// CHECK-NEXT:     memref.store %arg0, %2[] : memref<i32>
-// CHECK-NEXT:     memref.store %arg1, %1[] : memref<i32>
+// CHECK:   func.func @gcd(%[[arg0:.+]]: i32, %[[arg1:.+]]: i32) -> i32 {
+// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
+// CHECK-DAG:     %[[true:.+]] = arith.constant true
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<i32>
+// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<i32>
+// CHECK-NEXT:     %[[V2:.+]] = memref.alloca() : memref<i32>
+// CHECK-NEXT:     memref.store %[[arg0]], %[[V2]][] : memref<i32>
+// CHECK-NEXT:     memref.store %[[arg1]], %[[V1]][] : memref<i32>
 // CHECK-NEXT:     scf.while : () -> () {
-// CHECK-NEXT:       %4 = memref.load %1[] : memref<i32>
-// CHECK-NEXT:       %5 = arith.cmpi sgt, %4, %c0_i32 : i32
-// CHECK-NEXT:       %false = arith.constant false
-// CHECK-NEXT:       %6 = scf.if %5 -> (i1) {
-// CHECK-NEXT:         %7 = memref.load %0[] : memref<i32>
-// CHECK-NEXT:         %8 = memref.load %2[] : memref<i32>
-// CHECK-NEXT:         %9 = arith.remsi %8, %4 : i32
-// CHECK-NEXT:         scf.if %true {
-// CHECK-NEXT:           memref.store %9, %0[] : memref<i32>
+// CHECK-NEXT:       %[[V4:.+]] = memref.load %[[V1]][] : memref<i32>
+// CHECK-NEXT:       %[[V5:.+]] = arith.cmpi sgt, %[[V4]], %[[c0_i32]] : i32
+// CHECK-NEXT:       %[[false:.+]] = arith.constant false
+// CHECK-NEXT:       %[[V6:.+]] = scf.if %[[V5]] -> (i1) {
+// CHECK-NEXT:         %[[V7:.+]] = memref.load %[[V0]][] : memref<i32>
+// CHECK-NEXT:         %[[V8:.+]] = memref.load %[[V2]][] : memref<i32>
+// CHECK-NEXT:         %[[V9:.+]] = arith.remsi %[[V8]], %[[V4]] : i32
+// CHECK-NEXT:         scf.if %[[true]] {
+// CHECK-NEXT:           memref.store %[[V9]], %[[V0]][] : memref<i32>
 // CHECK-NEXT:         }
-// CHECK-NEXT:         memref.store %4, %2[] : memref<i32>
-// CHECK-NEXT:         memref.store %9, %1[] : memref<i32>
-// CHECK-NEXT:         %true_0 = arith.constant true
-// CHECK-NEXT:         scf.yield %true_0 : i1
+// CHECK-NEXT:         memref.store %[[V4]], %[[V2]][] : memref<i32>
+// CHECK-NEXT:         memref.store %[[V9]], %[[V1]][] : memref<i32>
+// CHECK-NEXT:         %[[true_0:.+]] = arith.constant true
+// CHECK-NEXT:         scf.yield %[[true_0]] : i1
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %false : i1
+// CHECK-NEXT:         scf.yield %[[false]] : i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.condition(%6)
+// CHECK-NEXT:       scf.condition(%[[V6]])
 // CHECK-NEXT:     } do {
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
-// CHECK-NEXT:     %3 = memref.load %2[] : memref<i32>
-// CHECK-NEXT:     return %3 : i32
+// CHECK-NEXT:     %[[V3:.+]] = memref.load %[[V2]][] : memref<i32>
+// CHECK-NEXT:     return %[[V3]] : i32
 // CHECK-NEXT:   }
 
 }

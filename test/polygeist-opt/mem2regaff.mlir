@@ -9,6 +9,6 @@ module {
   }
 }
 
-// CHECK:   func.func @ll(%arg0: i16) -> i16 {
-// CHECK-NEXT:     return %arg0 : i16
+// CHECK:   func.func @ll(%[[arg0:.+]]: i16) -> i16 {
+// CHECK-NEXT:     return %[[arg0]] : i16
 // CHECK-NEXT:   }
