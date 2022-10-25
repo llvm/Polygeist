@@ -18,17 +18,17 @@ void kernel_correlation(int table[N][N]) {
   }
 }
 
-// CHECK:   func @kernel_correlation(%arg0: memref<?x10xi32>)
-// CHECK-DAG:     %c9 = arith.constant 9 : index
+// CHECK:   func @kernel_correlation(%[[arg0:.+]]: memref<?x10xi32>)
+// CHECK-DAG:     %[[c9:.+]] = arith.constant 9 : index
 // CHECK-DAG:     %c-1 = arith.constant -1 : index
-// CHECK-NEXT:     affine.for %arg1 = 0 to 10 {
-// CHECK-NEXT:       %0 = arith.muli %arg1, %c-1 : index
-// CHECK-NEXT:       %1 = arith.addi %0, %c9 : index
-// CHECK-NEXT:       %2 = arith.index_cast %1 : index to i32
-// CHECK-NEXT:       affine.for %arg2 = 0 to 10 {
-// CHECK-NEXT:         %3 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:         %4 = arith.addi %2, %3 : i32
-// CHECK-NEXT:         affine.store %4, %arg0[-%arg1 + 9, %arg2] : memref<?x10xi32>
+// CHECK-NEXT:     affine.for %[[arg1:.+]] = 0 to 10 {
+// CHECK-NEXT:       %[[V0:.+]] = arith.muli %[[arg1]], %c-1 : index
+// CHECK-NEXT:       %[[V1:.+]] = arith.addi %[[V0]], %[[c9]] : index
+// CHECK-NEXT:       %[[V2:.+]] = arith.index_cast %[[V1]] : index to i32
+// CHECK-NEXT:       affine.for %[[arg2:.+]] = 0 to 10 {
+// CHECK-NEXT:         %[[V3:.+]] = arith.index_cast %[[arg2]] : index to i32
+// CHECK-NEXT:         %[[V4:.+]] = arith.addi %[[V2]], %[[V3]] : i32
+// CHECK-NEXT:         affine.store %[[V4]], %[[arg0]][-%[[arg1]] + 9, %[[arg2]]] : memref<?x10xi32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

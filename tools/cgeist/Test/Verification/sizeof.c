@@ -12,8 +12,8 @@ struct Meta* create() {
 }
 
 // CHECK:   func @create() -> memref<?x!llvm.struct<(memref<?xf32>, i8)>> attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xf32>, i8)>} : () -> index
-// CHECK-NEXT:     %1 = arith.divui %0, %0 : index
-// CHECK-NEXT:     %2 = memref.alloc(%1) : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
-// CHECK-NEXT:     return %2 : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
+// CHECK-NEXT:     %[[V0:.+]] = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xf32>, i8)>} : () -> index
+// CHECK-NEXT:     %[[V1:.+]] = arith.divui %[[V0]], %[[V0]] : index
+// CHECK-NEXT:     %[[V2:.+]] = memref.alloc(%[[V1]]) : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
+// CHECK-NEXT:     return %[[V2]] : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
 // CHECK-NEXT:   }

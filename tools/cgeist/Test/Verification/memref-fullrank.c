@@ -28,6 +28,6 @@ int main() {
 // CHECK: %[[VAL0:.*]] = memref.alloca() : memref<10x20xi32>
 // CHECK: %{{.*}} = call @g(%[[VAL0]]) : (memref<10x20xi32>) -> i32
 
-// CHECK: func @g(%arg0: memref<10x20xi32>) -> i32
+// CHECK: func @g(%[[arg0:.+]]: memref<10x20xi32>) -> i32
 
-// CHECK: func @f(%arg0: memref<10x20xi32>) -> i32
+// CHECK: func @f(%[[arg0:.+]]: memref<10x20xi32>) -> i32

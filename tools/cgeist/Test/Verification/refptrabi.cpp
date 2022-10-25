@@ -16,13 +16,13 @@ float ll(void* data) {
 
 }
 
-// CHECK:   func @ll(%arg0: memref<?xi8>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = memref.alloca() : memref<1x1xi16>
-// CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%arg0) : (memref<?xi8>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %2 = llvm.bitcast %1 : !llvm.ptr<i8> to !llvm.ptr<i16>
-// CHECK-NEXT:     %3 = llvm.load %2 : !llvm.ptr<i16>
-// CHECK-NEXT:     affine.store %3, %0[0, 0] : memref<1x1xi16>
-// CHECK-NEXT:     %4 = memref.cast %0 : memref<1x1xi16> to memref<?x1xi16>
-// CHECK-NEXT:     %5 = call @thing(%4) : (memref<?x1xi16>) -> f32
-// CHECK-NEXT:     return %5 : f32
+// CHECK:   func @ll(%[[arg0:.+]]: memref<?xi8>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x1xi16>
+// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?xi8>) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %[[V2:.+]] = llvm.bitcast %[[V1]] : !llvm.ptr<i8> to !llvm.ptr<i16>
+// CHECK-NEXT:     %[[V3:.+]] = llvm.load %[[V2]] : !llvm.ptr<i16>
+// CHECK-NEXT:     affine.store %[[V3]], %[[V0]][0, 0] : memref<1x1xi16>
+// CHECK-NEXT:     %[[V4:.+]] = memref.cast %[[V0]] : memref<1x1xi16> to memref<?x1xi16>
+// CHECK-NEXT:     %[[V5:.+]] = call @thing(%[[V4]]) : (memref<?x1xi16>) -> f32
+// CHECK-NEXT:     return %[[V5]] : f32
 // CHECK-NEXT:   }

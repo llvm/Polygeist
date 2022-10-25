@@ -6,6 +6,6 @@ int foo(int t) {
   return t;
 }
 
-// CHECK:   func @foo(%arg0: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     return %arg0 : i32
+// CHECK:   func @foo(%[[arg0:.+]]: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:     return %[[arg0]] : i32
 // CHECK-NEXT:   }

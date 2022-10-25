@@ -19,12 +19,12 @@ void init_array (int n)
 }
 
 
-// CHECK:  func @init_array(%arg0: i32)
-// CHECK-NEXT:    %cst = arith.constant 3.000000e+00 : f64
-// CHECK-NEXT:    %0 = memref.alloc() : memref<20xf64>
-// CHECK-NEXT:    affine.store %cst, %0[2] : memref<20xf64>
-// CHECK-NEXT:    %1 = memref.cast %0 : memref<20xf64> to memref<?xf64>
-// CHECK-NEXT:    call @use(%1) : (memref<?xf64>) -> ()
+// CHECK:  func @init_array(%[[arg0:.+]]: i32)
+// CHECK-NEXT:    %[[cst:.+]] = arith.constant 3.000000e+00 : f64
+// CHECK-NEXT:    %[[V0:.+]] = memref.alloc() : memref<20xf64>
+// CHECK-NEXT:    affine.store %[[cst]], %[[V0]][2] : memref<20xf64>
+// CHECK-NEXT:    %[[V1:.+]] = memref.cast %[[V0]] : memref<20xf64> to memref<?xf64>
+// CHECK-NEXT:    call @use(%[[V1]]) : (memref<?xf64>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 

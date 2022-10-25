@@ -7,6 +7,6 @@ float kernel_deriche() {
 }
 
 // CHECK:  func @kernel_deriche() -> f32
-// CHECK-NEXT:    %cst = arith.constant 2.000000e+00 : f32
-// CHECK-NEXT:    return %cst : f32
+// CHECK-NEXT:    %[[cst:.+]] = arith.constant 2.000000e+00 : f32
+// CHECK-NEXT:    return %[[cst]] : f32
 // CHECK-NEXT:  }

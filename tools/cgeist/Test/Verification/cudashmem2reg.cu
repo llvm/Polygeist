@@ -22,27 +22,27 @@ double *bar(double *w, double *s) {
   return w;
 }
 
-//      CHECK:  func.func @_Z3barPdS_(%arg0: memref<?xf64>, %arg1: memref<?xf64>)
-//  CHECK-DAG:    %c0_i32 = arith.constant 0 : i32
-//  CHECK-DAG:    %c1 = arith.constant 1 : index
-//  CHECK-DAG:    %c2 = arith.constant 2 : index
-//  CHECK-DAG:    %c0 = arith.constant 0 : index
-//  CHECK-DAG:    %0 = memref.alloca() : memref<f64>
-// CHECK-NEXT:    scf.parallel (%arg2) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:      %1 = arith.index_cast %arg2 : index to i32
-// CHECK-NEXT:      %2 = arith.cmpi eq, %1, %c0_i32 : i32
-// CHECK-NEXT:      scf.if %2 {
-// CHECK-NEXT:        %3 = memref.load %arg1[%c0] : memref<?xf64>
-// CHECK-NEXT:        memref.store %3, %0[] : memref<f64>
+//      CHECK:  func.func @_Z3barPdS_(%[[arg0:.+]]: memref<?xf64>, %[[arg1:.+]]: memref<?xf64>)
+//  CHECK-DAG:    %[[c0_i32:.+]] = arith.constant 0 : i32
+//  CHECK-DAG:    %[[c1:.+]] = arith.constant 1 : index
+//  CHECK-DAG:    %[[c2:.+]] = arith.constant 2 : index
+//  CHECK-DAG:    %[[c0:.+]] = arith.constant 0 : index
+//  CHECK-DAG:    %[[V0:.+]] = memref.alloca() : memref<f64>
+// CHECK-NEXT:    scf.parallel (%[[arg2:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
+// CHECK-NEXT:      %[[V1:.+]] = arith.index_cast %[[arg2]] : index to i32
+// CHECK-NEXT:      %[[V2:.+]] = arith.cmpi eq, %[[V1]], %[[c0_i32]] : i32
+// CHECK-NEXT:      scf.if %[[V2]] {
+// CHECK-NEXT:        %[[V3:.+]] = memref.load %[[arg1]][%[[c0]]] : memref<?xf64>
+// CHECK-NEXT:        memref.store %[[V3]], %[[V0]][] : memref<f64>
 // CHECK-NEXT:      }
 // CHECK-NEXT:      scf.yield
 // CHECK-NEXT:    }
-// CHECK-NEXT:    scf.parallel (%arg2) = (%c0) to (%c2) step (%c1) {
-// CHECK-NEXT:      %1 = memref.load %arg0[%arg2] : memref<?xf64>
-// CHECK-NEXT:      %2 = memref.load %0[] : memref<f64>
-// CHECK-NEXT:      %3 = arith.divf %1, %2 : f64
-// CHECK-NEXT:      memref.store %3, %arg0[%arg2] : memref<?xf64>
+// CHECK-NEXT:    scf.parallel (%[[arg2:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
+// CHECK-NEXT:      %[[V1:.+]] = memref.load %[[arg0]][%[[arg2]]] : memref<?xf64>
+// CHECK-NEXT:      %[[V2:.+]] = memref.load %[[V0]][] : memref<f64>
+// CHECK-NEXT:      %[[V3:.+]] = arith.divf %[[V1]], %[[V2]] : f64
+// CHECK-NEXT:      memref.store %[[V3]], %[[arg0]][%[[arg2]]] : memref<?xf64>
 // CHECK-NEXT:      scf.yield
 // CHECK-NEXT:    }
-// CHECK-NEXT:    return %arg0 : memref<?xf64>
+// CHECK-NEXT:    return %[[arg0]] : memref<?xf64>
 // CHECK-NEXT:  }

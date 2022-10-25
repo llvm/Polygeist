@@ -17,16 +17,16 @@ void kernel_deriche() {
 // CHECK-DAG:   memref.global @local_init : memref<1xi32> = dense<4>
 // CHECK-DAG:   memref.global @local : memref<1xi32> = uninitialized
 // CHECK:   func @kernel_deriche()
-// CHECK-NEXT:     %0 = memref.get_global @local : memref<1xi32>
-// CHECK-NEXT:     %1 = memref.cast %0 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     %2 = memref.get_global @local_init : memref<1xi32>
-// CHECK-NEXT:     %3 = memref.cast %2 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     %4 = memref.get_global @internal : memref<1xi32>
-// CHECK-NEXT:     %5 = memref.cast %4 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     %6 = memref.get_global @internal_init : memref<1xi32>
-// CHECK-NEXT:     %7 = memref.cast %6 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     %8 = memref.get_global @external : memref<1xi32>
-// CHECK-NEXT:     %9 = memref.cast %8 : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:     call @run(%1, %3, %5, %7, %9) : (memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>) -> ()
+// CHECK-NEXT:     %[[V0:.+]] = memref.get_global @local : memref<1xi32>
+// CHECK-NEXT:     %[[V1:.+]] = memref.cast %[[V0]] : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     %[[V2:.+]] = memref.get_global @local_init : memref<1xi32>
+// CHECK-NEXT:     %[[V3:.+]] = memref.cast %[[V2]] : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     %[[V4:.+]] = memref.get_global @internal : memref<1xi32>
+// CHECK-NEXT:     %[[V5:.+]] = memref.cast %[[V4]] : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     %[[V6:.+]] = memref.get_global @internal_init : memref<1xi32>
+// CHECK-NEXT:     %[[V7:.+]] = memref.cast %[[V6]] : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     %[[V8:.+]] = memref.get_global @external : memref<1xi32>
+// CHECK-NEXT:     %[[V9:.+]] = memref.cast %[[V8]] : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:     call @run(%[[V1]], %[[V3]], %[[V5]], %[[V7]], %[[V9]]) : (memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>, memref<?xi32>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
