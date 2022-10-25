@@ -19,17 +19,17 @@ module {
 }
 
 // CHECK:  func.func @f() -> f64 {
-// CHECK-DAG:    %cst = arith.constant 3.1415920000000002 : f64
-// CHECK-DAG:    %c0 = arith.constant 0 : index
-// CHECK-NEXT:    %0 = memref.alloca() : memref<f64, 5>
-// CHECK-NEXT:    %1 = llvm.mlir.undef : f64
-// CHECK-NEXT:    memref.store %1, %0[] : memref<f64, 5>
-// CHECK-NEXT:    %2 = gpu.thread_id  x
-// CHECK-NEXT:    %3 = arith.cmpi eq, %2, %c0 : index
-// CHECK-NEXT:    scf.if %3 {
-// CHECK-NEXT:      memref.store %cst, %0[] : memref<f64, 5>
+// CHECK-DAG:    %[[cst:.+]] = arith.constant 3.1415920000000002 : f64
+// CHECK-DAG:    %[[c0:.+]] = arith.constant 0 : index
+// CHECK-NEXT:    %[[V0:.+]] = memref.alloca() : memref<f64, 5>
+// CHECK-NEXT:    %[[V1:.+]] = llvm.mlir.undef : f64
+// CHECK-NEXT:    memref.store %[[V1]], %[[V0]][] : memref<f64, 5>
+// CHECK-NEXT:    %[[V2:.+]] = gpu.thread_id  x
+// CHECK-NEXT:    %[[V3:.+]] = arith.cmpi eq, %[[V2]], %[[c0]] : index
+// CHECK-NEXT:    scf.if %[[V3]] {
+// CHECK-NEXT:      memref.store %[[cst]], %[[V0]][] : memref<f64, 5>
 // CHECK-NEXT:    }
 // CHECK-NEXT:    nvvm.barrier0
-// CHECK-NEXT:    %4 = memref.load %0[] : memref<f64, 5>
-// CHECK-NEXT:    return %4 : f64
+// CHECK-NEXT:    %[[V4:.+]] = memref.load %[[V0]][] : memref<f64, 5>
+// CHECK-NEXT:    return %[[V4]] : f64
 // CHECK-NEXT:  }

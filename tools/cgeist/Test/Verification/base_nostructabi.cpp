@@ -28,27 +28,27 @@ void a() {
 }
 
 // CHECK:   func @_Z1av() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %0 = llvm.alloca %c1_i64 x !llvm.struct<(struct<(i8)>)> : (i64) -> !llvm.ptr<struct<(struct<(i8)>)>>
-// CHECK-NEXT:     call @_ZN19basic_ostringstreamC1Ev(%0) : (!llvm.ptr<struct<(struct<(i8)>)>>) -> ()
+// CHECK-NEXT:     %[[c1_i64:.+]] = arith.constant 1 : i64
+// CHECK-NEXT:     %[[V0:.+]] = llvm.alloca %[[c1_i64]] x !llvm.struct<(struct<(i8)>)> : (i64) -> !llvm.ptr<struct<(struct<(i8)>)>>
+// CHECK-NEXT:     call @_ZN19basic_ostringstreamC1Ev(%[[V0]]) : (!llvm.ptr<struct<(struct<(i8)>)>>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_ZN19basic_ostringstreamC1Ev(%arg0: !llvm.ptr<struct<(struct<(i8)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = llvm.getelementptr %arg0[0, 0] : (!llvm.ptr<struct<(struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
-// CHECK-NEXT:     call @_ZN12_Alloc_hiderC1Ev(%0) : (!llvm.ptr<struct<(i8)>>) -> ()
-// CHECK-NEXT:     %1 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(struct<(i8)>)>>) -> memref<?xi8> 
-// CHECK-NEXT:     call @_Z4run2Pv(%1) : (memref<?xi8>) -> ()
+// CHECK:   func @_ZN19basic_ostringstreamC1Ev(%[[arg0:.+]]: !llvm.ptr<struct<(struct<(i8)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:     %[[V0:.+]] = llvm.getelementptr %[[arg0]][0, 0] : (!llvm.ptr<struct<(struct<(i8)>)>>) -> !llvm.ptr<struct<(i8)>>
+// CHECK-NEXT:     call @_ZN12_Alloc_hiderC1Ev(%[[V0]]) : (!llvm.ptr<struct<(i8)>>) -> ()
+// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[arg0]]) : (!llvm.ptr<struct<(struct<(i8)>)>>) -> memref<?xi8> 
+// CHECK-NEXT:     call @_Z4run2Pv(%[[V1]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func @_ZN12_Alloc_hiderC1Ev(%arg0: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     call @_ZN1MC1Ev(%arg0) : (!llvm.ptr<struct<(i8)>>) -> ()
-// CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(i8)>>) -> memref<?xi8> 
-// CHECK-NEXT:     call @_Z4run1Pv(%0) : (memref<?xi8>) -> ()
+// CHECK:   func @_ZN12_Alloc_hiderC1Ev(%[[arg0:.+]]: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:     call @_ZN1MC1Ev(%[[arg0]]) : (!llvm.ptr<struct<(i8)>>) -> ()
+// CHECK-NEXT:     %[[V0:.+]] = "polygeist.pointer2memref"(%[[arg0]]) : (!llvm.ptr<struct<(i8)>>) -> memref<?xi8> 
+// CHECK-NEXT:     call @_Z4run1Pv(%[[V0]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 // CHECK:   func private @_Z4run2Pv(memref<?xi8>) attributes {llvm.linkage = #llvm.linkage<external>}
-// CHECK-NEXT:   func @_ZN1MC1Ev(%arg0: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %0 = "polygeist.pointer2memref"(%arg0) : (!llvm.ptr<struct<(i8)>>) -> memref<?xi8>
-// CHECK-NEXT:     call @_Z4run0Pv(%0) : (memref<?xi8>) -> ()
+// CHECK-NEXT:   func @_ZN1MC1Ev(%[[arg0:.+]]: !llvm.ptr<struct<(i8)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:     %[[V0:.+]] = "polygeist.pointer2memref"(%[[arg0]]) : (!llvm.ptr<struct<(i8)>>) -> memref<?xi8>
+// CHECK-NEXT:     call @_Z4run0Pv(%[[V0]]) : (memref<?xi8>) -> ()
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

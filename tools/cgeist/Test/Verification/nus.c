@@ -4,14 +4,14 @@
 #define N 5500
 #define max_score(s1, s2) ((s1 >= s2) ? s1 : s2)
 
-// CHECK: @kernel_nussinov(%arg0: i32, %arg1: memref<?xi32>)
-// CHECK-NEXT:    affine.for %arg2 = 1 to 5500 {
-// CHECK-NEXT:      affine.if #set(%arg2) {
-// CHECK-NEXT:        %0 = affine.load %arg1[%arg2] : memref<?xi32>
-// CHECK-NEXT:        %1 = affine.load %arg1[%arg2 - 1] : memref<?xi32>
-// CHECK-NEXT:        %2 = arith.cmpi sge, %0, %1 : i32
-// CHECK-NEXT:        %3 = arith.select %2, %0, %1 : i32
-// CHECK-NEXT:        affine.store %3, %arg1[%arg2] : memref<?xi32>
+// CHECK: @kernel_nussinov(%[[arg0:.+]]: i32, %[[arg1:.+]]: memref<?xi32>)
+// CHECK-NEXT:    affine.for %[[arg2:.+]] = 1 to 5500 {
+// CHECK-NEXT:      affine.if #set(%[[arg2]]) {
+// CHECK-NEXT:        %[[V0:.+]] = affine.load %[[arg1]][%[[arg2]]] : memref<?xi32>
+// CHECK-NEXT:        %[[V1:.+]] = affine.load %[[arg1]][%[[arg2]] - 1] : memref<?xi32>
+// CHECK-NEXT:        %[[V2:.+]] = arith.cmpi sge, %[[V0]], %[[V1]] : i32
+// CHECK-NEXT:        %[[V3:.+]] = arith.select %[[V2]], %[[V0]], %[[V1]] : i32
+// CHECK-NEXT:        affine.store %[[V3]], %[[arg1]][%[[arg2]]] : memref<?xi32>
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return

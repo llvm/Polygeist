@@ -1,5 +1,6 @@
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -9,7 +10,6 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arith/IR/Arith.h>
 
 using namespace mlir;
 using namespace mlir::scf;
@@ -1820,13 +1820,13 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
       }
       // If the operation doesn't have side effects and it doesn't recursively
       // have side effects, it can always be hoisted.
-      if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+      if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
         return true;
 
       // Otherwise, if the operation doesn't provide the memory effect interface
       // and it doesn't have recursive side effects we treat it conservatively
       // as side-effecting.
-    } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+    } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
       return false;
     }
 

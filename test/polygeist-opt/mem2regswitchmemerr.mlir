@@ -35,31 +35,31 @@ module {
   }
 }
 
-// CHECK:   func.func @parse(%arg0: i32) {
-// CHECK-DAG:     %false = arith.constant false
-// CHECK-DAG:     %c1_i32 = arith.constant 1 : i32
-// CHECK-DAG:     %true = arith.constant true
-// CHECK-DAG:     %0 = llvm.mlir.undef : i32
-// CHECK-NEXT:     cf.br ^bb1(%true : i1)
-// CHECK-NEXT:   ^bb1(%1: i1):  // 2 preds: ^bb0, ^bb5
-// CHECK-NEXT:     cf.cond_br %true, ^bb2, ^bb6
+// CHECK:   func.func @parse(%[[arg0:.+]]: i32) {
+// CHECK-DAG:     %[[false:.+]] = arith.constant false
+// CHECK-DAG:     %[[c1_i32:.+]] = arith.constant 1 : i32
+// CHECK-DAG:     %[[true:.+]] = arith.constant true
+// CHECK-DAG:     %[[V0:.+]] = llvm.mlir.undef : i32
+// CHECK-NEXT:     cf.br ^bb1(%[[true]] : i1)
+// CHECK-NEXT:   ^bb1(%[[V1:.+]]: i1):  // 2 preds: ^bb0, ^bb5
+// CHECK-NEXT:     cf.cond_br %[[true]], ^bb2, ^bb6
 // CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     cf.switch %arg0 : i32, [
-// CHECK-NEXT:       default: ^bb5(%1 : i1),
+// CHECK-NEXT:     cf.switch %[[arg0]] : i32, [
+// CHECK-NEXT:       default: ^bb5(%[[V1]] : i1),
 // CHECK-NEXT:       104: ^bb3,
-// CHECK-NEXT:       113: ^bb4(%0, %1 : i32, i1)
+// CHECK-NEXT:       113: ^bb4(%[[V0]], %[[V1]] : i32, i1)
 // CHECK-NEXT:     ]
 // CHECK-NEXT:   ^bb3:  // pred: ^bb2
-// CHECK-NEXT:     %2:2 = scf.if %true -> (i32, i1) {
-// CHECK-NEXT:       scf.yield %c1_i32, %false : i32, i1
+// CHECK-NEXT:     %[[V2:.+]]:2 = scf.if %[[true]] -> (i32, i1) {
+// CHECK-NEXT:       scf.yield %[[c1_i32]], %[[false]] : i32, i1
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       scf.yield %0, %1 : i32, i1
+// CHECK-NEXT:       scf.yield %[[V0]], %[[V1]] : i32, i1
 // CHECK-NEXT:     }
-// CHECK-NEXT:     cf.br ^bb4(%2#0, %2#1 : i32, i1)
-// CHECK-NEXT:   ^bb4(%3: i32, %4: i1):  // 2 preds: ^bb2, ^bb3
-// CHECK-NEXT:     cf.br ^bb5(%4 : i1)
-// CHECK-NEXT:   ^bb5(%5: i1):  // 2 preds: ^bb2, ^bb4
-// CHECK-NEXT:     cf.br ^bb1(%5 : i1)
+// CHECK-NEXT:     cf.br ^bb4(%[[V2]]#0, %[[V2]]#1 : i32, i1)
+// CHECK-NEXT:   ^bb4(%[[V3:.+]]: i32, %[[V4:.+]]: i1):  // 2 preds: ^bb2, ^bb3
+// CHECK-NEXT:     cf.br ^bb5(%[[V4]] : i1)
+// CHECK-NEXT:   ^bb5(%[[V5:.+]]: i1):  // 2 preds: ^bb2, ^bb4
+// CHECK-NEXT:     cf.br ^bb1(%[[V5]] : i1)
 // CHECK-NEXT:   ^bb6:  // pred: ^bb1
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

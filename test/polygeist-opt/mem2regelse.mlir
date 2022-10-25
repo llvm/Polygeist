@@ -26,24 +26,24 @@ module  {
   }
 }
 
-// CHECK:   func.func @bad(%arg0: i1, %arg1: i1, %arg2: memref<?xi32>) -> i64 {
-// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
-// CHECK-NEXT:     %c0_i64 = arith.constant 0 : i64
+// CHECK:   func.func @bad(%[[arg0:.+]]: i1, %[[arg1:.+]]: i1, %[[arg2:.+]]: memref<?xi32>) -> i64 {
+// CHECK-NEXT:     %[[c1_i64:.+]] = arith.constant 1 : i64
+// CHECK-NEXT:     %[[c0_i64:.+]] = arith.constant 0 : i64
 // CHECK-NEXT:     cf.br ^bb1
 // CHECK-NEXT:   ^bb1:  // pred: ^bb0
-// CHECK-NEXT:     %0 = scf.if %arg1 -> (i64) {
-// CHECK-NEXT:       scf.yield %c0_i64 : i64
+// CHECK-NEXT:     %[[V0:.+]] = scf.if %[[arg1]] -> (i64) {
+// CHECK-NEXT:       scf.yield %[[c0_i64]] : i64
 // CHECK-NEXT:     } else {
-// CHECK-NEXT:       %1 = scf.execute_region -> i64 {
-// CHECK-NEXT:         cf.cond_br %arg0, ^bb1, ^bb2
+// CHECK-NEXT:       %[[V1:.+]] = scf.execute_region -> i64 {
+// CHECK-NEXT:         cf.cond_br %[[arg0]], ^bb1, ^bb2
 // CHECK-NEXT:       ^bb1:  // pred: ^bb0
-// CHECK-NEXT:         scf.yield %c1_i64 : i64
+// CHECK-NEXT:         scf.yield %[[c1_i64]] : i64
 // CHECK-NEXT:       ^bb2:  // pred: ^bb0
-// CHECK-NEXT:         scf.yield %c0_i64 : i64
+// CHECK-NEXT:         scf.yield %[[c0_i64]] : i64
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.yield %1 : i64
+// CHECK-NEXT:       scf.yield %[[V1]] : i64
 // CHECK-NEXT:     }
 // CHECK-NEXT:     cf.br ^bb2
 // CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     return %0 : i64
+// CHECK-NEXT:     return %[[V0]] : i64
 // CHECK-NEXT:   }

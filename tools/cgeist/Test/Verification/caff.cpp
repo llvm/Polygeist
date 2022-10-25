@@ -29,23 +29,23 @@ unsigned long long int div_kernel_cuda(ASmallVectorTemplateCommon<AOperandInfo> 
   return (const AOperandInfo*)operands.EndX - operands.begin();
 }
 
-// CHECK:   func.func @_Z15div_kernel_cudaR26ASmallVectorTemplateCommonI12AOperandInfoE(%arg0: memref<?x2xmemref<?xi8>>) -> i64
-// CHECK-NEXT:     %0 = affine.load %arg0[0, 1] : memref<?x2xmemref<?xi8>>
-// CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<?xi8>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %2 = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%arg0) : (memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     %3 = llvm.bitcast %1 : !llvm.ptr<i8> to !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     %4 = "polygeist.memref2pointer"(%2) : (memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>) -> !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-DAG:     %[[i5:.+]] = llvm.ptrtoint %4 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
-// CHECK-DAG:     %[[i6:.+]] = llvm.ptrtoint %3 : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
-// CHECK-NEXT:     %7 = arith.subi %[[i6]], %[[i5]] : i64
-// CHECK-NEXT:     %8 = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xi8>, i8, i8)>} : () -> index
-// CHECK-NEXT:     %9 = arith.index_cast %8 : index to i64
-// CHECK-NEXT:     %10 = arith.divsi %7, %9 : i64
-// CHECK-NEXT:     return %10 : i64
+// CHECK:   func.func @_Z15div_kernel_cudaR26ASmallVectorTemplateCommonI12AOperandInfoE(%[[arg0:.+]]: memref<?x2xmemref<?xi8>>) -> i64
+// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 1] : memref<?x2xmemref<?xi8>>
+// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[V0]]) : (memref<?xi8>) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %[[V2:.+]] = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%[[arg0]]) : (memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-NEXT:     %[[V3:.+]] = llvm.bitcast %[[V1]] : !llvm.ptr<i8> to !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-NEXT:     %[[V4:.+]] = "polygeist.memref2pointer"(%[[V2]]) : (memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>) -> !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-DAG:     %[[i5:.+]] = llvm.ptrtoint %[[V4]] : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
+// CHECK-DAG:     %[[i6:.+]] = llvm.ptrtoint %[[V3]] : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
+// CHECK-NEXT:     %[[V7:.+]] = arith.subi %[[i6]], %[[i5]] : i64
+// CHECK-NEXT:     %[[V8:.+]] = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xi8>, i8, i8)>} : () -> index
+// CHECK-NEXT:     %[[V9:.+]] = arith.index_cast %[[V8]] : index to i64
+// CHECK-NEXT:     %[[V10:.+]] = arith.divsi %[[V7]], %[[V9]] : i64
+// CHECK-NEXT:     return %[[V10]] : i64
 // CHECK-NEXT:   }
-// CHECK:   func.func @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%arg0: memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     %0 = affine.load %arg0[0, 0] : memref<?x2xmemref<?xi8>>
-// CHECK-NEXT:     %1 = "polygeist.memref2pointer"(%0) : (memref<?xi8>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %2 = "polygeist.pointer2memref"(%1) : (!llvm.ptr<i8>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     return %2 : memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK:   func.func @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%[[arg0:.+]]: memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x2xmemref<?xi8>>
+// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[V0]]) : (memref<?xi8>) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %[[V2:.+]] = "polygeist.pointer2memref"(%[[V1]]) : (!llvm.ptr<i8>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-NEXT:     return %[[V2]] : memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
 // CHECK-NEXT:   }

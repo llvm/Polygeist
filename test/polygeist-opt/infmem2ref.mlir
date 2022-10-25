@@ -37,32 +37,32 @@ module {
   }
 
 // CHECK:   func.func @infLoop1
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %false = arith.constant false
+// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
+// CHECK-NEXT:     %[[c1_i32:.+]] = arith.constant 1 : i32
+// CHECK-NEXT:     %[[c2_i32:.+]] = arith.constant 2 : i32
+// CHECK-NEXT:     %[[true:.+]] = arith.constant true
+// CHECK-NEXT:     %[[false:.+]] = arith.constant false
 // CHECK-NEXT:     scf.execute_region {
-// CHECK-NEXT:       cf.br ^bb1(%c0_i32, %true : i32, i1)
-// CHECK-NEXT:     ^bb1(%0: i32, %1: i1):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:       %2 = arith.cmpi slt, %0, %c2_i32 : i32
-// CHECK-NEXT:       %3 = arith.andi %2, %1 : i1
-// CHECK-NEXT:       cf.cond_br %3, ^bb2, ^bb3
+// CHECK-NEXT:       cf.br ^bb1(%[[c0_i32]], %[[true]] : i32, i1)
+// CHECK-NEXT:     ^bb1(%[[V0:.+]]: i32, %[[V1:.+]]: i1):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:       %[[V2:.+]] = arith.cmpi slt, %[[V0]], %[[c2_i32]] : i32
+// CHECK-NEXT:       %[[V3:.+]] = arith.andi %[[V2]], %[[V1]] : i1
+// CHECK-NEXT:       cf.cond_br %[[V3]], ^bb2, ^bb3
 // CHECK-NEXT:     ^bb2:  // pred: ^bb1
-// CHECK-NEXT:       %4 = scf.if %arg0 -> (i1) {
-// CHECK-NEXT:         %6 = arith.cmpi eq, %0, %c1_i32 : i32
-// CHECK-NEXT:         %7 = scf.if %6 -> (i1) {
-// CHECK-NEXT:           scf.yield %false : i1
+// CHECK-NEXT:       %[[V4:.+]] = scf.if %{{.*}} -> (i1) {
+// CHECK-NEXT:         %[[V6:.+]] = arith.cmpi eq, %[[V0]], %[[c1_i32]] : i32
+// CHECK-NEXT:         %[[V7:.+]] = scf.if %[[V6]] -> (i1) {
+// CHECK-NEXT:           scf.yield %[[false]] : i1
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           scf.yield %1 : i1
+// CHECK-NEXT:           scf.yield %[[V1]] : i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield %7 : i1
+// CHECK-NEXT:         scf.yield %[[V7]] : i1
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         scf.yield %1 : i1
+// CHECK-NEXT:         scf.yield %[[V1]] : i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       func.call @use(%4) : (i1) -> ()
-// CHECK-NEXT:       %5 = arith.addi %0, %c1_i32 : i32
-// CHECK-NEXT:       cf.br ^bb1(%5, %4 : i32, i1)
+// CHECK-NEXT:       func.call @use(%[[V4]]) : (i1) -> ()
+// CHECK-NEXT:       %[[V5:.+]] = arith.addi %[[V0]], %[[c1_i32]] : i32
+// CHECK-NEXT:       cf.br ^bb1(%[[V5]], %[[V4]] : i32, i1)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }
@@ -102,31 +102,31 @@ module {
   }
 
 // CHECK:   func.func @infLoop2
-// CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
-// CHECK-NEXT:     %c1_i32 = arith.constant 1 : i32
-// CHECK-NEXT:     %c2_i32 = arith.constant 2 : i32
-// CHECK-NEXT:     %true = arith.constant true
-// CHECK-NEXT:     %false = arith.constant false
-// CHECK-NEXT:     %0 = memref.alloca() : memref<i1>
-// CHECK-NEXT:     memref.store %true, %0[] : memref<i1>
+// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
+// CHECK-NEXT:     %[[c1_i32:.+]] = arith.constant 1 : i32
+// CHECK-NEXT:     %[[c2_i32:.+]] = arith.constant 2 : i32
+// CHECK-NEXT:     %[[true:.+]] = arith.constant true
+// CHECK-NEXT:     %[[false:.+]] = arith.constant false
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<i1>
+// CHECK-NEXT:     memref.store %[[true]], %[[V0]][] : memref<i1>
 // CHECK-NEXT:     scf.execute_region {
-// CHECK-NEXT:       cf.br ^bb1(%c0_i32 : i32)
-// CHECK-NEXT:     ^bb1(%1: i32):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:       %2 = arith.cmpi slt, %1, %c2_i32 : i32
-// CHECK-NEXT:       %3 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       %4 = arith.andi %2, %3 : i1
-// CHECK-NEXT:       cf.cond_br %4, ^bb2, ^bb3
+// CHECK-NEXT:       cf.br ^bb1(%[[c0_i32]] : i32)
+// CHECK-NEXT:     ^bb1(%[[V1:.+]]: i32):  // 2 preds: ^bb0, ^bb2
+// CHECK-NEXT:       %[[V2:.+]] = arith.cmpi slt, %[[V1]], %[[c2_i32]] : i32
+// CHECK-NEXT:       %[[V3:.+]] = memref.load %[[V0]][] : memref<i1>
+// CHECK-NEXT:       %[[V4:.+]] = arith.andi %[[V2]], %[[V3]] : i1
+// CHECK-NEXT:       cf.cond_br %[[V4]], ^bb2, ^bb3
 // CHECK-NEXT:     ^bb2:  // pred: ^bb1
-// CHECK-NEXT:       scf.if %true {
-// CHECK-NEXT:         %7 = arith.cmpi eq, %1, %c1_i32 : i32
-// CHECK-NEXT:         scf.if %7 {
-// CHECK-NEXT:           func.call @overwrite(%0) : (memref<i1>) -> ()
+// CHECK-NEXT:       scf.if %[[true]] {
+// CHECK-NEXT:         %[[V7:.+]] = arith.cmpi eq, %[[V1]], %[[c1_i32]] : i32
+// CHECK-NEXT:         scf.if %[[V7]] {
+// CHECK-NEXT:           func.call @overwrite(%[[V0]]) : (memref<i1>) -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %5 = memref.load %0[] : memref<i1>
-// CHECK-NEXT:       func.call @use(%5) : (i1) -> ()
-// CHECK-NEXT:       %6 = arith.addi %1, %c1_i32 : i32
-// CHECK-NEXT:       cf.br ^bb1(%6 : i32)
+// CHECK-NEXT:       %[[V5:.+]] = memref.load %[[V0]][] : memref<i1>
+// CHECK-NEXT:       func.call @use(%[[V5]]) : (i1) -> ()
+// CHECK-NEXT:       %[[V6:.+]] = arith.addi %[[V1]], %[[c1_i32]] : i32
+// CHECK-NEXT:       cf.br ^bb1(%[[V6]] : i32)
 // CHECK-NEXT:     ^bb3:  // pred: ^bb1
 // CHECK-NEXT:       scf.yield
 // CHECK-NEXT:     }

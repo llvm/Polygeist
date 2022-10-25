@@ -14,6 +14,7 @@
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -28,7 +29,6 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
-#include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mutex>
 
 #define DEBUG_TYPE "parallel-lower-opt"
@@ -287,7 +287,7 @@ void ParallelLower::runOnOperation() {
     auto oneindex = builder.create<ConstantIndexOp>(loc, 1);
 
     async::ExecuteOp asyncOp = nullptr;
-    if (!llvm::empty(launchOp.getAsyncDependencies())) {
+    if (!launchOp.getAsyncDependencies().empty()) {
       SmallVector<Value> dependencies;
       for (auto v : launchOp.getAsyncDependencies()) {
         auto tok = v.getDefiningOp<polygeist::StreamToTokenOp>();

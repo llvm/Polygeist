@@ -1,5 +1,6 @@
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -11,7 +12,6 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
-#include <mlir/Dialect/Arith/IR/Arith.h>
 
 using namespace mlir;
 using namespace mlir::func;
@@ -40,14 +40,13 @@ struct OpenMPOpt : public OpenMPOptPassBase<OpenMPOpt> {
 ///       omp.barrier
 ///       codeB();
 ///    }
-
 Value getBase(Value v);
 bool isStackAlloca(Value v);
 bool isCaptured(Value v, Operation *potentialUser = nullptr,
                 bool *seenuse = nullptr);
 
 bool mayReadFrom(Operation *op, Value val) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {
@@ -85,7 +84,7 @@ bool mayReadFrom(Operation *op, Value val) {
 }
 
 bool mayWriteTo(Operation *op, Value val, bool ignoreBarrier) {
-  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveSideEffects>();
+  bool hasRecursiveEffects = op->hasTrait<OpTrait::HasRecursiveMemoryEffects>();
   if (hasRecursiveEffects) {
     for (Region &region : op->getRegions()) {
       for (auto &block : region) {

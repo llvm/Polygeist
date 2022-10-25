@@ -74,7 +74,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       if (willBeMoved.count(b))
         return false;
 
-      if (b->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+      if (b->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
 
         for (auto &region : b->getRegions()) {
           for (auto &block : region) {
@@ -203,7 +203,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
          freeResources.size()) &&
         hasConflictBefore(op))
       return false;
-  } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     LLVM_DEBUG(llvm::dbgs()
                << " - cannot hoist due to non memory/recursive side effects\n");
     return false;
@@ -343,9 +343,9 @@ bool isSpeculatable(Operation *op) {
 
     // If the op does not have recursive side effects, then it is not
     // speculatable.
-    if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>())
+    if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
       return false;
-  } else if (!op->hasTrait<OpTrait::HasRecursiveSideEffects>()) {
+  } else if (!op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
     // Otherwise, if the op does not implement the memory effect interface and
     // it does not have recursive side effects, then it cannot be speculated.
     return false;

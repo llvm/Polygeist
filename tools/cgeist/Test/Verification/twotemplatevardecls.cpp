@@ -19,10 +19,10 @@ unsigned char conv() {
 
 
 // CHECK:   func @_Z7failurev() -> i8 
-// CHECK-NEXT:     %c1_i8 = arith.constant 1 : i8
-// CHECK-NEXT:     return %c1_i8 : i8
+// CHECK-NEXT:     %[[c1_i8:.+]] = arith.constant 1 : i8
+// CHECK-NEXT:     return %[[c1_i8]] : i8
 // CHECK-NEXT:   }
 // CHECK:   func @_Z4convv() -> i8 
-// CHECK-NEXT:     %c1_i8 = arith.constant 1 : i8
-// CHECK-NEXT:     return %c1_i8 : i8
+// CHECK-NEXT:     %[[c1_i8:.+]] = arith.constant 1 : i8
+// CHECK-NEXT:     return %[[c1_i8]] : i8
 // CHECK-NEXT:   }

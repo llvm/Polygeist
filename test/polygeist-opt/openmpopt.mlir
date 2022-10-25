@@ -28,23 +28,23 @@ module {
   }
 }
 
-// CHECK:   func.func @moo(%arg0: index, %arg1: index, %arg2: index, %arg3: i1) {
+// CHECK:   func.func @moo(%[[arg0:.+]]: index, %[[arg1:.+]]: index, %[[arg2:.+]]: index, %[[arg3:.+]]: i1) {
 // CHECK-NEXT:     omp.parallel   {
-// CHECK-NEXT:       scf.for %arg4 = %arg0 to %arg1 step %arg2 {
-// CHECK-NEXT:         func.call @inner(%arg4) : (index) -> ()
+// CHECK-NEXT:       scf.for %[[arg4:.+]] = %[[arg0]] to %[[arg1]] step %[[arg2]] {
+// CHECK-NEXT:         func.call @inner(%[[arg4:.+]]) : (index) -> ()
 // CHECK-NEXT:         omp.barrier
 // CHECK-NEXT:       }
 // CHECK-NEXT:       omp.barrier
-// CHECK-NEXT:       scf.for %arg4 = %arg0 to %arg1 step %arg2 {
-// CHECK-NEXT:         scf.for %arg5 = %arg0 to %arg1 step %arg2 {
-// CHECK-NEXT:           func.call @inner2(%arg4, %arg5) : (index, index) -> ()
+// CHECK-NEXT:       scf.for %[[arg4:.+]] = %[[arg0]] to %[[arg1]] step %[[arg2]] {
+// CHECK-NEXT:         scf.for %[[arg5:.+]] = %[[arg0]] to %[[arg1]] step %[[arg2]] {
+// CHECK-NEXT:           func.call @inner2(%[[arg4:.+]], %[[arg5:.+]]) : (index, index) -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:         omp.barrier
 // CHECK-NEXT:       }
 // CHECK-NEXT:       omp.barrier
-// CHECK-NEXT:       scf.if %arg3 {
+// CHECK-NEXT:       scf.if %[[arg3]] {
 // CHECK-NEXT:         memref.alloca_scope  {
-// CHECK-NEXT:           func.call @inner(%arg0) : (index) -> ()
+// CHECK-NEXT:           func.call @inner(%[[arg0:.+]]) : (index) -> ()
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:       omp.terminator

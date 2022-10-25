@@ -19,10 +19,10 @@ int set (int b)
   //path[0][1] = 2;
 }
 
-// CHECK:  func @set(%arg0: i32) -> i32
-// CHCEK-NEXT:     %c1_i32 = constant 1 : i32
-// CHCEK-NEXT:     %c2_i32 = constant 2 : i32
-// CHCEK-NEXT:     %0 = arith.trunci %arg0 : i32 to i1
-// CHCEK-NEXT:     %1 = arith.select %0, %c1_i32, %c2_i32 : i32
-// CHCEK-NEXT:     return %1 : i32
+// CHECK:  func @set(%[[arg0:.+]]: i32) -> i32
+// CHCEK-NEXT:     %[[c1_i32:.+]] = constant 1 : i32
+// CHCEK-NEXT:     %[[c2_i32:.+]] = constant 2 : i32
+// CHCEK-NEXT:     %[[V0:.+]] = arith.trunci %[[arg0]] : i32 to i1
+// CHCEK-NEXT:     %[[V1:.+]] = arith.select %[[V0]], %[[c1_i32]], %[[c2_i32]] : i32
+// CHCEK-NEXT:     return %[[V1]] : i32
 // CHCEK-NEXT:   }

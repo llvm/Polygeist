@@ -14,18 +14,18 @@ module {
   }
 }
 
-// CHECK:   func.func @cpy(%arg0: i64, %arg1: memref<?xi32>, %arg2: memref<?xi32>) {
-// CHECK-NEXT:     %c0 = arith.constant 0 : index
-// CHECK-NEXT:     %c1 = arith.constant 1 : index
-// CHECK-NEXT:     %c4 = arith.constant 4 : index
-// CHECK-NEXT:     %c4_i64 = arith.constant 4 : i64
-// CHECK-NEXT:     %0 = arith.muli %arg0, %c4_i64 : i64
-// CHECK-NEXT:     %1 = arith.trunci %0 : i64 to i32
-// CHECK-NEXT:     %2 = arith.index_cast %1 : i32 to index
-// CHECK-NEXT:     %3 = arith.divui %2, %c4 : index
-// CHECK-NEXT:     scf.for %arg3 = %c0 to %3 step %c1 {
-// CHECK-NEXT:       %4 = memref.load %arg2[%arg3] : memref<?xi32>
-// CHECK-NEXT:       memref.store %4, %arg1[%arg3] : memref<?xi32>
+// CHECK:   func.func @cpy(%[[arg0:.+]]: i64, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: memref<?xi32>) {
+// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-NEXT:     %[[c4:.+]] = arith.constant 4 : index
+// CHECK-NEXT:     %[[c4_i64:.+]] = arith.constant 4 : i64
+// CHECK-NEXT:     %[[V0:.+]] = arith.muli %[[arg0]], %[[c4_i64]] : i64
+// CHECK-NEXT:     %[[V1:.+]] = arith.trunci %[[V0]] : i64 to i32
+// CHECK-NEXT:     %[[V2:.+]] = arith.index_cast %[[V1]] : i32 to index
+// CHECK-NEXT:     %[[V3:.+]] = arith.divui %[[V2]], %[[c4]] : index
+// CHECK-NEXT:     scf.for %[[arg3:.+]] = %[[c0]] to %[[V3]] step %[[c1]] {
+// CHECK-NEXT:       %[[V4:.+]] = memref.load %[[arg2]][%[[arg3]]] : memref<?xi32>
+// CHECK-NEXT:       memref.store %[[V4]], %[[arg1]][%[[arg3]]] : memref<?xi32>
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

@@ -63,65 +63,65 @@ module {
 }
 
 // CHECK: #set = affine_set<() : (15 >= 0)>
-// CHECK:   func.func @main(%arg0: index) {
-// CHECK-NEXT:     %0 = memref.alloc(%arg0) : memref<?xf32>
-// CHECK-NEXT:     %1 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:       %2 = affine.load %1[0, 0] : memref<16x16xf32>
-// CHECK-NEXT:       affine.for %arg1 = 0 to 16 {
-// CHECK-NEXT:         %3 = affine.load %0[0] : memref<?xf32>
-// CHECK-NEXT:         %4 = arith.addf %3, %2 : f32
-// CHECK-NEXT:         affine.store %4, %0[0] : memref<?xf32>
+// CHECK:   func.func @main(%[[arg0:.+]]: index) {
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloc(%[[arg0]]) : memref<?xf32>
+// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:       %[[V2:.+]] = affine.load %[[V1]][0, 0] : memref<16x16xf32>
+// CHECK-NEXT:       affine.for %[[arg1:.+]] = 0 to 16 {
+// CHECK-NEXT:         %[[V3:.+]] = affine.load %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:         %[[V4:.+]] = arith.addf %[[V3]], %[[V2]] : f32
+// CHECK-NEXT:         affine.store %[[V4]], %[[V0]][0] : memref<?xf32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK:   func.func @main2(%arg0: index, %arg1: memref<16x16xf32>) {
-// CHECK-NEXT:     %0 = memref.alloc(%arg0) : memref<?xf32>
+// CHECK:   func.func @main2(%[[arg0:.+]]: index, %[[arg1:.+]]: memref<16x16xf32>) {
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloc(%[[arg0]]) : memref<?xf32>
 // CHECK-NEXT:     affine.if #set() {
-// CHECK-NEXT:       %1 = affine.load %arg1[0, 0] : memref<16x16xf32>
-// CHECK-NEXT:       affine.for %arg2 = 0 to 16 {
-// CHECK-NEXT:         %2 = affine.load %0[0] : memref<?xf32>
-// CHECK-NEXT:         %3 = arith.addf %2, %1 : f32
-// CHECK-NEXT:         affine.store %3, %0[0] : memref<?xf32>
+// CHECK-NEXT:       %[[V1:.+]] = affine.load %[[arg1]][0, 0] : memref<16x16xf32>
+// CHECK-NEXT:       affine.for %[[arg2:.+]] = 0 to 16 {
+// CHECK-NEXT:         %[[V2:.+]] = affine.load %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:         %[[V3:.+]] = arith.addf %[[V2]], %[[V1]] : f32
+// CHECK-NEXT:         affine.store %[[V3]], %[[V0]][0] : memref<?xf32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// CHECK:   func.func @main3(%arg0: index, %arg1: i1) {
-// CHECK-NEXT:     %0 = memref.alloc(%arg0) : memref<?xf32>
-// CHECK-NEXT:     %1 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:     %2 = affine.load %1[0, 0] : memref<16x16xf32>
-// CHECK-NEXT:     affine.for %arg2 = 0 to 16 {
-// CHECK-NEXT:       %3 = scf.if %arg1 -> (f32) {
-// CHECK-NEXT:         scf.yield %2 : f32
+// CHECK:   func.func @main3(%[[arg0:.+]]: index, %[[arg1:.+]]: i1) {
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloc(%[[arg0]]) : memref<?xf32>
+// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:     %[[V2:.+]] = affine.load %[[V1]][0, 0] : memref<16x16xf32>
+// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to 16 {
+// CHECK-NEXT:       %[[V3:.+]] = scf.if %[[arg1]] -> (f32) {
+// CHECK-NEXT:         scf.yield %[[V2]] : f32
 // CHECK-NEXT:       } else {
-// CHECK-NEXT:         %6 = affine.load %0[1] : memref<?xf32>
-// CHECK-NEXT:         affine.store %6, %0[0] : memref<?xf32>
-// CHECK-NEXT:         scf.yield %6 : f32
+// CHECK-NEXT:         %[[V6:.+]] = affine.load %[[V0]][1] : memref<?xf32>
+// CHECK-NEXT:         affine.store %[[V6]], %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:         scf.yield %[[V6]] : f32
 // CHECK-NEXT:       }
-// CHECK-NEXT:       %4 = affine.load %0[0] : memref<?xf32>
-// CHECK-NEXT:       %5 = arith.addf %4, %3 : f32
-// CHECK-NEXT:       affine.store %5, %0[0] : memref<?xf32>
+// CHECK-NEXT:       %[[V4:.+]] = affine.load %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:       %[[V5:.+]] = arith.addf %[[V4]], %[[V3]] : f32
+// CHECK-NEXT:       affine.store %[[V5]], %[[V0]][0] : memref<?xf32>
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
 
-// CHECK:   func.func @main4(%arg0: index, %arg1: i1) {
-// CHECK-NEXT:     %0 = memref.alloc(%arg0) : memref<?xf32>
-// CHECK-NEXT:     %1 = memref.alloca() : memref<16x16xf32>
-// CHECK-NEXT:     affine.for %arg2 = 0 to 16 {
-// CHECK-NEXT:       %2 = affine.load %1[%arg2, 0] : memref<16x16xf32>
-// CHECK-NEXT:       affine.for %arg3 = 0 to 16 {
-// CHECK-NEXT:         %3 = scf.if %arg1 -> (f32) {
-// CHECK-NEXT:           scf.yield %2 : f32
+// CHECK:   func.func @main4(%[[arg0:.+]]: index, %[[arg1:.+]]: i1) {
+// CHECK-NEXT:     %[[V0:.+]] = memref.alloc(%[[arg0]]) : memref<?xf32>
+// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<16x16xf32>
+// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to 16 {
+// CHECK-NEXT:       %[[V2:.+]] = affine.load %[[V1]][%[[arg2]], 0] : memref<16x16xf32>
+// CHECK-NEXT:       affine.for %[[arg3:.+]] = 0 to 16 {
+// CHECK-NEXT:         %[[V3:.+]] = scf.if %[[arg1]] -> (f32) {
+// CHECK-NEXT:           scf.yield %[[V2]] : f32
 // CHECK-NEXT:         } else {
-// CHECK-NEXT:           %6 = affine.load %0[1] : memref<?xf32>
-// CHECK-NEXT:           affine.store %6, %0[0] : memref<?xf32>
-// CHECK-NEXT:           scf.yield %6 : f32
+// CHECK-NEXT:           %[[V6:.+]] = affine.load %[[V0]][1] : memref<?xf32>
+// CHECK-NEXT:           affine.store %[[V6]], %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:           scf.yield %[[V6]] : f32
 // CHECK-NEXT:         }
-// CHECK-NEXT:         %4 = affine.load %0[0] : memref<?xf32>
-// CHECK-NEXT:         %5 = arith.addf %4, %3 : f32
-// CHECK-NEXT:         affine.store %5, %0[0] : memref<?xf32>
+// CHECK-NEXT:         %[[V4:.+]] = affine.load %[[V0]][0] : memref<?xf32>
+// CHECK-NEXT:         %[[V5:.+]] = arith.addf %[[V4]], %[[V3]] : f32
+// CHECK-NEXT:         affine.store %[[V5]], %[[V0]][0] : memref<?xf32>
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return

@@ -587,11 +587,11 @@ static void createContinuations(scf::ParallelOp parallel, Value storage) {
 }
 
 static void createContinuations(FunctionOpInterface func) {
-  if (func->getNumRegions() == 0 || func.getBody().empty())
+  if (func->getNumRegions() == 0 || func.getFunctionBody().empty())
     return;
 
-  OpBuilder allocaBuilder(&func.getBody().front(),
-                          func.getBody().front().begin());
+  OpBuilder allocaBuilder(&func.getFunctionBody().front(),
+                          func.getFunctionBody().front().begin());
   func.walk([&](scf::ParallelOp parallel) {
     // Ignore parallel ops with no barriers.
     if (!hasImmediateBarriers(parallel))
