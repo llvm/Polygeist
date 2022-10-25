@@ -10,8 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clang/../../lib/Driver/ToolChains/Cuda.h>
 #include <clang/Basic/DiagnosticIDs.h>
+#include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
+#include <clang/Driver/Tool.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/CompilerInvocation.h>
 #include <clang/Frontend/FrontendOptions.h>
@@ -70,6 +73,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
+
+static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
+                                  cl::desc("Optimization level for ptxas"));
 #endif
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
@@ -248,6 +254,81 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
   return 1;
+}
+
+bool getCudaPaths(std::string &libDevicePath, std::string &ptxasPath) {
+  using namespace clang;
+  using namespace clang::driver;
+  using namespace std;
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+  TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
+  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
+  const unique_ptr<Driver> driver(
+      new Driver("clang", llvm::sys::getDefaultTargetTriple(), Diags));
+
+  std::vector<const char *> Argv;
+  Argv.push_back("clang");
+  Argv.push_back("-c");
+  Argv.push_back("-x");
+  Argv.push_back("cuda");
+  Argv.push_back("/dev/null");
+  if (NoCUDALib) {
+    Argv.push_back("-nocudalib");
+  }
+  if (CUDAGPUArch != "") {
+    auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
+  if (CUDAPath != "") {
+    auto a = "--cuda-path=" + CUDAPath;
+    char *chars = (char *)malloc(a.length() + 1);
+    memcpy(chars, a.data(), a.length());
+    chars[a.length()] = 0;
+    Argv.push_back(chars);
+  }
+  const unique_ptr<Compilation> compilation(
+      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
+
+  JobList &Jobs = compilation->getJobs();
+  if (Jobs.size() < 1)
+    return false;
+
+  for (auto &job : Jobs) {
+    std::unique_ptr<CompilerInstance> CI(new CompilerInstance());
+    Command *cmd = cast<Command>(&job);
+    const llvm::opt::ArgStringList *args = &cmd->getArguments();
+
+    if (strcmp(cmd->getCreator().getName(), "clang") == 0) {
+      // Either .cu -> device ll
+      // or .cu + cubin -> obj
+      // if -fcuda-is-device it is the former
+      llvm::opt::ArgStringList newArgs;
+      bool isDevice = false;
+      for (auto arg : *args) {
+        if (strcmp(arg, "-fcuda-is-device") == 0) {
+          isDevice = true;
+          break;
+        }
+      }
+      if (isDevice) {
+        bool libdevicearg = false;
+        for (auto arg : *args) {
+          if (libdevicearg) {
+            libDevicePath = arg;
+          } else if (strcmp(arg, "-mlink-builtin-bitcode") == 0) {
+            libdevicearg = true;
+          }
+        }
+      }
+    } else if (strcmp(cmd->getCreator().getName(), "NVPTX::Assembler") == 0) {
+      ptxasPath = cmd->getExecutable();
+    }
+  }
+  return true;
 }
 
 int emitBinary(char *Argv0, const char *filename,
@@ -802,17 +883,17 @@ int main(int argc, char **argv) {
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
               options, CStyleMemRef, /* onlyGpuModules */ true));
-          mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
-
+          std::string libDevicePath;
+          std::string ptxasPath;
+          getCudaPaths(libDevicePath, ptxasPath);
           std::string arch = CUDAGPUArch;
           if (arch == "")
             arch = "sm_60";
-          // TODO use the clang cuda toolchain or CudaInstallationDetector to
-          // get the ptxas and libdevice paths
+          // TODO what should the ptx version be?
+          mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
-              gpuTriple.getTriple(), arch, "+ptx74", optLevel,
-              "/usr/local/cuda/bin/ptxas",
-              "/usr/local/cuda/nvvm/libdevice/libdevice.10.bc"));
+              gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
+              ptxasPath, libDevicePath));
         }
 #endif
 

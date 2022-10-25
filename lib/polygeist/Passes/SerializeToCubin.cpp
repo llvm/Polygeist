@@ -84,9 +84,9 @@ public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SerializeToCubinPass)
 
   SerializeToCubinPass(StringRef triple = "nvptx64-nvidia-cuda", StringRef chip = "sm_35",
-                       StringRef features = "+ptx60", int optLevel = 3,
-                       std::string ptxasExe = "",
-                       std::string libDeviceFile = "");
+                       StringRef features = "+ptx60", int llvmOptLevel = 3, int ptxasOptLevel = 3,
+                       std::string ptxasPath = "",
+                       std::string libDevicePath = "");
 
   StringRef getArgument() const override { return "gpu-to-cubin"; }
   StringRef getDescription() const override {
@@ -106,9 +106,10 @@ private:
   std::unique_ptr<std::vector<char>>
   serializeISA(const std::string &isa) override;
 
-  std::string ptxasExe;
-  std::string libDeviceFile;
-  int optLevel;
+  std::string ptxasPath;
+  std::string libDevicePath;
+  int llvmOptLevel;
+  int ptxasOptLevel;
 
 };
 } // namespace
@@ -121,15 +122,17 @@ static void maybeSetOption(Pass::Option<std::string> &option, StringRef value) {
 
 SerializeToCubinPass::SerializeToCubinPass(StringRef triple,
                                            StringRef chip, StringRef features,
-                                           int optLevel,
-                                           std::string ptxasExe,
-                                           std::string libDeviceFile) {
+                                           int llvmOptLevel,
+                                           int ptxasOptLevel,
+                                           std::string ptxasPath,
+                                           std::string libDevicePath) {
   maybeSetOption(this->triple, triple);
   maybeSetOption(this->chip, chip);
   maybeSetOption(this->features, features);
-  this->optLevel = optLevel;
-  this->ptxasExe = ptxasExe;
-  this->libDeviceFile = libDeviceFile;
+  this->llvmOptLevel = llvmOptLevel;
+  this->ptxasOptLevel = ptxasOptLevel;
+  this->ptxasPath = ptxasPath;
+  this->libDevicePath = libDevicePath;
 }
 
 void SerializeToCubinPass::getDependentDialects(
@@ -152,12 +155,11 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   llvm::errs() << "GPULLVM\n";
   #endif
 
-  // TODO get libdevice path
   llvm::SMDiagnostic err;
-  std::unique_ptr<llvm::Module> libDevice = llvm::parseIRFile(libDeviceFile, err, llvmContext);
+  std::unique_ptr<llvm::Module> libDevice = llvm::parseIRFile(libDevicePath, err, llvmContext);
   if (!libDevice || llvm::verifyModule(*libDevice, &llvm::errs())) {
     err.print("in serialize-to-blob", llvm::errs());
-    // TODO what should the
+    // TODO where do we get these from
     //unsigned diagID = ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, "Could not parse IR");
     //ci.getDiagnostics().Report(diagID);
     return llvmModule;
@@ -177,16 +179,14 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 LogicalResult
 SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
                                    llvm::TargetMachine &targetMachine) {
-  int optLevel = this->optLevel;
-  // TODO check cuda opt levels
-  if (optLevel < 0 || optLevel > 3)
+  if (llvmOptLevel < 0 || llvmOptLevel > 3)
     return getOperation().emitError()
-           << "Invalid serizalize to gpu blob optimization level" << optLevel << "\n";
+           << "Invalid serizalize to gpu blob optimization level" << llvmOptLevel << "\n";
 
-  targetMachine.setOptLevel(static_cast<llvm::CodeGenOpt::Level>(optLevel));
+  targetMachine.setOptLevel(static_cast<llvm::CodeGenOpt::Level>(llvmOptLevel));
 
   auto transformer =
-      makeOptimizingTransformer(optLevel, /*sizeLevel=*/0, &targetMachine);
+      makeOptimizingTransformer(llvmOptLevel, /*sizeLevel=*/0, &targetMachine);
   auto error = transformer(&llvmModule);
   if (error) {
     InFlightDiagnostic mlirError = getOperation()->emitError();
@@ -225,10 +225,24 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
 
   llvm::errs() << isa << "\n";
 
-  auto tmpInput =
-    llvm::sys::fs::TempFile::create("/tmp/isainput%%%%%%%.s");
-  if (!tmpInput) {
-    llvm::errs() << "Failed to create temp file\n";
+  auto newTmpFile = [&](const char *name) -> llvm::Expected<llvm::sys::fs::TempFile> {
+    auto tmpFile = llvm::sys::fs::TempFile::create(name);
+    if (!tmpFile) {
+      llvm::errs() << "Failed to create temp file\n";
+      return tmpFile;
+    }
+    return tmpFile;
+  };
+  auto discardFile = [&](llvm::Expected<llvm::sys::fs::TempFile> &tmpFile) {
+    if (!!tmpFile && tmpFile->discard()) {
+      llvm::errs() << "Failed to erase temp file\n";
+    }
+  };
+  auto tmpInput = newTmpFile("/tmp/isainput%%%%%%%.s");
+  auto tmpOutput = newTmpFile("/tmp/cubinoutput%%%%%%%.cubin");
+  if (!tmpInput || !tmpOutput) {
+    discardFile(tmpInput);
+    discardFile(tmpOutput);
     return {};
   }
   {
@@ -236,26 +250,20 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
     out << isa << "\n";
     out.flush();
   }
-  auto tmpOutput =
-    llvm::sys::fs::TempFile::create("/tmp/cubinoutput%%%%%%%.cubin");
-  if (!tmpOutput) {
-    llvm::errs() << "Failed to create temp file\n";
-    return {};
-  }
 
   std::vector<StringRef> Argv;
-  Argv.push_back(ptxasExe);
+  Argv.push_back(ptxasPath);
   Argv.push_back(llvm::Triple(triple).isArch64Bit() ? "-m64" : "-m32");
   Argv.push_back("--gpu-name");
   Argv.push_back(chip.c_str());
   Argv.push_back("--opt-level");
-  Argv.push_back(std::to_string(3));
+  Argv.push_back(std::to_string(ptxasOptLevel));
   Argv.push_back("--verbose");
   Argv.push_back("--output-file");
   Argv.push_back(tmpOutput->TmpName);
   Argv.push_back(tmpInput->TmpName);
 
-  llvm::sys::ExecuteAndWait(ptxasExe.c_str(), Argv);
+  llvm::sys::ExecuteAndWait(ptxasPath.c_str(), Argv);
 
   auto MB = llvm::MemoryBuffer::getFile(tmpOutput->TmpName, false, false, false);
   if (MB.getError()) {
@@ -264,11 +272,8 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   }
   auto membuf = std::move(*MB);
 
-  // TODO if one failed
-  if (tmpOutput->discard())
-    llvm::errs() << "Failed to erase temp file\n";
-  if (tmpInput->discard())
-    llvm::errs() << "Failed to erase temp file\n";
+  discardFile(tmpOutput);
+  discardFile(tmpInput);
 
   size_t cubinSize = membuf->getBufferSize();
   auto result = std::make_unique<std::vector<char>>(cubinSize);
@@ -295,10 +300,11 @@ void registerGpuSerializeToCubinPass() {
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(StringRef triple,
                                                     StringRef arch,
                                                     StringRef features,
-                                                    int optLevel,
-                                                    std::string ptxasExe,
-                                                    std::string libDeviceFile) {
-  return std::make_unique<SerializeToCubinPass>(triple, arch, features, optLevel, ptxasExe, libDeviceFile);
+                                                    int llvmOptLevel,
+                                                    int ptxasOptLevel,
+                                                    std::string ptxasPath,
+                                                    std::string libDevicePath) {
+  return std::make_unique<SerializeToCubinPass>(triple, arch, features, llvmOptLevel, ptxasOptLevel, ptxasPath, libDevicePath);
 }
 
 }
