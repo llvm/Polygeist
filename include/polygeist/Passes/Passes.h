@@ -30,10 +30,9 @@ std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass> createRemoveDeviceFunctionsPass();
 std::unique_ptr<Pass> createConvertParallelToGPUPass();
-std::unique_ptr<Pass>
-createGpuSerializeToCubinPass(StringRef triple, StringRef arch,
-                              StringRef features, int optLevel,
-                              std::string ptxasExe, std::string libDeviceFile);
+std::unique_ptr<Pass> createGpuSerializeToCubinPass(
+    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
+    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath);
 void registerGpuSerializeToCubinPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
