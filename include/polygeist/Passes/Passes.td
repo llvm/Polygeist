@@ -35,9 +35,15 @@ def SCFCPUify : Pass<"cpuify"> {
   ];
 }
 
-def ConvertParallelToGPU : Pass<"convert-parallel-to-gpu"> {
+def ConvertParallelToGPU1 : Pass<"convert-parallel-to-gpu1"> {
   let summary = "Convert parallel loops to gpu";
-  let constructor = "mlir::polygeist::createConvertParallelToGPUPass()";
+  let constructor = "mlir::polygeist::createConvertParallelToGPUPass1()";
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
+}
+
+def ConvertParallelToGPU2 : Pass<"convert-parallel-to-gpu2"> {
+  let summary = "Convert parallel loops to gpu";
+  let constructor = "mlir::polygeist::createConvertParallelToGPUPass2()";
   let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
 }
 

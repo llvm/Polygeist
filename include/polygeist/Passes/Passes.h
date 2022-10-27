@@ -23,13 +23,15 @@ std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createCudaRTLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
                                  bool useCStyleMemRef, bool onlyGpuModules);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass> createRemoveDeviceFunctionsPass();
-std::unique_ptr<Pass> createConvertParallelToGPUPass();
+std::unique_ptr<Pass> createConvertParallelToGPUPass1();
+std::unique_ptr<Pass> createConvertParallelToGPUPass2();
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
     int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath);
