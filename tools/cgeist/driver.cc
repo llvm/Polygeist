@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clang/../../lib/Driver/ToolChains/Cuda.h>
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
@@ -686,6 +685,15 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createParallelLowerPass());
+#if POLYGEIST_ENABLE_CUDA
+      if (!EmitCuda)
+        pm.addPass(polygeist::createCudaRTLowerPass());
+#else
+      pm.addPass(polygeist::createCudaRTLowerPass());
+#endif
+      // TODO TEMP
+      pm.run(module.get()); module->dump();
+
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
       noptPM.addPass(
@@ -832,15 +840,21 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
+    // TODO TEMP
+    pm.run(module.get()); module->dump();
+
+
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
+      // TODO merge these passes somehow
+      if (CudaLower)
+        pm.addPass(polygeist::createConvertParallelToGPUPass1());
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
-      // TODO split parallel-to-gpu in two part before/after outlining
-      pm.addPass(polygeist::createConvertParallelToGPUPass());
+      pm.addPass(polygeist::createConvertParallelToGPUPass2());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }

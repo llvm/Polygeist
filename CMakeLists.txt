@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 include(CheckCXXSourceCompiles)
 
 set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA compilation support")
+set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA compilation support")
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)

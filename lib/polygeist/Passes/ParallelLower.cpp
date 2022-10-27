@@ -74,6 +74,9 @@ namespace {
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
   void runOnOperation() override;
 };
+struct CudaRTLower : public ParallelLowerBase<ParallelLower> {
+  void runOnOperation() override;
+};
 
 } // end anonymous namespace
 
@@ -81,6 +84,9 @@ struct ParallelLower : public ParallelLowerBase<ParallelLower> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
+std::unique_ptr<Pass> createCudaRTLowerPass() {
+  return std::make_unique<CudaRTLower>();
+}
 std::unique_ptr<Pass> createParallelLowerPass() {
   return std::make_unique<ParallelLower>();
 }
@@ -572,6 +578,25 @@ void ParallelLower::runOnOperation() {
         }
       };
 
+  // Fold the copy memtype cast
+  {
+    mlir::RewritePatternSet rpl(getOperation()->getContext());
+    GreedyRewriteConfig config;
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
+  }
+}
+
+void CudaRTLower::runOnOperation() {
+  // The inliner should only be run on operations that define a symbol table,
+  // as the callgraph will need to resolve references.
+
+  SymbolTableCollection symbolTable;
+  symbolTable.getSymbolTable(getOperation());
+
+  getOperation()->walk([&](CallOp bidx) {
+    if (bidx.getCallee() == "cudaThreadSynchronize")
+      bidx.erase();
+  });
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;

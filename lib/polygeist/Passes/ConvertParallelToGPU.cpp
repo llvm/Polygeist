@@ -10,11 +10,23 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Dominance.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/IntegerSet.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/Support/LLVM.h"
+#include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "polygeist/BarrierUtils.h"
+#include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
+
 #define DEBUG_TYPE "convert-parallel-to-gpu"
+#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
 
 using namespace mlir;
 using namespace polygeist;
@@ -91,9 +103,182 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-struct ConvertParallelToGPUPass
-    : public ConvertParallelToGPUBase<ConvertParallelToGPUPass> {
-  ConvertParallelToGPUPass() {}
+struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
+  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AffineParallelOp gridPop,
+                                PatternRewriter &rewriter) const override {
+    auto loc = gridPop->getLoc();
+    if (gridPop->getParentOfType<AffineParallelOp>()) {
+      LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
+      return failure();
+    }
+    // TODO probaly we want to raise all parallels to affine (if they already
+    // aren't - if they cant then they cannot be converted to a gpu kernel
+    // anyways
+    //
+    // TODO we currently assume that all parallel ops we encouter
+    // are in directly nested pairs and do no checks wheteher they can be
+    // gpuified or whether the memory they use is actually on the gpu
+    AffineParallelOp blockPop;
+    gridPop.getBody()->walk([&](AffineParallelOp b) {
+      blockPop = b;
+    });
+    // Move operations outisde the blockPop inside it
+    rewriter.setInsertionPointToStart(blockPop.getBody());
+    BlockAndValueMapping mapping;
+    for (Operation &op : *gridPop.getBody()) {
+      Operation *newOp;
+      if (isa<AffineParallelOp>(&op)) {
+        continue;
+      } else if (isa<AffineYieldOp>(&op)) {
+        continue;
+      } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
+        auto mt = alloca.getType();
+        auto type = MemRefType::get(mt.getShape(), mt.getElementType(),
+                                    {}, /* memspace */ 5);
+        auto newAlloca = rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
+        mapping.map(op.getResults(), newAlloca->getResults());
+        auto cast = rewriter.create<memref::CastOp>(alloca.getLoc(), alloca.getType(), newAlloca);
+        newOp = cast;
+      } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
+        LLVM_DEBUG(DBGS() << "[pop-to-launch] llvm alloca op shared mem\n");
+        return failure();
+      } else {
+        newOp = rewriter.clone(op, mapping);
+      }
+      rewriter.replaceOpWithinBlock(&op, newOp->getResults(), blockPop.getBody());
+    }
+
+    auto getUpperBounds = [&](AffineParallelOp pop) -> SmallVector<Value, 3> {
+      SmallVector<Value, 3> bounds;
+      for (unsigned idx = 0; idx < pop.getUpperBoundsMap().getNumDims(); ++idx) {
+        bounds.push_back(pop.getUpperBoundsOperands()[idx]);
+      }
+      return bounds;
+    };
+
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    // TODO make sure we start at zero or else convert the parallel ops to start at 0
+    Value gridBounds[3];
+    auto popGridBounds = getUpperBounds(gridPop);
+    for (unsigned int i = 0; i < 3; i++) {
+      if (i < popGridBounds.size())
+        gridBounds[i] = popGridBounds[i];
+      else
+        gridBounds[i] = oneindex;
+    }
+    Value blockBounds[3];
+    auto popBlockBounds = getUpperBounds(blockPop);
+    for (unsigned int i = 0; i < 3; i++) {
+      if (i < popBlockBounds.size())
+        blockBounds[i] = popBlockBounds[i];
+      else
+        blockBounds[i] = oneindex;
+    }
+
+    // TODO handle stream and dependencies - we would have to convert an
+    // async{parallel {parallel {}}} to a gpu.launch
+    // TODO handle dyn shmem
+    rewriter.setInsertionPoint(gridPop);
+    auto launchOp = rewriter.create<gpu::LaunchOp>(loc,
+                                                   gridBounds[0], gridBounds[1], gridBounds[2],
+                                                   blockBounds[0], blockBounds[1], blockBounds[2],
+                                                   /*dynamic shmem size*/ nullptr,
+                                                   /*token type*/ nullptr,
+                                                   /*dependencies*/ SmallVector<Value, 1>());
+
+    auto getDim = [](unsigned index) {
+      // TODO what should the order be
+      if (index == 0) return gpu::Dimension::x;
+      if (index == 1) return gpu::Dimension::y;
+      if (index == 2) return gpu::Dimension::z;
+      assert(0 && "Invalid index");
+    };
+
+    auto launchBlock = &launchOp.getRegion().front();
+    rewriter.setInsertionPointToStart(launchBlock);
+    SmallVector<Value, 3> argReplacements;
+    for (auto en : llvm::enumerate(blockPop.getBody()->getArguments())) {
+      gpu::Dimension dim = getDim(en.index());
+      auto blockIdx = rewriter.create<gpu::ThreadIdOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      argReplacements.push_back(blockIdx);
+    }
+    rewriter.mergeBlocks(blockPop.getBody(), launchBlock, argReplacements);
+    rewriter.setInsertionPointToEnd(launchBlock);
+    rewriter.create<gpu::TerminatorOp>(loc);
+
+    for (auto en : llvm::enumerate(gridPop.getBody()->getArguments())) {
+      gpu::Dimension dim = getDim(en.index());
+      auto gridIdx = rewriter.create<gpu::BlockIdOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      en.value().replaceAllUsesWith(gridIdx);
+      argReplacements.push_back(gridIdx);
+    }
+
+    // TODO need a way to figure out which value is actually used as a dim, e.g.
+    // have a wrapper op that just passes its block and grid dim operands to the
+    // block args in it but we still want to retain replacing of constant dims
+    // with a constant
+    for (auto en : llvm::enumerate(popBlockBounds)) {
+      Operation *op = en.value().getDefiningOp();
+      if (detail::isConstantLike(op))
+        continue;
+      assert(op->getNumResults() == 1 && "We do not currently handle ops with multiple results");
+
+      gpu::Dimension dim = getDim(en.index());
+      auto blockDim = rewriter.create<gpu::BlockDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+
+      rewriter.replaceOpWithinBlock(op, ValueRange({blockDim}), launchBlock);
+    }
+    for (auto en : llvm::enumerate(popGridBounds)) {
+      Operation *op = en.value().getDefiningOp();
+      if (detail::isConstantLike(op))
+        continue;
+      assert(op->getNumResults() == 1 && "We do not currently handle ops with multiple results");
+
+      gpu::Dimension dim = getDim(en.index());
+      auto gridDim = rewriter.create<gpu::GridDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+
+      rewriter.replaceOpWithinBlock(op, ValueRange({gridDim}), launchBlock);
+    }
+
+    rewriter.eraseOp(gridPop);
+
+    Operation *yieldOp = nullptr;
+    for (auto &op : *launchBlock) {
+      if (auto y = dyn_cast<AffineYieldOp>(&op)) {
+        assert(!yieldOp && "Multiple yields in the final block? why?");
+        yieldOp = y;
+      }
+    }
+    rewriter.eraseOp(yieldOp);
+
+    launchBlock->walk([&](mlir::polygeist::BarrierOp op) {
+      rewriter.setInsertionPoint(op);
+      rewriter.replaceOpWithNewOp<mlir::NVVM::Barrier0Op>(op);
+    });
+
+    return success();
+
+    polygeist::BarrierOp barrier = nullptr;
+    std::vector<BlockArgument> barrierArgs;
+    gridPop->walk([&](polygeist::BarrierOp b) {
+      // TODO maybe do some barrier checks here, but for now we just assume
+      // verything is fine and is generated from gpu code
+      auto args = b->getOpOperands();
+      if (barrier) {
+        //assert(args == barrierArgs);
+      }
+      barrier = b;
+      //barrierArgs = args;
+    });
+    return success();
+  }
+};
+
+struct ConvertParallelToGPU1Pass
+    : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
+  ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal>(
@@ -107,8 +292,26 @@ struct ConvertParallelToGPUPass
   }
 };
 
+struct ConvertParallelToGPU2Pass
+    : public ConvertParallelToGPU2Base<ConvertParallelToGPU2Pass> {
+  ConvertParallelToGPU2Pass() {}
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    patterns.insert<ParallelToGPULaunch>(&getContext());
+    GreedyRewriteConfig config;
+    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                            config))) {
+      signalPassFailure();
+      return;
+    }
+  }
+};
+
 } // namespace
 
-std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass() {
-  return std::make_unique<ConvertParallelToGPUPass>();
+std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass1() {
+  return std::make_unique<ConvertParallelToGPU1Pass>();
+}
+std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2() {
+  return std::make_unique<ConvertParallelToGPU2Pass>();
 }
