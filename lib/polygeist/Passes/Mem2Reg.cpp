@@ -1067,10 +1067,10 @@ void removeRedundantBlockArgs(
 }
 
 std::set<std::string> NonCapturingFunctions = {
-    "free",         "printf",        "fprintf", "scanf",     "fscanf",
-    "gettimeofday", "clock_gettime", "getenv",  "strrchr",   "strlen",
-    "sprintf",      "sscanf",        "mkdir",   "fwrite",    "fread",
-    "memcpy",       "cudaMemcpy",    "memset",  "cudaMemset"};
+    "free",         "printf",        "fprintf", "scanf",      "fscanf",
+    "gettimeofday", "clock_gettime", "getenv",  "strrchr",    "strlen",
+    "sprintf",      "sscanf",        "mkdir",   "fwrite",     "fread",
+    "memcpy",       "cudaMemcpy",    "memset",  "cudaMemset", "__isoc99_scanf"};
 // fopen, fclose
 std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
@@ -1286,62 +1286,22 @@ bool Mem2Reg::forwardStoreToLoad(
         if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
           return;
         if (auto callOp = dyn_cast<mlir::LLVM::CallOp>(op)) {
-          if (callOp.getCallee() && (*callOp.getCallee() == "printf" ||
-                                     *callOp.getCallee() == "free" ||
-                                     *callOp.getCallee() == "strlen")) {
+          if (callOp.getCallee() && (*callOp.getCallee() == "printf")) {
             return;
           }
         }
-        MemoryEffectOpInterface interface =
-            dyn_cast<MemoryEffectOpInterface>(op);
-        if (!interface)
-          opMayHaveEffect = true;
-        if (interface) {
-          SmallVector<MemoryEffects::EffectInstance, 1> effects;
-          interface.getEffects(effects);
+        SmallVector<MemoryEffects::EffectInstance, 1> effects;
+        collectEffects(op, effects, /*considerBarrier*/ false);
 
-          for (auto effect : effects) {
-            // If op causes EffectType on a potentially aliasing location for
-            // memOp, mark as having the effect.
-            if (isa<MemoryEffects::Write>(effect.getEffect())) {
-              if (Value val = effect.getValue()) {
-                while (true) {
-                  if (auto co = val.getDefiningOp<memref::CastOp>())
-                    val = co.getSource();
-                  else if (auto co = val.getDefiningOp<polygeist::SubIndexOp>())
-                    val = co.getSource();
-                  else if (auto co =
-                               val.getDefiningOp<polygeist::Memref2PointerOp>())
-                    val = co.getSource();
-                  else if (auto co =
-                               val.getDefiningOp<polygeist::Pointer2MemrefOp>())
-                    val = co.getSource();
-                  else if (auto co = val.getDefiningOp<LLVM::BitcastOp>())
-                    val = co.getArg();
-                  else if (auto co = val.getDefiningOp<LLVM::AddrSpaceCastOp>())
-                    val = co.getArg();
-                  else if (auto co = val.getDefiningOp<LLVM::GEPOp>())
-                    val = co.getBase();
-                  else
-                    break;
-                }
-                if (val.getDefiningOp<memref::AllocaOp>() ||
-                    val.getDefiningOp<memref::AllocOp>() ||
-                    val.getDefiningOp<LLVM::AllocaOp>()) {
-                  if (val != AI)
-                    continue;
-                }
-                if (auto glob = val.getDefiningOp<memref::GetGlobalOp>()) {
-                  if (auto Aglob = AI.getDefiningOp<memref::GetGlobalOp>()) {
-                    if (glob.getName() != Aglob.getName())
-                      continue;
-                  } else
-                    continue;
-                }
-              }
-              opMayHaveEffect = true;
-              break;
+        for (auto effect : effects) {
+          // If op causes EffectType on a potentially aliasing location for
+          // memOp, mark as having the effect.
+          if (isa<MemoryEffects::Write>(effect.getEffect())) {
+            if (!mayAlias(effect.getEffect(), AI)) {
+              continue;
             }
+            opMayHaveEffect = true;
+            break;
           }
         }
         if (opMayHaveEffect) {
