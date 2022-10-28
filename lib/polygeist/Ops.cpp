@@ -4800,43 +4800,93 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    AffineStoreOp store = nullptr;
+    Operation *store = nullptr;
+    Value storeVal = nullptr;
+    SmallVector<Value> storeIdxs;
     if (op.getType().getMemorySpace() != 0)
       return failure();
     LLVM_DEBUG(llvm::dbgs()
                << " Attempting affine buffer elim of: " << op << "\n");
-    SmallVector<AffineLoadOp> loads;
+    SmallVector<Operation *> loads;
     for (auto U : op->getResult(0).getUsers()) {
+
       if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
         if (store2.getValue() == op->getResult(0)) {
           LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
           return failure();
         }
+        SmallVector<Value> store2Idxs;
+        bool legal = true;
+        for (AffineExpr ores : store2.getAffineMap().getResults()) {
+          Value V = nullptr;
+          if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
+            V = store2.getMapOperands()[dim.getPosition()];
+          } else if (auto dim = ores.dyn_cast<AffineSymbolExpr>()) {
+            V = store2.getMapOperands()[dim.getPosition() +
+                                        store2.getAffineMap().getNumDims()];
+          } else {
+            legal = false;
+            break;
+          }
+          store2Idxs.push_back(V);
+        }
+
+        if (!legal)
+          continue;
+
         if (store) {
           LLVM_DEBUG(llvm::dbgs()
                      << " + double store " << *U << " and " << store << "\n");
           return failure();
         }
         store = store2;
+        storeVal = store2.getValue();
+        storeIdxs = store2Idxs;
         continue;
       }
+
+      if (auto store2 = dyn_cast<memref::StoreOp>(U)) {
+        if (store2.getValue() == op->getResult(0)) {
+          LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
+          return failure();
+        }
+        SmallVector<Value> store2Idxs(store2.getIndices());
+
+        if (store) {
+          LLVM_DEBUG(llvm::dbgs()
+                     << " + double store " << *U << " and " << store << "\n");
+          return failure();
+        }
+        store = store2;
+        storeVal = store2.getValue();
+        storeIdxs = store2Idxs;
+        continue;
+      }
+
       if (auto load = dyn_cast<AffineLoadOp>(U)) {
         loads.push_back(load);
         continue;
       }
-      if (auto load = dyn_cast<memref::DeallocOp>(U)) {
+
+      if (auto load = dyn_cast<memref::LoadOp>(U)) {
+        loads.push_back(load);
         continue;
       }
-      if (isa<memref::LoadOp, func::ReturnOp>(U)) {
+
+      if (isa<memref::DeallocOp>(U)) {
         continue;
       }
+      if (isa<func::ReturnOp>(U)) {
+        continue;
+      }
+
       LLVM_DEBUG(llvm::dbgs() << " + unknown user " << *U << "\n");
       return failure();
     }
     if (!store)
       return failure();
 
-    if (Operation *replacedValue = store.getValue().getDefiningOp())
+    if (Operation *replacedValue = storeVal.getDefiningOp())
       if (!isReadOnly(replacedValue))
         return failure();
 
@@ -4853,13 +4903,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         val = ValueOrInt(op.getOperands()[opn]);
         opn++;
       }
-      AffineExpr aexpr = store.getAffineMap().getResult(pair.index());
-      AffineDimExpr adim = aexpr.dyn_cast<AffineDimExpr>();
-      if (!adim) {
-        LLVM_DEBUG(llvm::dbgs() << " + non dim expr " << aexpr << "\n");
-        return failure();
-      }
-      Value auval = store.getMapOperands()[adim.getPosition()];
+      Value auval = storeIdxs[pair.index()];
       BlockArgument bval = auval.dyn_cast<BlockArgument>();
       if (!bval) {
         LLVM_DEBUG(llvm::dbgs() << " + non bval expr " << bval << "\n");
@@ -4870,24 +4914,15 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         return failure();
       }
     }
-    if (store.getAffineMap().getNumSymbols()) {
-      LLVM_DEBUG(llvm::dbgs() << " + store with symbols\n");
-      return failure();
-    }
+
     // 2) Ensure all operands in the map are direct, guaranteed to execute
     // parents
     //  (e.g. this is not contained within if statements and thus conditionally
     //  executed) note that even an intervening for statement can act as a
     //  conditional for 0 .. cond
     SmallPtrSet<Operation *, 1> boundContainers;
-    SmallPtrSet<Value, 1> storeIdxs;
-    for (auto ores : store.getAffineMap().getResults()) {
-      Value V = nullptr;
-      if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
-        V = store.getMapOperands()[dim.getPosition()];
-      } else {
-        return failure();
-      }
+    SmallPtrSet<Value, 1> storeIdxSet;
+    for (auto V : storeIdxs) {
       auto BA = V.dyn_cast<BlockArgument>();
       if (!BA) {
         LLVM_DEBUG(llvm::dbgs() << " + non map oper " << V << "\n");
@@ -4895,9 +4930,9 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
       }
       // Repeated indices mean that the space is not filled, but only
       // a diagonal.
-      if (storeIdxs.count(V))
+      if (storeIdxSet.count(V))
         return failure();
-      storeIdxs.insert(V);
+      storeIdxSet.insert(V);
       Operation *parent = BA.getOwner()->getParentOp();
 
       // Ensure this is a for dimension, not an induction var.
@@ -4969,7 +5004,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     assert(prevParent);
 
     SmallVector<MemoryEffects::EffectInstance> readResources;
-    if (Operation *replacedValue = store.getValue().getDefiningOp()) {
+    if (Operation *replacedValue = storeVal.getDefiningOp()) {
       SmallVector<Operation *> todo = {replacedValue};
       while (todo.size()) {
         auto op = todo.back();
@@ -5022,7 +5057,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     // Check containers all the way up to allocation op are guaranteed
     // to execute.
     Operation *innerParent = store;
-    for (auto V : store.getMapOperands()) {
+    for (auto V : storeIdxs) {
       auto BA = V.dyn_cast<BlockArgument>();
       Operation *c = BA.getOwner()->getParentOp();
       if (isa<AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
@@ -5056,17 +5091,17 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     DominanceInfo DI(op->getParentOp());
 
     std::function<bool(Operation * loc)> canReplace = [&](Operation *loc) {
-      SmallVector<Value> todoV = {store.getValue()};
+      SmallVector<Value> todoV = {storeVal};
       while (todoV.size()) {
         auto V = todoV.back();
         todoV.pop_back();
-        if (storeIdxs.count(V))
+        if (storeIdxSet.count(V))
           continue;
 
         if (auto BA = V.dyn_cast<BlockArgument>()) {
           Operation *parent = BA.getOwner()->getParentOp();
 
-          if (auto sop = store.getValue().getDefiningOp())
+          if (auto sop = storeVal.getDefiningOp())
             if (sop->isAncestor(parent))
               continue;
 
@@ -5094,7 +5129,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         } else {
           auto vop = V.getDefiningOp();
           bool ancestorOf = false;
-          if (auto sop = store.getValue().getDefiningOp())
+          if (auto sop = storeVal.getDefiningOp())
             if (sop->isAncestor(vop))
               ancestorOf = true;
 
@@ -5186,27 +5221,26 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             continue;
           if (tc.isAncestor(ld)) {
             rewriter.setInsertionPoint(ld);
-            Value repval = store.getValue();
+            Value repval = storeVal;
             if (auto replacedValue = repval.getDefiningOp()) {
               BlockAndValueMapping map;
-              for (size_t i = 0; i < store.getMemref()
-                                         .getType()
-                                         .cast<MemRefType>()
-                                         .getShape()
-                                         .size();
-                   ++i) {
-                auto apply = rewriter.create<AffineApplyOp>(
-                    ld.getLoc(),
-                    ld.getAffineMapAttr().getValue().getSliceMap(i, 1),
-                    ld.getMapOperands());
-                AffineExpr aexpr = store.getAffineMap().getResult(i);
-                AffineDimExpr adim = aexpr.cast<AffineDimExpr>();
-                Value auval = store.getMapOperands()[adim.getPosition()];
-                map.map(auval, apply->getResult(0));
+              if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
+                for (size_t i = 0; i < storeIdxs.size(); ++i) {
+                  auto apply = rewriter.create<AffineApplyOp>(
+                      ald.getLoc(),
+                      ald.getAffineMapAttr().getValue().getSliceMap(i, 1),
+                      ald.getMapOperands());
+                  map.map(storeIdxs[i], apply->getResult(0));
+                }
+              } else {
+                auto mld = cast<memref::LoadOp>(ld);
+                for (size_t i = 0; i < storeIdxs.size(); ++i) {
+                  map.map(storeIdxs[i], mld.getIndices()[i]);
+                }
               }
               Operation *torep = rewriter.clone(*replacedValue, map);
-              repval = torep->getResult(
-                  store.getValue().cast<OpResult>().getResultNumber());
+              repval =
+                  torep->getResult(storeVal.cast<OpResult>().getResultNumber());
             }
             Value vals[] = {repval};
             rewriter.setInsertionPoint(op);
