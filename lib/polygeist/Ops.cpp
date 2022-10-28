@@ -84,6 +84,52 @@ bool collectEffects(Operation *op,
     return true;
   }
 
+  if (auto cop = dyn_cast<LLVM::CallOp>(op)) {
+    if (auto callee = cop.getCallee()) {
+      if (*callee == "scanf" || *callee == "__isoc99_scanf") {
+        // Global read
+        effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Read>());
+
+        bool first = true;
+        for (auto arg : cop.getArgOperands()) {
+          if (first)
+            effects.emplace_back(::mlir::MemoryEffects::Read::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+          else
+            effects.emplace_back(::mlir::MemoryEffects::Write::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+          first = false;
+        }
+
+        return true;
+      }
+      if (*callee == "printf") {
+        // Global read
+        effects.emplace_back(
+            MemoryEffects::Effect::get<MemoryEffects::Write>());
+        for (auto arg : cop.getArgOperands()) {
+          effects.emplace_back(::mlir::MemoryEffects::Read::get(), arg,
+                               ::mlir::SideEffects::DefaultResource::get());
+        }
+        return true;
+      }
+      if (*callee == "free") {
+        for (auto arg : cop.getArgOperands()) {
+          effects.emplace_back(::mlir::MemoryEffects::Free::get(), arg,
+                               ::mlir::SideEffects::DefaultResource::get());
+        }
+        return true;
+      }
+      if (*callee == "strlen") {
+        for (auto arg : cop.getArgOperands()) {
+          effects.emplace_back(::mlir::MemoryEffects::Read::get(), arg,
+                               ::mlir::SideEffects::DefaultResource::get());
+        }
+        return true;
+      }
+    }
+  }
+
   // We need to be conservative here in case the op doesn't have the interface
   // and assume it can have any possible effect.
   effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Read>());
@@ -324,6 +370,8 @@ public:
   }
 };
 
+extern std::set<std::string> NonCapturingFunctions;
+
 bool isCaptured(Value v, Operation *potentialUser = nullptr,
                 bool *seenuse = nullptr) {
   SmallVector<Value> todo = {v};
@@ -382,6 +430,16 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
       }
       if (auto sub = dyn_cast<polygeist::Pointer2MemrefOp>(u)) {
         todo.push_back(sub);
+      }
+      if (auto cop = dyn_cast<LLVM::CallOp>(u)) {
+        if (auto callee = cop.getCallee()) {
+          if (NonCapturingFunctions.count(callee->str()))
+            continue;
+        }
+      }
+      if (auto cop = dyn_cast<func::CallOp>(u)) {
+        if (NonCapturingFunctions.count(cop.getCallee().str()))
+          continue;
       }
       return true;
     }
@@ -493,6 +551,8 @@ bool mayAlias(MemoryEffects::EffectInstance a,
               MemoryEffects::EffectInstance b) {
   if (Value v2 = b.getValue()) {
     return mayAlias(a, v2);
+  } else if (Value v = a.getValue()) {
+    return mayAlias(b, v);
   }
   return true;
 }
