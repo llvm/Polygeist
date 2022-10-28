@@ -26,6 +26,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/SideEffectUtils.h"
 
@@ -4820,7 +4821,13 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     //  conditional for 0 .. cond
     SmallPtrSet<Operation *, 1> boundContainers;
     SmallPtrSet<Value, 1> storeIdxs;
-    for (auto V : store.getMapOperands()) {
+    for (auto ores : store.getAffineMap().getResults()) {
+      Value V = nullptr;
+      if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
+        V = store.getMapOperands()[dim.getPosition()];
+      } else {
+        return failure();
+      }
       auto BA = V.dyn_cast<BlockArgument>();
       if (!BA) {
         LLVM_DEBUG(llvm::dbgs() << " + non map oper " << V << "\n");
@@ -4986,6 +4993,8 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     }
     assert(innerParent);
 
+    DominanceInfo DI(op->getParentOp());
+
     std::function<bool(Operation * loc)> canReplace = [&](Operation *loc) {
       SmallVector<Value> todoV = {store.getValue()};
       while (todoV.size()) {
@@ -4997,12 +5006,13 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         if (auto BA = V.dyn_cast<BlockArgument>()) {
           Operation *parent = BA.getOwner()->getParentOp();
 
-          if (!parent->isAncestor(loc)) {
-            return false;
-          }
           if (auto sop = store.getValue().getDefiningOp())
             if (sop->isAncestor(parent))
               continue;
+
+          if (!DI.dominates(BA, loc)) {
+            return false;
+          }
 
           if (isa<FunctionOpInterface>(parent)) {
           } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
@@ -5022,26 +5032,26 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           }
 
         } else {
-          auto op = V.getDefiningOp();
+          auto vop = V.getDefiningOp();
           bool ancestorOf = false;
           if (auto sop = store.getValue().getDefiningOp())
-            if (sop->isAncestor(op))
+            if (sop->isAncestor(vop))
               ancestorOf = true;
 
-          if (op->isAncestor(loc)) {
+          if (DI.dominates((Operation *)vop, loc)) {
             continue;
           } else if (!ancestorOf) {
             return false;
           }
 
-          for (auto &region : op->getRegions()) {
+          for (auto &region : vop->getRegions()) {
             for (auto &block : region) {
               for (auto &innerOp : block)
                 for (auto o : innerOp.getOperands())
                   todoV.push_back(o);
             }
           }
-          for (auto o : op->getOperands()) {
+          for (auto o : vop->getOperands()) {
             todoV.push_back(o);
           }
         }
