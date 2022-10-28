@@ -427,6 +427,8 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
+#define dump_module(PASS_MANAGER) do {llvm::errs() << "at line" << __LINE__ << "\n"; (void)PASS_MANAGER.run(module.get()); module->dump();} while (0)
+
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
 
@@ -627,6 +629,7 @@ int main(int argc, char **argv) {
       module->dump();
       return 5;
     }
+      dump_module(pm);
 
 #define optPM optPM2
 #define pm pm2
@@ -675,6 +678,7 @@ int main(int argc, char **argv) {
         module->dump();
         return 6;
       }
+    dump_module(pm);
     }
 
     if (CudaLower) {
@@ -690,7 +694,7 @@ int main(int argc, char **argv) {
       pm.addPass(polygeist::createCudaRTLowerPass());
 #endif
       // TODO TEMP
-      pm.run(module.get()); module->dump();
+      dump_module(pm);
 
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
@@ -700,6 +704,7 @@ int main(int argc, char **argv) {
       noptPM.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(mlir::createInlinerPass());
+      dump_module(pm);
       mlir::OpPassManager &noptPM2 = pm.nest<mlir::func::FuncOp>();
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -753,6 +758,7 @@ int main(int argc, char **argv) {
         module->dump();
         return 7;
       }
+      dump_module(pm);
     }
 
     mlir::PassManager pm(&context);
@@ -766,6 +772,7 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+    dump_module(pm);
 
       if (RaiseToAffine) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
@@ -784,6 +791,7 @@ int main(int argc, char **argv) {
         if (ScalarReplacement)
           optPM.addPass(mlir::createAffineScalarReplacementPass());
       }
+    dump_module(pm);
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
         // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
@@ -812,6 +820,7 @@ int main(int argc, char **argv) {
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM.addPass(polygeist::replaceAffineCFGPass());
+    dump_module(pm);
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (LoopUnroll)
@@ -837,26 +846,8 @@ int main(int argc, char **argv) {
       }
     }
     pm.addPass(mlir::createSymbolDCEPass());
+    dump_module(pm);
 
-    // TODO TEMP
-    pm.run(module.get()); module->dump();
-
-
-#if POLYGEIST_ENABLE_CUDA
-    if (EmitCuda) {
-      // TODO merge these passes somehow
-      if (CudaLower)
-        pm.addPass(polygeist::createConvertParallelToGPUPass1());
-      // TODO pass in gpuDL, the format is weird
-      pm.addPass(mlir::createGpuKernelOutliningPass());
-      // TODO maybe preserve info about which original kernel corresponds to
-      // which outlined kernel, might be useful for calls to
-      // cudaFuncSetCacheConfig e.g.
-      pm.addPass(polygeist::createConvertParallelToGPUPass2());
-      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
-    }
-#endif
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
@@ -868,6 +859,36 @@ int main(int argc, char **argv) {
         module->dump();
         return 8;
       }
+    }
+
+    // TODO TEMP
+    dump_module(pm);
+
+
+#if POLYGEIST_ENABLE_CUDA
+    if (EmitCuda) {
+      // TODO merge these passes somehow
+      if (CudaLower)
+        pm.addPass(polygeist::createConvertParallelToGPUPass2());
+      // TODO TEMP
+      dump_module(pm);
+      // TODO pass in gpuDL, the format is weird
+      pm.addPass(mlir::createGpuKernelOutliningPass());
+      // TODO TEMP
+      dump_module(pm);
+      // TODO maybe preserve info about which original kernel corresponds to
+      // which outlined kernel, might be useful for calls to
+      // cudaFuncSetCacheConfig e.g.
+      pm.addPass(polygeist::createConvertParallelToGPUPass1());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
+    }
+#endif
+
+    // TODO TEMP
+    dump_module(pm);
+
+    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
       if (SCFOpenMP) {
         pm2.addPass(createConvertSCFToOpenMPPass());

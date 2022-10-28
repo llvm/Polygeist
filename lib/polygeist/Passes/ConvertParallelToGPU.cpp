@@ -103,13 +103,13 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
+  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp gridPop,
+  LogicalResult matchAndRewrite(scf::ParallelOp gridPop,
                                 PatternRewriter &rewriter) const override {
     auto loc = gridPop->getLoc();
-    if (gridPop->getParentOfType<AffineParallelOp>()) {
+    if (gridPop->getParentOfType<scf::ParallelOp>()) {
       LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
       return failure();
     }
@@ -120,8 +120,8 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
     // TODO we currently assume that all parallel ops we encouter
     // are in directly nested pairs and do no checks wheteher they can be
     // gpuified or whether the memory they use is actually on the gpu
-    AffineParallelOp blockPop;
-    gridPop.getBody()->walk([&](AffineParallelOp b) {
+    scf::ParallelOp blockPop;
+    gridPop.getBody()->walk([&](scf::ParallelOp b) {
       blockPop = b;
     });
     // Move operations outisde the blockPop inside it
@@ -129,9 +129,9 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
     BlockAndValueMapping mapping;
     for (Operation &op : *gridPop.getBody()) {
       Operation *newOp;
-      if (isa<AffineParallelOp>(&op)) {
+      if (isa<scf::ParallelOp>(&op)) {
         continue;
-      } else if (isa<AffineYieldOp>(&op)) {
+      } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
         auto mt = alloca.getType();
@@ -150,10 +150,10 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
       rewriter.replaceOpWithinBlock(&op, newOp->getResults(), blockPop.getBody());
     }
 
-    auto getUpperBounds = [&](AffineParallelOp pop) -> SmallVector<Value, 3> {
+    auto getUpperBounds = [&](scf::ParallelOp pop) -> SmallVector<Value, 3> {
       SmallVector<Value, 3> bounds;
-      for (unsigned idx = 0; idx < pop.getUpperBoundsMap().getNumDims(); ++idx) {
-        bounds.push_back(pop.getUpperBoundsOperands()[idx]);
+      for (auto bound : pop.getUpperBound()) {
+        bounds.push_back(bound);
       }
       return bounds;
     };
@@ -205,8 +205,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
       argReplacements.push_back(blockIdx);
     }
     rewriter.mergeBlocks(blockPop.getBody(), launchBlock, argReplacements);
-    rewriter.setInsertionPointToEnd(launchBlock);
-    rewriter.create<gpu::TerminatorOp>(loc);
+    rewriter.setInsertionPointToStart(launchBlock);
 
     for (auto en : llvm::enumerate(gridPop.getBody()->getArguments())) {
       gpu::Dimension dim = getDim(en.index());
@@ -227,7 +226,6 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
 
       gpu::Dimension dim = getDim(en.index());
       auto blockDim = rewriter.create<gpu::BlockDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
-
       rewriter.replaceOpWithinBlock(op, ValueRange({blockDim}), launchBlock);
     }
     for (auto en : llvm::enumerate(popGridBounds)) {
@@ -238,15 +236,17 @@ struct ParallelToGPULaunch : public OpRewritePattern<AffineParallelOp> {
 
       gpu::Dimension dim = getDim(en.index());
       auto gridDim = rewriter.create<gpu::GridDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
-
       rewriter.replaceOpWithinBlock(op, ValueRange({gridDim}), launchBlock);
     }
+
+    rewriter.setInsertionPointToEnd(launchBlock);
+    rewriter.create<gpu::TerminatorOp>(loc);
 
     rewriter.eraseOp(gridPop);
 
     Operation *yieldOp = nullptr;
     for (auto &op : *launchBlock) {
-      if (auto y = dyn_cast<AffineYieldOp>(&op)) {
+      if (auto y = dyn_cast<scf::YieldOp>(&op)) {
         assert(!yieldOp && "Multiple yields in the final block? why?");
         yieldOp = y;
       }
