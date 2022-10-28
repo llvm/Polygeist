@@ -454,7 +454,7 @@ void ParallelLower::runOnOperation() {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
           auto dst = call->getOperand(0);
-          if (auto mt = dst.getType().cast<MemRefType>()) {
+          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -462,7 +462,7 @@ void ParallelLower::runOnOperation() {
                 dst);
           }
           auto src = call->getOperand(1);
-          if (auto mt = src.getType().cast<MemRefType>()) {
+          if (auto mt = src.getType().dyn_cast<MemRefType>()) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -479,7 +479,7 @@ void ParallelLower::runOnOperation() {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
           auto dst = call->getOperand(0);
-          if (auto mt = dst.getType().cast<MemRefType>()) {
+          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -487,7 +487,7 @@ void ParallelLower::runOnOperation() {
                 dst);
           }
           auto src = call->getOperand(1);
-          if (auto mt = src.getType().cast<MemRefType>()) {
+          if (auto mt = src.getType().dyn_cast<MemRefType>()) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
