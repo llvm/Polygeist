@@ -448,139 +448,129 @@ void ParallelLower::runOnOperation() {
     builder.eraseOp(launchOp);
   }
 
+  std::function<void(Operation * call, StringRef callee)> replace =
+      [&](Operation *call, StringRef callee) {
+        if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
+          OpBuilder bz(call);
+          auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
+          auto dst = call->getOperand(0);
+          if (auto mt = dst.getType().cast<MemRefType>()) {
+            dst = bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                dst);
+          }
+          auto src = call->getOperand(1);
+          if (auto mt = src.getType().cast<MemRefType>()) {
+            src = bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                src);
+          }
+          bz.create<LLVM::MemcpyOp>(call->getLoc(), dst, src,
+                                    call->getOperand(2),
+                                    /*isVolatile*/ falsev);
+          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+              call->getLoc(), 0, call->getResult(0).getType()));
+          call->erase();
+        } else if (callee == "cudaMemcpyToSymbol") {
+          OpBuilder bz(call);
+          auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
+          auto dst = call->getOperand(0);
+          if (auto mt = dst.getType().cast<MemRefType>()) {
+            dst = bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                dst);
+          }
+          auto src = call->getOperand(1);
+          if (auto mt = src.getType().cast<MemRefType>()) {
+            src = bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                src);
+          }
+          bz.create<LLVM::MemcpyOp>(
+              call->getLoc(),
+              bz.create<LLVM::GEPOp>(call->getLoc(), dst.getType(), dst,
+                                     std::vector<Value>({call->getOperand(3)})),
+              src, call->getOperand(2),
+              /*isVolatile*/ falsev);
+          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+              call->getLoc(), 0, call->getResult(0).getType()));
+          call->erase();
+        } else if (callee == "cudaMemset") {
+          OpBuilder bz(call);
+          auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
+          bz.create<LLVM::MemsetOp>(call->getLoc(), call->getOperand(0),
+                                    bz.create<TruncIOp>(call->getLoc(),
+                                                        bz.getI8Type(),
+                                                        call->getOperand(1)),
+                                    call->getOperand(2),
+                                    /*isVolatile*/ falsev);
+          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+              call->getLoc(), 0, call->getResult(0).getType()));
+          call->erase();
+        } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
+          OpBuilder bz(call);
+          Value arg = call->getOperand(1);
+          if (arg.getType().cast<IntegerType>().getWidth() < 64)
+            arg =
+                bz.create<arith::ExtUIOp>(call->getLoc(), bz.getI64Type(), arg);
+          mlir::Value alloc =
+              callMalloc(bz, getOperation(), call->getLoc(), arg);
+          bz.create<LLVM::StoreOp>(call->getLoc(), alloc, call->getOperand(0));
+          {
+            auto retv = bz.create<ConstantIntOp>(
+                call->getLoc(), 0,
+                call->getResult(0).getType().cast<IntegerType>().getWidth());
+            Value vals[] = {retv};
+            call->replaceAllUsesWith(ArrayRef<Value>(vals));
+            call->erase();
+          }
+        } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
+          auto mf = GetOrCreateFreeFunction(getOperation());
+          OpBuilder bz(call);
+          Value args[] = {call->getOperand(0)};
+          bz.create<mlir::LLVM::CallOp>(call->getLoc(), mf, args);
+          {
+            auto retv = bz.create<ConstantIntOp>(
+                call->getLoc(), 0,
+                call->getResult(0).getType().cast<IntegerType>().getWidth());
+            Value vals[] = {retv};
+            call->replaceAllUsesWith(ArrayRef<Value>(vals));
+            call->erase();
+          }
+        } else if (callee == "cudaDeviceSynchronize") {
+          OpBuilder bz(call);
+          auto retv = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          Value vals[] = {retv};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        } else if (callee == "cudaGetLastError") {
+          OpBuilder bz(call);
+          auto retv = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          Value vals[] = {retv};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        }
+      };
+
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
-    if (call.getCallee().value() == "cudaMemcpy" ||
-        call.getCallee().value() == "cudaMemcpyAsync") {
-      OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
-      bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),
-                                call.getOperand(1), call.getOperand(2),
-                                /*isVolatile*/ falsev);
-      call.replaceAllUsesWith(
-          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
-      call.erase();
-    } else if (call.getCallee().value() == "cudaMemcpyToSymbol") {
-      OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
-      bz.create<LLVM::MemcpyOp>(
-          call.getLoc(),
-          bz.create<LLVM::GEPOp>(call.getLoc(), call.getOperand(0).getType(),
-                                 call.getOperand(0),
-                                 std::vector<Value>({call.getOperand(3)})),
-          call.getOperand(1), call.getOperand(2),
-          /*isVolatile*/ falsev);
-      call.replaceAllUsesWith(
-          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
-      call.erase();
-    } else if (call.getCallee().value() == "cudaMemset") {
-      OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
-      bz.create<LLVM::MemsetOp>(call.getLoc(), call.getOperand(0),
-                                bz.create<TruncIOp>(call.getLoc(),
-                                                    bz.getI8Type(),
-                                                    call.getOperand(1)),
-                                call.getOperand(2),
-                                /*isVolatile*/ falsev);
-      call.replaceAllUsesWith(
-          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
-      call.erase();
-    } else if (call.getCallee().value() == "cudaMalloc" ||
-               call.getCallee().value() == "cudaMallocHost") {
-      OpBuilder bz(call);
-      Value arg = call.getOperand(1);
-      if (arg.getType().cast<IntegerType>().getWidth() < 64)
-        arg = bz.create<arith::ExtUIOp>(call.getLoc(), bz.getI64Type(), arg);
-      mlir::Value alloc = callMalloc(bz, getOperation(), call.getLoc(), arg);
-      bz.create<LLVM::StoreOp>(call.getLoc(), alloc, call.getOperand(0));
-      {
-        auto retv = bz.create<ConstantIntOp>(
-            call.getLoc(), 0,
-            call.getResult().getType().cast<IntegerType>().getWidth());
-        Value vals[] = {retv};
-        call.replaceAllUsesWith(ArrayRef<Value>(vals));
-        call.erase();
-      }
-    } else if (call.getCallee().value() == "cudaFree" ||
-               call.getCallee().value() == "cudaFreeHost") {
-      auto mf = GetOrCreateFreeFunction(getOperation());
-      OpBuilder bz(call);
-      Value args[] = {call.getOperand(0)};
-      bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args);
-      {
-        auto retv = bz.create<ConstantIntOp>(
-            call.getLoc(), 0,
-            call.getResult().getType().cast<IntegerType>().getWidth());
-        Value vals[] = {retv};
-        call.replaceAllUsesWith(ArrayRef<Value>(vals));
-        call.erase();
-      }
-    } else if (call.getCallee().value() == "cudaDeviceSynchronize") {
-      OpBuilder bz(call);
-      auto retv = bz.create<ConstantIntOp>(
-          call.getLoc(), 0,
-          call.getResult().getType().cast<IntegerType>().getWidth());
-      Value vals[] = {retv};
-      call.replaceAllUsesWith(ArrayRef<Value>(vals));
-      call.erase();
-    } else if (call.getCallee().value() == "cudaGetLastError") {
-      OpBuilder bz(call);
-      auto retv = bz.create<ConstantIntOp>(
-          call.getLoc(), 0,
-          call.getResult().getType().cast<IntegerType>().getWidth());
-      Value vals[] = {retv};
-      call.replaceAllUsesWith(ArrayRef<Value>(vals));
-      call.erase();
-    }
+    replace(call, *call.getCallee());
   });
-  getOperation().walk([&](CallOp call) {
-    if (call.getCallee() == "cudaDeviceSynchronize") {
-      OpBuilder bz(call);
-      auto retv = bz.create<ConstantIntOp>(
-          call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
-      Value vals[] = {retv};
-      call.replaceAllUsesWith(ArrayRef<Value>(vals));
-      call.erase();
-    } else if (call.getCallee() == "cudaMemcpyToSymbol") {
-      OpBuilder bz(call);
-      auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
-      auto dst = call.getOperand(0);
-      if (auto mt = dst.getType().cast<MemRefType>()) {
-        dst = bz.create<polygeist::Memref2PointerOp>(
-            call.getLoc(),
-            LLVM::LLVMPointerType::get(mt.getElementType(),
-                                       mt.getMemorySpaceAsInt()),
-            dst);
-      }
-      auto src = call.getOperand(1);
-      if (auto mt = src.getType().cast<MemRefType>()) {
-        src = bz.create<polygeist::Memref2PointerOp>(
-            call.getLoc(),
-            LLVM::LLVMPointerType::get(mt.getElementType(),
-                                       mt.getMemorySpaceAsInt()),
-            src);
-      }
-      bz.create<LLVM::MemcpyOp>(
-          call.getLoc(),
-          bz.create<LLVM::GEPOp>(call.getLoc(), dst.getType(), dst,
-                                 std::vector<Value>({call.getOperand(3)})),
-          src, call.getOperand(2),
-          /*isVolatile*/ falsev);
-      call.replaceAllUsesWith(
-          bz.create<ConstantIntOp>(call.getLoc(), 0, call.getType(0)));
-      call.erase();
-    } else if (call.getCallee() == "cudaGetLastError") {
-      OpBuilder bz(call);
-      auto retv = bz.create<ConstantIntOp>(
-          call.getLoc(), 0,
-          call.getResult(0).getType().cast<IntegerType>().getWidth());
-      Value vals[] = {retv};
-      call.replaceAllUsesWith(ArrayRef<Value>(vals));
-      call.erase();
-    }
-  });
+
+  getOperation().walk([&](CallOp call) { replace(call, call.getCallee()); });
 
   // Fold the copy memtype cast
   {
