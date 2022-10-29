@@ -104,6 +104,28 @@ bool collectEffects(Operation *op,
 
         return true;
       }
+      if (*callee == "fscanf" || *callee == "__isoc99_fscanf") {
+        // Global read
+        effects.emplace_back(MemoryEffects::Effect::get<MemoryEffects::Read>());
+
+        for (auto argp : llvm::enumerate(cop.getArgOperands())) {
+          auto arg = argp.value();
+          auto idx = argp.index();
+          if (idx == 0) {
+            effects.emplace_back(::mlir::MemoryEffects::Read::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+            effects.emplace_back(::mlir::MemoryEffects::Write::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+          } else if (idx == 1) {
+            effects.emplace_back(::mlir::MemoryEffects::Read::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+          } else
+            effects.emplace_back(::mlir::MemoryEffects::Write::get(), arg,
+                                 ::mlir::SideEffects::DefaultResource::get());
+        }
+
+        return true;
+      }
       if (*callee == "printf") {
         // Global read
         effects.emplace_back(

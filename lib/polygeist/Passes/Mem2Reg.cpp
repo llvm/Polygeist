@@ -1067,10 +1067,12 @@ void removeRedundantBlockArgs(
 }
 
 std::set<std::string> NonCapturingFunctions = {
-    "free",         "printf",        "fprintf", "scanf",      "fscanf",
-    "gettimeofday", "clock_gettime", "getenv",  "strrchr",    "strlen",
-    "sprintf",      "sscanf",        "mkdir",   "fwrite",     "fread",
-    "memcpy",       "cudaMemcpy",    "memset",  "cudaMemset", "__isoc99_scanf"};
+    "free",           "printf",       "fprintf",       "scanf",
+    "fscanf",         "gettimeofday", "clock_gettime", "getenv",
+    "strrchr",        "strlen",       "sprintf",       "sscanf",
+    "mkdir",          "fwrite",       "fread",         "memcpy",
+    "cudaMemcpy",     "memset",       "cudaMemset",    "__isoc99_scanf",
+    "__isoc99_fscanf"};
 // fopen, fclose
 std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
@@ -1816,14 +1818,18 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
-      } else if (isa<func::CallOp>(U) &&
-                 cast<func::CallOp>(U).getCallee() == "free") {
-        continue;
-      } else if (isa<func::CallOp>(U)) {
-        // TODO check "no capture", currently assume as a fallback always
-        // nocapture
-        continue;
+      } else if (auto callOp = dyn_cast<func::CallOp>(U)) {
+        if (NonCapturingFunctions.count(callOp.getCallee().str()))
+          continue;
+      } else if (auto callOp = dyn_cast<LLVM::CallOp>(U)) {
+        if (auto callee = callOp.getCallee())
+          if (NonCapturingFunctions.count(callee->str()))
+            continue;
       } else if (auto CO = dyn_cast<memref::CastOp>(U)) {
+        list.push_back(CO);
+      } else if (auto CO = dyn_cast<polygeist::Memref2PointerOp>(U)) {
+        list.push_back(CO);
+      } else if (auto CO = dyn_cast<polygeist::Pointer2MemrefOp>(U)) {
         list.push_back(CO);
       } else {
         LLVM_DEBUG(llvm::dbgs()
