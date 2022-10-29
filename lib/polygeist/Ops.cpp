@@ -4800,9 +4800,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
   LogicalResult matchAndRewrite(T op,
                                 PatternRewriter &rewriter) const override {
-    Operation *store = nullptr;
-    Value storeVal = nullptr;
-    SmallVector<Value> storeIdxs;
+    SmallVector<Operation *> stores;
     if (op.getType().getMemorySpace() != 0)
       return failure();
     LLVM_DEBUG(llvm::dbgs()
@@ -4815,33 +4813,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
           return failure();
         }
-        SmallVector<Value> store2Idxs;
-        bool legal = true;
-        for (AffineExpr ores : store2.getAffineMap().getResults()) {
-          Value V = nullptr;
-          if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
-            V = store2.getMapOperands()[dim.getPosition()];
-          } else if (auto dim = ores.dyn_cast<AffineSymbolExpr>()) {
-            V = store2.getMapOperands()[dim.getPosition() +
-                                        store2.getAffineMap().getNumDims()];
-          } else {
-            legal = false;
-            break;
-          }
-          store2Idxs.push_back(V);
-        }
-
-        if (!legal)
-          continue;
-
-        if (store) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << " + double store " << *U << " and " << store << "\n");
-          return failure();
-        }
-        store = store2;
-        storeVal = store2.getValue();
-        storeIdxs = store2Idxs;
+        stores.push_back(store2);
         continue;
       }
 
@@ -4850,16 +4822,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
           return failure();
         }
-        SmallVector<Value> store2Idxs(store2.getIndices());
-
-        if (store) {
-          LLVM_DEBUG(llvm::dbgs()
-                     << " + double store " << *U << " and " << store << "\n");
-          return failure();
-        }
-        store = store2;
-        storeVal = store2.getValue();
-        storeIdxs = store2Idxs;
+        stores.push_back(store2);
         continue;
       }
 
@@ -4883,14 +4846,49 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
       LLVM_DEBUG(llvm::dbgs() << " + unknown user " << *U << "\n");
       return failure();
     }
-    if (!store)
-      return failure();
 
-    if (Operation *replacedValue = storeVal.getDefiningOp())
-      if (!isReadOnly(replacedValue))
-        return failure();
+    bool changed = false;
+
+    for (auto store : stores) {
+
+    Value storeVal = nullptr;
+    SmallVector<ValueOrInt> storeIdxs;
+      if (auto store2 = dyn_cast<AffineStoreOp>(store)) {
+        bool legal = true;
+        for (AffineExpr ores : store2.getAffineMap().getResults()) {
+          ValueOrInt V = nullptr;
+          if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
+            V = ValueOrInt(store2.getMapOperands()[dim.getPosition()]);
+          } else if (auto dim = ores.dyn_cast<AffineSymbolExpr>()) {
+            V = ValueOrInt(store2.getMapOperands()[dim.getPosition() +
+                                        store2.getAffineMap().getNumDims()]);
+          } else if (auto dim = ores.dyn_cast<AffineConstantExpr>()) {
+            V = ValueOrInt(dim.getValue());
+          } else {
+            legal = false;
+            break;
+          }
+          storeIdxs.push_back(V);
+        }
+
+        if (!legal)
+          continue;
+
+        storeVal = store2.getValue();
+      } else {
+        auto store2 = cast<memref::StoreOp>(store);
+        for (auto idx : store2.getIndices())
+          storeIdxs.push_back(ValueOrInt(idx));
+        storeVal = store2.getValue();
+      }
+
+      if (Operation *replacedValue = storeVal.getDefiningOp())
+          if (!isReadOnly(replacedValue))
+            continue;
 
     int opn = 0;
+
+
     // Ensure the one store fully covers the space.
 
     // Note: this may not actually necessary, since if there's only one store,
@@ -4903,15 +4901,19 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         val = ValueOrInt(op.getOperands()[opn]);
         opn++;
       }
-      Value auval = storeIdxs[pair.index()];
-      BlockArgument bval = auval.dyn_cast<BlockArgument>();
-      if (!bval) {
-        LLVM_DEBUG(llvm::dbgs() << " + non bval expr " << bval << "\n");
-        return failure();
-      }
-      if (!rangeIncludes(bval, 0, val)) {
-        LLVM_DEBUG(llvm::dbgs() << " + non in range " << bval << "\n");
-        return failure();
+      if (storeIdxs[pair.index()].isValue) {
+          Value auval = storeIdxs[pair.index()].v_val;
+          BlockArgument bval = auval.dyn_cast<BlockArgument>();
+          if (!bval) {
+            LLVM_DEBUG(llvm::dbgs() << " + non bval expr " << bval << "\n");
+            continue;
+          }
+          if (!rangeIncludes(bval, 0, val)) {
+            LLVM_DEBUG(llvm::dbgs() << " + non in range " << bval << "\n");
+            continue;
+          }
+      } else {
+          TODO SUBSELECT ONLY LOADS WITH EXACT MATCH ON THAT INDEX
       }
     }
 
@@ -5135,7 +5137,9 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
           if (DI.dominates((Operation *)vop, loc)) {
             continue;
-          } else if (!ancestorOf) {
+          }
+
+          if (!ancestorOf) {
             return false;
           }
 
@@ -5154,7 +5158,6 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
       return true;
     };
 
-    bool changed = false;
     auto end = innerParent->getBlock()->end();
     if (canReplace(innerParent))
       for (auto iter = innerParent->getIterator();;) {
@@ -5185,6 +5188,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             return;
           auto mem = dyn_cast<MemoryEffectOpInterface>(ist);
           if (!mem) {
+            // TODO indirect use rather than operand
             if (isStackAlloca(op) && !isCaptured(op) &&
                 !llvm::any_of(ist->getOperands(),
                               [&](Value v) { return v == op; }))
@@ -5250,6 +5254,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           }
         }
       }
+    }
     return success(changed);
   }
 };
