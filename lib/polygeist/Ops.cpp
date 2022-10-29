@@ -430,6 +430,9 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
       if (auto sub = dyn_cast<LLVM::AddrSpaceCastOp>(u)) {
         todo.push_back(sub);
       }
+      if (auto sub = dyn_cast<func::ReturnOp>(u)) {
+        continue;
+      }
       if (auto sub = dyn_cast<LLVM::MemsetOp>(u)) {
         continue;
       }
@@ -5276,21 +5279,20 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
               return;
             if (isReadOnly(ist))
               return;
-            auto mem = dyn_cast<MemoryEffectOpInterface>(ist);
-            if (!mem) {
-              // TODO indirect use rather than operand
-              if (isStackAlloca(op) && !isCaptured(op) &&
-                  !llvm::any_of(ist->getOperands(),
-                                [&](Value v) { return v == op; }))
-                return;
-              LLVM_DEBUG(llvm::dbgs() << " + stopping at " << tc << " due to "
-                                      << *ist << "\n");
-              legal = false;
-              return;
-            }
+            SmallVector<MemoryEffects::EffectInstance> effects;
+            collectEffects(ist, effects, /*barrier*/ false);
             for (auto res : readResources) {
-              SmallVector<MemoryEffects::EffectInstance> effects;
-              mem.getEffectsOnResource(res.getResource(), effects);
+              bool seenUse = false;
+              if (Value v = res.getValue()) {
+                v = getBase(v);
+                if (isa<LLVM::CallOp, func::CallOp>(ist) &&
+                    (isStackAlloca(v) || v.getDefiningOp<memref::AllocOp>()) &&
+                    !isCaptured(v)) {
+                  isCaptured(v, ist, &seenUse);
+                  if (!seenUse)
+                    continue;
+                }
+              }
               for (auto effect : effects) {
                 if (!mayAlias(effect, res))
                   continue;

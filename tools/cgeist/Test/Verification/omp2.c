@@ -32,8 +32,8 @@ void square2(double** x, int sstart, int send, int sinc, int tstart, int tend, i
 // CHECK-NEXT:     %[[V17:.+]] = arith.index_cast %[[arg6]] : i32 to index
 // CHECK-NEXT:     scf.parallel (%[[arg7:.+]], %[[arg8:.+]]) = (%[[V0]], %[[V1]]) to (%[[V8]], %[[V15]]) step (%[[V16]], %[[V17]]) {
 // CHECK-NEXT:       %[[V18:.+]] = arith.index_cast %[[arg7]] : index to i64
-// CHECK-NEXT:       %[[V19:.+]] = arith.index_cast %[[arg8]] : index to i64
 // CHECK-NEXT:       %[[V20:.+]] = memref.load %[[arg0]][%[[arg7]]] : memref<?xmemref<?xf64>>
+// CHECK-NEXT:       %[[V19:.+]] = arith.index_cast %[[arg8]] : index to i64
 // CHECK-NEXT:       %[[V21:.+]] = arith.addi %[[V18]], %[[V19]] : i64
 // CHECK-NEXT:       %[[V22:.+]] = arith.sitofp %[[V21]] : i64 to f64
 // CHECK-NEXT:       memref.store %[[V22]], %[[V20]][%[[arg8]]] : memref<?xf64>
