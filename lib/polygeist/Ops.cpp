@@ -4942,7 +4942,8 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
       // Subselect all loads that match that constant to permit forwarding
       SmallVector<Operation **> validLoads;
       for (auto &ld : loads) {
-        if (ld == nullptr) continue;
+        if (ld == nullptr)
+          continue;
         bool legal = true;
         for (auto idxp : llvm::enumerate(storeIdxs)) {
           auto idx = idxp.value();
@@ -5245,6 +5246,28 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           tc.walk([&](Operation *ist) {
             if (ist == store)
               return;
+            if (auto AS = dyn_cast<AffineStoreOp>(ist)) {
+              if (AS.getMemRef() == op->getResult(0)) {
+                for (auto pair :
+                     llvm::enumerate(AS.getAffineMap().getResults())) {
+                  auto V = storeIdxs[pair.index()];
+                  if (auto c = pair.value().dyn_cast<AffineConstantExpr>()) {
+                    if (!V.isValue && V.i_val != c.getValue())
+                      return;
+                  }
+                }
+              }
+            }
+            if (auto AS = dyn_cast<memref::StoreOp>(ist)) {
+              if (AS.getMemRef() == op->getResult(0)) {
+                for (auto pair : llvm::enumerate(AS.getIndices())) {
+                  auto V = storeIdxs[pair.index()];
+                  auto V2 = ValueOrInt(pair.value());
+                  if (!V.isValue && !V2.isValue && V.i_val != V2.i_val)
+                    return;
+                }
+              }
+            }
             if (!legal)
               return;
             if (isa<polygeist::BarrierOp>(ist))
