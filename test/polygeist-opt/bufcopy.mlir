@@ -179,11 +179,6 @@ module  {
 
 // CHECK:   func.func private @runDouble(%[[arg0:.+]]: index, %[[arg1:.+]]: memref<?xi32>) {
 // CHECK-NEXT:     %[[V0:.+]] = memref.alloca(%[[arg0]]) : memref<?xi32>
-// CHECK-NEXT:     %[[V1:.+]] = memref.alloc(%[[arg0]]) : memref<?xi32>
-// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to %[[arg0]] {
-// CHECK-NEXT:       %[[V2:.+]] = affine.load %[[arg1]][%[[arg2]]] : memref<?xi32>
-// CHECK-NEXT:       affine.store %[[V2]], %[[V1]][%[[arg2]]] : memref<?xi32>
-// CHECK-NEXT:     }
 // CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to 22 {
 // CHECK-NEXT:       %[[V2:.+]] = affine.load %[[V0]][%[[arg2]]] : memref<?xi32>
 // CHECK-NEXT:       %[[V3:.+]] = arith.addi %[[V2]], %[[V2]] : i32
@@ -191,12 +186,7 @@ module  {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to %[[arg0]] {
 // CHECK-NEXT:       %[[V2:.+]] = affine.load %[[V0]][%[[arg2]]] : memref<?xi32>
-// CHECK-NEXT:       affine.store %[[V2]], %[[V1]][%[[arg2]]] : memref<?xi32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     affine.for %[[arg2:.+]] = 0 to %[[arg0]] {
-// CHECK-NEXT:       %[[V2:.+]] = affine.load %[[V1]][%[[arg2]]] : memref<?xi32>
 // CHECK-NEXT:       affine.store %[[V2]], %[[arg1]][%[[arg2]]] : memref<?xi32>
 // CHECK-NEXT:     }
-// CHECK-NEXT:     memref.dealloc %[[V1]] : memref<?xi32>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

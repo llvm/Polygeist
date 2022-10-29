@@ -4873,16 +4873,17 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
     for (auto store : stores) {
 
-    Value storeVal = nullptr;
-    SmallVector<ValueOrInt> storeIdxs;
+      Value storeVal = nullptr;
+      SmallVector<ValueOrInt> storeIdxs;
       if (auto store2 = dyn_cast<AffineStoreOp>(store)) {
         bool legal = true;
         for (AffineExpr ores : store2.getAffineMap().getResults()) {
-          ValueOrInt V = nullptr;
+          ValueOrInt V((Value) nullptr);
           if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
             V = ValueOrInt(store2.getMapOperands()[dim.getPosition()]);
           } else if (auto dim = ores.dyn_cast<AffineSymbolExpr>()) {
-            V = ValueOrInt(store2.getMapOperands()[dim.getPosition() +
+            V = ValueOrInt(
+                store2.getMapOperands()[dim.getPosition() +
                                         store2.getAffineMap().getNumDims()]);
           } else if (auto dim = ores.dyn_cast<AffineConstantExpr>()) {
             V = ValueOrInt(dim.getValue());
@@ -4897,33 +4898,34 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           continue;
 
         storeVal = store2.getValue();
-      } else {
-        auto store2 = cast<memref::StoreOp>(store);
+      } else if (auto store2 = cast<memref::StoreOp>(store)) {
         for (auto idx : store2.getIndices())
           storeIdxs.push_back(ValueOrInt(idx));
         storeVal = store2.getValue();
+      } else {
+        llvm_unreachable("Unknown store type");
       }
 
       if (Operation *replacedValue = storeVal.getDefiningOp())
-          if (!isReadOnly(replacedValue))
-            continue;
+        if (!isReadOnly(replacedValue))
+          continue;
 
-    int opn = 0;
+      int opn = 0;
 
+      // Ensure the one store fully covers the space.
 
-    // Ensure the one store fully covers the space.
+      // Note: this may not actually necessary, since if there's only one store,
+      //   which is at the same level
 
-    // Note: this may not actually necessary, since if there's only one store,
-    //   which is at the same level
-
-    // 1) Check that each memref index expression covers all bounds
-    for (auto pair : llvm::enumerate(op.getType().getShape())) {
-      ValueOrInt val(pair.value());
-      if (pair.value() == -1) {
-        val = ValueOrInt(op.getOperands()[opn]);
-        opn++;
-      }
-      if (storeIdxs[pair.index()].isValue) {
+      // 1) Check that each memref index expression covers all bounds, except
+      // for known constants
+      for (auto pair : llvm::enumerate(op.getType().getShape())) {
+        ValueOrInt val(pair.value());
+        if (pair.value() == -1) {
+          val = ValueOrInt(op.getOperands()[opn]);
+          opn++;
+        }
+        if (storeIdxs[pair.index()].isValue) {
           Value auval = storeIdxs[pair.index()].v_val;
           BlockArgument bval = auval.dyn_cast<BlockArgument>();
           if (!bval) {
@@ -4934,87 +4936,85 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             LLVM_DEBUG(llvm::dbgs() << " + non in range " << bval << "\n");
             continue;
           }
-      } else {
-          TODO SUBSELECT ONLY LOADS WITH EXACT MATCH ON THAT INDEX
-      }
-    }
-
-    // 2) Ensure all operands in the map are direct, guaranteed to execute
-    // parents
-    //  (e.g. this is not contained within if statements and thus conditionally
-    //  executed) note that even an intervening for statement can act as a
-    //  conditional for 0 .. cond
-    SmallPtrSet<Operation *, 1> boundContainers;
-    SmallPtrSet<Value, 1> storeIdxSet;
-    for (auto V : storeIdxs) {
-      auto BA = V.dyn_cast<BlockArgument>();
-      if (!BA) {
-        LLVM_DEBUG(llvm::dbgs() << " + non map oper " << V << "\n");
-        return failure();
-      }
-      // Repeated indices mean that the space is not filled, but only
-      // a diagonal.
-      if (storeIdxSet.count(V))
-        return failure();
-      storeIdxSet.insert(V);
-      Operation *parent = BA.getOwner()->getParentOp();
-
-      // Ensure this is a for dimension, not an induction var.
-      //  Also check other operands which may exist are positive Ranged.
-      if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
-        if (BA.getArgNumber() != 0)
-          return failure();
-      } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
-        if (BA.getArgNumber() != 0)
-          return failure();
-      } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
-        if (BA.getArgNumber() >= fOp.getInductionVars().size())
-          return failure();
-        for (auto iv : fOp.getInductionVars())
-          if (!rangeIncludes(iv, 0, 1))
-            return failure();
-      } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
-        if (BA.getArgNumber() >= fOp.getIVs().size())
-          return failure();
-        for (auto iv : fOp.getIVs())
-          if (!rangeIncludes(iv, 0, 1))
-            return failure();
-
-      } else {
-        return failure();
-      }
-      boundContainers.insert(parent);
-    }
-    boundContainers.insert(store);
-
-    // Check containers all the way up to allocation op are guaranteed
-    // to execute.
-    Operation *prevParent = nullptr;
-    for (auto c : boundContainers) {
-      if (c->getParentOp() == op->getParentOp()) {
-        prevParent = c;
-      }
-      Operation *cur = c->getParentOp();
-      while (true) {
-        if (cur->getParentOp() == op->getParentOp()) {
-          prevParent = cur;
         }
-        if (cur == op->getParentOp()) {
-          break;
+      }
+
+      // Subselect all loads that match that constant to permit forwarding
+      SmallVector<Operation **> validLoads;
+      for (auto &ld : loads) {
+        if (ld == nullptr) continue;
+        bool legal = true;
+        for (auto idxp : llvm::enumerate(storeIdxs)) {
+          auto idx = idxp.value();
+          auto i = idxp.index();
+          if (!idx.isValue) {
+            if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
+              if (auto ac = ald.getAffineMap()
+                                .getResult(i)
+                                .dyn_cast<AffineConstantExpr>()) {
+                if (idx == ac.getValue())
+                  continue;
+              }
+              legal = false;
+              break;
+            } else if (auto mld = cast<memref::LoadOp>(ld)) {
+              if (ValueOrInt(mld.getIndices()[i]) == idx.i_val)
+                continue;
+              legal = false;
+              break;
+            }
+            legal = false;
+            break;
+          }
         }
-        if (boundContainers.count(cur))
-          break;
-        if (auto fOp = dyn_cast<scf::ForOp>(cur)) {
-          if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
+        if (legal)
+          validLoads.push_back(&ld);
+      }
+
+      // Early exit if no loads match the store.
+      if (validLoads.size() == 0)
+        continue;
+
+      // 2) Ensure all operands in the map are direct, guaranteed to execute
+      // parents
+      //  (e.g. this is not contained within if statements and thus
+      //  conditionally executed) note that even an intervening for statement
+      //  can act as a conditional for 0 .. cond
+      SmallPtrSet<Operation *, 1> boundContainers;
+      SmallPtrSet<Value, 1> storeIdxSet;
+      for (auto VI : storeIdxs) {
+        if (!VI.isValue)
+          continue;
+        auto V = VI.v_val;
+        auto BA = V.dyn_cast<BlockArgument>();
+        if (!BA) {
+          LLVM_DEBUG(llvm::dbgs() << " + non map oper " << V << "\n");
+          return failure();
+        }
+        // Repeated indices mean that the space is not filled, but only
+        // a diagonal.
+        if (storeIdxSet.count(V))
+          return failure();
+        storeIdxSet.insert(V);
+        Operation *parent = BA.getOwner()->getParentOp();
+
+        // Ensure this is a for dimension, not an induction var.
+        //  Also check other operands which may exist are positive Ranged.
+        if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+          if (BA.getArgNumber() != 0)
             return failure();
-        } else if (auto fOp = dyn_cast<AffineForOp>(cur)) {
-          if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
+        } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
+          if (BA.getArgNumber() != 0)
             return failure();
-        } else if (auto fOp = dyn_cast<scf::ParallelOp>(cur)) {
+        } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
+          if (BA.getArgNumber() >= fOp.getInductionVars().size())
+            return failure();
           for (auto iv : fOp.getInductionVars())
             if (!rangeIncludes(iv, 0, 1))
               return failure();
-        } else if (auto fOp = dyn_cast<AffineParallelOp>(cur)) {
+        } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+          if (BA.getArgNumber() >= fOp.getIVs().size())
+            return failure();
           for (auto iv : fOp.getIVs())
             if (!rangeIncludes(iv, 0, 1))
               return failure();
@@ -5022,260 +5022,310 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         } else {
           return failure();
         }
-        cur = cur->getParentOp();
+        boundContainers.insert(parent);
       }
-    }
-    assert(prevParent);
+      boundContainers.insert(store);
 
-    SmallVector<MemoryEffects::EffectInstance> readResources;
-    if (Operation *replacedValue = storeVal.getDefiningOp()) {
-      SmallVector<Operation *> todo = {replacedValue};
-      while (todo.size()) {
-        auto op = todo.back();
-        todo.pop_back();
-        if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
-          for (auto &region : op->getRegions()) {
-            for (auto &block : region) {
-              for (auto &innerOp : block)
-                todo.push_back(&innerOp);
-            }
-          }
-          continue;
+      // Check containers all the way up to allocation op are guaranteed
+      // to execute.
+      Operation *prevParent = nullptr;
+      for (auto c : boundContainers) {
+        if (c->getParentOp() == op->getParentOp()) {
+          prevParent = c;
         }
-        if (isa<polygeist::BarrierOp>(op))
-          continue;
-        if (isReadNone(op))
-          continue;
-        if (!isReadOnly(op))
-          return failure();
-        auto mem = cast<MemoryEffectOpInterface>(op);
-        SmallVector<MemoryEffects::EffectInstance> effects;
-        mem.getEffects(effects);
-        for (auto E : effects)
-          if (isa<MemoryEffects::Read>(E.getEffect()))
-            readResources.push_back(E);
-
-        if (auto loadVal = dyn_cast<AffineLoadOp>(op))
-          if (loadVal.getMemRef()
-                  .getType()
-                  .cast<MemRefType>()
-                  .getMemorySpace() != 0)
-            return failure();
-
-        if (auto loadVal = dyn_cast<memref::LoadOp>(op))
-          if (loadVal.getMemRef()
-                  .getType()
-                  .cast<MemRefType>()
-                  .getMemorySpace() != 0)
-            return failure();
-
-        if (auto loadVal = dyn_cast<LLVM::LoadOp>(op))
-          if (loadVal.getAddr()
-                  .getType()
-                  .cast<LLVM::LLVMPointerType>()
-                  .getAddressSpace() != 0)
-            return failure();
-      }
-    }
-
-    // Check containers all the way up to allocation op are guaranteed
-    // to execute.
-    Operation *innerParent = store;
-    for (auto V : storeIdxs) {
-      auto BA = V.dyn_cast<BlockArgument>();
-      Operation *c = BA.getOwner()->getParentOp();
-      if (isa<AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
-        Operation *tmp = store;
-        bool found = false;
+        Operation *cur = c->getParentOp();
         while (true) {
-          for (auto now = tmp->getNextNode(); now; now = now->getNextNode()) {
-            if (isa<polygeist::BarrierOp>(now) &&
-                llvm::any_of(now->getOperands(),
-                             [&](Value v) { return v == V; })) {
-              found = true;
-              c = now;
-              break;
-            }
+          if (cur->getParentOp() == op->getParentOp()) {
+            prevParent = cur;
           }
-          if (found)
+          if (cur == op->getParentOp()) {
             break;
-          tmp = tmp->getParentOp();
-          if (tmp == c)
-            break;
-        }
-      }
-
-      if (innerParent == store)
-        innerParent = c;
-      else if (c->isAncestor(innerParent))
-        innerParent = c;
-    }
-    assert(innerParent);
-
-    DominanceInfo DI(op->getParentOp());
-
-    std::function<bool(Operation * loc)> canReplace = [&](Operation *loc) {
-      SmallVector<Value> todoV = {storeVal};
-      while (todoV.size()) {
-        auto V = todoV.back();
-        todoV.pop_back();
-        if (storeIdxSet.count(V))
-          continue;
-
-        if (auto BA = V.dyn_cast<BlockArgument>()) {
-          Operation *parent = BA.getOwner()->getParentOp();
-
-          if (auto sop = storeVal.getDefiningOp())
-            if (sop->isAncestor(parent))
-              continue;
-
-          if (!DI.dominates(BA, loc)) {
-            return false;
           }
+          if (boundContainers.count(cur))
+            break;
+          if (auto fOp = dyn_cast<scf::ForOp>(cur)) {
+            if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
+              return failure();
+          } else if (auto fOp = dyn_cast<AffineForOp>(cur)) {
+            if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
+              return failure();
+          } else if (auto fOp = dyn_cast<scf::ParallelOp>(cur)) {
+            for (auto iv : fOp.getInductionVars())
+              if (!rangeIncludes(iv, 0, 1))
+                return failure();
+          } else if (auto fOp = dyn_cast<AffineParallelOp>(cur)) {
+            for (auto iv : fOp.getIVs())
+              if (!rangeIncludes(iv, 0, 1))
+                return failure();
 
-          if (isa<FunctionOpInterface>(parent)) {
-          } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
-            if (BA.getArgNumber() != 0)
-              return false;
-          } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
-            if (BA.getArgNumber() != 0)
-              return false;
-          } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
-            if (BA.getArgNumber() >= fOp.getInductionVars().size())
-              return false;
-          } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
-            if (BA.getArgNumber() >= fOp.getIVs().size())
-              return false;
           } else {
-            return false;
+            return failure();
           }
-
-        } else {
-          auto vop = V.getDefiningOp();
-          bool ancestorOf = false;
-          if (auto sop = storeVal.getDefiningOp())
-            if (sop->isAncestor(vop))
-              ancestorOf = true;
-
-          if (DI.dominates((Operation *)vop, loc)) {
-            continue;
-          }
-
-          if (!ancestorOf) {
-            return false;
-          }
-
-          for (auto &region : vop->getRegions()) {
-            for (auto &block : region) {
-              for (auto &innerOp : block)
-                for (auto o : innerOp.getOperands())
-                  todoV.push_back(o);
-            }
-          }
-          for (auto o : vop->getOperands()) {
-            todoV.push_back(o);
-          }
+          cur = cur->getParentOp();
         }
       }
-      return true;
-    };
+      assert(prevParent);
 
-    auto end = innerParent->getBlock()->end();
-    if (canReplace(innerParent))
-      for (auto iter = innerParent->getIterator();;) {
-        if (iter == end) {
-          auto prev = iter;
-          prev--;
-          if (prev->getParentOp() == op->getParentOp())
-            break;
-          iter = prev->getParentOp()->getNextNode()->getIterator();
-          end = prev->getParentOp()->getBlock()->end();
-          if (!canReplace(&*iter))
-            break;
-          continue;
-        }
-        auto &tc = *iter;
-        iter++;
-        bool legal = true;
-        tc.walk([&](Operation *ist) {
-          if (ist == store)
-            return;
-          if (!legal)
-            return;
-          if (isa<polygeist::BarrierOp>(ist))
-            return;
-          if (ist->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
-            return;
-          if (isReadOnly(ist))
-            return;
-          auto mem = dyn_cast<MemoryEffectOpInterface>(ist);
-          if (!mem) {
-            // TODO indirect use rather than operand
-            if (isStackAlloca(op) && !isCaptured(op) &&
-                !llvm::any_of(ist->getOperands(),
-                              [&](Value v) { return v == op; }))
-              return;
-            LLVM_DEBUG(llvm::dbgs() << " + stopping at " << tc << " due to "
-                                    << *ist << "\n");
-            legal = false;
-            return;
+      SmallVector<MemoryEffects::EffectInstance> readResources;
+      // Overwriting the original buffer means that the reload is not valid.
+      readResources.emplace_back(::mlir::MemoryEffects::Read::get(), op,
+                                 ::mlir::SideEffects::DefaultResource::get());
+      if (Operation *replacedValue = storeVal.getDefiningOp()) {
+        SmallVector<Operation *> todo = {replacedValue};
+        while (todo.size()) {
+          auto op = todo.back();
+          todo.pop_back();
+          if (op->hasTrait<OpTrait::HasRecursiveMemoryEffects>()) {
+            for (auto &region : op->getRegions()) {
+              for (auto &block : region) {
+                for (auto &innerOp : block)
+                  todo.push_back(&innerOp);
+              }
+            }
+            continue;
           }
-          for (auto res : readResources) {
-            SmallVector<MemoryEffects::EffectInstance> effects;
-            mem.getEffectsOnResource(res.getResource(), effects);
-            for (auto effect : effects) {
-              if (!mayAlias(effect, res))
+          if (isa<polygeist::BarrierOp>(op))
+            continue;
+          if (isReadNone(op))
+            continue;
+          if (!isReadOnly(op))
+            return failure();
+          auto mem = cast<MemoryEffectOpInterface>(op);
+          SmallVector<MemoryEffects::EffectInstance> effects;
+          mem.getEffects(effects);
+          for (auto E : effects)
+            if (isa<MemoryEffects::Read>(E.getEffect()))
+              readResources.push_back(E);
+
+          if (auto loadVal = dyn_cast<AffineLoadOp>(op))
+            if (loadVal.getMemRef()
+                    .getType()
+                    .cast<MemRefType>()
+                    .getMemorySpace() != 0)
+              return failure();
+
+          if (auto loadVal = dyn_cast<memref::LoadOp>(op))
+            if (loadVal.getMemRef()
+                    .getType()
+                    .cast<MemRefType>()
+                    .getMemorySpace() != 0)
+              return failure();
+
+          if (auto loadVal = dyn_cast<LLVM::LoadOp>(op))
+            if (loadVal.getAddr()
+                    .getType()
+                    .cast<LLVM::LLVMPointerType>()
+                    .getAddressSpace() != 0)
+              return failure();
+        }
+      }
+
+      // Check containers all the way up to allocation op are guaranteed
+      // to execute.
+      Operation *innerParent = store;
+      for (auto VI : storeIdxs) {
+        if (!VI.isValue)
+          continue;
+        auto V = VI.v_val;
+        auto BA = V.dyn_cast<BlockArgument>();
+        Operation *c = BA.getOwner()->getParentOp();
+        if (isa<AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
+          Operation *tmp = store;
+          bool found = false;
+          while (true) {
+            for (auto now = tmp->getNextNode(); now; now = now->getNextNode()) {
+              if (isa<polygeist::BarrierOp>(now) &&
+                  llvm::any_of(now->getOperands(),
+                               [&](Value v) { return v == V; })) {
+                found = true;
+                c = now;
+                break;
+              }
+            }
+            if (found)
+              break;
+            tmp = tmp->getParentOp();
+            if (tmp == c)
+              break;
+          }
+        }
+
+        if (innerParent == store)
+          innerParent = c;
+        else if (c->isAncestor(innerParent))
+          innerParent = c;
+      }
+      assert(innerParent);
+
+      DominanceInfo DI(op->getParentOp());
+
+      std::function<bool(Operation * loc)> canReplace = [&](Operation *loc) {
+        SmallVector<Value> todoV = {storeVal};
+        while (todoV.size()) {
+          auto V = todoV.back();
+          todoV.pop_back();
+          if (storeIdxSet.count(V))
+            continue;
+
+          if (auto BA = V.dyn_cast<BlockArgument>()) {
+            Operation *parent = BA.getOwner()->getParentOp();
+
+            if (auto sop = storeVal.getDefiningOp())
+              if (sop->isAncestor(parent))
                 continue;
-              if (isa<MemoryEffects::Write>(effect.getEffect())) {
-                LLVM_DEBUG(llvm::dbgs() << " + stopping at " << tc << " due to "
-                                        << *ist << "\n");
-                legal = false;
-                return;
+
+            if (!DI.dominates(BA, loc)) {
+              return false;
+            }
+
+            if (isa<FunctionOpInterface>(parent)) {
+            } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
+              if (BA.getArgNumber() != 0)
+                return false;
+            } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
+              if (BA.getArgNumber() != 0)
+                return false;
+            } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
+              if (BA.getArgNumber() >= fOp.getInductionVars().size())
+                return false;
+            } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+              if (BA.getArgNumber() >= fOp.getIVs().size())
+                return false;
+            } else {
+              return false;
+            }
+
+          } else {
+            auto vop = V.getDefiningOp();
+            bool ancestorOf = false;
+            if (auto sop = storeVal.getDefiningOp())
+              if (sop->isAncestor(vop))
+                ancestorOf = true;
+
+            if (DI.dominates((Operation *)vop, loc)) {
+              continue;
+            }
+
+            if (!ancestorOf) {
+              return false;
+            }
+
+            for (auto &region : vop->getRegions()) {
+              for (auto &block : region) {
+                for (auto &innerOp : block)
+                  for (auto o : innerOp.getOperands())
+                    todoV.push_back(o);
               }
             }
-          }
-        });
-
-        if (!legal)
-          break;
-
-        if (innerParent == &tc)
-          continue;
-
-        for (auto &ld : loads) {
-          if (!ld)
-            continue;
-          if (tc.isAncestor(ld)) {
-            rewriter.setInsertionPoint(ld);
-            Value repval = storeVal;
-            if (auto replacedValue = repval.getDefiningOp()) {
-              BlockAndValueMapping map;
-              if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
-                for (size_t i = 0; i < storeIdxs.size(); ++i) {
-                  auto apply = rewriter.create<AffineApplyOp>(
-                      ald.getLoc(),
-                      ald.getAffineMapAttr().getValue().getSliceMap(i, 1),
-                      ald.getMapOperands());
-                  map.map(storeIdxs[i], apply->getResult(0));
-                }
-              } else {
-                auto mld = cast<memref::LoadOp>(ld);
-                for (size_t i = 0; i < storeIdxs.size(); ++i) {
-                  map.map(storeIdxs[i], mld.getIndices()[i]);
-                }
-              }
-              Operation *torep = rewriter.clone(*replacedValue, map);
-              repval =
-                  torep->getResult(storeVal.cast<OpResult>().getResultNumber());
+            for (auto o : vop->getOperands()) {
+              todoV.push_back(o);
             }
-            Value vals[] = {repval};
-            rewriter.setInsertionPoint(op);
-            rewriter.replaceOp(ld, ValueRange(vals));
-            ld = nullptr;
-            changed = true;
           }
         }
-      }
+        return true;
+      };
+
+      auto end = innerParent->getBlock()->end();
+      if (canReplace(innerParent))
+        for (auto iter = innerParent->getIterator();;) {
+          if (iter == end) {
+            auto prev = iter;
+            prev--;
+            if (prev->getParentOp() == op->getParentOp())
+              break;
+            iter = prev->getParentOp()->getNextNode()->getIterator();
+            end = prev->getParentOp()->getBlock()->end();
+            if (!canReplace(&*iter))
+              break;
+            continue;
+          }
+          auto &tc = *iter;
+          iter++;
+          bool legal = true;
+          tc.walk([&](Operation *ist) {
+            if (ist == store)
+              return;
+            if (!legal)
+              return;
+            if (isa<polygeist::BarrierOp>(ist))
+              return;
+            if (ist->hasTrait<OpTrait::HasRecursiveMemoryEffects>())
+              return;
+            if (isReadOnly(ist))
+              return;
+            auto mem = dyn_cast<MemoryEffectOpInterface>(ist);
+            if (!mem) {
+              // TODO indirect use rather than operand
+              if (isStackAlloca(op) && !isCaptured(op) &&
+                  !llvm::any_of(ist->getOperands(),
+                                [&](Value v) { return v == op; }))
+                return;
+              LLVM_DEBUG(llvm::dbgs() << " + stopping at " << tc << " due to "
+                                      << *ist << "\n");
+              legal = false;
+              return;
+            }
+            for (auto res : readResources) {
+              SmallVector<MemoryEffects::EffectInstance> effects;
+              mem.getEffectsOnResource(res.getResource(), effects);
+              for (auto effect : effects) {
+                if (!mayAlias(effect, res))
+                  continue;
+                if (isa<MemoryEffects::Write>(effect.getEffect())) {
+                  LLVM_DEBUG(llvm::dbgs() << " + stopping at " << tc
+                                          << " due to " << *ist << "\n");
+                  legal = false;
+                  return;
+                }
+              }
+            }
+          });
+
+          if (!legal)
+            break;
+
+          if (innerParent == &tc)
+            continue;
+
+          for (auto ldp : validLoads) {
+            Operation *&ld = *ldp;
+            if (!ld)
+              continue;
+            if (tc.isAncestor(ld)) {
+              rewriter.setInsertionPoint(ld);
+              Value repval = storeVal;
+              if (auto replacedValue = repval.getDefiningOp()) {
+                BlockAndValueMapping map;
+                if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
+                  for (size_t i = 0; i < storeIdxs.size(); ++i) {
+                    if (storeIdxs[i].isValue) {
+                      auto apply = rewriter.create<AffineApplyOp>(
+                          ald.getLoc(),
+                          ald.getAffineMapAttr().getValue().getSliceMap(i, 1),
+                          ald.getMapOperands());
+                      map.map(storeIdxs[i].v_val, apply->getResult(0));
+                    }
+                  }
+                } else {
+                  auto mld = cast<memref::LoadOp>(ld);
+                  for (size_t i = 0; i < storeIdxs.size(); ++i) {
+                    if (storeIdxs[i].isValue) {
+                      map.map(storeIdxs[i].v_val, mld.getIndices()[i]);
+                    }
+                  }
+                }
+                Operation *torep = rewriter.clone(*replacedValue, map);
+                repval = torep->getResult(
+                    storeVal.cast<OpResult>().getResultNumber());
+              }
+              Value vals[] = {repval};
+              rewriter.setInsertionPoint(op);
+              rewriter.replaceOp(ld, ValueRange(vals));
+              ld = nullptr;
+              changed = true;
+            }
+          }
+        }
     }
     return success(changed);
   }
