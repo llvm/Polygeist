@@ -640,6 +640,20 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         return ValueCategory(builder.create<MulIOp>(loc, V0, V1), false);
       }
       if (sr->getDecl()->getIdentifier() &&
+          sr->getDecl()->getName() == "__nv_umulhi") {
+        mlir::Value V0 = getLLVM(expr->getArg(0));
+        mlir::Value V1 = getLLVM(expr->getArg(1));
+        auto I64 = builder.getIntegerType(64);
+        auto I32 = builder.getIntegerType(32);
+        V0 = builder.create<ExtUIOp>(loc, I64, V0);
+        V1 = builder.create<ExtUIOp>(loc, I64, V1);
+        mlir::Value R = builder.create<arith::MulIOp>(loc, V0, V1);
+        auto c32 = builder.create<arith::ConstantIntOp>(loc, 32, 64);
+        R = builder.create<arith::ShRUIOp>(loc, R, c32);
+        R = builder.create<TruncIOp>(loc, I32, R);
+        return ValueCategory(R, false);
+      }
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "__builtin_frexp" ||
            sr->getDecl()->getName() == "__builtin_frexpf" ||
            sr->getDecl()->getName() == "__builtin_frexpl" ||
