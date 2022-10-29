@@ -40,10 +40,10 @@ int* alloc() {
 // CHECK-NEXT:    %[[V7:.+]] = arith.index_cast %[[V6]] : i64 to index
 // CHECK-NEXT:    %[[V8:.+]] = arith.divui %[[V7]], %[[c4]] : index
 // CHECK-NEXT:    %[[i8:.+]] = memref.alloc(%[[V8]]) : memref<?xi32>
+// CHECK-NEXT:    %[[n:.+]] = arith.index_cast %[[V4]] : i32 to index
 // CHECK-NEXT:    %[[i9:.+]] = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
 // CHECK-NEXT:    %[[i10:.+]] = llvm.getelementptr %[[i9]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
 // CHECK-NEXT:    %[[V12:.+]] = "polygeist.memref2pointer"(%[[i8]]) : (memref<?xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %[[n:.+]] = arith.index_cast %[[V4]] : i32 to index
 // CHECK-NEXT:    scf.for %[[arg0:.+]] = %[[c0]] to %[[n]] step %[[c1]] {
 // CHECK-NEXT:      %[[i14:.+]] = arith.index_cast %[[arg0]] : index to i64
 // CHECK-NEXT:      %[[i15:.+]] = llvm.getelementptr %[[V12]][%[[i14]]] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
