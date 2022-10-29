@@ -506,7 +506,15 @@ void ParallelLower::runOnOperation() {
         } else if (callee == "cudaMemset") {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
-          bz.create<LLVM::MemsetOp>(call->getLoc(), call->getOperand(0),
+          auto dst = call->getOperand(0);
+          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
+            dst = bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                dst);
+          }
+          bz.create<LLVM::MemsetOp>(call->getLoc(), dst,
                                     bz.create<TruncIOp>(call->getLoc(),
                                                         bz.getI8Type(),
                                                         call->getOperand(1)),
