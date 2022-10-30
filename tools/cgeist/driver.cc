@@ -274,7 +274,7 @@ int emitBinary(char *Argv0, const char *filename,
     Argv.push_back("-fopenmp");
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
-    Argv.push_back(ResourceDir);
+    Argv.emplace_back(ResourceDir);
   }
   if (Verbose) {
     Argv.push_back("-v");
@@ -299,7 +299,7 @@ int emitBinary(char *Argv0, const char *filename,
   }
   if (Output != "") {
     Argv.push_back("-o");
-    Argv.push_back(Output);
+    Argv.emplace_back(Output);
   }
   for (const auto *arg : LinkArgs)
     Argv.push_back(arg);

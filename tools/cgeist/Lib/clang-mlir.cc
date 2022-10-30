@@ -5514,13 +5514,13 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   mlirclang::ArgumentList Argv;
   Argv.push_back(binary);
   for (const auto &filename : filenames) {
-    Argv.push_back(filename);
+    Argv.emplace_back(filename);
   }
   if (FOpenMP)
     Argv.push_back("-fopenmp");
   if (TargetTripleOpt != "") {
     Argv.push_back("-target");
-    Argv.push_back(TargetTripleOpt);
+    Argv.emplace_back(TargetTripleOpt);
   }
   if (McpuOpt != "") {
     Argv.emplace_back("-mcpu=", McpuOpt);
@@ -5530,11 +5530,11 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
-    Argv.push_back(ResourceDir);
+    Argv.emplace_back(ResourceDir);
   }
   if (SysRoot != "") {
     Argv.push_back("--sysroot");
-    Argv.push_back(SysRoot);
+    Argv.emplace_back(SysRoot);
   }
   if (Verbose) {
     Argv.push_back("-v");
@@ -5556,14 +5556,14 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
   }
   for (const auto &dir : includeDirs) {
     Argv.push_back("-I");
-    Argv.push_back(dir);
+    Argv.emplace_back(dir);
   }
   for (const auto &define : defines) {
     Argv.emplace_back("-D", define);
   }
   for (const auto &Include : Includes) {
     Argv.push_back("-include");
-    Argv.push_back(Include);
+    Argv.emplace_back(Include);
   }
 
   Argv.push_back("-emit-ast");

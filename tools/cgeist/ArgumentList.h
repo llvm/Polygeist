@@ -15,11 +15,17 @@
 namespace mlirclang {
 /// Class to pass options to a compilation tool.
 class ArgumentList {
+private:
+  /// Helper storage.
+  llvm::SmallVector<char *> Storage;
+  /// List of arguments
+  llvm::SmallVector<const char *> Args;
+
 public:
   /// Add argument.
   ///
   /// The element stored will not be owned by this.
-  void push_back(llvm::StringRef Arg) { Args.push_back(Arg.data()); }
+  void push_back(const char *Arg) { Args.push_back(Arg); }
 
   /// Add argument and ensure it will be valid before this passer's destruction.
   ///
@@ -29,8 +35,15 @@ public:
     std::string Buffer;
     llvm::raw_string_ostream Stream(Buffer);
     (Stream << ... << Args);
-    Storage.push_back(Stream.str());
-    push_back(Storage.back());
+    emplace_back(llvm::StringRef(Stream.str()));
+  }
+
+  void emplace_back(llvm::StringRef &&Arg) {
+    char *data = (char *)malloc(Arg.size() + 1);
+    memcpy(data, Arg.data(), Arg.size());
+    data[Arg.size()] = '\0';
+    Storage.push_back(data);
+    push_back(data);
   }
 
   /// Return the underling argument list.
@@ -39,11 +52,10 @@ public:
   /// calls to push_back() or emplace_back().
   llvm::ArrayRef<const char *> getArguments() const { return Args; }
 
-private:
-  /// Helper storage.
-  llvm::SmallVector<std::string> Storage;
-  /// List of arguments
-  llvm::SmallVector<const char *> Args;
+  ~ArgumentList() {
+    for (auto arg : Storage)
+      free(arg);
+  }
 };
 } // end namespace mlirclang
 
