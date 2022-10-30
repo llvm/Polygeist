@@ -10,7 +10,7 @@
 #define MLIR_TOOLS_CGEIST_ARGUMENTLIST_H
 
 #include <llvm/ADT/ArrayRef.h>
-#include <llvm/Support/raw_ostream.h>
+#include <llvm/ADT/SmallString.h>
 
 namespace mlirclang {
 /// Class to pass options to a compilation tool.
@@ -24,13 +24,9 @@ public:
   /// Add argument and ensure it will be valid before this passer's destruction.
   ///
   /// The element stored will be owned by this.
-  template <typename... ArgTy> void emplace_back(ArgTy &&...Args) {
+  void emplace_back(std::initializer_list<llvm::StringRef> Refs) {
     // Store as a string
-    std::string Buffer;
-    llvm::raw_string_ostream Stream(Buffer);
-    (Stream << ... << Args);
-    Storage.push_back(Stream.str());
-    push_back(Storage.back());
+    push_back(Storage.emplace_back(Refs).c_str());
   }
 
   /// Return the underling argument list.
@@ -41,7 +37,7 @@ public:
 
 private:
   /// Helper storage.
-  llvm::SmallVector<std::string> Storage;
+  llvm::SmallVector<llvm::SmallString<0>> Storage;
   /// List of arguments
   llvm::SmallVector<const char *> Args;
 };

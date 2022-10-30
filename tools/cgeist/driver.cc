@@ -280,10 +280,10 @@ int emitBinary(char *Argv0, const char *filename,
     Argv.push_back("-v");
   }
   if (CUDAGPUArch != "") {
-    Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
+    Argv.emplace_back({"--cuda-gpu-arch=", CUDAGPUArch});
   }
   if (CUDAPath != "") {
-    Argv.emplace_back("--cuda-path=", CUDAPath);
+    Argv.emplace_back({"--cuda-path=", CUDAPath});
   }
   if (Opt0) {
     Argv.push_back("-O0");

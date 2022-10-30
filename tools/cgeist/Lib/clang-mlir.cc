@@ -5523,10 +5523,10 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Argv.push_back(TargetTripleOpt);
   }
   if (McpuOpt != "") {
-    Argv.emplace_back("-mcpu=", McpuOpt);
+    Argv.emplace_back({"-mcpu=", McpuOpt});
   }
   if (Standard != "") {
-    Argv.emplace_back("-std=", Standard);
+    Argv.emplace_back({"-std=", Standard});
   }
   if (ResourceDir != "") {
     Argv.push_back("-resource-dir");
@@ -5546,20 +5546,20 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
     Argv.push_back("-nocudalib");
   }
   if (CUDAGPUArch != "") {
-    Argv.emplace_back("--cuda-gpu-arch=", CUDAGPUArch);
+    Argv.emplace_back({"--cuda-gpu-arch=", CUDAGPUArch});
   }
   if (CUDAPath != "") {
-    Argv.emplace_back("--cuda-path=", CUDAPath);
+    Argv.emplace_back({"--cuda-path=", CUDAPath});
   }
   if (MArch != "") {
-    Argv.emplace_back("-march=", MArch);
+    Argv.emplace_back({"-march=", MArch});
   }
   for (const auto &dir : includeDirs) {
     Argv.push_back("-I");
     Argv.push_back(dir);
   }
   for (const auto &define : defines) {
-    Argv.emplace_back("-D", define);
+    Argv.emplace_back({"-D", define});
   }
   for (const auto &Include : Includes) {
     Argv.push_back("-include");
