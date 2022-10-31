@@ -1,6 +1,8 @@
 // RUN: polygeist-opt --canonicalize --split-input-file %s -allow-unregistered-dialect | FileCheck %s
 
 module  {
+  func.func private @print3(i32, i32, i32) -> ()
+  func.func private @print1(i32) -> ()
   func.func private @run(%c: i32, %rng : index) -> memref<?xi32> {
 	%c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -14,7 +16,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -26,7 +28,7 @@ module  {
 // CHECK-NEXT:       %[[i1:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 1] : memref<?xi32>
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 4] : memref<?xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 11] : memref<?xi32>
-// CHECK-NEXT:       "test.use"(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -45,11 +47,11 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     %v = affine.load %tmp[3, 4] : memref<16x16xi32>
-    "test.use"(%v) : (i32) -> ()
+    func.call @print1(%v) : (i32) -> ()
     return %prev : memref<?xi32>
   }
 
@@ -64,11 +66,11 @@ module  {
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 1] : memref<?xi32>
 // CHECK-NEXT:       %[[i4:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 4] : memref<?xi32>
 // CHECK-NEXT:       %[[i5:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 11] : memref<?xi32>
-// CHECK-NEXT:       "test.use"(%[[i3]], %[[i4]], %[[i5]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i3]], %[[i4]], %[[i5]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     %[[i2:.+]] = affine.load %[[i1]][3, 4] : memref<16x16xi32>
-// CHECK-NEXT:     "test.use"(%[[i2]]) : (i32) -> ()
+// CHECK-NEXT:     call @print1(%[[i2]]) : (i32) -> ()
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
 // CHECK-NEXT:   }
 
@@ -87,7 +89,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -99,7 +101,7 @@ module  {
 // CHECK-NEXT:       %[[i1:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 1] : memref<?xi32>
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 4] : memref<?xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i0]][%arg3 * 3 + %arg2 * 10 + 11] : memref<?xi32>
-// CHECK-NEXT:       "test.use"(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -120,7 +122,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -139,7 +141,7 @@ module  {
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i1:.+]][%arg2, %arg3] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i1:.+]][%arg2, %arg3 + 1] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i4:.+]] = affine.load %[[i1:.+]][%arg2 + 1, %arg3] : memref<16x16xi32>
-// CHECK-NEXT:       "test.use"(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -162,7 +164,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -183,7 +185,7 @@ module  {
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i1:.+]][%arg3, %arg4] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i1:.+]][%arg3, %arg4 + 1] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i4:.+]] = affine.load %[[i1:.+]][%arg3 + 1, %arg4] : memref<16x16xi32>
-// CHECK-NEXT:       "test.use"(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -206,7 +208,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -218,7 +220,7 @@ module  {
 // CHECK-NEXT:       %[[i1:.+]] = affine.load %[[i0:.+]][%arg4 * 3 + %arg3 * 10 + 1] : memref<?xi32>
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i0:.+]][%arg4 * 3 + %arg3 * 10 + 4] : memref<?xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i0:.+]][%arg4 * 3 + %arg3 * 10 + 11] : memref<?xi32>
-// CHECK-NEXT:       "test.use"(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -241,7 +243,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -262,7 +264,7 @@ module  {
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i1]][%arg3, %arg4] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i1]][%arg3, %arg4 + 1] : memref<16x16xi32>
 // CHECK-NEXT:       %[[i4:.+]] = affine.load %[[i1]][%arg3 + 1, %arg4] : memref<16x16xi32>
-// CHECK-NEXT:       "test.use"(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       call @print3(%[[i2]], %[[i3]], %[[i4]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
@@ -283,7 +285,7 @@ module  {
         %v = affine.load %tmp[%arg4, %arg5] : memref<16x16xi32>
         %v2 = affine.load %tmp[%arg4, 1 + %arg5] : memref<16x16xi32>
         %v3 = affine.load %tmp[1 + %arg4, %arg5] : memref<16x16xi32>
-        "test.use"(%v, %v2, %v3) : (i32, i32, i32) -> ()
+        func.call @print3(%v, %v2, %v3) : (i32, i32, i32) -> ()
     }
     affine.store %c, %prev[0] : memref<?xi32>
     return %prev : memref<?xi32>
@@ -295,7 +297,7 @@ module  {
 // CHECK-NEXT:       %[[i1:.+]] = affine.load %[[i0]][%arg5 * 3 + %arg4 * 10 + symbol(%arg3)] : memref<?xi32>
 // CHECK-NEXT:       %[[i2:.+]] = affine.load %[[i0]][%arg5 * 3 + %arg4 * 10 + symbol(%arg3) + 3] : memref<?xi32>
 // CHECK-NEXT:       %[[i3:.+]] = affine.load %[[i0]][%arg5 * 3 + %arg4 * 10 + symbol(%arg3) + 10] : memref<?xi32>
-// CHECK-NEXT:       "test.use"(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
+// CHECK-NEXT:       func.call @print3(%[[i1]], %[[i2]], %[[i3]]) : (i32, i32, i32) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:     affine.store %arg0, %[[i0]][0] : memref<?xi32>
 // CHECK-NEXT:     return %[[i0]] : memref<?xi32>
