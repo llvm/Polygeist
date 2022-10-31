@@ -454,6 +454,22 @@ void ParallelLower::runOnOperation() {
     builder.eraseOp(launchOp);
   }
 
+
+  // Fold the copy memtype cast
+  {
+    mlir::RewritePatternSet rpl(getOperation()->getContext());
+    GreedyRewriteConfig config;
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
+  }
+}
+
+void CudaRTLower::runOnOperation() {
+  // The inliner should only be run on operations that define a symbol table,
+  // as the callgraph will need to resolve references.
+
+  SymbolTableCollection symbolTable;
+  symbolTable.getSymbolTable(getOperation());
+
   std::function<void(Operation * call, StringRef callee)> replace =
       [&](Operation *call, StringRef callee) {
         if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
@@ -577,21 +593,6 @@ void ParallelLower::runOnOperation() {
           call->erase();
         }
       };
-
-  // Fold the copy memtype cast
-  {
-    mlir::RewritePatternSet rpl(getOperation()->getContext());
-    GreedyRewriteConfig config;
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
-  }
-}
-
-void CudaRTLower::runOnOperation() {
-  // The inliner should only be run on operations that define a symbol table,
-  // as the callgraph will need to resolve references.
-
-  SymbolTableCollection symbolTable;
-  symbolTable.getSymbolTable(getOperation());
 
   getOperation()->walk([&](CallOp bidx) {
     if (bidx.getCallee() == "cudaThreadSynchronize")
