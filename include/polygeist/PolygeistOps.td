@@ -12,6 +12,7 @@
 include "Dialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
@@ -68,13 +69,16 @@ def SubIndexOp : Polygeist_Op<"subindex", [
 
 def ParallelWrapperOp : Polygeist_Op<"parallel_wrapper", [
   RecursiveMemoryEffects,
-  NoTerminator,
-  SingleBlock]> {
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]> {
   let summary = "Wraps a parallel op to prevent code motion and transformations";
   let regions = (region SizedRegion<1>:$region);
   let skipDefaultBuilders = 0;
   let builders = [OpBuilder<(ins)>];
+}
 
+def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
+    ParentOneOf<["ParallelWrapperOp"]>]> {
+  let summary = "Polygeist ops terminator";
 }
 
 def StreamToTokenOp : Polygeist_Op<"stream2token", [
