@@ -13,8 +13,15 @@ def Mem2Reg : Pass<"mem2reg"> {
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
+def CudaRTLower : Pass<"cudart-lower", "mlir::ModuleOp"> {
+  let summary = "Lower cudart functions to cpu versions";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+  let constructor = "mlir::polygeist::createCudaRTLowerPass()";
+}
+
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
-  let summary = "Replace scf.if and similar with affine.if";
+  let summary = "Lower gpu launch op to parallel ops";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";

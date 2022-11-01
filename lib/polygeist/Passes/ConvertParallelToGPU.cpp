@@ -113,10 +113,6 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
       LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
       return failure();
     }
-    // TODO probaly we want to raise all parallels to affine (if they already
-    // aren't - if they cant then they cannot be converted to a gpu kernel
-    // anyways
-    //
     // TODO we currently assume that all parallel ops we encouter
     // are in directly nested pairs and do no checks wheteher they can be
     // gpuified or whether the memory they use is actually on the gpu
@@ -124,6 +120,26 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
     gridPop.getBody()->walk([&](scf::ParallelOp b) {
       blockPop = b;
     });
+
+    polygeist::ParallelWrapperOp gridWrapper = dyn_cast<polygeist::ParallelWrapperOp>(gridPop->getParentOp());
+    polygeist::ParallelWrapperOp blockWrapper = dyn_cast<polygeist::ParallelWrapperOp>(blockPop->getParentOp());
+    if (!gridWrapper || !blockWrapper) {
+      LLVM_DEBUG(DBGS() << "[pop-to-launch] currently only lower parallel ops that were lowered from gpu launch\n");
+      return failure();
+    }
+    assert(blockWrapper->getParentOp() == gridPop && "Block parallel op wrapper must be directly nested in the grid parallel op\n");
+
+    rewriter.setInsertionPoint(blockWrapper);
+    rewriter.mergeBlockBefore(blockWrapper.getBody(), blockWrapper);
+    rewriter.eraseOp(blockWrapper);
+    rewriter.setInsertionPoint(gridWrapper);
+    rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
+    rewriter.eraseOp(gridWrapper);
+
+    // TODO check properties of parallel loops that we need to be able to
+    // convert them to gpu: start from 0, no variable blockPop upper bounds,
+    // etc?
+
     // Move operations outisde the blockPop inside it
     rewriter.setInsertionPointToStart(blockPop.getBody());
     BlockAndValueMapping mapping;
