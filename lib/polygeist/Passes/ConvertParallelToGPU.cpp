@@ -103,31 +103,59 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
-  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+struct ParallelToGPULaunch
+    : public OpRewritePattern<polygeist::ParallelWrapperOp> {
+  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(scf::ParallelOp gridPop,
+  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp gridWrapper,
                                 PatternRewriter &rewriter) const override {
-    auto loc = gridPop->getLoc();
-    if (gridPop->getParentOfType<scf::ParallelOp>()) {
+    auto loc = gridWrapper->getLoc();
+    if (gridWrapper->getParentOfType<polygeist::ParallelWrapperOp>()) {
       LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
       return failure();
     }
-    // TODO we currently assume that all parallel ops we encouter
-    // are in directly nested pairs and do no checks wheteher they can be
-    // gpuified or whether the memory they use is actually on the gpu
-    scf::ParallelOp blockPop;
-    gridPop.getBody()->walk([&](scf::ParallelOp b) {
-      blockPop = b;
-    });
+    rewriter.setInsertionPoint(gridWrapper);
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    polygeist::ParallelWrapperOp gridWrapper = dyn_cast<polygeist::ParallelWrapperOp>(gridPop->getParentOp());
-    polygeist::ParallelWrapperOp blockWrapper = dyn_cast<polygeist::ParallelWrapperOp>(blockPop->getParentOp());
-    if (!gridWrapper || !blockWrapper) {
-      LLVM_DEBUG(DBGS() << "[pop-to-launch] currently only lower parallel ops that were lowered from gpu launch\n");
-      return failure();
-    }
-    assert(blockWrapper->getParentOp() == gridPop && "Block parallel op wrapper must be directly nested in the grid parallel op\n");
+    // Add back optimized away single iter parallel ops
+    auto insertSingleIterPop = [&](polygeist::ParallelWrapperOp wrapper,
+                                   scf::ParallelOp &pop) {
+      Block *block = wrapper.getBody();
+      rewriter.eraseOp(block->getTerminator());
+      rewriter.setInsertionPointToEnd(wrapper.getBody());
+      wrapper.getBodyRegion().push_front(new Block());
+      rewriter.setInsertionPointToStart(wrapper.getBody());
+      pop = rewriter.create<scf::ParallelOp>(
+          loc, std::vector<Value>({zeroindex}), std::vector<Value>({oneindex}),
+          std::vector<Value>({oneindex}));
+      rewriter.create<polygeist::PolygeistYieldOp>(loc);
+      rewriter.setInsertionPointToStart(pop.getBody());
+      rewriter.mergeBlockBefore(block, pop.getBody()->getTerminator());
+    };
+
+    // TODO we currently assume that all parallel ops we encouter are already
+    // prepared for conversion to gpu.launch, i.e. two nested parallel loops
+    // with lower bounds zero and constant upper bounds for the inner parallel,
+    // the memory they use is on the gpu, is there more?
+    scf::ParallelOp gridPop = nullptr;
+    for (auto &op : *gridWrapper.getBody())
+      if (auto cast = dyn_cast<scf::ParallelOp>(&op))
+        gridPop = cast;
+    if (!gridPop)
+      rewriter.updateRootInPlace(
+          gridWrapper, [&] { insertSingleIterPop(gridWrapper, gridPop); });
+    polygeist::ParallelWrapperOp blockWrapper;
+    for (auto &op : *gridPop.getBody())
+      if (auto cast = dyn_cast<polygeist::ParallelWrapperOp>(&op))
+        blockWrapper = cast;
+    scf::ParallelOp blockPop;
+    for (auto &op : *blockWrapper.getBody())
+      if (auto cast = dyn_cast<scf::ParallelOp>(&op))
+        blockPop = cast;
+    if (!blockPop)
+      rewriter.updateRootInPlace(
+          blockWrapper, [&] { insertSingleIterPop(blockWrapper, blockPop); });
 
     rewriter.setInsertionPoint(blockWrapper);
     rewriter.eraseOp(blockWrapper.getBody()->getTerminator());
@@ -138,11 +166,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
     rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
     rewriter.eraseOp(gridWrapper);
 
-    // TODO check properties of parallel loops that we need to be able to
-    // convert them to gpu: start from 0, no variable blockPop upper bounds,
-    // etc?
-
-    // Move operations outisde the blockPop inside it
+    // Move operations outside the blockPop inside it
     rewriter.setInsertionPointToStart(blockPop.getBody());
     BlockAndValueMapping mapping;
     for (Operation &op : *gridPop.getBody()) {
@@ -153,11 +177,13 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
         auto mt = alloca.getType();
-        auto type = MemRefType::get(mt.getShape(), mt.getElementType(),
-                                    {}, /* memspace */ 5);
-        auto newAlloca = rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
+        auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
+                                    /* memspace */ 5);
+        auto newAlloca =
+            rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
         mapping.map(op.getResults(), newAlloca->getResults());
-        auto cast = rewriter.create<memref::CastOp>(alloca.getLoc(), alloca.getType(), newAlloca);
+        auto cast = rewriter.create<memref::CastOp>(
+            alloca.getLoc(), alloca.getType(), newAlloca);
         newOp = cast;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
         LLVM_DEBUG(DBGS() << "[pop-to-launch] llvm alloca op shared mem\n");
@@ -165,7 +191,8 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
       } else {
         newOp = rewriter.clone(op, mapping);
       }
-      rewriter.replaceOpWithinBlock(&op, newOp->getResults(), blockPop.getBody());
+      rewriter.replaceOpWithinBlock(&op, newOp->getResults(),
+                                    blockPop.getBody());
     }
 
     auto getUpperBounds = [&](scf::ParallelOp pop) -> SmallVector<Value, 3> {
@@ -176,8 +203,8 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
       return bounds;
     };
 
-    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    // TODO make sure we start at zero or else convert the parallel ops to start at 0
+    // TODO make sure we start at zero or else convert the parallel ops to start
+    // at 0
     Value gridBounds[3];
     auto popGridBounds = getUpperBounds(gridPop);
     for (unsigned int i = 0; i < 3; i++) {
@@ -199,18 +226,21 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
     // async{parallel {parallel {}}} to a gpu.launch
     // TODO handle dyn shmem
     rewriter.setInsertionPoint(gridPop);
-    auto launchOp = rewriter.create<gpu::LaunchOp>(loc,
-                                                   gridBounds[0], gridBounds[1], gridBounds[2],
-                                                   blockBounds[0], blockBounds[1], blockBounds[2],
-                                                   /*dynamic shmem size*/ nullptr,
-                                                   /*token type*/ nullptr,
-                                                   /*dependencies*/ SmallVector<Value, 1>());
+    auto launchOp = rewriter.create<gpu::LaunchOp>(
+        loc, gridBounds[0], gridBounds[1], gridBounds[2], blockBounds[0],
+        blockBounds[1], blockBounds[2],
+        /*dynamic shmem size*/ nullptr,
+        /*token type*/ nullptr,
+        /*dependencies*/ SmallVector<Value, 1>());
 
     auto getDim = [](unsigned index) {
       // TODO what should the order be
-      if (index == 0) return gpu::Dimension::x;
-      if (index == 1) return gpu::Dimension::y;
-      if (index == 2) return gpu::Dimension::z;
+      if (index == 0)
+        return gpu::Dimension::x;
+      if (index == 1)
+        return gpu::Dimension::y;
+      if (index == 2)
+        return gpu::Dimension::z;
       assert(0 && "Invalid index");
     };
 
@@ -219,7 +249,8 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
     SmallVector<Value, 3> argReplacements;
     for (auto en : llvm::enumerate(blockPop.getBody()->getArguments())) {
       gpu::Dimension dim = getDim(en.index());
-      auto blockIdx = rewriter.create<gpu::ThreadIdOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      auto blockIdx = rewriter.create<gpu::ThreadIdOp>(
+          loc, mlir::IndexType::get(rewriter.getContext()), dim);
       argReplacements.push_back(blockIdx);
     }
     rewriter.mergeBlocks(blockPop.getBody(), launchBlock, argReplacements);
@@ -227,7 +258,8 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
 
     for (auto en : llvm::enumerate(gridPop.getBody()->getArguments())) {
       gpu::Dimension dim = getDim(en.index());
-      auto gridIdx = rewriter.create<gpu::BlockIdOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      auto gridIdx = rewriter.create<gpu::BlockIdOp>(
+          loc, mlir::IndexType::get(rewriter.getContext()), dim);
       en.value().replaceAllUsesWith(gridIdx);
       argReplacements.push_back(gridIdx);
     }
@@ -240,20 +272,24 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
       Operation *op = en.value().getDefiningOp();
       if (detail::isConstantLike(op))
         continue;
-      assert(op->getNumResults() == 1 && "We do not currently handle ops with multiple results");
+      assert(op->getNumResults() == 1 &&
+             "We do not currently handle ops with multiple results");
 
       gpu::Dimension dim = getDim(en.index());
-      auto blockDim = rewriter.create<gpu::BlockDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      auto blockDim = rewriter.create<gpu::BlockDimOp>(
+          loc, mlir::IndexType::get(rewriter.getContext()), dim);
       rewriter.replaceOpWithinBlock(op, ValueRange({blockDim}), launchBlock);
     }
     for (auto en : llvm::enumerate(popGridBounds)) {
       Operation *op = en.value().getDefiningOp();
       if (detail::isConstantLike(op))
         continue;
-      assert(op->getNumResults() == 1 && "We do not currently handle ops with multiple results");
+      assert(op->getNumResults() == 1 &&
+             "We do not currently handle ops with multiple results");
 
       gpu::Dimension dim = getDim(en.index());
-      auto gridDim = rewriter.create<gpu::GridDimOp>(loc, mlir::IndexType::get(rewriter.getContext()), dim);
+      auto gridDim = rewriter.create<gpu::GridDimOp>(
+          loc, mlir::IndexType::get(rewriter.getContext()), dim);
       rewriter.replaceOpWithinBlock(op, ValueRange({gridDim}), launchBlock);
     }
 
@@ -285,10 +321,10 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
       // verything is fine and is generated from gpu code
       auto args = b->getOpOperands();
       if (barrier) {
-        //assert(args == barrierArgs);
+        // assert(args == barrierArgs);
       }
       barrier = b;
-      //barrierArgs = args;
+      // barrierArgs = args;
     });
     return success();
   }
