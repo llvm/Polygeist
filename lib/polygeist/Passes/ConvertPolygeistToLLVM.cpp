@@ -1519,9 +1519,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
                                           aoo->getResult(0));
       }
       ctorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
-      ArrayRef<Attribute> ctors = {FlatSymbolRefAttr::get(ctor)};
+      auto ctorSymbol = FlatSymbolRefAttr::get(ctor);
       moduleBuilder.create<LLVM::GlobalCtorsOp>(
-          loc, moduleBuilder.getArrayAttr(ctors),
+          loc, moduleBuilder.getArrayAttr({std::move(ctorSymbol)}),
           moduleBuilder.getI32ArrayAttr({100}));
       {
         OpBuilder dtorBuilder(moduleOp->getContext());
@@ -1530,9 +1530,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
         moduleUnloadCallBuilder.create(loc, dtorBuilder, module.getResult());
         dtorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
-        ArrayRef<Attribute> dtors = {FlatSymbolRefAttr::get(dtor)};
+        auto dtorSymbol = FlatSymbolRefAttr::get(dtor);
         moduleBuilder.create<LLVM::GlobalDtorsOp>(
-            loc, moduleBuilder.getArrayAttr(dtors),
+            loc, moduleBuilder.getArrayAttr({std::move(dtorSymbol)}),
             moduleBuilder.getI32ArrayAttr({100}));
       }
     }
