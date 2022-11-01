@@ -1834,9 +1834,12 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     // can be hoisted.
     for (auto &region : op->getRegions()) {
       for (auto &block : region) {
-        for (auto &innerOp : block.without_terminator())
+        for (auto &innerOp : block) {
+          if (innerOp.hasTrait<OpTrait::IsTerminator>())
+            continue;
           if (!canBeHoisted(&innerOp, definedOutside, isSpeculatable, whileOp))
             return false;
+        }
       }
     }
     return true;
