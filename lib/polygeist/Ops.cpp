@@ -49,6 +49,7 @@ void ParallelWrapperOp::build(OpBuilder &builder, OperationState &result) {
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
   builder.createBlock(bodyRegion);
+  ParallelWrapperOp::ensureTerminator(*bodyRegion, builder, result.location);
 }
 
 //===----------------------------------------------------------------------===//

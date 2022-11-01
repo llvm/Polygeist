@@ -130,9 +130,11 @@ struct ParallelToGPULaunch : public OpRewritePattern<scf::ParallelOp> {
     assert(blockWrapper->getParentOp() == gridPop && "Block parallel op wrapper must be directly nested in the grid parallel op\n");
 
     rewriter.setInsertionPoint(blockWrapper);
+    rewriter.eraseOp(blockWrapper.getBody()->getTerminator());
     rewriter.mergeBlockBefore(blockWrapper.getBody(), blockWrapper);
     rewriter.eraseOp(blockWrapper);
     rewriter.setInsertionPoint(gridWrapper);
+    rewriter.eraseOp(gridWrapper.getBody()->getTerminator());
     rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
     rewriter.eraseOp(gridWrapper);
 
