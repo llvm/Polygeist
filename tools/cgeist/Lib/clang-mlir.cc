@@ -1757,7 +1757,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
           (sr->getDecl()->getName() == "free" ||
            ((sr->getDecl()->getName() == "cudaFree" ||
              sr->getDecl()->getName() == "cudaFreeHost") &&
-            CudaLower))) {
+            (CudaLower && !EmitCuda)))) {
 
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
@@ -1782,7 +1782,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         // TODO remove me when the free is removed.
         return make_pair(ValueCategory(), true);
       }
-      if (sr->getDecl()->getIdentifier() && CudaLower &&
+      if (sr->getDecl()->getIdentifier() && (CudaLower && !EmitCuda) &&
           (sr->getDecl()->getName() == "cudaMalloc" ||
            sr->getDecl()->getName() == "cudaMallocHost" ||
            sr->getDecl()->getName() == "cudaMallocPitch")) {
