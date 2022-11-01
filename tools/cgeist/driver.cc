@@ -429,6 +429,7 @@ int emitBinary(char *Argv0, const char *filename,
 }
 
 #define dump_module(PASS_MANAGER) do {llvm::errs() << "at line" << __LINE__ << "\n"; (void)PASS_MANAGER.run(module.get()); module->dump();} while (0)
+//#define dump_module(PASS_MANAGER) do {} while (0)
 
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
@@ -688,11 +689,12 @@ int main(int argc, char **argv) {
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      pm.addPass(polygeist::createParallelLowerPass());
 #if POLYGEIST_ENABLE_CUDA
+      pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else
+      pm.addPass(polygeist::createParallelLowerPass());
       pm.addPass(polygeist::createCudaRTLowerPass());
 #endif
       // TODO TEMP

@@ -43,6 +43,15 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
+// ParallelWrapperOp
+//===----------------------------------------------------------------------===//
+void ParallelWrapperOp::build(OpBuilder &builder, OperationState &result) {
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+}
+
+//===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
 LogicalResult verify(BarrierOp) { return success(); }
@@ -5391,7 +5400,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AlwaysAllocaScopeHoister<scf::ForOp>,
       AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
-    //MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
+      MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
       BufferElimination<memref::AllocaOp>, BufferElimination<memref::AllocOp>,
       AffineBufferElimination<memref::AllocaOp>,

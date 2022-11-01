@@ -22,7 +22,7 @@ std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps = false);
 std::unique_ptr<Pass> createCudaRTLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,

@@ -72,9 +72,11 @@ namespace {
 // than dealloc) remain.
 //
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
+  ParallelLower(bool wrapParallelOps): wrapParallelOps(wrapParallelOps) {}
   void runOnOperation() override;
+  bool wrapParallelOps;
 };
-struct CudaRTLower : public ParallelLowerBase<ParallelLower> {
+struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
   void runOnOperation() override;
 };
 
@@ -87,8 +89,8 @@ namespace polygeist {
 std::unique_ptr<Pass> createCudaRTLowerPass() {
   return std::make_unique<CudaRTLower>();
 }
-std::unique_ptr<Pass> createParallelLowerPass() {
-  return std::make_unique<ParallelLower>();
+std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps) {
+  return std::make_unique<ParallelLower>(wrapParallelOps);
 }
 } // namespace polygeist
 } // namespace mlir
@@ -308,6 +310,11 @@ void ParallelLower::runOnOperation() {
       builder.setInsertionPointToStart(blockB);
     }
 
+    if (wrapParallelOps) {
+      auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
+      builder.setInsertionPointToStart(pw.getBody());
+    }
+
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
         std::vector<Value>({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
@@ -316,6 +323,11 @@ void ParallelLower::runOnOperation() {
     Block *blockB = &block.getRegion().front();
 
     builder.setInsertionPointToStart(blockB);
+
+    if (wrapParallelOps) {
+      auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
+      builder.setInsertionPointToStart(pw.getBody());
+    }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),

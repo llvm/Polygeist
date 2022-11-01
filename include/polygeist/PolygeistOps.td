@@ -66,6 +66,16 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
+def ParallelWrapperOp : Polygeist_Op<"parallel_wrapper", [
+  RecursiveMemoryEffects,
+  NoTerminator,
+  SingleBlock]> {
+  let summary = "Wraps a parallel op to prevent code motion and transformations";
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 0;
+  let builders = [OpBuilder<(ins)>];
+
+}
 
 def StreamToTokenOp : Polygeist_Op<"stream2token", [
   Pure
