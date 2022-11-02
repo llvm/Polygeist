@@ -20,6 +20,8 @@
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
+#include "clang/../../lib/Driver/ToolChains/Cuda.h"
+
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
@@ -198,6 +200,45 @@ static cl::opt<std::string>
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
+class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
+public:
+  virtual ~PolygeistCudaDetectorArgList() {}
+  template<typename ...OptSpecifiers>
+  bool hasArg(OptSpecifiers ...Ids) const {
+    std::vector _Ids({Ids...});
+    for (auto &Id : _Ids) {
+      if (Id == clang::driver::options::OPT_nogpulib) {
+        continue;
+      } else if (Id == clang::driver::options::OPT_cuda_path_EQ) {
+        if (CUDAPath == "")
+          continue;
+        else
+          return true;
+      } else if (Id == clang::driver::options::OPT_cuda_path_ignore_env) {
+        continue;
+      } else {
+        continue;
+      }
+    }
+    return false;
+  }
+  StringRef getLastArgValue(llvm::opt::OptSpecifier Id, StringRef Default = "") const {
+    if (Id == clang::driver::options::OPT_cuda_path_EQ) {
+      return CUDAPath;
+    }
+    return Default;
+  }
+  const char *getArgString(unsigned Index) const override {
+    return "";
+  }
+  unsigned getNumInputArgStrings() const override {
+    return 0;
+  }
+  const char *MakeArgStringRef(StringRef Str) const override {
+    return "";
+  }
+};
+
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
 
@@ -253,81 +294,6 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
   return 1;
-}
-
-bool getCudaPaths(std::string &libDevicePath, std::string &ptxasPath) {
-  using namespace clang;
-  using namespace clang::driver;
-  using namespace std;
-  IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-  TextDiagnosticBuffer *DiagsBuffer = new TextDiagnosticBuffer;
-  DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagsBuffer);
-  const unique_ptr<Driver> driver(
-      new Driver("clang", llvm::sys::getDefaultTargetTriple(), Diags));
-
-  std::vector<const char *> Argv;
-  Argv.push_back("clang");
-  Argv.push_back("-c");
-  Argv.push_back("-x");
-  Argv.push_back("cuda");
-  Argv.push_back("/dev/null");
-  if (NoCUDALib) {
-    Argv.push_back("-nocudalib");
-  }
-  if (CUDAGPUArch != "") {
-    auto a = "--cuda-gpu-arch=" + CUDAGPUArch;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  if (CUDAPath != "") {
-    auto a = "--cuda-path=" + CUDAPath;
-    char *chars = (char *)malloc(a.length() + 1);
-    memcpy(chars, a.data(), a.length());
-    chars[a.length()] = 0;
-    Argv.push_back(chars);
-  }
-  const unique_ptr<Compilation> compilation(
-      driver->BuildCompilation(llvm::ArrayRef<const char *>(Argv)));
-
-  JobList &Jobs = compilation->getJobs();
-  if (Jobs.size() < 1)
-    return false;
-
-  for (auto &job : Jobs) {
-    std::unique_ptr<CompilerInstance> CI(new CompilerInstance());
-    Command *cmd = cast<Command>(&job);
-    const llvm::opt::ArgStringList *args = &cmd->getArguments();
-
-    if (strcmp(cmd->getCreator().getName(), "clang") == 0) {
-      // Either .cu -> device ll
-      // or .cu + cubin -> obj
-      // if -fcuda-is-device it is the former
-      llvm::opt::ArgStringList newArgs;
-      bool isDevice = false;
-      for (auto arg : *args) {
-        if (strcmp(arg, "-fcuda-is-device") == 0) {
-          isDevice = true;
-          break;
-        }
-      }
-      if (isDevice) {
-        bool libdevicearg = false;
-        for (auto arg : *args) {
-          if (libdevicearg) {
-            libDevicePath = arg;
-          } else if (strcmp(arg, "-mlink-builtin-bitcode") == 0) {
-            libdevicearg = true;
-          }
-        }
-      }
-    } else if (strcmp(cmd->getCreator().getName(), "NVPTX::Assembler") == 0) {
-      ptxasPath = cmd->getExecutable();
-    }
-  }
-  return true;
 }
 
 int emitBinary(char *Argv0, const char *filename,
@@ -920,12 +886,29 @@ int main(int argc, char **argv) {
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
               options, CStyleMemRef, /* onlyGpuModules */ true));
-          std::string libDevicePath;
-          std::string ptxasPath;
-          getCudaPaths(libDevicePath, ptxasPath);
+
+
+          using namespace clang;
+          using namespace clang::driver;
+          using namespace std;
+          IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+          // Buffer diagnostics from argument parsing so that we can output them using a
+          // well formed diagnostic object.
+          IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+          TextDiagnosticPrinter *DiagBuffer =
+            new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+          DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
+          const unique_ptr<Driver> driver(new Driver("clang", triple.str(), Diags));
+          PolygeistCudaDetectorArgList argList;
+          CudaInstallationDetector detector(*driver, triple, argList);
+
           std::string arch = CUDAGPUArch;
           if (arch == "")
             arch = "sm_60";
+          std::string libDevicePath = detector.getLibDeviceFile(arch);
+          std::string ptxasPath = std::string(detector.getBinPath()) + "/ptxas";
+          llvm::errs() << libDevicePath << ptxasPath << "\n";
+
           // TODO what should the ptx version be?
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
