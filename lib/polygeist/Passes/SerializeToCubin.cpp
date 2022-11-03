@@ -41,6 +41,8 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 
 #include <cuda.h>
 // TODO use this library if possible
@@ -172,6 +174,25 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   llvmModule->dump();
   llvm::errs() << "GPULLVM\n";
   #endif
+
+  SmallVector<llvm::IntrinsicInst *> toConvert;
+  for (auto &F : *llvmModule) {
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto II = dyn_cast<llvm::IntrinsicInst>(&I)) {
+          toConvert.push_back(II);
+        }
+      }
+    }
+  }
+  llvm::for_each(toConvert, [&](llvm::IntrinsicInst *II) {
+    if (II->getIntrinsicID() == llvm::Intrinsic::powi) {
+      StringRef fname =  "__nv_powi";
+      auto *CI = llvm::CallInst::Create(II->getFunctionType(), llvmModule->getFunction(fname), llvm::ArrayRef<llvm::Value *>({II->getArgOperand(0), II->getArgOperand(1)}), fname, II);
+      II->replaceAllUsesWith(CI);
+      II->eraseFromParent();
+    }
+  });
 
   return llvmModule;
 }
