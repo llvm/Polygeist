@@ -14,7 +14,6 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertPolygeistToLLVM.cpp
   InnerSerialization.cpp
   ForBreakToWhile.cpp
-  RemoveDeviceFunctions.cpp
   ConvertParallelToGPU.cpp
   SerializeToCubin.cpp
 
