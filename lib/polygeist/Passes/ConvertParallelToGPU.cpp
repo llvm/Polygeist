@@ -264,33 +264,28 @@ struct ParallelToGPULaunch
       argReplacements.push_back(gridIdx);
     }
 
-    // TODO need a way to figure out which value is actually used as a dim, e.g.
-    // have a wrapper op that just passes its block and grid dim operands to the
-    // block args in it but we still want to retain replacing of constant dims
-    // with a constant
+    // I _think_ replacing these with gpu.block_dim is good because the block
+    // dims might already be in registers as opposed to constants of other
+    // values TODO investigate
     for (auto en : llvm::enumerate(popBlockBounds)) {
-      Operation *op = en.value().getDefiningOp();
-      if (detail::isConstantLike(op))
-        continue;
-      assert(op->getNumResults() == 1 &&
-             "We do not currently handle ops with multiple results");
-
       gpu::Dimension dim = getDim(en.index());
       auto blockDim = rewriter.create<gpu::BlockDimOp>(
           loc, mlir::IndexType::get(rewriter.getContext()), dim);
-      rewriter.replaceOpWithinBlock(op, ValueRange({blockDim}), launchBlock);
+      rewriter.updateRootInPlace(launchOp, [&] {
+        en.value().replaceUsesWithIf(blockDim, [&](OpOperand &operand) {
+          return launchOp->isProperAncestor(operand.getOwner());
+        });
+      });
     }
     for (auto en : llvm::enumerate(popGridBounds)) {
-      Operation *op = en.value().getDefiningOp();
-      if (detail::isConstantLike(op))
-        continue;
-      assert(op->getNumResults() == 1 &&
-             "We do not currently handle ops with multiple results");
-
       gpu::Dimension dim = getDim(en.index());
       auto gridDim = rewriter.create<gpu::GridDimOp>(
           loc, mlir::IndexType::get(rewriter.getContext()), dim);
-      rewriter.replaceOpWithinBlock(op, ValueRange({gridDim}), launchBlock);
+      rewriter.updateRootInPlace(launchOp, [&] {
+        en.value().replaceUsesWithIf(gridDim, [&](OpOperand &operand) {
+          return launchOp->isProperAncestor(operand.getOwner());
+        });
+      });
     }
 
     rewriter.setInsertionPointToEnd(launchBlock);
