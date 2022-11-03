@@ -72,7 +72,7 @@ namespace {
 // than dealloc) remain.
 //
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
-  ParallelLower(bool wrapParallelOps): wrapParallelOps(wrapParallelOps) {}
+  ParallelLower(bool wrapParallelOps) : wrapParallelOps(wrapParallelOps) {}
   void runOnOperation() override;
   bool wrapParallelOps;
 };
@@ -324,10 +324,10 @@ void ParallelLower::runOnOperation() {
 
     builder.setInsertionPointToStart(blockB);
 
-    if (wrapParallelOps) {
-      auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
-      builder.setInsertionPointToStart(pw.getBody());
-    }
+    // if (wrapParallelOps) {
+    //   auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
+    //   builder.setInsertionPointToStart(pw.getBody());
+    // }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
@@ -465,7 +465,6 @@ void ParallelLower::runOnOperation() {
     });
     builder.eraseOp(launchOp);
   }
-
 
   // Fold the copy memtype cast
   {

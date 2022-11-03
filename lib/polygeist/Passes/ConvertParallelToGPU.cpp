@@ -35,6 +35,14 @@ using namespace polygeist;
 
 namespace {
 
+SmallVector<Value, 3> getUpperBounds(scf::ParallelOp pop) {
+  SmallVector<Value, 3> bounds;
+  for (auto bound : pop.getUpperBound()) {
+    bounds.push_back(bound);
+  }
+  return bounds;
+}
+
 void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
   rewriter.create<func::ReturnOp>(rewriter.getUnknownLoc());
 }
@@ -142,12 +150,16 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-struct SplitParallelOp
-  : public OpRewritePattern<scf::ParallelOp> {
+struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
-  #define PATTERN "[parallelize-block-ops] "
+#define PATTERN "[parallelize-block-ops] "
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
+    auto wrapper = dyn_cast<polygeist::ParallelWrapperOp>(pop->getParentOp());
+    if (!wrapper) {
+      LLVM_DEBUG(DBGS() << PATTERN << "parallel not wrapped\n");
+      return failure();
+    }
     if (!pop->getParentOfType<scf::ParallelOp>()) {
       LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
       return failure();
@@ -158,6 +170,72 @@ struct SplitParallelOp
       LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
       return failure();
     }
+    auto loc = pop->getLoc();
+
+    // TODO handle lower bounds != 0 and steps != 1
+
+    auto upperBounds = getUpperBounds(pop);
+    int dims = upperBounds.size();
+    SmallVector<Value, 3> blockDims;
+    // TODO different thread nums for different gpu arch's
+    rewriter.setInsertionPoint(wrapper);
+    if (dims == 1)
+      blockDims = {
+          rewriter.create<arith::ConstantIndexOp>(loc, 1024),
+      };
+    else if (dims == 2)
+      blockDims = {
+          rewriter.create<arith::ConstantIndexOp>(loc, 32),
+          rewriter.create<arith::ConstantIndexOp>(loc, 32),
+      };
+    else
+      blockDims = {
+          rewriter.create<arith::ConstantIndexOp>(loc, 16),
+          rewriter.create<arith::ConstantIndexOp>(loc, 16),
+          rewriter.create<arith::ConstantIndexOp>(loc, 4),
+      };
+
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value, 3> gridDims;
+    for (int i = 0; i < dims; i++) {
+      // gridDims[i] = ((upperBounds[i] - 1) / blockDims[i]) + 1;
+      auto sub = rewriter.create<arith::SubIOp>(loc, upperBounds[i], zeroindex);
+      auto div = rewriter.create<arith::DivUIOp>(loc, sub, blockDims[i]);
+      gridDims[i] = rewriter.create<arith::AddIOp>(loc, div, oneindex);
+    }
+    auto lowerBounds = pop.getLowerBound();
+    auto steps = pop.getStep();
+
+    rewriter.setInsertionPoint(pop);
+    auto gridPop =
+        rewriter.create<scf::ParallelOp>(loc, lowerBounds, gridDims, steps);
+    rewriter.setInsertionPointToStart(gridPop.getBody());
+    auto blockPop =
+        rewriter.create<scf::ParallelOp>(loc, lowerBounds, blockDims, steps);
+    rewriter.setInsertionPointToStart(blockPop.getBody());
+
+    Value cond;
+    for (int i = 0; i < dims; i++) {
+      // threadIndex = blockIdx * blockDim + threadIdx
+      // threadIndex < original upperBound
+      auto mul = rewriter.create<arith::MulIOp>(
+          loc, gridPop.getBody()->getArgument(i), blockDims[i]);
+      auto add = rewriter.create<arith::AddIOp>(
+          loc, mul, blockPop.getBody()->getArgument(i));
+      auto threadCond = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::ult, add, upperBounds[i]);
+      if (i == 0)
+        cond = threadCond.getResult();
+      else
+        cond =
+            rewriter.create<arith::AndIOp>(loc, threadCond, cond).getResult();
+    }
+
+    auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
+    rewriter.setInsertionPointToStart(ifOp.thenBlock());
+    rewriter.mergeBlockBefore(pop.getBody(), ifOp.thenBlock()->getTerminator());
+    rewriter.eraseOp(pop);
     return success();
   }
 };
@@ -194,11 +272,10 @@ struct SplitParallelOp
 ///   }
 /// }
 
-struct ParallelizeBlockOps
-  : public OpRewritePattern<scf::ParallelOp> {
+struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
-  #define PATTERN "[parallelize-block-ops] "
+#define PATTERN "[parallelize-block-ops] "
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
     if (!pop->getParentOfType<scf::ParallelOp>()) {
@@ -208,6 +285,11 @@ struct ParallelizeBlockOps
     auto loc = pop->getLoc();
     Block *outerBlock = pop->getBlock();
     Block *innerBlock = pop.getBody();
+
+    if (++ ++outerBlock->begin() == outerBlock->end()) {
+      LLVM_DEBUG(DBGS() << PATTERN << "no ops to parallelize\n");
+      return failure();
+    }
 
     // Handle ops before the parallel
     //
@@ -230,9 +312,9 @@ struct ParallelizeBlockOps
                                     /* memspace */ 5);
         auto newAlloca =
             rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
-        mapping.map(op.getResults(), newAlloca->getResults());
         auto cast = rewriter.create<memref::CastOp>(
             alloca.getLoc(), alloca.getType(), newAlloca);
+        mapping.map(op.getResults(), cast->getResults());
         newOp = cast;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
         assert(0 && "Unhandled case");
@@ -244,8 +326,7 @@ struct ParallelizeBlockOps
         // result is used in the parallel op? Introduce shared mem I guess?
         newOp = rewriter.clone(op, mapping);
       }
-      rewriter.replaceOpWithinBlock(&op, newOp->getResults(),
-                                    innerBlock);
+      rewriter.replaceOpWithinBlock(&op, newOp->getResults(), innerBlock);
       toErase.push_back(&op);
     }
     it++;
@@ -253,20 +334,18 @@ struct ParallelizeBlockOps
     // Handle ops after the parallel
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     rewriter.setInsertionPoint(innerBlock->getTerminator());
-    auto cmpOp = rewriter.create<arith::CmpIOp>(loc,
-                                                arith::CmpIPredicate::eq,
-                                                zeroindex, innerBlock->getArgument(0));
+    auto cmpOp = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::eq, zeroindex, innerBlock->getArgument(0));
     Value condition = cmpOp.getResult();
     for (unsigned i = 1; i < innerBlock->getNumArguments(); i++) {
-      auto cmpOp2 = rewriter.create<arith::CmpIOp>(loc,
-                                                   arith::CmpIPredicate::eq,
-                                                   zeroindex, innerBlock->getArgument(i));
+      auto cmpOp2 = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, zeroindex, innerBlock->getArgument(i));
       auto andOp = rewriter.create<arith::AndIOp>(loc, condition, cmpOp2);
       condition = andOp.getResult();
     }
     auto ifOp = rewriter.create<scf::IfOp>(loc, condition);
     rewriter.setInsertionPointToStart(ifOp.thenBlock());
-    for (; it != innerBlock->end(); ++it) {
+    for (; it != outerBlock->end(); ++it) {
       Operation &op = *it;
       if (isa<scf::ParallelOp>(&op)) {
         assert(0 && "Unhandled case");
@@ -282,7 +361,7 @@ struct ParallelizeBlockOps
       toErase.push_back(&op);
     }
 
-    for (Operation *op : toErase)
+    for (Operation *op : llvm::reverse(toErase))
       rewriter.eraseOp(op);
 
     return success();
@@ -304,69 +383,42 @@ struct ParallelToGPULaunch
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
-    // Add back optimized away single iter parallel ops
-    auto insertSingleIterPop = [&](polygeist::ParallelWrapperOp wrapper,
-                                   scf::ParallelOp &pop) {
-      Block *block = wrapper.getBody();
-      rewriter.eraseOp(block->getTerminator());
-      rewriter.setInsertionPointToEnd(wrapper.getBody());
-      wrapper.getBodyRegion().push_front(new Block());
-      rewriter.setInsertionPointToStart(wrapper.getBody());
-      pop = rewriter.create<scf::ParallelOp>(
-          loc, std::vector<Value>({zeroindex}), std::vector<Value>({oneindex}),
-          std::vector<Value>({oneindex}));
-      rewriter.create<polygeist::PolygeistYieldOp>(loc);
-      rewriter.setInsertionPointToStart(pop.getBody());
-      rewriter.mergeBlockBefore(block, pop.getBody()->getTerminator());
-    };
-
     // TODO we currently assume that all parallel ops we encouter are already
     // prepared for conversion to gpu.launch, i.e. two nested parallel loops
     // with lower bounds zero and constant upper bounds for the inner parallel,
     // the memory they use is on the gpu, is there more?
-    scf::ParallelOp gridPop = nullptr;
-    for (auto &op : *gridWrapper.getBody())
-      if (auto cast = dyn_cast<scf::ParallelOp>(&op))
-        gridPop = cast;
-      else if (auto cast = dyn_cast<AffineParallelOp>(&op)) {
-        LLVM_DEBUG(DBGS() << "[pop-to-launch] need to lower affine parallel ops before this pass\n");
-        return failure();
+    auto getDirectlyNestedSingleParallel =
+        [&](Block *block) -> scf::ParallelOp {
+      auto it = block->begin();
+      auto pop = dyn_cast<scf::ParallelOp>(&*it);
+      it++;
+      if (!pop) {
+        LLVM_DEBUG(
+            DBGS() << "[pop-to-launch] need directly nested parallelop\n");
+        return nullptr;
       }
-    if (!gridPop)
-      rewriter.updateRootInPlace(
-          gridWrapper, [&] { insertSingleIterPop(gridWrapper, gridPop); });
-    polygeist::ParallelWrapperOp blockWrapper;
-    for (auto &op : *gridPop.getBody())
-      if (auto cast = dyn_cast<polygeist::ParallelWrapperOp>(&op))
-        blockWrapper = cast;
-    scf::ParallelOp blockPop;
-    for (auto &op : *blockWrapper.getBody())
-      if (auto cast = dyn_cast<scf::ParallelOp>(&op))
-        blockPop = cast;
-      else if (auto cast = dyn_cast<AffineParallelOp>(&op)) {
-        LLVM_DEBUG(DBGS() << "[pop-to-launch] need to lower affine parallel ops before this pass\n");
-        return failure();
+      if (block->getTerminator() != &*it) {
+        LLVM_DEBUG(DBGS() << "[pop-to-launch] stray ops in block\n");
+        return nullptr;
       }
-    if (!blockPop)
-      rewriter.updateRootInPlace(
-          blockWrapper, [&] { insertSingleIterPop(blockWrapper, blockPop); });
+      it++;
+      assert(it == block->end());
+      return pop;
+    };
 
-    rewriter.setInsertionPoint(blockWrapper);
-    rewriter.eraseOp(blockWrapper.getBody()->getTerminator());
-    rewriter.mergeBlockBefore(blockWrapper.getBody(), blockWrapper);
-    rewriter.eraseOp(blockWrapper);
+    scf::ParallelOp gridPop =
+        getDirectlyNestedSingleParallel(gridWrapper.getBody());
+    if (!gridPop)
+      return failure();
+    scf::ParallelOp blockPop =
+        getDirectlyNestedSingleParallel(gridPop.getBody());
+    if (!blockPop)
+      return failure();
+
     rewriter.setInsertionPoint(gridWrapper);
     rewriter.eraseOp(gridWrapper.getBody()->getTerminator());
     rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
     rewriter.eraseOp(gridWrapper);
-
-    auto getUpperBounds = [&](scf::ParallelOp pop) -> SmallVector<Value, 3> {
-      SmallVector<Value, 3> bounds;
-      for (auto bound : pop.getUpperBound()) {
-        bounds.push_back(bound);
-      }
-      return bounds;
-    };
 
     // TODO make sure we start at zero or else convert the parallel ops to start
     // at 0
@@ -495,11 +547,8 @@ struct ConvertParallelToGPU1Pass
   ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<
-      BarrierElim</*TopLevelOnly*/ false>,
-      ParallelizeBlockOps,
-      SplitSingleParallelOp,
-      ParallelToGPULaunch>(&getContext());
+    patterns.insert<BarrierElim</*TopLevelOnly*/ false>, ParallelizeBlockOps,
+                    SplitParallelOp, ParallelToGPULaunch>(&getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
@@ -514,9 +563,10 @@ struct ConvertParallelToGPU2Pass
   ConvertParallelToGPU2Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
-                    RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
-        &getContext());
+    patterns
+        .insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
+                RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
+            &getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
