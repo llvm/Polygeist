@@ -8,6 +8,7 @@
 #include "PassDetails.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -128,7 +129,7 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
     rewriter.setInsertionPointToStart(module.getBody());
 
     auto initial_value = rewriter.getUnitAttr();
-    auto globalOp = rewriter.create<memref::GlobalOp>(
+    rewriter.create<memref::GlobalOp>(
         loc, rewriter.getStringAttr(name),
         /* sym_visibility */ mlir::StringAttr(), mlir::TypeAttr::get(type),
         initial_value, mlir::UnitAttr(), /* alignment */ nullptr);
@@ -136,6 +137,153 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
     auto getGlobalOp = rewriter.create<memref::GetGlobalOp>(loc, type, name);
 
     rewriter.replaceOp(ao, getGlobalOp->getResults());
+
+    return success();
+  }
+};
+
+struct SplitParallelOp
+  : public OpRewritePattern<scf::ParallelOp> {
+  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+  #define PATTERN "[parallelize-block-ops] "
+  LogicalResult matchAndRewrite(scf::ParallelOp pop,
+                                PatternRewriter &rewriter) const override {
+    if (!pop->getParentOfType<scf::ParallelOp>()) {
+      LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
+      return failure();
+    }
+    bool child = false;
+    pop->walk([&](scf::ParallelOp) { child = true; });
+    if (child) {
+      LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
+      return failure();
+    }
+    return success();
+  }
+};
+
+// TODO handle something like this if it happens
+//
+// scf.parallel {
+//   scf.parallel {
+//     A()
+//   }
+//   scf.parallel {
+//     B()
+//   }
+// }
+//
+
+/// scf.parallel {
+///   A()
+///   scf.parallel {
+///     B()
+///   }
+///   C()
+/// }
+///
+/// ->
+///
+/// scf.parallel {
+///   scf.parallel {
+///     A'()
+///     barrier
+///     B()
+///     barrier
+///     C'()
+///   }
+/// }
+
+struct ParallelizeBlockOps
+  : public OpRewritePattern<scf::ParallelOp> {
+  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+
+  #define PATTERN "[parallelize-block-ops] "
+  LogicalResult matchAndRewrite(scf::ParallelOp pop,
+                                PatternRewriter &rewriter) const override {
+    if (!pop->getParentOfType<scf::ParallelOp>()) {
+      LLVM_DEBUG(DBGS() << PATTERN << "ignoring non nested parallel op\n");
+      return failure();
+    }
+    auto loc = pop->getLoc();
+    Block *outerBlock = pop->getBlock();
+    Block *innerBlock = pop.getBody();
+
+    // Handle ops before the parallel
+    //
+    // TODO We currently assume that there are no ops with memory effects before
+    // the pop
+    rewriter.setInsertionPointToStart(innerBlock);
+    auto it = outerBlock->begin();
+    SmallVector<Operation *> toErase;
+    BlockAndValueMapping mapping;
+    for (; &*it != pop.getOperation(); ++it) {
+      Operation &op = *it;
+      Operation *newOp;
+      if (isa<scf::ParallelOp>(&op)) {
+        assert(0 && "Unhandled case");
+      } else if (isa<scf::YieldOp>(&op)) {
+        continue;
+      } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
+        auto mt = alloca.getType();
+        auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
+                                    /* memspace */ 5);
+        auto newAlloca =
+            rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
+        mapping.map(op.getResults(), newAlloca->getResults());
+        auto cast = rewriter.create<memref::CastOp>(
+            alloca.getLoc(), alloca.getType(), newAlloca);
+        newOp = cast;
+      } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
+        assert(0 && "Unhandled case");
+      } else {
+        // TODO Consider write memory effects here - we must put them in an if
+        // to execute only once
+        //
+        // TODO How can we even handle an op that does write and read and its
+        // result is used in the parallel op? Introduce shared mem I guess?
+        newOp = rewriter.clone(op, mapping);
+      }
+      rewriter.replaceOpWithinBlock(&op, newOp->getResults(),
+                                    innerBlock);
+      toErase.push_back(&op);
+    }
+    it++;
+
+    // Handle ops after the parallel
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    rewriter.setInsertionPoint(innerBlock->getTerminator());
+    auto cmpOp = rewriter.create<arith::CmpIOp>(loc,
+                                                arith::CmpIPredicate::eq,
+                                                zeroindex, innerBlock->getArgument(0));
+    Value condition = cmpOp.getResult();
+    for (unsigned i = 1; i < innerBlock->getNumArguments(); i++) {
+      auto cmpOp2 = rewriter.create<arith::CmpIOp>(loc,
+                                                   arith::CmpIPredicate::eq,
+                                                   zeroindex, innerBlock->getArgument(i));
+      auto andOp = rewriter.create<arith::AndIOp>(loc, condition, cmpOp2);
+      condition = andOp.getResult();
+    }
+    auto ifOp = rewriter.create<scf::IfOp>(loc, condition);
+    rewriter.setInsertionPointToStart(ifOp.thenBlock());
+    for (; it != innerBlock->end(); ++it) {
+      Operation &op = *it;
+      if (isa<scf::ParallelOp>(&op)) {
+        assert(0 && "Unhandled case");
+      } else if (isa<scf::YieldOp>(&op)) {
+        continue;
+      } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
+        assert(0 && "Unhandled case");
+      } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
+        assert(0 && "Unhandled case");
+      } else {
+        rewriter.clone(op, mapping);
+      }
+      toErase.push_back(&op);
+    }
+
+    for (Operation *op : toErase)
+      rewriter.eraseOp(op);
 
     return success();
   }
@@ -211,35 +359,6 @@ struct ParallelToGPULaunch
     rewriter.eraseOp(gridWrapper.getBody()->getTerminator());
     rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
     rewriter.eraseOp(gridWrapper);
-
-    // Move operations outside the blockPop inside it
-    rewriter.setInsertionPointToStart(blockPop.getBody());
-    BlockAndValueMapping mapping;
-    for (Operation &op : *gridPop.getBody()) {
-      Operation *newOp;
-      if (isa<scf::ParallelOp>(&op)) {
-        continue;
-      } else if (isa<scf::YieldOp>(&op)) {
-        continue;
-      } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-        auto mt = alloca.getType();
-        auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
-                                    /* memspace */ 5);
-        auto newAlloca =
-            rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
-        mapping.map(op.getResults(), newAlloca->getResults());
-        auto cast = rewriter.create<memref::CastOp>(
-            alloca.getLoc(), alloca.getType(), newAlloca);
-        newOp = cast;
-      } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        LLVM_DEBUG(DBGS() << "[pop-to-launch] llvm alloca op shared mem\n");
-        return failure();
-      } else {
-        newOp = rewriter.clone(op, mapping);
-      }
-      rewriter.replaceOpWithinBlock(&op, newOp->getResults(),
-                                    blockPop.getBody());
-    }
 
     auto getUpperBounds = [&](scf::ParallelOp pop) -> SmallVector<Value, 3> {
       SmallVector<Value, 3> bounds;
@@ -376,7 +495,11 @@ struct ConvertParallelToGPU1Pass
   ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<ParallelToGPULaunch>(&getContext());
+    patterns.insert<
+      BarrierElim</*TopLevelOnly*/ false>,
+      ParallelizeBlockOps,
+      SplitSingleParallelOp,
+      ParallelToGPULaunch>(&getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {

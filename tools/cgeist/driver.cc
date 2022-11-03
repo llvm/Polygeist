@@ -598,7 +598,6 @@ int main(int argc, char **argv) {
       module->dump();
       return 5;
     }
-      dump_module(pm);
 
 #define optPM optPM2
 #define pm pm2
@@ -647,7 +646,6 @@ int main(int argc, char **argv) {
         module->dump();
         return 6;
       }
-    dump_module(pm);
     }
 
     if (CudaLower) {
@@ -656,14 +654,15 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
+      dump_module(pm);
       pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
+      dump_module(pm);
 #else
       pm.addPass(polygeist::createParallelLowerPass());
       pm.addPass(polygeist::createCudaRTLowerPass());
 #endif
-      // TODO TEMP
       dump_module(pm);
 
       pm.addPass(mlir::createSymbolDCEPass());
@@ -674,7 +673,6 @@ int main(int argc, char **argv) {
       noptPM.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(mlir::createInlinerPass());
-      dump_module(pm);
       mlir::OpPassManager &noptPM2 = pm.nest<mlir::func::FuncOp>();
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -689,6 +687,7 @@ int main(int argc, char **argv) {
         noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      dump_module(pm);
       if (RaiseToAffine) {
         noptPM2.addPass(polygeist::createCanonicalizeForPass());
         noptPM2.addPass(
@@ -728,7 +727,6 @@ int main(int argc, char **argv) {
         module->dump();
         return 7;
       }
-      dump_module(pm);
     }
 
     mlir::PassManager pm(&context);
@@ -742,7 +740,6 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       optPM.addPass(polygeist::createCanonicalizeForPass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-    dump_module(pm);
 
       if (RaiseToAffine) {
         optPM.addPass(polygeist::createCanonicalizeForPass());
@@ -761,7 +758,6 @@ int main(int argc, char **argv) {
         if (ScalarReplacement)
           optPM.addPass(mlir::createAffineScalarReplacementPass());
       }
-    dump_module(pm);
       if (ToCPU == "continuation") {
         optPM.addPass(polygeist::createBarrierRemovalContinuation());
         // pm.nest<mlir::FuncOp>().addPass(mlir::createCanonicalizerPass());
@@ -790,7 +786,6 @@ int main(int argc, char **argv) {
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         optPM.addPass(polygeist::replaceAffineCFGPass());
-    dump_module(pm);
         optPM.addPass(
             mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
         if (LoopUnroll)
