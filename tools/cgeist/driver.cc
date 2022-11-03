@@ -909,7 +909,6 @@ int main(int argc, char **argv) {
             arch = "sm_60";
           std::string libDevicePath = detector.getLibDeviceFile(arch);
           std::string ptxasPath = std::string(detector.getBinPath()) + "/ptxas";
-          llvm::errs() << libDevicePath << ptxasPath << "\n";
 
           // TODO what should the ptx version be?
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
