@@ -54,12 +54,6 @@ def ConvertParallelToGPU2 : Pass<"convert-parallel-to-gpu2"> {
   let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
 }
 
-def RemoveDeviceFunctions : Pass<"remove-device-functions", "mlir::ModuleOp"> {
-  let summary = "remove device functions from module";
-  let constructor = "mlir::polygeist::createRemoveDeviceFunctionsPass()";
-  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect"];
-}
-
 def InnerSerialization : Pass<"inner-serialize"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createInnerSerializationPass()";

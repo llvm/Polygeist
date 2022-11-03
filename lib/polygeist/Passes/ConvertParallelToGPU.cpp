@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -32,6 +33,43 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
+
+void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
+  rewriter.create<func::ReturnOp>(rewriter.getUnknownLoc());
+}
+void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
+  rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(),
+                                  std::vector<Value>{});
+}
+
+template <typename FuncType>
+struct RemoveFunction : public OpRewritePattern<FuncType> {
+  using OpRewritePattern<FuncType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(FuncType f,
+                                PatternRewriter &rewriter) const override {
+    if (!isa<ModuleOp>(f->getParentOp())) {
+      return failure();
+    }
+    auto V = f->getAttr("polygeist.device_only_func");
+    if (!V) {
+      return failure();
+    }
+    Region *region = &f.getBody();
+    if (region->empty())
+      return failure();
+    rewriter.eraseOp(f);
+    // TODO leave an empty function to pass to cudaSetCacheConfig
+    // Region *region = &f.getBody();
+    // if (region->empty())
+    //  return failure();
+    // rewriter.eraseBlock(&region->front());
+    // region->push_back(new Block());
+    // rewriter.setInsertionPointToEnd(&region->front());
+    // insertReturn(rewriter, f);
+    return success();
+  }
+};
 
 struct SharedLLVMAllocaToGlobal : public OpRewritePattern<LLVM::AllocaOp> {
   using OpRewritePattern<LLVM::AllocaOp>::OpRewritePattern;
@@ -142,6 +180,10 @@ struct ParallelToGPULaunch
     for (auto &op : *gridWrapper.getBody())
       if (auto cast = dyn_cast<scf::ParallelOp>(&op))
         gridPop = cast;
+      else if (auto cast = dyn_cast<AffineParallelOp>(&op)) {
+        LLVM_DEBUG(DBGS() << "[pop-to-launch] need to lower affine parallel ops before this pass\n");
+        return failure();
+      }
     if (!gridPop)
       rewriter.updateRootInPlace(
           gridWrapper, [&] { insertSingleIterPop(gridWrapper, gridPop); });
@@ -153,6 +195,10 @@ struct ParallelToGPULaunch
     for (auto &op : *blockWrapper.getBody())
       if (auto cast = dyn_cast<scf::ParallelOp>(&op))
         blockPop = cast;
+      else if (auto cast = dyn_cast<AffineParallelOp>(&op)) {
+        LLVM_DEBUG(DBGS() << "[pop-to-launch] need to lower affine parallel ops before this pass\n");
+        return failure();
+      }
     if (!blockPop)
       rewriter.updateRootInPlace(
           blockWrapper, [&] { insertSingleIterPop(blockWrapper, blockPop); });
@@ -330,8 +376,7 @@ struct ConvertParallelToGPU1Pass
   ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal>(
-        &getContext());
+    patterns.insert<ParallelToGPULaunch>(&getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
@@ -346,7 +391,9 @@ struct ConvertParallelToGPU2Pass
   ConvertParallelToGPU2Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<ParallelToGPULaunch>(&getContext());
+    patterns.insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
+                    RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
+        &getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {

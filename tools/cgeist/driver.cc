@@ -816,42 +816,33 @@ int main(int argc, char **argv) {
       }
     }
     pm.addPass(mlir::createSymbolDCEPass());
-    dump_module(pm);
 
-
-    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
+    if (EmitCuda || EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
 
-      // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 8;
       }
     }
 
-    // TODO TEMP
-    dump_module(pm);
-
-
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
       // TODO merge these passes somehow
+      dump_module(pm);
       if (CudaLower)
-        pm.addPass(polygeist::createConvertParallelToGPUPass2());
-      // TODO TEMP
+        pm.addPass(polygeist::createConvertParallelToGPUPass1());
       dump_module(pm);
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
-      // TODO TEMP
       dump_module(pm);
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
-      pm.addPass(polygeist::createConvertParallelToGPUPass1());
+      pm.addPass(polygeist::createConvertParallelToGPUPass2());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      pm.addPass(polygeist::createRemoveDeviceFunctionsPass());
     }
 #endif
 
