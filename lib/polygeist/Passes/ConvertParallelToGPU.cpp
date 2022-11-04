@@ -150,8 +150,6 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-// TODO I think the scf block args are in the z,y,x order, so consider that when
-// converting
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 #define PATTERN "[parallelize-block-ops] "
@@ -177,9 +175,71 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     // TODO handle lower bounds != 0 and steps != 1
 
     auto upperBounds = getUpperBounds(pop);
-    int dims = upperBounds.size();
+    int totalDims = upperBounds.size();
     SmallVector<Value, 3> blockDims;
-    // TODO different thread nums for different gpu arch's
+    SmallVector<Value, 3> gridDims;
+
+    const unsigned maxThreads = 1024;
+    int threadNum = 1;
+    for (unsigned i = totalDims - 1; i >= 0; i--) {
+      // TODO should be any constant
+      auto &bound = upperBounds[i];
+      auto cst = dyn_cast<arith::ConstantIndexOp>(bound.getDefiningOp());
+      unsigned val = cst ? cst.value() : 1;
+      if (cst && blockDims.size() < 3 && threadNum * val <= maxThreads) {
+        blockDims.push_back(bound);
+        threadNum *= val;
+      } else {
+        gridDims.push_back(bound);
+      }
+    }
+    //LLVM_DEBUG(DBGS() <<
+    llvm::errs() << PATTERN << "converting to block with threadNum " << threadNum << ", dims: " << blockDims.size() << "\n";
+
+    // TODO if the threadNums are not enough, increase them by converting a grid
+    // dim to a grid dim + block dim
+
+    // TODO if we have too many dims, we have to merge some of them
+    assert(gridDims.size() <= 3);
+
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value, 3> lowerBoundsGrid(gridDims.size(), zeroindex);
+    SmallVector<Value, 3> stepsGrid(gridDims.size(), oneindex);
+    SmallVector<Value, 3> lowerBoundsBlock(blockDims.size(), zeroindex);
+    SmallVector<Value, 3> stepsBlock(blockDims.size(), oneindex);
+
+    rewriter.setInsertionPoint(pop);
+    auto gridPop =
+        rewriter.create<scf::ParallelOp>(loc, lowerBoundsGrid, gridDims, stepsGrid);
+    rewriter.setInsertionPointToStart(gridPop.getBody());
+    auto blockPop =
+        rewriter.create<scf::ParallelOp>(loc, lowerBoundsBlock, blockDims, stepsBlock);
+    rewriter.setInsertionPointToStart(blockPop.getBody());
+
+    BlockAndValueMapping mapping;
+    for (int i = 0; i < gridDims.size(); i++)
+      mapping.map(gridDims[i], gridPop.getBody()->getArgument(i));
+    for (int i = 0; i < blockDims.size(); i++)
+      mapping.map(blockDims[i], blockPop.getBody()->getArgument(i));
+    rewriter.eraseOp(pop.getBody()->getTerminator());
+    for (auto &op : *pop.getBody())
+      rewriter.clone(op, mapping);
+    rewriter.eraseOp(pop);
+    return success();
+
+
+    // Below an example of how we could do one grid dim -> grid dim + block dim
+    // conversion
+    {
+    int dims = 3;
+
+
+
+
+
+    // TODO try our best to match some of the dims or make them divisors of the
+    // dims
     rewriter.setInsertionPoint(wrapper);
     if (dims == 1)
       blockDims = {
@@ -199,10 +259,10 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    SmallVector<Value, 3> gridDims(3);
+    SmallVector<Value, 3> gridDims(dims);
     for (int i = 0; i < dims; i++) {
       // gridDims[i] = ((upperBounds[i] - 1) / blockDims[i]) + 1;
-      auto sub = rewriter.create<arith::SubIOp>(loc, upperBounds[i], zeroindex);
+      auto sub = rewriter.create<arith::SubIOp>(loc, upperBounds[i], oneindex);
       auto div = rewriter.create<arith::DivUIOp>(loc, sub, blockDims[i]);
       gridDims[i] = rewriter.create<arith::AddIOp>(loc, div, oneindex);
     }
@@ -218,7 +278,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     rewriter.setInsertionPointToStart(blockPop.getBody());
 
     Value cond;
-    SmallVector<Value, 3> threadId(3);
+    SmallVector<Value, 3> threadId(dims);
     for (int i = 0; i < dims; i++) {
       // threadIndex = blockIdx * blockDim + threadIdx
       // threadIndex < original upperBound
@@ -246,6 +306,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       rewriter.clone(op, mapping);
     rewriter.eraseOp(pop);
     return success();
+    }
   }
 };
 
