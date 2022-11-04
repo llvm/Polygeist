@@ -35,8 +35,8 @@ using namespace polygeist;
 
 namespace {
 
-SmallVector<Value, 3> getUpperBounds(scf::ParallelOp pop) {
-  SmallVector<Value, 3> bounds;
+template <int S = 3> SmallVector<Value, S> getUpperBounds(scf::ParallelOp pop) {
+  SmallVector<Value, S> bounds;
   for (auto bound : pop.getUpperBound()) {
     bounds.push_back(bound);
   }
@@ -165,7 +165,10 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       return failure();
     }
     bool child = false;
-    pop->walk([&](scf::ParallelOp p) { if (pop != p) child = true; });
+    pop->walk([&](scf::ParallelOp p) {
+      if (pop != p)
+        child = true;
+    });
     if (child) {
       LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
       return failure();
@@ -174,139 +177,149 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 
     // TODO handle lower bounds != 0 and steps != 1
 
-    auto upperBounds = getUpperBounds(pop);
+    auto upperBounds = getUpperBounds<6>(pop);
     int totalDims = upperBounds.size();
     SmallVector<Value, 3> blockDims;
     SmallVector<Value, 3> gridDims;
+    // Arg ids in the original parallel block
+    SmallVector<int, 3> blockArgId;
+    SmallVector<int, 3> gridArgId;
 
     const unsigned maxThreads = 1024;
-    int threadNum = 1;
-    for (unsigned i = totalDims - 1; i >= 0; i--) {
+    unsigned threadNum = 1;
+    for (int i = totalDims - 1; i >= 0; i--) {
       // TODO should be any constant
       auto &bound = upperBounds[i];
       auto cst = dyn_cast<arith::ConstantIndexOp>(bound.getDefiningOp());
       unsigned val = cst ? cst.value() : 1;
       if (cst && blockDims.size() < 3 && threadNum * val <= maxThreads) {
-        blockDims.push_back(bound);
+        blockDims.insert(blockDims.begin(), bound);
+        blockArgId.insert(blockArgId.begin(), i);
         threadNum *= val;
       } else {
-        gridDims.push_back(bound);
+        gridDims.insert(gridDims.begin(), bound);
+        gridArgId.insert(gridArgId.begin(), i);
       }
     }
-    //LLVM_DEBUG(DBGS() <<
-    llvm::errs() << PATTERN << "converting to block with threadNum " << threadNum << ", dims: " << blockDims.size() << "\n";
-
-    // TODO if the threadNums are not enough, increase them by converting a grid
-    // dim to a grid dim + block dim
-
     // TODO if we have too many dims, we have to merge some of them
     assert(gridDims.size() <= 3);
 
+    rewriter.setInsertionPoint(pop);
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    unsigned splitDims = 0;
+    SmallVector<int, 3> gi;
+    SmallVector<int, 3> bi;
+    if (gridDims.size() == 0) {
+      gridDims.push_back(oneindex);
+    } else if (threadNum < 256) {
+      // If we are not getting enough parallelism in the block, use part of the
+      // grid dims
+      // TODO what should the number here be
+
+      unsigned threadsLeft = 1;
+      while ((float)threadsLeft <= (float)maxThreads / (float)threadNum)
+        threadsLeft *= 2;
+      threadsLeft /= 2;
+      threadNum *= threadsLeft;
+      assert(threadNum <= maxThreads);
+
+      // How many dims to take from the grid
+      splitDims = 1;
+      assert(splitDims <= gridDims.size());
+      assert(splitDims + blockDims.size() <= 3);
+
+      // Which grid dims to take
+      for (unsigned i = 0; i < splitDims; i++)
+        gi.push_back(gridDims.size() - 1 - i);
+      // Which block dims they correspond to
+      for (unsigned i = 0; i < splitDims; i++) {
+        bi.push_back(i);
+        blockArgId.insert(blockArgId.begin(), gi[i]);
+      }
+
+      SmallVector<Value, 3> newBlockDims;
+      // TODO try our best to make them divisors of the gridDims
+      rewriter.setInsertionPoint(pop);
+      if (splitDims == 1)
+        newBlockDims = {
+            rewriter.create<arith::ConstantIndexOp>(loc, threadsLeft),
+        };
+      else if (splitDims == 2)
+        // TODO
+        assert(0);
+      newBlockDims.insert(newBlockDims.end(), blockDims.begin(),
+                          blockDims.end());
+
+      for (unsigned i = 0; i < splitDims; i++) {
+        // newGridDims[j] = ((gridDims[j] - 1) / newBlockDims[i]) + 1;
+        auto sub =
+            rewriter.create<arith::SubIOp>(loc, gridDims[gi[i]], oneindex);
+        auto div =
+            rewriter.create<arith::DivUIOp>(loc, sub, newBlockDims[bi[i]]);
+        gridDims[gi[i]] = rewriter.create<arith::AddIOp>(loc, div, oneindex);
+      }
+      blockDims = newBlockDims;
+    }
+
+    // LLVM_DEBUG(DBGS() <<
+    llvm::errs() << PATTERN
+                 << "converting to block with threadNum: " << threadNum
+                 << ", dims: " << blockDims.size() << "\n";
+
     SmallVector<Value, 3> lowerBoundsGrid(gridDims.size(), zeroindex);
     SmallVector<Value, 3> stepsGrid(gridDims.size(), oneindex);
     SmallVector<Value, 3> lowerBoundsBlock(blockDims.size(), zeroindex);
     SmallVector<Value, 3> stepsBlock(blockDims.size(), oneindex);
 
     rewriter.setInsertionPoint(pop);
-    auto gridPop =
-        rewriter.create<scf::ParallelOp>(loc, lowerBoundsGrid, gridDims, stepsGrid);
+    auto gridPop = rewriter.create<scf::ParallelOp>(loc, lowerBoundsGrid,
+                                                    gridDims, stepsGrid);
     rewriter.setInsertionPointToStart(gridPop.getBody());
-    auto blockPop =
-        rewriter.create<scf::ParallelOp>(loc, lowerBoundsBlock, blockDims, stepsBlock);
+    auto blockPop = rewriter.create<scf::ParallelOp>(loc, lowerBoundsBlock,
+                                                     blockDims, stepsBlock);
     rewriter.setInsertionPointToStart(blockPop.getBody());
 
     BlockAndValueMapping mapping;
-    for (int i = 0; i < gridDims.size(); i++)
-      mapping.map(gridDims[i], gridPop.getBody()->getArgument(i));
-    for (int i = 0; i < blockDims.size(); i++)
-      mapping.map(blockDims[i], blockPop.getBody()->getArgument(i));
+    for (unsigned i = 0; i < gridDims.size(); i++)
+      mapping.map(pop.getBody()->getArgument(gridArgId[i]),
+                  gridPop.getBody()->getArgument(i));
+    for (unsigned i = 0; i < blockDims.size(); i++)
+      mapping.map(pop.getBody()->getArgument(blockArgId[i]),
+                  blockPop.getBody()->getArgument(i));
+
+    // For the split dims, calculate the equivalent threadId and map that
+    // instead
+    if (splitDims > 1) {
+      Value cond;
+      // SmallVector<Value, 3> threadId(splitDims);
+      for (unsigned i = 0; i < splitDims; i++) {
+        // threadIndex = blockIdx * blockDim + threadIdx
+        // threadIndex < original upperBound
+        auto mul = rewriter.create<arith::MulIOp>(
+            loc, gridPop.getBody()->getArgument(gi[i]), blockDims[bi[i]]);
+        auto threadId = rewriter.create<arith::AddIOp>(
+            loc, mul, blockPop.getBody()->getArgument(bi[i]));
+        mapping.map(pop.getBody()->getArgument(gi[i]), threadId);
+        auto threadCond = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::ult, threadId,
+            upperBounds[gridArgId[gi[i]]]);
+        if (i == 0)
+          cond = threadCond.getResult();
+        else
+          cond =
+              rewriter.create<arith::AndIOp>(loc, threadCond, cond).getResult();
+      }
+      auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
+      rewriter.setInsertionPointToStart(ifOp.thenBlock());
+    }
+
     rewriter.eraseOp(pop.getBody()->getTerminator());
     for (auto &op : *pop.getBody())
       rewriter.clone(op, mapping);
     rewriter.eraseOp(pop);
+
     return success();
-
-
-    // Below an example of how we could do one grid dim -> grid dim + block dim
-    // conversion
-    {
-    int dims = 3;
-
-
-
-
-
-    // TODO try our best to match some of the dims or make them divisors of the
-    // dims
-    rewriter.setInsertionPoint(wrapper);
-    if (dims == 1)
-      blockDims = {
-          rewriter.create<arith::ConstantIndexOp>(loc, 1024),
-      };
-    else if (dims == 2)
-      blockDims = {
-          rewriter.create<arith::ConstantIndexOp>(loc, 32),
-          rewriter.create<arith::ConstantIndexOp>(loc, 32),
-      };
-    else
-      blockDims = {
-          rewriter.create<arith::ConstantIndexOp>(loc, 16),
-          rewriter.create<arith::ConstantIndexOp>(loc, 16),
-          rewriter.create<arith::ConstantIndexOp>(loc, 4),
-      };
-
-    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    SmallVector<Value, 3> gridDims(dims);
-    for (int i = 0; i < dims; i++) {
-      // gridDims[i] = ((upperBounds[i] - 1) / blockDims[i]) + 1;
-      auto sub = rewriter.create<arith::SubIOp>(loc, upperBounds[i], oneindex);
-      auto div = rewriter.create<arith::DivUIOp>(loc, sub, blockDims[i]);
-      gridDims[i] = rewriter.create<arith::AddIOp>(loc, div, oneindex);
-    }
-    auto lowerBounds = pop.getLowerBound();
-    auto steps = pop.getStep();
-
-    rewriter.setInsertionPoint(pop);
-    auto gridPop =
-        rewriter.create<scf::ParallelOp>(loc, lowerBounds, gridDims, steps);
-    rewriter.setInsertionPointToStart(gridPop.getBody());
-    auto blockPop =
-        rewriter.create<scf::ParallelOp>(loc, lowerBounds, blockDims, steps);
-    rewriter.setInsertionPointToStart(blockPop.getBody());
-
-    Value cond;
-    SmallVector<Value, 3> threadId(dims);
-    for (int i = 0; i < dims; i++) {
-      // threadIndex = blockIdx * blockDim + threadIdx
-      // threadIndex < original upperBound
-      auto mul = rewriter.create<arith::MulIOp>(
-          loc, gridPop.getBody()->getArgument(i), blockDims[i]);
-      auto add = rewriter.create<arith::AddIOp>(
-          loc, mul, blockPop.getBody()->getArgument(i));
-      threadId[i] = add;
-      auto threadCond = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::ult, add, upperBounds[i]);
-      if (i == 0)
-        cond = threadCond.getResult();
-      else
-        cond =
-            rewriter.create<arith::AndIOp>(loc, threadCond, cond).getResult();
-    }
-
-    auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
-    rewriter.setInsertionPointToStart(ifOp.thenBlock());
-    BlockAndValueMapping mapping;
-    for (int i = 0; i < dims; i++)
-      mapping.map(pop.getBody()->getArgument(i), threadId[i]);
-    rewriter.eraseOp(pop.getBody()->getTerminator());
-    for (auto &op : *pop.getBody())
-      rewriter.clone(op, mapping);
-    rewriter.eraseOp(pop);
-    return success();
-    }
   }
 };
 
@@ -373,7 +386,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       Operation &op = *it;
       Operation *newOp;
       if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case"); break;
+        assert(0 && "Unhandled case");
+        break;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -387,7 +401,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         mapping.map(op.getResults(), cast->getResults());
         newOp = cast;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case"); break;
+        assert(0 && "Unhandled case");
+        break;
       } else {
         // TODO Consider write memory effects here - we must put them in an if
         // to execute only once
@@ -418,13 +433,16 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     for (; it != outerBlock->end(); ++it) {
       Operation &op = *it;
       if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case"); break;
+        assert(0 && "Unhandled case");
+        break;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case"); break;
+        assert(0 && "Unhandled case");
+        break;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case"); break;
+        assert(0 && "Unhandled case");
+        break;
       } else {
         rewriter.clone(op, mapping);
       }
@@ -455,7 +473,7 @@ struct ParallelToGPULaunch
     // TODO we currently assume that all parallel ops we encouter are already
     // prepared for conversion to gpu.launch, i.e. two nested parallel loops
     // with lower bounds zero and constant upper bounds for the inner parallel,
-    // the memory they use is on the gpu, is there more?
+    // the memory they use is on the gpu, are there more conditions?
     auto getDirectlyNestedSingleParallel =
         [&](Block *block) -> scf::ParallelOp {
       auto it = block->begin();
@@ -475,8 +493,12 @@ struct ParallelToGPULaunch
       return pop;
     };
 
-    scf::ParallelOp gridPop =
-        getDirectlyNestedSingleParallel(gridWrapper.getBody());
+    scf::ParallelOp gridPop = nullptr;
+    for (Operation &op : *gridWrapper.getBody()) {
+      if (auto pop = dyn_cast<scf::ParallelOp>(&op)) {
+        gridPop = pop;
+      }
+    }
     if (!gridPop)
       return failure();
     scf::ParallelOp blockPop =
@@ -596,19 +618,19 @@ struct ParallelToGPULaunch
 
     return success();
 
-    //polygeist::BarrierOp barrier = nullptr;
-    //std::vector<BlockArgument> barrierArgs;
-    //gridPop->walk([&](polygeist::BarrierOp b) {
-    //  // TODO maybe do some barrier checks here, but for now we just assume
-    //  // verything is fine and is generated from gpu code
-    //  auto args = b->getOpOperands();
-    //  if (barrier) {
-    //    // assert(args == barrierArgs);
-    //  }
-    //  barrier = b;
-    //  // barrierArgs = args;
-    //});
-    //return success();
+    // polygeist::BarrierOp barrier = nullptr;
+    // std::vector<BlockArgument> barrierArgs;
+    // gridPop->walk([&](polygeist::BarrierOp b) {
+    //   // TODO maybe do some barrier checks here, but for now we just assume
+    //   // verything is fine and is generated from gpu code
+    //   auto args = b->getOpOperands();
+    //   if (barrier) {
+    //     // assert(args == barrierArgs);
+    //   }
+    //   barrier = b;
+    //   // barrierArgs = args;
+    // });
+    // return success();
   }
 };
 
