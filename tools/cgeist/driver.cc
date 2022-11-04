@@ -828,6 +828,7 @@ int main(int argc, char **argv) {
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1());
       dump_module(pm);
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
       dump_module(pm);
@@ -872,7 +873,6 @@ int main(int argc, char **argv) {
         if (EmitCuda) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
               options, CStyleMemRef, /* onlyGpuModules */ true));
-
 
           using namespace clang;
           using namespace clang::driver;
