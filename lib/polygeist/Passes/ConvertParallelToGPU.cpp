@@ -150,6 +150,8 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
+// TODO I think the scf block args are in the z,y,x order, so consider that when
+// converting
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 #define PATTERN "[parallelize-block-ops] "
@@ -160,12 +162,12 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       LLVM_DEBUG(DBGS() << PATTERN << "parallel not wrapped\n");
       return failure();
     }
-    if (!pop->getParentOfType<scf::ParallelOp>()) {
+    if (pop->getParentOfType<scf::ParallelOp>()) {
       LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
       return failure();
     }
     bool child = false;
-    pop->walk([&](scf::ParallelOp) { child = true; });
+    pop->walk([&](scf::ParallelOp p) { if (pop != p) child = true; });
     if (child) {
       LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
       return failure();
@@ -197,7 +199,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    SmallVector<Value, 3> gridDims;
+    SmallVector<Value, 3> gridDims(3);
     for (int i = 0; i < dims; i++) {
       // gridDims[i] = ((upperBounds[i] - 1) / blockDims[i]) + 1;
       auto sub = rewriter.create<arith::SubIOp>(loc, upperBounds[i], zeroindex);
@@ -216,6 +218,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     rewriter.setInsertionPointToStart(blockPop.getBody());
 
     Value cond;
+    SmallVector<Value, 3> threadId(3);
     for (int i = 0; i < dims; i++) {
       // threadIndex = blockIdx * blockDim + threadIdx
       // threadIndex < original upperBound
@@ -223,6 +226,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
           loc, gridPop.getBody()->getArgument(i), blockDims[i]);
       auto add = rewriter.create<arith::AddIOp>(
           loc, mul, blockPop.getBody()->getArgument(i));
+      threadId[i] = add;
       auto threadCond = rewriter.create<arith::CmpIOp>(
           loc, arith::CmpIPredicate::ult, add, upperBounds[i]);
       if (i == 0)
@@ -234,7 +238,12 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 
     auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
     rewriter.setInsertionPointToStart(ifOp.thenBlock());
-    rewriter.mergeBlockBefore(pop.getBody(), ifOp.thenBlock()->getTerminator());
+    BlockAndValueMapping mapping;
+    for (int i = 0; i < dims; i++)
+      mapping.map(pop.getBody()->getArgument(i), threadId[i]);
+    rewriter.eraseOp(pop.getBody()->getTerminator());
+    for (auto &op : *pop.getBody())
+      rewriter.clone(op, mapping);
     rewriter.eraseOp(pop);
     return success();
   }
@@ -303,7 +312,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       Operation &op = *it;
       Operation *newOp;
       if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case");
+        assert(0 && "Unhandled case"); break;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -317,7 +326,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         mapping.map(op.getResults(), cast->getResults());
         newOp = cast;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
+        assert(0 && "Unhandled case"); break;
       } else {
         // TODO Consider write memory effects here - we must put them in an if
         // to execute only once
@@ -348,13 +357,13 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     for (; it != outerBlock->end(); ++it) {
       Operation &op = *it;
       if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case");
+        assert(0 && "Unhandled case"); break;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
+        assert(0 && "Unhandled case"); break;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
+        assert(0 && "Unhandled case"); break;
       } else {
         rewriter.clone(op, mapping);
       }
@@ -380,7 +389,6 @@ struct ParallelToGPULaunch
       return failure();
     }
     rewriter.setInsertionPoint(gridWrapper);
-    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     // TODO we currently assume that all parallel ops we encouter are already
@@ -459,6 +467,7 @@ struct ParallelToGPULaunch
       if (index == 2)
         return gpu::Dimension::z;
       assert(0 && "Invalid index");
+      return gpu::Dimension::z;
     };
 
     auto launchBlock = &launchOp.getRegion().front();
@@ -526,19 +535,19 @@ struct ParallelToGPULaunch
 
     return success();
 
-    polygeist::BarrierOp barrier = nullptr;
-    std::vector<BlockArgument> barrierArgs;
-    gridPop->walk([&](polygeist::BarrierOp b) {
-      // TODO maybe do some barrier checks here, but for now we just assume
-      // verything is fine and is generated from gpu code
-      auto args = b->getOpOperands();
-      if (barrier) {
-        // assert(args == barrierArgs);
-      }
-      barrier = b;
-      // barrierArgs = args;
-    });
-    return success();
+    //polygeist::BarrierOp barrier = nullptr;
+    //std::vector<BlockArgument> barrierArgs;
+    //gridPop->walk([&](polygeist::BarrierOp b) {
+    //  // TODO maybe do some barrier checks here, but for now we just assume
+    //  // verything is fine and is generated from gpu code
+    //  auto args = b->getOpOperands();
+    //  if (barrier) {
+    //    // assert(args == barrierArgs);
+    //  }
+    //  barrier = b;
+    //  // barrierArgs = args;
+    //});
+    //return success();
   }
 };
 
