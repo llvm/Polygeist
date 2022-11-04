@@ -28,7 +28,7 @@
 #include "polygeist/Passes/Utils.h"
 
 #define DEBUG_TYPE "convert-parallel-to-gpu"
-#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "
+#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
 
 using namespace mlir;
 using namespace polygeist;
@@ -150,18 +150,62 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
+struct CreateParallelOps
+    : public OpRewritePattern<polygeist::ParallelWrapperOp> {
+  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+  const char *PATTERN = "create-parallel-ops";
+  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+                                PatternRewriter &rewriter) const override {
+    scf::ParallelOp pop = nullptr;
+    for (Operation &op : *wrapper.getBody()) {
+      if (auto p = dyn_cast<scf::ParallelOp>(&op)) {
+        pop = p;
+      }
+    }
+    if (pop) {
+      LLVM_DEBUG(DBGS() << "parallel already exists\n");
+      return failure();
+    }
+    auto loc = wrapper->getLoc();
+    auto terminator = wrapper.getBody()->getTerminator();
+    rewriter.setInsertionPointToEnd(wrapper.getBody());
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value, 1> one(1, oneindex);
+    SmallVector<Value, 1> zero(1, zeroindex);
+    auto gridPop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
+    rewriter.clone(*terminator);
+    rewriter.setInsertionPointToStart(gridPop.getBody());
+    auto blockPop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
+    rewriter.setInsertionPointToStart(blockPop.getBody());
+
+    SmallVector<Operation *> toErase;
+    BlockAndValueMapping mapping;
+    for (Operation &op : *wrapper.getBody()) {
+      if (isa<scf::ParallelOp>(&op))
+        break;
+      rewriter.clone(op, mapping);
+      toErase.push_back(&op);
+    }
+    for (Operation *op : llvm::reverse(toErase))
+      rewriter.eraseOp(op);
+
+    return success();
+  }
+};
+
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
-#define PATTERN "[parallelize-block-ops] "
+  const char *PATTERN = "parallelize-block-ops";
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
     auto wrapper = dyn_cast<polygeist::ParallelWrapperOp>(pop->getParentOp());
     if (!wrapper) {
-      LLVM_DEBUG(DBGS() << PATTERN << "parallel not wrapped\n");
+      LLVM_DEBUG(DBGS() << "parallel not wrapped\n");
       return failure();
     }
     if (pop->getParentOfType<scf::ParallelOp>()) {
-      LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
+      LLVM_DEBUG(DBGS() << "only single parallel ops\n");
       return failure();
     }
     bool child = false;
@@ -170,7 +214,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
         child = true;
     });
     if (child) {
-      LLVM_DEBUG(DBGS() << PATTERN << "only single parallel ops\n");
+      LLVM_DEBUG(DBGS() << "only single parallel ops\n");
       return failure();
     }
     auto loc = pop->getLoc();
@@ -212,6 +256,8 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     SmallVector<int, 3> bi;
     if (gridDims.size() == 0) {
       gridDims.push_back(oneindex);
+      // Put a random index, we will override it
+      gridArgId.push_back(0);
     } else if (threadNum < 256) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
@@ -263,8 +309,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     }
 
     // LLVM_DEBUG(DBGS() <<
-    llvm::errs() << PATTERN
-                 << "converting to block with threadNum: " << threadNum
+    llvm::errs() << "converting to block with threadNum: " << threadNum
                  << ", dims: " << blockDims.size() << "\n";
 
     SmallVector<Value, 3> lowerBoundsGrid(gridDims.size(), zeroindex);
@@ -358,11 +403,11 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
-#define PATTERN "[parallelize-block-ops] "
+  const char *PATTERN = "parallelize-block-ops";
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
     if (!pop->getParentOfType<scf::ParallelOp>()) {
-      LLVM_DEBUG(DBGS() << PATTERN << "ignoring non nested parallel op\n");
+      LLVM_DEBUG(DBGS() << "ignoring non nested parallel op\n");
       return failure();
     }
     auto loc = pop->getLoc();
@@ -370,7 +415,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     Block *innerBlock = pop.getBody();
 
     if (++ ++outerBlock->begin() == outerBlock->end()) {
-      LLVM_DEBUG(DBGS() << PATTERN << "no ops to parallelize\n");
+      LLVM_DEBUG(DBGS() << "no ops to parallelize\n");
       return failure();
     }
 
@@ -460,14 +505,15 @@ struct ParallelToGPULaunch
     : public OpRewritePattern<polygeist::ParallelWrapperOp> {
   using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp gridWrapper,
+  const char *PATTERN = "parallel-to-gpu-launch";
+  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
-    auto loc = gridWrapper->getLoc();
-    if (gridWrapper->getParentOfType<polygeist::ParallelWrapperOp>()) {
+    auto loc = wrapper->getLoc();
+    if (wrapper->getParentOfType<polygeist::ParallelWrapperOp>()) {
       LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
       return failure();
     }
-    rewriter.setInsertionPoint(gridWrapper);
+    rewriter.setInsertionPoint(wrapper);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
     // TODO we currently assume that all parallel ops we encouter are already
@@ -494,7 +540,7 @@ struct ParallelToGPULaunch
     };
 
     scf::ParallelOp gridPop = nullptr;
-    for (Operation &op : *gridWrapper.getBody()) {
+    for (Operation &op : *wrapper.getBody()) {
       if (auto pop = dyn_cast<scf::ParallelOp>(&op)) {
         gridPop = pop;
       }
@@ -506,10 +552,10 @@ struct ParallelToGPULaunch
     if (!blockPop)
       return failure();
 
-    rewriter.setInsertionPoint(gridWrapper);
-    rewriter.eraseOp(gridWrapper.getBody()->getTerminator());
-    rewriter.mergeBlockBefore(gridWrapper.getBody(), gridWrapper);
-    rewriter.eraseOp(gridWrapper);
+    rewriter.setInsertionPoint(wrapper);
+    rewriter.eraseOp(wrapper.getBody()->getTerminator());
+    rewriter.mergeBlockBefore(wrapper.getBody(), wrapper);
+    rewriter.eraseOp(wrapper);
 
     // TODO make sure we start at zero or else convert the parallel ops to start
     // at 0
@@ -640,7 +686,8 @@ struct ConvertParallelToGPU1Pass
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns.insert<BarrierElim</*TopLevelOnly*/ false>, ParallelizeBlockOps,
-                    SplitParallelOp, ParallelToGPULaunch>(&getContext());
+                    CreateParallelOps, SplitParallelOp, ParallelToGPULaunch>(
+        &getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {
