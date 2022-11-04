@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
+include(CheckCXXSourceCompiles)
+
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
@@ -53,6 +55,21 @@ else ()
   set(POLYGEIST_TABLEGEN_OUTPUT_DIR ${LLVM_BINARY_DIR}/tools/polygeist/include)
   include_directories(${MLIR_TABLEGEN_OUTPUT_DIR})
   include_directories(${POLYGEIST_TABLEGEN_OUTPUT_DIR})
+endif()
+
+function(append value)
+  foreach(variable ${ARGN})
+    set(${variable} "${${variable}} ${value}" PARENT_SCOPE)
+  endforeach(variable)
+endfunction()
+
+if( POLYGEIST_USE_LINKER )
+  append("-fuse-ld=${POLYGEIST_USE_LINKER}"
+    CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+  check_cxx_source_compiles("int main() { return 0; }" CXX_SUPPORTS_CUSTOM_LINKER)
+  if ( NOT CXX_SUPPORTS_CUSTOM_LINKER )
+    message(FATAL_ERROR "Host compiler does not support '-fuse-ld=${LLVM_USE_LINKER}'")
+  endif()
 endif()
 
 list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
