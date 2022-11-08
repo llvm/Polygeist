@@ -10,6 +10,7 @@
 #define MLIR_TOOLS_CGEIST_ARGUMENTLIST_H
 
 #include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallString.h>
 #include <llvm/Support/raw_ostream.h>
 
 namespace mlirclang {
@@ -17,7 +18,7 @@ namespace mlirclang {
 class ArgumentList {
 private:
   /// Helper storage.
-  llvm::SmallVector<char *> Storage;
+  llvm::SmallVector<llvm::SmallString<0>> Storage;
   /// List of arguments
   llvm::SmallVector<const char *> Args;
 
@@ -39,11 +40,7 @@ public:
   }
 
   void emplace_back(llvm::StringRef &&Arg) {
-    char *data = (char *)malloc(Arg.size() + 1);
-    memcpy(data, Arg.data(), Arg.size());
-    data[Arg.size()] = '\0';
-    Storage.push_back(data);
-    push_back(data);
+    push_back(Storage.emplace_back(Arg).c_str());
   }
 
   /// Return the underling argument list.
@@ -51,11 +48,6 @@ public:
   /// The return value of this operation could be invalidated by subsequent
   /// calls to push_back() or emplace_back().
   llvm::ArrayRef<const char *> getArguments() const { return Args; }
-
-  ~ArgumentList() {
-    for (auto arg : Storage)
-      free(arg);
-  }
 };
 } // end namespace mlirclang
 
