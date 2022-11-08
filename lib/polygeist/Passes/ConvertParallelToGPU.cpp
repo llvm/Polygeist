@@ -182,10 +182,10 @@ struct CreateParallelOps
     SmallVector<Operation *> toErase;
     BlockAndValueMapping mapping;
     for (Operation &op : *wrapper.getBody()) {
-      if (isa<scf::ParallelOp>(&op))
+      toErase.push_back(&op);
+      if (terminator == &op)
         break;
       rewriter.clone(op, mapping);
-      toErase.push_back(&op);
     }
     for (Operation *op : llvm::reverse(toErase))
       rewriter.eraseOp(op);
