@@ -1288,9 +1288,6 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
     auto shape = std::vector<int64_t>(mt.getShape());
     mlir::Value args[1] = {count};
     arrayCons = alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
-    if (expr->hasInitializer() && isa<InitListExpr>(expr->getInitializer()))
-      (void)InitializeValueByInitListExpr(alloc, expr->getInitializer());
-
   } else {
     auto typeSize = getTypeSize(loc, expr->getAllocatedType());
     mlir::Value arg = builder.create<arith::MulIOp>(loc, typeSize, count);
@@ -1305,6 +1302,17 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
               PT.getAddressSpace()),
           alloc);
   }
+  if (expr->hasInitializer()) {
+    auto init = expr->getInitializer();
+    if (isa<InitListExpr>(init)) {
+      (void)InitializeValueByInitListExpr(alloc, init);
+    } else {
+      ValueCategory val = Visit(init);
+      ValueCategory(alloc, /* isReference */ true)
+          .store(loc, builder, val, /* isArray */ false);
+    }
+  }
+
   assert(alloc);
 
   if (expr->getConstructExpr()) {
