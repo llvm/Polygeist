@@ -1302,23 +1302,21 @@ ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
               PT.getAddressSpace()),
           alloc);
   }
+  assert(alloc);
   if (expr->hasInitializer()) {
     auto init = expr->getInitializer();
     if (isa<InitListExpr>(init)) {
       (void)InitializeValueByInitListExpr(alloc, init);
+    } else if (isa<CXXConstructExpr>(init)) {
+      assert(arrayCons);
+      VisitConstructCommon(
+          const_cast<CXXConstructExpr *>(expr->getConstructExpr()),
+          /*name*/ nullptr, /*memtype*/ 0, arrayCons, count);
     } else {
       ValueCategory val = Visit(init);
       ValueCategory(alloc, /* isReference */ true)
           .store(loc, builder, val, /* isArray */ false);
     }
-  }
-
-  assert(alloc);
-
-  if (expr->getConstructExpr()) {
-    VisitConstructCommon(
-        const_cast<CXXConstructExpr *>(expr->getConstructExpr()),
-        /*name*/ nullptr, /*memtype*/ 0, arrayCons, count);
   }
   return ValueCategory(alloc, /*isRefererence*/ false);
 }
