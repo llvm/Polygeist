@@ -150,6 +150,24 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
+/// TODO implement code motion across the parallel_wrapper, then we would have
+/// two options for parallel_wrappers without any parallel ops in them - we could
+/// either hoist the computation to the cpu with added cpu-gpu copies or we could
+/// run a single iteration gpu kernel - whichever we think might be better for
+/// each that case
+///
+/// parallel_wrapper {
+///   A()
+/// }
+/// ->
+/// parallel_wrapper {
+///   parallel _ = 0 to 1 {
+///     parallel _ = 0 to 1 {
+///       A()
+///     }
+///   }
+/// }
+///
 struct CreateParallelOps
     : public OpRewritePattern<polygeist::ParallelWrapperOp> {
   using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
@@ -194,6 +212,44 @@ struct CreateParallelOps
   }
 };
 
+/// TODO Look or any barriers and if they are we must preserve the threads it
+/// syncs at to be block threads
+///
+/// parallel {
+///   A()
+/// }
+///
+/// ->
+///
+/// parallel {
+///   parallel {
+///     A()
+///   }
+/// }
+///
+///
+/// Splitting an iteration variable to grid/block one:
+/// parallel i = 0 to i_bound {
+///   A(i)
+/// }
+/// ->
+/// parallel i = 0 to i_bound / BLOCK_SIZE {
+///   parallel j = 0 to BLOCK_SIZE {
+///     A(i * BLOCK_SIZE + j)
+///   }
+/// }
+///
+/// Making iteration variables with constant bounds block iteration variables:
+/// parallel i = 0 to var_i_bound, j = 0 to const_j_bound {
+///   A(i, j)
+/// }
+/// ->
+/// parallel i = 0 to var_i_bound {
+///   parallel j = 0 to const_j_bound {
+///     A(i, j)
+///   }
+/// }
+///
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
   const char *PATTERN = "parallelize-block-ops";
@@ -399,7 +455,6 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 ///     C'()
 ///   }
 /// }
-
 struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
@@ -501,6 +556,17 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
+/// parallel_wrapper {
+///   parallel grid_bounds {
+///     parallel block_bounds {
+///       A()
+///     }
+///   }
+/// }
+/// ->
+/// gpu.launch grid_bounds, block_bounds {
+///   A()
+/// }
 struct ParallelToGPULaunch
     : public OpRewritePattern<polygeist::ParallelWrapperOp> {
   using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
