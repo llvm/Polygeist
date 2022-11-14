@@ -113,24 +113,10 @@ mlir::Value MLIRScanner::getComplexPart(mlir::Location loc, mlir::Value complex,
                  complex.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     // TODO need to LLVM part
     assert(0);
-    mlir::Type ET;
-    if (auto ST = PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
-      ET = ST.getBody()[fnum];
-    } else {
-      ET = PT.getElementType()
-               .cast<mlir::LLVM::LLVMArrayType>()
-               .getElementType();
-    }
-    mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
-                          builder.create<ConstantIntOp>(loc, fnum, 32)};
-    auto gep = builder.create<mlir::LLVM::GEPOp>(
-                   loc,
-                   mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-                   complex, vec);
     return nullptr;
   } else {
     llvm::errs() << "complex: " << complex << "\n";
-    assert(0 && "unhandled complex cast");
+    assert(0 && "unexpected complex type");
     return nullptr;
   }
 }
