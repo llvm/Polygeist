@@ -230,6 +230,10 @@ public:
 
   mlir::Value getConstantIndex(int x);
 
+  mlir::Value createComplexFloat(mlir::Location loc, mlir::Value real,
+                                 mlir::Value imag);
+  mlir::Value getComplexPart(mlir::Location loc, mlir::Value complex, int fnum);
+
   ValueCategory VisitDeclStmt(clang::DeclStmt *decl);
 
   ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
