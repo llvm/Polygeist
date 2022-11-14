@@ -79,6 +79,8 @@ mlir::Value MLIRScanner::createComplexFloat(mlir::Location loc,
   return alloc;
 }
 
+/// memref<memref<2xfty>> -> memref<fty>, we should be able to do this without
+/// any loads, as with gep
 ValueCategory MLIRScanner::getComplexPartRef(mlir::Location loc, ValueCategory vc,
                                            int fnum) {
   auto complex = vc.getValue(loc, builder);
@@ -2732,15 +2734,15 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   case clang::BinaryOperator::Opcode::BO_Add: {
     auto lhs_v = lhs.getValue(loc, builder);
     auto rhs_v = rhs.getValue(loc, builder);
-    if (lhs_v.getType().isa<mlir::FloatType>()) {
-      return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
-                           /*isReference*/ false);
-    } else if (isa<clang::ComplexType>(BO->getType())) {
+    if (isa<clang::ComplexType>(BO->getType())) {
       mlir::Value real = builder.create<AddFOp>(
           loc, getComplexPart(loc, lhs_v, 0), getComplexPart(loc, rhs_v, 0));
       mlir::Value imag = builder.create<AddFOp>(
           loc, getComplexPart(loc, lhs_v, 1), getComplexPart(loc, rhs_v, 1));
       return ValueCategory(createComplexFloat(loc, real, imag),
+                           /*isReference*/ false);
+    } else if (lhs_v.getType().isa<mlir::FloatType>()) {
+      return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
     } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
       auto shape = std::vector<int64_t>(mt.getShape());
