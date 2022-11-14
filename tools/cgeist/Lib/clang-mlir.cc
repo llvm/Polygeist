@@ -79,6 +79,25 @@ mlir::Value MLIRScanner::createComplexFloat(mlir::Location loc,
   return alloc;
 }
 
+ValueCategory MLIRScanner::getComplexPartRef(mlir::Location loc, ValueCategory vc,
+                                           int fnum) {
+  auto complex = vc.getValue(loc, builder);
+  if (auto MT = vc.val.getType().dyn_cast<mlir::MemRefType>()) {
+    auto mt = complex.getType().dyn_cast<mlir::MemRefType>();
+    assert(mt);
+    int64_t shape[1] = {-1};
+    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                     MemRefLayoutAttrInterface(),
+                                     mt.getMemorySpace());
+    return ValueCategory(builder.create<polygeist::SubIndexOp>(
+                           loc, mt0, complex, getConstantIndex(fnum)),
+                         /*isReference*/ true);
+  } else {
+    // TODO need to handle the LLVM part
+    assert(0);
+  }
+}
+
 /// Get real (fnum = 0) or imaginary (fnum = 1) part of a complex float
 mlir::Value MLIRScanner::getComplexPart(mlir::Location loc, mlir::Value complex,
                                         int fnum) {
@@ -89,18 +108,11 @@ mlir::Value MLIRScanner::getComplexPart(mlir::Location loc, mlir::Value complex,
       return builder.create<ConstantFloatOp>(
           loc, APFloat::getZero(ft.getFloatSemantics()), ft);
   } else if (auto mt = complex.getType().dyn_cast<mlir::MemRefType>()) {
-    auto shape = std::vector<int64_t>(mt.getShape());
-    shape.erase(shape.begin());
-    shape[0] = -1;
-    auto mt0 =
-        mlir::MemRefType::get(shape, mt.getElementType(),
-                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
-    return ValueCategory(builder.create<polygeist::SubIndexOp>(
-                             loc, mt0, complex, getConstantIndex(fnum)),
-                         /*isReference*/ true)
-        .getValue(loc, builder);
+    return builder.create<mlir::memref::LoadOp>(loc, complex, getConstantIndex(fnum));
   } else if (auto PT =
                  complex.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+    // TODO need to LLVM part
+    assert(0);
     mlir::Type ET;
     if (auto ST = PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
       ET = ST.getBody()[fnum];
@@ -111,13 +123,11 @@ mlir::Value MLIRScanner::getComplexPart(mlir::Location loc, mlir::Value complex,
     }
     mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
                           builder.create<ConstantIntOp>(loc, fnum, 32)};
-    return ValueCategory(
-               builder.create<mlir::LLVM::GEPOp>(
+    auto gep = builder.create<mlir::LLVM::GEPOp>(
                    loc,
                    mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-                   complex, vec),
-               /*isReference*/ true)
-        .getValue(loc, builder);
+                   complex, vec);
+    return nullptr;
   } else {
     llvm::errs() << "complex: " << complex << "\n";
     assert(0 && "unhandled complex cast");
@@ -2256,43 +2266,9 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   case clang::UnaryOperator::Opcode::UO_Real:
   case clang::UnaryOperator::Opcode::UO_Imag: {
-    int fnum =
-        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_Real) ? 0 : 1;
-    auto lhs_v = sub.val;
+    int fnum = (U->getOpcode() == clang::UnaryOperator::Opcode::UO_Real) ? 0 : 1;
     assert(sub.isReference);
-    if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
-      shape.erase(shape.begin());
-      shape[0] = -1;
-      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       MemRefLayoutAttrInterface(),
-                                       mt.getMemorySpace());
-      return ValueCategory(builder.create<polygeist::SubIndexOp>(
-                               loc, mt0, lhs_v, getConstantIndex(fnum)),
-                           /*isReference*/ true);
-    } else if (auto PT =
-                   lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      mlir::Type ET;
-      if (auto ST =
-              PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
-        ET = ST.getBody()[fnum];
-      } else {
-        ET = PT.getElementType()
-                 .cast<mlir::LLVM::LLVMArrayType>()
-                 .getElementType();
-      }
-      mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
-                            builder.create<ConstantIntOp>(loc, fnum, 32)};
-      return ValueCategory(
-          builder.create<mlir::LLVM::GEPOp>(
-              loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-              lhs_v, vec),
-          /*isReference*/ true);
-    }
-
-    llvm::errs() << "lhs_v: " << lhs_v << "\n";
-    U->dump();
-    assert(0 && "unhandled real");
+    return getComplexPartRef(loc, sub, fnum);
   }
   default: {
     U->dump();
@@ -2724,6 +2700,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       return ValueCategory(
           builder.create<arith::MulFOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
+    } else if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex mult");
     } else {
       return ValueCategory(
           builder.create<arith::MulIOp>(loc, lhs_v, rhs.getValue(loc, builder)),
@@ -2915,6 +2893,13 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       }
       assert(rhsV.getType() == prev.getType());
       result = builder.create<AddFOp>(loc, prev, rhsV);
+    } else if (isa<clang::ComplexType>(BO->getType())) {
+      mlir::Value rhsV = rhs.getValue(loc, builder);
+      mlir::Value real = builder.create<AddFOp>(
+          loc, getComplexPart(loc, prev, 0), getComplexPart(loc, rhsV, 0));
+      mlir::Value imag = builder.create<AddFOp>(
+          loc, getComplexPart(loc, prev, 1), getComplexPart(loc, rhsV, 1));
+      result = createComplexFloat(loc, real, imag);
     } else if (auto pt =
                    prev.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       result = builder.create<LLVM::GEPOp>(
@@ -3003,6 +2988,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       }
       assert(right.getType() == prev.getType());
       result = builder.create<MulFOp>(loc, prev, right);
+    } else if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex mult");
     } else {
       result = builder.create<MulIOp>(loc, prev, rhs.getValue(loc, builder));
     }
@@ -3872,11 +3859,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return prev;
 
     auto lres = prev.getValue(loc, builder);
-    if (!prev.isReference) {
-      E->dump();
-      lres.dump();
-    }
-    assert(prev.isReference);
+    //if (!prev.isReference) {
+    //  E->dump();
+    //  lres.dump();
+    //}
+    //assert(prev.isReference);
     return ValueCategory(lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
@@ -4041,9 +4028,9 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       mlir::Value scalar = getComplexPart(loc, complex, fnum);
       assert(scalar);
       if (prevScalarTy.getWidth() < postScalarTy.getWidth()) {
-        return builder.create<arith::ExtFOp>(loc, postTy, scalar);
+        return builder.create<arith::ExtFOp>(loc, postScalarTy, scalar);
       } else {
-        return builder.create<arith::TruncFOp>(loc, postTy, scalar);
+        return builder.create<arith::TruncFOp>(loc, postScalarTy, scalar);
       }
     };
     auto real = castScalar(complex, 0);
@@ -5208,7 +5195,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (memRefABI && allowMerge) {
       assert(!assumeRef);
       if (implicitRef)
-        *implicitRef = true;
+        *implicitRef = false;
       return mlir::MemRefType::get(2, subType);
     }
     mlir::Type types[2] = {subType, subType};
@@ -5452,7 +5439,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       }
     }
 
-    if (isa<clang::VectorType>(PTT) || isa<clang::ComplexType>(PTT)) {
+    if (isa<clang::VectorType>(PTT)) {
       if (subType.isa<MemRefType>()) {
         assert(subRef);
         auto mt = subType.cast<MemRefType>();
