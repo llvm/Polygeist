@@ -2745,16 +2745,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
   }
   case clang::BinaryOperator::Opcode::BO_Add: {
-    auto lhs_v = lhs.getValue(loc, builder);
-    auto rhs_v = rhs.getValue(loc, builder);
     if (isa<clang::ComplexType>(BO->getType())) {
       mlir::Value real = builder.create<AddFOp>(
-          loc, getComplexPart(loc, lhs_v, 0), getComplexPart(loc, rhs_v, 0));
+          loc, getComplexPart(loc, lhs.val, 0), getComplexPart(loc, rhs.val, 0));
       mlir::Value imag = builder.create<AddFOp>(
-          loc, getComplexPart(loc, lhs_v, 1), getComplexPart(loc, rhs_v, 1));
+          loc, getComplexPart(loc, lhs.val, 1), getComplexPart(loc, rhs.val, 1));
       return ValueCategory(createComplexFloat(loc, real, imag),
                            /*isReference*/ true);
-    } else if (lhs_v.getType().isa<mlir::FloatType>()) {
+    }
+
+    auto lhs_v = lhs.getValue(loc, builder);
+    auto rhs_v = rhs.getValue(loc, builder);
+    if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
     } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {

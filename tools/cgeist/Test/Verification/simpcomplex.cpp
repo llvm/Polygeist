@@ -3,6 +3,19 @@ struct mc {
     float r, i;
 };
 
+void hmm(mc a) {
+    a.r = 10;
+}
+float um() {
+    mc a;
+    a.r = 50;
+    hmm(a);
+    return a.r;
+}
+int main() {
+    return (int)um();
+}
+
 void foo1() {
     mc a;
 }
@@ -47,3 +60,17 @@ float imag_literal() {
     __complex__ float b = 10.0f + 3.0fi;
     return __imag__ b + __real__ b;
 }
+
+float add() {
+    __complex__ float a = 10.0f + 5.0fi;
+    __complex__ float b = 30.0f + 2.0fi;
+    __complex__ float c = a + b;
+    return __imag__ c + __real__ c;
+}
+
+//float addassign() {
+//    __complex__ float a = 10.0f + 5.0fi;
+//    __complex__ float c = 30.0f + 2.0fi;
+//    c += a;
+//    return __imag__ c + __real__ c;
+//}
