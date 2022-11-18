@@ -1,3 +1,4 @@
+// TODO run lines for both struct-abi=0 and =1
 
 struct mc {
     float r, i;
@@ -56,17 +57,22 @@ double cast(__complex__ float a) {
     __complex__ double b = a;
     return __real__ b + __imag__ b;
 }
-float imag_literal() {
-    __complex__ float b = 10.0f + 3.0fi;
-    return __imag__ b + __real__ b;
-}
-
-float add() {
-    __complex__ float a = 10.0f + 5.0fi;
-    __complex__ float b = 30.0f + 2.0fi;
-    __complex__ float c = a + b;
-    return __imag__ c + __real__ c;
-}
+//// TODO actually incorect
+//float imag_literal() {
+//    __complex__ float b = 10.0f + 3.0fi;
+//    return __imag__ b + __real__ b;
+//}
+//float imag_literal2() {
+//    __complex__ float b = 3.0fi;
+//    return __imag__ b + __real__ b;
+//}
+//
+//float add() {
+//    __complex__ float a = 10.0f + 5.0fi;
+//    __complex__ float b = 30.0f + 2.0fi;
+//    __complex__ float c = a + b;
+//    return __imag__ c + __real__ c;
+//}
 
 //float addassign() {
 //    __complex__ float a = 10.0f + 5.0fi;
