@@ -18,6 +18,8 @@
 # vim swap files
 .*.sw?
 .sw?
+# emacs swap files
+\#*\#
 #OS X specific files.
 .DS_store
 # Tests
@@ -27,6 +29,8 @@
 *.inc
 *.cmake
 *.a
+# gdb local history files
+.gdb_history
 ##
 
 # Ignore the user specified CMake presets in subproject directories.
