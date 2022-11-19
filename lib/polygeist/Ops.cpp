@@ -3551,8 +3551,9 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
 
     auto newIf =
         rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(), iset,
-                                    op.getOperands(), /*hasElse*/ false);
+                                    op.getOperands(), /*hasElse*/ true);
     rewriter.eraseBlock(newIf.getThenBlock());
+    rewriter.eraseBlock(newIf.getElseBlock());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().begin());
     rewriter.inlineRegionBefore(op.getElseRegion(), newIf.getElseRegion(),
@@ -3627,8 +3628,9 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
 
     AffineIfOp combinedIf = rewriter.create<AffineIfOp>(
         nextIf.getLoc(), mergedTypes, prevIf.getIntegerSet(),
-        prevIf.getOperands(), /*hasElse=*/false);
+        prevIf.getOperands(), /*hasElse=*/true);
     rewriter.eraseBlock(&combinedIf.getThenRegion().back());
+    rewriter.eraseBlock(&combinedIf.getElseRegion().back());
 
     rewriter.inlineRegionBefore(prevIf.getThenRegion(),
                                 combinedIf.getThenRegion(),
