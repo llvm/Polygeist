@@ -354,6 +354,11 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       else if (splitDims == 2)
         // TODO
         assert(0);
+      else if (splitDims == 3)
+        // TODO
+        assert(0);
+      else
+        assert(0);
       newBlockDims.insert(newBlockDims.end(), blockDims.begin(),
                           blockDims.end());
 
@@ -401,6 +406,11 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       for (unsigned i = 0; i < splitDims; i++) {
         // threadIndex = blockIdx * blockDim + threadIdx
         // threadIndex < original upperBound
+        //
+        // Currently we do not care if the split dim correspond to the same
+        // block/thread index, so we might do something like blockIdx.x *
+        // blockDim.x + threadIdx.y, should we try to rearrange dims to match
+        // them?
         auto mul = rewriter.create<arith::MulIOp>(
             loc, gridPop.getBody()->getArgument(gi[i]), blockDims[gi[i]]);
         auto threadId = rewriter.create<arith::AddIOp>(
