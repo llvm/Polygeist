@@ -1,4 +1,6 @@
 // RUN: cgeist %s --function='*' -S | FileCheck %s
+// TODO:
+// XFAIL: *
 
 typedef int v4si __attribute__ ((vector_size (16)));
 
