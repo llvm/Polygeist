@@ -25,52 +25,56 @@ module {
   llvm.func @_Z9somethingPii(!llvm.ptr<i32>, i32) attributes {sym_visibility = "private"}
 }
 
-// CHECK:   llvm.func @_Z3runP11CUstream_stPii(%arg0: !llvm.ptr<struct<()>>, %arg1: !llvm.ptr<i32>, %arg2: i32) {
-// CHECK-NEXT:     %0 = llvm.mlir.constant(0 : index) : i64
-// CHECK-NEXT:     %1 = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:     %2 = llvm.mlir.constant(20 : index) : i64
-// CHECK-NEXT:     %3 = llvm.mlir.constant(10 : index) : i64
-// CHECK-NEXT:     %4 = llvm.bitcast %arg0 : !llvm.ptr<struct<()>> to !llvm.ptr<i8>
-// CHECK-NEXT:     %5 = llvm.bitcast %4 : !llvm.ptr<i8> to !llvm.ptr<i8>
-// CHECK-NEXT:     %6 = builtin.unrealized_conversion_cast %5 : !llvm.ptr<i8> to memref<?xi8>
-// CHECK-NEXT:     %7 = llvm.mlir.constant(16 : i64) : i64
-// CHECK-NEXT:     %8 = llvm.call @malloc(%7) : (i64) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %9 = llvm.bitcast %8 : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i32>, i32)>>
-// CHECK-NEXT:     %10 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %11 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %12 = llvm.getelementptr %9[%10, 0] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<ptr<i32>>
-// CHECK-NEXT:     llvm.store %arg1, %12 : !llvm.ptr<ptr<i32>>
-// CHECK-NEXT:     %13 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %14 = llvm.mlir.constant(1 : i32) : i32
-// CHECK-NEXT:     %15 = llvm.getelementptr %9[%13, 1] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %arg2, %15 : !llvm.ptr<i32>
-// CHECK-NEXT:     %16 = llvm.bitcast %9 : !llvm.ptr<struct<(ptr<i32>, i32)>> to !llvm.ptr<i8>
-// CHECK-NEXT:     %17 = llvm.mlir.addressof @kernelbody.{{[0-9\.]+}} : !llvm.ptr<func<void (ptr<i8>)>>
-// CHECK-NEXT:     %18 = llvm.bitcast %5 : !llvm.ptr<i8> to !llvm.ptr<i8>
-// CHECK-NEXT:     llvm.call @fake_cuda_dispatch(%16, %17, %18) : (!llvm.ptr<i8>, !llvm.ptr<func<void (ptr<i8>)>>, !llvm.ptr<i8>) -> ()
-// CHECK-NEXT:     llvm.return
-// CHECK-NEXT:   }
-// CHECK:   llvm.func @kernelbody.{{[0-9\.]+}}(%arg0: !llvm.ptr<i8>) {
-// CHECK-NEXT:     %0 = llvm.mlir.constant(0 : index) : i64
-// CHECK-NEXT:     %1 = llvm.mlir.constant(10 : index) : i64
-// CHECK-NEXT:     %2 = llvm.mlir.constant(20 : index) : i64
-// CHECK-NEXT:     %3 = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:     %4 = llvm.bitcast %arg0 : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i32>, i32)>>
-// CHECK-NEXT:     %5 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %6 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %7 = llvm.getelementptr %4[%5, 0] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<ptr<i32>>
-// CHECK-NEXT:     %8 = llvm.load %7 : !llvm.ptr<ptr<i32>>
-// CHECK-NEXT:     %9 = llvm.mlir.constant(0 : i32) : i32
-// CHECK-NEXT:     %10 = llvm.mlir.constant(1 : i32) : i32
-// CHECK-NEXT:     %11 = llvm.getelementptr %4[%9, 1] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %12 = llvm.load %11 : !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.call @free(%arg0) : (!llvm.ptr<i8>) -> ()
-// CHECK-NEXT:     omp.parallel   {
-// CHECK-NEXT:       omp.wsloop   for  (%arg1, %arg2) : i64 = (%0, %0) to (%1, %2) step (%3, %3) {
-// CHECK-NEXT:         llvm.call @_Z9somethingPii(%8, %12) : (!llvm.ptr<i32>, i32) -> ()
-// CHECK-NEXT:         omp.yield
-// CHECK-NEXT:       }
-// CHECK-NEXT:       omp.terminator
-// CHECK-NEXT:     }
-// CHECK-NEXT:     llvm.return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   llvm.func @_Z3runP11CUstream_stPii(
+// CHECK-SAME:                                       %[[VAL_0:.*]]: !llvm.ptr<struct<()>>,
+// CHECK-SAME:                                       %[[VAL_1:.*]]: !llvm.ptr<i32>,
+// CHECK-SAME:                                       %[[VAL_2:.*]]: i32) {
+// CHECK-NEXT:           %[[VAL_3:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-NEXT:           %[[VAL_4:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-NEXT:           %[[VAL_5:.*]] = llvm.mlir.constant(20 : index) : i64
+// CHECK-NEXT:           %[[VAL_6:.*]] = llvm.mlir.constant(10 : index) : i64
+// CHECK-NEXT:           %[[VAL_7:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<struct<()>> to !llvm.ptr<i8>
+// CHECK-NEXT:           %[[VAL_8:.*]] = llvm.bitcast %[[VAL_7]] : !llvm.ptr<i8> to !llvm.ptr<i8>
+// CHECK-NEXT:           %[[VAL_9:.*]] = builtin.unrealized_conversion_cast %[[VAL_8]] : !llvm.ptr<i8> to memref<?xi8>
+// CHECK-NEXT:           %[[VAL_10:.*]] = llvm.mlir.constant(16 : i64) : i64
+// CHECK-NEXT:           %[[VAL_11:.*]] = llvm.call @malloc(%[[VAL_10]]) : (i64) -> !llvm.ptr<i8>
+// CHECK-NEXT:           %[[VAL_12:.*]] = llvm.bitcast %[[VAL_11]] : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i32>, i32)>>
+// CHECK-NEXT:           %[[VAL_13:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_14:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_15:.*]] = llvm.getelementptr %[[VAL_12]]{{\[}}%[[VAL_13]], 0] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<ptr<i32>>
+// CHECK-NEXT:           llvm.store %[[VAL_1]], %[[VAL_15]] : !llvm.ptr<ptr<i32>>
+// CHECK-NEXT:           %[[VAL_16:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_17:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:           %[[VAL_18:.*]] = llvm.getelementptr %[[VAL_12]]{{\[}}%[[VAL_16]], 1] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:           llvm.store %[[VAL_2]], %[[VAL_18]] : !llvm.ptr<i32>
+// CHECK-NEXT:           %[[VAL_19:.*]] = llvm.bitcast %[[VAL_12]] : !llvm.ptr<struct<(ptr<i32>, i32)>> to !llvm.ptr<i8>
+// CHECK-NEXT:           %[[VAL_20:.*]] = llvm.mlir.addressof @kernelbody.{{[0-9\.]+}} : !llvm.ptr<func<void (ptr<i8>)>>
+// CHECK-NEXT:           %[[VAL_21:.*]] = llvm.bitcast %[[VAL_8]] : !llvm.ptr<i8> to !llvm.ptr<i8>
+// CHECK-NEXT:           llvm.call @fake_cuda_dispatch(%[[VAL_19]], %[[VAL_20]], %[[VAL_21]]) : (!llvm.ptr<i8>, !llvm.ptr<func<void (ptr<i8>)>>, !llvm.ptr<i8>) -> ()
+// CHECK-NEXT:           llvm.return
+
+// CHECK-LABEL:   llvm.func @kernelbody.{{[0-9\.]+}}(
+// CHECK-SAME:                                            %[[VAL_0:.*]]: !llvm.ptr<i8>) {
+// CHECK-NEXT:           %[[VAL_1:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-NEXT:           %[[VAL_2:.*]] = llvm.mlir.constant(10 : index) : i64
+// CHECK-NEXT:           %[[VAL_3:.*]] = llvm.mlir.constant(20 : index) : i64
+// CHECK-NEXT:           %[[VAL_4:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-NEXT:           %[[VAL_5:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i32>, i32)>>
+// CHECK-NEXT:           %[[VAL_6:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_7:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_8:.*]] = llvm.getelementptr %[[VAL_5]]{{\[}}%[[VAL_6]], 0] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<ptr<i32>>
+// CHECK-NEXT:           %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr<ptr<i32>>
+// CHECK-NEXT:           %[[VAL_10:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-NEXT:           %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:           %[[VAL_12:.*]] = llvm.getelementptr %[[VAL_5]]{{\[}}%[[VAL_10]], 1] : (!llvm.ptr<struct<(ptr<i32>, i32)>>, i32) -> !llvm.ptr<i32>
+// CHECK-NEXT:           %[[VAL_13:.*]] = llvm.load %[[VAL_12]] : !llvm.ptr<i32>
+// CHECK-NEXT:           llvm.call @free(%[[VAL_0]]) : (!llvm.ptr<i8>) -> ()
+// CHECK-NEXT:           omp.parallel   {
+// CHECK-NEXT:             omp.wsloop   for  (%[[VAL_14:.*]], %[[VAL_15:.*]]) : i64 = (%[[VAL_1]], %[[VAL_1]]) to (%[[VAL_2]], %[[VAL_3]]) step (%[[VAL_4]], %[[VAL_4]]) {
+// CHECK-NEXT:               llvm.call @_Z9somethingPii(%[[VAL_9]], %[[VAL_13]]) : (!llvm.ptr<i32>, i32) -> ()
+// CHECK-NEXT:               omp.yield
+// CHECK-NEXT:             }
+// CHECK-NEXT:             omp.terminator
+// CHECK-NEXT:           }
+// CHECK-NEXT:           llvm.return
+
