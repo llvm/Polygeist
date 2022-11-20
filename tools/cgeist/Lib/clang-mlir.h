@@ -233,7 +233,7 @@ public:
   ValueCategory createComplexFloat(mlir::Location loc, mlir::Value real,
                                    mlir::Value imag, clang::QualType cty);
   mlir::Value getComplexPart(mlir::Location loc, mlir::Value complex, int fnum);
-    ValueCategory getComplexPartRef(mlir::Location loc, mlir::Value complex,
+  ValueCategory getComplexPartRef(mlir::Location loc, mlir::Value complex,
                                   int fnum);
 
   ValueCategory VisitDeclStmt(clang::DeclStmt *decl);

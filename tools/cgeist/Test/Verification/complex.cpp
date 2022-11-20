@@ -1,4 +1,5 @@
 // RUN: cgeist %s --function='*' -S | FileCheck %s
+// RUN: cgeist %s --function='*' --struct-abi=0 -S | FileCheck %s --check-prefix=STRUCT
 
 int foo() {
     __complex__ float a = 1.0i + 30.0f;

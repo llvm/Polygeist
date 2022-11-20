@@ -1,4 +1,5 @@
-// TODO run lines for both struct-abi=0 and =1
+// RUN: cgeist %s --function='*' -S | FileCheck %s
+// RUN: cgeist %s --struct-abi=0 --function='*' -S | FileCheck %s --check-prefix=STRUCT
 
 struct mc {
     float r, i;
@@ -57,7 +58,7 @@ double cast(__complex__ float a) {
     __complex__ double b = a;
     return __real__ b + __imag__ b;
 }
-//// TODO actually incorect
+
 //float imag_literal() {
 //    __complex__ float b = 10.0f + 3.0fi;
 //    return __imag__ b + __real__ b;
