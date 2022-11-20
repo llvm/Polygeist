@@ -1,13 +1,15 @@
 // RUN: cgeist %s --function='*' -S | FileCheck %s
+// TODO:
+// XFAIL: *
 
-struct IntDivider {
+struct Int {
   int divisor;
 };
 
-struct OffsetCalculator {
-  IntDivider sizes_[4];
+struct IntArray {
+  Int sizes_[4];
 };
 
-OffsetCalculator foo(OffsetCalculator &o) {
+IntArray foo(IntArray &o) {
     return o;
 }
