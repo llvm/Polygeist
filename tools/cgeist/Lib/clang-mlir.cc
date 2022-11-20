@@ -77,15 +77,14 @@ ValueCategory MLIRScanner::createComplexFloat(mlir::Location loc,
   mlir::Type mt;
   OpBuilder abuilder(builder.getContext());
   abuilder.setInsertionPointToStart(allocationScope);
-  mlir::Value alloc;
+  mlir::Value result;
   if (auto MT = elty.dyn_cast<MemRefType>()) {
     mt = elty;
     elty = MT.getElementType();
     ref = true;
-    alloc = abuilder.create<mlir::memref::AllocaOp>(loc, MT);
+    result = abuilder.create<mlir::memref::AllocaOp>(loc, MT);
   } else {
     ref = false;
-    alloc = nullptr;
   }
 
   if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
@@ -93,34 +92,19 @@ ValueCategory MLIRScanner::createComplexFloat(mlir::Location loc,
     str = builder.create<LLVM::InsertValueOp>(loc, ST, str, real, builder.getDenseI64ArrayAttr(0));
     str = builder.create<LLVM::InsertValueOp>(loc, ST, str, imag, builder.getDenseI64ArrayAttr(1));
     if (ref) {
-      builder.create<mlir::memref::StoreOp>(loc, str, alloc, getConstantIndex(0));
+      builder.create<mlir::memref::StoreOp>(loc, str, result, getConstantIndex(0));
     } else {
-      alloc = str;
+      result = str;
     }
   } else {
     builder.create<mlir::memref::StoreOp>(
-      loc, real, alloc, getConstantIndex(0));
+      loc, real, result, getConstantIndex(0));
     builder.create<mlir::memref::StoreOp>(
-      loc, imag, alloc, getConstantIndex(1));
+      loc, imag, result, getConstantIndex(1));
   }
-  return ValueCategory(alloc, /*isReference*/ ref);
-
-  /*
-  int64_t shape[2] = {1, 2};
-  auto alloc = builder.create<mlir::memref::AllocaOp>(
-      loc, mlir::MemRefType::get(shape, real.getType()));
-  auto idx0 = getConstantIndex(0);
-  auto idx1 = getConstantIndex(1);
-  SmallVector<mlir::Value, 2> i0 = {idx0, idx0};
-  SmallVector<mlir::Value, 2> i1 = {idx0, idx1};
-  builder.create<mlir::memref::StoreOp>(loc, real, alloc, i0);
-  builder.create<mlir::memref::StoreOp>(loc, imag, alloc, i1);
-  return alloc;
-  */
+  return ValueCategory(result, /*isReference*/ ref);
 }
 
-/// memref<memref<2xfty>> -> memref<fty>, we should be able to do this without
-/// any loads, as with gep
 ValueCategory MLIRScanner::getComplexPartRef(mlir::Location loc,
                                              mlir::Value val, int fnum) {
   if (auto MT = val.getType().dyn_cast<MemRefType>()) {
@@ -700,45 +684,24 @@ ValueCategory MLIRScanner::VisitFloatingLiteral(clang::FloatingLiteral *expr) {
 ValueCategory
 MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
   auto loc = getMLIRLocation(expr->getExprLoc());
-  auto mt = getMLIRType(expr->getType()).cast<MemRefType>();
-  auto elty = mt.getElementType();
+  auto convertedType = getMLIRType(expr->getType());
   mlir::FloatType fty;
-  if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
+  if (auto mt = convertedType.dyn_cast<MemRefType>()) {
+    auto elty = mt.getElementType();
+    if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
+      fty = ST.getBody()[0].cast<FloatType>();
+    } else {
+      fty = elty.cast<FloatType>();
+    }
+  } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(convertedType)) {
     fty = ST.getBody()[0].cast<FloatType>();
   } else {
-    fty = elty.cast<FloatType>();
+    assert(0 && "unexpected complex type\n");
   }
+
   auto zero = builder.create<ConstantFloatOp>(loc, APFloat(fty.getFloatSemantics(), "0"), fty);
   auto imag = Visit(expr->getSubExpr()).getValue(loc, builder);
   return createComplexFloat(loc, zero, imag, expr->getType());
-
-  /*
-  auto mt = getMLIRType(expr->getType()).cast<MemRefType>();
-  auto elty = mt.getElementType();
-  OpBuilder abuilder(builder.getContext());
-  abuilder.setInsertionPointToStart(allocationScope);
-  auto alloc = abuilder.create<mlir::memref::AllocaOp>(iloc, mt);
-  auto imag = Visit(expr->getSubExpr()).getValue(iloc, builder);
-
-  if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
-    mlir::Value str = builder.create<LLVM::UndefOp>(iloc, ST);
-    auto fty = ST.getBody()[0].cast<FloatType>();
-    auto zero = builder.create<ConstantFloatOp>(iloc, APFloat(fty.getFloatSemantics(), "0"), fty);
-    str = builder.create<LLVM::InsertValueOp>(iloc, ST, str, zero, builder.getDenseI64ArrayAttr(0));
-    str = builder.create<LLVM::InsertValueOp>(iloc, ST, str, imag, builder.getDenseI64ArrayAttr(1));
-    builder.create<mlir::memref::StoreOp>(iloc, str, alloc, getConstantIndex(0));
-  } else {
-    auto ty = elty.cast<FloatType>();
-    builder.create<mlir::memref::StoreOp>(
-      iloc,
-      builder.create<ConstantFloatOp>(iloc,
-                                      APFloat(ty.getFloatSemantics(), "0"), ty),
-      alloc, getConstantIndex(0));
-    builder.create<mlir::memref::StoreOp>(
-      iloc, imag, alloc,
-      getConstantIndex(1));
-  }
-  */
 }
 
 ValueCategory

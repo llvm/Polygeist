@@ -1,5 +1,5 @@
-// RUN: cgeist %s --function='*' -S | FileCheck %s
 // RUN: cgeist %s --struct-abi=0 --function='*' -S | FileCheck %s --check-prefix=STRUCT
+// COM: we dont support this yet RUN: cgeist %s --function='*' -S | FileCheck %s
 
 struct mc {
     float r, i;
@@ -59,25 +59,35 @@ double cast(__complex__ float a) {
     return __real__ b + __imag__ b;
 }
 
-//float imag_literal() {
-//    __complex__ float b = 10.0f + 3.0fi;
-//    return __imag__ b + __real__ b;
-//}
-//float imag_literal2() {
-//    __complex__ float b = 3.0fi;
-//    return __imag__ b + __real__ b;
-//}
-//
-//float add() {
-//    __complex__ float a = 10.0f + 5.0fi;
-//    __complex__ float b = 30.0f + 2.0fi;
-//    __complex__ float c = a + b;
-//    return __imag__ c + __real__ c;
-//}
-
-//float addassign() {
-//    __complex__ float a = 10.0f + 5.0fi;
-//    __complex__ float c = 30.0f + 2.0fi;
-//    c += a;
-//    return __imag__ c + __real__ c;
-//}
+float imag_literal() {
+    __complex__ float b = 10.0f + 3.0fi;
+    return __imag__ b + __real__ b;
+}
+float imag_literal2() {
+    __complex__ float b = 3.0fi;
+    return __imag__ b + __real__ b;
+}
+float add() {
+    __complex__ float a = 10.0f + 5.0fi;
+    __complex__ float b = 30.0f + 2.0fi;
+    __complex__ float c = a + b;
+    return __imag__ c + __real__ c;
+}
+float addassign() {
+    __complex__ float a = 10.0f + 5.0fi;
+    __complex__ float c = 30.0f + 2.0fi;
+    c += a;
+    return __imag__ c + __real__ c;
+}
+class mcomplex
+{
+    public:
+        mcomplex(double __r, double __i)
+        : _M_value{ __r, __i } {}
+    private:
+        __complex__ double _M_value;
+};
+mcomplex *baz() {
+    mcomplex *a = new mcomplex(1, 30);
+    return a;
+}
