@@ -40,8 +40,6 @@
 using namespace mlir;
 using namespace polygeist;
 
-mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
-                       mlir::Location loc, mlir::Value arg);
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
 /// Conversion pattern that transforms a subview op into:
@@ -563,9 +561,11 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
                                                    ST));
-        mlir::Value alloc = rewriter.create<LLVM::BitcastOp>(
-            loc, LLVM::LLVMPointerType::get(ST),
-            callMalloc(rewriter, module, loc, arg));
+        auto mallocFunc = LLVM::lookupOrCreateMallocFn(module, getIndexType());
+        mlir::Value alloc =
+            rewriter.create<LLVM::CallOp>(loc, mallocFunc, arg).getResult();
+        alloc = rewriter.create<LLVM::BitcastOp>(
+            loc, LLVM::LLVMPointerType::get(ST), alloc);
         rewriter.setInsertionPoint(execute);
         for (auto idx : llvm::enumerate(crossing)) {
 
@@ -584,8 +584,14 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
       vals.push_back(
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func));
       for (auto dep : execute.getDependencies()) {
-        auto ctx = dep.getDefiningOp<polygeist::StreamToTokenOp>();
-        vals.push_back(ctx.getSource());
+        auto src = dep.getDefiningOp<polygeist::StreamToTokenOp>().getSource();
+        if (auto MT = src.getType().dyn_cast<MemRefType>())
+          src = rewriter.create<polygeist::Memref2PointerOp>(
+              dep.getDefiningOp()->getLoc(),
+              LLVM::LLVMPointerType::get(MT.getElementType(),
+                                         MT.getMemorySpaceAsInt()),
+              src);
+        vals.push_back(src);
       }
       assert(vals.size() == 3);
 
@@ -1394,7 +1400,7 @@ struct ConvertPolygeistToLLVMPass
           */
 
       if (i == 1) {
-        target.addIllegalOp<UnrealizedConversionCastOp>();
+        // target.addIllegalOp<UnrealizedConversionCastOp>();
         patterns.add<AsyncOpLowering>(converter);
         patterns.add<StreamToTokenOpLowering>(converter);
       }
