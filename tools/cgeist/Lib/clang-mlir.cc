@@ -2743,13 +2743,14 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return fixInteger(res);
   }
   case clang::BinaryOperator::Opcode::BO_Mul: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex mult");
+    }
     auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
           builder.create<arith::MulFOp>(loc, lhs_v, rhs.getValue(loc, builder)),
           /*isReference*/ false);
-    } else if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex mult");
     } else {
       return ValueCategory(
           builder.create<arith::MulIOp>(loc, lhs_v, rhs.getValue(loc, builder)),
@@ -2757,6 +2758,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
   }
   case clang::BinaryOperator::Opcode::BO_Div: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex div");
+    }
     auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(
@@ -2836,6 +2840,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
   }
   case clang::BinaryOperator::Opcode::BO_Sub: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex sub");
+    }
     auto lhs_v = lhs.getValue(loc, builder);
     auto rhs_v = rhs.getValue(loc, builder);
     if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
@@ -2990,6 +2997,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_SubAssign: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex sub");
+    }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
 
@@ -3019,6 +3029,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_MulAssign: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex mult");
+    }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
 
@@ -3041,8 +3054,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       }
       assert(right.getType() == prev.getType());
       result = builder.create<MulFOp>(loc, prev, right);
-    } else if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex mult");
     } else {
       result = builder.create<MulIOp>(loc, prev, rhs.getValue(loc, builder));
     }
@@ -3050,6 +3061,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     return lhs;
   }
   case clang::BinaryOperator::Opcode::BO_DivAssign: {
+    if (isa<clang::ComplexType>(BO->getType())) {
+      assert(0 && "Unhandled complex div");
+    }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
 
