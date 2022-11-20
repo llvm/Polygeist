@@ -89,18 +89,21 @@ ValueCategory MLIRScanner::createComplexFloat(mlir::Location loc,
 
   if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
     mlir::Value str = builder.create<LLVM::UndefOp>(loc, ST);
-    str = builder.create<LLVM::InsertValueOp>(loc, ST, str, real, builder.getDenseI64ArrayAttr(0));
-    str = builder.create<LLVM::InsertValueOp>(loc, ST, str, imag, builder.getDenseI64ArrayAttr(1));
+    str = builder.create<LLVM::InsertValueOp>(loc, ST, str, real,
+                                              builder.getDenseI64ArrayAttr(0));
+    str = builder.create<LLVM::InsertValueOp>(loc, ST, str, imag,
+                                              builder.getDenseI64ArrayAttr(1));
     if (ref) {
-      builder.create<mlir::memref::StoreOp>(loc, str, result, getConstantIndex(0));
+      builder.create<mlir::memref::StoreOp>(loc, str, result,
+                                            getConstantIndex(0));
     } else {
       result = str;
     }
   } else {
-    builder.create<mlir::memref::StoreOp>(
-      loc, real, result, getConstantIndex(0));
-    builder.create<mlir::memref::StoreOp>(
-      loc, imag, result, getConstantIndex(1));
+    builder.create<mlir::memref::StoreOp>(loc, real, result,
+                                          getConstantIndex(0));
+    builder.create<mlir::memref::StoreOp>(loc, imag, result,
+                                          getConstantIndex(1));
   }
   return ValueCategory(result, /*isReference*/ ref);
 }
@@ -108,43 +111,47 @@ ValueCategory MLIRScanner::createComplexFloat(mlir::Location loc,
 ValueCategory MLIRScanner::getComplexPartRef(mlir::Location loc,
                                              mlir::Value val, int fnum) {
   if (auto MT = val.getType().dyn_cast<MemRefType>()) {
-    if (MT.getElementType().isa<LLVM::LLVMStructType>() && MT.getShape().size() == 1) {
+    if (MT.getElementType().isa<LLVM::LLVMStructType>() &&
+        MT.getShape().size() == 1) {
       val = builder.create<polygeist::Memref2PointerOp>(
-        loc, LLVM::LLVMPointerType::get(MT.getElementType(), MT.getMemorySpaceAsInt()), val);
+          loc,
+          LLVM::LLVMPointerType::get(MT.getElementType(),
+                                     MT.getMemorySpaceAsInt()),
+          val);
     }
   }
   if (auto mt = val.getType().dyn_cast<mlir::MemRefType>()) {
     auto shape = std::vector<int64_t>(mt.getShape());
     assert(shape.size() == 2);
     shape.erase(shape.begin());
-    auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     MemRefLayoutAttrInterface(),
-                                     mt.getMemorySpace());
+    auto mt0 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
     shape[0] = -1;
-    auto mt1 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                     MemRefLayoutAttrInterface(),
-                                     mt.getMemorySpace());
-    mlir::Value si = builder.create<polygeist::SubIndexOp>(loc, mt0, val, getConstantIndex(0));
-    si = builder.create<polygeist::SubIndexOp>(loc, mt1, si, getConstantIndex(fnum));
+    auto mt1 =
+        mlir::MemRefType::get(shape, mt.getElementType(),
+                              MemRefLayoutAttrInterface(), mt.getMemorySpace());
+    mlir::Value si = builder.create<polygeist::SubIndexOp>(loc, mt0, val,
+                                                           getConstantIndex(0));
+    si = builder.create<polygeist::SubIndexOp>(loc, mt1, si,
+                                               getConstantIndex(fnum));
     return ValueCategory(si, /*isReference*/ true);
-  } else if (auto PT =
-             val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+  } else if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     mlir::Type ET;
-    if (auto ST =
-        PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
+    if (auto ST = PT.getElementType().dyn_cast<mlir::LLVM::LLVMStructType>()) {
       ET = ST.getBody()[fnum];
     } else {
       ET = PT.getElementType()
-        .cast<mlir::LLVM::LLVMArrayType>()
-        .getElementType();
+               .cast<mlir::LLVM::LLVMArrayType>()
+               .getElementType();
     }
     mlir::Value vec[2] = {builder.create<ConstantIntOp>(loc, 0, 32),
-    builder.create<ConstantIntOp>(loc, fnum, 32)};
+                          builder.create<ConstantIntOp>(loc, fnum, 32)};
     return ValueCategory(
-      builder.create<mlir::LLVM::GEPOp>(
-        loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
-        val, vec),
-      /*isReference*/ true);
+        builder.create<mlir::LLVM::GEPOp>(
+            loc, mlir::LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+            val, vec),
+        /*isReference*/ true);
   } else {
     assert(0 && "unexpected complex type");
   }
@@ -159,14 +166,14 @@ mlir::Value MLIRScanner::getComplexPart(mlir::Location loc, mlir::Value complex,
     else
       return builder.create<ConstantFloatOp>(
           loc, APFloat::getZero(ft.getFloatSemantics()), ft);
-  } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(complex.getType())) {
+  } else if (auto ST =
+                 dyn_cast<mlir::LLVM::LLVMStructType>(complex.getType())) {
     return builder.create<LLVM::ExtractValueOp>(loc, complex, fnum);
   }
   auto ref = getComplexPartRef(loc, complex, fnum).val;
   if (auto mt = ref.getType().dyn_cast<mlir::MemRefType>()) {
     return builder.create<mlir::memref::LoadOp>(loc, ref);
-  } else if (auto PT =
-             ref.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
+  } else if (auto PT = ref.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     return builder.create<mlir::LLVM::LoadOp>(loc, ref);
   } else {
     assert(0);
@@ -699,7 +706,8 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
     assert(0 && "unexpected complex type\n");
   }
 
-  auto zero = builder.create<ConstantFloatOp>(loc, APFloat(fty.getFloatSemantics(), "0"), fty);
+  auto zero = builder.create<ConstantFloatOp>(
+      loc, APFloat(fty.getFloatSemantics(), "0"), fty);
   auto imag = Visit(expr->getSubExpr()).getValue(loc, builder);
   return createComplexFloat(loc, zero, imag, expr->getType());
 }
@@ -829,8 +837,8 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
             toInit = builder.create<polygeist::Memref2PointerOp>(
                 loc, LLVM::LLVMPointerType::get(ET, mt.getMemorySpaceAsInt()),
                 toInit);
-          //else if (ET.isa<MemRefType>())
-          //  toInit = builder.create<memref::LoadOp>(loc, toInit);
+          // else if (ET.isa<MemRefType>())
+          //   toInit = builder.create<memref::LoadOp>(loc, toInit);
           else
             assert(0);
         }
@@ -2797,10 +2805,12 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Add: {
     if (auto cty = dyn_cast<clang::ComplexType>(BO->getType())) {
-      mlir::Value real = builder.create<AddFOp>(
-          loc, getComplexPart(loc, lhs.val, 0), getComplexPart(loc, rhs.val, 0));
-      mlir::Value imag = builder.create<AddFOp>(
-          loc, getComplexPart(loc, lhs.val, 1), getComplexPart(loc, rhs.val, 1));
+      mlir::Value real =
+          builder.create<AddFOp>(loc, getComplexPart(loc, lhs.val, 0),
+                                 getComplexPart(loc, rhs.val, 0));
+      mlir::Value imag =
+          builder.create<AddFOp>(loc, getComplexPart(loc, lhs.val, 1),
+                                 getComplexPart(loc, rhs.val, 1));
       return createComplexFloat(loc, real, imag, BO->getType());
     }
 
@@ -2944,7 +2954,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
           loc, getComplexPart(loc, prev, 0), getComplexPart(loc, rhsV, 0));
       mlir::Value imag = builder.create<AddFOp>(
           loc, getComplexPart(loc, prev, 1), getComplexPart(loc, rhsV, 1));
-      result = createComplexFloat(loc, real, imag, BO->getType()).getValue(loc, builder);
+      result = createComplexFloat(loc, real, imag, BO->getType())
+                   .getValue(loc, builder);
       lhs.store(loc, builder, result);
       return lhs;
     }
@@ -3657,7 +3668,8 @@ mlir::Value MLIRScanner::GetAddressOfBaseClass(
       } else {
         if (value.getType() != nt) {
           auto anyPT = LLVM::LLVMPointerType::get(builder.getI8Type());
-          value = builder.create<polygeist::Memref2PointerOp>(loc, anyPT, value);
+          value =
+              builder.create<polygeist::Memref2PointerOp>(loc, anyPT, value);
           value = builder.create<polygeist::Pointer2MemrefOp>(loc, nt, value);
         }
       }
@@ -3929,11 +3941,11 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       return prev;
 
     auto lres = prev.getValue(loc, builder);
-    // if (!prev.isReference) {
-    //   E->dump();
-    //   lres.dump();
-    // }
-    // assert(prev.isReference);
+    if (!prev.isReference) {
+      E->dump();
+      lres.dump();
+    }
+    assert(prev.isReference);
     return ValueCategory(lres, /*isReference*/ false);
   }
   case clang::CastKind::CK_IntegralToFloating: {
