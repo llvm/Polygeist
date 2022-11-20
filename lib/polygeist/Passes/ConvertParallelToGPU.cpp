@@ -151,10 +151,10 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
 };
 
 /// TODO implement code motion across the parallel_wrapper, then we would have
-/// two options for parallel_wrappers without any parallel ops in them - we could
-/// either hoist the computation to the cpu with added cpu-gpu copies or we could
-/// run a single iteration gpu kernel - whichever we think might be better for
-/// each that case
+/// two options for parallel_wrappers without any parallel ops in them - we
+/// could either hoist the computation to the cpu with added cpu-gpu copies or
+/// we could run a single iteration gpu kernel - whichever we think might be
+/// better for each that case
 ///
 /// parallel_wrapper {
 ///   A()
@@ -288,9 +288,10 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     const unsigned maxThreads = 1024;
     unsigned threadNum = 1;
     for (int i = totalDims - 1; i >= 0; i--) {
-      // TODO should be any constant
+      // TODO have we covered all possibilities for a constant?
       auto &bound = upperBounds[i];
-      auto cst = dyn_cast<arith::ConstantIndexOp>(bound.getDefiningOp());
+      auto cst =
+          dyn_cast_or_null<arith::ConstantIndexOp>(bound.getDefiningOp());
       unsigned val = cst ? cst.value() : 1;
       if (cst && blockDims.size() < 3 && threadNum * val <= maxThreads) {
         blockDims.insert(blockDims.begin(), bound);
@@ -317,7 +318,9 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     } else if (threadNum < 256) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
-      // TODO what should the number here be
+      //
+      // TODO we have to be careful to not exceed max z dimension in block, it
+      // is lower than the 1024 max for the x and y
 
       unsigned threadsLeft = 1;
       while ((float)threadsLeft <= (float)maxThreads / (float)threadNum)
@@ -326,6 +329,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       threadNum *= threadsLeft;
       assert(threadNum <= maxThreads);
 
+      // TODO what should the number here be
       // How many dims to take from the grid
       splitDims = 1;
       assert(splitDims <= gridDims.size());
@@ -337,7 +341,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       // Which block dims they correspond to
       for (unsigned i = 0; i < splitDims; i++) {
         bi.push_back(i);
-        blockArgId.insert(blockArgId.begin(), gi[i]);
+        blockArgId.insert(blockArgId.begin(), gridArgId[gi[i]]);
       }
 
       SmallVector<Value, 3> newBlockDims;
@@ -391,17 +395,18 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
 
     // For the split dims, calculate the equivalent threadId and map that
     // instead
-    if (splitDims > 1) {
+    if (splitDims > 0) {
       Value cond;
       // SmallVector<Value, 3> threadId(splitDims);
       for (unsigned i = 0; i < splitDims; i++) {
         // threadIndex = blockIdx * blockDim + threadIdx
         // threadIndex < original upperBound
         auto mul = rewriter.create<arith::MulIOp>(
-            loc, gridPop.getBody()->getArgument(gi[i]), blockDims[bi[i]]);
+            loc, gridPop.getBody()->getArgument(gi[i]), blockDims[gi[i]]);
         auto threadId = rewriter.create<arith::AddIOp>(
             loc, mul, blockPop.getBody()->getArgument(bi[i]));
-        mapping.map(pop.getBody()->getArgument(gi[i]), threadId);
+        assert(blockArgId[bi[i]] == gridArgId[gi[i]]);
+        mapping.map(pop.getBody()->getArgument(gridArgId[gi[i]]), threadId);
         auto threadCond = rewriter.create<arith::CmpIOp>(
             loc, arith::CmpIPredicate::ult, threadId,
             upperBounds[gridArgId[gi[i]]]);
