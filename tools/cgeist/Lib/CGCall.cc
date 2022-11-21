@@ -252,8 +252,18 @@ ValueCategory MLIRScanner::CallHelper(
     auto l0 = Visit(CU->getConfig()->getArg(0));
     assert(l0.isReference);
     mlir::Value blocks[3];
+    mlir::Value val = l0.val;
+    if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+      if (MT.getElementType().isa<LLVM::LLVMStructType>() &&
+          MT.getShape().size() == 1) {
+        val = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(MT.getElementType(),
+                                       MT.getMemorySpaceAsInt()),
+            val);
+      }
+    }
     for (int i = 0; i < 3; i++) {
-      mlir::Value val = l0.val;
       if (auto MT = val.getType().dyn_cast<MemRefType>()) {
         mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
         assert(MT.getShape().size() == 2);
@@ -278,8 +288,18 @@ ValueCategory MLIRScanner::CallHelper(
     auto t0 = Visit(CU->getConfig()->getArg(1));
     assert(t0.isReference);
     mlir::Value threads[3];
+    val = t0.val;
+    if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+      if (MT.getElementType().isa<LLVM::LLVMStructType>() &&
+          MT.getShape().size() == 1) {
+        val = builder.create<polygeist::Memref2PointerOp>(
+            loc,
+            LLVM::LLVMPointerType::get(MT.getElementType(),
+                                       MT.getMemorySpaceAsInt()),
+            val);
+      }
+    }
     for (int i = 0; i < 3; i++) {
-      mlir::Value val = t0.val;
       if (auto MT = val.getType().dyn_cast<MemRefType>()) {
         mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
         assert(MT.getShape().size() == 2);
