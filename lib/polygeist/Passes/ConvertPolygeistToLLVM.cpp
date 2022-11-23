@@ -1444,8 +1444,6 @@ struct ConvertPolygeistToLLVMPass
       }
       if (failed(applyPartialConversion(m, target, std::move(patterns))))
         signalPassFailure();
-      llvm::errs() << "After run " << i << ":\n";
-      m->dump();
     }
   }
 };
