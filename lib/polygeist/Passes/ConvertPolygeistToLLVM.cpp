@@ -414,8 +414,8 @@ public:
   LogicalResult
   matchAndRewrite(async::ExecuteOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    async::ExecuteOp newOp =
-        cast<async::ExecuteOp>(rewriter.cloneWithoutRegions(*op.getOperation()));
+    async::ExecuteOp newOp = cast<async::ExecuteOp>(
+        rewriter.cloneWithoutRegions(*op.getOperation()));
     rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
                                 newOp.getRegion().end());
 
@@ -547,8 +547,10 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       // Clone all operations from the execute operation body into the outlined
       // function body.
-      rewriter.cloneRegionBefore(execute.getBodyRegion(), func.getRegion(), func.getRegion().end(), valueMapping);
-      rewriter.create<LLVM::BrOp>(execute.getLoc(), ValueRange(), &*std::next(func.getRegion().begin()));
+      rewriter.cloneRegionBefore(execute.getBodyRegion(), func.getRegion(),
+                                 func.getRegion().end(), valueMapping);
+      rewriter.create<LLVM::BrOp>(execute.getLoc(), ValueRange(),
+                                  &*std::next(func.getRegion().begin()));
       for (Block &b : func.getRegion()) {
         auto term = b.getTerminator();
         if (isa<async::YieldOp>(term)) {
@@ -1432,9 +1434,9 @@ struct ConvertPolygeistToLLVMPass
       if (i == 0) {
         patterns.add<ConvertExecuteOpTypes>(converter);
         target.addDynamicallyLegalOp<async::ExecuteOp>(
-          [&](async::ExecuteOp eo) {
-            return eo->hasAttr("polygeist.handled");
-          });
+            [&](async::ExecuteOp eo) {
+              return eo->hasAttr("polygeist.handled");
+            });
       } else if (i == 1) {
         // target.addIllegalOp<UnrealizedConversionCastOp>();
         patterns.add<StreamToTokenOpLowering>(converter);
