@@ -350,11 +350,12 @@ struct LLVMOpLowering : public ConversionPattern {
       state.addRegion();
 
     Operation *rewritten = rewriter.create(state);
-    rewriter.replaceOp(op, rewritten->getResults());
 
     for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i)
       rewriter.inlineRegionBefore(op->getRegion(i), rewritten->getRegion(i),
                                   rewritten->getRegion(i).begin());
+
+    rewriter.replaceOp(op, rewritten->getResults());
 
     return success();
   }
@@ -407,6 +408,30 @@ static LLVM::LLVMFuncOp addMocCUDAFunction(ModuleOp module, Type streamTy) {
   return resumeOp;
 }
 
+class ConvertExecuteOpTypes : public ConvertOpToLLVMPattern<async::ExecuteOp> {
+public:
+  using ConvertOpToLLVMPattern<async::ExecuteOp>::ConvertOpToLLVMPattern;
+  LogicalResult
+  matchAndRewrite(async::ExecuteOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    async::ExecuteOp newOp =
+        cast<async::ExecuteOp>(rewriter.cloneWithoutRegions(*op.getOperation()));
+    rewriter.inlineRegionBefore(op.getRegion(), newOp.getRegion(),
+                                newOp.getRegion().end());
+
+    // Set operands and update block argument and result types.
+    newOp->setOperands(adaptor.getOperands());
+    newOp->setAttr("polygeist.handled", rewriter.getUnitAttr());
+    if (failed(rewriter.convertRegionTypes(&newOp.getRegion(), *typeConverter)))
+      return failure();
+    for (auto result : newOp.getResults())
+      result.setType(typeConverter->convertType(result.getType()));
+
+    rewriter.replaceOp(op, newOp.getResults());
+    return success();
+  }
+};
+
 struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
   using ConvertOpToLLVMPattern<async::ExecuteOp>::ConvertOpToLLVMPattern;
 
@@ -423,12 +448,12 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     // Make sure that all constants will be inside the outlined async function
     // to reduce the number of function arguments.
-    Region &funcReg = execute.getBodyRegion();
+    Region &execReg = execute.getBodyRegion();
 
     // Collect all outlined function inputs.
     SetVector<mlir::Value> functionInputs;
 
-    getUsedValuesDefinedAbove(execute.getBodyRegion(), funcReg, functionInputs);
+    getUsedValuesDefinedAbove(execute.getBodyRegion(), execReg, functionInputs);
     SmallVector<Value> toErase;
     for (auto a : functionInputs) {
       Operation *op = a.getDefiningOp();
@@ -522,10 +547,15 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
       // Clone all operations from the execute operation body into the outlined
       // function body.
-      for (Operation &op : execute.getBody()->without_terminator())
-        rewriter.clone(op, valueMapping);
-
-      rewriter.create<LLVM::ReturnOp>(execute.getLoc(), ValueRange());
+      rewriter.cloneRegionBefore(execute.getBodyRegion(), func.getRegion(), func.getRegion().end(), valueMapping);
+      rewriter.create<LLVM::BrOp>(execute.getLoc(), ValueRange(), &*std::next(func.getRegion().begin()));
+      for (Block &b : func.getRegion()) {
+        auto term = b.getTerminator();
+        if (isa<async::YieldOp>(term)) {
+          rewriter.setInsertionPointToEnd(&b);
+          rewriter.replaceOpWithNewOp<LLVM::ReturnOp>(term, ValueRange());
+        }
+      }
     }
 
     // Replace the original `async.execute` with a call to outlined function.
@@ -1292,40 +1322,40 @@ struct ConvertPolygeistToLLVMPass
 
     options.dataLayout = llvm::DataLayout(this->dataLayout);
 
-    for (int i = 0; i < 2; i++) {
+    // Define the type converter. Override the default behavior for memrefs if
+    // requested.
+    LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
+    if (useCStyleMemRef) {
+      converter.addConversion([&](MemRefType type) -> Optional<Type> {
+        Type converted = converter.convertType(type.getElementType());
+        if (!converted)
+          return Type();
 
-      // Define the type converter. Override the default behavior for memrefs if
-      // requested.
-      LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
-      if (useCStyleMemRef) {
-        converter.addConversion([&](MemRefType type) -> Optional<Type> {
-          Type converted = converter.convertType(type.getElementType());
-          if (!converted)
-            return Type();
-
-          if (type.getRank() == 0) {
-            return LLVM::LLVMPointerType::get(converted,
-                                              type.getMemorySpaceAsInt());
-          }
-
-          // Only the leading dimension can be dynamic.
-          if (llvm::any_of(type.getShape().drop_front(), ShapedType::isDynamic))
-            return Type();
-
-          // Only identity layout is supported.
-          // TODO: detect the strided layout that is equivalent to identity
-          // given the static part of the shape.
-          if (!type.getLayout().isIdentity())
-            return Type();
-
-          if (type.getRank() > 0) {
-            for (int64_t size : llvm::reverse(type.getShape().drop_front()))
-              converted = LLVM::LLVMArrayType::get(converted, size);
-          }
+        if (type.getRank() == 0) {
           return LLVM::LLVMPointerType::get(converted,
                                             type.getMemorySpaceAsInt());
-        });
-      }
+        }
+
+        // Only the leading dimension can be dynamic.
+        if (llvm::any_of(type.getShape().drop_front(), ShapedType::isDynamic))
+          return Type();
+
+        // Only identity layout is supported.
+        // TODO: detect the strided layout that is equivalent to identity
+        // given the static part of the shape.
+        if (!type.getLayout().isIdentity())
+          return Type();
+
+        if (type.getRank() > 0) {
+          for (int64_t size : llvm::reverse(type.getShape().drop_front()))
+            converted = LLVM::LLVMArrayType::get(converted, size);
+        }
+        return LLVM::LLVMPointerType::get(converted,
+                                          type.getMemorySpaceAsInt());
+      });
+    }
+
+    for (int i = 0; i < 2; i++) {
 
       RewritePatternSet patterns(&getContext());
       populatePolygeistToLLVMConversionPatterns(converter, patterns);
@@ -1399,13 +1429,21 @@ struct ConvertPolygeistToLLVMPass
       op->getResult(0).getType(); });
           */
 
-      if (i == 1) {
+      if (i == 0) {
+        patterns.add<ConvertExecuteOpTypes>(converter);
+        target.addDynamicallyLegalOp<async::ExecuteOp>(
+          [&](async::ExecuteOp eo) {
+            return eo->hasAttr("polygeist.handled");
+          });
+      } else if (i == 1) {
         // target.addIllegalOp<UnrealizedConversionCastOp>();
-        patterns.add<AsyncOpLowering>(converter);
         patterns.add<StreamToTokenOpLowering>(converter);
+        patterns.add<AsyncOpLowering>(converter);
       }
       if (failed(applyPartialConversion(m, target, std::move(patterns))))
         signalPassFailure();
+      llvm::errs() << "After run " << i << ":\n";
+      m->dump();
     }
   }
 };
