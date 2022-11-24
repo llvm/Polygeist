@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
+#include "mlir/../../lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp"
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
@@ -742,7 +743,7 @@ protected:
 };
 
 /// Pattern for lowering automatic stack allocations.
-struct AllocaOpLowering : public AllocLikeOpLowering<memref::AllocaOp> {
+struct CAllocaOpLowering : public AllocLikeOpLowering<memref::AllocaOp> {
 public:
   using AllocLikeOpLowering<memref::AllocaOp>::AllocLikeOpLowering;
 
@@ -768,7 +769,7 @@ public:
 };
 
 /// Pattern for lowering heap allocations via malloc.
-struct AllocOpLowering : public AllocLikeOpLowering<memref::AllocOp> {
+struct CAllocOpLowering : public AllocLikeOpLowering<memref::AllocOp> {
 public:
   using AllocLikeOpLowering<memref::AllocOp>::AllocLikeOpLowering;
 
@@ -822,7 +823,7 @@ public:
 };
 
 /// Pattern for lowering heap deallocations via free.
-struct DeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
+struct CDeallocOpLowering : public ConvertOpToLLVMPattern<memref::DeallocOp> {
 public:
   using ConvertOpToLLVMPattern<memref::DeallocOp>::ConvertOpToLLVMPattern;
 
@@ -953,7 +954,7 @@ public:
 
 /// Base class for patterns lowering memory access operations.
 template <typename OpTy>
-struct LoadStoreOpLowering : public ConvertOpToLLVMPattern<OpTy> {
+struct CLoadStoreOpLowering : public ConvertOpToLLVMPattern<OpTy> {
 protected:
   using ConvertOpToLLVMPattern<OpTy>::ConvertOpToLLVMPattern;
 
@@ -980,9 +981,9 @@ protected:
 };
 
 /// Pattern for lowering a memory load.
-struct LoadOpLowering : public LoadStoreOpLowering<memref::LoadOp> {
+struct CLoadOpLowering : public CLoadStoreOpLowering<memref::LoadOp> {
 public:
-  using LoadStoreOpLowering<memref::LoadOp>::LoadStoreOpLowering;
+  using CLoadStoreOpLowering<memref::LoadOp>::CLoadStoreOpLowering;
 
   LogicalResult
   matchAndRewrite(memref::LoadOp loadOp, OpAdaptor adaptor,
@@ -997,9 +998,9 @@ public:
 };
 
 /// Pattern for lowering a memory store.
-struct StoreOpLowering : public LoadStoreOpLowering<memref::StoreOp> {
+struct CStoreOpLowering : public CLoadStoreOpLowering<memref::StoreOp> {
 public:
-  using LoadStoreOpLowering<memref::StoreOp>::LoadStoreOpLowering;
+  using CLoadStoreOpLowering<memref::StoreOp>::CLoadStoreOpLowering;
 
   LogicalResult
   matchAndRewrite(memref::StoreOp storeOp, OpAdaptor adaptor,
@@ -1281,9 +1282,9 @@ public:
 static void
 populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
                                      LLVMTypeConverter &typeConverter) {
-  patterns.add<AllocaOpLowering, AllocOpLowering, DeallocOpLowering,
-               GetGlobalOpLowering, GlobalOpLowering, LoadOpLowering,
-               StoreOpLowering>(typeConverter);
+  patterns.add<CAllocaOpLowering, CAllocOpLowering, CDeallocOpLowering,
+               GetGlobalOpLowering, GlobalOpLowering, CLoadOpLowering,
+               CStoreOpLowering, AllocaScopeOpLowering>(typeConverter);
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM
@@ -1364,6 +1365,8 @@ struct ConvertPolygeistToLLVMPass
       });
     }
 
+    converter.addConversion([&](async::TokenType type) { return type; });
+
     for (int i = 0; i < 2; i++) {
 
       RewritePatternSet patterns(&getContext());
@@ -1381,8 +1384,6 @@ struct ConvertPolygeistToLLVMPass
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
       arith::populateArithToLLVMConversionPatterns(converter, patterns);
-
-      converter.addConversion([&](async::TokenType type) { return type; });
 
       patterns.add<LLVMOpLowering, GlobalOpTypeConversion,
                    ReturnOpTypeConversion, GetFuncOpConversion>(converter);

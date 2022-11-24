@@ -2435,8 +2435,9 @@ struct AggressiveAllocaScopeInliner
 
   LogicalResult matchAndRewrite(memref::AllocaScopeOp op,
                                 PatternRewriter &rewriter) const override {
-    bool hasPotentialAlloca =
-        op->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
+    auto hasPotentialAlloca = [&]() {
+      return op
+          ->walk<WalkOrder::PreOrder>([&](Operation *alloc) {
             if (alloc == op || isa<LLVM::CallOp>(alloc) ||
                 isa<func::CallOp>(alloc) || isa<omp::BarrierOp>(alloc) ||
                 isa<polygeist::BarrierOp>(alloc))
@@ -2446,17 +2447,20 @@ struct AggressiveAllocaScopeInliner
             if (alloc->hasTrait<OpTrait::AutomaticAllocationScope>())
               return WalkResult::skip();
             return WalkResult::advance();
-          }).wasInterrupted();
+          })
+          .wasInterrupted();
+    };
 
-    // If this contains no potential allocation, it is always legal to
-    // inline. Otherwise, consider two conditions:
-    if (hasPotentialAlloca) {
-      // If the parent isn't an allocation scope, or we are not the last
-      // non-terminator op in the parent, we will extend the lifetime.
-      if (!op->getParentOp()->hasTrait<OpTrait::AutomaticAllocationScope>())
-        return failure();
-      // if (!lastNonTerminatorInRegion(op))
-      //  return failure();
+    // If we are the not last operation in the block
+    if (op->getNextNode() != op->getBlock()->getTerminator()) {
+      // If this contains no potential allocation, it is always legal to
+      // inline. Otherwise, consider two conditions:
+      if (hasPotentialAlloca()) {
+        // If the parent isn't an allocation scope, or we are not the last
+        // non-terminator op in the parent, we will extend the lifetime.
+        if (!op->getParentOp()->hasTrait<OpTrait::AutomaticAllocationScope>())
+          return failure();
+      }
     }
 
     Block *block = &op.getRegion().front();
