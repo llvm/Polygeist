@@ -481,16 +481,18 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 
     // TODO: Derive outlined function name from the parent FuncOp (support
     // multiple nested async.execute operations).
-    auto moduleBuilder =
-        ImplicitLocOpBuilder::atBlockEnd(loc, module.getBody());
-
-    static int off = 0;
-    off++;
-    auto func = moduleBuilder.create<LLVM::LLVMFuncOp>(
-        execute.getLoc(),
-        "kernelbody." + std::to_string((long long int)&execute) + "." +
-            std::to_string(off),
-        funcType);
+    LLVM::LLVMFuncOp func;
+    {
+      OpBuilder::InsertionGuard guard(rewriter);
+      rewriter.setInsertionPointToEnd(module.getBody());
+      static int off = 0;
+      off++;
+      func = rewriter.create<LLVM::LLVMFuncOp>(
+          execute.getLoc(),
+          "kernelbody." + std::to_string((long long int)&execute) + "." +
+              std::to_string(off),
+          funcType);
+    }
 
     rewriter.setInsertionPointToStart(func.addEntryBlock());
     BlockAndValueMapping valueMapping;
