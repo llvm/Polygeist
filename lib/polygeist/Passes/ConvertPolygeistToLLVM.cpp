@@ -408,6 +408,11 @@ static LLVM::LLVMFuncOp addMocCUDAFunction(ModuleOp module, Type streamTy) {
   return resumeOp;
 }
 
+/// In some cases such as scf.for, the blocks generated when it gets lowered
+/// depend on the parent region having already been lowered and having a
+/// converter assigned to it - this pattern assures that execute ops have a
+/// converter becaus they will actually be lowered only after everything else
+/// has been converted to llvm
 class ConvertExecuteOpTypes : public ConvertOpToLLVMPattern<async::ExecuteOp> {
 public:
   using ConvertOpToLLVMPattern<async::ExecuteOp>::ConvertOpToLLVMPattern;
@@ -421,12 +426,12 @@ public:
 
     // Set operands and update block argument and result types.
     newOp->setOperands(adaptor.getOperands());
-    newOp->setAttr("polygeist.handled", rewriter.getUnitAttr());
     if (failed(rewriter.convertRegionTypes(&newOp.getRegion(), *typeConverter)))
       return failure();
     for (auto result : newOp.getResults())
       result.setType(typeConverter->convertType(result.getType()));
 
+    newOp->setAttr("polygeist.handled", rewriter.getUnitAttr());
     rewriter.replaceOp(op, newOp.getResults());
     return success();
   }
