@@ -119,6 +119,8 @@ module {
     }) : () -> ()
     return
   }
+// %a3 gets split into blockIdx.y and threadIdx.x, so use(%a3) becomes use(blockIdx.y x blockDim.x + threadIdx.x)
+//
 // CHECK-LABEL:   func.func @f5(
 // CHECK-SAME:                  %[[VAL_0:.*]]: index,
 // CHECK-SAME:                  %[[VAL_1:.*]]: index) {
@@ -132,7 +134,7 @@ module {
 // CHECK:           gpu.launch blocks(%[[VAL_9:.*]], %[[VAL_10:.*]], %[[VAL_11:.*]]) in (%[[VAL_12:.*]] = %[[VAL_0]], %[[VAL_13:.*]] = %[[VAL_8]], %[[VAL_14:.*]] = %[[VAL_2]]) threads(%[[VAL_15:.*]], %[[VAL_16:.*]], %[[VAL_17:.*]]) in (%[[VAL_18:.*]] = %[[VAL_3]], %[[VAL_19:.*]] = %[[VAL_5]], %[[VAL_20:.*]] = %[[VAL_4]]) {
 // CHECK:             %[[VAL_21:.*]] = gpu.block_id  x
 // CHECK:             %[[VAL_22:.*]] = gpu.block_id  y
-// CHECK:             %[[VAL_23:.*]] = gpu.block_dim  y
+// CHECK:             %[[VAL_23:.*]] = gpu.block_dim  x
 // CHECK:             %[[VAL_24:.*]] = gpu.thread_id  x
 // CHECK:             %[[VAL_25:.*]] = gpu.thread_id  y
 // CHECK:             %[[VAL_26:.*]] = gpu.thread_id  z
