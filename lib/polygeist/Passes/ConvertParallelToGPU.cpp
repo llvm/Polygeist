@@ -585,6 +585,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 /// parallel_wrapper {
 ///   A()
 ///   parallel {
+///     ...
 ///   }
 ///   ...
 /// }
@@ -595,6 +596,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 /// }
 /// parallel_wrapper {
 ///   parallel {
+///     A3()
+///     ...
 ///   }
 ///   ...
 /// }
@@ -613,11 +616,16 @@ struct HandleWrapperRootOps
       return failure();
     }
     SmallVector<Operation *> toHandle;
+    scf::ParallelOp pop;
+    Operation *firstGridOp;
     for (;; ++it) {
       if (&*it == wrapperBody->getTerminator())
         return failure();
-      if (isa<scf::ParallelOp>(&*it))
+      if (auto p = dyn_cast<scf::ParallelOp>(&*it)) {
+        pop = p;
+        firstGridOp = &*pop.getBody()->begin();
         break;
+      }
       toHandle.push_back(&*it);
     }
     if (toHandle.size() == 0) {
@@ -626,30 +634,78 @@ struct HandleWrapperRootOps
     }
     rewriter.setInsertionPoint(wrapper);
     auto newWrapper = rewriter.create<polygeist::ParallelWrapperOp>(loc);
+    BlockAndValueMapping hoistMapping;
+    BlockAndValueMapping splitMapping;
+    BlockAndValueMapping parallelizedMapping;
     for (Operation *op : toHandle) {
       SmallVector<MemoryEffects::EffectInstance> effects;
       collectEffects(op, effects, /*ignoreBarriers*/ false);
+      bool read = hasEffect<MemoryEffects::Read>(effects);
+      bool write = hasEffect<MemoryEffects::Write>(effects);
+      Operation *cloned;
       if (effects.empty()) {
-        rewriter.setInsertionPoint(wrapper);
-        auto cloned = rewriter.clone(*op);
-        rewriter.replaceOp(op, cloned->getResults());
+        rewriter.setInsertionPoint(firstGridOp);
+        rewriter.clone(*op, parallelizedMapping);
+        rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+        rewriter.clone(*op, splitMapping);
+        rewriter.setInsertionPoint(newWrapper);
+        cloned = rewriter.clone(*op, hoistMapping);
       } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
+        // I think this can actually happen if we lower a kernel with a barrier
+        // and shared memory with gridDim = 1 TODO handle
+        cloned = nullptr;
         assert(0 && "what?");
       } else if (hasEffect<MemoryEffects::Free>(effects)) {
+        cloned = nullptr;
         assert(0 && "what?");
-      } else if (hasEffect<MemoryEffects::Read>(effects) || hasEffect<MemoryEffects::Write>(effects)) {
+      } else if (write) {
         rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
-        auto cloned = rewriter.clone(*op);
-        rewriter.replaceOp(op, cloned->getResults());
-        // TODO if we find something that is used in the old wrapper, then we
-        // would have to introduce temporary gpu cache memory to pass it on
-        for (auto &u : llvm::make_early_inc_range(op->getUses())) {
-          auto *user = u.getOwner();
-          assert(user->getParentOfType<polygeist::ParallelWrapperOp>() == newWrapper);
+        cloned = rewriter.clone(*op, splitMapping);
+        // TODO if we find that this has results that get used later in the
+        // final parallel we need to introduce temporary gpu cache memory to
+        // pass it on
+      } else if (read) {
+        // Check if we can safely put the read in the grid parallel op, i.e. the
+        // ops up to and including the next parallel op may not write to where
+        // we read from
+
+        // TODO for nested ops, try to collect all memrefs we load from and do
+        // the checks on them
+        bool canParallelize = true;
+        if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
+          auto loadMemRef = loadOp.getMemref();
+          Operation *op = loadOp;
+          while (op != pop.getOperation()) {
+            op = op->getNextNode();
+            if (mayWriteTo(op, loadMemRef, /*ignoreBarrier*/ false)) {
+              canParallelize = false;
+            }
+          }
+        } else {
+          canParallelize = false;
+        }
+        if (canParallelize) {
+          rewriter.setInsertionPoint(firstGridOp);
+          cloned = rewriter.clone(*op, parallelizedMapping);
+        } else {
+          // TODO we need to introduce temporary gpu cache memory to pass it on
+          assert(0 && "unhandled case");
+          cloned = nullptr;
         }
       } else {
+        cloned = nullptr;
         assert(0 && "are there other effects?");
       }
+      rewriter.replaceOpWithIf(op, cloned->getResults(), [&] (OpOperand &use) {
+        Operation *owner = use.getOwner();
+        while (owner->getBlock() != pop->getBlock())
+          owner = owner->getParentOp();
+        return pop->getPrevNode()->isBeforeInBlock(owner);
+      });
+    }
+    for (Operation *op : llvm::reverse(toHandle)) {
+      assert(op->use_empty());
+      rewriter.eraseOp(op);
     }
     return success();
   }

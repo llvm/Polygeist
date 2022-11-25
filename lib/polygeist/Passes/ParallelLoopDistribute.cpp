@@ -135,8 +135,8 @@ static void getIndVars(Operation *op, SmallPtrSet<Value, 3> &indVars) {
       indVars.insert(var);
 }
 
-// \p singleExecution denotes whether op is guaranteed to execute the body once
-// and after the cloned values
+/// \p singleExecution denotes whether op is guaranteed to execute the body once
+/// and after the cloned values
 static bool arePreceedingOpsFullyRecomputable(Operation *op,
                                               bool singleExecution) {
   SmallVector<MemoryEffects::EffectInstance> beforeEffects;
