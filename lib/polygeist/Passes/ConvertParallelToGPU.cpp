@@ -19,6 +19,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -34,6 +35,14 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
+
+template <typename T>
+bool hasEffect(SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  for (auto it : effects)
+    if (isa<T>(it.getEffect()))
+      return true;
+  return false;
+}
 
 template <int S = 3> SmallVector<Value, S> getUpperBounds(scf::ParallelOp pop) {
   SmallVector<Value, S> bounds;
@@ -154,7 +163,7 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
 /// two options for parallel_wrappers without any parallel ops in them - we
 /// could either hoist the computation to the cpu with added cpu-gpu copies or
 /// we could run a single iteration gpu kernel - whichever we think might be
-/// better for each that case
+/// better for each case
 ///
 /// parallel_wrapper {
 ///   A()
@@ -186,11 +195,12 @@ struct CreateParallelOps
     }
     auto loc = wrapper->getLoc();
     auto terminator = wrapper.getBody()->getTerminator();
-    rewriter.setInsertionPointToEnd(wrapper.getBody());
+    rewriter.setInsertionPoint(wrapper);
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
     SmallVector<Value, 1> one(1, oneindex);
     SmallVector<Value, 1> zero(1, zeroindex);
+    rewriter.setInsertionPointToEnd(wrapper.getBody());
     auto gridPop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
     rewriter.clone(*terminator);
     rewriter.setInsertionPointToStart(gridPop.getBody());
@@ -288,7 +298,8 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     const unsigned maxThreads = 1024;
     unsigned threadNum = 1;
     for (int i = totalDims - 1; i >= 0; i--) {
-      // TODO have we covered all possibilities for a constant?
+      // TODO have we covered all possibilities for a constant? maybe use
+      // ->hasTrait<OpTrait::ConstantLike>
       auto &bound = upperBounds[i];
       auto cst =
           dyn_cast_or_null<arith::ConstantIndexOp>(bound.getDefiningOp());
@@ -572,6 +583,122 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 };
 
 /// parallel_wrapper {
+///   A()
+///   parallel {
+///   }
+///   ...
+/// }
+/// ->
+/// A1()
+/// parallel_wrapper {
+///   A2()
+/// }
+/// parallel_wrapper {
+///   parallel {
+///   }
+///   ...
+/// }
+struct HandleWrapperRootOps
+      : public OpRewritePattern<polygeist::ParallelWrapperOp> {
+  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+
+  const char *PATTERN = "split-off-parallel";
+  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+                                PatternRewriter &rewriter) const override {
+    auto loc = wrapper->getLoc();
+    auto wrapperBody = wrapper.getBody();
+    auto it = wrapperBody->begin();
+    if (isa<scf::ParallelOp>(&*it)) {
+      LLVM_DEBUG(DBGS() << "first op is a parellel\n");
+      return failure();
+    }
+    SmallVector<Operation *> toHandle;
+    for (;; ++it) {
+      if (&*it == wrapperBody->getTerminator())
+        return failure();
+      if (isa<scf::ParallelOp>(&*it))
+        break;
+      toHandle.push_back(&*it);
+    }
+    if (toHandle.size() == 0) {
+      LLVM_DEBUG(DBGS() << "empty wrapper\n");
+      return failure();
+    }
+    rewriter.setInsertionPoint(wrapper);
+    auto newWrapper = rewriter.create<polygeist::ParallelWrapperOp>(loc);
+    for (Operation *op : toHandle) {
+      SmallVector<MemoryEffects::EffectInstance> effects;
+      collectEffects(op, effects, /*ignoreBarriers*/ false);
+      if (effects.empty()) {
+        rewriter.setInsertionPoint(wrapper);
+        auto cloned = rewriter.clone(*op);
+        rewriter.replaceOp(op, cloned->getResults());
+      } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
+        assert(0 && "what?");
+      } else if (hasEffect<MemoryEffects::Free>(effects)) {
+        assert(0 && "what?");
+      } else if (hasEffect<MemoryEffects::Read>(effects) || hasEffect<MemoryEffects::Write>(effects)) {
+        rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+        auto cloned = rewriter.clone(*op);
+        rewriter.replaceOp(op, cloned->getResults());
+        // TODO if we find something that is used in the old wrapper, then we
+        // would have to introduce temporary gpu cache memory to pass it on
+        for (auto &u : llvm::make_early_inc_range(op->getUses())) {
+          auto *user = u.getOwner();
+          assert(user->getParentOfType<polygeist::ParallelWrapperOp>() == newWrapper);
+        }
+      } else {
+        assert(0 && "are there other effects?");
+      }
+    }
+    return success();
+  }
+};
+
+/// parallel_wrapper {
+///   parallel {
+///     ...
+///   }
+///   A()
+/// }
+/// ->
+/// parallel_wrapper {
+///   parallel {
+///     ...
+///   }
+/// }
+/// parallel_wrapper {
+///   A()
+/// }
+struct SplitOffParallel
+      : public OpRewritePattern<polygeist::ParallelWrapperOp> {
+  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+
+  const char *PATTERN = "split-off-parallel";
+  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+                                PatternRewriter &rewriter) const override {
+    auto loc = wrapper->getLoc();
+    auto pop = dyn_cast<scf::ParallelOp>(&(*wrapper.getBody()->begin()));
+    if (!pop) {
+      LLVM_DEBUG(DBGS() << "first op is not a parellel\n");
+      return failure();
+    }
+    if (pop->getNextNode() == wrapper.getBody()->getTerminator()) {
+      LLVM_DEBUG(DBGS() << "pop is the only op in the block\n");
+      return failure();
+    }
+    assert(pop->getNumResults() == 0);
+
+    rewriter.setInsertionPoint(wrapper);
+    auto newWrapper = rewriter.create<polygeist::ParallelWrapperOp>(loc);
+    rewriter.setInsertionPointToStart(newWrapper.getBody());
+    rewriter.clone(*pop.getOperation());
+    rewriter.eraseOp(pop);
+    return success();
+  }
+};
+
+/// parallel_wrapper {
 ///   parallel grid_bounds {
 ///     parallel block_bounds {
 ///       A()
@@ -620,12 +747,8 @@ struct ParallelToGPULaunch
       return pop;
     };
 
-    scf::ParallelOp gridPop = nullptr;
-    for (Operation &op : *wrapper.getBody()) {
-      if (auto pop = dyn_cast<scf::ParallelOp>(&op)) {
-        gridPop = pop;
-      }
-    }
+    scf::ParallelOp gridPop =
+        getDirectlyNestedSingleParallel(wrapper.getBody());
     if (!gridPop)
       return failure();
     scf::ParallelOp blockPop =
@@ -761,14 +884,25 @@ struct ParallelToGPULaunch
   }
 };
 
+// TODO put single constants in the loop
+// TODO parallel wrapper LICM
 struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
   ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<BarrierElim</*TopLevelOnly*/ false>, ParallelizeBlockOps,
-                    CreateParallelOps, SplitParallelOp, ParallelToGPULaunch>(
-        &getContext());
+    // clang-format off
+    patterns.insert<
+      BarrierElim</*TopLevelOnly*/ false>,
+      CreateParallelOps,
+      SplitOffParallel,
+      HandleWrapperRootOps,
+      ParallelizeBlockOps,
+      SplitParallelOp,
+      ParallelToGPULaunch
+      // TODO insert constants into body
+      >(&getContext());
+    // clang-format on
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {

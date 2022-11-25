@@ -72,6 +72,8 @@ namespace {
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
+// TODO do not take wrap argument, instead, always wrap and if we will be
+// lowering to cpu, remove them before continuing
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
   ParallelLower(bool wrapParallelOps) : wrapParallelOps(wrapParallelOps) {}
   void runOnOperation() override;
