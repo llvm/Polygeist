@@ -177,8 +177,7 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
 ///   }
 /// }
 ///
-struct CreateParallelOps
-    : public OpRewritePattern<polygeist::GPUWrapperOp> {
+struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "create-parallel-ops";
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
@@ -501,9 +500,28 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     }
 
     // Handle ops before the parallel
-    //
-    // TODO We currently assume that there are no ops with memory effects before
-    // the pop
+    scf::IfOp ifOp = nullptr;
+    auto getIf = [&]() {
+      if (!ifOp) {
+        auto zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+        Value cond;
+        for (unsigned i = 0; i < innerBlock->getNumArguments(); i++) {
+          auto threadId = innerBlock->getArgument(i);
+          auto threadCond = rewriter.create<arith::CmpIOp>(
+              loc, arith::CmpIPredicate::eq, threadId, zero);
+          if (i == 0)
+            cond = threadCond.getResult();
+          else
+            cond = rewriter.create<arith::AndIOp>(loc, threadCond, cond)
+                       .getResult();
+        }
+        ifOp = rewriter.create<scf::IfOp>(loc, cond);
+        rewriter.create<mlir::polygeist::BarrierOp>(loc,
+                                                    innerBlock->getArguments());
+        rewriter.setInsertionPoint(ifOp);
+      }
+    };
+
     rewriter.setInsertionPointToStart(innerBlock);
     auto it = outerBlock->begin();
     SmallVector<Operation *> toErase;
@@ -530,11 +548,24 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         assert(0 && "Unhandled case");
         break;
       } else {
-        // TODO Consider write memory effects here - we must put them in an if
-        // to execute only once
-        //
-        // TODO How can we even handle an op that does write and read and its
-        // result is used in the parallel op? Introduce shared mem I guess?
+        mlir::OpBuilder::InsertionGuard guard(rewriter);
+        SmallVector<MemoryEffects::EffectInstance> effects;
+        collectEffects(&op, effects, /*ignoreBarriers*/ false);
+        if (effects.empty()) {
+        } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
+          assert(0 && "??");
+        } else if (hasEffect<MemoryEffects::Free>(effects)) {
+          assert(0 && "??");
+        } else if (hasEffect<MemoryEffects::Write>(effects)) {
+          getIf();
+          assert(ifOp);
+          rewriter.setInsertionPoint(ifOp.thenBlock()->getTerminator());
+          // TODO currently we assume that ops with write effects will have no
+          // uses - we have to introduce shared mem otherwise
+          assert(op.use_empty() && "Unhandled case");
+        } else if (hasEffect<MemoryEffects::Read>(effects)) {
+          // Reads-only ops are legal to parallelize
+        }
         newOp = rewriter.clone(op, mapping);
       }
       rewriter.replaceOpWithinBlock(&op, newOp->getResults(), innerBlock);
@@ -543,36 +574,39 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     it++;
 
     // Handle ops after the parallel
-    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    rewriter.setInsertionPoint(innerBlock->getTerminator());
-    auto cmpOp = rewriter.create<arith::CmpIOp>(
-        loc, arith::CmpIPredicate::eq, zeroindex, innerBlock->getArgument(0));
-    Value condition = cmpOp.getResult();
-    for (unsigned i = 1; i < innerBlock->getNumArguments(); i++) {
-      auto cmpOp2 = rewriter.create<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::eq, zeroindex, innerBlock->getArgument(i));
-      auto andOp = rewriter.create<arith::AndIOp>(loc, condition, cmpOp2);
-      condition = andOp.getResult();
-    }
-    auto ifOp = rewriter.create<scf::IfOp>(loc, condition);
-    rewriter.setInsertionPointToStart(ifOp.thenBlock());
-    for (; it != outerBlock->end(); ++it) {
-      Operation &op = *it;
-      if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case");
-        break;
-      } else if (isa<scf::YieldOp>(&op)) {
-        continue;
-      } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
-        break;
-      } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
-        break;
-      } else {
-        rewriter.clone(op, mapping);
+    {
+      auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      rewriter.setInsertionPoint(innerBlock->getTerminator());
+      auto cmpOp = rewriter.create<arith::CmpIOp>(
+          loc, arith::CmpIPredicate::eq, zeroindex, innerBlock->getArgument(0));
+      Value condition = cmpOp.getResult();
+      for (unsigned i = 1; i < innerBlock->getNumArguments(); i++) {
+        auto cmpOp2 = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, zeroindex,
+            innerBlock->getArgument(i));
+        auto andOp = rewriter.create<arith::AndIOp>(loc, condition, cmpOp2);
+        condition = andOp.getResult();
       }
-      toErase.push_back(&op);
+      auto ifOp = rewriter.create<scf::IfOp>(loc, condition);
+      rewriter.setInsertionPointToStart(ifOp.thenBlock());
+      for (; it != outerBlock->end(); ++it) {
+        Operation &op = *it;
+        if (isa<scf::ParallelOp>(&op)) {
+          assert(0 && "Unhandled case");
+          break;
+        } else if (isa<scf::YieldOp>(&op)) {
+          continue;
+        } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
+          assert(0 && "Unhandled case");
+          break;
+        } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
+          assert(0 && "Unhandled case");
+          break;
+        } else {
+          rewriter.clone(op, mapping);
+        }
+        toErase.push_back(&op);
+      }
     }
 
     for (Operation *op : llvm::reverse(toErase))
@@ -601,8 +635,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 ///   }
 ///   ...
 /// }
-struct HandleWrapperRootOps
-      : public OpRewritePattern<polygeist::GPUWrapperOp> {
+struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "split-off-parallel";
@@ -696,7 +729,7 @@ struct HandleWrapperRootOps
         cloned = nullptr;
         assert(0 && "are there other effects?");
       }
-      rewriter.replaceOpWithIf(op, cloned->getResults(), [&] (OpOperand &use) {
+      rewriter.replaceOpWithIf(op, cloned->getResults(), [&](OpOperand &use) {
         Operation *owner = use.getOwner();
         while (owner->getBlock() != pop->getBlock())
           owner = owner->getParentOp();
@@ -726,8 +759,7 @@ struct HandleWrapperRootOps
 /// gpu_wrapper {
 ///   A()
 /// }
-struct SplitOffParallel
-      : public OpRewritePattern<polygeist::GPUWrapperOp> {
+struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "split-off-parallel";
@@ -765,8 +797,7 @@ struct SplitOffParallel
 /// gpu.launch grid_bounds, block_bounds {
 ///   A()
 /// }
-struct ParallelToGPULaunch
-    : public OpRewritePattern<polygeist::GPUWrapperOp> {
+struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "parallel-to-gpu-launch";
