@@ -110,7 +110,6 @@ def RemoveTrivialUse : Pass<"trivialuse"> {
 }
 
 def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp"> {
-//def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm"> {
   let summary = "Convert scalar and vector operations from the Standard to the "
                 "LLVM dialect";
   let description = [{

@@ -819,7 +819,6 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
-      // TODO merge these passes somehow
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -831,6 +830,11 @@ int main(int argc, char **argv) {
       // cudaFuncSetCacheConfig e.g.
       pm.addPass(polygeist::createConvertParallelToGPUPass2());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 12;
+      }
     }
 #endif
 
