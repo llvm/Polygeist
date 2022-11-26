@@ -806,7 +806,11 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-    if (EmitCuda || EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
+    if (
+#if POLYGEIST_ENABLE_CUDA
+      EmitCuda ||
+#endif
+      EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
