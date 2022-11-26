@@ -354,7 +354,7 @@ std::unique_ptr<Pass> createGpuSerializeToCubinPass(
 
 } // namespace mlir::polygeist
 
-#else  // MLIR_GPU_TO_CUBIN_PASS_ENABLE
+#else // MLIR_GPU_TO_CUBIN_PASS_ENABLE
 namespace mlir::polygeist {
 void registerGpuSerializeToCubinPass() {}
 } // namespace mlir::polygeist

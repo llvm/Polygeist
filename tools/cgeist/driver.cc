@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/../../lib/Driver/ToolChains/Cuda.h"
 #include <clang/Basic/DiagnosticIDs.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
@@ -20,8 +21,6 @@
 #include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Frontend/TextDiagnosticPrinter.h>
 #include <clang/Frontend/Utils.h>
-#include "clang/../../lib/Driver/ToolChains/Cuda.h"
-
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
@@ -203,8 +202,7 @@ static cl::opt<std::string>
 class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
 public:
   virtual ~PolygeistCudaDetectorArgList() {}
-  template<typename ...OptSpecifiers>
-  bool hasArg(OptSpecifiers ...Ids) const {
+  template <typename... OptSpecifiers> bool hasArg(OptSpecifiers... Ids) const {
     std::vector _Ids({Ids...});
     for (auto &Id : _Ids) {
       if (Id == clang::driver::options::OPT_nogpulib) {
@@ -222,21 +220,16 @@ public:
     }
     return false;
   }
-  StringRef getLastArgValue(llvm::opt::OptSpecifier Id, StringRef Default = "") const {
+  StringRef getLastArgValue(llvm::opt::OptSpecifier Id,
+                            StringRef Default = "") const {
     if (Id == clang::driver::options::OPT_cuda_path_EQ) {
       return CUDAPath;
     }
     return Default;
   }
-  const char *getArgString(unsigned Index) const override {
-    return "";
-  }
-  unsigned getNumInputArgStrings() const override {
-    return 0;
-  }
-  const char *MakeArgStringRef(StringRef Str) const override {
-    return "";
-  }
+  const char *getArgString(unsigned Index) const override { return ""; }
+  unsigned getNumInputArgStrings() const override { return 0; }
+  const char *MakeArgStringRef(StringRef Str) const override { return ""; }
 };
 
 class MemRefInsider
@@ -393,8 +386,13 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
-#define dump_module(PASS_MANAGER) do {llvm::errs() << "at line" << __LINE__ << "\n"; (void)PASS_MANAGER.run(module.get()); module->dump();} while (0)
-//#define dump_module(PASS_MANAGER) do {} while (0)
+#define dump_module(PASS_MANAGER)                                              \
+  do {                                                                         \
+    llvm::errs() << "at line" << __LINE__ << "\n";                             \
+    (void)PASS_MANAGER.run(module.get());                                      \
+    module->dump();                                                            \
+  } while (0)
+// #define dump_module(PASS_MANAGER) do {} while (0)
 
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
@@ -652,7 +650,8 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
-      pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
+      pm.addPass(
+          polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else
@@ -808,9 +807,9 @@ int main(int argc, char **argv) {
 
     if (
 #if POLYGEIST_ENABLE_CUDA
-      EmitCuda ||
+        EmitCuda ||
 #endif
-      EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
+        EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
@@ -877,13 +876,13 @@ int main(int argc, char **argv) {
           using namespace clang::driver;
           using namespace std;
           IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
-          // Buffer diagnostics from argument parsing so that we can output them using a
-          // well formed diagnostic object.
-          IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+          IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts =
+              new DiagnosticOptions();
           TextDiagnosticPrinter *DiagBuffer =
-            new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+              new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
           DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
-          const unique_ptr<Driver> driver(new Driver("clang", triple.str(), Diags));
+          const unique_ptr<Driver> driver(
+              new Driver("clang", triple.str(), Diags));
           PolygeistCudaDetectorArgList argList;
           CudaInstallationDetector detector(*driver, triple, argList);
 
