@@ -70,10 +70,10 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
-#if POLYGEIST_ENABLE_CUDA
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
 
+#if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
                                   cl::desc("Optimization level for ptxas"));
 #endif
@@ -534,6 +534,13 @@ int main(int argc, char **argv) {
   if (Opt3)
     optLevel = 3;
 
+#if !POLYGEIST_ENABLE_CUDA
+  if (EmitCuda) {
+    llvm::errs() << "error: no CUDA support, aborting\n";
+    return 1;
+  }
+#endif
+
   auto convertGepInBounds = [](llvm::Module &llvmModule) {
     for (auto &F : llvmModule) {
       for (auto &BB : F) {
@@ -805,11 +812,8 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-    if (
-#if POLYGEIST_ENABLE_CUDA
-        EmitCuda ||
-#endif
-        EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
+    if (EmitCuda || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
+        EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
