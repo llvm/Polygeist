@@ -313,7 +313,7 @@ void ParallelLower::runOnOperation() {
     }
 
     if (wrapParallelOps) {
-      auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
+      auto pw = builder.create<polygeist::GPUWrapperOp>(loc);
       builder.setInsertionPointToStart(pw.getBody());
     }
 
@@ -325,11 +325,6 @@ void ParallelLower::runOnOperation() {
     Block *blockB = &block.getRegion().front();
 
     builder.setInsertionPointToStart(blockB);
-
-    // if (wrapParallelOps) {
-    //   auto pw = builder.create<polygeist::ParallelWrapperOp>(loc);
-    //   builder.setInsertionPointToStart(pw.getBody());
-    // }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),

@@ -159,17 +159,17 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
   }
 };
 
-/// TODO implement code motion across the parallel_wrapper, then we would have
-/// two options for parallel_wrappers without any parallel ops in them - we
+/// TODO implement code motion across the gpu_wrapper, then we would have
+/// two options for gpu_wrappers without any parallel ops in them - we
 /// could either hoist the computation to the cpu with added cpu-gpu copies or
 /// we could run a single iteration gpu kernel - whichever we think might be
 /// better for each case
 ///
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   A()
 /// }
 /// ->
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   parallel _ = 0 to 1 {
 ///     parallel _ = 0 to 1 {
 ///       A()
@@ -178,10 +178,10 @@ struct SharedMemrefAllocaToGlobal : public OpRewritePattern<memref::AllocaOp> {
 /// }
 ///
 struct CreateParallelOps
-    : public OpRewritePattern<polygeist::ParallelWrapperOp> {
-  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+    : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "create-parallel-ops";
-  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     scf::ParallelOp pop = nullptr;
     for (Operation &op : *wrapper.getBody()) {
@@ -265,7 +265,7 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   const char *PATTERN = "parallelize-block-ops";
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
-    auto wrapper = dyn_cast<polygeist::ParallelWrapperOp>(pop->getParentOp());
+    auto wrapper = dyn_cast<polygeist::GPUWrapperOp>(pop->getParentOp());
     if (!wrapper) {
       LLVM_DEBUG(DBGS() << "parallel not wrapped\n");
       return failure();
@@ -582,7 +582,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   A()
 ///   parallel {
 ///     ...
@@ -591,10 +591,10 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 /// }
 /// ->
 /// A1()
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   A2()
 /// }
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   parallel {
 ///     A3()
 ///     ...
@@ -602,11 +602,11 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 ///   ...
 /// }
 struct HandleWrapperRootOps
-      : public OpRewritePattern<polygeist::ParallelWrapperOp> {
-  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+      : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "split-off-parallel";
-  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     auto loc = wrapper->getLoc();
     auto wrapperBody = wrapper.getBody();
@@ -633,7 +633,7 @@ struct HandleWrapperRootOps
       return failure();
     }
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::ParallelWrapperOp>(loc);
+    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(loc);
     BlockAndValueMapping hoistMapping;
     BlockAndValueMapping splitMapping;
     BlockAndValueMapping parallelizedMapping;
@@ -711,27 +711,27 @@ struct HandleWrapperRootOps
   }
 };
 
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   parallel {
 ///     ...
 ///   }
 ///   A()
 /// }
 /// ->
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   parallel {
 ///     ...
 ///   }
 /// }
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   A()
 /// }
 struct SplitOffParallel
-      : public OpRewritePattern<polygeist::ParallelWrapperOp> {
-  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+      : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "split-off-parallel";
-  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     auto loc = wrapper->getLoc();
     auto pop = dyn_cast<scf::ParallelOp>(&(*wrapper.getBody()->begin()));
@@ -746,7 +746,7 @@ struct SplitOffParallel
     assert(pop->getNumResults() == 0);
 
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::ParallelWrapperOp>(loc);
+    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(loc);
     rewriter.setInsertionPointToStart(newWrapper.getBody());
     rewriter.clone(*pop.getOperation());
     rewriter.eraseOp(pop);
@@ -754,7 +754,7 @@ struct SplitOffParallel
   }
 };
 
-/// parallel_wrapper {
+/// gpu_wrapper {
 ///   parallel grid_bounds {
 ///     parallel block_bounds {
 ///       A()
@@ -766,14 +766,14 @@ struct SplitOffParallel
 ///   A()
 /// }
 struct ParallelToGPULaunch
-    : public OpRewritePattern<polygeist::ParallelWrapperOp> {
-  using OpRewritePattern<polygeist::ParallelWrapperOp>::OpRewritePattern;
+    : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "parallel-to-gpu-launch";
-  LogicalResult matchAndRewrite(polygeist::ParallelWrapperOp wrapper,
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     auto loc = wrapper->getLoc();
-    if (wrapper->getParentOfType<polygeist::ParallelWrapperOp>()) {
+    if (wrapper->getParentOfType<polygeist::GPUWrapperOp>()) {
       LLVM_DEBUG(DBGS() << "[pop-to-launch] ignoring nested parallel op\n");
       return failure();
     }

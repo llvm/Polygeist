@@ -67,7 +67,7 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
-def ParallelWrapperOp : Polygeist_Op<"parallel_wrapper", [
+def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
   SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]> {
   let summary = "Wraps a parallel op to prevent code motion and transformations";
@@ -77,7 +77,7 @@ def ParallelWrapperOp : Polygeist_Op<"parallel_wrapper", [
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["ParallelWrapperOp"]>]> {
+    ParentOneOf<["GPUWrapperOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 

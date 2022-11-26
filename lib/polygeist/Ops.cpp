@@ -43,13 +43,13 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
-// ParallelWrapperOp
+// GPUWrapperOp
 //===----------------------------------------------------------------------===//
-void ParallelWrapperOp::build(OpBuilder &builder, OperationState &result) {
+void GPUWrapperOp::build(OpBuilder &builder, OperationState &result) {
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
   builder.createBlock(bodyRegion);
-  ParallelWrapperOp::ensureTerminator(*bodyRegion, builder, result.location);
+  GPUWrapperOp::ensureTerminator(*bodyRegion, builder, result.location);
 }
 
 //===----------------------------------------------------------------------===//

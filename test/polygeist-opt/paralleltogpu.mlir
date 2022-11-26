@@ -4,7 +4,7 @@ module {
   func.func private @use(%arg0: index)
   func.func private @wow()
   func.func @f1() {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       func.call @wow() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
     }) : () -> ()
@@ -20,7 +20,7 @@ module {
 // CHECK:         }
 
   func.func @f2() {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       affine.parallel (%a1) = (0) to (10000000) {
         func.call @use(%a1) : (index) -> ()
         affine.yield
@@ -50,7 +50,7 @@ module {
 // CHECK:         }
 
   func.func @f3() {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       affine.parallel (%a1, %a2) = (0, 0) to (16, 16) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -74,7 +74,7 @@ module {
 // CHECK:         }
 
   func.func @f4(%b1: index, %b2: index) {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 17, %b2, 32) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -107,7 +107,7 @@ module {
 // CHECK:         }
 
   func.func @f5(%b1: index, %b2: index) {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 5, %b2, 3) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -153,7 +153,7 @@ module {
 // CHECK:         }
 
   func.func @f6(%b1: index, %b2: index) {
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 1023, %b2, 1025) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
