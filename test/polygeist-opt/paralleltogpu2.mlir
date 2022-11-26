@@ -4,7 +4,7 @@ module {
   func.func @f7(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %aindex: index) {
      %cst3 = arith.constant 3.0 : f64
      %cst5 = arith.constant 5.0 : f64
-    "polygeist.parallel_wrapper"() ({
+    "polygeist.gpu_wrapper"() ({
       %c0_3 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
       scf.parallel (%arg6) = (%c0_3) to (%aindex) step (%c1) {
