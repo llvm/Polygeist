@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "llvm/IR/GlobalValue.h"
 
 
 #if POLYGEIST_ENABLE_CUDA
@@ -43,10 +44,13 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/Transforms/IPO/Internalize.h"
 
 #include <cuda.h>
-// TODO use this library if possible
+// TODO use this library if possible, crashes for some reason
 #include <nvPTXCompiler.h>
+
+#define DEBUG_TYPE "serialize-to-cubin"
 
 using namespace mlir;
 
@@ -151,29 +155,38 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   if (!llvmModule)
     return llvmModule;
 
-  #ifndef NDEBUG
-  llvm::errs() << "GPULLVM\n";
-  llvmModule->dump();
-  llvm::errs() << "GPULLVM\n";
-  #endif
+  LLVM_DEBUG({
+    llvm::dbgs() << "Unoptimized GPU LLVM module for: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << *llvmModule << "\n";
+    llvm::dbgs().flush();
+  });
 
+  // Link libdevice
   llvm::SMDiagnostic err;
   std::unique_ptr<llvm::Module> libDevice = llvm::parseIRFile(libDevicePath, err, llvmContext);
   if (!libDevice || llvm::verifyModule(*libDevice, &llvm::errs())) {
-    err.print("in serialize-to-blob", llvm::errs());
-    // TODO where do we get these from
-    //unsigned diagID = ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, "Could not parse IR");
-    //ci.getDiagnostics().Report(diagID);
+    err.print("in serialize-to-cubin: Could not parse IR", llvm::errs());
     return llvmModule;
   }
-  // TODO do we need any flags?
-  // TODO Internalize all but the public kernel function (https://llvm.org/docs/NVPTXUsage.html)
+
   llvm::Linker::linkModules(*llvmModule, std::move(libDevice));
-  #ifndef NDEBUG
-  llvm::errs() << "GPULLVM\n";
-  llvmModule->dump();
-  llvm::errs() << "GPULLVM\n";
-  #endif
+
+  // Internalize all but the public kernel function (https://llvm.org/docs/NVPTXUsage.html)
+  llvm::NamedMDNode *MD = llvmModule->getOrInsertNamedMetadata("nvvm.annotations");
+  if (MD) {
+    llvm::internalizeModule(*llvmModule, [&] (const llvm::GlobalValue &GV) -> bool {
+      for (auto *Op : MD->operands()) {
+        llvm::MDString *KindID = dyn_cast<llvm::MDString>(Op->getOperand(1));
+        if (!KindID || KindID->getString() == "kernel") {
+          llvm::GlobalValue *KernelFn =
+            llvm::mdconst::dyn_extract_or_null<llvm::Function>(Op->getOperand(0));
+          if (KernelFn == &GV)
+            return true;
+        }
+      }
+      return false;
+    });
+  }
 
   SmallVector<llvm::IntrinsicInst *> toConvert;
   for (auto &F : *llvmModule) {
@@ -229,13 +242,13 @@ SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
     }
   }
 
-  #ifndef NDEBUG
-  llvm::errs() << "OPTGPULLVM\n";
-  llvmModule.dump();
-  llvm::errs() << "OPTGPULLVM\n";
-  #endif
   StripDebugInfo(llvmModule);
 
+  LLVM_DEBUG({
+    llvm::dbgs() << "Optimized GPU LLVM module for: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << llvmModule << "\n";
+    llvm::dbgs().flush();
+  });
 
   return success();
 }
@@ -244,7 +257,11 @@ std::unique_ptr<std::vector<char>>
 SerializeToCubinPass::serializeISA(const std::string &isa) {
   Location loc = getOperation().getLoc();
 
-  llvm::errs() << isa << "\n";
+  LLVM_DEBUG({
+    llvm::dbgs() << "PTX module for: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << isa << "\n";
+    llvm::dbgs().flush();
+  });
 
   auto newTmpFile = [&](const char *name) -> llvm::Expected<llvm::sys::fs::TempFile> {
     auto tmpFile = llvm::sys::fs::TempFile::create(name);

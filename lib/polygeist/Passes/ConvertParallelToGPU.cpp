@@ -383,9 +383,8 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       blockDims = newBlockDims;
     }
 
-    // LLVM_DEBUG(DBGS() <<
-    llvm::errs() << "converting to block with threadNum: " << threadNum
-                 << ", dims: " << blockDims.size() << "\n";
+    LLVM_DEBUG(DBGS() << "converting to block with threadNum: "
+                      << threadNum << ", dims: " << blockDims.size() << "\n";);
 
     SmallVector<Value, 3> lowerBoundsGrid(gridDims.size(), zeroindex);
     SmallVector<Value, 3> stepsGrid(gridDims.size(), oneindex);
