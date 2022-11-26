@@ -14,36 +14,29 @@
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "llvm/IR/GlobalValue.h"
 
-
 #if POLYGEIST_ENABLE_CUDA
-#include "llvm/IRReader/IRReader.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/Support/SourceMgr.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "mlir/Target/LLVMIR/Export.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/Operator.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/MC/TargetRegistry.h"
-#include "llvm/Support/TargetSelect.h"
-#include "llvm/Target/TargetMachine.h"
-#include "llvm/IR/DebugInfo.h"
-#include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "llvm/IR/DebugInfo.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Operator.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Program.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Program.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/IR/Instructions.h"
-#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 
 #include <cuda.h>
@@ -73,15 +66,17 @@ static void emitCudaError(const llvm::Twine &expr, const char *buffer,
     }                                                                          \
   } while (false)
 
-#define RETURN_ON_NVPTX_ERROR(x)                                        \
-  do {                                                                  \
-    nvPTXCompileResult result = x;                                      \
-    if (result != NVPTXCOMPILE_SUCCESS) {                               \
-      emitError(loc, llvm::Twine("error: ").concat(#x).concat(" failed with error code ").concat(std::to_string(result))); \
-      return {};                                                        \
-    }                                                                   \
-  } while(0)
-
+#define RETURN_ON_NVPTX_ERROR(x)                                               \
+  do {                                                                         \
+    nvPTXCompileResult result = x;                                             \
+    if (result != NVPTXCOMPILE_SUCCESS) {                                      \
+      emitError(loc, llvm::Twine("error: ")                                    \
+                         .concat(#x)                                           \
+                         .concat(" failed with error code ")                   \
+                         .concat(std::to_string(result)));                     \
+      return {};                                                               \
+    }                                                                          \
+  } while (0)
 
 namespace {
 class SerializeToCubinPass
@@ -89,8 +84,9 @@ class SerializeToCubinPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SerializeToCubinPass)
 
-  SerializeToCubinPass(StringRef triple = "nvptx64-nvidia-cuda", StringRef chip = "sm_35",
-                       StringRef features = "+ptx60", int llvmOptLevel = 3, int ptxasOptLevel = 3,
+  SerializeToCubinPass(StringRef triple = "nvptx64-nvidia-cuda",
+                       StringRef chip = "sm_35", StringRef features = "+ptx60",
+                       int llvmOptLevel = 3, int ptxasOptLevel = 3,
                        std::string ptxasPath = "",
                        std::string libDevicePath = "");
 
@@ -116,7 +112,6 @@ private:
   std::string libDevicePath;
   int llvmOptLevel;
   int ptxasOptLevel;
-
 };
 } // namespace
 
@@ -126,9 +121,8 @@ static void maybeSetOption(Pass::Option<std::string> &option, StringRef value) {
     option = value.str();
 }
 
-SerializeToCubinPass::SerializeToCubinPass(StringRef triple,
-                                           StringRef chip, StringRef features,
-                                           int llvmOptLevel,
+SerializeToCubinPass::SerializeToCubinPass(StringRef triple, StringRef chip,
+                                           StringRef features, int llvmOptLevel,
                                            int ptxasOptLevel,
                                            std::string ptxasPath,
                                            std::string libDevicePath) {
@@ -150,20 +144,22 @@ void SerializeToCubinPass::getDependentDialects(
 std::unique_ptr<llvm::Module>
 SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 
-  std::unique_ptr<llvm::Module> llvmModule = translateModuleToLLVMIR(getOperation(), llvmContext,
-                                 "LLVMDialectModule");
+  std::unique_ptr<llvm::Module> llvmModule =
+      translateModuleToLLVMIR(getOperation(), llvmContext, "LLVMDialectModule");
   if (!llvmModule)
     return llvmModule;
 
   LLVM_DEBUG({
-    llvm::dbgs() << "Unoptimized GPU LLVM module for: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << "Unoptimized GPU LLVM module for: "
+                 << getOperation().getNameAttr() << "\n";
     llvm::dbgs() << *llvmModule << "\n";
     llvm::dbgs().flush();
   });
 
   // Link libdevice
   llvm::SMDiagnostic err;
-  std::unique_ptr<llvm::Module> libDevice = llvm::parseIRFile(libDevicePath, err, llvmContext);
+  std::unique_ptr<llvm::Module> libDevice =
+      llvm::parseIRFile(libDevicePath, err, llvmContext);
   if (!libDevice || llvm::verifyModule(*libDevice, &llvm::errs())) {
     err.print("in serialize-to-cubin: Could not parse IR", llvm::errs());
     return llvmModule;
@@ -171,21 +167,26 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
 
   llvm::Linker::linkModules(*llvmModule, std::move(libDevice));
 
-  // Internalize all but the public kernel function (https://llvm.org/docs/NVPTXUsage.html)
-  llvm::NamedMDNode *MD = llvmModule->getOrInsertNamedMetadata("nvvm.annotations");
+  // Internalize all but the public kernel function
+  // (https://llvm.org/docs/NVPTXUsage.html)
+  llvm::NamedMDNode *MD =
+      llvmModule->getOrInsertNamedMetadata("nvvm.annotations");
   if (MD) {
-    llvm::internalizeModule(*llvmModule, [&] (const llvm::GlobalValue &GV) -> bool {
-      for (auto *Op : MD->operands()) {
-        llvm::MDString *KindID = dyn_cast<llvm::MDString>(Op->getOperand(1));
-        if (!KindID || KindID->getString() == "kernel") {
-          llvm::GlobalValue *KernelFn =
-            llvm::mdconst::dyn_extract_or_null<llvm::Function>(Op->getOperand(0));
-          if (KernelFn == &GV)
-            return true;
-        }
-      }
-      return false;
-    });
+    llvm::internalizeModule(
+        *llvmModule, [&](const llvm::GlobalValue &GV) -> bool {
+          for (auto *Op : MD->operands()) {
+            llvm::MDString *KindID =
+                dyn_cast<llvm::MDString>(Op->getOperand(1));
+            if (!KindID || KindID->getString() == "kernel") {
+              llvm::GlobalValue *KernelFn =
+                  llvm::mdconst::dyn_extract_or_null<llvm::Function>(
+                      Op->getOperand(0));
+              if (KernelFn == &GV)
+                return true;
+            }
+          }
+          return false;
+        });
   }
 
   SmallVector<llvm::IntrinsicInst *> toConvert;
@@ -200,8 +201,12 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   }
   llvm::for_each(toConvert, [&](llvm::IntrinsicInst *II) {
     if (II->getIntrinsicID() == llvm::Intrinsic::powi) {
-      StringRef fname =  "__nv_powi";
-      auto *CI = llvm::CallInst::Create(II->getFunctionType(), llvmModule->getFunction(fname), llvm::ArrayRef<llvm::Value *>({II->getArgOperand(0), II->getArgOperand(1)}), fname, II);
+      StringRef fname = "__nv_powi";
+      auto *CI = llvm::CallInst::Create(
+          II->getFunctionType(), llvmModule->getFunction(fname),
+          llvm::ArrayRef<llvm::Value *>(
+              {II->getArgOperand(0), II->getArgOperand(1)}),
+          fname, II);
       II->replaceAllUsesWith(CI);
       II->eraseFromParent();
     }
@@ -215,7 +220,8 @@ SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
                                    llvm::TargetMachine &targetMachine) {
   if (llvmOptLevel < 0 || llvmOptLevel > 3)
     return getOperation().emitError()
-           << "Invalid serizalize to gpu blob optimization level" << llvmOptLevel << "\n";
+           << "Invalid serizalize to gpu blob optimization level"
+           << llvmOptLevel << "\n";
 
   targetMachine.setOptLevel(static_cast<llvm::CodeGenOpt::Level>(llvmOptLevel));
 
@@ -245,7 +251,8 @@ SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
   StripDebugInfo(llvmModule);
 
   LLVM_DEBUG({
-    llvm::dbgs() << "Optimized GPU LLVM module for: " << getOperation().getNameAttr() << "\n";
+    llvm::dbgs() << "Optimized GPU LLVM module for: "
+                 << getOperation().getNameAttr() << "\n";
     llvm::dbgs() << llvmModule << "\n";
     llvm::dbgs().flush();
   });
@@ -263,7 +270,8 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
     llvm::dbgs().flush();
   });
 
-  auto newTmpFile = [&](const char *name) -> llvm::Expected<llvm::sys::fs::TempFile> {
+  auto newTmpFile =
+      [&](const char *name) -> llvm::Expected<llvm::sys::fs::TempFile> {
     auto tmpFile = llvm::sys::fs::TempFile::create(name);
     if (!tmpFile) {
       llvm::errs() << "Failed to create temp file\n";
@@ -303,7 +311,8 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
 
   llvm::sys::ExecuteAndWait(ptxasPath.c_str(), Argv);
 
-  auto MB = llvm::MemoryBuffer::getFile(tmpOutput->TmpName, false, false, false);
+  auto MB =
+      llvm::MemoryBuffer::getFile(tmpOutput->TmpName, false, false, false);
   if (MB.getError()) {
     llvm::errs() << loc << "MemoryBuffer getFile failed";
     return {};
@@ -335,20 +344,18 @@ void registerGpuSerializeToCubinPass() {
   });
 }
 
-std::unique_ptr<Pass> createGpuSerializeToCubinPass(StringRef triple,
-                                                    StringRef arch,
-                                                    StringRef features,
-                                                    int llvmOptLevel,
-                                                    int ptxasOptLevel,
-                                                    std::string ptxasPath,
-                                                    std::string libDevicePath) {
-  return std::make_unique<SerializeToCubinPass>(triple, arch, features, llvmOptLevel, ptxasOptLevel, ptxasPath, libDevicePath);
+std::unique_ptr<Pass> createGpuSerializeToCubinPass(
+    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
+    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath) {
+  return std::make_unique<SerializeToCubinPass>(triple, arch, features,
+                                                llvmOptLevel, ptxasOptLevel,
+                                                ptxasPath, libDevicePath);
 }
 
-}
+} // namespace mlir::polygeist
 
 #else  // MLIR_GPU_TO_CUBIN_PASS_ENABLE
 namespace mlir::polygeist {
 void registerGpuSerializeToCubinPass() {}
-}
+} // namespace mlir::polygeist
 #endif // MLIR_GPU_TO_CUBIN_PASS_ENABLE
