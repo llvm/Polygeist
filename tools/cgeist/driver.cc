@@ -654,16 +654,13 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
-      dump_module(pm);
       pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
-      dump_module(pm);
 #else
       pm.addPass(polygeist::createParallelLowerPass());
       pm.addPass(polygeist::createCudaRTLowerPass());
 #endif
-      dump_module(pm);
 
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
@@ -687,7 +684,6 @@ int main(int argc, char **argv) {
         noptPM2.addPass(mlir::createLoopInvariantCodeMotionPass());
       noptPM2.addPass(
           mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      dump_module(pm);
       if (RaiseToAffine) {
         noptPM2.addPass(polygeist::createCanonicalizeForPass());
         noptPM2.addPass(
@@ -826,15 +822,12 @@ int main(int argc, char **argv) {
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
       // TODO merge these passes somehow
-      dump_module(pm);
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1());
-      dump_module(pm);
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      dump_module(pm);
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
@@ -842,9 +835,6 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     }
 #endif
-
-    // TODO TEMP
-    dump_module(pm);
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
