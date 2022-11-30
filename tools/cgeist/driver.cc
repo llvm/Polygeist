@@ -264,7 +264,6 @@ int emitBinary(char *Argv0, const char *filename,
 
   const char *binary = Argv0;
   const unique_ptr<Driver> driver(new Driver(binary, TargetTriple, Diags));
-  driver->CC1Main = &ExecuteCC1Tool;
   mlirclang::ArgumentList Argv;
   Argv.push_back(Argv0);
   // Argv.push_back("-x");
@@ -392,16 +391,15 @@ int main(int argc, char **argv) {
   }
   using namespace mlir;
 
+  MLIRArgs.push_back("-opaque-pointers=0");
+  int size = MLIRArgs.size();
+  const char **data = MLIRArgs.data();
+  InitLLVM y(size, data);
   std::vector<std::string> files;
   {
     cl::list<std::string> inputFileName(cl::Positional, cl::OneOrMore,
                                         cl::desc("<Specify input file>"),
                                         cl::cat(toolOptions));
-
-    MLIRArgs.push_back("-opaque-pointers=0");
-    int size = MLIRArgs.size();
-    const char **data = MLIRArgs.data();
-    InitLLVM y(size, data);
     cl::ParseCommandLineOptions(size, data);
     assert(inputFileName.size());
     for (auto inp : inputFileName) {
