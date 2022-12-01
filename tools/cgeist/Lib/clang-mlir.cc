@@ -370,6 +370,10 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
         expr->getInit()->dump();
         assert(initexpr.val);
       }
+      if (field->getType()->isReferenceType()) {
+        assert(initexpr.isReference);
+        initexpr.isReference = false;
+      }
       bool isArray = false;
       Glob.getMLIRType(expr->getInit()->getType(), &isArray);
 
