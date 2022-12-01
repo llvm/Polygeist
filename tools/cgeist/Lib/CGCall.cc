@@ -1408,9 +1408,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 #endif
 
   if (auto BI = expr->getBuiltinCallee())
-    llvm::errs()
-        << "warning: we failed to emit call to builtin function with ID: " << BI
-        << "\n";
+    if (!Glob.CGM.getContext().BuiltinInfo.isPredefinedLibFunction(BI))
+      llvm::errs() << "warning: we failed to emit call to builtin function "
+                   << Glob.CGM.getContext().BuiltinInfo.getName(BI) << "\n";
 
   const auto *callee = EmitCallee(expr->getCallee());
 
