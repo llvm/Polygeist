@@ -397,7 +397,7 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
       assert(T.isa<MemRefType>());
       if (val.getType().isa<MemRefType>())
         val = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+            loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
       if (val.getType().isa<LLVM::LLVMPointerType>())
         val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
       return make_pair(ValueCategory(val, /*isRef*/ false), true);
@@ -1408,7 +1408,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 #endif
 
   if (auto BI = expr->getBuiltinCallee())
-    llvm::errs() << "warning: we failed to emit call to builtin function with ID: " << BI << "\n";
+    llvm::errs()
+        << "warning: we failed to emit call to builtin function with ID: " << BI
+        << "\n";
 
   const auto *callee = EmitCallee(expr->getCallee());
 
