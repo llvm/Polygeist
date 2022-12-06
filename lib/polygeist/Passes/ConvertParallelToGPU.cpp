@@ -666,7 +666,9 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       return failure();
     }
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(loc);
+    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
+        loc, wrapper.getBlockSizeX(), wrapper.getBlockSizeY(),
+        wrapper.getBlockSizeZ());
     BlockAndValueMapping hoistMapping;
     BlockAndValueMapping splitMapping;
     BlockAndValueMapping parallelizedMapping;
@@ -778,7 +780,9 @@ struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
     assert(pop->getNumResults() == 0);
 
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(loc);
+    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
+        loc, wrapper.getBlockSizeX(), wrapper.getBlockSizeY(),
+        wrapper.getBlockSizeZ());
     rewriter.setInsertionPointToStart(newWrapper.getBody());
     rewriter.clone(*pop.getOperation());
     rewriter.eraseOp(pop);
@@ -1003,7 +1007,8 @@ struct ConvertParallelToGPU1Pass
       SetVector<Operation *> toBeSunk;
       for (Value operand : sinkCandidates) {
         Operation *operandOp = operand.getDefiningOp();
-        if (operandOp && operandOp->hasTrait<OpTrait::ConstantLike>() && operandOp->getNumOperands() == 0)
+        if (operandOp && operandOp->hasTrait<OpTrait::ConstantLike>() &&
+            operandOp->getNumOperands() == 0)
           toBeSunk.insert(operandOp);
       }
 

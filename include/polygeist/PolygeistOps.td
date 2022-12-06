@@ -69,11 +69,14 @@ def SubIndexOp : Polygeist_Op<"subindex", [
 
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
-  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]> {
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
   let summary = "Wraps a parallel op to prevent code motion and transformations";
   let regions = (region SizedRegion<1>:$region);
-  let skipDefaultBuilders = 0;
-  let builders = [OpBuilder<(ins)>];
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins
+      "Value":$blockSizeX, "Value":$blockSizeY, "Value":$blockSizeZ)>];
+
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,

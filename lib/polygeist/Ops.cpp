@@ -45,7 +45,10 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
 //===----------------------------------------------------------------------===//
 // GPUWrapperOp
 //===----------------------------------------------------------------------===//
-void GPUWrapperOp::build(OpBuilder &builder, OperationState &result) {
+
+void GPUWrapperOp::build(OpBuilder &builder, OperationState &result,
+                         Value blockSizeX, Value blockSizeY, Value blockSizeZ) {
+  result.addOperands({blockSizeX, blockSizeY, blockSizeZ});
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
   builder.createBlock(bodyRegion);

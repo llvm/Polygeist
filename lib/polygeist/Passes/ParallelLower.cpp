@@ -435,7 +435,9 @@ void ParallelLower::runOnOperation() {
     }
 
     if (wrapParallelOps) {
-      auto pw = builder.create<polygeist::GPUWrapperOp>(loc);
+      auto pw = builder.create<polygeist::GPUWrapperOp>(
+          loc, launchOp.getBlockSizeX(), launchOp.getBlockSizeY(),
+          launchOp.getBlockSizeZ());
       builder.setInsertionPointToStart(pw.getBody());
     }
 
