@@ -73,6 +73,9 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
 
+static cl::opt<bool> OutputIntermediateGPU("output-intermediate-gpu", cl::init(false),
+                                           cl::desc("Output intermediate gpu code"));
+
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
                                   cl::desc("Optimization level for ptxas"));
@@ -828,7 +831,9 @@ int main(int argc, char **argv) {
     if (EmitCuda) {
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1());
-      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      // We cannot canonicalize here because we have sunk some operations in the
+      // kernel which the canonicalizer would hoist
+
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -900,7 +905,7 @@ int main(int argc, char **argv) {
           mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
           gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
               gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
-              ptxasPath, libDevicePath));
+              ptxasPath, libDevicePath, OutputIntermediateGPU));
         }
 #endif
 

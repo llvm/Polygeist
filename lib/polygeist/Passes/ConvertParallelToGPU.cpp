@@ -23,6 +23,7 @@
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/BarrierUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
@@ -970,7 +971,6 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
   }
 };
 
-// TODO put single constants in the loop
 // TODO parallel wrapper LICM
 struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
@@ -986,7 +986,6 @@ struct ConvertParallelToGPU1Pass
       ParallelizeBlockOps,
       SplitParallelOp,
       ParallelToGPULaunch
-      // TODO insert constants into body
       >(&getContext());
     // clang-format on
     GreedyRewriteConfig config;
@@ -995,6 +994,31 @@ struct ConvertParallelToGPU1Pass
       signalPassFailure();
       return;
     }
+
+    // Sink constants in the body
+    getOperation()->walk([](gpu::LaunchOp launchOp) {
+      Region &launchOpBody = launchOp.getBody();
+      SetVector<Value> sinkCandidates;
+      getUsedValuesDefinedAbove(launchOpBody, sinkCandidates);
+      SetVector<Operation *> toBeSunk;
+      for (Value operand : sinkCandidates) {
+        Operation *operandOp = operand.getDefiningOp();
+        if (operandOp && operandOp->hasTrait<OpTrait::ConstantLike>() && operandOp->getNumOperands() == 0)
+          toBeSunk.insert(operandOp);
+      }
+
+      if (toBeSunk.empty())
+        return;
+
+      OpBuilder builder(launchOpBody);
+      for (Operation *op : toBeSunk) {
+        Operation *clonedOp = builder.clone(*op);
+        // Only replace uses within the launch op.
+        for (auto pair : llvm::zip(op->getResults(), clonedOp->getResults()))
+          replaceAllUsesInRegionWith(std::get<0>(pair), std::get<1>(pair),
+                                     launchOp.getBody());
+      }
+    });
   }
 };
 
