@@ -389,13 +389,15 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
-#define dump_module(PASS_MANAGER)                                              \
-  do {                                                                         \
-    llvm::errs() << "at line" << __LINE__ << "\n";                             \
-    (void)PASS_MANAGER.run(module.get());                                      \
-    module->dump();                                                            \
+#define dump_module(PASS_MANAGER, EXEC)             \
+  do {                                              \
+    llvm::errs() << "at line" << __LINE__ << "\n";  \
+    (void)PASS_MANAGER.run(module.get());           \
+    module->dump();                                 \
+    EXEC;                                           \
   } while (0)
-// #define dump_module(PASS_MANAGER) do {} while (0)
+#undef dump_module
+#define dump_module(PASS_MANAGER, EXEC) do {} while (0)
 
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
