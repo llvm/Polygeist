@@ -2,9 +2,11 @@
 
 module {
   func.func @f7(%arg0: memref<?xf64>, %arg1: memref<?xf64>, %aindex: index) {
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
      %cst3 = arith.constant 3.0 : f64
      %cst5 = arith.constant 5.0 : f64
-    "polygeist.gpu_wrapper"() ({
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       %c0_3 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
       scf.parallel (%arg6) = (%c0_3) to (%aindex) step (%c1) {
@@ -14,7 +16,7 @@ module {
       %c0_4 = arith.constant 0 : index
       memref.store %cst5, %arg1[%c0_4] : memref<?xf64>
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f7(
@@ -48,10 +50,12 @@ module {
 // CHECK:           return
 
   func.func @f8(%arg0: memref<?x100xf64>, %arg1: memref<?xf64>, %arg2: memref<?xf64>, %aindex: index) {
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
      %cst3 = arith.constant 3.0 : f64
      %cst4 = arith.constant 4.0 : f64
      %cst5 = arith.constant 5.0 : f64
-    "polygeist.gpu_wrapper"() ({
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       %c0_3 = arith.constant 0 : index
       %c1 = arith.constant 1 : index
       scf.parallel (%arg6) = (%c0_3) to (%aindex) step (%c1) {
@@ -64,7 +68,7 @@ module {
       %c0_4 = arith.constant 0 : index
       memref.store %cst5, %arg1[%c0_4] : memref<?xf64>
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f8(

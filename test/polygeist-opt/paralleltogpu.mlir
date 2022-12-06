@@ -4,10 +4,12 @@ module {
   func.func private @use(%arg0: index)
   func.func private @wow()
   func.func @f1() {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       func.call @wow() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f1() {
@@ -20,20 +22,22 @@ module {
 // CHECK:         }
 
   func.func @f2() {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       affine.parallel (%a1) = (0) to (10000000) {
         func.call @use(%a1) : (index) -> ()
         affine.yield
       }
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f2() {
-// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_1:.*]] = arith.constant 1024 : index
-// CHECK:           %[[VAL_2:.*]] = arith.constant 9766 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 10000000 : index
+// CHECK-DAG:           %[[VAL_0:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_1:.*]] = arith.constant 1024 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 9766 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 10000000 : index
 // CHECK:           gpu.launch blocks(%[[VAL_4:.*]], %[[VAL_5:.*]], %[[VAL_6:.*]]) in (%[[VAL_7:.*]] = %[[VAL_2]], %[[VAL_8:.*]] = %[[VAL_0]], %[[VAL_9:.*]] = %[[VAL_0]]) threads(%[[VAL_10:.*]], %[[VAL_11:.*]], %[[VAL_12:.*]]) in (%[[VAL_13:.*]] = %[[VAL_1]], %[[VAL_14:.*]] = %[[VAL_0]], %[[VAL_15:.*]] = %[[VAL_0]]) {
 // CHECK:             %[[VAL_16:.*]] = gpu.block_id  x
 // CHECK:             %[[VAL_17:.*]] = gpu.block_dim  x
@@ -50,19 +54,21 @@ module {
 // CHECK:         }
 
   func.func @f3() {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       affine.parallel (%a1, %a2) = (0, 0) to (16, 16) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
         affine.yield
       }
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f3() {
-// CHECK:           %[[VAL_0:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_1:.*]] = arith.constant 16 : index
+// CHECK-DAG:           %[[VAL_0:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_1:.*]] = arith.constant 16 : index
 // CHECK:           gpu.launch blocks(%[[VAL_2:.*]], %[[VAL_3:.*]], %[[VAL_4:.*]]) in (%[[VAL_5:.*]] = %[[VAL_0]], %[[VAL_6:.*]] = %[[VAL_0]], %[[VAL_7:.*]] = %[[VAL_0]]) threads(%[[VAL_8:.*]], %[[VAL_9:.*]], %[[VAL_10:.*]]) in (%[[VAL_11:.*]] = %[[VAL_1]], %[[VAL_12:.*]] = %[[VAL_1]], %[[VAL_13:.*]] = %[[VAL_0]]) {
 // CHECK:             %[[VAL_14:.*]] = gpu.thread_id  x
 // CHECK:             %[[VAL_15:.*]] = gpu.thread_id  y
@@ -74,7 +80,9 @@ module {
 // CHECK:         }
 
   func.func @f4(%b1: index, %b2: index) {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 17, %b2, 32) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -83,15 +91,15 @@ module {
         affine.yield
       }
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f4(
 // CHECK-SAME:                  %[[VAL_0:.*]]: index,
 // CHECK-SAME:                  %[[VAL_1:.*]]: index) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 32 : index
-// CHECK:           %[[VAL_4:.*]] = arith.constant 17 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 32 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 17 : index
 // CHECK:           gpu.launch blocks(%[[VAL_5:.*]], %[[VAL_6:.*]], %[[VAL_7:.*]]) in (%[[VAL_8:.*]] = %[[VAL_0]], %[[VAL_9:.*]] = %[[VAL_1]], %[[VAL_10:.*]] = %[[VAL_2]]) threads(%[[VAL_11:.*]], %[[VAL_12:.*]], %[[VAL_13:.*]]) in (%[[VAL_14:.*]] = %[[VAL_4]], %[[VAL_15:.*]] = %[[VAL_3]], %[[VAL_16:.*]] = %[[VAL_2]]) {
 // CHECK:             %[[VAL_17:.*]] = gpu.block_id  x
 // CHECK:             %[[VAL_18:.*]] = gpu.block_id  y
@@ -107,7 +115,9 @@ module {
 // CHECK:         }
 
   func.func @f5(%b1: index, %b2: index) {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 5, %b2, 3) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -116,7 +126,7 @@ module {
         affine.yield
       }
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // %a3 gets split into blockIdx.y and threadIdx.x, so use(%a3) becomes use(blockIdx.y x blockDim.x + threadIdx.x)
@@ -124,10 +134,10 @@ module {
 // CHECK-LABEL:   func.func @f5(
 // CHECK-SAME:                  %[[VAL_0:.*]]: index,
 // CHECK-SAME:                  %[[VAL_1:.*]]: index) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 64 : index
-// CHECK:           %[[VAL_4:.*]] = arith.constant 3 : index
-// CHECK:           %[[VAL_5:.*]] = arith.constant 5 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 64 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 3 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = arith.constant 5 : index
 // CHECK:           %[[VAL_6:.*]] = arith.subi %[[VAL_1]], %[[VAL_2]] : index
 // CHECK:           %[[VAL_7:.*]] = arith.divui %[[VAL_6]], %[[VAL_3]] : index
 // CHECK:           %[[VAL_8:.*]] = arith.addi %[[VAL_7]], %[[VAL_2]] : index
@@ -153,7 +163,9 @@ module {
 // CHECK:         }
 
   func.func @f6(%b1: index, %b2: index) {
-    "polygeist.gpu_wrapper"() ({
+     %mc1 = arith.constant 1 : index
+     %mc1024 = arith.constant 1024 : index
+    "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
       affine.parallel (%a1, %a2, %a3, %a4) = (0, 0, 0, 0) to (%b1, 1023, %b2, 1025) {
         func.call @use(%a1) : (index) -> ()
         func.call @use(%a2) : (index) -> ()
@@ -162,15 +174,15 @@ module {
         affine.yield
       }
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) : (index, index, index) -> ()
     return
   }
 // CHECK-LABEL:   func.func @f6(
 // CHECK-SAME:                  %[[VAL_0:.*]]: index,
 // CHECK-SAME:                  %[[VAL_1:.*]]: index) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 1025 : index
-// CHECK:           %[[VAL_4:.*]] = arith.constant 1023 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 1025 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 1023 : index
 // CHECK:           gpu.launch blocks(%[[VAL_5:.*]], %[[VAL_6:.*]], %[[VAL_7:.*]]) in (%[[VAL_8:.*]] = %[[VAL_0]], %[[VAL_9:.*]] = %[[VAL_1]], %[[VAL_10:.*]] = %[[VAL_3]]) threads(%[[VAL_11:.*]], %[[VAL_12:.*]], %[[VAL_13:.*]]) in (%[[VAL_14:.*]] = %[[VAL_4]], %[[VAL_15:.*]] = %[[VAL_2]], %[[VAL_16:.*]] = %[[VAL_2]]) {
 // CHECK:             %[[VAL_17:.*]] = gpu.block_id  x
 // CHECK:             %[[VAL_18:.*]] = gpu.block_id  y

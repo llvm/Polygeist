@@ -262,7 +262,7 @@ struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 ///
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
-  const char *PATTERN = "parallelize-block-ops";
+  const char *PATTERN = "split-parallel-op";
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
     auto wrapper = dyn_cast<polygeist::GPUWrapperOp>(pop->getParentOp());
@@ -295,7 +295,37 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     SmallVector<int, 3> blockArgId;
     SmallVector<int, 3> gridArgId;
 
-    const unsigned maxThreads = 1024;
+    // Collect the original block dims for this wrapper TODO IF it was
+    // originally a kernel launch, in the future we could add gpu offloading for
+    // openmp parallels, then we would have to not consider this
+    SmallVector<Value, 3> originalBlockDims;
+    originalBlockDims.push_back(wrapper.getBlockSizeX());
+    originalBlockDims.push_back(wrapper.getBlockSizeY());
+    originalBlockDims.push_back(wrapper.getBlockSizeZ());
+    int originalThreadNum = 1;
+    for (auto dim : originalBlockDims) {
+      // TODO other possibilities?
+      if (auto cstint =
+              dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
+        originalThreadNum *= cstint.value();
+      } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                     dim.getDefiningOp())) {
+        originalThreadNum *= cstindex.value();
+      } else {
+        llvm::errs() << *dim.getDefiningOp() << " was not a const int\n";
+        originalThreadNum = -1;
+        break;
+      }
+    }
+    assert(originalThreadNum <= 1024);
+    // TODO do something smart if we didnt have constants
+
+    // TODO Maybe we can do something smarter than this if we know the target
+    // gpu architecture, however, for example rodinia/myocyte crashes with
+    // CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES if we use 1024 instead of the 32
+    // specified in the code
+    const unsigned maxThreads =
+        originalThreadNum > 0 ? originalThreadNum : 1024;
     unsigned threadNum = 1;
     for (int i = totalDims - 1; i >= 0; i--) {
       // TODO have we covered all possibilities for a constant? maybe use
