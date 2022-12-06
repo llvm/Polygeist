@@ -128,7 +128,7 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
 static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
-static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(true),
+static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(false),
                                 cl::desc("Unroll Affine Loops"));
 
 static cl::opt<bool>
