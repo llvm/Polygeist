@@ -33,7 +33,8 @@ std::unique_ptr<Pass> createConvertParallelToGPUPass1();
 std::unique_ptr<Pass> createConvertParallelToGPUPass2();
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
-    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath);
+    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
+    bool outputIntermediate);
 void registerGpuSerializeToCubinPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);

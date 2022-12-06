@@ -13,6 +13,7 @@
 
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "llvm/IR/GlobalValue.h"
+#include "llvm/Support/raw_ostream.h"
 
 #if POLYGEIST_ENABLE_CUDA
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
@@ -30,6 +31,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Program.h"
@@ -88,7 +90,8 @@ public:
                        StringRef chip = "sm_35", StringRef features = "+ptx60",
                        int llvmOptLevel = 3, int ptxasOptLevel = 3,
                        std::string ptxasPath = "",
-                       std::string libDevicePath = "");
+                       std::string libDevicePath = "",
+                       bool outputIntermediate = false);
 
   StringRef getArgument() const override { return "gpu-to-cubin"; }
   StringRef getDescription() const override {
@@ -112,6 +115,7 @@ private:
   std::string libDevicePath;
   int llvmOptLevel;
   int ptxasOptLevel;
+  bool outputIntermediate;
 };
 } // namespace
 
@@ -125,7 +129,8 @@ SerializeToCubinPass::SerializeToCubinPass(StringRef triple, StringRef chip,
                                            StringRef features, int llvmOptLevel,
                                            int ptxasOptLevel,
                                            std::string ptxasPath,
-                                           std::string libDevicePath) {
+                                           std::string libDevicePath,
+                                           bool outputIntermediate) {
   maybeSetOption(this->triple, triple);
   maybeSetOption(this->chip, chip);
   maybeSetOption(this->features, features);
@@ -133,6 +138,7 @@ SerializeToCubinPass::SerializeToCubinPass(StringRef triple, StringRef chip,
   this->ptxasOptLevel = ptxasOptLevel;
   this->ptxasPath = ptxasPath;
   this->libDevicePath = libDevicePath;
+  this->outputIntermediate = outputIntermediate;
 }
 
 void SerializeToCubinPass::getDependentDialects(
@@ -149,6 +155,12 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   if (!llvmModule)
     return llvmModule;
 
+  if (outputIntermediate) {
+    llvm::outs() << "Unoptimized GPU LLVM module for: "
+                 << getOperation().getNameAttr() << "\n"
+                 << *llvmModule << "\n";
+    llvm::outs().flush();
+  }
   LLVM_DEBUG({
     llvm::dbgs() << "Unoptimized GPU LLVM module for: "
                  << getOperation().getNameAttr() << "\n";
@@ -201,7 +213,13 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   }
   llvm::for_each(toConvert, [&](llvm::IntrinsicInst *II) {
     if (II->getIntrinsicID() == llvm::Intrinsic::powi) {
-      StringRef fname = "__nv_powi";
+      StringRef fname;
+      if (II->getArgOperand(0)->getType()->isFloatTy())
+        fname = "__nv_powif";
+      else if (II->getArgOperand(0)->getType()->isDoubleTy())
+        fname = "__nv_powi";
+      else
+        assert(0 && "unhandled float type in powi call");
       auto *CI = llvm::CallInst::Create(
           II->getFunctionType(), llvmModule->getFunction(fname),
           llvm::ArrayRef<llvm::Value *>(
@@ -250,6 +268,12 @@ SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
 
   StripDebugInfo(llvmModule);
 
+  if (outputIntermediate) {
+    llvm::outs() << "Optimized GPU LLVM module for: "
+                 << getOperation().getNameAttr() << "\n"
+                 << llvmModule << "\n";
+    llvm::outs().flush();
+  }
   LLVM_DEBUG({
     llvm::dbgs() << "Optimized GPU LLVM module for: "
                  << getOperation().getNameAttr() << "\n";
@@ -264,6 +288,12 @@ std::unique_ptr<std::vector<char>>
 SerializeToCubinPass::serializeISA(const std::string &isa) {
   Location loc = getOperation().getLoc();
 
+  if (outputIntermediate) {
+    llvm::outs() << "PTX module for: "
+                 << getOperation().getNameAttr() << "\n"
+                 << isa << "\n";
+    llvm::outs().flush();
+  }
   LLVM_DEBUG({
     llvm::dbgs() << "PTX module for: " << getOperation().getNameAttr() << "\n";
     llvm::dbgs() << isa << "\n";
@@ -346,10 +376,12 @@ void registerGpuSerializeToCubinPass() {
 
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
-    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath) {
+    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
+    bool outputIntermediate) {
   return std::make_unique<SerializeToCubinPass>(triple, arch, features,
                                                 llvmOptLevel, ptxasOptLevel,
-                                                ptxasPath, libDevicePath);
+                                                ptxasPath, libDevicePath,
+                                                outputIntermediate);
 }
 
 } // namespace mlir::polygeist
