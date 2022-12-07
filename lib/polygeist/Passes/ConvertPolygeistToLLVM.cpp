@@ -1324,6 +1324,11 @@ protected:
   Type llvmIntPtrType = IntegerType::get(
       context, this->getTypeConverter()->getPointerBitwidth(0));
 
+  FunctionCallBuilder allocCallBuilder = {
+      "mgpuMemAlloc",
+      llvmPointerType /* void * */,
+      {llvmIntPtrType /* intptr_t sizeBytes */,
+       llvmPointerType /* void *stream */}};
   FunctionCallBuilder moduleLoadCallBuilder = {
       "mgpuModuleLoad",
       llvmPointerType /* void *module */,
@@ -1799,6 +1804,81 @@ public:
   }
 };
 
+static LogicalResult
+isAsyncWithZeroDependencies(ConversionPatternRewriter &rewriter,
+                         gpu::AsyncOpInterface op) {
+  if (op.getAsyncDependencies().size() != 0)
+    return rewriter.notifyMatchFailure(
+        op, "Can only convert with exactly one async dependency.");
+
+  if (!op.getAsyncToken())
+    return rewriter.notifyMatchFailure(op, "Can convert only async version.");
+
+  return success();
+}
+static LogicalResult
+isAsyncWithOneDependency(ConversionPatternRewriter &rewriter,
+                         gpu::AsyncOpInterface op) {
+  if (op.getAsyncDependencies().size() != 1)
+    return rewriter.notifyMatchFailure(
+        op, "Can only convert with exactly one async dependency.");
+
+  if (!op.getAsyncToken())
+    return rewriter.notifyMatchFailure(op, "Can convert only async version.");
+
+  return success();
+}
+
+class ConvertAllocOpToGpuRuntimeCallPattern
+    : public ConvertOpToGpuRuntimeCallPattern<gpu::AllocOp> {
+public:
+  ConvertAllocOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
+      : ConvertOpToGpuRuntimeCallPattern<gpu::AllocOp>(typeConverter) {}
+
+private:
+  LogicalResult matchAndRewrite(
+      gpu::AllocOp allocOp, OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    if (adaptor.getHostShared())
+      return rewriter.notifyMatchFailure(
+          allocOp, "host_shared allocation is not supported");
+
+    MemRefType memRefType = allocOp.getType();
+
+    if (failed(areAllLLVMTypes(allocOp, adaptor.getOperands(), rewriter)) ||
+        !isConvertibleAndHasIdentityMaps(memRefType))
+      return failure();
+
+    // TODO handle async
+
+    auto loc = allocOp.getLoc();
+
+    // Get shape of the memref as values: static sizes are constant
+    // values and dynamic sizes are passed to 'alloc' as operands.
+    SmallVector<Value, 4> shape;
+    SmallVector<Value, 4> strides;
+    Value sizeBytes;
+    getMemRefDescriptorSizes(loc, memRefType, adaptor.getDynamicSizes(), rewriter,
+                            shape, strides, sizeBytes);
+
+    // Allocate the underlying buffer and store a pointer to it in the MemRef
+    // descriptor.
+    Type elementPtrType = this->getElementPtrType(memRefType);
+
+    // CUDA and ROCM both dont take stream as arguments for alloc
+    //auto stream = adaptor.getAsyncDependencies().front();
+    auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
+    Value allocatedPtr =
+        allocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
+    allocatedPtr =
+        rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, allocatedPtr);
+
+    rewriter.replaceOp(allocOp, {allocatedPtr});
+
+    return success();
+  }
+};
+
 /// Pattern for function declarations and definitions.
 struct FuncOpLowering : public ConvertOpToLLVMPattern<func::FuncOp> {
 public:
@@ -2050,7 +2130,9 @@ struct ConvertPolygeistToLLVMPass
         gpuPatterns.insert<GPUGetGlobalSymbolConversion>(&getContext());
 
         (void)applyPatternsAndFoldGreedily(m, std::move(gpuPatterns));
+      }
 
+      if (gpuModule) {
         // Insert our custom version of GPUFuncLowering
         if (useCStyleMemRef) {
           populateCStyleGPUFuncLoweringPatterns(patterns, converter);
@@ -2075,16 +2157,23 @@ struct ConvertPolygeistToLLVMPass
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
       arith::populateArithToLLVMConversionPatterns(converter, patterns);
 
+      bool kernelBarePtrCallConv = false;
+      // Our custom versions of the gpu patterns
+      if (useCStyleMemRef) {
+        patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
+          converter, gpu::getDefaultGpuBinaryAnnotation());
+        patterns.add<ConvertAllocOpToGpuRuntimeCallPattern>(converter);
+      }
+
       patterns.add<LLVMOpLowering, GlobalOpTypeConversion,
                    ReturnOpTypeConversion, GetFuncOpConversion>(converter);
       patterns.add<URLLVMOpLowering>(converter);
 
-      bool kernelBarePtrCallConv = false;
-      patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
-          converter, gpu::getDefaultGpuBinaryAnnotation());
+      // The default impls
       populateGpuToLLVMConversionPatterns(converter, patterns,
                                           gpu::getDefaultGpuBinaryAnnotation(),
                                           kernelBarePtrCallConv);
+
 
       // Legality callback for operations that checks whether their operand and
       // results types are converted.
