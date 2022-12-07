@@ -14,6 +14,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
@@ -646,6 +647,81 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
   }
 };
 
+bool hasNestedParallel(Operation *topLevelOp) {
+  auto walkRes = topLevelOp->walk([&](scf::ParallelOp) {
+    return WalkResult::interrupt();
+  });
+  return walkRes.wasInterrupted();
+}
+
+/// If we find an alloca at top level in the wrapper it means (currently at
+/// least, as we are only lowering cuda kernels to wrapped parallels and nothing
+/// else) that that alloca is shared mem allocation and the single trip grid
+/// parallel was removed - this pass restores it
+struct HandleWrapperRootAlloca : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
+
+  const char *PATTERN = "handle wrapper root alloca";
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
+                                PatternRewriter &rewriter) const override {
+    auto loc = wrapper->getLoc();
+    auto wrapperBody = wrapper.getBody();
+    if (!hasNestedParallel(wrapper)) {
+      LLVM_DEBUG(DBGS() << "wrapper has no parallel\n");
+      return failure();
+    }
+    bool allocFound = false;
+    for (Operation &op : *wrapperBody) {
+      SmallVector<MemoryEffects::EffectInstance> effects;
+      collectEffects(&op, effects, /*ignoreBarriers*/ false);
+      if (!hasNestedParallel(&op) && hasEffect<MemoryEffects::Allocate>(effects)) {
+        allocFound = true;
+        break;
+      }
+    }
+    if (!allocFound) {
+      LLVM_DEBUG(DBGS() << "no alloc in \n");
+      return failure();
+    }
+
+    auto terminator = wrapper.getBody()->getTerminator();
+    rewriter.setInsertionPoint(wrapper);
+    auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    SmallVector<Value, 1> one(1, oneindex);
+    SmallVector<Value, 1> zero(1, zeroindex);
+    rewriter.setInsertionPointToEnd(wrapper.getBody());
+    auto gridPop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
+    rewriter.clone(*terminator);
+    rewriter.setInsertionPointToStart(gridPop.getBody());
+
+    SmallVector<Operation *> toErase;
+    BlockAndValueMapping mapping;
+    for (Operation &op : *wrapper.getBody()) {
+      toErase.push_back(&op);
+      if (terminator == &op)
+        break;
+      rewriter.clone(op, mapping);
+    }
+    for (Operation *op : llvm::reverse(toErase))
+      rewriter.eraseOp(op);
+
+    return success();
+  }
+};
+
+// TODO
+// this doesnt work if we actually have two parallels like this:
+//
+// gpu_wrapper {
+//   A()
+//   parallel {
+//   }
+//   parallel {
+//   }
+// }
+//
+
 /// gpu_wrapper {
 ///   A()
 ///   parallel {
@@ -668,7 +744,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
-  const char *PATTERN = "split-off-parallel";
+  const char *PATTERN = "handle-wrapper-root-ops";
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     auto loc = wrapper->getLoc();
@@ -679,14 +755,18 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       return failure();
     }
     SmallVector<Operation *> toHandle;
-    scf::ParallelOp pop;
+    Operation *pop;
     Operation *firstGridOp;
     for (;; ++it) {
       if (&*it == wrapperBody->getTerminator())
         return failure();
-      if (auto p = dyn_cast<scf::ParallelOp>(&*it)) {
-        pop = p;
-        firstGridOp = &*pop.getBody()->begin();
+      if (hasNestedParallel(&*it) &&
+          isa<scf::ParallelOp, scf::IfOp>(&*it)) {
+        pop = &*it;
+        // TODO handle ifs with elses
+        if (auto ifOp = dyn_cast<scf::IfOp>(&*it))
+          assert(ifOp.getElseRegion().empty());
+        firstGridOp = &*pop->getRegion(0).begin()->begin();
         break;
       }
       toHandle.push_back(&*it);
@@ -707,25 +787,23 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       collectEffects(op, effects, /*ignoreBarriers*/ false);
       bool read = hasEffect<MemoryEffects::Read>(effects);
       bool write = hasEffect<MemoryEffects::Write>(effects);
-      Operation *cloned;
+      SmallVector<Value, 1> cloned;
       if (effects.empty()) {
         rewriter.setInsertionPoint(firstGridOp);
         rewriter.clone(*op, parallelizedMapping);
         rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
         rewriter.clone(*op, splitMapping);
         rewriter.setInsertionPoint(newWrapper);
-        cloned = rewriter.clone(*op, hoistMapping);
+        cloned = rewriter.clone(*op, hoistMapping)->getResults();
       } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
         // I think this can actually happen if we lower a kernel with a barrier
         // and shared memory with gridDim = 1 TODO handle
-        cloned = nullptr;
         assert(0 && "what?");
       } else if (hasEffect<MemoryEffects::Free>(effects)) {
-        cloned = nullptr;
         assert(0 && "what?");
       } else if (write) {
         rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
-        cloned = rewriter.clone(*op, splitMapping);
+        cloned = rewriter.clone(*op, splitMapping)->getResults();
         // TODO if we find that this has results that get used later in the
         // final parallel we need to introduce temporary gpu cache memory to
         // pass it on
@@ -734,13 +812,13 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
         // ops up to and including the next parallel op may not write to where
         // we read from
 
-        // TODO for nested ops, try to collect all memrefs we load from and do
-        // the checks on them
+        // TODO for recursive mem effects ops, try to collect all memrefs we
+        // load from and do the checks on them
         bool canParallelize = true;
         if (auto loadOp = dyn_cast<memref::LoadOp>(op)) {
           auto loadMemRef = loadOp.getMemref();
           Operation *op = loadOp;
-          while (op != pop.getOperation()) {
+          while (op != pop) {
             op = op->getNextNode();
             if (mayWriteTo(op, loadMemRef, /*ignoreBarrier*/ false)) {
               canParallelize = false;
@@ -750,18 +828,59 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
           canParallelize = false;
         }
         if (canParallelize) {
+          rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+          rewriter.clone(*op, splitMapping);
           rewriter.setInsertionPoint(firstGridOp);
-          cloned = rewriter.clone(*op, parallelizedMapping);
+          cloned = rewriter.clone(*op, parallelizedMapping)->getResults();
         } else {
-          // TODO we need to introduce temporary gpu cache memory to pass it on
-          assert(0 && "unhandled case");
-          cloned = nullptr;
+          // If it is not used beyond the parallel, we can just put it out in
+          // the newWrapper
+          bool usedOnlyBeforePop = true;
+          for (auto v : op->getResults()) {
+            for (auto &u : llvm::make_early_inc_range(v.getUses())) {
+              auto *user = u.getOwner();
+              while (user->getBlock() != pop->getBlock())
+                user = user->getBlock()->getParentOp();
+              if (!user->isBeforeInBlock(pop)) {
+                usedOnlyBeforePop = false;
+                break;
+              }
+            }
+          }
+          if (usedOnlyBeforePop) {
+            rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+            // We will be trying to replace uses of this in the pop but it does
+            // not matter as we confirmed there are none
+            cloned = rewriter.clone(*op, splitMapping)->getResults();
+          } else {
+            rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+            auto clonedOp = rewriter.clone(*op, splitMapping);
+
+            // TODO it might be better to load this from the host and pass it as a parameter
+            SmallVector<Value, 1> cacheLoads;
+            cacheLoads.reserve(op->getNumResults());
+            for (auto v : clonedOp->getResults()) {
+              rewriter.setInsertionPoint(newWrapper);
+              auto mt = MemRefType::get({}, v.getType());
+              auto alloc = rewriter.create<gpu::AllocOp>(
+                loc, mt, /* asyncToken type */ nullptr,
+                /* TODO asyncDependencies */ ValueRange(), /* dynamicSizes */ ValueRange(),
+                /* symbolOperands */ ValueRange());
+
+              rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+              rewriter.create<memref::StoreOp>(loc, v, alloc.getMemref());
+
+              rewriter.setInsertionPoint(firstGridOp);
+              cacheLoads.push_back(rewriter.create<memref::LoadOp>(loc, alloc.getMemref()));
+            }
+
+            cloned = cacheLoads;
+          }
         }
       } else {
-        cloned = nullptr;
         assert(0 && "are there other effects?");
       }
-      rewriter.replaceOpWithIf(op, cloned->getResults(), [&](OpOperand &use) {
+      rewriter.replaceOpWithIf(op, cloned, [&](OpOperand &use) {
         Operation *owner = use.getOwner();
         while (owner->getBlock() != pop->getBlock())
           owner = owner->getParentOp();
@@ -772,6 +891,45 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       assert(op->use_empty());
       rewriter.eraseOp(op);
     }
+
+    return success();
+  }
+};
+
+struct InterchangeIfOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
+  const char *PATTERN = "interchange-if-op";
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
+                                PatternRewriter &rewriter) const override {
+    auto loc = wrapper->getLoc();
+    auto wrapperBody = wrapper.getBody();
+    auto ifOp = dyn_cast<scf::IfOp>(&*wrapperBody->begin());
+    if (!ifOp) {
+      LLVM_DEBUG(DBGS() << "first op is not an if\n");
+      return failure();
+    }
+    if (&*std::prev(wrapperBody->end(), 2) != ifOp.getOperation()) {
+      LLVM_DEBUG(DBGS() << "if is not the only op\n");
+      return failure();
+    }
+
+    // TODO Currently it has to be the only remaining op in the wrapper
+    // and we assume it only has a then
+    assert(ifOp.getElseRegion().empty());
+    rewriter.setInsertionPoint(wrapper);
+    auto newIf = rewriter.cloneWithoutRegions(ifOp);
+    newIf.getThenRegion().push_back(new Block());
+    rewriter.setInsertionPointToStart(&*newIf.getThenRegion().begin());
+    auto newWrapper = rewriter.cloneWithoutRegions(wrapper);
+    rewriter.create<scf::YieldOp>(loc);
+    rewriter.inlineRegionBefore(ifOp.getThenRegion(), newWrapper.getRegion(),
+                                newWrapper.getRegion().end());
+    rewriter.eraseOp(newWrapper.getBody()->getTerminator());
+    rewriter.setInsertionPointToEnd(newWrapper.getBody());
+    rewriter.create<polygeist::PolygeistYieldOp>(loc);
+
+    rewriter.eraseOp(wrapper);
+
     return success();
   }
 };
@@ -1014,9 +1172,11 @@ struct ConvertParallelToGPU1Pass
     // clang-format off
     patterns.insert<
       BarrierElim</*TopLevelOnly*/ false>,
-      CreateParallelOps,
+      InterchangeIfOp,
       SplitOffParallel,
+      HandleWrapperRootAlloca,
       HandleWrapperRootOps,
+      CreateParallelOps,
       ParallelizeBlockOps,
       SplitParallelOp,
       ParallelToGPULaunch
@@ -1054,6 +1214,10 @@ struct ConvertParallelToGPU1Pass
                                      launchOp.getBody());
       }
     });
+
+    // TODO walk everything in the gpu.funcs we created and serialize any stray
+    // parallels that may remain (optimally we would want to use them for the
+    // gpu.launch op but there may be cases where we cannot?)
   }
 };
 
