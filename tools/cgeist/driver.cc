@@ -73,8 +73,14 @@ static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
 static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
 
-static cl::opt<bool> OutputIntermediateGPU("output-intermediate-gpu", cl::init(false),
-                                           cl::desc("Output intermediate gpu code"));
+static cl::opt<bool>
+    OutputIntermediateGPU("output-intermediate-gpu", cl::init(false),
+                          cl::desc("Output intermediate gpu code"));
+
+static cl::opt<bool>
+    UseOriginalGPUBlockSize("use-original-gpu-block-size", cl::init(false),
+                            cl::desc("Try not to alter the GPU kernel block "
+                                     "sizes originally used in the code"));
 
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
@@ -389,15 +395,17 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
-#define dump_module(PASS_MANAGER, EXEC)             \
-  do {                                              \
-    llvm::errs() << "at line" << __LINE__ << "\n";  \
-    (void)PASS_MANAGER.run(module.get());           \
-    module->dump();                                 \
-    EXEC;                                           \
+#define dump_module(PASS_MANAGER, EXEC)                                        \
+  do {                                                                         \
+    llvm::errs() << "at line" << __LINE__ << "\n";                             \
+    (void)PASS_MANAGER.run(module.get());                                      \
+    module->dump();                                                            \
+    EXEC;                                                                      \
   } while (0)
 #undef dump_module
-#define dump_module(PASS_MANAGER, EXEC) do {} while (0)
+#define dump_module(PASS_MANAGER, EXEC)                                        \
+  do {                                                                         \
+  } while (0)
 
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
@@ -832,7 +840,8 @@ int main(int argc, char **argv) {
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
       if (CudaLower)
-        pm.addPass(polygeist::createConvertParallelToGPUPass1());
+        pm.addPass(polygeist::createConvertParallelToGPUPass1(
+            UseOriginalGPUBlockSize));
       // We cannot canonicalize here because we have sunk some operations in the
       // kernel which the canonicalizer would hoist
 

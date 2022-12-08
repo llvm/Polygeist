@@ -65,7 +65,6 @@ void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
 template <typename FuncType>
 struct RemoveFunction : public OpRewritePattern<FuncType> {
   using OpRewritePattern<FuncType>::OpRewritePattern;
-
   LogicalResult matchAndRewrite(FuncType f,
                                 PatternRewriter &rewriter) const override {
     if (!isa<ModuleOp>(f->getParentOp())) {
@@ -261,9 +260,14 @@ struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 ///   }
 /// }
 ///
+template <bool useOriginalThreadNums>
 struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
   const char *PATTERN = "split-parallel-op";
+
+  const unsigned MAX_GPU_THREADS = 1024;
+  const unsigned DEFAULT_GPU_THREADS = 512;
+
   LogicalResult matchAndRewrite(scf::ParallelOp pop,
                                 PatternRewriter &rewriter) const override {
     auto wrapper = dyn_cast<polygeist::GPUWrapperOp>(pop->getParentOp());
@@ -318,15 +322,16 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
         break;
       }
     }
-    assert(originalThreadNum <= 1024);
+    assert(originalThreadNum <= MAX_GPU_THREADS);
     // TODO do something smart if we didnt have constants
 
     // TODO Maybe we can do something smarter than this if we know the target
     // gpu architecture, however, for example rodinia/myocyte crashes with
     // CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES if we use 1024 instead of the 32
     // specified in the code
-    const unsigned maxThreads =
-        originalThreadNum > 0 ? originalThreadNum : 1024;
+    const unsigned maxThreads = originalThreadNum > 0 && useOriginalThreadNums
+                                    ? originalThreadNum
+                                    : DEFAULT_GPU_THREADS;
     unsigned threadNum = 1;
     for (int i = totalDims - 1; i >= 0; i--) {
       // TODO have we covered all possibilities for a constant? maybe use
@@ -648,9 +653,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
 };
 
 bool hasNestedParallel(Operation *topLevelOp) {
-  auto walkRes = topLevelOp->walk([&](scf::ParallelOp) {
-    return WalkResult::interrupt();
-  });
+  auto walkRes = topLevelOp->walk(
+      [&](scf::ParallelOp) { return WalkResult::interrupt(); });
   return walkRes.wasInterrupted();
 }
 
@@ -658,7 +662,8 @@ bool hasNestedParallel(Operation *topLevelOp) {
 /// least, as we are only lowering cuda kernels to wrapped parallels and nothing
 /// else) that that alloca is shared mem allocation and the single trip grid
 /// parallel was removed - this pass restores it
-struct HandleWrapperRootAlloca : public OpRewritePattern<polygeist::GPUWrapperOp> {
+struct HandleWrapperRootAlloca
+    : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
 
   const char *PATTERN = "handle wrapper root alloca";
@@ -674,7 +679,8 @@ struct HandleWrapperRootAlloca : public OpRewritePattern<polygeist::GPUWrapperOp
     for (Operation &op : *wrapperBody) {
       SmallVector<MemoryEffects::EffectInstance> effects;
       collectEffects(&op, effects, /*ignoreBarriers*/ false);
-      if (!hasNestedParallel(&op) && hasEffect<MemoryEffects::Allocate>(effects)) {
+      if (!hasNestedParallel(&op) &&
+          hasEffect<MemoryEffects::Allocate>(effects)) {
         allocFound = true;
         break;
       }
@@ -760,8 +766,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
     for (;; ++it) {
       if (&*it == wrapperBody->getTerminator())
         return failure();
-      if (hasNestedParallel(&*it) &&
-          isa<scf::ParallelOp, scf::IfOp>(&*it)) {
+      if (hasNestedParallel(&*it) && isa<scf::ParallelOp, scf::IfOp>(&*it)) {
         pop = &*it;
         // TODO handle ifs with elses
         if (auto ifOp = dyn_cast<scf::IfOp>(&*it))
@@ -856,22 +861,25 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
             rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
             auto clonedOp = rewriter.clone(*op, splitMapping);
 
-            // TODO it might be better to load this from the host and pass it as a parameter
+            // TODO it might be better to load this from the host and pass it as
+            // a parameter
             SmallVector<Value, 1> cacheLoads;
             cacheLoads.reserve(op->getNumResults());
             for (auto v : clonedOp->getResults()) {
               rewriter.setInsertionPoint(newWrapper);
               auto mt = MemRefType::get({}, v.getType());
               auto alloc = rewriter.create<gpu::AllocOp>(
-                loc, mt, /* asyncToken type */ nullptr,
-                /* TODO asyncDependencies */ ValueRange(), /* dynamicSizes */ ValueRange(),
-                /* symbolOperands */ ValueRange());
+                  loc, mt, /* asyncToken type */ nullptr,
+                  /* TODO asyncDependencies */ ValueRange(),
+                  /* dynamicSizes */ ValueRange(),
+                  /* symbolOperands */ ValueRange());
 
               rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
               rewriter.create<memref::StoreOp>(loc, v, alloc.getMemref());
 
               rewriter.setInsertionPoint(firstGridOp);
-              cacheLoads.push_back(rewriter.create<memref::LoadOp>(loc, alloc.getMemref()));
+              cacheLoads.push_back(
+                  rewriter.create<memref::LoadOp>(loc, alloc.getMemref()));
             }
 
             cloned = cacheLoads;
@@ -951,7 +959,6 @@ struct InterchangeIfOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 /// }
 struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
-
   const char *PATTERN = "split-off-parallel";
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
@@ -991,7 +998,6 @@ struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
 /// }
 struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
-
   const char *PATTERN = "parallel-to-gpu-launch";
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
@@ -1166,7 +1172,9 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
 // TODO parallel wrapper LICM
 struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
-  ConvertParallelToGPU1Pass() {}
+  bool useOriginalThreadNums;
+  ConvertParallelToGPU1Pass(bool useOriginalThreadNums = false)
+      : useOriginalThreadNums(useOriginalThreadNums) {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     // clang-format off
@@ -1177,8 +1185,14 @@ struct ConvertParallelToGPU1Pass
       HandleWrapperRootAlloca,
       HandleWrapperRootOps,
       CreateParallelOps,
-      ParallelizeBlockOps,
-      SplitParallelOp,
+      ParallelizeBlockOps
+      >(&getContext());
+    if (useOriginalThreadNums) {
+      patterns.insert<SplitParallelOp<true>>(&getContext());
+    } else  {
+      patterns.insert<SplitParallelOp<false>>(&getContext());
+    }
+    patterns.insert<
       ParallelToGPULaunch
       >(&getContext());
     // clang-format on
@@ -1241,8 +1255,9 @@ struct ConvertParallelToGPU2Pass
 
 } // namespace
 
-std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass1() {
-  return std::make_unique<ConvertParallelToGPU1Pass>();
+std::unique_ptr<Pass>
+mlir::polygeist::createConvertParallelToGPUPass1(bool useOriginalThreadNums) {
+  return std::make_unique<ConvertParallelToGPU1Pass>(useOriginalThreadNums);
 }
 std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2() {
   return std::make_unique<ConvertParallelToGPU2Pass>();
