@@ -72,6 +72,7 @@ def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
   Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
   let summary = "Wraps a parallel op to prevent code motion and transformations";
+  let results = (outs Index : $result);
   let regions = (region SizedRegion<1>:$region);
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins
@@ -79,8 +80,21 @@ def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
 
 }
 
+def GPUErrorOp : Polygeist_Op<"gpu_error", [
+  RecursiveMemoryEffects,
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins)> {
+  let summary = "Gets the error returned by the gpu operation inside";
+  // TODO should be i32, not index
+  let results = (outs Index : $result);
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins)>];
+
+}
+
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["GPUWrapperOp"]>]> {
+    ParentOneOf<["GPUWrapperOp", "GPUErrorOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 

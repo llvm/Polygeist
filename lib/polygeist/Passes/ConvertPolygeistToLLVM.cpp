@@ -1342,6 +1342,22 @@ protected:
           llvmPointerType, /* void *module */
           llvmPointerType  /* char *name   */
       }};
+  FunctionCallBuilder launchKernelErrCallBuilder = {
+      "mgpuLaunchKernelErr",
+      llvmInt32Type, /* unsigned int */
+      {
+          llvmPointerType,        /* void* f */
+          llvmIntPtrType,         /* intptr_t gridXDim */
+          llvmIntPtrType,         /* intptr_t gridyDim */
+          llvmIntPtrType,         /* intptr_t gridZDim */
+          llvmIntPtrType,         /* intptr_t blockXDim */
+          llvmIntPtrType,         /* intptr_t blockYDim */
+          llvmIntPtrType,         /* intptr_t blockZDim */
+          llvmInt32Type,          /* unsigned int sharedMemBytes */
+          llvmPointerType,        /* void *hstream */
+          llvmPointerPointerType, /* void **kernelParams */
+          llvmPointerPointerType  /* void **extra */
+      }};
   FunctionCallBuilder launchKernelCallBuilder = {
       "mgpuLaunchKernel",
       llvmVoidType,
@@ -1512,6 +1528,13 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
 
   Location loc = launchOp.getLoc();
 
+  polygeist::GPUErrorOp errOp = nullptr;
+  if ((errOp = dyn_cast<polygeist::GPUErrorOp>(launchOp->getParentOp()))) {
+    rewriter.setInsertionPoint(errOp);
+    rewriter.eraseOp(errOp.getBody()->getTerminator());
+    rewriter.mergeBlockBefore(errOp.getBody(), errOp);
+  }
+
   // Create an LLVM global with CUBIN extracted from the kernel annotation and
   // obtain a pointer to the first byte in it.
   auto kernelModule = SymbolTable::lookupNearestSymbolFrom<gpu::GPUModuleOp>(
@@ -1637,7 +1660,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   Value dynamicSharedMemorySize = launchOp.getDynamicSharedMemorySize()
                                       ? launchOp.getDynamicSharedMemorySize()
                                       : zero;
-  launchKernelCallBuilder.create(
+  auto launchCall = launchKernelErrCallBuilder.create(
       loc, rewriter,
       {function.getResult(), adaptor.getGridSizeX(), adaptor.getGridSizeY(),
        adaptor.getGridSizeZ(), adaptor.getBlockSizeX(), adaptor.getBlockSizeY(),
@@ -1651,8 +1674,11 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
     rewriter.eraseOp(launchOp);
   }
 
-  // TODO make a module destructor too
-  // moduleUnloadCallBuilder.create(loc, rewriter, module.getResult());
+  if (errOp) {
+    auto cast = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIndexType(), launchCall->getResult(0));
+    rewriter.replaceOp(errOp, cast->getResults());
+  }
 
   return success();
 }
@@ -1806,7 +1832,7 @@ public:
 
 static LogicalResult
 isAsyncWithZeroDependencies(ConversionPatternRewriter &rewriter,
-                         gpu::AsyncOpInterface op) {
+                            gpu::AsyncOpInterface op) {
   if (op.getAsyncDependencies().size() != 0)
     return rewriter.notifyMatchFailure(
         op, "Can only convert with exactly one async dependency.");
@@ -1836,9 +1862,9 @@ public:
       : ConvertOpToGpuRuntimeCallPattern<gpu::AllocOp>(typeConverter) {}
 
 private:
-  LogicalResult matchAndRewrite(
-      gpu::AllocOp allocOp, OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(gpu::AllocOp allocOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     if (adaptor.getHostShared())
       return rewriter.notifyMatchFailure(
           allocOp, "host_shared allocation is not supported");
@@ -1858,15 +1884,15 @@ private:
     SmallVector<Value, 4> shape;
     SmallVector<Value, 4> strides;
     Value sizeBytes;
-    getMemRefDescriptorSizes(loc, memRefType, adaptor.getDynamicSizes(), rewriter,
-                            shape, strides, sizeBytes);
+    getMemRefDescriptorSizes(loc, memRefType, adaptor.getDynamicSizes(),
+                             rewriter, shape, strides, sizeBytes);
 
     // Allocate the underlying buffer and store a pointer to it in the MemRef
     // descriptor.
     Type elementPtrType = this->getElementPtrType(memRefType);
 
     // CUDA and ROCM both dont take stream as arguments for alloc
-    //auto stream = adaptor.getAsyncDependencies().front();
+    // auto stream = adaptor.getAsyncDependencies().front();
     auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
     Value allocatedPtr =
         allocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
@@ -2161,7 +2187,7 @@ struct ConvertPolygeistToLLVMPass
       // Our custom versions of the gpu patterns
       if (useCStyleMemRef) {
         patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
-          converter, gpu::getDefaultGpuBinaryAnnotation());
+            converter, gpu::getDefaultGpuBinaryAnnotation());
         patterns.add<ConvertAllocOpToGpuRuntimeCallPattern>(converter);
       }
 
@@ -2173,7 +2199,6 @@ struct ConvertPolygeistToLLVMPass
       populateGpuToLLVMConversionPatterns(converter, patterns,
                                           gpu::getDefaultGpuBinaryAnnotation(),
                                           kernelBarePtrCallConv);
-
 
       // Legality callback for operations that checks whether their operand and
       // results types are converted.

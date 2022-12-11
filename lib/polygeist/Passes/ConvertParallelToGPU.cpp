@@ -20,6 +20,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -29,6 +30,8 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
+
+#include <cuda.h>
 
 #define DEBUG_TYPE "convert-parallel-to-gpu"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
@@ -60,6 +63,42 @@ void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
 void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
   rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(),
                                   std::vector<Value>{});
+}
+
+/// a / 2 < prevPowerOf2(a) <= a
+unsigned prevPowerOf2(unsigned a) {
+  unsigned b = 1;
+  while (b <= a)
+    b *= 2;
+  b /= 2;
+  return b;
+}
+
+/// a <= nextPowerOf2(a) < a * 2
+unsigned nextPowerOf2(unsigned a) {
+  unsigned b = 1;
+  while (b < a * 2)
+    b *= 2;
+  b /= 2;
+  return b;
+}
+
+scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
+                                                const char *PATTERN) {
+  auto it = block->begin();
+  auto pop = dyn_cast<scf::ParallelOp>(&*it);
+  it++;
+  if (!pop) {
+    LLVM_DEBUG(DBGS() << "[pop-to-launch] need directly nested parallelop\n");
+    return nullptr;
+  }
+  if (block->getTerminator() != &*it) {
+    LLVM_DEBUG(DBGS() << "[pop-to-launch] stray ops in block\n");
+    return nullptr;
+  }
+  it++;
+  assert(it == block->end());
+  return pop;
 }
 
 template <typename FuncType>
@@ -261,24 +300,21 @@ struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 /// }
 ///
 template <bool useOriginalThreadNums>
-struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
-  using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
+struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
+  using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "split-parallel-op";
 
+  // TODO think about these numbers, should they differ from arch to arch?
   const unsigned MAX_GPU_THREADS = 1024;
   const unsigned DEFAULT_GPU_THREADS = 512;
+  const unsigned MIN_GPU_THREADS = 32;
 
-  LogicalResult matchAndRewrite(scf::ParallelOp pop,
+  LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
-    auto wrapper = dyn_cast<polygeist::GPUWrapperOp>(pop->getParentOp());
-    if (!wrapper) {
-      LLVM_DEBUG(DBGS() << "parallel not wrapped\n");
+    scf::ParallelOp pop =
+        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+    if (!pop)
       return failure();
-    }
-    if (pop->getParentOfType<scf::ParallelOp>()) {
-      LLVM_DEBUG(DBGS() << "only single parallel ops\n");
-      return failure();
-    }
     bool child = false;
     pop->walk([&](scf::ParallelOp p) {
       if (pop != p)
@@ -288,18 +324,49 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       LLVM_DEBUG(DBGS() << "only single parallel ops\n");
       return failure();
     }
+
     auto loc = pop->getLoc();
+
+    int originalThreadNum = getOriginalThreadNum(wrapper);
 
     // TODO handle lower bounds != 0 and steps != 1
 
-    auto upperBounds = getUpperBounds<6>(pop);
-    int totalDims = upperBounds.size();
-    SmallVector<Value, 3> blockDims;
-    SmallVector<Value, 3> gridDims;
-    // Arg ids in the original parallel block
-    SmallVector<int, 3> blockArgId;
-    SmallVector<int, 3> gridArgId;
+    // We start with the maximum amount of threads ina block we want, and go
+    // lower if we find that we get the out of resources error which occurs if
+    // we use too many registers in a single block
 
+    rewriter.setInsertionPoint(wrapper);
+    // TODO After we have compiled the kernels to PTX, we might be able to
+    // figure out from the number of registers and the target arch if it would
+    // fail, then we can just replace the call to it with this const
+    auto outOfResourcesErr = rewriter.create<arith::ConstantIndexOp>(
+        loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
+    unsigned initialThreads;
+    if (useOriginalThreadNums && originalThreadNum > 0)
+      initialThreads = nextPowerOf2(originalThreadNum);
+    else
+      initialThreads = DEFAULT_GPU_THREADS;
+
+    for (unsigned defaultThreads = initialThreads;
+         defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
+      // TODO not very efficient...
+      auto newWrapper = rewriter.clone(*wrapper.getOperation());
+      newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
+                                 defaultThreads, rewriter);
+      rewriter.setInsertionPointAfter(newWrapper);
+      auto cond = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                 newWrapper->getResult(0),
+                                                 outOfResourcesErr);
+      auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
+      rewriter.setInsertionPointToStart(ifOp.thenBlock());
+    }
+
+    rewriter.eraseOp(wrapper);
+
+    return success();
+  }
+
+  int getOriginalThreadNum(polygeist::GPUWrapperOp wrapper) const {
     // Collect the original block dims for this wrapper TODO IF it was
     // originally a kernel launch, in the future we could add gpu offloading for
     // openmp parallels, then we would have to not consider this
@@ -323,15 +390,27 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       }
     }
     assert(originalThreadNum <= MAX_GPU_THREADS);
-    // TODO do something smart if we didnt have constants
 
-    // TODO Maybe we can do something smarter than this if we know the target
-    // gpu architecture, however, for example rodinia/myocyte crashes with
-    // CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES if we use 1024 instead of the 32
-    // specified in the code
-    const unsigned maxThreads = originalThreadNum > 0 && useOriginalThreadNums
-                                    ? originalThreadNum
-                                    : DEFAULT_GPU_THREADS;
+    return originalThreadNum;
+  }
+
+  Operation *createSplitOp(polygeist::GPUWrapperOp wrapper, unsigned maxThreads,
+                           PatternRewriter &rewriter) const {
+    mlir::OpBuilder::InsertionGuard guard(rewriter);
+
+    scf::ParallelOp pop =
+        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+    auto loc = pop->getLoc();
+
+    auto upperBounds = getUpperBounds<6>(pop);
+    int totalDims = upperBounds.size();
+
+    SmallVector<Value, 3> blockDims;
+    SmallVector<Value, 3> gridDims;
+    // Arg ids in the original parallel block
+    SmallVector<int, 3> blockArgId;
+    SmallVector<int, 3> gridArgId;
+
     unsigned threadNum = 1;
     for (int i = totalDims - 1; i >= 0; i--) {
       // TODO have we covered all possibilities for a constant? maybe use
@@ -350,7 +429,13 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
       }
     }
     // TODO if we have too many dims, we have to merge some of them
-    assert(gridDims.size() <= 3);
+    if (gridDims.size() > 3) {
+      rewriter.setInsertionPoint(wrapper);
+      auto err =
+          rewriter.create<arith::ConstantIndexOp>(loc, CUDA_ERROR_UNKNOWN);
+      rewriter.replaceOp(wrapper, err->getResults());
+      return err;
+    }
 
     rewriter.setInsertionPoint(pop);
     auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -365,14 +450,14 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     } else if (threadNum < 256) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
-      //
+
       // TODO we have to be careful to not exceed max z dimension in block, it
       // is lower than the 1024 max for the x and y
 
-      unsigned threadsLeft = 1;
-      while ((float)threadsLeft <= (float)maxThreads / (float)threadNum)
-        threadsLeft *= 2;
-      threadsLeft /= 2;
+      // TODO we can actually generate multiple kernels here and dynamically
+      // split from the grid dimension that has enough parallelism in it
+
+      unsigned threadsLeft = (prevPowerOf2(maxThreads / threadNum));
       threadNum *= threadsLeft;
       assert(threadNum <= maxThreads);
 
@@ -479,9 +564,10 @@ struct SplitParallelOp : public OpRewritePattern<scf::ParallelOp> {
     rewriter.eraseOp(pop.getBody()->getTerminator());
     for (auto &op : *pop.getBody())
       rewriter.clone(op, mapping);
+
     rewriter.eraseOp(pop);
 
-    return success();
+    return wrapper.getOperation();
   }
 };
 
@@ -1013,38 +1099,22 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // prepared for conversion to gpu.launch, i.e. two nested parallel loops
     // with lower bounds zero and constant upper bounds for the inner parallel,
     // the memory they use is on the gpu, are there more conditions?
-    auto getDirectlyNestedSingleParallel =
-        [&](Block *block) -> scf::ParallelOp {
-      auto it = block->begin();
-      auto pop = dyn_cast<scf::ParallelOp>(&*it);
-      it++;
-      if (!pop) {
-        LLVM_DEBUG(
-            DBGS() << "[pop-to-launch] need directly nested parallelop\n");
-        return nullptr;
-      }
-      if (block->getTerminator() != &*it) {
-        LLVM_DEBUG(DBGS() << "[pop-to-launch] stray ops in block\n");
-        return nullptr;
-      }
-      it++;
-      assert(it == block->end());
-      return pop;
-    };
-
     scf::ParallelOp gridPop =
-        getDirectlyNestedSingleParallel(wrapper.getBody());
+        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
     if (!gridPop)
       return failure();
     scf::ParallelOp blockPop =
-        getDirectlyNestedSingleParallel(gridPop.getBody());
+        getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
     if (!blockPop)
       return failure();
 
     rewriter.setInsertionPoint(wrapper);
+    auto errOp = rewriter.create<polygeist::GPUErrorOp>(loc);
+    rewriter.setInsertionPointToStart(errOp.getBody());
     rewriter.eraseOp(wrapper.getBody()->getTerminator());
-    rewriter.mergeBlockBefore(wrapper.getBody(), wrapper);
-    rewriter.eraseOp(wrapper);
+    rewriter.mergeBlockBefore(wrapper.getBody(),
+                              errOp.getBody()->getTerminator());
+    rewriter.replaceOp(wrapper, errOp->getResults());
 
     // TODO make sure we start at zero or else convert the parallel ops to start
     // at 0
