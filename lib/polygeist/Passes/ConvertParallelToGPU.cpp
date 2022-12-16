@@ -348,7 +348,9 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       initialThreads = DEFAULT_GPU_THREADS;
 
     for (unsigned defaultThreads = initialThreads;
-         defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
+         defaultThreads >= MIN_GPU_THREADS;
+         originalThreadNum == -1 ? defaultThreads /= 2
+                                 : defaultThreads = originalThreadNum) {
       // TODO not very efficient...
       auto newWrapper = rewriter.clone(*wrapper.getOperation());
       newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
@@ -359,6 +361,9 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                                                  outOfResourcesErr);
       auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
       rewriter.setInsertionPointToStart(ifOp.thenBlock());
+      if (originalThreadNum != -1 &&
+          defaultThreads == (unsigned)originalThreadNum)
+        break;
     }
 
     rewriter.eraseOp(wrapper);
