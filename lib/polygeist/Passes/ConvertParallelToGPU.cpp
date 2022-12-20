@@ -327,6 +327,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     auto loc = pop->getLoc();
 
+    // -1 if if was not a constant
     int originalThreadNum = getOriginalThreadNum(wrapper);
 
     // TODO handle lower bounds != 0 and steps != 1
@@ -341,16 +342,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // fail, then we can just replace the call to it with this const
     auto outOfResourcesErr = rewriter.create<arith::ConstantIndexOp>(
         loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
-    unsigned initialThreads;
-    if (useOriginalThreadNums && originalThreadNum > 0)
-      initialThreads = nextPowerOf2(originalThreadNum);
-    else
-      initialThreads = DEFAULT_GPU_THREADS;
 
-    for (unsigned defaultThreads = initialThreads;
-         defaultThreads >= MIN_GPU_THREADS;
-         originalThreadNum == -1 ? defaultThreads /= 2
-                                 : defaultThreads = originalThreadNum) {
+    auto emitWithDefaultThreadNum = [&](unsigned defaultThreads) {
       // TODO not very efficient...
       auto newWrapper = rewriter.clone(*wrapper.getOperation());
       newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
@@ -361,9 +354,31 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                                                  outOfResourcesErr);
       auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
       rewriter.setInsertionPointToStart(ifOp.thenBlock());
-      if (originalThreadNum != -1 &&
-          defaultThreads == (unsigned)originalThreadNum)
-        break;
+    };
+    auto emitGradualFailover = [&]() {
+      for (unsigned defaultThreads = DEFAULT_GPU_THREADS;
+           defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
+        emitWithDefaultThreadNum(defaultThreads);
+      }
+    };
+    auto emitOriginalFailover = [&]() {
+      emitWithDefaultThreadNum(DEFAULT_GPU_THREADS);
+      emitWithDefaultThreadNum(originalThreadNum);
+    };
+
+    // TODO sometimes the original thread num is not a constant - can we handle
+    // that too?
+    if (useOriginalThreadNums) {
+      if (originalThreadNum > 0)
+        emitWithDefaultThreadNum(originalThreadNum);
+      else
+        emitGradualFailover();
+    } else {
+      if (originalThreadNum > 0) {
+        emitOriginalFailover();
+      } else {
+        emitGradualFailover();
+      }
     }
 
     rewriter.eraseOp(wrapper);
@@ -436,8 +451,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // TODO if we have too many dims, we have to merge some of them
     if (gridDims.size() > 3) {
       rewriter.setInsertionPoint(wrapper);
-      auto err =
-          rewriter.create<arith::ConstantIndexOp>(loc, CUDA_ERROR_UNKNOWN);
+      auto err = rewriter.create<arith::ConstantIndexOp>(
+          loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
       rewriter.replaceOp(wrapper, err->getResults());
       return err;
     }
