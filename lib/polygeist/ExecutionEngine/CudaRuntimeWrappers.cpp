@@ -27,13 +27,13 @@
 #define CUDA_REPORT_IF_ERROR(expr)                                             \
   [](CUresult result) {                                                        \
     if (!result)                                                               \
-      return result;                                                    \
-    const char *name = nullptr;                                         \
-    cuGetErrorName(result, &name);                                      \
-    if (!name)                                                          \
-      name = "<unknown>";                                               \
-    fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);            \
-    return result;                                                      \
+      return result;                                                           \
+    const char *name = nullptr;                                                \
+    cuGetErrorName(result, &name);                                             \
+    if (!name)                                                                 \
+      name = "<unknown>";                                                      \
+    fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);                   \
+    return result;                                                             \
   }(expr)
 
 thread_local static int32_t defaultDevice = 0;
@@ -62,13 +62,12 @@ public:
   ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
-mgpuLaunchKernelErr(CUfunction function, intptr_t gridX, intptr_t gridY,
-                 intptr_t gridZ, intptr_t blockX, intptr_t blockY,
-                 intptr_t blockZ, int32_t smem, CUstream stream, void **params,
-                 void **extra) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpuLaunchKernelErr(
+    CUfunction function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
+    intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
+    CUstream stream, void **params, void **extra) {
   ScopedContext scopedContext;
-  return CUDA_REPORT_IF_ERROR(cuLaunchKernel(function, gridX, gridY, gridZ, blockX,
-                                             blockY, blockZ, smem, stream, params,
-                                             extra));
+  return CUDA_REPORT_IF_ERROR(cuLaunchKernel(function, gridX, gridY, gridZ,
+                                             blockX, blockY, blockZ, smem,
+                                             stream, params, extra));
 }

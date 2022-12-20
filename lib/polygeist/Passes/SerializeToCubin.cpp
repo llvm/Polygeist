@@ -289,8 +289,7 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   Location loc = getOperation().getLoc();
 
   if (outputIntermediate) {
-    llvm::outs() << "PTX module for: "
-                 << getOperation().getNameAttr() << "\n"
+    llvm::outs() << "PTX module for: " << getOperation().getNameAttr() << "\n"
                  << isa << "\n";
     llvm::outs().flush();
   }
@@ -378,10 +377,9 @@ std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
     int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
     bool outputIntermediate) {
-  return std::make_unique<SerializeToCubinPass>(triple, arch, features,
-                                                llvmOptLevel, ptxasOptLevel,
-                                                ptxasPath, libDevicePath,
-                                                outputIntermediate);
+  return std::make_unique<SerializeToCubinPass>(
+      triple, arch, features, llvmOptLevel, ptxasOptLevel, ptxasPath,
+      libDevicePath, outputIntermediate);
 }
 
 } // namespace mlir::polygeist
