@@ -373,6 +373,12 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
       bool isArray = false;
       Glob.getMLIRType(expr->getInit()->getType(), &isArray);
 
+      if (!isArray && isa<clang::ReferenceType>(
+                          field->getType()->getUnqualifiedDesugaredType())) {
+        assert(initexpr.isReference);
+        initexpr.isReference = false;
+      }
+
       auto cfl =
           CommonFieldLookup(loc, CC->getThisObjectType(), field, ThisVal.val,
                             /*isLValue*/ false);
