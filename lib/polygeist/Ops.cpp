@@ -1257,14 +1257,17 @@ public:
     auto src = op.getSource().getDefiningOp<Memref2PointerOp>();
     if (!src)
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getShape().size() !=
-        op.getType().cast<MemRefType>().getShape().size())
+    auto smt = src.getSource().getType().cast<MemRefType>();
+    auto omt = op.getType().cast<MemRefType>();
+    if (smt.getShape().size() != omt.getShape().size())
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getElementType() !=
-        op.getType().cast<MemRefType>().getElementType())
+    for (int i = 1; i < smt.getShape().size(); i++) {
+      if (smt.getShape()[i] != omt.getShape()[i])
+        return failure();
+    }
+    if (smt.getElementType() != omt.getElementType())
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getMemorySpace() !=
-        op.getType().cast<MemRefType>().getMemorySpace())
+    if (smt.getMemorySpace() != omt.getMemorySpace())
       return failure();
 
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(),

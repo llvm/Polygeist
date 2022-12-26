@@ -534,7 +534,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 
-  auto getLLVM = [&](Expr *E) -> mlir::Value {
+  auto getLLVM = [&](Expr *E, bool isRef = false) -> mlir::Value {
     auto sub = Visit(E);
     if (!sub.val) {
       expr->dump();
@@ -564,23 +564,46 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       auto shape = std::vector<int64_t>(mt.getShape());
       assert(shape.size() == 2);
 
-      OpBuilder abuilder(builder.getContext());
-      abuilder.setInsertionPointToStart(allocationScope);
-      auto one = abuilder.create<ConstantIntOp>(loc, 1, 64);
-      auto alloc = abuilder.create<mlir::LLVM::AllocaOp>(
-          loc,
+      auto PT =
           LLVM::LLVMPointerType::get(Glob.typeTranslator.translateType(
                                          anonymize(getLLVMType(E->getType()))),
-                                     0),
-          one, 0);
-      ValueCategory(alloc, /*isRef*/ true)
-          .store(loc, builder, sub, /*isArray*/ isArray);
-      sub = ValueCategory(alloc, /*isRef*/ true);
+                                     0);
+      if (true) {
+        sub = ValueCategory(
+            builder.create<polygeist::Memref2PointerOp>(loc, PT, sub.val),
+            sub.isReference);
+      } else {
+        OpBuilder abuilder(builder.getContext());
+        abuilder.setInsertionPointToStart(allocationScope);
+        auto one = abuilder.create<ConstantIntOp>(loc, 1, 64);
+        auto alloc = abuilder.create<mlir::LLVM::AllocaOp>(loc, PT, one, 0);
+        ValueCategory(alloc, /*isRef*/ true)
+            .store(loc, builder, sub, /*isArray*/ isArray);
+        sub = ValueCategory(alloc, /*isRef*/ true);
+      }
     }
-    auto val = sub.getValue(loc, builder);
+    mlir::Value val;
+    clang::QualType ct;
+    if (!isRef) {
+      val = sub.getValue(loc, builder);
+      ct = E->getType();
+    } else {
+      if (!sub.isReference) {
+        OpBuilder abuilder(builder.getContext());
+        abuilder.setInsertionPointToStart(allocationScope);
+        auto one = abuilder.create<ConstantIntOp>(loc, 1, 64);
+        auto alloc = abuilder.create<mlir::LLVM::AllocaOp>(
+            loc, LLVM::LLVMPointerType::get(sub.val.getType()), one, 0);
+        ValueCategory(alloc, /*isRef*/ true)
+            .store(loc, builder, sub, /*isArray*/ isArray);
+        sub = ValueCategory(alloc, /*isRef*/ true);
+      }
+      assert(sub.isReference);
+      val = sub.val;
+      ct = Glob.CGM.getContext().getLValueReferenceType(E->getType());
+    }
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
-      auto nt = Glob.typeTranslator
-                    .translateType(anonymize(getLLVMType(E->getType())))
+      auto nt = Glob.typeTranslator.translateType(anonymize(getLLVMType(ct)))
                     .cast<LLVM::LLVMPointerType>();
       val = builder.create<polygeist::Memref2PointerOp>(loc, nt, val);
     }
@@ -1483,7 +1506,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
           std::vector<mlir::Value> args;
           for (auto *a : expr->arguments()) {
-            args.push_back(getLLVM(a));
+            args.push_back(getLLVM(a, /*isRef*/ false));
           }
           mlir::Value called;
 
@@ -1492,7 +1515,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
             called = builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args)
                          .getResult();
           } else {
-            args.insert(args.begin(), getLLVM(expr->getCallee()));
+            args.insert(args.begin(),
+                        getLLVM(expr->getCallee(), /*isRef*/ false));
             SmallVector<mlir::Type> RTs = {Glob.typeTranslator.translateType(
                 anonymize(getLLVMType(expr->getType())))};
             if (RTs[0].isa<LLVM::LLVMVoidType>())
@@ -1509,16 +1533,28 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
   if (!callee || callee->isVariadic()) {
     bool isReference = expr->isLValue() || expr->isXValue();
     std::vector<mlir::Value> args;
-    for (auto *a : expr->arguments()) {
-      args.push_back(getLLVM(a));
-    }
     mlir::Value called;
     if (callee) {
       auto strcmpF = Glob.GetOrCreateLLVMFunction(callee);
+      std::vector<clang::QualType> types;
+      if (auto CC = dyn_cast<CXXMethodDecl>(callee)) {
+        types.push_back(CC->getThisType());
+      }
+      for (auto parm : callee->parameters()) {
+        types.push_back(parm->getOriginalType());
+      }
+      int i = 0;
+      for (auto *a : expr->arguments()) {
+        bool isRef = false;
+        if (i < types.size())
+          isRef = types[i]->isReferenceType();
+        i++;
+        args.push_back(getLLVM(a, isRef));
+      }
       called =
           builder.create<mlir::LLVM::CallOp>(loc, strcmpF, args).getResult();
     } else {
-      args.insert(args.begin(), getLLVM(expr->getCallee()));
+      args.push_back(getLLVM(expr->getCallee()));
       auto CT = expr->getType();
       if (isReference)
         CT = Glob.CGM.getContext().getLValueReferenceType(CT);
@@ -1530,6 +1566,51 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                     .cast<LLVM::LLVMPointerType>()
                     .getElementType()
                     .cast<LLVM::LLVMFunctionType>();
+      auto ETy = expr->getCallee()->getType()->getUnqualifiedDesugaredType();
+      ETy = cast<clang::PointerType>(ETy)
+                ->getPointeeType()
+                ->getUnqualifiedDesugaredType();
+      auto CFT = dyn_cast<clang::FunctionProtoType>(ETy);
+      std::vector<clang::QualType> types;
+      if (CFT) {
+        for (auto t : CFT->getParamTypes())
+          types.push_back(t);
+      } else {
+        assert(isa<clang::FunctionNoProtoType>(ETy));
+      }
+
+      const clang::CodeGen::CGFunctionInfo *FI;
+      if (const FunctionProtoType *FPT = dyn_cast<FunctionProtoType>(ETy)) {
+        FI = &Glob.CGM.getTypes().arrangeFreeFunctionType(
+            CanQual<FunctionProtoType>::CreateUnsafe(QualType(FPT, 0)));
+      } else {
+        const FunctionNoProtoType *FNPT = cast<FunctionNoProtoType>(ETy);
+        FI = &Glob.CGM.getTypes().arrangeFreeFunctionType(
+            CanQual<FunctionNoProtoType>::CreateUnsafe(QualType(FNPT, 0)));
+      }
+
+      int i = 0;
+      for (auto *a : expr->arguments()) {
+        bool isRef = false;
+        if (i < types.size()) {
+          isRef = types[i]->isReferenceType();
+          auto inf = FI->arguments()[i].info;
+          isRef |= inf.isIndirect();
+        }
+        if (i < types.size())
+          types[i]->dump();
+        auto v = getLLVM(a, isRef);
+        if (i < FI->arg_size()) {
+          // TODO expand full calling conv
+          auto inf = FI->arguments()[i].info;
+          if (inf.isIgnore() || inf.isInAlloca()) {
+            i++;
+            continue;
+          }
+        }
+        i++;
+        args.push_back(v);
+      }
       assert(RTs[0] == ft.getReturnType());
       if (RTs[0].isa<LLVM::LLVMVoidType>())
         RTs.clear();

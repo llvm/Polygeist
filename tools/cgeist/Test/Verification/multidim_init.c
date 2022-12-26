@@ -26,7 +26,7 @@ float foo(int i, int j) {
 
   return glob_A[i][j] + A[i][j] + B[j] + sum;
 }
-// CHECK: memref.global @glob_A : memref<3x4xf32> = dense{{.*}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00], [3.333330e+00, 3.333330e+00, 3.333330e+00, 3.333330e+00], [1.000000e-01, 2.000000e-01, 3.000000e-01, 4.000000e-01{{.*}}
+// CHECK: memref.global @glob_A : memref<3x4xf32> = dense{{.*}}1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00], [3.333330e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00], [1.000000e-01, 2.000000e-01, 3.000000e-01, 4.000000e-01{{.*}}
 // CHECK-LABEL: func @foo
 // CHECK-DAG: %[[CST3:.*]] = arith.constant 3.33
 // CHECK-DAG: %[[CST1_23:.*]] = arith.constant 1.23
@@ -38,18 +38,18 @@ float foo(int i, int j) {
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 2]
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 3]
 // CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 0]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 1]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 2]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 3]
+// CHECK: affine.store %{{.*}}, %[[MEM_A]][1, 1]
+// CHECK: affine.store %{{.*}}, %[[MEM_A]][1, 2]
+// CHECK: affine.store %{{.*}}, %[[MEM_A]][1, 3]
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 0]
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 1]
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 2]
 // CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 3]
 
 // CHECK: affine.store %[[CST1_23]], %[[MEM_B]][0]
-// CHECK: affine.store %[[CST1_23]], %[[MEM_B]][1]
-// CHECK: affine.store %[[CST1_23]], %[[MEM_B]][2]
-// CHECK: affine.store %[[CST1_23]], %[[MEM_B]][3]
+// CHECK: affine.store %{{.*}}, %[[MEM_B]][1]
+// CHECK: affine.store %{{.*}}, %[[MEM_B]][2]
+// CHECK: affine.store %{{.*}}, %[[MEM_B]][3]
 
 // CHECK: scf.for
 // CHECK: affine.store %{{.*}}, %[[MEM_C]][0]

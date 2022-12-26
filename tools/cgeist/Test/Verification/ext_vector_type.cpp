@@ -12,14 +12,14 @@ float evt2() {
   return stv.x;
 }
 
-// CHECK: memref.global @stv : memref<3xf32>
+// CHECK: memref.global @stv : memref<1x3xf32>
 // CHECK: func.func @_Z3evtDv3_f(%[[arg0:.+]]: memref<?x3xf32>) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT: %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x3xf32>
 // CHECK-NEXT: return %[[V0]] : f32
 // CHECK-NEXT: }
 // CHECK: func.func @_Z4evt2v() -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT: %[[V0:.+]] = memref.get_global @stv : memref<3xf32>
-// CHECK-NEXT: %[[V1:.+]] = affine.load %[[V0]][0] : memref<3xf32>
+// CHECK-NEXT: %[[V0:.+]] = memref.get_global @stv : memref<1x3xf32>
+// CHECK-NEXT: %[[V1:.+]] = affine.load %[[V0]][0, 0] : memref<1x3xf32>
 // CHECK-NEXT: return %[[V1]] : f32
 // CHECK-NEXT: }
 
