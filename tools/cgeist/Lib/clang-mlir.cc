@@ -1017,6 +1017,14 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
           decl, (function.getName() + "@static@").str(), /*tryInit*/ false);
       op = abuilder.create<memref::GetGlobalOp>(varLoc, gv.first.getType(),
                                                 gv.first.getName());
+      auto mt = gv.first.getType().cast<MemRefType>();
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape[0] = -1;
+      op = builder.create<memref::CastOp>(
+          varLoc,
+          MemRefType::get(shape, mt.getElementType(),
+                          MemRefLayoutAttrInterface(), mt.getMemorySpace()),
+          op);
     }
     params[decl] = ValueCategory(op, /*isReference*/ true);
     if (decl->getInit()) {
@@ -2477,6 +2485,69 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     else
       v = builder.create<arith::AddFOp>(loc, v, a1);
 
+    return ValueCategory(v, false);
+  }
+  case AtomicExpr::AtomicOp::AO__atomic_load: {
+    // In the absence of an atomic load instruction, fall back to += 0.0
+    auto a0 = Visit(BO->getPtr()).getValue(loc, builder);
+    mlir::Type ty;
+    if (auto MT = a0.getType().dyn_cast<MemRefType>()) {
+      ty = MT.getElementType();
+    } else {
+      ty = a0.getType().cast<LLVM::LLVMPointerType>().getElementType();
+    }
+    AtomicRMWKind op;
+    LLVM::AtomicBinOp lop;
+    mlir::Value a1;
+    if (ty.isa<mlir::IntegerType>()) {
+      op = AtomicRMWKind::addi;
+      lop = LLVM::AtomicBinOp::add;
+      a1 = builder.create<ConstantIntOp>(loc, 0, ty);
+    } else {
+      op = AtomicRMWKind::addf;
+      lop = LLVM::AtomicBinOp::fadd;
+      a1 = builder.create<ConstantFloatOp>(
+          loc, APFloat(ty.cast<mlir::FloatType>().getFloatSemantics(), "0"),
+          ty.cast<mlir::FloatType>());
+    }
+    // TODO add atomic ordering
+    mlir::Value v;
+    if (a0.getType().isa<MemRefType>())
+      v = builder.create<memref::AtomicRMWOp>(
+          loc, a1.getType(), op, a1, a0,
+          std::vector<mlir::Value>({getConstantIndex(0)}));
+    else
+      v = builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+                                            LLVM::AtomicOrdering::acq_rel);
+    return ValueCategory(v, false);
+  }
+  case AtomicExpr::AtomicOp::AO__atomic_store: {
+    llvm::errs() << " TODO: implement atomic store with atomics\n";
+    auto a0 = Visit(BO->getPtr()).dereference(loc, builder);
+    auto a1 =
+        Visit(BO->getVal1()).dereference(loc, builder).getValue(loc, builder);
+    a0.store(loc, builder, a1);
+    return ValueCategory();
+  }
+  case AtomicExpr::AtomicOp::AO__atomic_compare_exchange: {
+    // In the absence of an atomic load instruction, fall back to += 0.0
+    auto a0 = Visit(BO->getPtr()).getValue(loc, builder);
+    auto a1 = Visit(BO->getVal1()).getValue(loc, builder);
+    auto a2 = Visit(BO->getVal2()).getValue(loc, builder);
+    if (auto mt = a0.getType().dyn_cast<MemRefType>()) {
+      a0 = builder.create<polygeist::Memref2PointerOp>(
+          loc,
+          LLVM::LLVMPointerType::get(mt.getElementType(),
+                                     mt.getMemorySpaceAsInt()),
+          a0);
+    }
+    // TODO add atomic ordering
+    mlir::Type tys[2] = {a1.getType(), builder.getIntegerType(1)};
+    auto RT = LLVM::LLVMStructType::getLiteral(a1.getContext(), tys);
+    mlir::Value v = builder.create<LLVM::AtomicCmpXchgOp>(
+        loc, RT, a0, a1, a2, LLVM::AtomicOrdering::acq_rel,
+        LLVM::AtomicOrdering::acq_rel);
+    v = builder.create<LLVM::ExtractValueOp>(loc, v, 1);
     return ValueCategory(v, false);
   }
   default:
@@ -4655,14 +4726,12 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
     return globals[name];
   }
 
-  auto rt = getMLIRType(FD->getType());
+  bool isArray = false;
+  auto rt = getMLIRType(FD->getType(), &isArray);
   unsigned memspace = 0;
-  bool isArray = isa<clang::ArrayType>(FD->getType());
-  bool isExtVectorType =
-      isa<clang::ExtVectorType>(FD->getType()->getUnqualifiedDesugaredType());
 
   mlir::MemRefType mr;
-  if (!isArray && !isExtVectorType) {
+  if (!isArray) {
     mr = mlir::MemRefType::get(1, rt, {}, memspace);
   } else {
     auto mt = rt.cast<mlir::MemRefType>();
