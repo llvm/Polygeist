@@ -10,6 +10,7 @@
 #include "clang-mlir.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "utils.h"
+#include "clang/Basic/Builtins.h"
 
 #define DEBUG_TYPE "CGCall"
 
@@ -367,6 +368,8 @@ ValueCategory MLIRScanner::CallHelper(
 
 std::pair<ValueCategory, bool>
 MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
+  auto loc = getMLIRLocation(expr->getExprLoc());
+
   switch (expr->getBuiltinCallee()) {
   case clang::Builtin::BImove:
   case clang::Builtin::BImove_if_noexcept:
@@ -374,6 +377,34 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
   case clang::Builtin::BIas_const: {
     auto V = Visit(expr->getArg(0));
     return make_pair(V, true);
+  }
+  case clang::Builtin::BIaddressof:
+  case clang::Builtin::BI__addressof:
+  case clang::Builtin::BI__builtin_addressof: {
+    auto V = Visit(expr->getArg(0));
+    assert(V.isReference);
+    mlir::Value val = V.val;
+    auto T = getMLIRType(expr->getType());
+    if (T == val.getType())
+      return make_pair(ValueCategory(val, /*isRef*/ false), true);
+    if (T.isa<LLVM::LLVMPointerType>()) {
+      if (val.getType().isa<MemRefType>())
+        val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
+      else if (T != val.getType())
+        val = builder.create<LLVM::BitcastOp>(loc, T, val);
+      return make_pair(ValueCategory(val, /*isRef*/ false), true);
+    } else {
+      assert(T.isa<MemRefType>());
+      if (val.getType().isa<MemRefType>())
+        val = builder.create<polygeist::Memref2PointerOp>(
+            loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
+      if (val.getType().isa<LLVM::LLVMPointerType>())
+        val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
+      return make_pair(ValueCategory(val, /*isRef*/ false), true);
+    }
+    expr->dump();
+    llvm::errs() << " val: " << val << " T: " << T << "\n";
+    assert(0 && "unhandled builtin addressof");
   }
   default:
     break;
@@ -589,36 +620,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           sr->getDecl()->getName() == "__builtin_expect") {
         llvm::errs() << "warning, ignoring __builtin_expect\n";
         return Visit(expr->getArg(0));
-      }
-    }
-  if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
-    if (auto *sr = dyn_cast<DeclRefExpr>(ic->getSubExpr())) {
-      if (sr->getDecl()->getIdentifier() &&
-          sr->getDecl()->getName() == "__builtin_addressof") {
-        auto V = Visit(expr->getArg(0));
-        assert(V.isReference);
-        mlir::Value val = V.val;
-        auto T = getMLIRType(expr->getType());
-        if (T == val.getType())
-          return ValueCategory(val, /*isRef*/ false);
-        if (T.isa<LLVM::LLVMPointerType>()) {
-          if (val.getType().isa<MemRefType>())
-            val = builder.create<polygeist::Memref2PointerOp>(loc, T, val);
-          else if (T != val.getType())
-            val = builder.create<LLVM::BitcastOp>(loc, T, val);
-          return ValueCategory(val, /*isRef*/ false);
-        } else {
-          assert(T.isa<MemRefType>());
-          if (val.getType().isa<MemRefType>())
-            val = builder.create<polygeist::Memref2PointerOp>(
-                loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
-          if (val.getType().isa<LLVM::LLVMPointerType>())
-            val = builder.create<polygeist::Pointer2MemrefOp>(loc, T, val);
-          return ValueCategory(val, /*isRef*/ false);
-        }
-        expr->dump();
-        llvm::errs() << " val: " << val << " T: " << T << "\n";
-        assert(0 && "unhandled builtin addressof");
       }
     }
   if (auto *ic = dyn_cast<ImplicitCastExpr>(expr->getCallee()))
@@ -1405,6 +1406,11 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       }
     }
 #endif
+
+  if (auto BI = expr->getBuiltinCallee())
+    if (!Glob.CGM.getContext().BuiltinInfo.isPredefinedLibFunction(BI))
+      llvm::errs() << "warning: we failed to emit call to builtin function "
+                   << Glob.CGM.getContext().BuiltinInfo.getName(BI) << "\n";
 
   const auto *callee = EmitCallee(expr->getCallee());
 
