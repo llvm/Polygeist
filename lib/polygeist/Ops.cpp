@@ -1257,14 +1257,17 @@ public:
     auto src = op.getSource().getDefiningOp<Memref2PointerOp>();
     if (!src)
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getShape().size() !=
-        op.getType().cast<MemRefType>().getShape().size())
+    auto smt = src.getSource().getType().cast<MemRefType>();
+    auto omt = op.getType().cast<MemRefType>();
+    if (smt.getShape().size() != omt.getShape().size())
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getElementType() !=
-        op.getType().cast<MemRefType>().getElementType())
+    for (int i = 1; i < smt.getShape().size(); i++) {
+      if (smt.getShape()[i] != omt.getShape()[i])
+        return failure();
+    }
+    if (smt.getElementType() != omt.getElementType())
       return failure();
-    if (src.getSource().getType().cast<MemRefType>().getMemorySpace() !=
-        op.getType().cast<MemRefType>().getMemorySpace())
+    if (smt.getMemorySpace() != omt.getMemorySpace())
       return failure();
 
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(),
@@ -1551,12 +1554,30 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+/// Simplify memref2pointer(pointer2memref(x)) to cast(x)
+class Memref2PointerBitCast final : public OpRewritePattern<LLVM::BitcastOp> {
+public:
+  using OpRewritePattern<LLVM::BitcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LLVM::BitcastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.getOperand().getDefiningOp<Memref2PointerOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<Memref2PointerOp>(op, op.getType(),
+                                                  src.getOperand());
+    return success();
+  }
+};
+
 void Memref2PointerOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
-  results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
-                 SetSimplification<LLVM::MemsetOp>,
-                 CopySimplification<LLVM::MemcpyOp>,
-                 CopySimplification<LLVM::MemmoveOp>>(context);
+  results.insert<
+      Memref2Pointer2MemrefCast, Memref2PointerIndex, Memref2PointerBitCast,
+
+      SetSimplification<LLVM::MemsetOp>, CopySimplification<LLVM::MemcpyOp>,
+      CopySimplification<LLVM::MemmoveOp>>(context);
 }
 
 /// Simplify cast(pointer2memref(x)) to pointer2memref(x)

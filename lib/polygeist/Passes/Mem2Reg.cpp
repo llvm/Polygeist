@@ -1087,6 +1087,12 @@ bool Mem2Reg::forwardStoreToLoad(
   mlir::Location loc = AI.getLoc();
   std::set<mlir::Operation *> allStoreOps;
 
+  Type elType;
+  if (auto MT = AI.getType().dyn_cast<MemRefType>())
+    elType = MT.getElementType();
+  else
+    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
+
   std::deque<std::pair<mlir::Value, /*indexed*/ bool>> list = {{AI, false}};
 
   SmallPtrSet<Operation *, 4> AliasingStoreOperations;
@@ -1147,16 +1153,20 @@ bool Mem2Reg::forwardStoreToLoad(
         if (!modified &&
             matchesIndices(loadOp.getIndices(), idx) == Match::Exact) {
           subType = loadOp.getType();
-          loadOps.insert(loadOp);
-          LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          if (subType == elType) {
+            loadOps.insert(loadOp);
+            LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          }
         }
         continue;
       }
       if (auto loadOp = dyn_cast<mlir::LLVM::LoadOp>(user)) {
         if (!modified) {
           subType = loadOp.getType();
-          loadOps.insert(loadOp);
-          LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          if (subType == elType) {
+            loadOps.insert(loadOp);
+            LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          }
         }
         continue;
       }
@@ -1165,8 +1175,10 @@ bool Mem2Reg::forwardStoreToLoad(
             matchesIndices(loadOp.getAffineMapAttr().getValue(),
                            loadOp.getMapOperands(), idx) == Match::Exact) {
           subType = loadOp.getType();
-          loadOps.insert(loadOp);
-          LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          if (subType == elType) {
+            loadOps.insert(loadOp);
+            LLVM_DEBUG(llvm::dbgs() << "Matching Load: " << loadOp << "\n");
+          }
         }
         continue;
       }
@@ -1383,12 +1395,6 @@ bool Mem2Reg::forwardStoreToLoad(
       }
     }
   }
-
-  Type elType;
-  if (auto MT = AI.getType().dyn_cast<MemRefType>())
-    elType = MT.getElementType();
-  else
-    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
 
   ReplacementHandler metaMap(elType);
 

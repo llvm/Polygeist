@@ -31,9 +31,8 @@ unsigned long long int div_kernel_cuda(ASmallVectorTemplateCommon<AOperandInfo> 
 
 // CHECK:   func.func @_Z15div_kernel_cudaR26ASmallVectorTemplateCommonI12AOperandInfoE(%[[arg0:.+]]: memref<?x2xmemref<?xi8>>) -> i64
 // CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 1] : memref<?x2xmemref<?xi8>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[V0]]) : (memref<?xi8>) -> !llvm.ptr<i8>
 // CHECK-NEXT:     %[[V2:.+]] = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%[[arg0]]) : (memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK-NEXT:     %[[V3:.+]] = llvm.bitcast %[[V1]] : !llvm.ptr<i8> to !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
+// CHECK-NEXT:     %[[V3:.+]] = "polygeist.memref2pointer"(%[[V0]]) : (memref<?xi8>) -> !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
 // CHECK-NEXT:     %[[V4:.+]] = "polygeist.memref2pointer"(%[[V2]]) : (memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>) -> !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>>
 // CHECK-DAG:     %[[i5:.+]] = llvm.ptrtoint %[[V4]] : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64
 // CHECK-DAG:     %[[i6:.+]] = llvm.ptrtoint %[[V3]] : !llvm.ptr<!llvm.struct<(memref<?xi8>, i8, i8)>> to i64

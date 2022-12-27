@@ -59,10 +59,8 @@ void meta() {
 // CHECK:   func.func @_ZN1SaSEOS_(%[[arg0:.+]]: memref<?x!llvm.struct<(f64)>>, %[[arg1:.+]]: memref<?x!llvm.struct<(f64)>>) -> memref<?x!llvm.struct<(f64)>> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-DAG:     %[[c8_i64:.+]] = arith.constant 8 : i64
 // CHECK-DAG:     %[[false:.+]] = arith.constant false
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %[[V2:.+]] = llvm.bitcast %[[V0]] : !llvm.ptr<struct<(f64)>> to !llvm.ptr<i8>
-// CHECK-NEXT:     %[[V3:.+]] = llvm.bitcast %[[V1]] : !llvm.ptr<struct<(f64)>> to !llvm.ptr<i8>
-// CHECK-NEXT:     "llvm.intr.memcpy"(%[[V2]], %[[V3]], %[[c8_i64]], %[[false]]) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i1) -> ()
+// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<i8>
+// CHECK-NEXT:     "llvm.intr.memcpy"(%[[V0]], %[[V1]], %[[c8_i64]], %[[false]]) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i1) -> ()
 // CHECK-NEXT:     return %[[arg0]] : memref<?x!llvm.struct<(f64)>>
 // CHECK-NEXT:   }

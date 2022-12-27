@@ -19,9 +19,9 @@ int* alloc() {
 	return h_graph_nodes;
 }
 
-// CHECK: llvm.mlir.global internal constant @str1("%d\0A\00")
-// CHECK-NEXT: llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
-// CHECK-NEXT: llvm.mlir.global internal constant @str0("%d\00")
+// CHECK:  llvm.mlir.global internal constant @str1("%d\0A\00") 
+// CHECK-NEXT:  llvm.mlir.global internal constant @str0("%d\00") 
+// CHECK-NEXT:  llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
 // CHECK-NEXT:  func @alloc() -> memref<?xi32>
 // CHECK-DAG:    %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG:    %[[c1:.+]] = arith.constant 1 : index

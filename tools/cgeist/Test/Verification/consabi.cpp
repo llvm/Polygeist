@@ -27,9 +27,9 @@ QStream ilaunch_kernel(QStream x) {
 // CHECK:   func.func @_ZN7QStreamC1EOS_(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>, %[[arg1:.+]]: memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
 // CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
 // CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<struct<(struct<(f64, f64)>, i32)>>
-// CHECK-NEXT:     %[[V2:.+]] = llvm.bitcast %[[V1]] : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
+// CHECK-NEXT:     %[[V2:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     %[[V3:.+]] = llvm.load %[[V2]] : !llvm.ptr<f64>
-// CHECK-NEXT:     %[[V4:.+]] = llvm.bitcast %[[V0]] : !llvm.ptr<struct<(struct<(f64, f64)>, i32)>> to !llvm.ptr<f64>
+// CHECK-NEXT:     %[[V4:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(struct<(f64, f64)>, i32)>>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     llvm.store %[[V3]], %[[V4]] : !llvm.ptr<f64>
 // CHECK-NEXT:     %[[V5:.+]] = llvm.getelementptr %[[V2]][1] : (!llvm.ptr<f64>) -> !llvm.ptr<f64>
 // CHECK-NEXT:     %[[V6:.+]] = llvm.load %[[V5]] : !llvm.ptr<f64>

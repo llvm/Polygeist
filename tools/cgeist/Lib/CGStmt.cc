@@ -1019,7 +1019,8 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
     if (auto *vd = dyn_cast<VarDecl>(sub)) {
       VisitVarDecl(vd);
     } else if (isa<TypeAliasDecl, RecordDecl, StaticAssertDecl, TypedefDecl,
-                   UsingDecl, UsingDirectiveDecl>(sub)) {
+                   UsingDecl, UsingDirectiveDecl, EnumConstantDecl, EnumDecl>(
+                   sub)) {
     } else {
       emitError(getMLIRLocation(decl->getBeginLoc()))
           << " + visiting unknonwn sub decl stmt\n";
