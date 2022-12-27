@@ -152,9 +152,14 @@ struct Memref2PointerOpLowering
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
 
+    auto LPT = op.getType().cast<LLVM::LLVMPointerType>();
+    auto space0 = op.getSource().getType().getMemorySpaceAsInt();
     if (transformed.getSource().getType().isa<LLVM::LLVMPointerType>()) {
-      auto ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(),
-                                                  transformed.getSource());
+      mlir::Value ptr = rewriter.create<LLVM::BitcastOp>(
+          loc, LLVM::LLVMPointerType::get(LPT.getElementType(), space0),
+          transformed.getSource());
+      if (space0 != LPT.getAddressSpace())
+        ptr = rewriter.create<LLVM::AddrSpaceCastOp>(loc, LPT, ptr);
       rewriter.replaceOp(op, {ptr});
       return success();
     }
@@ -169,7 +174,10 @@ struct Memref2PointerOpLowering
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
-    ptr = rewriter.create<LLVM::BitcastOp>(loc, op.getType(), ptr);
+    ptr = rewriter.create<LLVM::BitcastOp>(
+        loc, LLVM::LLVMPointerType::get(LPT.getElementType(), space0), ptr);
+    if (space0 != LPT.getAddressSpace())
+      ptr = rewriter.create<LLVM::AddrSpaceCastOp>(loc, LPT, ptr);
 
     rewriter.replaceOp(op, {ptr});
     return success();
