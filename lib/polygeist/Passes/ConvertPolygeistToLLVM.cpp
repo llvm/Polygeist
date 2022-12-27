@@ -997,6 +997,25 @@ public:
   }
 };
 
+struct CAtomicRMWOpLowering : public CLoadStoreOpLowering<memref::AtomicRMWOp> {
+  using CLoadStoreOpLowering<memref::AtomicRMWOp>::CLoadStoreOpLowering;
+
+  LogicalResult
+  matchAndRewrite(memref::AtomicRMWOp atomicOp, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto maybeKind = matchSimpleAtomicOp(atomicOp);
+    if (!maybeKind)
+      return failure();
+    auto dataPtr = getAddress(atomicOp, adaptor, rewriter);
+    if (!dataPtr)
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::AtomicRMWOp>(
+        atomicOp, atomicOp.getType(), *maybeKind, dataPtr, adaptor.getValue(),
+        LLVM::AtomicOrdering::acq_rel);
+    return success();
+  }
+};
+
 /// Pattern for lowering a memory store.
 struct CStoreOpLowering : public CLoadStoreOpLowering<memref::StoreOp> {
 public:
@@ -1284,7 +1303,8 @@ populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
                                      LLVMTypeConverter &typeConverter) {
   patterns.add<CAllocaOpLowering, CAllocOpLowering, CDeallocOpLowering,
                GetGlobalOpLowering, GlobalOpLowering, CLoadOpLowering,
-               CStoreOpLowering, AllocaScopeOpLowering>(typeConverter);
+               CStoreOpLowering, AllocaScopeOpLowering, CAtomicRMWOpLowering>(
+      typeConverter);
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM

@@ -2498,6 +2498,7 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
   case AtomicExpr::AtomicOp::AO__atomic_load: {
     // In the absence of an atomic load instruction, fall back to += 0.0
     auto a0 = Visit(BO->getPtr()).getValue(loc, builder);
+    auto ret = Visit(BO->getVal1()).dereference(loc, builder);
     mlir::Type ty;
     if (auto MT = a0.getType().dyn_cast<MemRefType>()) {
       ty = MT.getElementType();
@@ -2527,6 +2528,7 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     else
       v = builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
                                             LLVM::AtomicOrdering::acq_rel);
+    ret.store(loc, builder, v);
     return ValueCategory(v, false);
   }
   case AtomicExpr::AtomicOp::AO__atomic_store: {
