@@ -31,13 +31,19 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
 
+// TODO when we add other backends, we would need to to add an argument to the
+// pass which one we are compiling to to provide the appropriate error id
+#if POLYGEIST_ENABLE_CUDA
 #include <cuda.h>
-
-#define DEBUG_TYPE "convert-parallel-to-gpu"
-#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
+#else
+#define CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES 701
+#endif
 
 using namespace mlir;
 using namespace polygeist;
+
+#define DEBUG_TYPE "convert-parallel-to-gpu"
+#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
 
 namespace {
 
