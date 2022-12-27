@@ -5432,6 +5432,96 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
 // GetFuncOp
 //===----------------------------------------------------------------------===//
 
+LogicalResult fixupGetFunc(LLVM::CallOp op, OpBuilder &rewriter,
+                           SmallVectorImpl<Value> &vals) {
+  if (op.getCallee())
+    return failure();
+
+  Value pval = op.getOperand(0);
+
+  auto FT = pval.getType()
+                .cast<LLVM::LLVMPointerType>()
+                .getElementType()
+                .cast<LLVM::LLVMFunctionType>();
+  if (FT.isVarArg())
+    return failure();
+
+  while (true) {
+    if (auto bc = pval.getDefiningOp<LLVM::BitcastOp>())
+      pval = bc.getOperand();
+    else if (auto mt = pval.getDefiningOp<Memref2PointerOp>())
+      pval = mt.getOperand();
+    else if (auto mt = pval.getDefiningOp<Pointer2MemrefOp>())
+      pval = mt.getOperand();
+    else
+      break;
+  }
+
+  LLVM::LLVMFunctionType FT2;
+  if (auto MT = pval.getType().dyn_cast<MemRefType>())
+    FT2 = MT.getElementType().cast<LLVM::LLVMFunctionType>();
+  else
+    FT2 = pval.getType()
+              .cast<LLVM::LLVMPointerType>()
+              .getElementType()
+              .cast<LLVM::LLVMFunctionType>();
+
+  if (FT2.getParams().size() != FT.getParams().size())
+    return failure();
+
+  auto gfn = pval.getDefiningOp<GetFuncOp>();
+  if (!gfn)
+    return failure();
+  SmallVector<Value> args(op.getOperands());
+  args.erase(args.begin());
+  for (int i = 0; i < args.size(); i++) {
+    if (FT2.getParams()[i] != args[i].getType()) {
+      if (!FT2.getParams()[i].isa<MemRefType>() ||
+          !args[i].getType().isa<LLVM::LLVMPointerType>())
+        return failure();
+      args[i] = rewriter.create<polygeist::Pointer2MemrefOp>(
+          op.getLoc(), FT2.getParams()[i], args[i]);
+    }
+  }
+
+  if (op.getResultTypes().size() &&
+      (!op.getResultTypes()[0].isa<LLVM::LLVMPointerType>() ||
+       !FT2.getReturnType().isa<MemRefType>()))
+    return failure();
+
+  auto res = rewriter
+                 .create<func::CallOp>(op.getLoc(), gfn.getNameAttr(),
+                                       op.getResultTypes(), args)
+                 .getResults();
+  for (Value r : res) {
+    if (r.getType() != FT.getReturnType())
+      r = rewriter.create<polygeist::Memref2PointerOp>(op.getLoc(),
+                                                       FT.getReturnType(), r);
+    vals.push_back(r);
+  }
+  return success();
+}
+
+class GetFuncFix final : public OpRewritePattern<LLVM::CallOp> {
+public:
+  using OpRewritePattern<LLVM::CallOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LLVM::CallOp op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<Value> vals;
+    if (fixupGetFunc(op, rewriter, vals).failed())
+      return failure();
+    rewriter.replaceOp(op, vals);
+
+    return success();
+  }
+};
+
+void GetFuncOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<GetFuncFix>(context);
+}
+
 LogicalResult GetFuncOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // TODO: Verify that the result type is same as the type of the referenced
   // func.func op.

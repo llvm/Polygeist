@@ -27,6 +27,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include <algorithm>
 #include <mutex>
@@ -198,18 +199,23 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
                                           lnk);
 }
 
+LogicalResult fixupGetFunc(LLVM::CallOp, OpBuilder &rewriter,
+                           SmallVectorImpl<Value> &);
+
 void ParallelLower::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
   // as the callgraph will need to resolve references.
 
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
+  SymbolUserMap symbolUserMap(symbolTable, getOperation());
 
   getOperation()->walk([&](CallOp bidx) {
     if (bidx.getCallee() == "cudaThreadSynchronize")
       bidx.erase();
   });
 
+  std::function<void(LLVM::CallOp)> LLVMcallInliner;
   std::function<void(CallOp)> callInliner = [&](CallOp caller) {
     // Build the inliner interface.
     AlwaysInlinerInterface interface(&getContext());
@@ -230,10 +236,18 @@ void ParallelLower::runOnOperation() {
       return;
     if (targetRegion->empty())
       return;
-    SmallVector<CallOp> ops;
-    callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
-    for (auto op : ops)
-      callInliner(op);
+    {
+      SmallVector<CallOp> ops;
+      callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops)
+        callInliner(op);
+    }
+    {
+      SmallVector<LLVM::CallOp> ops;
+      callableOp.walk([&](LLVM::CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops)
+        LLVMcallInliner(op);
+    }
     OpBuilder b(caller);
     auto allocScope = b.create<memref::AllocaScopeOp>(caller.getLoc(),
                                                       caller.getResultTypes());
@@ -256,6 +270,61 @@ void ParallelLower::runOnOperation() {
     b.create<memref::AllocaScopeReturnOp>(allocScope.getLoc(),
                                           exOp.getResults());
   };
+  LLVMcallInliner = [&](LLVM::CallOp caller) {
+    // Build the inliner interface.
+    AlwaysInlinerInterface interface(&getContext());
+
+    auto callable = caller.getCallableForCallee();
+    CallableOpInterface callableOp;
+    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+      if (!symRef.isa<FlatSymbolRefAttr>())
+        return;
+      auto *symbolOp =
+          symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
+      callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
+    } else {
+      return;
+    }
+    Region *targetRegion = callableOp.getCallableRegion();
+    if (!targetRegion)
+      return;
+    if (targetRegion->empty())
+      return;
+    {
+      SmallVector<CallOp> ops;
+      callableOp.walk([&](CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops)
+        callInliner(op);
+    }
+    {
+      SmallVector<LLVM::CallOp> ops;
+      callableOp.walk([&](LLVM::CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops)
+        LLVMcallInliner(op);
+    }
+    OpBuilder b(caller);
+    auto allocScope = b.create<memref::AllocaScopeOp>(caller.getLoc(),
+                                                      caller.getResultTypes());
+    allocScope.getRegion().push_back(new Block());
+    b.setInsertionPointToStart(&allocScope.getRegion().front());
+    auto exOp = b.create<scf::ExecuteRegionOp>(caller.getLoc(),
+                                               caller.getResultTypes());
+    Block *blk = new Block();
+    exOp.getRegion().push_back(blk);
+    caller->moveBefore(blk, blk->begin());
+    caller.replaceAllUsesWith(allocScope.getResults());
+    b.setInsertionPointToEnd(blk);
+    b.create<scf::YieldOp>(caller.getLoc(), caller.getResults());
+    if (inlineCall(interface, caller, callableOp, targetRegion,
+                   /*shouldCloneInlinedRegion=*/true)
+            .succeeded()) {
+      caller.erase();
+    }
+    b.setInsertionPointToEnd(&allocScope.getRegion().front());
+    b.create<memref::AllocaScopeReturnOp>(allocScope.getLoc(),
+                                          exOp.getResults());
+  };
+
   {
     SmallVector<CallOp> dimsToInline;
     getOperation()->walk([&](CallOp bidx) {
@@ -268,15 +337,68 @@ void ParallelLower::runOnOperation() {
   }
 
   // Only supports single block functions at the moment.
+
+  SmallVector<std::pair<Operation *, size_t>> outlineOps;
+  getOperation().walk([&](gpu::LaunchOp launchOp) {
+    launchOp.walk([&](LLVM::CallOp caller) {
+      if (!caller.getCallee()) {
+        outlineOps.push_back(std::make_pair(caller, (size_t)0));
+      }
+    });
+  });
+  SetVector<FunctionOpInterface> toinl;
+  while (outlineOps.size()) {
+    auto opv = outlineOps.back();
+    auto op = std::get<0>(opv);
+    auto idx = std::get<1>(opv);
+    outlineOps.pop_back();
+    if (Value fn = op->getOperand(idx)) {
+      if (auto fn2 = fn.getDefiningOp<polygeist::Memref2PointerOp>())
+        fn = fn2.getOperand();
+      if (auto ba = fn.dyn_cast<BlockArgument>()) {
+        if (auto F =
+                dyn_cast<FunctionOpInterface>(ba.getOwner()->getParentOp())) {
+          if (toinl.count(F))
+            continue;
+          toinl.insert(F);
+          for (Operation *m : symbolUserMap.getUsers(F)) {
+            outlineOps.push_back(std::make_pair(m, (size_t)ba.getArgNumber()));
+          }
+        }
+      }
+    }
+  }
+  for (auto F : toinl) {
+    for (Operation *m : symbolUserMap.getUsers(F)) {
+      callInliner(cast<CallOp>(m));
+    }
+  }
+  getOperation().walk([&](LLVM::CallOp caller) {
+    OpBuilder builder(caller);
+    SmallVector<Value> vals;
+    if (fixupGetFunc(caller, builder, vals).failed())
+      return;
+    if (vals.size())
+      caller.getResult().replaceAllUsesWith(vals[0]);
+    caller.erase();
+  });
+
   SmallVector<gpu::LaunchOp> toHandle;
   getOperation().walk(
       [&](gpu::LaunchOp launchOp) { toHandle.push_back(launchOp); });
-
   for (gpu::LaunchOp launchOp : toHandle) {
-    SmallVector<CallOp> ops;
-    launchOp.walk([&](CallOp caller) { ops.push_back(caller); });
-    for (auto op : ops)
-      callInliner(op);
+    {
+      SmallVector<CallOp> ops;
+      launchOp.walk([&](CallOp caller) { ops.push_back(caller); });
+      for (auto op : ops)
+        callInliner(op);
+    }
+    {
+      SmallVector<LLVM::CallOp> lops;
+      launchOp.walk([&](LLVM::CallOp caller) { lops.push_back(caller); });
+      for (auto op : lops)
+        LLVMcallInliner(op);
+    }
 
     mlir::IRRewriter builder(launchOp.getContext());
     auto loc = launchOp.getLoc();
