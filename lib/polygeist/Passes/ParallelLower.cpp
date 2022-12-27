@@ -208,7 +208,6 @@ void ParallelLower::runOnOperation() {
 
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
-  SymbolUserMap symbolUserMap(symbolTable, getOperation());
 
   getOperation()->walk([&](CallOp bidx) {
     if (bidx.getCallee() == "cudaThreadSynchronize")
@@ -336,52 +335,94 @@ void ParallelLower::runOnOperation() {
       callInliner(op);
   }
 
-  // Only supports single block functions at the moment.
+  {
 
-  SmallVector<std::pair<Operation *, size_t>> outlineOps;
-  getOperation().walk([&](gpu::LaunchOp launchOp) {
-    launchOp.walk([&](LLVM::CallOp caller) {
-      if (!caller.getCallee()) {
-        outlineOps.push_back(std::make_pair(caller, (size_t)0));
-      }
-    });
-  });
-  SetVector<FunctionOpInterface> toinl;
-  while (outlineOps.size()) {
-    auto opv = outlineOps.back();
-    auto op = std::get<0>(opv);
-    auto idx = std::get<1>(opv);
-    outlineOps.pop_back();
-    if (Value fn = op->getOperand(idx)) {
-      if (auto fn2 = fn.getDefiningOp<polygeist::Memref2PointerOp>())
-        fn = fn2.getOperand();
-      if (auto ba = fn.dyn_cast<BlockArgument>()) {
-        if (auto F =
-                dyn_cast<FunctionOpInterface>(ba.getOwner()->getParentOp())) {
-          if (toinl.count(F))
-            continue;
-          toinl.insert(F);
-          for (Operation *m : symbolUserMap.getUsers(F)) {
-            outlineOps.push_back(std::make_pair(m, (size_t)ba.getArgNumber()));
+    SmallVector<Operation *> inlineOps;
+    SmallVector<mlir::Value> toFollowOps;
+    SetVector<FunctionOpInterface> toinl;
+
+    getOperation().walk(
+        [&](mlir::gpu::ThreadIdOp bidx) { inlineOps.push_back(bidx); });
+    getOperation().walk(
+        [&](mlir::gpu::GridDimOp bidx) { inlineOps.push_back(bidx); });
+    getOperation().walk(
+        [&](mlir::NVVM::Barrier0Op bidx) { inlineOps.push_back(bidx); });
+
+    SymbolUserMap symbolUserMap(symbolTable, getOperation());
+    while (inlineOps.size()) {
+      auto op = inlineOps.back();
+      inlineOps.pop_back();
+      auto lop = op->getParentOfType<gpu::LaunchOp>();
+      auto fop = op->getParentOfType<FunctionOpInterface>();
+      if (!lop || lop->isAncestor(fop)) {
+        toinl.insert(fop);
+        for (Operation *m : symbolUserMap.getUsers(fop)) {
+          if (isa<LLVM::CallOp, func::CallOp>(m))
+            inlineOps.push_back(m);
+          else if (isa<polygeist::GetFuncOp>(m)) {
+            toFollowOps.push_back(m->getResult(0));
           }
         }
       }
     }
-  }
-  for (auto F : toinl) {
-    for (Operation *m : symbolUserMap.getUsers(F)) {
-      callInliner(cast<CallOp>(m));
+    for (auto F : toinl) {
+      SmallVector<LLVM::CallOp> ltoinl;
+      SmallVector<func::CallOp> mtoinl;
+      SymbolUserMap symbolUserMap(symbolTable, getOperation());
+      for (Operation *m : symbolUserMap.getUsers(F)) {
+        if (auto l = dyn_cast<LLVM::CallOp>(m))
+          ltoinl.push_back(l);
+        else if (auto mc = dyn_cast<func::CallOp>(m))
+          mtoinl.push_back(mc);
+      }
+      for (auto l : ltoinl) {
+        LLVMcallInliner(l);
+      }
+      for (auto m : mtoinl) {
+        callInliner(m);
+      }
+    }
+    while (toFollowOps.size()) {
+      auto op = toFollowOps.back();
+      toFollowOps.pop_back();
+      SmallVector<LLVM::CallOp> ltoinl;
+      SmallVector<func::CallOp> mtoinl;
+      bool inlined = false;
+      for (auto u : op.getUsers()) {
+        if (auto cop = dyn_cast<LLVM::CallOp>(u)) {
+          if (!cop.getCallee() && cop->getOperand(0) == op) {
+            OpBuilder builder(cop);
+            SmallVector<Value> vals;
+            if (fixupGetFunc(cop, builder, vals).succeeded()) {
+              if (vals.size())
+                cop.getResult().replaceAllUsesWith(vals[0]);
+              cop.erase();
+              inlined = true;
+              break;
+            }
+          } else if (cop.getCallee())
+            ltoinl.push_back(cop);
+        } else if (auto cop = dyn_cast<func::CallOp>(u)) {
+          mtoinl.push_back(cop);
+        } else {
+          for (auto r : u->getResults())
+            toFollowOps.push_back(r);
+        }
+      }
+      for (auto l : ltoinl) {
+        LLVMcallInliner(l);
+        inlined = true;
+      }
+      for (auto m : mtoinl) {
+        callInliner(m);
+        inlined = true;
+      }
+      if (inlined)
+        toFollowOps.push_back(op);
     }
   }
-  getOperation().walk([&](LLVM::CallOp caller) {
-    OpBuilder builder(caller);
-    SmallVector<Value> vals;
-    if (fixupGetFunc(caller, builder, vals).failed())
-      return;
-    if (vals.size())
-      caller.getResult().replaceAllUsesWith(vals[0]);
-    caller.erase();
-  });
+
+  // Only supports single block functions at the moment.
 
   SmallVector<gpu::LaunchOp> toHandle;
   getOperation().walk(
