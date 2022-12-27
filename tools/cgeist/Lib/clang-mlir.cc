@@ -1894,7 +1894,8 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       llvm::raw_string_ostream ss(str);
       ss.str();
       sr->getDecl()->printQualifiedName(ss);
-      if (str == "free" || ((CudaLower && !EmitCuda) && (str == "cudaFree" || str == "cudaFreeHost"))) {
+      if (str == "free" || ((CudaLower && !EmitCuda) &&
+                            (str == "cudaFree" || str == "cudaFreeHost"))) {
 
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
@@ -1920,7 +1921,9 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         // TODO remove me when the free is removed.
         return make_pair(ValueCategory(), true);
       }
-      if ((cudaLower && !EmitCuda) && (str == "cudaMalloc" || str == "cudaMallocHost" || str == "cudaMallocPitch")) {
+      if ((CudaLower && !EmitCuda) &&
+          (str == "cudaMalloc" || str == "cudaMallocHost" ||
+           str == "cudaMallocPitch")) {
         auto sub = expr->getArg(0);
         while (auto BC = dyn_cast<clang::CastExpr>(sub))
           sub = BC->getSubExpr();
@@ -1957,9 +1960,8 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
               auto alloc = builder.create<mlir::memref::AllocOp>(
                   loc,
                   (str != "cudaMallocHost" && !CudaLower)
-                      ? mlir::MemRefType::get(
-                            shape, mt.getElementType(),
-                            MemRefLayoutAttrInterface())
+                      ? mlir::MemRefType::get(shape, mt.getElementType(),
+                                              MemRefLayoutAttrInterface())
                       : mt,
                   args);
               mlir::Value allocv = alloc;
