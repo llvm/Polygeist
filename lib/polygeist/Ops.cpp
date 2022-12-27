@@ -1554,12 +1554,30 @@ OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
+/// Simplify memref2pointer(pointer2memref(x)) to cast(x)
+class Memref2PointerBitCast final : public OpRewritePattern<LLVM::BitcastOp> {
+public:
+  using OpRewritePattern<LLVM::BitcastOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(LLVM::BitcastOp op,
+                                PatternRewriter &rewriter) const override {
+    auto src = op.getOperand().getDefiningOp<Memref2PointerOp>();
+    if (!src)
+      return failure();
+
+    rewriter.replaceOpWithNewOp<Memref2PointerOp>(op, op.getType(),
+                                                  src.getOperand());
+    return success();
+  }
+};
+
 void Memref2PointerOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
-  results.insert<Memref2Pointer2MemrefCast, Memref2PointerIndex,
-                 SetSimplification<LLVM::MemsetOp>,
-                 CopySimplification<LLVM::MemcpyOp>,
-                 CopySimplification<LLVM::MemmoveOp>>(context);
+  results.insert<
+      Memref2Pointer2MemrefCast, Memref2PointerIndex, Memref2PointerBitCast,
+
+      SetSimplification<LLVM::MemsetOp>, CopySimplification<LLVM::MemcpyOp>,
+      CopySimplification<LLVM::MemmoveOp>>(context);
 }
 
 /// Simplify cast(pointer2memref(x)) to pointer2memref(x)

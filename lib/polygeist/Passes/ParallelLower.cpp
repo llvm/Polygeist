@@ -561,7 +561,8 @@ void ParallelLower::runOnOperation() {
           Value vals[] = {retv};
           call->replaceAllUsesWith(ArrayRef<Value>(vals));
           call->erase();
-        } else if (callee == "cudaGetLastError") {
+        } else if (callee == "cudaGetLastError" ||
+                   callee == "cudaPeekAtLastError") {
           OpBuilder bz(call);
           auto retv = bz.create<ConstantIntOp>(
               call->getLoc(), 0,

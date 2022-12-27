@@ -77,8 +77,7 @@ int foo() {
   // CHECK:  func.func @_Z3foov()
   // CHECK-DAG:    %[[one:.*]] = arith.constant 1 : i32
   // CHECK-DAG:    %[[alloc:.*]] = memref.alloc() : memref<1xi32>
-  // CHECK-NEXT:    %[[v0:.*]] = "polygeist.memref2pointer"(%[[alloc]]) : (memref<1xi32>) -> !llvm.ptr<i8>
-  // CHECK-NEXT:    %[[v1:.*]] = llvm.bitcast %[[v0]] : !llvm.ptr<i8> to !llvm.ptr<i32>
+  // CHECK-NEXT:    %[[v1:.*]] = "polygeist.memref2pointer"(%[[alloc]]) : (memref<1xi32>) -> !llvm.ptr<i32>
   // CHECK-NEXT:    llvm.store %[[one]], %[[v1]] : !llvm.ptr<i32>
   // CHECK-NEXT:    %[[v2:.*]] = affine.load %[[alloc]][0] : memref<1xi32>
   // CHECK-NEXT:    return %[[v2]] : i32
