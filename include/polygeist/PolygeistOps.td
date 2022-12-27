@@ -118,6 +118,7 @@ def GetFuncOp : Polygeist_Op<"get_func",
   let arguments = (ins FlatSymbolRefAttr:$name);
   let results = (outs LLVM_AnyPointer : $result);
   let assemblyFormat = "$name `:` type($result) attr-dict";
+  let hasCanonicalizer = 1;
 }
 
 def TrivialUseOp : Polygeist_Op<"trivialuse"> {

@@ -1676,12 +1676,122 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         RTs.clear();
       else
         assert(RTs[0] == ft.getReturnType());
+
+      mlir::Block::iterator oldpoint;
+      mlir::Block *oldblock = nullptr;
+
+      if (auto *CU = dyn_cast<CUDAKernelCallExpr>(expr)) {
+        auto l0 = Visit(CU->getConfig()->getArg(0));
+        assert(l0.isReference);
+        mlir::Value val = l0.val;
+        mlir::Value blocks[3];
+        if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+          if (MT.getElementType().isa<LLVM::LLVMStructType>() &&
+              MT.getShape().size() == 1) {
+            val = builder.create<polygeist::Memref2PointerOp>(
+                loc,
+                LLVM::LLVMPointerType::get(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt()),
+                val);
+          }
+        }
+        for (int i = 0; i < 3; i++) {
+          if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+            mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
+            assert(MT.getShape().size() == 2);
+            blocks[i] = builder.create<IndexCastOp>(
+                loc, mlir::IndexType::get(builder.getContext()),
+                builder.create<mlir::memref::LoadOp>(loc, val, idx));
+          } else {
+            mlir::Value idx[] = {
+                builder.create<arith::ConstantIntOp>(loc, 0, 32),
+                builder.create<arith::ConstantIntOp>(loc, i, 32)};
+            auto PT = val.getType().cast<LLVM::LLVMPointerType>();
+            auto ET =
+                PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[i];
+            blocks[i] = builder.create<IndexCastOp>(
+                loc, mlir::IndexType::get(builder.getContext()),
+                builder.create<LLVM::LoadOp>(
+                    loc,
+                    builder.create<LLVM::GEPOp>(
+                        loc,
+                        LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                        val, idx)));
+          }
+        }
+
+        auto t0 = Visit(CU->getConfig()->getArg(1));
+        assert(t0.isReference);
+        mlir::Value threads[3];
+        val = t0.val;
+        if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+          if (MT.getElementType().isa<LLVM::LLVMStructType>() &&
+              MT.getShape().size() == 1) {
+            val = builder.create<polygeist::Memref2PointerOp>(
+                loc,
+                LLVM::LLVMPointerType::get(MT.getElementType(),
+                                           MT.getMemorySpaceAsInt()),
+                val);
+          }
+        }
+        for (int i = 0; i < 3; i++) {
+          if (auto MT = val.getType().dyn_cast<MemRefType>()) {
+            mlir::Value idx[] = {getConstantIndex(0), getConstantIndex(i)};
+            assert(MT.getShape().size() == 2);
+            threads[i] = builder.create<IndexCastOp>(
+                loc, mlir::IndexType::get(builder.getContext()),
+                builder.create<mlir::memref::LoadOp>(loc, val, idx));
+          } else {
+            mlir::Value idx[] = {
+                builder.create<arith::ConstantIntOp>(loc, 0, 32),
+                builder.create<arith::ConstantIntOp>(loc, i, 32)};
+            auto PT = val.getType().cast<LLVM::LLVMPointerType>();
+            auto ET =
+                PT.getElementType().cast<LLVM::LLVMStructType>().getBody()[i];
+            threads[i] = builder.create<IndexCastOp>(
+                loc, mlir::IndexType::get(builder.getContext()),
+                builder.create<LLVM::LoadOp>(
+                    loc,
+                    builder.create<LLVM::GEPOp>(
+                        loc,
+                        LLVM::LLVMPointerType::get(ET, PT.getAddressSpace()),
+                        val, idx)));
+          }
+        }
+        mlir::Value stream = nullptr;
+        SmallVector<mlir::Value, 1> asyncDependencies;
+        if (3 < CU->getConfig()->getNumArgs() &&
+            !isa<CXXDefaultArgExpr>(CU->getConfig()->getArg(3))) {
+          stream = Visit(CU->getConfig()->getArg(3)).getValue(loc, builder);
+          stream = builder.create<polygeist::StreamToTokenOp>(
+              loc, builder.getType<gpu::AsyncTokenType>(), stream);
+          assert(stream);
+          asyncDependencies.push_back(stream);
+        }
+        auto op = builder.create<mlir::gpu::LaunchOp>(
+            loc, blocks[0], blocks[1], blocks[2], threads[0], threads[1],
+            threads[2],
+            /*dynamic shmem size*/ nullptr,
+            /*token type*/ stream ? stream.getType() : nullptr,
+            /*dependencies*/ asyncDependencies);
+        oldpoint = builder.getInsertionPoint();
+        oldblock = builder.getInsertionBlock();
+        builder.setInsertionPointToStart(&op.getRegion().front());
+      }
+
       called = builder.create<mlir::LLVM::CallOp>(loc, RTs, args).getResult();
       if (PTF.getReturnType() != ft.getReturnType()) {
         called = builder.create<polygeist::Pointer2MemrefOp>(
             loc, PTF.getReturnType(), called);
       }
+
+      if (oldblock) {
+        builder.create<gpu::TerminatorOp>(loc);
+        builder.setInsertionPoint(oldblock, oldpoint);
+        return ValueCategory();
+      }
     }
+
     if (isReference) {
       if (!(called.getType().isa<LLVM::LLVMPointerType>() ||
             called.getType().isa<MemRefType>())) {
