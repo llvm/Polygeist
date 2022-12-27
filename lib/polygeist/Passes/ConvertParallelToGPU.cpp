@@ -23,6 +23,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -69,24 +70,6 @@ void insertReturn(PatternRewriter &rewriter, func::FuncOp f) {
 void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
   rewriter.create<LLVM::ReturnOp>(rewriter.getUnknownLoc(),
                                   std::vector<Value>{});
-}
-
-/// a / 2 < prevPowerOf2(a) <= a
-unsigned prevPowerOf2(unsigned a) {
-  unsigned b = 1;
-  while (b <= a)
-    b *= 2;
-  b /= 2;
-  return b;
-}
-
-/// a <= nextPowerOf2(a) < a * 2
-unsigned nextPowerOf2(unsigned a) {
-  unsigned b = 1;
-  while (b < a * 2)
-    b *= 2;
-  b /= 2;
-  return b;
 }
 
 scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
@@ -483,7 +466,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       // TODO we can actually generate multiple kernels here and dynamically
       // split from the grid dimension that has enough parallelism in it
 
-      unsigned threadsLeft = (prevPowerOf2(maxThreads / threadNum));
+      unsigned threadsLeft = (llvm::PowerOf2Floor(maxThreads / threadNum));
       threadNum *= threadsLeft;
       assert(threadNum <= maxThreads);
 
