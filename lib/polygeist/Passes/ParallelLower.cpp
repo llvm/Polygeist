@@ -718,6 +718,51 @@ void CudaRTLower::runOnOperation() {
           call->replaceAllUsesWith(bz.create<ConstantIntOp>(
               call->getLoc(), 0, call->getResult(0).getType()));
           call->erase();
+        } else if (callee == "cudaSetDevice") {
+          OpBuilder bz(call);
+          Value arg = call->getOperand(0);
+          Value zero =
+              bz.create<arith::ConstantIntOp>(call->getLoc(), 0, arg.getType());
+          arg = bz.create<arith::CmpIOp>(call->getLoc(), CmpIPredicate::eq, arg,
+                                         zero);
+          auto ret0 = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          auto ret1 = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          arg = bz.create<arith::SelectOp>(call->getLoc(), arg, ret0, ret1);
+          Value vals[] = {arg};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        } else if (callee == "cudaGetDevice" ||
+                   callee == "cudaGetDeviceCount") {
+          OpBuilder bz(call);
+          Value arg = call->getOperand(0);
+          int result = (callee == "cudaGetDevice") ? 0 : 1;
+          if (auto MT = arg.getType().dyn_cast<MemRefType>()) {
+            Value val = bz.create<arith::ConstantIntOp>(call->getLoc(), result,
+                                                        MT.getElementType());
+            std::vector<Value> idxs;
+            for (int i = 0; i < MT.getShape().size(); i++) {
+              idxs.push_back(
+                  bz.create<arith::ConstantIndexOp>(call->getLoc(), 0));
+            }
+            bz.create<memref::StoreOp>(call->getLoc(), val, arg, idxs);
+          } else {
+            auto PT = arg.getType().cast<LLVM::LLVMPointerType>();
+            Value val = bz.create<arith::ConstantIntOp>(call->getLoc(), result,
+                                                        PT.getElementType());
+            bz.create<LLVM::StoreOp>(call->getLoc(), val, arg);
+          }
+          {
+            auto retv = bz.create<ConstantIntOp>(
+                call->getLoc(), 0,
+                call->getResult(0).getType().cast<IntegerType>().getWidth());
+            Value vals[] = {retv};
+            call->replaceAllUsesWith(ArrayRef<Value>(vals));
+            call->erase();
+          }
         } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
           OpBuilder bz(call);
           Value arg = call->getOperand(1);
