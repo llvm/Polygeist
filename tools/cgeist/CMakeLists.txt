@@ -31,6 +31,12 @@ add_clang_executable(cgeist
   Lib/TypeUtils.cc
   Lib/CGCall.cc 
 )
+if(POLYGEIST_ENABLE_CUDA)
+  target_compile_definitions(cgeist
+    PRIVATE
+    POLYGEIST_ENABLE_CUDA=1
+  )
+endif()
 install(TARGETS cgeist
 EXPORT PolygeistTargets
 RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
@@ -53,6 +59,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRNVVMDialect
   MLIROpenMPDialect
   MLIRGPUOps
+  MLIRGPUTransforms
   MLIRTransforms
   MLIRSCFToControlFlow
   MLIRFuncToLLVM
@@ -65,6 +72,8 @@ target_link_libraries(cgeist PRIVATE
   MLIRSCFToOpenMP
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
+  MLIRGPUToNVVMTransforms
+  MLIRGPUToGPURuntimeTransforms
 
   clangAST
   clangBasic

@@ -10,8 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/../../lib/Driver/ToolChains/Cuda.h"
 #include <clang/Basic/DiagnosticIDs.h>
+#include <clang/Driver/Compilation.h>
 #include <clang/Driver/Driver.h>
+#include <clang/Driver/Tool.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/CompilerInvocation.h>
 #include <clang/Frontend/FrontendOptions.h>
@@ -20,6 +23,8 @@
 #include <clang/Frontend/Utils.h>
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
+#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
+#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
@@ -29,6 +34,7 @@
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -36,6 +42,7 @@
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
@@ -62,6 +69,23 @@ static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
+
+static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
+                              cl::desc("Emit CUDA code"));
+
+static cl::opt<bool>
+    OutputIntermediateGPU("output-intermediate-gpu", cl::init(false),
+                          cl::desc("Output intermediate gpu code"));
+
+static cl::opt<bool>
+    UseOriginalGPUBlockSize("use-original-gpu-block-size", cl::init(false),
+                            cl::desc("Try not to alter the GPU kernel block "
+                                     "sizes originally used in the code"));
+
+#if POLYGEIST_ENABLE_CUDA
+static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
+                                  cl::desc("Optimization level for ptxas"));
+#endif
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
@@ -110,7 +134,7 @@ static cl::opt<bool> RaiseToAffine("raise-scf-to-affine", cl::init(false),
 static cl::opt<bool> ScalarReplacement("scal-rep", cl::init(true),
                                        cl::desc("Raise SCF to Affine"));
 
-static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(true),
+static cl::opt<bool> LoopUnroll("unroll-loops", cl::init(false),
                                 cl::desc("Unroll Affine Loops"));
 
 static cl::opt<bool>
@@ -183,6 +207,39 @@ static cl::opt<std::string>
     McpuOpt("mcpu", cl::init(""), cl::desc("Target CPU"), cl::cat(toolOptions));
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+
+class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
+public:
+  virtual ~PolygeistCudaDetectorArgList() {}
+  template <typename... OptSpecifiers> bool hasArg(OptSpecifiers... Ids) const {
+    std::vector _Ids({Ids...});
+    for (auto &Id : _Ids) {
+      if (Id == clang::driver::options::OPT_nogpulib) {
+        continue;
+      } else if (Id == clang::driver::options::OPT_cuda_path_EQ) {
+        if (CUDAPath == "")
+          continue;
+        else
+          return true;
+      } else if (Id == clang::driver::options::OPT_cuda_path_ignore_env) {
+        continue;
+      } else {
+        continue;
+      }
+    }
+    return false;
+  }
+  StringRef getLastArgValue(llvm::opt::OptSpecifier Id,
+                            StringRef Default = "") const {
+    if (Id == clang::driver::options::OPT_cuda_path_EQ) {
+      return CUDAPath;
+    }
+    return Default;
+  }
+  const char *getArgString(unsigned Index) const override { return ""; }
+  unsigned getNumInputArgStrings() const override { return 0; }
+  const char *MakeArgStringRef(StringRef Str) const override { return ""; }
+};
 
 class MemRefInsider
     : public mlir::MemRefElementTypeInterface::FallbackModel<MemRefInsider> {};
@@ -338,6 +395,18 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
+#define dump_module(PASS_MANAGER, EXEC)                                        \
+  do {                                                                         \
+    llvm::errs() << "at line" << __LINE__ << "\n";                             \
+    (void)PASS_MANAGER.run(module.get());                                      \
+    module->dump();                                                            \
+    EXEC;                                                                      \
+  } while (0)
+#undef dump_module
+#define dump_module(PASS_MANAGER, EXEC)                                        \
+  do {                                                                         \
+  } while (0)
+
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
 
@@ -415,6 +484,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
+  polygeist::registerGpuSerializeToCubinPass();
   MLIRContext context(registry);
 
   context.disableMultithreading();
@@ -450,8 +520,11 @@ int main(int argc, char **argv) {
 
   llvm::Triple triple;
   llvm::DataLayout DL("");
-  parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple,
-            DL);
+  llvm::Triple gpuTriple;
+  llvm::DataLayout gpuDL("");
+  parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple, DL,
+            gpuTriple, gpuDL);
+
   mlir::PassManager pm(&context);
 
   OpPrintingFlags flags;
@@ -463,6 +536,34 @@ int main(int argc, char **argv) {
     module->print(llvm::errs(), flags);
     llvm::errs() << "</immediate: mlir>\n";
   }
+
+  int optLevel = 0;
+  if (Opt0)
+    optLevel = 0;
+  if (Opt1)
+    optLevel = 1;
+  if (Opt2)
+    optLevel = 2;
+  if (Opt3)
+    optLevel = 3;
+
+#if !POLYGEIST_ENABLE_CUDA
+  if (EmitCuda) {
+    llvm::errs() << "error: no CUDA support, aborting\n";
+    return 1;
+  }
+#endif
+
+  auto convertGepInBounds = [](llvm::Module &llvmModule) {
+    for (auto &F : llvmModule) {
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (auto g = dyn_cast<GetElementPtrInst>(&I))
+            g->setIsInBounds(true);
+        }
+      }
+    }
+  };
 
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
@@ -559,7 +660,7 @@ int main(int argc, char **argv) {
       }
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 6;
       }
     }
 
@@ -568,7 +669,16 @@ int main(int argc, char **argv) {
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+#if POLYGEIST_ENABLE_CUDA
+      pm.addPass(
+          polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
+      if (!EmitCuda)
+        pm.addPass(polygeist::createCudaRTLowerPass());
+#else
       pm.addPass(polygeist::createParallelLowerPass());
+      pm.addPass(polygeist::createCudaRTLowerPass());
+#endif
+
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
       noptPM.addPass(
@@ -628,7 +738,7 @@ int main(int argc, char **argv) {
       }
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 7;
       }
     }
 
@@ -715,16 +825,43 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
+    if (EmitCuda || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
+        EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
         pm.addPass(polygeist::createInnerSerializationPass());
 
-      // pm.nest<mlir::FuncOp>().addPass(mlir::createConvertMathToLLVMPass());
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 8;
       }
+    }
+
+#if POLYGEIST_ENABLE_CUDA
+    if (EmitCuda) {
+      if (CudaLower)
+        pm.addPass(polygeist::createConvertParallelToGPUPass1(
+            UseOriginalGPUBlockSize));
+      // We cannot canonicalize here because we have sunk some operations in the
+      // kernel which the canonicalizer would hoist
+
+      // TODO pass in gpuDL, the format is weird
+      pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      // TODO maybe preserve info about which original kernel corresponds to
+      // which outlined kernel, might be useful for calls to
+      // cudaFuncSetCacheConfig e.g.
+      pm.addPass(polygeist::createConvertParallelToGPUPass2());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 12;
+      }
+    }
+#endif
+
+    if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
       if (SCFOpenMP) {
         pm2.addPass(createConvertSCFToOpenMPPass());
@@ -740,7 +877,7 @@ int main(int argc, char **argv) {
       pm2.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       if (mlir::failed(pm2.run(module.get()))) {
         module->dump();
-        return 4;
+        return 9;
       }
       if (!EmitOpenMPIR) {
         module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
@@ -749,20 +886,55 @@ int main(int argc, char **argv) {
         options.dataLayout = DL;
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
-        pm3.addPass(
-            polygeist::createConvertPolygeistToLLVMPass(options, CStyleMemRef));
-        // pm3.addPass(mlir::createLowerFuncToLLVMPass(options));
+
+#if POLYGEIST_ENABLE_CUDA
+        if (EmitCuda) {
+          pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
+              options, CStyleMemRef, /* onlyGpuModules */ true));
+
+          using namespace clang;
+          using namespace clang::driver;
+          using namespace std;
+          IntrusiveRefCntPtr<DiagnosticIDs> DiagID(new DiagnosticIDs());
+          IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts =
+              new DiagnosticOptions();
+          TextDiagnosticPrinter *DiagBuffer =
+              new TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+          DiagnosticsEngine Diags(DiagID, &*DiagOpts, DiagBuffer);
+          const unique_ptr<Driver> driver(
+              new Driver("clang", triple.str(), Diags));
+          PolygeistCudaDetectorArgList argList;
+          CudaInstallationDetector detector(*driver, triple, argList);
+
+          std::string arch = CUDAGPUArch;
+          if (arch == "")
+            arch = "sm_60";
+          std::string libDevicePath = detector.getLibDeviceFile(arch);
+          std::string ptxasPath = std::string(detector.getBinPath()) + "/ptxas";
+
+          // TODO what should the ptx version be?
+          mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+          gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
+              gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
+              ptxasPath, libDevicePath, OutputIntermediateGPU));
+        }
+#endif
+
+        pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
+            options, CStyleMemRef, /* onlyGpuModules */ false));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
         if (mlir::failed(pm3.run(module.get()))) {
           module->dump();
-          return 4;
+          return 10;
         }
       }
+
     } else {
 
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
-        return 4;
+        return 11;
       }
     }
     if (mlir::failed(mlir::verify(module.get()))) {
@@ -780,14 +952,7 @@ int main(int argc, char **argv) {
       return -1;
     }
     if (InBoundsGEP) {
-      for (auto &F : *llvmModule) {
-        for (auto &BB : F) {
-          for (auto &I : BB) {
-            if (auto g = dyn_cast<GetElementPtrInst>(&I))
-              g->setIsInBounds(true);
-          }
-        }
-      }
+      convertGepInBounds(*llvmModule);
     }
     for (auto &F : *llvmModule) {
       for (auto AttrName : {"target-cpu", "tune-cpu", "target-features"})

@@ -72,7 +72,14 @@ namespace {
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
+// TODO do not take wrap argument, instead, always wrap and if we will be
+// lowering to cpu, remove them before continuing
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
+  ParallelLower(bool wrapParallelOps) : wrapParallelOps(wrapParallelOps) {}
+  void runOnOperation() override;
+  bool wrapParallelOps;
+};
+struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
   void runOnOperation() override;
 };
 
@@ -82,8 +89,11 @@ struct ParallelLower : public ParallelLowerBase<ParallelLower> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createParallelLowerPass() {
-  return std::make_unique<ParallelLower>();
+std::unique_ptr<Pass> createCudaRTLowerPass() {
+  return std::make_unique<CudaRTLower>();
+}
+std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps) {
+  return std::make_unique<ParallelLower>(wrapParallelOps);
 }
 } // namespace polygeist
 } // namespace mlir
@@ -465,6 +475,13 @@ void ParallelLower::runOnOperation() {
       builder.setInsertionPointToStart(blockB);
     }
 
+    if (wrapParallelOps) {
+      auto pw = builder.create<polygeist::GPUWrapperOp>(
+          loc, launchOp.getBlockSizeX(), launchOp.getBlockSizeY(),
+          launchOp.getBlockSizeZ());
+      builder.setInsertionPointToStart(pw.getBody());
+    }
+
     auto block = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
         std::vector<Value>({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
@@ -611,6 +628,21 @@ void ParallelLower::runOnOperation() {
     builder.eraseOp(launchOp);
   }
 
+  // Fold the copy memtype cast
+  {
+    mlir::RewritePatternSet rpl(getOperation()->getContext());
+    GreedyRewriteConfig config;
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
+  }
+}
+
+void CudaRTLower::runOnOperation() {
+  // The inliner should only be run on operations that define a symbol table,
+  // as the callgraph will need to resolve references.
+
+  SymbolTableCollection symbolTable;
+  symbolTable.getSymbolTable(getOperation());
+
   std::function<void(Operation * call, StringRef callee)> replace =
       [&](Operation *call, StringRef callee) {
         if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
@@ -736,6 +768,10 @@ void ParallelLower::runOnOperation() {
         }
       };
 
+  getOperation()->walk([&](CallOp bidx) {
+    if (bidx.getCallee() == "cudaThreadSynchronize")
+      bidx.erase();
+  });
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;

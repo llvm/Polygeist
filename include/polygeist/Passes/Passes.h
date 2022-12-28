@@ -22,12 +22,21 @@ std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps = false);
+std::unique_ptr<Pass> createCudaRTLowerPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef);
+                                 bool useCStyleMemRef, bool onlyGpuModules);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
+std::unique_ptr<Pass>
+createConvertParallelToGPUPass1(bool useOriginalThreadNums = false);
+std::unique_ptr<Pass> createConvertParallelToGPUPass2();
+std::unique_ptr<Pass> createGpuSerializeToCubinPass(
+    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
+    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
+    bool outputIntermediate);
+void registerGpuSerializeToCubinPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
 } // namespace polygeist

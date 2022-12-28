@@ -1115,6 +1115,12 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2], args[3]);
         return ValueCategory(args[0], /*isReference*/ false);
       }
+      // TODO this only sets a preference so it is not needed but if possible
+      // implement it
+      if (sr->getDecl()->getIdentifier() &&
+          (sr->getDecl()->getName() == "cudaFuncSetCacheConfig")) {
+        return ValueCategory();
+      }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "cudaMemcpy" ||
            sr->getDecl()->getName() == "cudaMemcpyAsync" ||

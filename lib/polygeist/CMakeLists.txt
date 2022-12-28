@@ -1,3 +1,5 @@
+add_subdirectory(ExecutionEngine)
+
 add_mlir_dialect_library(MLIRPolygeist
 Dialect.cpp
 Ops.cpp

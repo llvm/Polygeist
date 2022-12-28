@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --parallel-lower --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --parallel-lower --cudart-lower --split-input-file %s | FileCheck %s
 
 module attributes {llvm.data_layout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64", llvm.target_triple = "nvptx64-nvidia-cuda"}  {
   llvm.func @cudaMemcpy(!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i32) -> i32

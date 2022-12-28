@@ -43,6 +43,32 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
+// GPUErrorOp
+//===----------------------------------------------------------------------===//
+
+void GPUErrorOp::build(OpBuilder &builder, OperationState &result) {
+  result.addTypes(builder.getIndexType());
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+  GPUErrorOp::ensureTerminator(*bodyRegion, builder, result.location);
+}
+
+//===----------------------------------------------------------------------===//
+// GPUWrapperOp
+//===----------------------------------------------------------------------===//
+
+void GPUWrapperOp::build(OpBuilder &builder, OperationState &result,
+                         Value blockSizeX, Value blockSizeY, Value blockSizeZ) {
+  result.addTypes(builder.getIndexType());
+  result.addOperands({blockSizeX, blockSizeY, blockSizeZ});
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+  GPUWrapperOp::ensureTerminator(*bodyRegion, builder, result.location);
+}
+
+//===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
 LogicalResult verify(BarrierOp) { return success(); }

@@ -12,6 +12,7 @@
 include "Dialect.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
+include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
@@ -66,6 +67,36 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
+def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
+  RecursiveMemoryEffects,
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
+  let summary = "Wraps a parallel op to prevent code motion and transformations";
+  let results = (outs Index : $result);
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins
+      "Value":$blockSizeX, "Value":$blockSizeY, "Value":$blockSizeZ)>];
+
+}
+
+def GPUErrorOp : Polygeist_Op<"gpu_error", [
+  RecursiveMemoryEffects,
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins)> {
+  let summary = "Gets the error returned by the gpu operation inside";
+  // TODO should be i32, not index
+  let results = (outs Index : $result);
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins)>];
+
+}
+
+def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
+    ParentOneOf<["GPUWrapperOp", "GPUErrorOp"]>]> {
+  let summary = "Polygeist ops terminator";
+}
 
 def StreamToTokenOp : Polygeist_Op<"stream2token", [
   Pure

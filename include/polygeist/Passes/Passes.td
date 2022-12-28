@@ -13,8 +13,15 @@ def Mem2Reg : Pass<"mem2reg"> {
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
+def CudaRTLower : Pass<"cudart-lower", "mlir::ModuleOp"> {
+  let summary = "Lower cudart functions to cpu versions";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+  let constructor = "mlir::polygeist::createCudaRTLowerPass()";
+}
+
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
-  let summary = "Replace scf.if and similar with affine.if";
+  let summary = "Lower gpu launch op to parallel ops";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
@@ -33,6 +40,18 @@ def SCFCPUify : Pass<"cpuify"> {
   let options = [
   Option<"method", "method", "std::string", /*default=*/"\"distribute\"", "Method of doing distribution">
   ];
+}
+
+def ConvertParallelToGPU1 : Pass<"convert-parallel-to-gpu1"> {
+  let summary = "Convert parallel loops to gpu";
+  let constructor = "mlir::polygeist::createConvertParallelToGPUPass1()";
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
+}
+
+def ConvertParallelToGPU2 : Pass<"convert-parallel-to-gpu2"> {
+  let summary = "Convert parallel loops to gpu";
+  let constructor = "mlir::polygeist::createConvertParallelToGPUPass2()";
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
 }
 
 def InnerSerialization : Pass<"inner-serialize"> {

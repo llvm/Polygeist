@@ -30,6 +30,8 @@ ninja
 ninja check-mlir
 ```
 
+To enable compilation to cuda add `-DMLIR_ENABLE_CUDA_RUNNER=1` and remove `-DLLVM_TARGETS_TO_BUILD="host"` from the cmake arguments. (You may need to specify `CUDACXX`, `CUDA_PATH`, or `CMAKE_CUDA_COMPILER`)
+
 2. Build Polygeist:
 ```sh
 mkdir build
@@ -43,6 +45,8 @@ cmake -G Ninja .. \
 ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
+
+To enable compilation to cuda add `-DPOLYGEIST_ENABLE_CUDA=1`
 
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
 
