@@ -50,7 +50,26 @@
 using namespace mlir;
 using namespace polygeist;
 
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
+  mlir::OpBuilder builder(module.getContext());
+  SymbolTableCollection symbolTable;
+  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
+          symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
+    return fn;
+  auto *ctx = module->getContext();
+  auto llvmFnType = LLVM::LLVMFunctionType::get(
+      LLVM::LLVMVoidType::get(ctx),
+      ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())),
+      false);
+
+  LLVM::Linkage lnk = LLVM::Linkage::External;
+  builder.setInsertionPointToStart(module.getBody());
+  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "free", llvmFnType,
+                                          lnk);
+}
 
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor

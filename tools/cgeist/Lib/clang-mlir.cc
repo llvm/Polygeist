@@ -206,7 +206,8 @@ bool isLLVMStructABI(const RecordDecl *RD, llvm::StructType *ST) {
   return false;
 }
 
-mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace, MLIRContext *ctx) {
+static mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace,
+                                              MLIRContext *ctx) {
   if (memorySpace == 0)
     return nullptr;
 
@@ -1368,15 +1369,15 @@ ValueCategory MLIRScanner::VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr) {
 
   mlir::Value toDelete = Visit(expr->getArgument()).getValue(loc, builder);
 
-  if (toDelete.getType().isa<mlir::MemRefType>()) {
-    builder.create<mlir::memref::DeallocOp>(loc, toDelete);
-  } else {
-    mlir::Value args[1] = {builder.create<LLVM::BitcastOp>(
-        loc, LLVM::LLVMPointerType::get(builder.getI8Type()), toDelete)};
-    builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateFreeFunction(),
-                                       args);
-  }
+  if (auto PT = toDelete.getType().dyn_cast<LLVM::LLVMPointerType>())
+    toDelete = builder.create<polygeist::Memref2PointerOp>(
+        loc,
+        MemRefType::get({-1}, PT,
+                        wrapIntegerMemorySpace(PT.getAddressSpace(),
+                                               toDelete.getContext())),
+        toDelete);
 
+  builder.create<mlir::memref::DeallocOp>(loc, toDelete);
   return nullptr;
 }
 ValueCategory MLIRScanner::VisitCXXNewExpr(clang::CXXNewExpr *expr) {
@@ -4578,23 +4579,6 @@ mlir::Value MLIRASTConsumer::CallMalloc(mlir::OpBuilder &builder,
         builder.create<mlir::LLVM::CallOp>(loc, llvmFunctions[name], args);
     return callOp->getResult(0);
   }
-}
-mlir::LLVM::LLVMFuncOp MLIRASTConsumer::GetOrCreateFreeFunction() {
-  std::string name = "free";
-  if (llvmFunctions.find(name) != llvmFunctions.end()) {
-    return llvmFunctions[name];
-  }
-  auto ctx = module->getContext();
-  mlir::Type types[] = {
-      LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8))};
-  auto llvmFnType =
-      LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), types, false);
-
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  mlir::OpBuilder builder(module->getContext());
-  builder.setInsertionPointToStart(module->getBody());
-  return llvmFunctions[name] = builder.create<LLVM::LLVMFuncOp>(
-             module->getLoc(), name, llvmFnType, lnk);
 }
 
 mlir::LLVM::LLVMFuncOp

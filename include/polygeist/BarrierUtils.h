@@ -41,10 +41,6 @@ emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
   return iterationCounts;
 }
 
-mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
-                       mlir::Location loc, mlir::Value arg);
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(mlir::ModuleOp module);
-
 template <typename T>
 static mlir::Value
 allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
@@ -91,6 +87,9 @@ mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
   }
   return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
 }
+
+mlir::Value callMalloc(mlir::OpBuilder &builder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg);
 
 template <>
 mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(

@@ -39,6 +39,44 @@ using namespace mlir::arith;
 using namespace mlir::func;
 using namespace polygeist;
 
+static mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace,
+                                              MLIRContext *ctx) {
+  if (memorySpace == 0)
+    return nullptr;
+
+  return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
+}
+
+mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
+                       mlir::Location loc, mlir::Value arg) {
+  static std::mutex _mutex;
+  std::unique_lock<std::mutex> lock(_mutex);
+
+  mlir::OpBuilder builder(module.getContext());
+  SymbolTableCollection symbolTable;
+  std::vector args = {arg};
+  if (auto fn = dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
+          module, builder.getStringAttr("malloc")))) {
+    return ibuilder.create<mlir::func::CallOp>(loc, fn, args)->getResult(0);
+  }
+  LLVM::LLVMFuncOp fn;
+  if ((fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(
+           module, builder.getStringAttr("malloc"))))) {
+  } else {
+    auto *ctx = module->getContext();
+    mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
+    auto llvmFnType = LLVM::LLVMFunctionType::get(
+        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
+        false);
+
+    LLVM::Linkage lnk = LLVM::Linkage::External;
+    builder.setInsertionPointToStart(module.getBody());
+    fn = builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
+                                          lnk);
+  }
+  return ibuilder.create<mlir::LLVM::CallOp>(loc, fn, args)->getResult(0);
+}
+
 namespace {
 // The store to load forwarding relies on three conditions:
 //
@@ -156,58 +194,6 @@ struct AlwaysInlinerInterface : public InlinerInterface {
       valuesToRepl[it.index()].replaceAllUsesWith(it.value());
   }
 };
-
-// TODO
-mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
-                       mlir::Location loc, mlir::Value arg) {
-  static std::mutex _mutex;
-  std::unique_lock<std::mutex> lock(_mutex);
-
-  mlir::OpBuilder builder(module.getContext());
-  SymbolTableCollection symbolTable;
-  std::vector args = {arg};
-  if (auto fn = dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
-          module, builder.getStringAttr("malloc")))) {
-    return ibuilder.create<mlir::func::CallOp>(loc, fn, args)->getResult(0);
-  }
-  if (!dyn_cast_or_null<LLVM::LLVMFuncOp>(symbolTable.lookupSymbolIn(
-          module, builder.getStringAttr("malloc")))) {
-    auto *ctx = module->getContext();
-    mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
-    auto llvmFnType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
-        false);
-
-    LLVM::Linkage lnk = LLVM::Linkage::External;
-    builder.setInsertionPointToStart(module.getBody());
-    builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
-                                     lnk);
-  }
-
-  auto fn = cast<LLVM::LLVMFuncOp>(
-      symbolTable.lookupSymbolIn(module, builder.getStringAttr("malloc")));
-  return ibuilder.create<mlir::LLVM::CallOp>(loc, fn, args)->getResult(0);
-}
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
-  static std::mutex _mutex;
-  std::unique_lock<std::mutex> lock(_mutex);
-
-  mlir::OpBuilder builder(module.getContext());
-  SymbolTableCollection symbolTable;
-  if (auto fn = dyn_cast_or_null<LLVM::LLVMFuncOp>(
-          symbolTable.lookupSymbolIn(module, builder.getStringAttr("free"))))
-    return fn;
-  auto *ctx = module->getContext();
-  auto llvmFnType = LLVM::LLVMFunctionType::get(
-      LLVM::LLVMVoidType::get(ctx),
-      ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())),
-      false);
-
-  LLVM::Linkage lnk = LLVM::Linkage::External;
-  builder.setInsertionPointToStart(module.getBody());
-  return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "free", llvmFnType,
-                                          lnk);
-}
 
 LogicalResult fixupGetFunc(LLVM::CallOp, OpBuilder &rewriter,
                            SmallVectorImpl<Value> &);
@@ -744,7 +730,7 @@ void CudaRTLower::runOnOperation() {
             Value val = bz.create<arith::ConstantIntOp>(call->getLoc(), result,
                                                         MT.getElementType());
             std::vector<Value> idxs;
-            for (int i = 0; i < MT.getShape().size(); i++) {
+            for (size_t i = 0; i < MT.getShape().size(); i++) {
               idxs.push_back(
                   bz.create<arith::ConstantIndexOp>(call->getLoc(), 0));
             }
@@ -766,12 +752,46 @@ void CudaRTLower::runOnOperation() {
         } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
           OpBuilder bz(call);
           Value arg = call->getOperand(1);
-          if (arg.getType().cast<IntegerType>().getWidth() < 64)
-            arg =
-                bz.create<arith::ExtUIOp>(call->getLoc(), bz.getI64Type(), arg);
-          mlir::Value alloc =
-              callMalloc(bz, getOperation(), call->getLoc(), arg);
-          bz.create<LLVM::StoreOp>(call->getLoc(), alloc, call->getOperand(0));
+          arg = bz.create<arith::IndexCastOp>(call->getLoc(), bz.getIndexType(),
+                                              arg);
+
+          mlir::Type ET;
+          if (auto MT = dyn_cast<MemRefType>(call->getOperand(0).getType())) {
+            ET = MT.getElementType();
+          } else {
+            ET = cast<LLVM::LLVMPointerType>(call->getOperand(0).getType())
+                     .getElementType();
+          }
+          unsigned memspace = 0;
+          if (auto MT = dyn_cast<MemRefType>(ET)) {
+            memspace = MT.getMemorySpaceAsInt();
+          } else {
+            memspace = cast<LLVM::LLVMPointerType>(ET).getAddressSpace();
+          }
+
+          Value args[] = {arg};
+          mlir::Value alloc = bz.create<memref::AllocOp>(
+              call->getLoc(),
+              MemRefType::get(
+                  {-1}, bz.getIntegerType(8),
+                  wrapIntegerMemorySpace(memspace, arg.getContext())),
+              args);
+          if (auto PT = dyn_cast<LLVM::LLVMPointerType>(ET))
+            alloc = bz.create<polygeist::Memref2PointerOp>(call->getLoc(), PT,
+                                                           alloc);
+
+          if (auto MT = dyn_cast<MemRefType>(call->getOperand(0).getType())) {
+            std::vector<Value> idxs;
+            for (size_t i = 0; i < MT.getShape().size(); i++) {
+              idxs.push_back(
+                  bz.create<arith::ConstantIndexOp>(call->getLoc(), 0));
+            }
+            bz.create<memref::StoreOp>(call->getLoc(), alloc,
+                                       call->getOperand(0), idxs);
+          } else {
+            bz.create<LLVM::StoreOp>(call->getLoc(), alloc,
+                                     call->getOperand(0));
+          }
           {
             auto retv = bz.create<ConstantIntOp>(
                 call->getLoc(), 0,
@@ -781,10 +801,16 @@ void CudaRTLower::runOnOperation() {
             call->erase();
           }
         } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
-          auto mf = GetOrCreateFreeFunction(getOperation());
           OpBuilder bz(call);
-          Value args[] = {call->getOperand(0)};
-          bz.create<mlir::LLVM::CallOp>(call->getLoc(), mf, args);
+          Value alloc = call->getOperand(0);
+          if (auto PT = dyn_cast<LLVM::LLVMPointerType>(alloc.getType()))
+            alloc = bz.create<polygeist::Pointer2MemrefOp>(
+                call->getLoc(),
+                MemRefType::get({-1}, PT.getElementType(),
+                                wrapIntegerMemorySpace(PT.getAddressSpace(),
+                                                       alloc.getContext())),
+                alloc);
+          bz.create<memref::DeallocOp>(call->getLoc(), alloc);
           {
             auto retv = bz.create<ConstantIntOp>(
                 call->getLoc(), 0,
