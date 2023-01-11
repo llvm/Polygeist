@@ -46,6 +46,10 @@ cmake -G Ninja .. \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
+# Use Clang toolchain may save memory and faster
+# -DCMAKE_C_COMPILER=clang
+# -DCMAKE_CXX_COMPILER=clang++
+# -DLLVM_USE_LINKER=lld
 ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
