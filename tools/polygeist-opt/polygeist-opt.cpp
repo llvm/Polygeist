@@ -33,6 +33,9 @@
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
+#include "sql/SQLDialect.h"
+#include "sql/SQLOps.h"
+
 using namespace mlir;
 
 class MemRefInsider
@@ -62,6 +65,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::polygeist::PolygeistDialect>();
   registry.insert<DLTIDialect>();
 
+  registry.insert<mlir::sql::SQLDialect>();
   mlir::registerpolygeistPasses();
   mlir::func::registerInlinerExtension(registry);
 
@@ -75,6 +79,7 @@ int main(int argc, char **argv) {
   mlir::registerLoopInvariantCodeMotionPass();
   mlir::registerConvertSCFToOpenMPPass();
   mlir::affine::registerAffinePasses();
+
 
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(*ctx);
