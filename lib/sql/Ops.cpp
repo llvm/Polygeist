@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sql/SQLOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -15,6 +14,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "sql/SQLDialect.h"
+#include "sql/SQLOps.h"
 
 #define GET_OP_CLASSES
 #include "sql/SQLOps.cpp.inc"
@@ -38,5 +38,3 @@
 using namespace mlir;
 using namespace sql;
 using namespace mlir::arith;
-
-

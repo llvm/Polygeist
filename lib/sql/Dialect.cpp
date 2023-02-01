@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "sql/SQLDialect.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "sql/SQLDialect.h"
 #include "sql/SQLOps.h"
 
 using namespace mlir;
