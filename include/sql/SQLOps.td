@@ -1,4 +1,4 @@
-//===- SQLOps.td - Polygeist dialect ops ----------------*- tablegen -*-===//
+//===- SQLOps.td - SQL dialect ops ----------------*- tablegen -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-//  #ifndef SQL_OPS
-// #define SQL_OPS
+#ifndef SQL_OPS
+#define SQL_OPS
 
 include "mlir/IR/AttrTypeBase.td"
 include "SQLDialect.td"
@@ -54,4 +54,4 @@ def ResultOp : SQL_Op<"get_result", [Pure]> {
 }  
  
 
-// #endif
+#endif

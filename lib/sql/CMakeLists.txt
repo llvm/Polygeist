@@ -10,10 +10,4 @@ MLIRSQLOpsIncGen
 
 LINK_LIBS PUBLIC
 MLIRIR
-MLIRMemRefDialect
-MLIRLLVMDialect
-MLIROpenMPDialect
-MLIRAffineDialect
-MLIRSupport
-MLIRSCFTransforms
 )
