@@ -298,6 +298,17 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   const unsigned DEFAULT_GPU_THREADS = 512;
   const unsigned MIN_GPU_THREADS = 32;
 
+  const std::vector<unsigned> ALTERNATIVE_KERNEL_BLOCK_SIZES = {
+    32 * 1,
+    32 * 2,
+    32 * 4,
+    32 * 8,
+    32 * 16,
+    32 * 24,
+    32 * 32};
+
+  const bool emitAlternatives = true;
+
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
     scf::ParallelOp pop =
@@ -316,57 +327,74 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     auto loc = pop->getLoc();
 
-    // -1 if if was not a constant
-    int originalThreadNum = getOriginalThreadNum(wrapper);
+    if (emitAlternatives) {
+      int curRegion = 0;
+      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
+      auto emitAlternative = [&](unsigned defaultThreads) {
+        auto block = &*alternativesOp->getRegion(curRegion).begin();
+        rewriter.setInsertionPointToStart(block);
+        // TODO not very efficient...
+        auto newWrapper = rewriter.clone(*wrapper.getOperation());
+        newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
+                                   defaultThreads, rewriter);
+        curRegion++;
+      };
+      for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
+        emitAlternative(blockSize);
+      }
+    } else {
+      // -1 if if was not a constant
+      int originalThreadNum = getOriginalThreadNum(wrapper);
 
-    // TODO handle lower bounds != 0 and steps != 1
+      // TODO handle lower bounds != 0 and steps != 1
 
-    // We start with the maximum amount of threads ina block we want, and go
-    // lower if we find that we get the out of resources error which occurs if
-    // we use too many registers in a single block
+      // We start with the maximum amount of threads ina block we want, and go
+      // lower if we find that we get the out of resources error which occurs if
+      // we use too many registers in a single block
 
-    rewriter.setInsertionPoint(wrapper);
-    // TODO After we have compiled the kernels to PTX, we might be able to
-    // figure out from the number of registers and the target arch if it would
-    // fail, then we can just replace the call to it with this const
-    auto outOfResourcesErr = rewriter.create<arith::ConstantIndexOp>(
+      rewriter.setInsertionPoint(wrapper);
+      // TODO After we have compiled the kernels to PTX, we might be able to
+      // figure out from the number of registers and the target arch if it would
+      // fail, then we can just replace the call to it with this const
+      auto outOfResourcesErr = rewriter.create<arith::ConstantIndexOp>(
         loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
 
-    auto emitWithDefaultThreadNum = [&](unsigned defaultThreads) {
-      // TODO not very efficient...
-      auto newWrapper = rewriter.clone(*wrapper.getOperation());
-      newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
-                                 defaultThreads, rewriter);
-      rewriter.setInsertionPointAfter(newWrapper);
-      auto cond = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                                 newWrapper->getResult(0),
-                                                 outOfResourcesErr);
-      auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
-      rewriter.setInsertionPointToStart(ifOp.thenBlock());
-    };
-    auto emitGradualFailover = [&]() {
-      for (unsigned defaultThreads = DEFAULT_GPU_THREADS;
-           defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
-        emitWithDefaultThreadNum(defaultThreads);
-      }
-    };
-    auto emitOriginalFailover = [&]() {
-      emitWithDefaultThreadNum(DEFAULT_GPU_THREADS);
-      emitWithDefaultThreadNum(originalThreadNum);
-    };
+      auto emitWithDefaultThreadNum = [&](unsigned defaultThreads) {
+        // TODO not very efficient...
+        auto newWrapper = rewriter.clone(*wrapper.getOperation());
+        newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
+                                   defaultThreads, rewriter);
+        rewriter.setInsertionPointAfter(newWrapper);
+        auto cond = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
+                                                   newWrapper->getResult(0),
+                                                   outOfResourcesErr);
+        auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
+        rewriter.setInsertionPointToStart(ifOp.thenBlock());
+      };
 
-    // TODO sometimes the original thread num is not a constant - can we handle
-    // that too?
-    if (useOriginalThreadNums) {
-      if (originalThreadNum > 0)
+      auto emitGradualFailover = [&]() {
+        for (unsigned defaultThreads = DEFAULT_GPU_THREADS;
+             defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
+          emitWithDefaultThreadNum(defaultThreads);
+        }
+      };
+      auto emitOriginalFailover = [&]() {
+        emitWithDefaultThreadNum(DEFAULT_GPU_THREADS);
         emitWithDefaultThreadNum(originalThreadNum);
-      else
-        emitGradualFailover();
-    } else {
-      if (originalThreadNum > 0) {
-        emitOriginalFailover();
+      };
+
+      // TODO sometimes the original thread num is not a constant - can we handle
+      // that too?
+      if (useOriginalThreadNums) {
+        if (originalThreadNum > 0)
+          emitWithDefaultThreadNum(originalThreadNum);
+        else
+          emitGradualFailover();
       } else {
-        emitGradualFailover();
+        if (originalThreadNum > 0)
+          emitOriginalFailover();
+        else
+          emitGradualFailover();
       }
     }
 
@@ -398,7 +426,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
         break;
       }
     }
-    assert(originalThreadNum <= MAX_GPU_THREADS);
+    assert((unsigned int) originalThreadNum <= MAX_GPU_THREADS);
 
     return originalThreadNum;
   }
