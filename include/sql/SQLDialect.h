@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef SQL_DIALECT
-#define SQL_DIALECT
+#ifndef SQL_DIALECT_H
+#define SQL_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
 

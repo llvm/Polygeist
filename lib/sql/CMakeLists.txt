@@ -11,3 +11,5 @@ MLIRSQLOpsIncGen
 LINK_LIBS PUBLIC
 MLIRIR
 )
+
+add_subdirectory(Passes)

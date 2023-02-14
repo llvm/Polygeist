@@ -1,5 +1,5 @@
 // RUN: polygeist-opt %s | FileCheck %s
-
+// -lower-sql
 module  {
   func.func private @run() -> i32 {
     %c0 = arith.constant 0 : index

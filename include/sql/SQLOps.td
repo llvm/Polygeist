@@ -53,5 +53,4 @@ def ResultOp : SQL_Op<"get_result", [Pure]> {
   let hasCanonicalizer = 0;
 }  
  
-
-#endif
+#endif // SQL_OPS
