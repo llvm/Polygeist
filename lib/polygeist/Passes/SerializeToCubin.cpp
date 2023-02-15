@@ -183,24 +183,27 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   // (https://llvm.org/docs/NVPTXUsage.html)
   llvm::NamedMDNode *MD =
       llvmModule->getOrInsertNamedMetadata("nvvm.annotations");
-  if (MD) {
-    llvm::internalizeModule(
-        *llvmModule, [&](const llvm::GlobalValue &GV) -> bool {
-          for (auto *Op : MD->operands()) {
-            llvm::MDString *KindID =
-                dyn_cast<llvm::MDString>(Op->getOperand(1));
-            if (!KindID || KindID->getString() == "kernel") {
-              llvm::GlobalValue *KernelFn =
-                  llvm::mdconst::dyn_extract_or_null<llvm::Function>(
-                      Op->getOperand(0));
-              if (KernelFn == &GV)
-                return true;
-            }
-          }
-          return false;
-        });
+  if (!MD) {
+    // TODO what is the correct course of action here?
+    assert(0);
   }
+  llvm::internalizeModule(
+      *llvmModule, [&](const llvm::GlobalValue &GV) -> bool {
+        for (auto *Op : MD->operands()) {
+          llvm::MDString *KindID =
+              dyn_cast<llvm::MDString>(Op->getOperand(1));
+          if (!KindID || KindID->getString() == "kernel") {
+            llvm::GlobalValue *KernelFn =
+                llvm::mdconst::dyn_extract_or_null<llvm::Function>(
+                    Op->getOperand(0));
+            if (KernelFn == &GV)
+              return true;
+          }
+        }
+        return false;
+      });
 
+  // Convert some intrinsic functions to call to libdevice
   SmallVector<llvm::IntrinsicInst *> toConvert;
   for (auto &F : *llvmModule) {
     for (auto &BB : F) {
@@ -229,6 +232,7 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       II->eraseFromParent();
     }
   });
+
 
   return llvmModule;
 }

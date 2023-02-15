@@ -48,6 +48,17 @@ using namespace polygeist;
 
 namespace {
 
+std::optional<int> getConstantInteger(Value v) {
+  if (auto cstint =
+          dyn_cast_or_null<arith::ConstantIntOp>(v.getDefiningOp())) {
+    return cstint.value();
+  } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                  v.getDefiningOp())) {
+    return cstindex.value();
+  } else {
+    return {};
+  }
+}
 template <typename T>
 bool hasEffect(SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   for (auto it : effects)
@@ -89,6 +100,42 @@ scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
   assert(it == block->end());
   return pop;
 }
+
+// Set launch bound attributes
+//
+// TODO Add a NVVM::NVVMDialect::getLaunchBoundAttrName() (or a gpu dialect one?
+// refer to how the KernelAttrName is done for gpu, nvvm, rocdl - needs upstream
+// mlir patch) and
+struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
+  using OpRewritePattern<gpu::LaunchFuncOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(gpu::LaunchFuncOp launchOp,
+                                PatternRewriter &rewriter) const override {
+    // TODO Currently this can be done safely because the polygeist pipeline
+    // generates a different kernel for each _callsite_ and not for each source
+    // kernel, we must actually look at whether the symbol is private and
+    // whether _all_ call sites use the same const params and only then do this
+    // (so we should actually match gpu::GPUFuncOp's and not
+    // gpu::LaunchFuncOp's)
+    auto gpuFuncOp = launchOp->getParentOfType<ModuleOp>().lookupSymbol(launchOp.getKernel());
+    auto blockDims = launchOp.getBlockSizeOperandValues();
+    auto bx = getConstantInteger(blockDims.x);
+    auto by = getConstantInteger(blockDims.y);
+    auto bz = getConstantInteger(blockDims.z);
+    if (!bx || !by || !bz)
+      return failure();
+    // TODO should we only set idx or separately set idx, idy, idz? clang seems
+    // to only set idx to the total num
+    int blockSize = *bx * *by * *bz;
+    if (!gpuFuncOp->hasAttr("nvvm.maxntidx")) {
+      gpuFuncOp->setAttr("nvvm.maxntidx", rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
+      return success();
+    } else {
+      assert(blockSize == gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
+      // TODO assert it is the same
+      return failure();
+    }
+  }
+};
 
 template <typename FuncType>
 struct RemoveFunction : public OpRewritePattern<FuncType> {
@@ -414,12 +461,9 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     int originalThreadNum = 1;
     for (auto dim : originalBlockDims) {
       // TODO other possibilities?
-      if (auto cstint =
-              dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
-        originalThreadNum *= cstint.value();
-      } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
-                     dim.getDefiningOp())) {
-        originalThreadNum *= cstindex.value();
+      auto cst = getConstantInteger(dim);
+      if (cst) {
+        originalThreadNum *= *cst;
       } else {
         llvm::errs() << *dim.getDefiningOp() << " was not a const int\n";
         originalThreadNum = -1;
@@ -1348,7 +1392,7 @@ struct ConvertParallelToGPU2Pass
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
     patterns
-        .insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
+        .insert<AddLaunchBounds, SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
                 RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
             &getContext());
     GreedyRewriteConfig config;
