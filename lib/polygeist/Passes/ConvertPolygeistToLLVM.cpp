@@ -1541,7 +1541,7 @@ struct LowerGPUAlternativesOp
                                                                 auto b) {
       auto _a = pop_front(a);
       auto _b = pop_front(b);
-      return _a > _b;
+      return _a < _b;
     });
 
     llvm::errs() << "GPU Alternatives theoretical occupancies sorted:\n";
