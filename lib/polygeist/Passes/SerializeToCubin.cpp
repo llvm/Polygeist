@@ -33,6 +33,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FileUtilities.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/SourceMgr.h"
@@ -303,35 +304,22 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
     llvm::dbgs().flush();
   });
 
-  auto newTmpFile =
-      [&](const char *name) -> llvm::Expected<llvm::sys::fs::TempFile> {
-    auto tmpFile = llvm::sys::fs::TempFile::create(name);
-    if (!tmpFile) {
-      llvm::errs() << "Failed to create temp file\n";
-      return tmpFile;
-    }
-    return tmpFile;
-  };
-  auto discardFile = [&](llvm::Expected<llvm::sys::fs::TempFile> &tmpFile) {
-    if (!!tmpFile && tmpFile->discard()) {
-      llvm::errs() << "Failed to erase temp file\n";
-    }
-  };
-  auto tmpInput = newTmpFile("/tmp/isainput%%%%%%%.s");
-  auto tmpOutput = newTmpFile("/tmp/cubinoutput%%%%%%%.cubin");
-  if (!tmpInput || !tmpOutput) {
-    discardFile(tmpInput);
-    discardFile(tmpOutput);
-    return {};
-  }
+  llvm::SmallString<64> tmpInput;
+  int tmpInputFD;
+  llvm::SmallString<64> tmpOutput;
+  int tmpOutputFD;
+  llvm::sys::fs::createTemporaryFile("/tmp/isainput%%%%%%%", "s", tmpInputFD, tmpInput);
+  llvm::FileRemover tmpInputRemover(tmpInput.c_str());
+  llvm::sys::fs::createTemporaryFile("/tmp/cubinoutput%%%%%%%", "cubin", tmpOutputFD, tmpOutput);
+  llvm::FileRemover tmpOutputRemover(tmpOutput.c_str());
   {
-    llvm::raw_fd_ostream out(tmpInput->FD, /*shouldClose*/ false);
+    llvm::raw_fd_ostream out(tmpInputFD, /*shouldClose*/ false);
     out << isa << "\n";
     out.flush();
   }
 
   std::vector<StringRef> Argv;
-  Argv.push_back(ptxasPath);
+  Argv.push_back(ptxasPath.c_str());
   Argv.push_back(llvm::Triple(triple).isArch64Bit() ? "-m64" : "-m32");
   Argv.push_back("--gpu-name");
   Argv.push_back(chip.c_str());
@@ -339,21 +327,18 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   Argv.push_back(std::to_string(ptxasOptLevel));
   Argv.push_back("--verbose");
   Argv.push_back("--output-file");
-  Argv.push_back(tmpOutput->TmpName);
-  Argv.push_back(tmpInput->TmpName);
+  Argv.push_back(tmpOutput.c_str());
+  Argv.push_back(tmpInput.c_str());
 
   llvm::sys::ExecuteAndWait(ptxasPath.c_str(), Argv);
 
   auto MB =
-      llvm::MemoryBuffer::getFile(tmpOutput->TmpName, false, false, false);
+      llvm::MemoryBuffer::getFile(tmpOutput, false, false, false);
   if (MB.getError()) {
     llvm::errs() << loc << "MemoryBuffer getFile failed";
     return {};
   }
   auto membuf = std::move(*MB);
-
-  discardFile(tmpOutput);
-  discardFile(tmpInput);
 
   size_t cubinSize = membuf->getBufferSize();
   auto result = std::make_unique<std::vector<char>>(cubinSize);
