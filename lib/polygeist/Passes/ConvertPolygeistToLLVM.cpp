@@ -1432,6 +1432,14 @@ private:
   llvm::SmallString<32> gpuBinaryAnnotation;
 };
 
+template<typename Tuple>
+constexpr auto pop_front(Tuple tuple) {
+    static_assert(std::tuple_size<Tuple>::value > 0, "Cannot pop from an empty tuple");
+    return std::apply(
+        [](auto, auto... rest) { return std::make_tuple(rest...); },
+        tuple);
+}
+
 struct LowerGPUAlternativesOp
     : public OpRewritePattern<polygeist::GPUAlternativesOp> {
   using OpRewritePattern<polygeist::GPUAlternativesOp>::OpRewritePattern;
@@ -1450,7 +1458,7 @@ struct LowerGPUAlternativesOp
     CUcontext context;
     RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
 
-    std::vector<std::tuple<int, int, Region *>> occupancies;
+    std::vector<std::tuple<Region *, int, int, int, int, int, int>> occupancies;
 
     for (auto &region : gao->getRegions()) {
       gpu::LaunchFuncOp launchOp = nullptr;
@@ -1468,6 +1476,21 @@ struct LowerGPUAlternativesOp
       CUfunction cuFunction;
       RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
       RETURN_ON_CUDA_ERROR(cuModuleGetFunction(&cuFunction, cuModule, launchOp.getKernelName().data()));
+
+      int
+        maxThreadsPerBlock,
+        sharedMemSize,
+        constMemSize,
+        /* stack frame size */ localMemSize,
+        numRegs;
+      // TODO we dont seem to be able to get spilled stores/loads count from
+      // here but ptxas outputs it? should we parse the ptxas output and add an
+      // attribute for those values
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(&maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(&sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(&constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(&localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
 
       int blockSize = 1;
       gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
@@ -1491,16 +1514,34 @@ struct LowerGPUAlternativesOp
 
       RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
 
-      occupancies.push_back({occupancyNumBlocks * blockSize, blockSize, &region});
+      assert(maxThreadsPerBlock >= blockSize);
+      //occupancies.push_back({&region, maxThreadsPerBlock, sharedMemSize, constMemSize, localMemSize, numRegs, occupancyNumBlocks * blockSize, -blockSize});
+      occupancies.push_back({&region,
+          localMemSize, /* lower is better */
+          - occupancyNumBlocks * blockSize, /* higher is better */
+          - numRegs * blockSize, /* higher is better */
+          - blockSize, /* hisher is better??? maybe? */
+          sharedMemSize, /* lower is better */
+          constMemSize, /* lower is better */
+      });
     }
 
-    std::stable_sort(occupancies.begin(), occupancies.end(), [](std::tuple<int, int, Region *> a,
-                                                                std::tuple<int, int, Region *> b) {
-      int a0 = std::get<0>(a);
-      int a1 = -std::get<1>(a);
-      int b0 = std::get<0>(b);
-      int b1 = -std::get<1>(b);
-      return std::tie(a0, a1) > std::tie(b0, b1);
+    llvm::errs() << "GPU Alternatives theoretical occupancies unsorted:\n";
+    for (auto tup : occupancies)
+      llvm::errs() <<
+        std::get<0>(tup) << ", " <<
+        std::get<1>(tup) << ", " <<
+        std::get<2>(tup) << ", " <<
+        std::get<3>(tup) << ", " <<
+        std::get<4>(tup) << ", " <<
+        std::get<5>(tup) << ", " <<
+        std::get<6>(tup) << ", " <<
+        "\n";
+    std::stable_sort(occupancies.begin(), occupancies.end(), [](auto a,
+                                                                auto b) {
+      auto _a = pop_front(a);
+      auto _b = pop_front(b);
+      return _a > _b;
     });
 
     llvm::errs() << "GPU Alternatives theoretical occupancies sorted:\n";
@@ -1509,10 +1550,14 @@ struct LowerGPUAlternativesOp
         std::get<0>(tup) << ", " <<
         std::get<1>(tup) << ", " <<
         std::get<2>(tup) << ", " <<
+        std::get<3>(tup) << ", " <<
+        std::get<4>(tup) << ", " <<
+        std::get<5>(tup) << ", " <<
+        std::get<6>(tup) << ", " <<
         "\n";
     llvm::errs() << "Choosing top option\n";
 
-    auto block = &*std::get<2>(occupancies[0])->begin();
+    auto block = &*std::get<0>(occupancies[0])->begin();
     rewriter.eraseOp(block->getTerminator());
     rewriter.mergeBlockBefore(block, gao);
     rewriter.eraseOp(gao);
