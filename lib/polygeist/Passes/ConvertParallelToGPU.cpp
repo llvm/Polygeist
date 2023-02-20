@@ -374,7 +374,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     auto loc = pop->getLoc();
 
-    if (true /* temp for measuring performance for different block sizes */) {
+    if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
       int curRegion = 0;
       auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
       auto emitAlternative = [&](unsigned defaultThreads) {
@@ -386,11 +386,9 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                                    defaultThreads, rewriter);
         curRegion++;
       };
-      char *indexStr = getenv("POLYGEIST_GPU_KERNEL_ID");
-      llvm::errs() << "Emitting kernel with " << atoi(indexStr) << " threads\n";
-      emitAlternative(ALTERNATIVE_KERNEL_BLOCK_SIZES[atoi(indexStr)]);
-    } else
-    if (emitAlternatives) {
+      llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr) << " threads\n";
+      emitAlternative(atoi(blockSizeStr));
+    } else if (emitAlternatives) {
       int curRegion = 0;
       auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
       auto emitAlternative = [&](unsigned defaultThreads) {
