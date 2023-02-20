@@ -1519,9 +1519,9 @@ struct LowerGPUAlternativesOp
       int activeThreads = occupancyNumBlocks * blockSize;
       occupancies.push_back({&region,
           localMemSize, /* lower is better */
-          - activeThreads, /* higher is better */
-          - numRegs * activeThreads, /* higher is better */
-          - blockSize, /* hisher is better??? maybe? */
+          activeThreads, /* higher is better */
+          numRegs * activeThreads, /* higher is better */
+          blockSize, /* hisher is better??? maybe? */
           sharedMemSize, /* lower is better */
           constMemSize, /* lower is better */
       });
