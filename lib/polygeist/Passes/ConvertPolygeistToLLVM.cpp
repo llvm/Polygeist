@@ -1516,10 +1516,11 @@ struct LowerGPUAlternativesOp
 
       assert(maxThreadsPerBlock >= blockSize);
       //occupancies.push_back({&region, maxThreadsPerBlock, sharedMemSize, constMemSize, localMemSize, numRegs, occupancyNumBlocks * blockSize, -blockSize});
+      int activeThreads = occupancyNumBlocks * blockSize;
       occupancies.push_back({&region,
           localMemSize, /* lower is better */
-          - occupancyNumBlocks * blockSize, /* higher is better */
-          - numRegs * blockSize, /* higher is better */
+          - activeThreads, /* higher is better */
+          - numRegs * activeThreads, /* higher is better */
           - blockSize, /* hisher is better??? maybe? */
           sharedMemSize, /* lower is better */
           constMemSize, /* lower is better */

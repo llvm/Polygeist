@@ -528,7 +528,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       gridDims.push_back(oneindex);
       // Put a random index, we will override it
       gridArgId.push_back(0);
-    } else if (threadNum <= 512) {
+    } else if (threadNum <= maxThreads / 2) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
 
