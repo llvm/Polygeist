@@ -1542,7 +1542,8 @@ struct LowerGPUAlternativesOp
         "\n";
 
     auto getCost = [](auto a) -> double {
-      std::vector<float> coefficients = {10.8, -1.76, -0.0301, 0.717};
+      //std::vector<float> coefficients = {10.8, -1.76, -0.0301, 0.717};
+      std::vector<float> coefficients = {4, -2, -0.1, 0.1};
       return
         coefficients[0] * std::get<0>(a) +
         coefficients[1] * std::get<1>(a) +
