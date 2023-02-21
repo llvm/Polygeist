@@ -1468,7 +1468,9 @@ struct LowerGPUAlternativesOp
       });
       assert(launchOp);
 
-      auto gpuModule = launchOp->getParentOfType<ModuleOp>().lookupSymbol(launchOp.getKernel())->getParentOfType<gpu::GPUModuleOp>();
+      auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(launchOp.getKernel());
+      assert(gpuFunc);
+      auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
       assert(gpuModule);
       const char *blob = gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
 
@@ -1538,11 +1540,21 @@ struct LowerGPUAlternativesOp
         std::get<5>(tup) << ", " <<
         std::get<6>(tup) << ", " <<
         "\n";
-    std::stable_sort(occupancies.begin(), occupancies.end(), [](auto a,
-                                                                auto b) {
+
+    auto getCost = [](auto a) -> double {
+      return
+        3.9 * std::get<0>(a) +
+        -2.5 * std::get<1>(a) +
+        -0.1 * std::get<2>(a) +
+        2.3 * std::get<3>(a) +
+        0 * std::get<4>(a) +
+        0 * std::get<5>(a);
+    };
+    std::stable_sort(occupancies.begin(), occupancies.end(), [&](auto a,
+                                                                 auto b) {
       auto _a = pop_front(a);
       auto _b = pop_front(b);
-      return _a < _b;
+      return getCost(_a) < getCost(_b);
     });
 
     llvm::errs() << "GPU Alternatives theoretical occupancies sorted:\n";
