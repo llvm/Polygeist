@@ -308,9 +308,9 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   int tmpInputFD;
   llvm::SmallString<64> tmpOutput;
   int tmpOutputFD;
-  llvm::sys::fs::createTemporaryFile("/tmp/isainput%%%%%%%", "s", tmpInputFD, tmpInput);
+  llvm::sys::fs::createTemporaryFile("isainput", "s", tmpInputFD, tmpInput);
   llvm::FileRemover tmpInputRemover(tmpInput.c_str());
-  llvm::sys::fs::createTemporaryFile("/tmp/cubinoutput%%%%%%%", "cubin", tmpOutputFD, tmpOutput);
+  llvm::sys::fs::createTemporaryFile("cubinoutput", "cubin", tmpOutputFD, tmpOutput);
   llvm::FileRemover tmpOutputRemover(tmpOutput.c_str());
   {
     llvm::raw_fd_ostream out(tmpInputFD, /*shouldClose*/ false);
