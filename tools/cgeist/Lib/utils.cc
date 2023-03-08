@@ -45,8 +45,10 @@ Operation *mlirclang::replaceFuncByOperation(
     func::FuncOp f, StringRef opName, OpBuilder &b,
     SmallVectorImpl<mlir::Value> &input, SmallVectorImpl<mlir::Value> &output) {
   MLIRContext *ctx = f->getContext();
-  assert(ctx->isOperationRegistered(opName) &&
-         "Provided lower_to opName should be registered.");
+  if (!ctx->isOperationRegistered(opName)) {
+    ctx->allowUnregisteredDialects();
+    llvm::errs() << " warning unregistered dialect op: " << opName << "\n";
+  }
 
   if (opName.startswith("memref"))
     return buildLinalgOp(opName, b, input, output);
