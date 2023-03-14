@@ -4534,6 +4534,14 @@ MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
   return ValueCategory(newIfOp.getResult(0), /*isReference*/ isReference);
 }
 
+ValueCategory MLIRScanner::VisitSizeOfPackExpr(SizeOfPackExpr *expr) {
+  const auto loc = getMLIRLocation(expr->getExprLoc());
+  const auto val = expr->getPackLength();
+  const auto ty = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+  return ValueCategory(builder.create<arith::ConstantIntOp>(loc, val, ty),
+                       /*isReference*/ false);
+}
+
 ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *stmt) {
   ValueCategory off = nullptr;
   for (auto a : stmt->getSubStmt()->children()) {
