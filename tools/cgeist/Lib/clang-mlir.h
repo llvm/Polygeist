@@ -406,6 +406,8 @@ public:
 
   ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
 
+  ValueCategory VisitSizeOfPackExpr(clang::SizeOfPackExpr *e);
+
   ValueCategory CommonFieldLookup(mlir::Location loc, clang::QualType OT,
                                   const FieldDecl *FD, mlir::Value val,
                                   bool isLValue);
