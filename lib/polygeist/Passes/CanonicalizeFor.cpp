@@ -640,10 +640,15 @@ bool isBlockArg(Value value) {
 }
 
 bool dominateWhile(Value value, WhileOp loop) {
-  Operation *op = value.getDefiningOp();
-  assert(op && "expect non-null");
-  DominanceInfo dom(loop);
-  return dom.properlyDominates(op, loop);
+  if (Operation *op = value.getDefiningOp()) {
+    DominanceInfo dom(loop);
+    return dom.properlyDominates(op, loop);
+  } else if (auto arg = value.dyn_cast<BlockArgument>()) {
+    return arg.getOwner()->getParentOp()->isProperAncestor(loop);
+  } else {
+    assert("????");
+    return false;
+  }
 }
 
 bool canMoveOpOutsideWhile(Operation *op, WhileOp loop) {
@@ -805,28 +810,29 @@ struct WhileToForHelper {
       ub_addOne = true;
     }
 
-    if (isBlockArg(cmpIOp.getRhs()) || dominateWhile(cmpIOp.getRhs(), loop)) {
+    auto cmpRhs = cmpIOp.getRhs();
+    if (dominateWhile(cmpRhs, loop)) {
       switch (cmpIOp.getPredicate()) {
       case CmpIPredicate::slt:
       case CmpIPredicate::ult: {
-        ub = cmpIOp.getRhs();
+        ub = cmpRhs;
         break;
       }
       case CmpIPredicate::ule:
       case CmpIPredicate::sle: {
-        ub = cmpIOp.getRhs();
+        ub = cmpRhs;
         ub_addOne = true;
         break;
       }
       case CmpIPredicate::uge:
       case CmpIPredicate::sge: {
-        lb = cmpIOp.getRhs();
+        lb = cmpRhs;
         break;
       }
 
       case CmpIPredicate::ugt:
       case CmpIPredicate::sgt: {
-        lb = cmpIOp.getRhs();
+        lb = cmpRhs;
         lb_addOne = true;
         break;
       }
