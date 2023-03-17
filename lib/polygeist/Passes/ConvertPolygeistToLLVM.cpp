@@ -722,7 +722,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
                                                    ST));
-        auto mallocFunc = LLVM::lookupOrCreateMallocFn(module, getIndexType());
+        auto mallocFunc = LLVM::lookupOrCreateMallocFn(module, getIndexType(), /* opaquePointers */ false);
         mlir::Value alloc =
             rewriter.create<LLVM::CallOp>(loc, mallocFunc, arg).getResult();
         alloc = rewriter.create<LLVM::BitcastOp>(
@@ -932,8 +932,8 @@ public:
     } else {
       LLVM::LLVMFuncOp mallocFunc =
           getTypeConverter()->getOptions().useGenericFunctions
-              ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType())
-              : LLVM::lookupOrCreateMallocFn(module, getIndexType());
+        ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType(), /* opaquePointers */ false)
+        : LLVM::lookupOrCreateMallocFn(module, getIndexType(), /* opaquePointers */ false);
       Value allocated =
           rewriter.create<LLVM::CallOp>(loc, mallocFunc, size).getResult();
       rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
@@ -960,8 +960,8 @@ public:
     } else {
       LLVM::LLVMFuncOp freeFunc =
           getTypeConverter()->getOptions().useGenericFunctions
-              ? LLVM::lookupOrCreateGenericFreeFn(module)
-              : LLVM::lookupOrCreateFreeFn(module);
+        ? LLVM::lookupOrCreateGenericFreeFn(module, /* opaquePointers */ false)
+        : LLVM::lookupOrCreateFreeFn(module, /* opaquePointers */ false);
       Value casted = rewriter.create<LLVM::BitcastOp>(
           deallocOp->getLoc(), getVoidPtrType(), adaptor.getMemref());
       rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc, casted);

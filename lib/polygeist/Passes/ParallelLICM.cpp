@@ -306,7 +306,7 @@ bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   return false;
 }
 
-bool isSpeculatable(Operation *op) {
+static bool isSpeculatable(Operation *op) {
   if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
     // If the op has no side-effects, it is speculatable.
     if (memInterface.hasNoEffect())
@@ -354,7 +354,7 @@ bool isSpeculatable(Operation *op) {
   // Recurse into the regions and ensure that all nested ops can also be moved.
   for (Region &region : op->getRegions())
     for (Operation &op : region.getOps())
-      if (!isSpeculatable(&op))
+      if (!::isSpeculatable(&op))
         return false;
   return true;
 }
@@ -375,7 +375,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || ::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -387,7 +387,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, ::isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = nullptr;
     for (auto pair : llvm::zip(looplike.getLowerBound(),
@@ -435,7 +435,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || ::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -447,7 +447,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, ::isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
@@ -544,7 +544,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || ::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -557,7 +557,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, ::isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
                                          looplike.getLowerBound(),
@@ -597,7 +597,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator()) {
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || ::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -611,7 +611,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, ::isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
