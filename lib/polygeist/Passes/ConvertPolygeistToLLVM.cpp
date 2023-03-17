@@ -2209,7 +2209,7 @@ public:
     SmallVector<NamedAttribute> attributes;
     for (const auto &attr : gpuFuncOp->getAttrs()) {
       if (attr.getName() == SymbolTable::getSymbolAttrName() ||
-          attr.getName() == FunctionOpInterface::getTypeAttrName() ||
+          attr.getName() == gpuFuncOp.getFunctionTypeAttrName() ||
           attr.getName() ==
               gpu::GPUFuncOp::getNumWorkgroupAttributionsAttrName())
         continue;
@@ -2636,8 +2636,8 @@ struct ConvertPolygeistToLLVMPass
       if (gpuModule) {
         converter.addConversion([&](MemRefType type) -> Optional<Type> {
           if (type.getMemorySpaceAsInt() !=
-              gpu::GPUDialect::getPrivateAddressSpace())
-            return llvm::None;
+              static_cast<unsigned>(gpu::GPUDialect::getPrivateAddressSpace()))
+            return std::nullopt;
           return converter.convertType(MemRefType::Builder(type).setMemorySpace(
               IntegerAttr::get(IntegerType::get(m.getContext(), 64), 0)));
         });
@@ -2672,7 +2672,7 @@ struct ConvertPolygeistToLLVMPass
         populateCStyleMemRefLoweringPatterns(patterns, converter);
         populateCStyleFuncLoweringPatterns(patterns, converter);
       } else {
-        populateMemRefToLLVMConversionPatterns(converter, patterns);
+        populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
         populateFuncToLLVMConversionPatterns(converter, patterns);
       }
       if (gpuModule) {
