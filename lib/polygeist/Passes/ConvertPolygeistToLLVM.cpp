@@ -45,7 +45,9 @@
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "llvm/Support/FormatVariadic.h"
+
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
+#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
 
 #if POLYGEIST_ENABLE_CUDA
 #include <cuda.h>
@@ -1443,10 +1445,13 @@ constexpr auto pop_front(Tuple tuple) {
 struct LowerGPUAlternativesOp
     : public OpRewritePattern<polygeist::GPUAlternativesOp> {
   using OpRewritePattern<polygeist::GPUAlternativesOp>::OpRewritePattern;
+  const char *PATTERN = "lower-gpu-alternatives";
 
   LogicalResult matchAndRewrite(polygeist::GPUAlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
     Location loc = gao->getLoc();
+
+#if POLYGEIST_ENABLE_CUDA
     char cuErrorBuffer[4096] = {0};
 
     // TODO implement a version that does this at runtime for when we dont have block sizes or shared mem
@@ -1517,7 +1522,6 @@ struct LowerGPUAlternativesOp
       RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
 
       assert(maxThreadsPerBlock >= blockSize);
-      //occupancies.push_back({&region, maxThreadsPerBlock, sharedMemSize, constMemSize, localMemSize, numRegs, occupancyNumBlocks * blockSize, -blockSize});
       int activeThreads = occupancyNumBlocks * blockSize;
       occupancies.push_back({&region,
           localMemSize, /* lower is better */
@@ -1529,20 +1533,23 @@ struct LowerGPUAlternativesOp
       });
     }
 
-    llvm::errs() << "GPU Alternatives theoretical occupancies unsorted:\n";
-    for (auto tup : occupancies)
-      llvm::errs() <<
-        std::get<0>(tup) << ", " <<
-        std::get<1>(tup) << ", " <<
-        std::get<2>(tup) << ", " <<
-        std::get<3>(tup) << ", " <<
-        std::get<4>(tup) << ", " <<
-        std::get<5>(tup) << ", " <<
-        std::get<6>(tup) << ", " <<
-        "\n";
+    auto printOccupancies = [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>> occupancies) {
+      for (auto tup : occupancies)
+        DBGS() <<
+          std::get<0>(tup) << ", " <<
+          std::get<1>(tup) << ", " <<
+          std::get<2>(tup) << ", " <<
+          std::get<3>(tup) << ", " <<
+          std::get<4>(tup) << ", " <<
+          std::get<5>(tup) << ", " <<
+          std::get<6>(tup) << ", " <<
+          "\n";
+    };
+
+    LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
+    LLVM_DEBUG(printOccupancies(occupancies));
 
     auto getCost = [](auto a) -> double {
-      //std::vector<float> coefficients = {10.8, -1.76, -0.0301, 0.717};
       std::vector<float> coefficients = {4, -2, -0.1, -0.01};
       return
         coefficients[0] * std::get<0>(a) +
@@ -1559,20 +1566,15 @@ struct LowerGPUAlternativesOp
       return getCost(_a) < getCost(_b);
     });
 
-    llvm::errs() << "GPU Alternatives theoretical occupancies sorted:\n";
-    for (auto tup : occupancies)
-      llvm::errs() <<
-        std::get<0>(tup) << ", " <<
-        std::get<1>(tup) << ", " <<
-        std::get<2>(tup) << ", " <<
-        std::get<3>(tup) << ", " <<
-        std::get<4>(tup) << ", " <<
-        std::get<5>(tup) << ", " <<
-        std::get<6>(tup) << ", " <<
-        "\n";
-    llvm::errs() << "Choosing top option\n";
+    LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
+    LLVM_DEBUG(printOccupancies(occupancies));
+    LLVM_DEBUG(DBGS() << "Choosing top option\n");
 
     auto block = &*std::get<0>(occupancies[0])->begin();
+#else
+    auto block = &*gao->getRegions()[0].begin();
+#endif
+
     rewriter.eraseOp(block->getTerminator());
     rewriter.mergeBlockBefore(block, gao);
     rewriter.eraseOp(gao);

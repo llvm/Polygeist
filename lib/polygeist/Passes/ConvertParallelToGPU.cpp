@@ -32,6 +32,8 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
 
+#include <optional>
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -370,7 +372,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     auto loc = pop->getLoc();
 
-    auto emitAlternative = [&](unsigned defaultThreads) {
+    int curRegion = 0;
+    auto emitAlternative = [&](unsigned defaultThreads, polygeist::GPUAlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
@@ -380,15 +383,13 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       curRegion++;
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
-      int curRegion = 0;
       auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
       llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr) << " threads\n";
-      emitAlternative(atoi(blockSizeStr));
+      emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else {
-      int curRegion = 0;
       auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
-        emitAlternative(blockSize);
+        emitAlternative(blockSize, alternativesOp);
       }
     }
 
