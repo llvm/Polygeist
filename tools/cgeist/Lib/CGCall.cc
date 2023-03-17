@@ -528,7 +528,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               /*isReference*/ false);
         else
           return ValueCategory(
-              builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+              builder.create<LLVM::AtomicRMWOp>(loc, lop, a0, a1,
                                                 LLVM::AtomicOrdering::acq_rel),
               /*isReference*/ false);
       }

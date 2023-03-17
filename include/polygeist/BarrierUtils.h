@@ -87,7 +87,7 @@ mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
     sz =
       cast<TypedValue<IntegerType>>(rewriter.create<arith::MulIOp>(value.getLoc(), sz,
                                        rewriter.create<arith::IndexCastOp>(
-                                                                           value.getLoc(), sz.getType(), iter)));
+                                                                           value.getLoc(), sz.getType(), iter)).getResult());
   }
   return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
 }
@@ -106,12 +106,12 @@ mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
           value.getLoc(),
           DLI->getTypeSize(
               val.getType().cast<LLVM::LLVMPointerType>().getElementType()),
-          sz.getType().cast<IntegerType>().getWidth())));
+          sz.getType().cast<IntegerType>().getWidth())).getResult());
   for (auto iter : iterationCounts) {
     sz =
         cast<TypedValue<IntegerType>>(rewriter.create<arith::MulIOp>(value.getLoc(), sz,
                                        rewriter.create<arith::IndexCastOp>(
-                                                                           value.getLoc(), sz.getType(), iter)));
+                                                                           value.getLoc(), sz.getType(), iter)).getResult());
   }
   auto m = val->getParentOfType<ModuleOp>();
   return callMalloc(rewriter, m, value.getLoc(), sz);

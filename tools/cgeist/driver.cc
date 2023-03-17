@@ -59,6 +59,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Support/LLVMDriver.h"
 #include "llvm/TargetParser/Host.h"
 #include <fstream>
 
@@ -280,7 +281,8 @@ extern int cc1_main(ArrayRef<const char *> Argv, const char *Argv0,
 extern int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0,
                       void *MainAddr);
 extern int cc1gen_reproducer_main(ArrayRef<const char *> Argv,
-                                  const char *Argv0, void *MainAddr);
+                                  const char *Argv0, void *MainAddr,
+                                  const llvm::ToolContext &ToolContext);
 std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   if (!CanonicalPrefixes) {
     SmallString<128> ExecutablePath(Argv0);
@@ -298,7 +300,8 @@ std::string GetExecutablePath(const char *Argv0, bool CanonicalPrefixes) {
   return llvm::sys::fs::getMainExecutable(Argv0, P);
 }
 
-static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
+static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV,
+                          const llvm::ToolContext &ToolContext) {
   // If we call the cc1 tool from the clangDriver library (through
   // Driver::CC1Main), we need to clean up the options usage count. The options
   // are currently global, and they might have been used previously by the
@@ -317,7 +320,7 @@ static int ExecuteCC1Tool(SmallVectorImpl<const char *> &ArgV) {
                       GetExecutablePathVP);
   if (Tool == "-cc1gen-reproducer")
     return cc1gen_reproducer_main(makeArrayRef(ArgV).slice(2), ArgV[0],
-                                  GetExecutablePathVP);
+                                  GetExecutablePathVP, ToolContext);
   // Reject unknown tools.
   llvm::errs() << "error: unknown integrated tool '" << Tool << "'. "
                << "Valid tools include '-cc1' and '-cc1as'.\n";
@@ -429,7 +432,7 @@ int main(int argc, char **argv) {
       SmallVector<const char *> Argv;
       for (int i = 0; i < argc; i++)
         Argv.push_back(argv[i]);
-      return ExecuteCC1Tool(Argv);
+      return ExecuteCC1Tool(Argv, {});
     }
   }
   SmallVector<const char *> LinkageArgs;

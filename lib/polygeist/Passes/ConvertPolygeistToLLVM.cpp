@@ -264,7 +264,7 @@ struct Pointer2MemrefOpLowering
     auto result = getStridesAndOffset(op.getType(), strides, offset);
     (void)result;
     assert(succeeded(result) && "unexpected failure in stride computation");
-    assert(offset != ShapedType::kDynamicStrideOrOffset &&
+    assert(offset != ShapedType::kDynamic &&
            "expected static offset");
 
     bool first = true;
@@ -273,7 +273,7 @@ struct Pointer2MemrefOpLowering
         first = false;
         return false;
       }
-      return stride == ShapedType::kDynamicStrideOrOffset;
+      return stride == ShapedType::kDynamic;
     }) && "expected static strides except first element");
 
     descr.setAllocatedPtr(rewriter, loc, ptr);
@@ -1096,8 +1096,7 @@ protected:
 
     SmallVector<LLVM::GEPArg> args = llvm::to_vector(llvm::map_range(
         adaptor.getIndices(), [](Value v) { return LLVM::GEPArg(v); }));
-    return rewriter.create<LLVM::GEPOp>(
-        loc, this->getElementPtrType(originalType), adaptor.getMemref(), args);
+    return rewriter.create<LLVM::GEPOp>(loc, this->getElementPtrType(originalType), convertedType, adaptor.getMemref(), args);
   }
 };
 
@@ -1113,7 +1112,7 @@ public:
     if (!address)
       return failure();
 
-    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(loadOp, address);
+    rewriter.replaceOpWithNewOp<LLVM::LoadOp>(loadOp, typeConverter->convertType(loadOp.getMemRefType().getElementType()), address);
     return success();
   }
 };
@@ -2560,6 +2559,7 @@ struct ConvertPolygeistToLLVMPass
       options.overrideIndexBitwidth(indexBitwidth);
 
     options.dataLayout = llvm::DataLayout(this->dataLayout);
+    options.useOpaquePointers = false;
 
     // Define the type converter. Override the default behavior for memrefs if
     // requested.
