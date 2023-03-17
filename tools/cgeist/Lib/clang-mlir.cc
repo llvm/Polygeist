@@ -5775,7 +5775,7 @@ llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   return T;
 }
 
-#include "llvm/Support/Host.h"
+#include "llvm/TargetParser/Host.h"
 
 #include "clang/Frontend/FrontendAction.h"
 class MLIRAction : public clang::ASTFrontendAction {
