@@ -25,10 +25,9 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/Transforms/SideEffectUtils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
@@ -1000,17 +999,14 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
     for (auto tup :
          llvm::zip(subindex.static_offsets(), subindex.static_sizes(),
                    subindex.static_strides())) {
-      auto sz = std::get<1>(tup).dyn_cast<IntegerAttr>().getValue();
+      auto sz = std::get<1>(tup);
 
-      auto stride = std::get<2>(tup).dyn_cast<IntegerAttr>().getValue();
+      auto stride = std::get<2>(tup);
       if (stride != 1)
         return failure();
 
       if (offs == -1) {
-        offs = std::get<0>(tup)
-                   .dyn_cast<IntegerAttr>()
-                   .getValue()
-                   .getLimitedValue();
+        offs = std::get<0>(tup).getLimitedValue();
         if (sz != 1)
           return failure();
       }
@@ -1913,7 +1909,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
 
       {
         SmallVector<Value> elseVals = otherYield.getOperands();
-        BlockAndValueMapping elseMapping;
+        IRMapping elseMapping;
         elseMapping.map(prevIf.getResults(), otherYield.getOperands());
         SmallVector<Value> nextElseVals;
         for (auto v : nextIf.elseYield().getOperands())
@@ -2463,7 +2459,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
     if (toHoist.empty())
       return failure();
     rewriter.setInsertionPoint(lastParentWithoutScope);
-    BlockAndValueMapping map;
+    IRMapping map;
     for (auto *op : toHoist) {
       auto *cloned = rewriter.clone(*op, map);
       rewriter.replaceOp(op, cloned->getResults());
@@ -2528,7 +2524,7 @@ struct AggressiveAllocaScopeInliner
     Block *block = &op.getRegion().front();
     Operation *terminator = block->getTerminator();
     ValueRange results = terminator->getOperands();
-    rewriter.mergeBlockBefore(block, op);
+    rewriter.inlineBlockBefore(block, op);
     rewriter.replaceOp(op, results);
     rewriter.eraseOp(terminator);
     return success();
@@ -3432,7 +3428,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     else
       rewriter.setInsertionPoint(par);
 
-    BlockAndValueMapping map;
+    IRMapping map;
     auto c0 = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     for (auto i : par.getIVs()) {
       map.map(i, c0);
@@ -3467,7 +3463,7 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   Block *block = &region.front();
   Operation *terminator = block->getTerminator();
   ValueRange results = terminator->getOperands();
-  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.inlineBlockBefore(block, op, blockArgs);
   rewriter.replaceOp(op, results);
   rewriter.eraseOp(terminator);
 }
@@ -3889,7 +3885,7 @@ struct MergeNestedAffineParallelLoops
       post.push_back(
           affineLoop.getBody()->addArgument(v.getType(), v.getLoc()));
     }
-    rewriter.mergeBlockBefore(innerOp.getBody(), yld, post);
+    rewriter.inlineBlockBefore(innerOp.getBody(), yld, post);
     return success();
   }
 };
@@ -3926,7 +3922,7 @@ struct PrepMergeNestedAffineParallelLoops
       return failure();
     }
 
-    BlockAndValueMapping map;
+    IRMapping map;
     rewriter.setInsertionPointToStart(innerOp.getBody());
     for (auto o : toMove) {
       rewriter.replaceOp(o, rewriter.clone(*o)->getResults());
@@ -4182,7 +4178,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
       auto yld = cast<AffineYieldOp>(innerOp.getThenBlock()->getTerminator());
       SmallVector<Value> toRet(yld.getOperands());
       rewriter.eraseOp(yld);
-      rewriter.mergeBlockBefore(innerOp.getThenBlock(), innerOp);
+      rewriter.inlineBlockBefore(innerOp.getThenBlock(), innerOp);
       rewriter.replaceOp(innerOp, toRet);
     } else {
       AffineIfOp newIf = rewriter.create<AffineIfOp>(
@@ -4624,7 +4620,7 @@ struct RemoveAffineParallelSingleIter
       auto yld = cast<AffineYieldOp>(op.getBody()->getTerminator());
       SmallVector<Value> toRet(yld.getOperands());
       rewriter.eraseOp(yld);
-      rewriter.mergeBlockBefore(op.getBody(), op, replacements);
+      rewriter.inlineBlockBefore(op.getBody(), op, replacements);
       rewriter.replaceOp(op, toRet);
     } else {
 
@@ -5389,7 +5385,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             rewriter.setInsertionPoint(ld);
             Value repval = storeVal;
             if (toRedo.size()) {
-              BlockAndValueMapping map;
+              IRMapping map;
               if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
                 for (size_t i = 0; i < storeIdxs.size(); ++i) {
                   if (storeIdxs[i].isValue) {

@@ -38,7 +38,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -599,7 +599,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     }
 
     rewriter.setInsertionPointToStart(func.addEntryBlock());
-    BlockAndValueMapping valueMapping;
+    IRMapping valueMapping;
     for (Value capture : toErase) {
       Operation *op = capture.getDefiningOp();
       for (auto r :
@@ -1580,7 +1580,7 @@ struct LowerGPUAlternativesOp
 #endif
 
     rewriter.eraseOp(block->getTerminator());
-    rewriter.mergeBlockBefore(block, gao);
+    rewriter.inlineBlockBefore(block, gao);
     rewriter.eraseOp(gao);
 
     return success();
@@ -1716,7 +1716,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   if ((errOp = dyn_cast<polygeist::GPUErrorOp>(launchOp->getParentOp()))) {
     rewriter.setInsertionPoint(errOp);
     rewriter.eraseOp(errOp.getBody()->getTerminator());
-    rewriter.mergeBlockBefore(errOp.getBody(), errOp);
+    rewriter.inlineBlockBefore(errOp.getBody(), errOp);
   }
 
   // Create an LLVM global with CUBIN extracted from the kernel annotation and

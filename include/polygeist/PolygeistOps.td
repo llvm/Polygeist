@@ -16,7 +16,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
-include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
 
 def CacheLoad
     : Polygeist_Op<"cacheload"> {
