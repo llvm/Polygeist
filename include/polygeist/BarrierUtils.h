@@ -52,14 +52,14 @@ allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
                         mlir::DataLayout *DLI = nullptr) {
   using namespace mlir;
   SmallVector<int64_t> bufferSize(iterationCounts.size(),
-                                  ShapedType::kDynamicSize);
+                                  ShapedType::kDynamic);
   mlir::Type ty = value.getType();
   if (alloca)
     if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
       auto mt = allocaOp.getType();
       bool hasDynamicSize = false;
       for (auto s : mt.getShape()) {
-        if (s == ShapedType::kDynamicSize) {
+        if (s == ShapedType::kDynamic) {
           hasDynamicSize = true;
           break;
         }
