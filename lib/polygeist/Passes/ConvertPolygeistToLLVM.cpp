@@ -45,7 +45,33 @@
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "llvm/Support/FormatVariadic.h"
+
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
+#define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
+
+#if POLYGEIST_ENABLE_CUDA
+#include <cuda.h>
+
+static void emitCudaError(const llvm::Twine &expr, const char *buffer,
+                          CUresult result, Location loc) {
+  const char *error;
+  cuGetErrorString(result, &error);
+  emitError(loc, expr.concat(" failed with error code ")
+                     .concat(llvm::Twine{error})
+                     .concat("[")
+                     .concat(buffer)
+                     .concat("]"));
+}
+
+#define RETURN_ON_CUDA_ERROR(expr)                                             \
+  do {                                                                         \
+    if (auto status = (expr)) {                                                \
+      emitCudaError(#expr, cuErrorBuffer, status, loc);                        \
+      return failure();                                                        \
+    }                                                                          \
+  } while (false)
+
+#endif
 
 using namespace mlir;
 using namespace polygeist;
@@ -344,7 +370,6 @@ struct GPUGlobalSymbolConversion : public OpRewritePattern<memref::GlobalOp> {
     if (!isa<gpu::GPUModuleOp>(globalOp->getParentOp())) {
       return failure();
     }
-    auto loc = globalOp->getLoc();
     auto mt = globalOp.getType();
     auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
                                 /* memspace */ 4);
@@ -1409,6 +1434,165 @@ private:
   llvm::SmallString<32> gpuBinaryAnnotation;
 };
 
+template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
+  static_assert(std::tuple_size<Tuple>::value > 0,
+                "Cannot pop from an empty tuple");
+  return std::apply([](auto, auto... rest) { return std::make_tuple(rest...); },
+                    tuple);
+}
+
+struct LowerGPUAlternativesOp
+    : public OpRewritePattern<polygeist::GPUAlternativesOp> {
+  using OpRewritePattern<polygeist::GPUAlternativesOp>::OpRewritePattern;
+  const char *PATTERN = "lower-gpu-alternatives";
+
+  LogicalResult matchAndRewrite(polygeist::GPUAlternativesOp gao,
+                                PatternRewriter &rewriter) const override {
+    Location loc = gao->getLoc();
+
+#if POLYGEIST_ENABLE_CUDA
+    char cuErrorBuffer[4096] = {0};
+
+    // TODO implement a version that does this at runtime for when we dont have
+    // block sizes or shared mem
+
+    RETURN_ON_CUDA_ERROR(cuInit(0));
+    // For whatever reason we need a device context
+    CUdevice device;
+    RETURN_ON_CUDA_ERROR(cuDeviceGet(&device, 0));
+    CUcontext context;
+    RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
+
+    std::vector<std::tuple<Region *, int, int, int, int, int, int>> occupancies;
+
+    for (auto &region : gao->getRegions()) {
+      gpu::LaunchFuncOp launchOp = nullptr;
+      region.walk([&](gpu::LaunchFuncOp l) {
+        assert(!launchOp);
+        launchOp = l;
+      });
+      assert(launchOp);
+
+      auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+          launchOp.getKernel());
+      assert(gpuFunc);
+      auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
+      assert(gpuModule);
+      const char *blob =
+          gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
+
+      CUmodule cuModule;
+      CUfunction cuFunction;
+      RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
+      RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
+          &cuFunction, cuModule, launchOp.getKernelName().data()));
+
+      int maxThreadsPerBlock, sharedMemSize, constMemSize,
+          /* stack frame size */ localMemSize, numRegs;
+      // TODO we dont seem to be able to get spilled stores/loads count from
+      // here but ptxas outputs it? should we parse the ptxas output and add an
+      // attribute for those values
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+          &maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+          cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+          &sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+          &constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+          &localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
+      RETURN_ON_CUDA_ERROR(
+          cuFuncGetAttribute(&numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
+
+      int blockSize = 1;
+      gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
+      for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
+        if (auto cstint =
+                dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
+          blockSize *= cstint.value();
+        } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                       dim.getDefiningOp())) {
+          blockSize *= cstindex.value();
+        } else {
+          assert(0);
+        }
+      }
+
+      // in the current state, only kernels with no shared memory should use the
+      // gpu_alternatives op, thus assume 0 TODO check it
+      size_t dynamicSharedMemSize = 0;
+
+      int occupancyNumBlocks;
+      RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+          &occupancyNumBlocks, cuFunction, blockSize, dynamicSharedMemSize));
+
+      RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
+
+      assert(maxThreadsPerBlock >= blockSize);
+      int activeThreads = occupancyNumBlocks * blockSize;
+      occupancies.push_back({
+          &region, localMemSize,   /* lower is better */
+          activeThreads,           /* higher is better */
+          numRegs * activeThreads, /* higher is better */
+          blockSize,               /* hisher is better??? maybe? */
+          sharedMemSize,           /* lower is better */
+          constMemSize,            /* lower is better */
+      });
+    }
+
+    auto printOccupancies =
+        [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
+                occupancies) {
+          for (auto tup : occupancies)
+            DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
+                   << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
+                   << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
+                   << std::get<6>(tup) << ", "
+                   << "\n";
+        };
+
+    LLVM_DEBUG(
+        DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
+    LLVM_DEBUG(printOccupancies(occupancies));
+
+    auto getCost = [](auto a) -> double {
+      std::vector<float> coefficients = {4, -2, -0.1, -0.01};
+      return coefficients[0] * std::get<0>(a) +
+             coefficients[1] * std::get<1>(a) +
+             coefficients[2] * std::get<2>(a) +
+             coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
+             0 * std::get<5>(a);
+    };
+    std::stable_sort(occupancies.begin(), occupancies.end(),
+                     [&](auto a, auto b) {
+                       auto _a = pop_front(a);
+                       auto _b = pop_front(b);
+                       return getCost(_a) < getCost(_b);
+                     });
+
+    LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
+    LLVM_DEBUG(printOccupancies(occupancies));
+    LLVM_DEBUG(DBGS() << "Choosing top option\n");
+
+    auto block = &*std::get<0>(occupancies[0])->begin();
+#else
+    auto block = &*gao->getRegions()[0].begin();
+#endif
+
+    rewriter.eraseOp(block->getTerminator());
+    rewriter.mergeBlockBefore(block, gao);
+    rewriter.eraseOp(gao);
+
+    return success();
+  }
+
+  LowerGPUAlternativesOp(MLIRContext *context, StringRef gpuBinaryAnnotation)
+      : OpRewritePattern<polygeist::GPUAlternativesOp>(context),
+        gpuBinaryAnnotation(gpuBinaryAnnotation) {}
+
+  llvm::SmallString<32> gpuBinaryAnnotation;
+};
+
 // Creates a struct containing all kernel parameters on the stack and returns
 // an array of type-erased pointers to the fields of the struct. The array can
 // then be passed to the CUDA / ROCm (HIP) kernel launch calls.
@@ -2185,6 +2369,8 @@ struct ConvertPolygeistToLLVMPass
 
       bool kernelBarePtrCallConv = false;
       // Our custom versions of the gpu patterns
+      patterns.add<LowerGPUAlternativesOp>(
+          &getContext(), gpu::getDefaultGpuBinaryAnnotation());
       if (useCStyleMemRef) {
         patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
             converter, gpu::getDefaultGpuBinaryAnnotation());

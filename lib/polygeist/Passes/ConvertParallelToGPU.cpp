@@ -32,6 +32,8 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
 
+#include <optional>
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -48,6 +50,16 @@ using namespace polygeist;
 
 namespace {
 
+std::optional<int> getConstantInteger(Value v) {
+  if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(v.getDefiningOp())) {
+    return cstint.value();
+  } else if (auto cstindex =
+                 dyn_cast_or_null<arith::ConstantIndexOp>(v.getDefiningOp())) {
+    return cstindex.value();
+  } else {
+    return {};
+  }
+}
 template <typename T>
 bool hasEffect(SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
   for (auto it : effects)
@@ -89,6 +101,46 @@ scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
   assert(it == block->end());
   return pop;
 }
+
+// Set launch bound attributes
+//
+// TODO Add a NVVM::NVVMDialect::getLaunchBoundAttrName() (or a gpu dialect one?
+// refer to how the KernelAttrName is done for gpu, nvvm, rocdl - needs upstream
+// mlir patch) and
+struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
+  using OpRewritePattern<gpu::LaunchFuncOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(gpu::LaunchFuncOp launchOp,
+                                PatternRewriter &rewriter) const override {
+    // TODO Currently this can be done safely because the polygeist pipeline
+    // generates a different kernel for each _callsite_ and not for each source
+    // kernel, we must actually look at whether the symbol is private and
+    // whether _all_ call sites use the same const params and only then do this
+    // (so we should actually match gpu::GPUFuncOp's and not
+    // gpu::LaunchFuncOp's)
+    auto gpuFuncOp = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+        launchOp.getKernel());
+    auto blockDims = launchOp.getBlockSizeOperandValues();
+    auto bx = getConstantInteger(blockDims.x);
+    auto by = getConstantInteger(blockDims.y);
+    auto bz = getConstantInteger(blockDims.z);
+    if (!bx || !by || !bz)
+      return failure();
+    // TODO should we only set idx or separately set idx, idy, idz? clang seems
+    // to only set idx to the total num
+    // TODO grab the attr name from the NVVM dialect after bumping llvm
+    int blockSize = *bx * *by * *bz;
+    if (!gpuFuncOp->hasAttr("maxntidx")) {
+      gpuFuncOp->setAttr("maxntidx", rewriter.getIntegerAttr(
+                                         rewriter.getIndexType(), blockSize));
+      return success();
+    } else {
+      assert(blockSize ==
+             gpuFuncOp->getAttr("maxntidx").dyn_cast<IntegerAttr>().getInt());
+      // TODO assert it is the same
+      return failure();
+    }
+  }
+};
 
 template <typename FuncType>
 struct RemoveFunction : public OpRewritePattern<FuncType> {
@@ -293,10 +345,11 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "split-parallel-op";
 
-  // TODO think about these numbers, should they differ from arch to arch?
+  // TODO this should differ from arch to arch
   const unsigned MAX_GPU_THREADS = 1024;
-  const unsigned DEFAULT_GPU_THREADS = 512;
-  const unsigned MIN_GPU_THREADS = 32;
+
+  const std::vector<unsigned> ALTERNATIVE_KERNEL_BLOCK_SIZES = {
+      32 * 1, 32 * 2, 32 * 4, 32 * 8, 32 * 16, 32 * 24, 32 * 32};
 
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
@@ -316,57 +369,28 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     auto loc = pop->getLoc();
 
-    // -1 if if was not a constant
-    int originalThreadNum = getOriginalThreadNum(wrapper);
-
-    // TODO handle lower bounds != 0 and steps != 1
-
-    // We start with the maximum amount of threads ina block we want, and go
-    // lower if we find that we get the out of resources error which occurs if
-    // we use too many registers in a single block
-
-    rewriter.setInsertionPoint(wrapper);
-    // TODO After we have compiled the kernels to PTX, we might be able to
-    // figure out from the number of registers and the target arch if it would
-    // fail, then we can just replace the call to it with this const
-    auto outOfResourcesErr = rewriter.create<arith::ConstantIndexOp>(
-        loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
-
-    auto emitWithDefaultThreadNum = [&](unsigned defaultThreads) {
+    int curRegion = 0;
+    auto emitAlternative = [&](unsigned defaultThreads,
+                               polygeist::GPUAlternativesOp alternativesOp) {
+      auto block = &*alternativesOp->getRegion(curRegion).begin();
+      rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
       auto newWrapper = rewriter.clone(*wrapper.getOperation());
       newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
                                  defaultThreads, rewriter);
-      rewriter.setInsertionPointAfter(newWrapper);
-      auto cond = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
-                                                 newWrapper->getResult(0),
-                                                 outOfResourcesErr);
-      auto ifOp = rewriter.create<scf::IfOp>(loc, cond);
-      rewriter.setInsertionPointToStart(ifOp.thenBlock());
+      curRegion++;
     };
-    auto emitGradualFailover = [&]() {
-      for (unsigned defaultThreads = DEFAULT_GPU_THREADS;
-           defaultThreads >= MIN_GPU_THREADS; defaultThreads /= 2) {
-        emitWithDefaultThreadNum(defaultThreads);
-      }
-    };
-    auto emitOriginalFailover = [&]() {
-      emitWithDefaultThreadNum(DEFAULT_GPU_THREADS);
-      emitWithDefaultThreadNum(originalThreadNum);
-    };
-
-    // TODO sometimes the original thread num is not a constant - can we handle
-    // that too?
-    if (useOriginalThreadNums) {
-      if (originalThreadNum > 0)
-        emitWithDefaultThreadNum(originalThreadNum);
-      else
-        emitGradualFailover();
+    if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
+      auto alternativesOp =
+          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
+                   << " threads\n";
+      emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else {
-      if (originalThreadNum > 0) {
-        emitOriginalFailover();
-      } else {
-        emitGradualFailover();
+      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(
+          loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
+      for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
+        emitAlternative(blockSize, alternativesOp);
       }
     }
 
@@ -386,19 +410,16 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     int originalThreadNum = 1;
     for (auto dim : originalBlockDims) {
       // TODO other possibilities?
-      if (auto cstint =
-              dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
-        originalThreadNum *= cstint.value();
-      } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
-                     dim.getDefiningOp())) {
-        originalThreadNum *= cstindex.value();
+      auto cst = getConstantInteger(dim);
+      if (cst) {
+        originalThreadNum *= *cst;
       } else {
         llvm::errs() << *dim.getDefiningOp() << " was not a const int\n";
         originalThreadNum = -1;
         break;
       }
     }
-    assert(originalThreadNum <= MAX_GPU_THREADS);
+    assert((unsigned int)originalThreadNum <= MAX_GPU_THREADS);
 
     return originalThreadNum;
   }
@@ -456,7 +477,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       gridDims.push_back(oneindex);
       // Put a random index, we will override it
       gridArgId.push_back(0);
-    } else if (threadNum < 256) {
+    } else if (threadNum <= maxThreads / 2) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
 
@@ -1319,10 +1340,9 @@ struct ConvertParallelToGPU2Pass
   ConvertParallelToGPU2Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns
-        .insert<SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
-                RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
-            &getContext());
+    patterns.insert<AddLaunchBounds, SharedLLVMAllocaToGlobal,
+                    SharedMemrefAllocaToGlobal, RemoveFunction<func::FuncOp>,
+                    RemoveFunction<LLVM::LLVMFuncOp>>(&getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {

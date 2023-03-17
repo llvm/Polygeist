@@ -55,6 +55,21 @@ void GPUErrorOp::build(OpBuilder &builder, OperationState &result) {
 }
 
 //===----------------------------------------------------------------------===//
+// GPUAlternativesOp
+//===----------------------------------------------------------------------===//
+
+void GPUAlternativesOp::build(OpBuilder &builder, OperationState &result,
+                              int regionNum) {
+  OpBuilder::InsertionGuard g(builder);
+  for (int i = 0; i < regionNum; i++) {
+    Region *bodyRegion = result.addRegion();
+    Block *block = builder.createBlock(bodyRegion);
+    builder.setInsertionPointToEnd(block);
+    builder.create<PolygeistYieldOp>(result.location);
+  }
+}
+
+//===----------------------------------------------------------------------===//
 // GPUWrapperOp
 //===----------------------------------------------------------------------===//
 

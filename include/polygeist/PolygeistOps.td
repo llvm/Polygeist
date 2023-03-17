@@ -67,11 +67,19 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
+def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
+  RecursiveMemoryEffects]> {
+  let summary = "Provides several alternatives kernels for gpu code";
+  let regions = (region VariadicRegion<SizedRegion<1>>:$regions);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins "int":$regionNum)>];
+}
+
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
   SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
   Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
-  let summary = "Wraps a parallel op to prevent code motion and transformations";
+  let summary = "Indicates the region contained must be executed on the GPU";
   let results = (outs Index : $result);
   let regions = (region SizedRegion<1>:$region);
   let skipDefaultBuilders = 1;
@@ -94,7 +102,7 @@ def GPUErrorOp : Polygeist_Op<"gpu_error", [
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["GPUWrapperOp", "GPUErrorOp"]>]> {
+    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 
