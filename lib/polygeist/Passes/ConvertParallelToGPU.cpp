@@ -51,11 +51,10 @@ using namespace polygeist;
 namespace {
 
 std::optional<int> getConstantInteger(Value v) {
-  if (auto cstint =
-          dyn_cast_or_null<arith::ConstantIntOp>(v.getDefiningOp())) {
+  if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(v.getDefiningOp())) {
     return cstint.value();
-  } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
-                  v.getDefiningOp())) {
+  } else if (auto cstindex =
+                 dyn_cast_or_null<arith::ConstantIndexOp>(v.getDefiningOp())) {
     return cstindex.value();
   } else {
     return {};
@@ -118,7 +117,8 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // whether _all_ call sites use the same const params and only then do this
     // (so we should actually match gpu::GPUFuncOp's and not
     // gpu::LaunchFuncOp's)
-    auto gpuFuncOp = launchOp->getParentOfType<ModuleOp>().lookupSymbol(launchOp.getKernel());
+    auto gpuFuncOp = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+        launchOp.getKernel());
     auto blockDims = launchOp.getBlockSizeOperandValues();
     auto bx = getConstantInteger(blockDims.x);
     auto by = getConstantInteger(blockDims.y);
@@ -129,10 +129,14 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // to only set idx to the total num
     int blockSize = *bx * *by * *bz;
     if (!gpuFuncOp->hasAttr("nvvm.maxntidx")) {
-      gpuFuncOp->setAttr("nvvm.maxntidx", rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
+      gpuFuncOp->setAttr(
+          "nvvm.maxntidx",
+          rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
       return success();
     } else {
-      assert(blockSize == gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
+      assert(
+          blockSize ==
+          gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
       // TODO assert it is the same
       return failure();
     }
@@ -346,13 +350,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   const unsigned MAX_GPU_THREADS = 1024;
 
   const std::vector<unsigned> ALTERNATIVE_KERNEL_BLOCK_SIZES = {
-    32 * 1,
-    32 * 2,
-    32 * 4,
-    32 * 8,
-    32 * 16,
-    32 * 24,
-    32 * 32};
+      32 * 1, 32 * 2, 32 * 4, 32 * 8, 32 * 16, 32 * 24, 32 * 32};
 
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
@@ -373,7 +371,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     auto loc = pop->getLoc();
 
     int curRegion = 0;
-    auto emitAlternative = [&](unsigned defaultThreads, polygeist::GPUAlternativesOp alternativesOp) {
+    auto emitAlternative = [&](unsigned defaultThreads,
+                               polygeist::GPUAlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
@@ -383,11 +382,14 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       curRegion++;
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
-      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
-      llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr) << " threads\n";
+      auto alternativesOp =
+          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
+                   << " threads\n";
       emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else {
-      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
+      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(
+          loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
@@ -418,7 +420,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
         break;
       }
     }
-    assert((unsigned int) originalThreadNum <= MAX_GPU_THREADS);
+    assert((unsigned int)originalThreadNum <= MAX_GPU_THREADS);
 
     return originalThreadNum;
   }
@@ -1339,10 +1341,9 @@ struct ConvertParallelToGPU2Pass
   ConvertParallelToGPU2Pass() {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns
-        .insert<AddLaunchBounds, SharedLLVMAllocaToGlobal, SharedMemrefAllocaToGlobal,
-                RemoveFunction<func::FuncOp>, RemoveFunction<LLVM::LLVMFuncOp>>(
-            &getContext());
+    patterns.insert<AddLaunchBounds, SharedLLVMAllocaToGlobal,
+                    SharedMemrefAllocaToGlobal, RemoveFunction<func::FuncOp>,
+                    RemoveFunction<LLVM::LLVMFuncOp>>(&getContext());
     GreedyRewriteConfig config;
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
                                             config))) {

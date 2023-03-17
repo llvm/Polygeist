@@ -191,8 +191,7 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   llvm::internalizeModule(
       *llvmModule, [&](const llvm::GlobalValue &GV) -> bool {
         for (auto *Op : MD->operands()) {
-          llvm::MDString *KindID =
-              dyn_cast<llvm::MDString>(Op->getOperand(1));
+          llvm::MDString *KindID = dyn_cast<llvm::MDString>(Op->getOperand(1));
           if (!KindID || KindID->getString() == "kernel") {
             llvm::GlobalValue *KernelFn =
                 llvm::mdconst::dyn_extract_or_null<llvm::Function>(
@@ -233,7 +232,6 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       II->eraseFromParent();
     }
   });
-
 
   return llvmModule;
 }
@@ -310,7 +308,8 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
   int tmpOutputFD;
   llvm::sys::fs::createTemporaryFile("isainput", "s", tmpInputFD, tmpInput);
   llvm::FileRemover tmpInputRemover(tmpInput.c_str());
-  llvm::sys::fs::createTemporaryFile("cubinoutput", "cubin", tmpOutputFD, tmpOutput);
+  llvm::sys::fs::createTemporaryFile("cubinoutput", "cubin", tmpOutputFD,
+                                     tmpOutput);
   llvm::FileRemover tmpOutputRemover(tmpOutput.c_str());
   {
     llvm::raw_fd_ostream out(tmpInputFD, /*shouldClose*/ false);
@@ -332,8 +331,7 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
 
   llvm::sys::ExecuteAndWait(ptxasPath.c_str(), Argv);
 
-  auto MB =
-      llvm::MemoryBuffer::getFile(tmpOutput, false, false, false);
+  auto MB = llvm::MemoryBuffer::getFile(tmpOutput, false, false, false);
   if (MB.getError()) {
     llvm::errs() << loc << "MemoryBuffer getFile failed";
     return {};
@@ -373,7 +371,7 @@ std::unique_ptr<Pass> createGpuSerializeToCubinPass(
 
 } // namespace mlir::polygeist
 
-#else // MLIR_GPU_TO_CUBIN_PASS_ENABLE
+#else  // MLIR_GPU_TO_CUBIN_PASS_ENABLE
 namespace mlir::polygeist {
 void registerGpuSerializeToCubinPass() {}
 } // namespace mlir::polygeist

@@ -402,10 +402,10 @@ int emitBinary(char *Argv0, const char *filename,
     module->dump();                                                            \
     EXEC;                                                                      \
   } while (0)
-//#undef dump_module
-//#define dump_module(PASS_MANAGER, EXEC)                                        \
-//  do {                                                                         \
-//  } while (0)
+#undef dump_module
+#define dump_module(PASS_MANAGER, EXEC)                                        \
+  do {                                                                         \
+  } while (0)
 
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
