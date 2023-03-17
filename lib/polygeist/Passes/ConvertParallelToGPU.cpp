@@ -487,7 +487,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       // TODO we can actually generate multiple kernels here and dynamically
       // split from the grid dimension that has enough parallelism in it
 
-      unsigned threadsLeft = (llvm::PowerOf2Floor(maxThreads / threadNum));
+      unsigned threadsLeft = (llvm::bit_floor(maxThreads / threadNum));
       threadNum *= threadsLeft;
       assert(threadNum <= maxThreads);
 
