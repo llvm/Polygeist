@@ -1696,7 +1696,7 @@ public:
     }
 
     for (size_t i = 1; i < mt.getShape().size(); i++)
-      if (mt.getShape()[i] == ShapedType::kDynamicSize)
+      if (mt.getShape()[i] == ShapedType::kDynamic)
         return failure();
 
     Value val = src.getSource();
