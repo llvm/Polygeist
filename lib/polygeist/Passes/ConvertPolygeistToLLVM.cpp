@@ -154,7 +154,7 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       }
       size_t sz = 1;
       for (size_t i = 1; i < sourceMemRefType.getShape().size(); i++) {
-        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamicSize)
+        if (sourceMemRefType.getShape()[i] == ShapedType::kDynamic)
           return failure();
         sz *= sourceMemRefType.getShape()[i];
       }
