@@ -1159,16 +1159,15 @@ public:
 /// Only retain those attributes that are not constructed by
 /// `LLVMFuncOp::build`. If `filterArgAttrs` is set, also filter out argument
 /// attributes.
-static void filterFuncAttributes(ArrayRef<NamedAttribute> attrs,
-                                 bool filterArgAndResAttrs,
+static void filterFuncAttributes(func::FuncOp func, bool filterArgAndResAttrs,
                                  SmallVectorImpl<NamedAttribute> &result) {
-  for (const auto &attr : attrs) {
+  for (const NamedAttribute &attr : func->getAttrs()) {
     if (attr.getName() == SymbolTable::getSymbolAttrName() ||
-        attr.getName() == FunctionOpInterface::getTypeAttrName() ||
+        attr.getName() == func.getFunctionTypeAttrName() ||
         attr.getName() == "func.varargs" ||
         (filterArgAndResAttrs &&
-         (attr.getName() == FunctionOpInterface::getArgDictAttrName() ||
-          attr.getName() == FunctionOpInterface::getResultDictAttrName())))
+         (attr.getName() == func.getArgAttrsAttrName() ||
+          attr.getName() == func.getResAttrsAttrName())))
       continue;
     result.push_back(attr);
   }
@@ -1195,7 +1194,7 @@ static SmallVector<NamedAttribute> convertFuncAttributes(
   // Propagate argument/result attributes to all converted arguments/result
   // obtained after converting a given original argument/result.
   SmallVector<NamedAttribute> attributes;
-  filterFuncAttributes(funcOp->getAttrs(), /*filterArgAndResAttrs=*/true,
+  filterFuncAttributes(funcOp, /*filterArgAndResAttrs=*/true,
                        attributes);
   if (ArrayAttr resAttrDicts = funcOp.getAllResultAttrs()) {
     assert(!resAttrDicts.empty() && "expected array to be non-empty");
