@@ -56,10 +56,11 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/TargetParser/Host.h"
+#include <fstream>
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
@@ -996,10 +997,10 @@ int main(int argc, char **argv) {
     }
     if (auto F = llvmModule->getFunction("malloc")) {
       // allocsize
-      for (auto Attr : {llvm::Attribute::InaccessibleMemOnly,
-                        llvm::Attribute::MustProgress, llvm::Attribute::NoFree,
+      for (auto Attr : {llvm::Attribute::MustProgress, llvm::Attribute::NoFree,
                         llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn})
         F->addFnAttr(Attr);
+      F->setOnlyAccessesInaccessibleMemory();
       F->addRetAttr(llvm::Attribute::NoAlias);
       F->addRetAttr(llvm::Attribute::NoUndef);
       SmallVector<llvm::Value *> todo = {F};
