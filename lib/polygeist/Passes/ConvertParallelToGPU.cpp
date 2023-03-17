@@ -15,7 +15,7 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/IntegerSet.h"
@@ -289,7 +289,7 @@ struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
     rewriter.setInsertionPointToStart(blockPop.getBody());
 
     SmallVector<Operation *> toErase;
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     for (Operation &op : *wrapper.getBody()) {
       toErase.push_back(&op);
       if (terminator == &op)
@@ -576,7 +576,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                                                      blockDims, stepsBlock);
     rewriter.setInsertionPointToStart(blockPop.getBody());
 
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     for (unsigned i = 0; i < gridDims.size(); i++)
       mapping.map(pop.getBody()->getArgument(gridArgId[i]),
                   gridPop.getBody()->getArgument(i));
@@ -702,7 +702,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     rewriter.setInsertionPointToStart(innerBlock);
     auto it = outerBlock->begin();
     SmallVector<Operation *> toErase;
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     for (; &*it != pop.getOperation(); ++it) {
       Operation &op = *it;
       Operation *newOp;
@@ -843,7 +843,7 @@ struct HandleWrapperRootAlloca
     rewriter.setInsertionPointToStart(gridPop.getBody());
 
     SmallVector<Operation *> toErase;
-    BlockAndValueMapping mapping;
+    IRMapping mapping;
     for (Operation &op : *wrapper.getBody()) {
       toErase.push_back(&op);
       if (terminator == &op)
@@ -924,9 +924,9 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
     rewriter.setInsertionPoint(wrapper);
     auto newWrapper =
         rewriter.create<polygeist::GPUWrapperOp>(loc, wrapper.getOperands());
-    BlockAndValueMapping hoistMapping;
-    BlockAndValueMapping splitMapping;
-    BlockAndValueMapping parallelizedMapping;
+    IRMapping hoistMapping;
+    IRMapping splitMapping;
+    IRMapping parallelizedMapping;
     for (Operation *op : toHandle) {
       SmallVector<MemoryEffects::EffectInstance> effects;
       collectEffects(op, effects, /*ignoreBarriers*/ false);
@@ -1331,7 +1331,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
     auto errOp = rewriter.create<polygeist::GPUErrorOp>(loc);
     rewriter.setInsertionPointToStart(errOp.getBody());
     rewriter.eraseOp(wrapper.getBody()->getTerminator());
-    rewriter.mergeBlockBefore(wrapper.getBody(),
+    rewriter.inlineBlockBefore(wrapper.getBody(),
                               errOp.getBody()->getTerminator());
     rewriter.replaceOp(wrapper, errOp->getResults());
 

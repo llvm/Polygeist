@@ -122,13 +122,13 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 
   /// All operations within standard ops can be inlined.
   bool isLegalToInline(Region *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     return true;
   }
 
   /// All operations within standard ops can be inlined.
   bool isLegalToInline(Operation *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+                       IRMapping &) const final {
     return true;
   }
 
@@ -555,7 +555,7 @@ void ParallelLower::runOnOperation() {
     launchArgs.push_back(launchOp.getBlockSizeX());
     launchArgs.push_back(launchOp.getBlockSizeY());
     launchArgs.push_back(launchOp.getBlockSizeZ());
-    builder.mergeBlockBefore(&launchOp.getRegion().front(), mergeLoc,
+    builder.inlineBlockBefore(&launchOp.getRegion().front(), mergeLoc,
                              launchArgs);
 
     auto container = threadr;

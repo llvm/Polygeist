@@ -2,12 +2,12 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 
 static inline mlir::scf::IfOp
 cloneWithResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
-                 mlir::BlockAndValueMapping mapping = {}) {
+                 mlir::IRMapping mapping = {}) {
   using namespace mlir;
   return rewriter.create<scf::IfOp>(op.getLoc(), op.getResultTypes(),
                                     mapping.lookupOrDefault(op.getCondition()),
@@ -15,7 +15,7 @@ cloneWithResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
 }
 static inline mlir::AffineIfOp
 cloneWithResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
-                 mlir::BlockAndValueMapping mapping = {}) {
+                 mlir::IRMapping mapping = {}) {
   using namespace mlir;
   SmallVector<mlir::Value> lower;
   for (auto o : op.getOperands())
@@ -26,7 +26,7 @@ cloneWithResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
 
 static inline mlir::scf::IfOp
 cloneWithoutResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
-                    mlir::BlockAndValueMapping mapping = {},
+                    mlir::IRMapping mapping = {},
                     mlir::TypeRange types = {}) {
   using namespace mlir;
   return rewriter.create<scf::IfOp>(
@@ -34,7 +34,7 @@ cloneWithoutResults(mlir::scf::IfOp op, mlir::OpBuilder &rewriter,
 }
 static inline mlir::AffineIfOp
 cloneWithoutResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
-                    mlir::BlockAndValueMapping mapping = {},
+                    mlir::IRMapping mapping = {},
                     mlir::TypeRange types = {}) {
   using namespace mlir;
   SmallVector<mlir::Value> lower;
@@ -46,7 +46,7 @@ cloneWithoutResults(mlir::AffineIfOp op, mlir::OpBuilder &rewriter,
 
 static inline mlir::scf::ForOp
 cloneWithoutResults(mlir::scf::ForOp op, mlir::PatternRewriter &rewriter,
-                    mlir::BlockAndValueMapping mapping = {}) {
+                    mlir::IRMapping mapping = {}) {
   using namespace mlir;
   return rewriter.create<scf::ForOp>(
       op.getLoc(), mapping.lookupOrDefault(op.getLowerBound()),
@@ -55,7 +55,7 @@ cloneWithoutResults(mlir::scf::ForOp op, mlir::PatternRewriter &rewriter,
 }
 static inline mlir::AffineForOp
 cloneWithoutResults(mlir::AffineForOp op, mlir::PatternRewriter &rewriter,
-                    mlir::BlockAndValueMapping mapping = {}) {
+                    mlir::IRMapping mapping = {}) {
   using namespace mlir;
   SmallVector<Value> lower;
   for (auto o : op.getLowerBoundOperands())
