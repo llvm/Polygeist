@@ -1131,7 +1131,7 @@ struct CAtomicRMWOpLowering : public CLoadStoreOpLowering<memref::AtomicRMWOp> {
     if (!dataPtr)
       return failure();
     rewriter.replaceOpWithNewOp<LLVM::AtomicRMWOp>(
-        atomicOp, atomicOp.getType(), *maybeKind, dataPtr, adaptor.getValue(),
+        atomicOp, *maybeKind, dataPtr, adaptor.getValue(),
         LLVM::AtomicOrdering::acq_rel);
     return success();
   }
@@ -2193,7 +2193,7 @@ public:
       auto globalOp = rewriter.create<LLVM::GlobalOp>(
           gpuFuncOp.getLoc(), arrayType, /*isConstant=*/false,
           LLVM::Linkage::Internal, name, /*value=*/Attribute(),
-          /*alignment=*/0, gpu::GPUDialect::getWorkgroupAddressSpace());
+          /*alignment=*/0, static_cast<unsigned>(gpu::GPUDialect::getWorkgroupAddressSpace()));
       workgroupBuffers.push_back(globalOp);
     }
 
