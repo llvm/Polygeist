@@ -134,64 +134,41 @@ module {
 // CHECK-LABEL:   func.func @f5(
 // CHECK-SAME:                  %[[VAL_0:.*]]: index,
 // CHECK-SAME:                  %[[VAL_1:.*]]: index) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 701 : index
-// CHECK:           %[[VAL_4:.*]] = arith.constant 32 : index
-// CHECK:           %[[VAL_5:.*]] = arith.constant 64 : index
-// CHECK:           %[[VAL_6:.*]] = arith.constant 3 : index
-// CHECK:           %[[VAL_7:.*]] = arith.constant 5 : index
-// CHECK:           %[[VAL_8:.*]] = arith.subi %[[VAL_1]], %[[VAL_2]] : index
-// CHECK:           %[[VAL_9:.*]] = arith.divui %[[VAL_8]], %[[VAL_4]] : index
-// CHECK:           %[[VAL_10:.*]] = arith.addi %[[VAL_9]], %[[VAL_2]] : index
-// CHECK:           %[[VAL_11:.*]] = "polygeist.gpu_error"() ({
-// CHECK:             gpu.launch blocks(%[[VAL_12:.*]], %[[VAL_13:.*]], %[[VAL_14:.*]]) in (%[[VAL_15:.*]] = %[[VAL_0]], %[[VAL_16:.*]] = %[[VAL_10]], %[[VAL_17:.*]] = %[[VAL_2]]) threads(%[[VAL_18:.*]], %[[VAL_19:.*]], %[[VAL_20:.*]]) in (%[[VAL_21:.*]] = %[[VAL_4]], %[[VAL_22:.*]] = %[[VAL_7]], %[[VAL_23:.*]] = %[[VAL_6]]) {
-// CHECK:               %[[VAL_24:.*]] = gpu.block_id  x
-// CHECK:               %[[VAL_25:.*]] = gpu.block_id  y
-// CHECK:               %[[VAL_26:.*]] = gpu.block_dim  x
-// CHECK:               %[[VAL_27:.*]] = gpu.thread_id  x
-// CHECK:               %[[VAL_28:.*]] = gpu.thread_id  y
-// CHECK:               %[[VAL_29:.*]] = gpu.thread_id  z
-// CHECK:               %[[VAL_30:.*]] = arith.muli %[[VAL_25]], %[[VAL_26]] : index
-// CHECK:               %[[VAL_31:.*]] = arith.addi %[[VAL_30]], %[[VAL_27]] : index
-// CHECK:               %[[VAL_32:.*]] = arith.cmpi ult, %[[VAL_31]], %[[VAL_1]] : index
-// CHECK:               scf.if %[[VAL_32]] {
-// CHECK:                 func.call @use(%[[VAL_24]]) : (index) -> ()
-// CHECK:                 func.call @use(%[[VAL_28]]) : (index) -> ()
-// CHECK:                 func.call @use(%[[VAL_31]]) : (index) -> ()
-// CHECK:                 func.call @use(%[[VAL_29]]) : (index) -> ()
-// CHECK:               }
-// CHECK:               gpu.terminator
-// CHECK:             }
-// CHECK:             "polygeist.polygeist_yield"() : () -> ()
-// CHECK:           }) : () -> index
-// CHECK:           %[[VAL_33:.*]] = arith.cmpi eq, %[[VAL_34:.*]], %[[VAL_3]] : index
-// CHECK:           scf.if %[[VAL_33]] {
-// CHECK:             %[[VAL_35:.*]] = arith.subi %[[VAL_1]], %[[VAL_2]] : index
-// CHECK:             %[[VAL_36:.*]] = arith.divui %[[VAL_35]], %[[VAL_5]] : index
-// CHECK:             %[[VAL_37:.*]] = arith.addi %[[VAL_36]], %[[VAL_2]] : index
-// CHECK:             %[[VAL_38:.*]] = "polygeist.gpu_error"() ({
-// CHECK:               gpu.launch blocks(%[[VAL_39:.*]], %[[VAL_40:.*]], %[[VAL_41:.*]]) in (%[[VAL_42:.*]] = %[[VAL_0]], %[[VAL_43:.*]] = %[[VAL_37]], %[[VAL_44:.*]] = %[[VAL_2]]) threads(%[[VAL_45:.*]], %[[VAL_46:.*]], %[[VAL_47:.*]]) in (%[[VAL_48:.*]] = %[[VAL_5]], %[[VAL_49:.*]] = %[[VAL_7]], %[[VAL_50:.*]] = %[[VAL_6]]) {
-// CHECK:                 %[[VAL_51:.*]] = gpu.block_id  x
-// CHECK:                 %[[VAL_52:.*]] = gpu.block_id  y
-// CHECK:                 %[[VAL_53:.*]] = gpu.block_dim  x
-// CHECK:                 %[[VAL_54:.*]] = gpu.thread_id  x
-// CHECK:                 %[[VAL_55:.*]] = gpu.thread_id  y
-// CHECK:                 %[[VAL_56:.*]] = gpu.thread_id  z
-// CHECK:                 %[[VAL_57:.*]] = arith.muli %[[VAL_52]], %[[VAL_53]] : index
-// CHECK:                 %[[VAL_58:.*]] = arith.addi %[[VAL_57]], %[[VAL_54]] : index
-// CHECK:                 %[[VAL_59:.*]] = arith.cmpi ult, %[[VAL_58]], %[[VAL_1]] : index
-// CHECK:                 scf.if %[[VAL_59]] {
-// CHECK:                   func.call @use(%[[VAL_51]]) : (index) -> ()
-// CHECK:                   func.call @use(%[[VAL_55]]) : (index) -> ()
-// CHECK:                   func.call @use(%[[VAL_58]]) : (index) -> ()
-// CHECK:                   func.call @use(%[[VAL_56]]) : (index) -> ()
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 2 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 4 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 8 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = arith.constant 16 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = arith.constant 32 : index
+// CHECK-DAG:           %[[VAL_7:.*]] = arith.constant 64 : index
+// CHECK-DAG:           %[[VAL_8:.*]] = arith.constant 3 : index
+// CHECK-DAG:           %[[VAL_9:.*]] = arith.constant 5 : index
+// CHECK-DAG:           %[[VAL_10:.*]] = arith.constant 1 : index
+// CHECK:             %[[VAL_161:.*]] = arith.subi %[[VAL_1]], %[[VAL_10]] : index
+// CHECK:             %[[VAL_162:.*]] = arith.divui %[[VAL_161]], %[[VAL_7]] : index
+// CHECK:             %[[VAL_163:.*]] = arith.addi %[[VAL_162]], %[[VAL_10]] : index
+// CHECK:             %[[VAL_164:.*]] = "polygeist.gpu_error"() ({
+// CHECK:               gpu.launch blocks(%[[VAL_165:.*]], %[[VAL_166:.*]], %[[VAL_167:.*]]) in (%[[VAL_168:.*]] = %[[VAL_0]], %[[VAL_169:.*]] = %[[VAL_163]], %[[VAL_170:.*]] = %[[VAL_10]]) threads(%[[VAL_171:.*]], %[[VAL_172:.*]], %[[VAL_173:.*]]) in (%[[VAL_174:.*]] = %[[VAL_7]], %[[VAL_175:.*]] = %[[VAL_9]], %[[VAL_176:.*]] = %[[VAL_8]]) {
+// CHECK:                 %[[VAL_177:.*]] = gpu.block_id  x
+// CHECK:                 %[[VAL_178:.*]] = gpu.block_id  y
+// CHECK:                 %[[VAL_179:.*]] = gpu.block_dim  x
+// CHECK:                 %[[VAL_180:.*]] = gpu.thread_id  x
+// CHECK:                 %[[VAL_181:.*]] = gpu.thread_id  y
+// CHECK:                 %[[VAL_182:.*]] = gpu.thread_id  z
+// CHECK:                 %[[VAL_183:.*]] = arith.muli %[[VAL_178]], %[[VAL_179]] : index
+// CHECK:                 %[[VAL_184:.*]] = arith.addi %[[VAL_183]], %[[VAL_180]] : index
+// CHECK:                 %[[VAL_185:.*]] = arith.cmpi ult, %[[VAL_184]], %[[VAL_1]] : index
+// CHECK:                 scf.if %[[VAL_185]] {
+// CHECK:                   func.call @use(%[[VAL_177]]) : (index) -> ()
+// CHECK:                   func.call @use(%[[VAL_181]]) : (index) -> ()
+// CHECK:                   func.call @use(%[[VAL_184]]) : (index) -> ()
+// CHECK:                   func.call @use(%[[VAL_182]]) : (index) -> ()
 // CHECK:                 }
 // CHECK:                 gpu.terminator
 // CHECK:               }
 // CHECK:               "polygeist.polygeist_yield"() : () -> ()
 // CHECK:             }) : () -> index
-// CHECK:           }
 // CHECK:           return
+// CHECK:         }
 
   func.func @f6(%b1: index, %b2: index) {
      %mc1 = arith.constant 1 : index
