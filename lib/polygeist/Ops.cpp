@@ -1068,7 +1068,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
         return failure();
 
       if (offs == -1) {
-        offs = std::get<0>(tup).getLimitedValue();
+        offs = std::get<0>(tup);
         if (sz != 1)
           return failure();
       }
@@ -1360,7 +1360,7 @@ public:
     auto omt = op.getType().cast<MemRefType>();
     if (smt.getShape().size() != omt.getShape().size())
       return failure();
-    for (int i = 1; i < smt.getShape().size(); i++) {
+    for (unsigned i = 1; i < smt.getShape().size(); i++) {
       if (smt.getShape()[i] != omt.getShape()[i])
         return failure();
     }
@@ -1631,7 +1631,7 @@ public:
   }
 };
 
-OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Memref2PointerOp::fold(FoldAdaptor adaptor) {
   if (auto subindex = getSource().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.getIndex().getDefiningOp<ConstantIndexOp>()) {
       if (cop.getValue() == 0) {
@@ -2159,7 +2159,7 @@ void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
       MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
 }
 
-OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Pointer2MemrefOp::fold(FoldAdaptor adaptor) {
   /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
   if (auto mc = getSource().getDefiningOp<LLVM::BitcastOp>()) {
     getSourceMutable().assign(mc.getArg());
@@ -2193,7 +2193,7 @@ OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult SubIndexOp::fold(FoldAdaptor adaptor) {
   if (getResult().getType() == getSource().getType()) {
     if (matchPattern(getIndex(), m_Zero()))
       return getSource();
@@ -2209,7 +2209,7 @@ OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult TypeSizeOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeSizeOp::fold(FoldAdaptor adaptor) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
@@ -2239,7 +2239,7 @@ void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<TypeSizeCanonicalize>(context);
 }
 
-OpFoldResult TypeAlignOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeAlignOp::fold(FoldAdaptor adaptor) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
