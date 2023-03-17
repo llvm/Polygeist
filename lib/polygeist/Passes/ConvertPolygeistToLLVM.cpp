@@ -1155,13 +1155,6 @@ static void filterFuncAttributes(func::FuncOp func, bool filterArgAndResAttrs,
   }
 }
 
-/// Helper function for wrapping all attributes into a single DictionaryAttr
-static auto wrapAsStructAttrs(OpBuilder &b, ArrayAttr attrs) {
-  return DictionaryAttr::get(
-      b.getContext(),
-      b.getNamedAttr(LLVM::LLVMDialect::getStructAttrsAttrName(), attrs));
-}
-
 static constexpr llvm::StringLiteral kLLVMLinkageAttrName = "llvm.linkage";
 
 /// Convert function argument, operation and result attributes to the LLVM
@@ -1183,10 +1176,9 @@ static SmallVector<NamedAttribute> convertFuncAttributes(
     auto newResAttrDicts =
         (funcOp.getNumResults() == 1)
             ? resAttrDicts
-            : rewriter.getArrayAttr(
-                  {wrapAsStructAttrs(rewriter, resAttrDicts)});
-    attributes.push_back(rewriter.getNamedAttr(
-        FunctionOpInterface::getResultDictAttrName(), newResAttrDicts));
+            : rewriter.getArrayAttr(rewriter.getDictionaryAttr({}));
+    attributes.push_back(
+        rewriter.getNamedAttr(funcOp.getResAttrsAttrName(), newResAttrDicts));
   }
   if (ArrayAttr argAttrDicts = funcOp.getAllArgAttrs()) {
     SmallVector<Attribute> newArgAttrs(funcOp.getNumArguments());
@@ -1228,9 +1220,8 @@ static SmallVector<NamedAttribute> convertFuncAttributes(
         newArgAttrs[mapping->inputNo + j] =
             DictionaryAttr::get(rewriter.getContext(), convertedAttrs);
     }
-    attributes.push_back(
-        rewriter.getNamedAttr(FunctionOpInterface::getArgDictAttrName(),
-                              rewriter.getArrayAttr(newArgAttrs)));
+    attributes.push_back(rewriter.getNamedAttr(
+        funcOp.getArgAttrsAttrName(), rewriter.getArrayAttr(newArgAttrs)));
   }
   for (const auto &pair : llvm::enumerate(attributes)) {
     if (pair.value().getName() == kLLVMLinkageAttrName) {
@@ -1273,7 +1264,7 @@ convertFunctionType(FuncOpType funcOp, TypeConverter &typeConverter) {
   for (const auto &[index, type] : llvm::enumerate(funcOp.getArgumentTypes())) {
     Type converted = typeConverter.convertType(type);
     if (!converted)
-      return llvm::None;
+      return std::nullopt;
 
     signatureConversion.addInputs(index, converted);
   }
@@ -1281,7 +1272,7 @@ convertFunctionType(FuncOpType funcOp, TypeConverter &typeConverter) {
   Type resultType =
       convertAndPackFunctionResultType(funcOp.getFunctionType(), typeConverter);
   if (!resultType)
-    return llvm::None;
+    return std::nullopt;
 
   auto varargsAttr = funcOp->template getAttrOfType<BoolAttr>("func.varargs");
   auto convertedType = LLVM::LLVMFunctionType::get(
@@ -1447,8 +1438,6 @@ struct LowerGPUAlternativesOp
 
   LogicalResult matchAndRewrite(polygeist::GPUAlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
-    Location loc = gao->getLoc();
-
 #if POLYGEIST_ENABLE_CUDA
     char cuErrorBuffer[4096] = {0};
 
@@ -1661,7 +1650,7 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateKernelNameConstant(
       std::string(llvm::formatv("{0}_{1}_kernel_name", moduleName, name));
   return LLVM::createGlobalString(
       loc, builder, globalName, StringRef(kernelName.data(), kernelName.size()),
-      LLVM::Linkage::Internal);
+      LLVM::Linkage::Internal, /* useOpaquePointers */ false);
 }
 
 // Returns whether all operands are of LLVM type.
@@ -1771,7 +1760,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       nameBuffer.append(kGpuBinaryStorageSuffix);
       Value data = LLVM::createGlobalString(loc, ctorBuilder, nameBuffer.str(),
                                             binaryAttr.getValue(),
-                                            LLVM::Linkage::Internal);
+                                            LLVM::Linkage::Internal, /* useOpaquePointers */ false);
       auto module = moduleLoadCallBuilder.create(loc, ctorBuilder, data);
       auto moduleGlobalName =
           std::string(llvm::formatv("polygeist_{0}_module_ptr", moduleName));
