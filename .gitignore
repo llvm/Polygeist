@@ -80,3 +80,8 @@ pythonenv*
 /clang/utils/analyzer/projects/*/RefScanBuildResults
 # automodapi puts generated documentation files here.
 /lldb/docs/python_api/
+
+
+# tmp output from tests
+*.exec1
+*.out1

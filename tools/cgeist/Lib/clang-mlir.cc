@@ -2482,10 +2482,10 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     mlir::Value v;
     if (a0.getType().isa<MemRefType>())
       v = builder.create<memref::AtomicRMWOp>(
-          loc, a1.getType(), op, a1, a0,
+          loc, op, a1, a0,
           std::vector<mlir::Value>({getConstantIndex(0)}));
     else
-      v = builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+      v = builder.create<LLVM::AtomicRMWOp>(loc, lop, a0, a1,
                                             LLVM::AtomicOrdering::acq_rel);
 
     if (ty.isa<mlir::IntegerType>())
@@ -2523,10 +2523,10 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
     mlir::Value v;
     if (a0.getType().isa<MemRefType>())
       v = builder.create<memref::AtomicRMWOp>(
-          loc, a1.getType(), op, a1, a0,
+          loc, op, a1, a0,
           std::vector<mlir::Value>({getConstantIndex(0)}));
     else
-      v = builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+      v = builder.create<LLVM::AtomicRMWOp>(loc, lop, a0, a1,
                                             LLVM::AtomicOrdering::acq_rel);
     ret.store(loc, builder, v);
     return ValueCategory(v, false);
@@ -2554,10 +2554,8 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
           a0);
     }
     // TODO add atomic ordering
-    mlir::Type tys[2] = {a1.getType(), builder.getIntegerType(1)};
-    auto RT = LLVM::LLVMStructType::getLiteral(a1.getContext(), tys);
     mlir::Value v = builder.create<LLVM::AtomicCmpXchgOp>(
-        loc, RT, a0, a1, a2, LLVM::AtomicOrdering::seq_cst,
+        loc, a0, a1, a2, LLVM::AtomicOrdering::seq_cst,
         LLVM::AtomicOrdering::seq_cst);
     v = builder.create<LLVM::ExtractValueOp>(loc, v, 1);
     auto postTy = getMLIRType(BO->getType()).cast<mlir::IntegerType>();
