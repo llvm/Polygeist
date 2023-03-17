@@ -2705,11 +2705,11 @@ struct ConvertPolygeistToLLVMPass
         SmallVector<Type> convertedResultTypes;
         if (failed(converter.convertTypes(op->getResultTypes(),
                                           convertedResultTypes)))
-          return llvm::None;
+          return std::nullopt;
         SmallVector<Type> convertedOperandTypes;
         if (failed(converter.convertTypes(op->getOperandTypes(),
                                           convertedOperandTypes)))
-          return llvm::None;
+          return std::nullopt;
         return convertedResultTypes == op->getResultTypes() &&
                convertedOperandTypes == op->getOperandTypes();
       };
@@ -2738,7 +2738,7 @@ struct ConvertPolygeistToLLVMPass
           [&](LLVM::GlobalOp op) -> Optional<bool> {
             if (converter.convertType(op.getGlobalType()) == op.getGlobalType())
               return true;
-            return llvm::None;
+            return std::nullopt;
           });
       target.addDynamicallyLegalOp<LLVM::ReturnOp>(
           [&](LLVM::ReturnOp op) -> Optional<bool> {
@@ -2751,7 +2751,7 @@ struct ConvertPolygeistToLLVMPass
             SmallVector<Type> convertedOperandTypes;
             if (failed(converter.convertTypes(op->getOperandTypes(),
                                               convertedOperandTypes)))
-              return llvm::None;
+              return std::nullopt;
             return convertedOperandTypes == op->getOperandTypes();
           });
       /*
