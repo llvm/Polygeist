@@ -675,7 +675,6 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
       pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda, PreserveGPUKernelStructure));
-      dump_module(pm,);
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else
@@ -843,7 +842,6 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
-      dump_module(pm,);
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
             UseOriginalGPUBlockSize));
