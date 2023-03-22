@@ -489,6 +489,7 @@ void ParallelLower::runOnOperation() {
                             launchOp.getGridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB = &block.getRegion().front();
+    builder.setInsertionPointToStart(blockB);
 
     if (preserveGPUKernelStructure) {
       auto gpuBlock = builder.create<polygeist::GPUBlockOp>(loc,
@@ -496,8 +497,6 @@ void ParallelLower::runOnOperation() {
                                                             blockB->getArguments()[1],
                                                             blockB->getArguments()[2]);
       builder.setInsertionPointToStart(&gpuBlock.getRegion().front());
-    } else {
-      builder.setInsertionPointToStart(blockB);
     }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
@@ -506,15 +505,16 @@ void ParallelLower::runOnOperation() {
                             launchOp.getBlockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *threadB = &threadr.getRegion().front();
+    builder.setInsertionPointToStart(threadB);
+    Operation *mergeLoc = threadB->getTerminator();
 
     if (preserveGPUKernelStructure) {
-      auto gpuThread = builder.create<polygeist::GPUBlockOp>(loc,
-                                                            threadB->getArguments()[0],
-                                                            threadB->getArguments()[1],
-                                                            threadB->getArguments()[2]);
+      auto gpuThread = builder.create<polygeist::GPUThreadOp>(loc,
+                                                              threadB->getArguments()[0],
+                                                              threadB->getArguments()[1],
+                                                              threadB->getArguments()[2]);
       builder.setInsertionPointToStart(&gpuThread.getRegion().front());
-    } else {
-      builder.setInsertionPointToStart(blockB);
+      mergeLoc = gpuThread.getRegion().front().getTerminator();
     }
 
     launchOp.getRegion().front().getTerminator()->erase();
@@ -529,7 +529,7 @@ void ParallelLower::runOnOperation() {
     launchArgs.push_back(launchOp.getBlockSizeY());
     launchArgs.push_back(launchOp.getBlockSizeZ());
     builder.mergeBlockBefore(&launchOp.getRegion().front(),
-                             threadr.getRegion().front().getTerminator(),
+                             mergeLoc,
                              launchArgs);
 
     auto container = threadr;

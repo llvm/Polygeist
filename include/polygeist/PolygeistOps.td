@@ -123,7 +123,7 @@ def GPUErrorOp : Polygeist_Op<"gpu_error", [
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp"]>]> {
+    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp", "GPUBlockOp", "GPUThreadOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 
