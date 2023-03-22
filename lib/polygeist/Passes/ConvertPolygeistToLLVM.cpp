@@ -43,8 +43,8 @@
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
-#include "polygeist/Ops.h"
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "

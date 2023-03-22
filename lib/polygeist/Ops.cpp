@@ -70,6 +70,32 @@ void GPUAlternativesOp::build(OpBuilder &builder, OperationState &result,
 }
 
 //===----------------------------------------------------------------------===//
+// GPUBlockOp
+//===----------------------------------------------------------------------===//
+
+void GPUBlockOp::build(OpBuilder &builder, OperationState &result,
+                         Value blockIndexX, Value blockIndexY, Value blockIndexZ) {
+  result.addOperands({blockIndexX, blockIndexY, blockIndexZ});
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+  GPUBlockOp::ensureTerminator(*bodyRegion, builder, result.location);
+}
+
+//===----------------------------------------------------------------------===//
+// GPUThreadOp
+//===----------------------------------------------------------------------===//
+
+void GPUThreadOp::build(OpBuilder &builder, OperationState &result,
+                         Value blockIndexX, Value blockIndexY, Value blockIndexZ) {
+  result.addOperands({blockIndexX, blockIndexY, blockIndexZ});
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+  GPUThreadOp::ensureTerminator(*bodyRegion, builder, result.location);
+}
+
+//===----------------------------------------------------------------------===//
 // GPUWrapperOp
 //===----------------------------------------------------------------------===//
 

@@ -82,6 +82,10 @@ static cl::opt<bool>
                             cl::desc("Try not to alter the GPU kernel block "
                                      "sizes originally used in the code"));
 
+static cl::opt<bool>
+    PreserveGPUKernelStructure("preserve-gpu-kernel-structure", cl::init(false),
+                            cl::desc("Do not alter the original gpu kernel parallel structure"));
+
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
                                   cl::desc("Optimization level for ptxas"));
@@ -670,8 +674,8 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
-      pm.addPass(
-          polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda));
+      pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda, PreserveGPUKernelStructure));
+      dump_module(pm,);
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else
@@ -839,6 +843,7 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_CUDA
     if (EmitCuda) {
+      dump_module(pm,);
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
             UseOriginalGPUBlockSize));
