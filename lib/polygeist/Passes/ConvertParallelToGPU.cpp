@@ -1020,6 +1020,22 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
   }
 };
 
+/// Removes the polygeist.gpu_{block,thread} ops that are used to prevent
+/// optimizations from changing the GPU kernel structure
+template <typename OpType>
+struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
+  using OpRewritePattern<OpType>::OpRewritePattern;
+  const char *PATTERN = "interchange-if-op";
+  LogicalResult matchAndRewrite(OpType wrapper,
+                                PatternRewriter &rewriter) const override {
+    rewriter.eraseOp(wrapper.getBody()->getTerminator());
+    rewriter.setInsertionPoint(wrapper);
+    rewriter.mergeBlockBefore(wrapper.getBody(), wrapper);
+    rewriter.eraseOp(wrapper);
+    return success();
+  }
+};
+
 struct InterchangeIfOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "interchange-if-op";
@@ -1279,6 +1295,8 @@ struct ConvertParallelToGPU1Pass
     RewritePatternSet patterns(&getContext());
     // clang-format off
     patterns.insert<
+      RemovePolygeistGPUWrapperOp<polygeist::GPUThreadOp>,
+      RemovePolygeistGPUWrapperOp<polygeist::GPUBlockOp>,
       BarrierElim</*TopLevelOnly*/ false>,
       InterchangeIfOp,
       SplitOffParallel,
