@@ -200,6 +200,16 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
   SmallVector<AffineExpr, 8> dimReplacements;
   SmallVector<AffineExpr, 8> symReplacements;
 
+  SmallVector<SmallVectorImpl<Value> *> opsTodos;
+  auto replaceOp = [&](Operation *oldOp, Operation *newOp) {
+    for (auto [oldV, newV] :
+         llvm::zip(oldOp->getResults(), newOp->getResults()))
+      for (auto ops : opsTodos)
+        for (auto &op : *ops)
+          if (op == oldV)
+            op = newV;
+  };
+
   std::function<Value(Value, bool)> fix = [&](Value v,
                                               bool index) -> Value /*legal*/ {
     if (isValidSymbolInt(v, /*recur*/ false))
@@ -219,6 +229,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     }
     Operation *front = nullptr;
     SmallVector<Value> ops;
+    opsTodos.push_back(&ops);
     std::function<void(Operation *)> getAllOps = [&](Operation *todo) {
       for (auto v : todo->getOperands()) {
         if (llvm::all_of(op->getRegions(), [&](Region &r) {
@@ -255,6 +266,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
       else if (DI.dominates(front, next))
         front = next;
     }
+    opsTodos.pop_back();
     if (!front)
       op->dump();
     assert(front);
@@ -262,6 +274,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     rewriter.setInsertionPoint(front);
     auto cloned = rewriter.clone(*op);
     rewriter.replaceOp(op, cloned->getResults());
+    replaceOp(op, cloned);
     return cloned->getResult(0);
   };
   auto renumberOneSymbol = [&](Value v) {
