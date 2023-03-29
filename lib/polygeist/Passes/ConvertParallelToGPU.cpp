@@ -1025,9 +1025,37 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 template <typename OpType>
 struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
   using OpRewritePattern<OpType>::OpRewritePattern;
-  const char *PATTERN = "interchange-if-op";
+  const char *PATTERN = "remove-polygeist-gpu-wrapper-op";
   LogicalResult matchAndRewrite(OpType wrapper,
                                 PatternRewriter &rewriter) const override {
+    // TODO rotate the parallel loop dims in the order they appear in the
+    // wrapper op to completely restore the original structure
+    auto loc = wrapper->getLoc();
+    // If all of the operands to the block/thread wrapper are not block args
+    // that means the parallel loop whose indices were used for the operands got
+    // optimized away (trip count = 1), reinsert it
+    if (llvm::all_of(wrapper.getOperands(), [](Value v) {return !v.isa<BlockArgument>();})
+        && !isa<scf::ParallelOp>(wrapper->getParentOp())) {
+      // TODO check that the args _are actually_ constants = 1
+      Block *block = wrapper->getBlock();
+      Block *popBlock = new Block();
+      rewriter.setInsertionPointToStart(popBlock);
+      auto term = block->getTerminator();
+      auto popTerm = rewriter.create<scf::YieldOp>(loc);
+      rewriter.mergeBlockBefore(block, popTerm);
+
+      auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      SmallVector<Value, 1> one(1, oneindex);
+      SmallVector<Value, 1> zero(1, zeroindex);
+      rewriter.setInsertionPointToStart(block);
+      auto pop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
+      rewriter.clone(*term);
+      rewriter.eraseOp(term);
+      delete &pop.getRegion().getBlocks().front();
+      pop.getRegion().getBlocks().pop_front();
+      pop.getRegion().push_back(popBlock);
+    }
     rewriter.eraseOp(wrapper.getBody()->getTerminator());
     rewriter.setInsertionPoint(wrapper);
     rewriter.mergeBlockBefore(wrapper.getBody(), wrapper);
@@ -1292,33 +1320,48 @@ struct ConvertParallelToGPU1Pass
   ConvertParallelToGPU1Pass(bool useOriginalThreadNums = false)
       : useOriginalThreadNums(useOriginalThreadNums) {}
   void runOnOperation() override {
-    RewritePatternSet patterns(&getContext());
-    // clang-format off
-    patterns.insert<
-      RemovePolygeistGPUWrapperOp<polygeist::GPUThreadOp>,
-      RemovePolygeistGPUWrapperOp<polygeist::GPUBlockOp>,
-      BarrierElim</*TopLevelOnly*/ false>,
-      InterchangeIfOp,
-      SplitOffParallel,
-      HandleWrapperRootAlloca,
-      HandleWrapperRootOps,
-      CreateParallelOps,
-      ParallelizeBlockOps
-      >(&getContext());
-    if (useOriginalThreadNums) {
-      patterns.insert<SplitParallelOp<true>>(&getContext());
-    } else  {
-      patterns.insert<SplitParallelOp<false>>(&getContext());
+    {
+      RewritePatternSet patterns(&getContext());
+      // clang-format off
+      patterns.insert<
+        RemovePolygeistGPUWrapperOp<polygeist::GPUThreadOp>,
+        RemovePolygeistGPUWrapperOp<polygeist::GPUBlockOp>
+        >(&getContext());
+      // clang-format on
+      GreedyRewriteConfig config;
+      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                              config))) {
+        signalPassFailure();
+        return;
+      }
     }
-    patterns.insert<
-      ParallelToGPULaunch
-      >(&getContext());
-    // clang-format on
-    GreedyRewriteConfig config;
-    if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                            config))) {
-      signalPassFailure();
-      return;
+    {
+      RewritePatternSet patterns(&getContext());
+      // clang-format off
+      patterns.insert<
+        BarrierElim</*TopLevelOnly*/ false>,
+        InterchangeIfOp,
+        SplitOffParallel,
+        HandleWrapperRootAlloca,
+        HandleWrapperRootOps,
+        CreateParallelOps,
+        ParallelizeBlockOps
+        >(&getContext());
+      if (useOriginalThreadNums) {
+        patterns.insert<SplitParallelOp<true>>(&getContext());
+      } else  {
+        patterns.insert<SplitParallelOp<false>>(&getContext());
+      }
+      patterns.insert<
+        ParallelToGPULaunch
+        >(&getContext());
+      // clang-format on
+      GreedyRewriteConfig config;
+      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
+                                              config))) {
+        signalPassFailure();
+        return;
+      }
     }
 
     // Sink constants in the body
