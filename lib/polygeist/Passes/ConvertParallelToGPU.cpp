@@ -1038,23 +1038,20 @@ struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
         && !isa<scf::ParallelOp>(wrapper->getParentOp())) {
       // TODO check that the args _are actually_ constants = 1
       Block *block = wrapper->getBlock();
-      Block *popBlock = new Block();
-      rewriter.setInsertionPointToStart(popBlock);
       auto term = block->getTerminator();
-      auto popTerm = rewriter.create<scf::YieldOp>(loc);
-      rewriter.mergeBlockBefore(block, popTerm);
-
       auto zeroindex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
       auto oneindex = rewriter.create<arith::ConstantIndexOp>(loc, 1);
       SmallVector<Value, 1> one(1, oneindex);
       SmallVector<Value, 1> zero(1, zeroindex);
       rewriter.setInsertionPointToStart(block);
       auto pop = rewriter.create<scf::ParallelOp>(loc, zero, one, one);
-      rewriter.clone(*term);
-      rewriter.eraseOp(term);
-      delete &pop.getRegion().getBlocks().front();
-      pop.getRegion().getBlocks().pop_front();
-      pop.getRegion().push_back(popBlock);
+
+      SmallVector<Operation *> toErase;
+      BlockAndValueMapping mapping;
+      rewriter.setInsertionPointToStart(pop.getBody());
+      auto newWrapper = cast<OpType>(rewriter.clone(*wrapper));
+      rewriter.eraseOp(wrapper);
+      wrapper = newWrapper;
     }
     rewriter.eraseOp(wrapper.getBody()->getTerminator());
     rewriter.setInsertionPoint(wrapper);
