@@ -1034,8 +1034,9 @@ struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
     // If all of the operands to the block/thread wrapper are not block args
     // that means the parallel loop whose indices were used for the operands got
     // optimized away (trip count = 1), reinsert it
-    if (llvm::all_of(wrapper.getOperands(), [](Value v) {return !v.isa<BlockArgument>();})
-        && !isa<scf::ParallelOp>(wrapper->getParentOp())) {
+    if (llvm::all_of(wrapper.getOperands(),
+                     [](Value v) { return !v.isa<BlockArgument>(); }) &&
+        !isa<scf::ParallelOp>(wrapper->getParentOp())) {
       // TODO check that the args _are actually_ constants = 1
       Block *block = wrapper->getBlock();
       auto term = block->getTerminator();
@@ -1326,8 +1327,8 @@ struct ConvertParallelToGPU1Pass
         >(&getContext());
       // clang-format on
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                              config))) {
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                              std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
@@ -1354,8 +1355,8 @@ struct ConvertParallelToGPU1Pass
         >(&getContext());
       // clang-format on
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                              config))) {
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                              std::move(patterns), config))) {
         signalPassFailure();
         return;
       }

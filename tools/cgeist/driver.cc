@@ -82,9 +82,9 @@ static cl::opt<bool>
                             cl::desc("Try not to alter the GPU kernel block "
                                      "sizes originally used in the code"));
 
-static cl::opt<bool>
-    PreserveGPUKernelStructure("preserve-gpu-kernel-structure", cl::init(false),
-                            cl::desc("Do not alter the original gpu kernel parallel structure"));
+static cl::opt<bool> PreserveGPUKernelStructure(
+    "preserve-gpu-kernel-structure", cl::init(false),
+    cl::desc("Do not alter the original gpu kernel parallel structure"));
 
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
@@ -674,7 +674,8 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
-      pm.addPass(polygeist::createParallelLowerPass(/* wrapParallelOps */ EmitCuda, PreserveGPUKernelStructure));
+      pm.addPass(polygeist::createParallelLowerPass(
+          /* wrapParallelOps */ EmitCuda, PreserveGPUKernelStructure));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else

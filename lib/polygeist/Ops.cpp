@@ -74,7 +74,8 @@ void GPUAlternativesOp::build(OpBuilder &builder, OperationState &result,
 //===----------------------------------------------------------------------===//
 
 void GPUBlockOp::build(OpBuilder &builder, OperationState &result,
-                         Value blockIndexX, Value blockIndexY, Value blockIndexZ) {
+                       Value blockIndexX, Value blockIndexY,
+                       Value blockIndexZ) {
   result.addOperands({blockIndexX, blockIndexY, blockIndexZ});
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
@@ -87,7 +88,8 @@ void GPUBlockOp::build(OpBuilder &builder, OperationState &result,
 //===----------------------------------------------------------------------===//
 
 void GPUThreadOp::build(OpBuilder &builder, OperationState &result,
-                         Value blockIndexX, Value blockIndexY, Value blockIndexZ) {
+                        Value blockIndexX, Value blockIndexY,
+                        Value blockIndexZ) {
   result.addOperands({blockIndexX, blockIndexY, blockIndexZ});
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
