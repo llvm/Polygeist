@@ -2,6 +2,7 @@
 
 module {
   func.func private @use(%arg0: index)
+  func.func private @use_memref(%arg0: memref<16x16xf32, 5>)
   func.func @f1() {
     %mc1 = arith.constant 1 : index
     %mc1024 = arith.constant 1024 : index
@@ -48,10 +49,12 @@ module {
     %mc1 = arith.constant 1 : index
     %mc1024 = arith.constant 1024 : index
     %err = "polygeist.gpu_wrapper"(%mc1024, %mc1, %mc1) ({
+      %alloca_8 = memref.alloca() : memref<16x16xf32, 5>
       "polygeist.gpu_block"(%mc1, %mc1, %mc1) ({
           affine.parallel (%a2) = (0) to (1024) {
           "polygeist.gpu_thread"(%a2, %mc1, %mc1) ({
               func.call @use(%a2) : (index) -> ()
+              func.call @use_memref(%alloca_8) : (memref<16x16xf32, 5>) -> ()
               "polygeist.polygeist_yield"() : () -> ()
           }) : (index, index, index) -> ()
           }
@@ -102,7 +105,10 @@ module {
 // CHECK:           %[[VAL_2:.*]] = "polygeist.gpu_error"() ({
 // CHECK:             gpu.launch blocks(%[[VAL_3:.*]], %[[VAL_4:.*]], %[[VAL_5:.*]]) in (%[[VAL_6:.*]] = %[[VAL_0]], %[[VAL_7:.*]] = %[[VAL_0]], %[[VAL_8:.*]] = %[[VAL_0]]) threads(%[[VAL_9:.*]], %[[VAL_10:.*]], %[[VAL_11:.*]]) in (%[[VAL_12:.*]] = %[[VAL_1]], %[[VAL_13:.*]] = %[[VAL_0]], %[[VAL_14:.*]] = %[[VAL_0]]) {
 // CHECK:               %[[VAL_15:.*]] = gpu.thread_id  x
-// CHECK:               func.call @use(%[[VAL_15]]) : (index) -> ()
+// TODO converting this to shared memory should probably happen in this parallel-to-gpu1 and not 2 because having an alloca doesnt really make sense here
+// CHECK:               %alloca = memref.alloca() : memref<16x16xf32, 5>
+// CHECK:               func.call @use(%1) : (index) -> ()
+// CHECK:               func.call @use_memref(%alloca) : (memref<16x16xf32, 5>) -> ()
 // CHECK:               gpu.terminator
 // CHECK:             }
 // CHECK:             "polygeist.polygeist_yield"() : () -> ()
