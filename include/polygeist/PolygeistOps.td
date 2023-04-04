@@ -99,6 +99,7 @@ def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
 
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
+  AutomaticAllocationScope,
   SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
   Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
   let summary = "Indicates the region contained must be executed on the GPU";
