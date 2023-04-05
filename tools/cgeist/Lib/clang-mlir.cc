@@ -2575,7 +2575,7 @@ ValueCategory MLIRScanner::VisitAtomicExpr(clang::AtomicExpr *BO) {
 ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   auto loc = getMLIRLocation(BO->getExprLoc());
 
-  auto fixInteger = [&](mlir::Value res) {
+  auto fixInteger = [&](mlir::Value res, bool forceUnsigned = false) {
     auto prevTy = res.getType().cast<mlir::IntegerType>();
     auto postTy = getMLIRType(BO->getType()).cast<mlir::IntegerType>();
     bool signedType = true;
@@ -2585,6 +2585,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       if (bit->isSignedInteger())
         signedType = true;
     }
+    if (forceUnsigned)
+      signedType = false;
     if (postTy != prevTy) {
       if (signedType) {
         res = builder.create<mlir::arith::ExtSIOp>(loc, postTy, res);
@@ -2838,7 +2840,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     } else {
       res = builder.create<arith::CmpIOp>(loc, IPred, lhs_v, rhs_v);
     }
-    return fixInteger(res);
+    return fixInteger(res, /*forceUnsigned*/ true);
   }
   case clang::BinaryOperator::Opcode::BO_Mul: {
     if (isa<clang::ComplexType>(BO->getType())) {
