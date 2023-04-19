@@ -399,14 +399,16 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     return success();
   }
 
-  int getOriginalThreadNum(polygeist::GPUWrapperOp wrapper) const {
-    // Collect the original block dims for this wrapper TODO IF it was
-    // originally a kernel launch, in the future we could add gpu offloading for
-    // openmp parallels, then we would have to not consider this
+  // Calculate the suggested block dim - if this was originally a gpu kernel
+  // launch it will contain the launch block dim params
+  int getSuggestedBlockDim(polygeist::GPUWrapperOp wrapper) const {
     SmallVector<Value, 3> originalBlockDims;
-    originalBlockDims.push_back(wrapper.getBlockSizeX());
-    originalBlockDims.push_back(wrapper.getBlockSizeY());
-    originalBlockDims.push_back(wrapper.getBlockSizeZ());
+    auto numOperands = wrapper->getNumOperands();
+    assert(numOperands <= 3 && "gpu_wrapper with more than 3 block dims");
+    if (numOperands == 0)
+      return -1; // No hints
+    for (auto operand : wrapper->getOperands())
+      originalBlockDims.push_back(operand);
     int originalThreadNum = 1;
     for (auto dim : originalBlockDims) {
       // TODO other possibilities?
@@ -897,9 +899,8 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       return failure();
     }
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
-        loc, wrapper.getBlockSizeX(), wrapper.getBlockSizeY(),
-        wrapper.getBlockSizeZ());
+    auto newWrapper =
+        rewriter.create<polygeist::GPUWrapperOp>(loc, wrapper.getOperands());
     BlockAndValueMapping hoistMapping;
     BlockAndValueMapping splitMapping;
     BlockAndValueMapping parallelizedMapping;
@@ -984,6 +985,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
             for (auto v : clonedOp->getResults()) {
               rewriter.setInsertionPoint(newWrapper);
               auto mt = MemRefType::get({}, v.getType());
+              // TODO we never actually free this...
               auto alloc = rewriter.create<gpu::AllocOp>(
                   loc, mt, /* asyncToken type */ nullptr,
                   /* TODO asyncDependencies */ ValueRange(),
@@ -1140,9 +1142,8 @@ struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
     assert(pop->getNumResults() == 0);
 
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
-        loc, wrapper.getBlockSizeX(), wrapper.getBlockSizeY(),
-        wrapper.getBlockSizeZ());
+    auto newWrapper =
+        rewriter.create<polygeist::GPUWrapperOp>(loc, wrapper.getOperands());
     rewriter.setInsertionPointToStart(newWrapper.getBody());
     rewriter.clone(*pop.getOperation());
     rewriter.eraseOp(pop);

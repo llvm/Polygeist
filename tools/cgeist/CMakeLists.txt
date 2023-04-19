@@ -36,6 +36,7 @@ if(POLYGEIST_ENABLE_CUDA)
     PRIVATE
     POLYGEIST_ENABLE_CUDA=1
   )
+  add_dependencies(cgeist execution_engine_cuda_wrapper_binary_include)
 endif()
 install(TARGETS cgeist
 EXPORT PolygeistTargets
