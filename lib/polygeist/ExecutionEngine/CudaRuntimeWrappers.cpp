@@ -58,16 +58,31 @@ public:
 
     CUDA_REPORT_IF_ERROR(cuCtxPushCurrent(context));
   }
-
-  ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpuLaunchKernelErr(
     CUfunction function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
     intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
     CUstream stream, void **params, void **extra) {
-  ScopedContext scopedContext;
   return CUDA_REPORT_IF_ERROR(cuLaunchKernel(function, gridX, gridY, gridZ,
                                              blockX, blockY, blockZ, smem,
                                              stream, params, extra));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT CUmodule mgpuModuleLoad(void *data) {
+  ScopedContext scopedContext;
+  CUmodule module = nullptr;
+  CUDA_REPORT_IF_ERROR(cuModuleLoadData(&module, data));
+  return module;
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpuModuleUnload(CUmodule module) {
+  CUDA_REPORT_IF_ERROR(cuModuleUnload(module));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT CUfunction
+mgpuModuleGetFunction(CUmodule module, const char *name) {
+  CUfunction function = nullptr;
+  CUDA_REPORT_IF_ERROR(cuModuleGetFunction(&function, module, name));
+  return function;
 }

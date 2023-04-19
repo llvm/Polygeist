@@ -56,6 +56,9 @@
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
+#include "llvm/IR/Verifier.h"
 #include <fstream>
 
 #include "polygeist/Dialect.h"
@@ -954,6 +957,18 @@ int main(int argc, char **argv) {
       module->dump();
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
+    }
+    if (EmitCuda) {
+      // TODO !!!!! figure out how to package this properly
+      std::string cudaWrapperPath = "/scr/ivan/src/Polygeist/build.release/lib/polygeist/ExecutionEngine/CudaRuntimeWrappers.cpp.bc";
+      llvm::SMDiagnostic err;
+      std::unique_ptr<llvm::Module>  cudaWrapper =
+        llvm::parseIRFile(cudaWrapperPath, err, llvmContext);
+      if (!cudaWrapper || llvm::verifyModule(*cudaWrapper, &llvm::errs())) {
+        llvm::errs() << "Failed to load CUDA wrapper bitcode module\n";
+        return -1;
+      }
+      llvm::Linker::linkModules(*llvmModule, std::move(cudaWrapper));
     }
     if (InBoundsGEP) {
       convertGepInBounds(*llvmModule);

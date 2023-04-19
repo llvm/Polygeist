@@ -38,7 +38,7 @@ if(POLYGEIST_ENABLE_CUDA)
   set(clang_opt_flags -O3)
 
   set(bc_flags -c -emit-llvm -std=c++17 -fvisibility=hidden
-    -O3 -nocudalib
+    -O3 -nocudalib -Xclang -no-opaque-pointers
     )
 
   foreach(src ${src_files})
