@@ -1,7 +1,10 @@
+# TODO we do not support cross compilation currently
 
 if(POLYGEIST_ENABLE_CUDA)
   find_package(CUDA)
   enable_language(CUDA)
+
+  # Shared lib wrapper
 
   add_mlir_library(polygeist_cuda_runtime
     SHARED
@@ -21,5 +24,49 @@ if(POLYGEIST_ENABLE_CUDA)
     PRIVATE
     ${CUDA_RUNTIME_LIBRARY}
   )
+
+  # Bitcode lib wrapper
+  set(POLYGEIST_EXECUTION_ENGINE_BITCODE_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+  find_program(CLANG_TOOL clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
+
+  set(source_directory ${CMAKE_CURRENT_SOURCE_DIR})
+  set(src_files
+    ${source_directory}/CudaRuntimeWrappers.cpp
+    )
+
+  set(clang_opt_flags -O3)
+
+  set(bc_flags -c -emit-llvm -std=c++17 -fvisibility=hidden
+    -O3 -nocudalib
+    )
+
+  foreach(src ${src_files})
+    get_filename_component(infile ${src} ABSOLUTE)
+    get_filename_component(outfile ${src} NAME)
+    set(outfile "${outfile}.bc")
+
+    # TODO I think CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES is supposed to be a
+    # list but seems to contain only one dir so this usage currently works - fix
+    add_custom_target(${outfile} ALL
+      COMMAND ${CLANG_TOOL}
+      ${bc_flags}
+      ${infile} -o ${outfile}
+      -I${MLIR_MAIN_SRC_DIR}/include
+      -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      DEPENDS ${infile}
+      COMMENT "Building LLVM bitcode ${outfile}"
+      VERBATIM
+    )
+    if("${CLANG_TOOL}" STREQUAL "$<TARGET_FILE:clang>")
+      # Add a target-level dependency to ensure that clang is up-to-date.
+      # By default, add_custom_target only builds clang if the
+      # executable is missing.
+      add_dependencies(${outfile} clang)
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
+
+  endforeach()
+
 
 endif()
