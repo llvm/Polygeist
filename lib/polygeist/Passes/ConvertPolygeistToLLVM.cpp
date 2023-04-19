@@ -1349,6 +1349,24 @@ protected:
   Type llvmIntPtrType = IntegerType::get(
       context, this->getTypeConverter()->getPointerBitwidth(0));
 
+  FunctionCallBuilder rtRegisterFunctionCallBuilder = {
+      "__cudaRegisterFunction",
+      llvmInt32Type,
+      {llvmPointerPointerType, llvmPointerType, llvmPointerType,
+       llvmPointerType, llvmInt32Type, llvmPointerType, llvmPointerType,
+       llvmPointerType, llvmPointerType,
+       llvmPointerType /* should actually be a pointer to int */}};
+  FunctionCallBuilder rtUnregisterFatBinaryCallBuilder = {
+      "__cudaUnregisterFatBinary", llvmVoidType, {llvmPointerPointerType}};
+  FunctionCallBuilder rtRegisterFatBinaryCallBuilder = {
+      "__cudaRegisterFatBinary", llvmPointerPointerType, {llvmPointerType}};
+  FunctionCallBuilder rtRegisterFatBinaryEndCallBuilder = {
+      "__cudaRegisterFatBinaryEnd", llvmVoidType, {llvmPointerPointerType}};
+  FunctionCallBuilder rtAllocCallBuilder = {
+      "mgpurtMemAlloc",
+      llvmPointerType /* void * */,
+      {llvmIntPtrType /* intptr_t sizeBytes */,
+       llvmPointerType /* void *stream */}};
   FunctionCallBuilder allocCallBuilder = {
       "mgpuMemAlloc",
       llvmPointerType /* void * */,
@@ -1382,6 +1400,21 @@ protected:
           llvmPointerType,        /* void *hstream */
           llvmPointerPointerType, /* void **kernelParams */
           llvmPointerPointerType  /* void **extra */
+      }};
+  FunctionCallBuilder rtLaunchKernelCallBuilder = {
+      "mgpurtLaunchKernel",
+      llvmVoidType,
+      {
+          llvmPointerType,        /* void* f */
+          llvmIntPtrType,         /* intptr_t gridXDim */
+          llvmIntPtrType,         /* intptr_t gridyDim */
+          llvmIntPtrType,         /* intptr_t gridZDim */
+          llvmIntPtrType,         /* intptr_t blockXDim */
+          llvmIntPtrType,         /* intptr_t blockYDim */
+          llvmIntPtrType,         /* intptr_t blockZDim */
+          llvmInt32Type,          /* unsigned int sharedMemBytes */
+          llvmPointerType,        /* void *hstream */
+          llvmPointerPointerType, /* void **kernelParams */
       }};
   FunctionCallBuilder launchKernelCallBuilder = {
       "mgpuLaunchKernel",
@@ -1725,6 +1758,10 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       launchOp, launchOp.getKernelModuleName());
   assert(kernelModule && "expected a kernel module");
 
+  auto getFuncStubName = [](StringRef moduleName, StringRef name) {
+    return std::string(
+        llvm::formatv("polygeist_{0}_{1}_device_stub", moduleName, name));
+  };
   auto getFuncGlobalName = [](StringRef moduleName, StringRef name) {
     return std::string(
         llvm::formatv("polygeist_{0}_{1}_fun_ptr", moduleName, name));
@@ -1770,16 +1807,73 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock());
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
-      Value data = LLVM::createGlobalString(loc, ctorBuilder, nameBuffer.str(),
-                                            binaryAttr.getValue(),
-                                            LLVM::Linkage::Internal);
-      auto module = moduleLoadCallBuilder.create(loc, ctorBuilder, data);
+
+      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
+
+      // TODO this is for the non-relocatable non-macOS case, handle others, see
+      // clang/CodeGen/CGCUDANV.cpp
+      const char *fatbinSectionName = ".nv_fatbin";
+      const char *fatbinWrapperSectionName = ".nvFatBinSegment";
+
+      // Create and initialize the fatbin wrapper struct
+      auto fatBinWrapperType = mlir::LLVM::LLVMStructType::getLiteral(
+          moduleOp->getContext(),
+          {llvmInt32Type, llvmInt32Type, llvmPointerType, llvmPointerType});
+      constexpr unsigned CudaFatMagic = 0x466243b1;
+      auto fatBinWrapper = moduleBuilder.create<LLVM::GlobalOp>(
+          loc, fatBinWrapperType, /*constant*/ true, LLVM::Linkage::Internal,
+          std::string(
+              llvm::formatv("polygeist_{0}_fatbin_wrapper", moduleName)),
+          /* initValue */ mlir::Attribute(),
+          /* alignment */ 8, /* addrSpace */ 0);
+      fatBinWrapper.setSectionAttr(
+          moduleBuilder.getStringAttr(fatbinWrapperSectionName));
+
+      OpBuilder globalBuilder(moduleOp->getContext());
+      fatBinWrapper.getRegion().push_back(new Block);
+      globalBuilder.setInsertionPointToStart(fatBinWrapper.getBody());
+      auto fatbinMagicVal = globalBuilder.create<LLVM::ConstantOp>(
+          loc, llvmInt32Type, CudaFatMagic);
+      auto fatbinVersionVal =
+          globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, 1);
+      auto nullPtr = globalBuilder.create<LLVM::NullOp>(loc, llvmPointerType);
+      Value constructedStruct =
+          globalBuilder.create<LLVM::UndefOp>(loc, fatBinWrapperType);
+      {
+        int i = 0;
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
+            loc, fatBinWrapperType, constructedStruct, fatbinMagicVal,
+            globalBuilder.getDenseI64ArrayAttr(i++));
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
+            loc, fatBinWrapperType, constructedStruct, fatbinVersionVal,
+            globalBuilder.getDenseI64ArrayAttr(i++));
+        // TODO do we need to specify the section name here...?
+        // data.setSectionAttr(moduleBuilder.getStringAttr(fatbinSectionName));
+        Value data = LLVM::createGlobalString(
+            loc, globalBuilder, nameBuffer.str(), binaryAttr.getValue(),
+            LLVM::Linkage::Internal);
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
+            loc, fatBinWrapperType, constructedStruct, data,
+            globalBuilder.getDenseI64ArrayAttr(i++));
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
+            loc, fatBinWrapperType, constructedStruct, nullPtr,
+            globalBuilder.getDenseI64ArrayAttr(i++));
+      }
+      globalBuilder.create<LLVM::ReturnOp>(loc, constructedStruct);
+
+      auto addressOfWrapper =
+          ctorBuilder.create<LLVM::AddressOfOp>(loc, fatBinWrapper);
+      auto bitcastOfWrapper = ctorBuilder.create<LLVM::BitcastOp>(
+          loc, llvmPointerType, addressOfWrapper);
+      auto module = rtRegisterFatBinaryCallBuilder.create(loc, ctorBuilder,
+                                                          {bitcastOfWrapper});
       auto moduleGlobalName =
           std::string(llvm::formatv("polygeist_{0}_module_ptr", moduleName));
       auto moduleGlobal = moduleBuilder.create<LLVM::GlobalOp>(
-          loc, llvmPointerType, /* isConstant */ false, LLVM::Linkage::Internal,
-          moduleGlobalName, mlir::Attribute(),
-          /* alignment */ 0, /* addrSpace */ 0);
+          loc, llvmPointerPointerType, /* isConstant */ false,
+          LLVM::Linkage::Internal, moduleGlobalName,
+          /* initValue */ mlir::Attribute(),
+          /* alignment */ 8, /* addrSpace */ 0);
       auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
       ctorBuilder.create<LLVM::StoreOp>(loc, module->getResult(0),
                                         aoo->getResult(0));
@@ -1792,17 +1886,36 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         auto kernelName = generateKernelNameConstant(
             launchOp.getKernelModuleName().getValue(), f.getName(), loc,
             ctorBuilder);
-        auto function = moduleGetFunctionCallBuilder.create(
-            loc, ctorBuilder, {module.getResult(), kernelName});
-        std::string funcGlobalName = getFuncGlobalName(moduleName, f.getName());
-        auto funcGlobal = moduleBuilder.create<LLVM::GlobalOp>(
-            loc, llvmPointerType, /* isConstant */ false,
-            LLVM::Linkage::Internal, funcGlobalName, mlir::Attribute(),
-            /* alignment */ 0, /* addrSpace */ 0);
-        auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, funcGlobal);
-        ctorBuilder.create<LLVM::StoreOp>(loc, function->getResult(0),
-                                          aoo->getResult(0));
+
+        auto nullPtr = ctorBuilder.create<LLVM::NullOp>(loc, llvmPointerType);
+        // TODO second param should be ptr to the the original function stub
+        // here like clang does it: e.g. kernel_name_device_stub
+        //
+        // TODO We should probably always generate the original kernel as well
+        // and register it too (in addition to the lowered to parallel and
+        // re-outlined version that we generate) in case the pointer to the stub
+        // is captured somewhere and it is called through cudaLaunchKernel
+        auto stub = moduleBuilder.create<LLVM::LLVMFuncOp>(
+            loc, getFuncStubName(moduleName, f.getName()),
+            LLVM::LLVMFunctionType::get(llvmVoidType, {}));
+        {
+          OpBuilder::InsertionGuard guard(rewriter);
+          rewriter.setInsertionPointToStart(stub.addEntryBlock());
+          rewriter.create<LLVM::ReturnOp>(loc, ValueRange());
+        }
+        auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, stub);
+        auto bitcast =
+            ctorBuilder.create<LLVM::BitcastOp>(loc, llvmPointerType, aoo);
+        auto ret = rtRegisterFunctionCallBuilder.create(
+            loc, ctorBuilder,
+            {module.getResult(), bitcast, kernelName, kernelName,
+             /* TODO I have no idea what the following params are */
+             ctorBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, -1),
+             nullPtr, nullPtr, nullPtr, nullPtr, nullPtr});
       }
+      // TODO this has to happen only for some CUDA versions
+      rtRegisterFatBinaryEndCallBuilder.create(loc, ctorBuilder,
+                                               {module.getResult()});
       ctorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
       auto ctorSymbol = FlatSymbolRefAttr::get(ctor);
       moduleBuilder.create<LLVM::GlobalCtorsOp>(
@@ -1813,7 +1926,8 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock());
         auto aoo = dtorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
         auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
-        moduleUnloadCallBuilder.create(loc, dtorBuilder, module.getResult());
+        rtUnregisterFatBinaryCallBuilder.create(loc, dtorBuilder,
+                                                module.getResult());
         dtorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
         auto dtorSymbol = FlatSymbolRefAttr::get(dtor);
         moduleBuilder.create<LLVM::GlobalDtorsOp>(
@@ -1823,14 +1937,15 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
     }
   }
 
-  std::string funcGlobalName =
-      getFuncGlobalName(launchOp.getKernelModuleName().getValue(),
-                        launchOp.getKernelName().getValue());
-  auto funcGlobal = dyn_cast_or_null<LLVM::GlobalOp>(
-      SymbolTable::lookupSymbolIn(moduleOp, funcGlobalName));
-  assert(!!funcGlobal);
-  auto aoo = rewriter.create<LLVM::AddressOfOp>(loc, funcGlobal);
-  auto function = rewriter.create<LLVM::LoadOp>(loc, aoo);
+  std::string funcStubName =
+      getFuncStubName(launchOp.getKernelModuleName().getValue(),
+                      launchOp.getKernelName().getValue());
+
+  auto stub = dyn_cast_or_null<LLVM::LLVMFuncOp>(
+      SymbolTable::lookupSymbolIn(moduleOp, funcStubName));
+  assert(!!stub);
+  auto aoo = rewriter.create<LLVM::AddressOfOp>(loc, stub);
+  auto bitcast = rewriter.create<LLVM::BitcastOp>(loc, llvmPointerType, aoo);
 
   Value zero = rewriter.create<LLVM::ConstantOp>(loc, llvmInt32Type, 0);
   auto nullpointer = rewriter.create<LLVM::NullOp>(loc, llvmPointerType);
@@ -1844,12 +1959,11 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   Value dynamicSharedMemorySize = launchOp.getDynamicSharedMemorySize()
                                       ? launchOp.getDynamicSharedMemorySize()
                                       : zero;
-  auto launchCall = launchKernelErrCallBuilder.create(
+  auto launchCall = rtLaunchKernelCallBuilder.create(
       loc, rewriter,
-      {function.getResult(), adaptor.getGridSizeX(), adaptor.getGridSizeY(),
+      {bitcast.getResult(), adaptor.getGridSizeX(), adaptor.getGridSizeY(),
        adaptor.getGridSizeZ(), adaptor.getBlockSizeX(), adaptor.getBlockSizeY(),
-       adaptor.getBlockSizeZ(), dynamicSharedMemorySize, stream, kernelParams,
-       /*extra=*/nullpointerpointer});
+       adaptor.getBlockSizeZ(), dynamicSharedMemorySize, stream, kernelParams});
 
   if (launchOp.getAsyncToken()) {
     // Async launch: make dependent ops use the same stream.
@@ -2079,7 +2193,8 @@ private:
     // auto stream = adaptor.getAsyncDependencies().front();
     auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
     Value allocatedPtr =
-        allocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
+        rtAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream})
+            .getResult();
     allocatedPtr =
         rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, allocatedPtr);
 

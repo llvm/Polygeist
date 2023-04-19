@@ -51,15 +51,20 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
-#include <fstream>
+#include "llvm/Transforms/IPO/Internalize.h"
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
+
+#include <fstream>
 
 #include "ArgumentList.h"
 
@@ -955,6 +960,32 @@ int main(int argc, char **argv) {
       llvm::errs() << "Failed to emit LLVM IR\n";
       return -1;
     }
+#if POLYGEIST_ENABLE_CUDA
+    if (EmitCuda) {
+// This header defines:
+// unsigned char CudaRuntimeWrappers_cpp_bc[]
+// unsigned int CudaRuntimeWrappers_cpp_bc_len
+#include "../lib/polygeist/ExecutionEngine/CudaRuntimeWrappers.cpp.bin.h"
+      StringRef blobStrRef((const char *)CudaRuntimeWrappers_cpp_bc,
+                           CudaRuntimeWrappers_cpp_bc_len);
+      MemoryBufferRef blobMemoryBufferRef(blobStrRef, "Binary include");
+      llvm::SMDiagnostic err;
+      std::unique_ptr<llvm::Module> cudaWrapper =
+          llvm::parseIR(blobMemoryBufferRef, err, llvmContext);
+      if (!cudaWrapper || llvm::verifyModule(*cudaWrapper, &llvm::errs())) {
+        llvm::errs() << "Failed to load CUDA wrapper bitcode module\n";
+        return -1;
+      }
+      // Link in required wrapper functions
+      //
+      // TODO currently the wrapper symbols have weak linkage which does not
+      // allow them to be inlined - we should either internalize them after
+      // linking or make them linkeonce_odr (preferred) in so that llvm can
+      // inline them
+      llvm::Linker::linkModules(*llvmModule, std::move(cudaWrapper),
+                                llvm::Linker::Flags::LinkOnlyNeeded);
+    }
+#endif
     if (InBoundsGEP) {
       convertGepInBounds(*llvmModule);
     }
