@@ -1349,6 +1349,23 @@ protected:
   Type llvmIntPtrType = IntegerType::get(
       context, this->getTypeConverter()->getPointerBitwidth(0));
 
+  FunctionCallBuilder rtRegisterFunction = {
+      "__cudaRegisterFunction",
+      llvmPointerPointerType /* void *module */,
+      {llvmPointerPointerType,
+       llvmPointerType,
+       llvmPointerType,
+       llvmPointerType,
+       llvmInt32Type,
+       llvmPointerType,
+       llvmPointerType,
+       llvmPointerType,
+       llvmPointerType,
+       llvmPointerType}};
+  FunctionCallBuilder rtRegisterFatBinary = {
+      "__cudaRegisterFatBinary",
+      llvmPointerPointerType,
+      {llvmPointerType}};
   FunctionCallBuilder allocCallBuilder = {
       "mgpuMemAlloc",
       llvmPointerType /* void * */,
@@ -1770,16 +1787,52 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock());
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
+
+      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
+
+      // TODO this is for the non-relocatable non-macOS case, handle others, see
+      // clang/CodeGen/CGCUDANV.cpp
+      const char *fatbinSectionName = ".nv_fatbin";
+      const char *fatbinWrapperSectionName = ".nvFatBinSegment";
       Value data = LLVM::createGlobalString(loc, ctorBuilder, nameBuffer.str(),
                                             binaryAttr.getValue(),
                                             LLVM::Linkage::Internal);
-      auto module = moduleLoadCallBuilder.create(loc, ctorBuilder, data);
+      // TODO do we need to specify the section name here...?
+      // data.setSectionAttr(moduleBuilder.getStringAttr(fatbinSectionName));
+
+      // Create and initialize the fatbin wrapper struct
+      auto fatBinWrapperType = mlir::LLVM::LLVMStructType::getLiteral(
+        moduleOp->getContext(), {llvmInt32Type, llvmInt32Type, llvmPointerType, llvmPointerType});
+      constexpr unsigned CudaFatMagic = 0x466243b1;
+      auto fatBinWrapper = moduleBuilder.create<LLVM::GlobalOp>(
+        loc, fatBinWrapperType, /*constant*/ true, LLVM::Linkage::Internal,
+        std::string(llvm::formatv("polygeist_{0}_fatbin_wrapper", moduleName)), /* initValue */ mlir::Attribute(),
+          /* alignment */ 8, /* addrSpace */ 0);
+      fatBinWrapper.setSectionAttr(moduleBuilder.getStringAttr(fatbinWrapperSectionName));
+
+      OpBuilder globalBuilder(moduleOp->getContext());
+      globalBuilder.setInsertionPointToStart(fatBinWrapper.getBody());
+      auto fatbinMagicVal = globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, CudaFatMagic);
+      auto fatbinVersionVal = globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, 1);
+      auto nullPtr = globalBuilder.create<LLVM::ConstantOp>(loc, llvmPointerType, 0);
+      Value constructedStruct = globalBuilder.create<LLVM::UndefOp>(loc, fatBinWrapperType);
+      {
+        int i = 0;
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(loc, fatBinWrapperType, constructedStruct, fatbinMagicVal, globalBuilder.getDenseI64ArrayAttr(i++));
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(loc, fatBinWrapperType, constructedStruct, fatbinVersionVal, globalBuilder.getDenseI64ArrayAttr(i++));
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(loc, fatBinWrapperType, constructedStruct, data, globalBuilder.getDenseI64ArrayAttr(i++));
+        constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(loc, fatBinWrapperType, constructedStruct, nullPtr, globalBuilder.getDenseI64ArrayAttr(i++));
+      }
+      globalBuilder.create<LLVM::ReturnOp>(loc, constructedStruct);
+
+      auto addressOfWrapper = ctorBuilder.create<LLVM::AddressOfOp>(loc, fatBinWrapper);
+      auto module = rtRegisterFatBinary.create(loc, ctorBuilder, {addressOfWrapper});
       auto moduleGlobalName =
           std::string(llvm::formatv("polygeist_{0}_module_ptr", moduleName));
       auto moduleGlobal = moduleBuilder.create<LLVM::GlobalOp>(
-          loc, llvmPointerType, /* isConstant */ false, LLVM::Linkage::Internal,
-          moduleGlobalName, mlir::Attribute(),
-          /* alignment */ 0, /* addrSpace */ 0);
+          loc, llvmPointerPointerType, /* isConstant */ false, LLVM::Linkage::Internal,
+          moduleGlobalName, /* initValue */ mlir::Attribute(),
+          /* alignment */ 8, /* addrSpace */ 0);
       auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
       ctorBuilder.create<LLVM::StoreOp>(loc, module->getResult(0),
                                         aoo->getResult(0));
