@@ -100,14 +100,20 @@ def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
   AutomaticAllocationScope,
-  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
-  Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]> {
+  let arguments = (ins Variadic<Index>:$blockDims);
   let summary = "Indicates the region contained must be executed on the GPU";
+  let description = [{
+    The optional arguments to this operation are suggestions about what block
+    dimensions this gpu kernel should have - usually taken from kernel launch
+    params
+  }];
   let results = (outs Index : $result);
   let regions = (region SizedRegion<1>:$region);
   let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<(ins
-      "Value":$blockSizeX, "Value":$blockSizeY, "Value":$blockSizeZ)>];
+  let builders = [
+      OpBuilder<(ins "ValueRange":$blockSizes)>,
+      OpBuilder<(ins)>];
 }
 
 def GPUErrorOp : Polygeist_Op<"gpu_error", [

@@ -102,9 +102,17 @@ void GPUThreadOp::build(OpBuilder &builder, OperationState &result,
 //===----------------------------------------------------------------------===//
 
 void GPUWrapperOp::build(OpBuilder &builder, OperationState &result,
-                         Value blockSizeX, Value blockSizeY, Value blockSizeZ) {
+                         ValueRange blockSizes) {
   result.addTypes(builder.getIndexType());
-  result.addOperands({blockSizeX, blockSizeY, blockSizeZ});
+  result.addOperands(blockSizes);
+  OpBuilder::InsertionGuard g(builder);
+  Region *bodyRegion = result.addRegion();
+  builder.createBlock(bodyRegion);
+  GPUWrapperOp::ensureTerminator(*bodyRegion, builder, result.location);
+}
+
+void GPUWrapperOp::build(OpBuilder &builder, OperationState &result) {
+  result.addTypes(builder.getIndexType());
   OpBuilder::InsertionGuard g(builder);
   Region *bodyRegion = result.addRegion();
   builder.createBlock(bodyRegion);
