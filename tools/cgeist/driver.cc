@@ -51,14 +51,14 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Host.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
-#include "llvm/IRReader/IRReader.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/Transforms/IPO/Internalize.h"
 
 #include "polygeist/Dialect.h"
@@ -962,10 +962,12 @@ int main(int argc, char **argv) {
     }
     if (EmitCuda) {
       // TODO !!!!! figure out how to package this properly
-      std::string cudaWrapperPath = "/scr/ivan/src/Polygeist/build.release/lib/polygeist/ExecutionEngine/CudaRuntimeWrappers.cpp.bc";
+      std::string cudaWrapperPath =
+          "/scr/ivan/src/Polygeist/build.release/lib/polygeist/ExecutionEngine/"
+          "CudaRuntimeWrappers.cpp.bc";
       llvm::SMDiagnostic err;
-      std::unique_ptr<llvm::Module>  cudaWrapper =
-        llvm::parseIRFile(cudaWrapperPath, err, llvmContext);
+      std::unique_ptr<llvm::Module> cudaWrapper =
+          llvm::parseIRFile(cudaWrapperPath, err, llvmContext);
       if (!cudaWrapper || llvm::verifyModule(*cudaWrapper, &llvm::errs())) {
         llvm::errs() << "Failed to load CUDA wrapper bitcode module\n";
         return -1;
@@ -975,7 +977,8 @@ int main(int argc, char **argv) {
       // TODO currently the wrapper symbols have weak linkage which does not
       // allow them to be inlined - we should either internalize them or make
       // them linkeonce_odr (preferred) in so that llvm can inline them
-      llvm::Linker::linkModules(*llvmModule, std::move(cudaWrapper), llvm::Linker::Flags::LinkOnlyNeeded);
+      llvm::Linker::linkModules(*llvmModule, std::move(cudaWrapper),
+                                llvm::Linker::Flags::LinkOnlyNeeded);
     }
     if (InBoundsGEP) {
       convertGepInBounds(*llvmModule);

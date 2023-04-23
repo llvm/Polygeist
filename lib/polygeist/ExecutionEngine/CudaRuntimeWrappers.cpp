@@ -26,10 +26,10 @@
 #endif // _WIN32
 
 #define CUDART_REPORT_IF_ERROR(expr)                                           \
-  [](auto result) {                                                        \
+  [](auto result) {                                                            \
     if (!result)                                                               \
       return result;                                                           \
-    const char *name = cudaGetErrorString(result);                                             \
+    const char *name = cudaGetErrorString(result);                             \
     if (!name)                                                                 \
       name = "<unknown>";                                                      \
     fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);                   \
@@ -72,15 +72,15 @@ public:
   }
 };
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtLaunchKernel(
-    void *function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
-    intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
-    CUstream stream, void **params) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
+                   intptr_t gridZ, intptr_t blockX, intptr_t blockY,
+                   intptr_t blockZ, int32_t smem, CUstream stream,
+                   void **params) {
   CUDART_REPORT_IF_ERROR(cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
-                                          dim3(blockX, blockY, blockZ), params, smem,
-                                          stream));
+                                          dim3(blockX, blockY, blockZ), params,
+                                          smem, stream));
 }
-
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpuLaunchKernelErr(
     CUfunction function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
