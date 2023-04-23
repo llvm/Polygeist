@@ -899,8 +899,8 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       return failure();
     }
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
-        loc, wrapper.getOperands());
+    auto newWrapper =
+        rewriter.create<polygeist::GPUWrapperOp>(loc, wrapper.getOperands());
     BlockAndValueMapping hoistMapping;
     BlockAndValueMapping splitMapping;
     BlockAndValueMapping parallelizedMapping;
@@ -1141,8 +1141,8 @@ struct SplitOffParallel : public OpRewritePattern<polygeist::GPUWrapperOp> {
     assert(pop->getNumResults() == 0);
 
     rewriter.setInsertionPoint(wrapper);
-    auto newWrapper = rewriter.create<polygeist::GPUWrapperOp>(
-        loc, wrapper.getOperands());
+    auto newWrapper =
+        rewriter.create<polygeist::GPUWrapperOp>(loc, wrapper.getOperands());
     rewriter.setInsertionPointToStart(newWrapper.getBody());
     rewriter.clone(*pop.getOperation());
     rewriter.eraseOp(pop);
