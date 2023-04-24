@@ -985,6 +985,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
             for (auto v : clonedOp->getResults()) {
               rewriter.setInsertionPoint(newWrapper);
               auto mt = MemRefType::get({}, v.getType());
+              // TODO we never actually free this...
               auto alloc = rewriter.create<gpu::AllocOp>(
                   loc, mt, /* asyncToken type */ nullptr,
                   /* TODO asyncDependencies */ ValueRange(),

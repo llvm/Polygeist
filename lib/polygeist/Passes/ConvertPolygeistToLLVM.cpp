@@ -1362,6 +1362,11 @@ protected:
       "__cudaRegisterFatBinary", llvmPointerPointerType, {llvmPointerType}};
   FunctionCallBuilder rtRegisterFatBinaryEndCallBuilder = {
       "__cudaRegisterFatBinaryEnd", llvmVoidType, {llvmPointerPointerType}};
+  FunctionCallBuilder rtAllocCallBuilder = {
+      "mgpurtMemAlloc",
+      llvmPointerType /* void * */,
+      {llvmIntPtrType /* intptr_t sizeBytes */,
+       llvmPointerType /* void *stream */}};
   FunctionCallBuilder allocCallBuilder = {
       "mgpuMemAlloc",
       llvmPointerType /* void * */,
@@ -2192,7 +2197,7 @@ private:
     // auto stream = adaptor.getAsyncDependencies().front();
     auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
     Value allocatedPtr =
-        allocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
+        rtAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
     allocatedPtr =
         rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, allocatedPtr);
 

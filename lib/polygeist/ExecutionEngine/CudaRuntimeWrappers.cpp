@@ -87,6 +87,13 @@ mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
                                           smem, stream));
 }
 
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *
+mgpurtMemAlloc(uint64_t sizeBytes, CUstream /*stream*/) {
+  void *ptr;
+  CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
+  return reinterpret_cast<void *>(ptr);
+}
+
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpuLaunchKernelErr(
     CUfunction function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
     intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
