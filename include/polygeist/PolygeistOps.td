@@ -67,6 +67,28 @@ def SubIndexOp : Polygeist_Op<"subindex", [
   }];
 }
 
+def GPUBlockOp : Polygeist_Op<"gpu_block", [
+  RecursiveMemoryEffects,
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins Index:$blockIndexX, Index:$blockIndexY, Index:$blockIndexZ)> {
+  let summary = "Wraps a GPU kernel block to prevent restructuring";
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins
+      "Value":$blockIndexX, "Value":$blockIndexY, "Value":$blockIndexZ)>];
+}
+
+def GPUThreadOp : Polygeist_Op<"gpu_thread", [
+  RecursiveMemoryEffects,
+  SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
+  Arguments<(ins Index:$threadIndexX, Index:$threadIndexY, Index:$threadIndexZ)> {
+  let summary = "Wraps a GPU kernel thread to prevent restructuring";
+  let regions = (region SizedRegion<1>:$region);
+  let skipDefaultBuilders = 1;
+  let builders = [OpBuilder<(ins
+      "Value":$threadIndexX, "Value":$threadIndexY, "Value":$threadIndexZ)>];
+}
+
 def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
   RecursiveMemoryEffects]> {
   let summary = "Provides several alternatives kernels for gpu code";
@@ -77,6 +99,7 @@ def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
 
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   RecursiveMemoryEffects,
+  AutomaticAllocationScope,
   SingleBlockImplicitTerminator<"polygeist::PolygeistYieldOp">]>,
   Arguments<(ins Index:$blockSizeX, Index:$blockSizeY, Index:$blockSizeZ)> {
   let summary = "Indicates the region contained must be executed on the GPU";
@@ -85,7 +108,6 @@ def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins
       "Value":$blockSizeX, "Value":$blockSizeY, "Value":$blockSizeZ)>];
-
 }
 
 def GPUErrorOp : Polygeist_Op<"gpu_error", [
@@ -102,7 +124,7 @@ def GPUErrorOp : Polygeist_Op<"gpu_error", [
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp"]>]> {
+    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp", "GPUBlockOp", "GPUThreadOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 

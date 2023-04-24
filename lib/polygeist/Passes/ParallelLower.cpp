@@ -75,9 +75,12 @@ namespace {
 // TODO do not take wrap argument, instead, always wrap and if we will be
 // lowering to cpu, remove them before continuing
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
-  ParallelLower(bool wrapParallelOps) : wrapParallelOps(wrapParallelOps) {}
+  ParallelLower(bool wrapParallelOps, bool preserveGPUKernelStructure)
+      : wrapParallelOps(wrapParallelOps),
+        preserveGPUKernelStructure(preserveGPUKernelStructure) {}
   void runOnOperation() override;
   bool wrapParallelOps;
+  bool preserveGPUKernelStructure;
 };
 struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
   void runOnOperation() override;
@@ -92,8 +95,10 @@ namespace polygeist {
 std::unique_ptr<Pass> createCudaRTLowerPass() {
   return std::make_unique<CudaRTLower>();
 }
-std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps) {
-  return std::make_unique<ParallelLower>(wrapParallelOps);
+std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps,
+                                              bool preserveGPUKernelStructure) {
+  return std::make_unique<ParallelLower>(wrapParallelOps,
+                                         preserveGPUKernelStructure);
 }
 } // namespace polygeist
 } // namespace mlir
@@ -488,8 +493,14 @@ void ParallelLower::runOnOperation() {
                             launchOp.getGridSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *blockB = &block.getRegion().front();
-
     builder.setInsertionPointToStart(blockB);
+
+    if (preserveGPUKernelStructure) {
+      auto gpuBlock = builder.create<polygeist::GPUBlockOp>(
+          loc, blockB->getArguments()[0], blockB->getArguments()[1],
+          blockB->getArguments()[2]);
+      builder.setInsertionPointToStart(&gpuBlock.getRegion().front());
+    }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
         loc, std::vector<Value>({zindex, zindex, zindex}),
@@ -497,6 +508,16 @@ void ParallelLower::runOnOperation() {
                             launchOp.getBlockSizeZ()}),
         std::vector<Value>({oneindex, oneindex, oneindex}));
     Block *threadB = &threadr.getRegion().front();
+    builder.setInsertionPointToStart(threadB);
+    Operation *mergeLoc = threadB->getTerminator();
+
+    if (preserveGPUKernelStructure) {
+      auto gpuThread = builder.create<polygeist::GPUThreadOp>(
+          loc, threadB->getArguments()[0], threadB->getArguments()[1],
+          threadB->getArguments()[2]);
+      builder.setInsertionPointToStart(&gpuThread.getRegion().front());
+      mergeLoc = gpuThread.getRegion().front().getTerminator();
+    }
 
     launchOp.getRegion().front().getTerminator()->erase();
 
@@ -509,8 +530,7 @@ void ParallelLower::runOnOperation() {
     launchArgs.push_back(launchOp.getBlockSizeX());
     launchArgs.push_back(launchOp.getBlockSizeY());
     launchArgs.push_back(launchOp.getBlockSizeZ());
-    builder.mergeBlockBefore(&launchOp.getRegion().front(),
-                             threadr.getRegion().front().getTerminator(),
+    builder.mergeBlockBefore(&launchOp.getRegion().front(), mergeLoc,
                              launchArgs);
 
     auto container = threadr;
