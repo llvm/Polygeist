@@ -72,6 +72,8 @@ public:
 
     CUDA_REPORT_IF_ERROR(cuCtxPushCurrent(context));
   }
+
+  ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
@@ -91,10 +93,28 @@ extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAlloc(uint64_t sizeBytes,
   return reinterpret_cast<void *>(ptr);
 }
 
+// The wrapper uses intptr_t instead of CUDA's unsigned int to match
+// the type of MLIR's index type. This avoids the need for casts in the
+// generated MLIR code.
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpuLaunchKernel(CUfunction function, intptr_t gridX, intptr_t gridY,
+                 intptr_t gridZ, intptr_t blockX, intptr_t blockY,
+                 intptr_t blockZ, int32_t smem, CUstream stream, void **params,
+                 void **extra) {
+  ScopedContext scopedContext;
+  CUDA_REPORT_IF_ERROR(cuLaunchKernel(function, gridX, gridY, gridZ, blockX,
+                                      blockY, blockZ, smem, stream, params,
+                                      extra));
+}
+
+// The wrapper uses intptr_t instead of CUDA's unsigned int to match
+// the type of MLIR's index type. This avoids the need for casts in the
+// generated MLIR code.
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpuLaunchKernelErr(
     CUfunction function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
     intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
     CUstream stream, void **params, void **extra) {
+  ScopedContext scopedContext;
   return CUDA_REPORT_IF_ERROR(cuLaunchKernel(function, gridX, gridY, gridZ,
                                              blockX, blockY, blockZ, smem,
                                              stream, params, extra));

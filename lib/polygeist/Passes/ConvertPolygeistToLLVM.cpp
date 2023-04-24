@@ -1889,13 +1889,12 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
 
         auto nullPtr = ctorBuilder.create<LLVM::NullOp>(loc, llvmPointerType);
         // TODO second param should be ptr to the the original function stub
-        // here as clang generates it: e.g. kernel_name_device_stub
+        // here like clang does it: e.g. kernel_name_device_stub
         //
         // TODO We should probably always generate the original kernel as well
-        // and register it too, in case the pointer to the stub is captured
-        // somewhere and it is called through cudaLaunchKernel (I suspect this
-        // parameter is how cudaLaunchKernel knows which kernel to launch
-        // through the kernel function pointer)
+        // and register it too (in addition to the lowered to parallel and
+        // re-outlined version that we generate) in case the pointer to the stub
+        // is captured somewhere and it is called through cudaLaunchKernel
         auto stub = moduleBuilder.create<LLVM::LLVMFuncOp>(
             loc, getFuncStubName(moduleName, f.getName()),
             LLVM::LLVMFunctionType::get(llvmVoidType, {}));
@@ -1974,12 +1973,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   }
 
   if (errOp) {
-    // auto cast = rewriter.create<arith::IndexCastOp>(
-    //     loc, rewriter.getIndexType(), launchCall->getResult(0));
-    // rewriter.replaceOp(errOp, cast->getResults());
-
-    rewriter.replaceOp(
-        errOp, rewriter.create<arith::ConstantIndexOp>(loc, 0)->getResults());
+    auto cast = rewriter.create<arith::IndexCastOp>(
+        loc, rewriter.getIndexType(), launchCall->getResult(0));
+    rewriter.replaceOp(errOp, cast->getResults());
   }
 
   return success();
