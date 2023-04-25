@@ -1416,6 +1416,21 @@ protected:
           llvmPointerType,        /* void *hstream */
           llvmPointerPointerType, /* void **kernelParams */
       }};
+  FunctionCallBuilder rtLaunchKernelErrCallBuilder = {
+      "mgpurtLaunchKernelErr",
+      llvmInt32Type,
+      {
+          llvmPointerType,        /* void* f */
+          llvmIntPtrType,         /* intptr_t gridXDim */
+          llvmIntPtrType,         /* intptr_t gridyDim */
+          llvmIntPtrType,         /* intptr_t gridZDim */
+          llvmIntPtrType,         /* intptr_t blockXDim */
+          llvmIntPtrType,         /* intptr_t blockYDim */
+          llvmIntPtrType,         /* intptr_t blockZDim */
+          llvmInt32Type,          /* unsigned int sharedMemBytes */
+          llvmPointerType,        /* void *hstream */
+          llvmPointerPointerType, /* void **kernelParams */
+      }};
   FunctionCallBuilder launchKernelCallBuilder = {
       "mgpuLaunchKernel",
       llvmVoidType,
@@ -1959,7 +1974,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   Value dynamicSharedMemorySize = launchOp.getDynamicSharedMemorySize()
                                       ? launchOp.getDynamicSharedMemorySize()
                                       : zero;
-  auto launchCall = rtLaunchKernelCallBuilder.create(
+  auto launchCall = rtLaunchKernelErrCallBuilder.create(
       loc, rewriter,
       {bitcast.getResult(), adaptor.getGridSizeX(), adaptor.getGridSizeY(),
        adaptor.getGridSizeZ(), adaptor.getBlockSizeX(), adaptor.getBlockSizeY(),
