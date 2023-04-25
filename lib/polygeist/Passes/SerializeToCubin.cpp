@@ -16,12 +16,18 @@
 #include "llvm/Support/raw_ostream.h"
 
 #if POLYGEIST_ENABLE_CUDA
+#include "mlir/Analysis/DataLayoutAnalysis.h"
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "mlir/Target/LLVMIR/Import.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -150,9 +156,35 @@ void SerializeToCubinPass::getDependentDialects(
 
 std::unique_ptr<llvm::Module>
 SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
+  gpu::GPUModuleOp gpum = getOperation();
+
+  mlir::ModuleOp m = gpum->getParentOfType<mlir::ModuleOp>();
+
+  mlir::ModuleOp tmpModule(
+      mlir::ModuleOp::create(mlir::OpBuilder(m->getContext()).getUnknownLoc()));
+  // Prepare DL, triple attributes
+  auto triple =
+      m->getAttr(StringRef("polygeist.gpu_module." +
+                           LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+  auto DL = m->getAttrOfType<mlir::StringAttr>(
+                 StringRef("polygeist.gpu_module." +
+                           LLVM::LLVMDialect::getDataLayoutAttrName().str()))
+                .getValue();
+  tmpModule->setAttr(LLVM::LLVMDialect::getTargetTripleAttrName(), triple);
+  tmpModule->setAttr(LLVM::LLVMDialect::getDataLayoutAttrName(),
+                     StringAttr::get(tmpModule->getContext(), DL));
+  tmpModule->setAttr(
+      ("dlti." + DataLayoutSpecAttr::kAttrKeyword).str(),
+      translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
+
+  tmpModule->getRegion(0).front().erase();
+  BlockAndValueMapping mapping;
+  gpum->getRegion(0).cloneInto(&tmpModule->getRegion(0), mapping);
 
   std::unique_ptr<llvm::Module> llvmModule =
-      translateModuleToLLVMIR(getOperation(), llvmContext, "LLVMDialectModule");
+      translateModuleToLLVMIR(tmpModule, llvmContext, gpum.getNameAttr());
+  tmpModule->erase();
+
   if (!llvmModule)
     return llvmModule;
 

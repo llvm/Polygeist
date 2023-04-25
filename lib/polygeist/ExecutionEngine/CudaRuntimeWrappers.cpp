@@ -86,6 +86,15 @@ mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
                                           smem, stream));
 }
 
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtLaunchKernelErr(
+    void *function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
+    intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
+    CUstream stream, void **params) {
+  return CUDART_REPORT_IF_ERROR(
+      cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
+                       dim3(blockX, blockY, blockZ), params, smem, stream));
+}
+
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAlloc(uint64_t sizeBytes,
                                                           CUstream /*stream*/) {
   void *ptr;
