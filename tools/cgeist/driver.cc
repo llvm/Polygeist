@@ -91,9 +91,14 @@ static cl::opt<bool> PreserveGPUKernelStructure(
     "preserve-gpu-kernel-structure", cl::init(false),
     cl::desc("Do not alter the original gpu kernel parallel structure"));
 
+static cl::opt<bool> EmitGPUKernelLaunchBounds(
+    "emit-gpu-kernel-launch-bounds", cl::init(true),
+    cl::desc("Emit GPU kernel launch bounds where possible"));
+
 #if POLYGEIST_ENABLE_CUDA
 static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
                                   cl::desc("Optimization level for ptxas"));
+
 #endif
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
@@ -860,7 +865,7 @@ int main(int argc, char **argv) {
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
-      pm.addPass(polygeist::createConvertParallelToGPUPass2());
+      pm.addPass(polygeist::createConvertParallelToGPUPass2(EmitGPUKernelLaunchBounds));
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
       if (mlir::failed(pm.run(module.get()))) {

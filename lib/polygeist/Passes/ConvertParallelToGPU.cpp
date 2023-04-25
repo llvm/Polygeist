@@ -1404,10 +1404,14 @@ struct ConvertParallelToGPU1Pass
 
 struct ConvertParallelToGPU2Pass
     : public ConvertParallelToGPU2Base<ConvertParallelToGPU2Pass> {
-  ConvertParallelToGPU2Pass() {}
+  bool emitGPUKernelLaunchBounds;
+  ConvertParallelToGPU2Pass(bool emitGPUKernelLaunchBounds) :
+      emitGPUKernelLaunchBounds(emitGPUKernelLaunchBounds) {}
   void runOnOperation() override {
     RewritePatternSet patterns(&getContext());
-    patterns.insert<AddLaunchBounds, SharedLLVMAllocaToGlobal,
+    if (emitGPUKernelLaunchBounds)
+      patterns.insert<AddLaunchBounds>(&getContext());
+    patterns.insert<SharedLLVMAllocaToGlobal,
                     SharedMemrefAllocaToGlobal, RemoveFunction<func::FuncOp>,
                     RemoveFunction<LLVM::LLVMFuncOp>>(&getContext());
     GreedyRewriteConfig config;
@@ -1425,6 +1429,6 @@ std::unique_ptr<Pass>
 mlir::polygeist::createConvertParallelToGPUPass1(bool useOriginalThreadNums) {
   return std::make_unique<ConvertParallelToGPU1Pass>(useOriginalThreadNums);
 }
-std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2() {
-  return std::make_unique<ConvertParallelToGPU2Pass>();
+std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds) {
+  return std::make_unique<ConvertParallelToGPU2Pass>(emitGPUKernelLaunchBounds);
 }
