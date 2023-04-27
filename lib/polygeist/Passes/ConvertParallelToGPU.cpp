@@ -1258,30 +1258,6 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
       argReplacements.push_back(gridIdx);
     }
 
-    // I _think_ replacing these with gpu.block_dim is good because the block
-    // dims might already be in registers as opposed to constants of other
-    // values TODO investigate
-    for (auto en : llvm::enumerate(popBlockBounds)) {
-      gpu::Dimension dim = getDim(en.index());
-      auto blockDim = rewriter.create<gpu::BlockDimOp>(
-          loc, mlir::IndexType::get(rewriter.getContext()), dim);
-      rewriter.updateRootInPlace(launchOp, [&] {
-        en.value().replaceUsesWithIf(blockDim, [&](OpOperand &operand) {
-          return launchOp->isProperAncestor(operand.getOwner());
-        });
-      });
-    }
-    for (auto en : llvm::enumerate(popGridBounds)) {
-      gpu::Dimension dim = getDim(en.index());
-      auto gridDim = rewriter.create<gpu::GridDimOp>(
-          loc, mlir::IndexType::get(rewriter.getContext()), dim);
-      rewriter.updateRootInPlace(launchOp, [&] {
-        en.value().replaceUsesWithIf(gridDim, [&](OpOperand &operand) {
-          return launchOp->isProperAncestor(operand.getOwner());
-        });
-      });
-    }
-
     rewriter.setInsertionPointToEnd(launchBlock);
     rewriter.create<gpu::TerminatorOp>(loc);
 
