@@ -4,6 +4,9 @@
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Pass/Pass.h"
 #include <memory>
+
+enum PolygeistAlternativesMode { PAM_Static, PAM_PGO_Profile, PAM_PGO_Opt };
+
 namespace mlir {
 class PatternRewriter;
 class RewritePatternSet;

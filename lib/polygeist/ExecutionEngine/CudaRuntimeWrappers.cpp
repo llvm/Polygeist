@@ -17,6 +17,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <mutex>
+#include <time.h>
 
 #include "cuda.h"
 #include "cuda_runtime.h"
@@ -75,6 +78,112 @@ public:
 
   ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
+
+class PGOState {
+public:
+  enum Type { Start, End };
+  struct State {
+    struct timespec start_clock;
+  };
+
+  // TODO define these in cmake files (depending on target OS and used in the
+  // compiler too)
+  static constexpr const char *dirname = POLYGEIST_PGO_DATA_DIR;
+  static constexpr const char *alternativeEnvVar =
+      "POLYGEIST_PGO_KERNEL_ALTERNATIVE";
+
+  inline static int alternative;
+  inline thread_local static std::mutex mutex;
+  inline thread_local static std::map<std::string, State *> states;
+
+  std::string kernelId;
+  int totalAlternatives;
+
+  PGOState(const char *kernelId, int totalAlternatives)
+      : kernelId(kernelId), totalAlternatives(totalAlternatives) {}
+  void end() {
+    struct timespec end_clock;
+    cudaDeviceSynchronize();
+    clock_gettime(CLOCK_MONOTONIC, &end_clock);
+
+    std::unique_lock<std::mutex> lock(mutex);
+    if (states.count(kernelId) == 0) {
+      std::cerr << "No kernel with id " << kernelId << "running" << std::endl;
+      exit(1);
+    }
+    State *state = states[kernelId];
+    struct timespec tmp_clock {
+      end_clock.tv_sec - state->start_clock.tv_sec,
+          end_clock.tv_nsec - state->start_clock.tv_nsec
+    };
+    double elapsed =
+        (tmp_clock.tv_sec + ((double)tmp_clock.tv_nsec) * .000000001);
+
+    // Only write to file if we are profiling a valid alternative
+    if (0 <= alternative && alternative < totalAlternatives) {
+      // TODO error handling
+      std::ofstream ofile;
+      ofile.open(std::string(dirname) + kernelId,
+                 std::ios::out | std::ios::app);
+      ofile << alternative << " " << elapsed << std::endl;
+      ofile.close();
+    }
+
+    delete state;
+    states.erase(states.find(kernelId));
+  }
+
+  void start() {
+    std::unique_lock<std::mutex> lock(mutex);
+    State *state = new State();
+    if (states.count(kernelId) == 1) {
+      std::cerr << "Two kernels with id " << kernelId
+                << "running at the same time" << std::endl;
+      exit(1);
+    }
+    states[kernelId] = state;
+    // Start timing
+    cudaDeviceSynchronize();
+    clock_gettime(CLOCK_MONOTONIC, &state->start_clock);
+  }
+
+  int getAlternative() {
+    static int init = [&] {
+      if (char *i = getenv(alternativeEnvVar)) {
+        this->alternative = atoi(i);
+      } else {
+        std::cerr << alternativeEnvVar << " not defined" << std::endl;
+        exit(1);
+      }
+      std::filesystem::create_directories(dirname);
+      return 0;
+    }();
+    if (0 <= alternative && alternative < totalAlternatives)
+      return alternative;
+    else
+      return 0;
+  }
+
+  ~PGOState() {}
+};
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
+mgpurtPGOGetAlternative(const char *kernelID, int totalAlternatives) {
+  PGOState pgoState(kernelID, totalAlternatives);
+  return pgoState.getAlternative();
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+mgpurtPGOStart(const char *kernelID, int totalAlternatives) {
+  PGOState pgoState(kernelID, totalAlternatives);
+  pgoState.start();
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtPGOEnd(const char *kernelID,
+                                                       int totalAlternatives) {
+  PGOState pgoState(kernelID, totalAlternatives);
+  pgoState.end();
+}
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
 mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,

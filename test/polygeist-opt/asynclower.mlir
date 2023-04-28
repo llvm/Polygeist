@@ -57,8 +57,7 @@ module {
 // CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(20 : index) : i64
 // CHECK:           %[[VAL_6:.*]] = llvm.mlir.constant(10 : index) : i64
 // CHECK:           %[[VAL_7:.*]] = llvm.bitcast %[[VAL_0]] : !llvm.ptr<struct<()>> to !llvm.ptr<i8>
-// CHECK:           %[[VAL_8:.*]] = llvm.bitcast %[[VAL_7]] : !llvm.ptr<i8> to !llvm.ptr<i8>
-// CHECK:           %[[VAL_9:.*]] = builtin.unrealized_conversion_cast %[[VAL_8]] : !llvm.ptr<i8> to memref<?xi8>
+// CHECK:           %[[VAL_9:.*]] = builtin.unrealized_conversion_cast %[[VAL_7]] : !llvm.ptr<i8> to memref<?xi8>
 // CHECK:           %[[VAL_10:.*]] = llvm.mlir.constant(16 : i64) : i64
 // CHECK:           %[[VAL_11:.*]] = llvm.call @malloc(%[[VAL_10]]) : (i64) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_12:.*]] = llvm.bitcast %[[VAL_11]] : !llvm.ptr<i8> to !llvm.ptr<struct<(ptr<i32>, i32)>>
@@ -72,7 +71,7 @@ module {
 // CHECK:           llvm.store %[[VAL_2]], %[[VAL_18]] : !llvm.ptr<i32>
 // CHECK:           %[[VAL_19:.*]] = llvm.bitcast %[[VAL_12]] : !llvm.ptr<struct<(ptr<i32>, i32)>> to !llvm.ptr<i8>
 // CHECK:           %[[VAL_20:.*]] = llvm.mlir.addressof @kernelbody.{{[0-9\.]+}} : !llvm.ptr<func<void (ptr<i8>)>>
-// CHECK:           %[[VAL_21:.*]] = llvm.bitcast %[[VAL_8]] : !llvm.ptr<i8> to !llvm.ptr<i8>
+// CHECK:           %[[VAL_21:.*]] = llvm.bitcast %[[VAL_7]] : !llvm.ptr<i8> to !llvm.ptr<i8>
 // CHECK:           llvm.call @fake_cuda_dispatch(%[[VAL_19]], %[[VAL_20]], %[[VAL_21]]) : (!llvm.ptr<i8>, !llvm.ptr<func<void (ptr<i8>)>>, !llvm.ptr<i8>) -> ()
 // CHECK:           llvm.return
 
@@ -81,7 +80,6 @@ module {
 // CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : index) : i64
 // CHECK:           llvm.br ^bb1
 // CHECK:         ^bb1:
-// CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(10 : index) : i64
 // CHECK:           llvm.br ^bb2(%[[VAL_1]] : i64)
 // CHECK:         ^bb2(%[[VAL_3:.*]]: i64):
 // CHECK:           %[[VAL_4:.*]] = llvm.icmp "slt" %[[VAL_3]], %[[VAL_1]] : i64

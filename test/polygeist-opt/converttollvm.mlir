@@ -1,7 +1,7 @@
 // RUN: polygeist-opt --convert-polygeist-to-llvm --split-input-file %s | FileCheck %s
 
 module {
-  func.func @get_neighbor_index() {
+  func.func @get_neighbor_index() -> i1 {
     %true = arith.constant true
     %false = arith.constant false
       %c0 = arith.constant 0 : index
@@ -15,26 +15,27 @@ module {
         }
         scf.yield %7 : i1
       }
-    return 
+    return %6 : i1
   }
 }
 
-// CHECK:   llvm.func @get_neighbor_index() {
-// CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.constant(true) : i1
-// CHECK-NEXT:     %[[V1:.+]] = llvm.mlir.constant(false) : i1
-// CHECK-NEXT:     %[[V2:.+]] = llvm.mlir.constant(0 : index) : i64
-// CHECK-NEXT:     %[[V3:.+]] = llvm.mlir.constant(1 : index) : i64
-// CHECK-NEXT:     %[[V4:.+]] = llvm.mlir.constant(10 : index) : i64
-// CHECK-NEXT:     %[[V5:.+]] = llvm.mlir.constant(true) : i1
-// CHECK-NEXT:     llvm.cond_br %[[V5]], ^bb1(%[[V2]], %[[V0]] : i64, i1), ^bb3(%[[V0]] : i1)
-// CHECK-NEXT:   ^bb1(%[[V6:.+]]: i64, %[[V7:.+]]: i1):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:     llvm.br ^bb2
-// CHECK-NEXT:   ^bb2:  // pred: ^bb1
-// CHECK-NEXT:     %[[V8:.+]] = llvm.add %[[V6]], %[[V3]]  : i64
-// CHECK-NEXT:     %[[V9:.+]] = llvm.icmp "slt" %[[V8]], %[[V4]] : i64
-// CHECK-NEXT:     llvm.cond_br %[[V9]], ^bb1(%[[V8]], %[[V0]] : i64, i1), ^bb3(%[[V0]] : i1)
-// CHECK-NEXT:   ^bb3(%[[V10:.+]]: i1):  // 2 preds: ^bb0, ^bb2
-// CHECK-NEXT:     llvm.br ^bb4
-// CHECK-NEXT:   ^bb4:  // pred: ^bb3
-// CHECK-NEXT:     llvm.return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   llvm.func @get_neighbor_index() -> i1 {
+// CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(true) : i1
+// CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(false) : i1
+// CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(10 : index) : i64
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(true) : i1
+// CHECK:           llvm.cond_br %[[VAL_5]], ^bb1(%[[VAL_2]], %[[VAL_0]] : i64, i1), ^bb3(%[[VAL_0]] : i1)
+// CHECK:         ^bb1(%[[VAL_6:.*]]: i64, %[[VAL_7:.*]]: i1):
+// CHECK:           llvm.br ^bb2
+// CHECK:         ^bb2:
+// CHECK:           %[[VAL_8:.*]] = llvm.add %[[VAL_6]], %[[VAL_3]]  : i64
+// CHECK:           %[[VAL_9:.*]] = llvm.icmp "slt" %[[VAL_8]], %[[VAL_4]] : i64
+// CHECK:           llvm.cond_br %[[VAL_9]], ^bb1(%[[VAL_8]], %[[VAL_0]] : i64, i1), ^bb3(%[[VAL_0]] : i1)
+// CHECK:         ^bb3(%[[VAL_10:.*]]: i1):
+// CHECK:           llvm.br ^bb4
+// CHECK:         ^bb4:
+// CHECK:           llvm.return %[[VAL_10]] : i1
+// CHECK:         }
+

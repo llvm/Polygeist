@@ -52,6 +52,7 @@ if(POLYGEIST_ENABLE_CUDA)
       ${bc_flags}
       ${infile} -o ${bc_outfile}
       -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      -DPOLYGEIST_PGO_DATA_DIR="${POLYGEIST_PGO_DATA_DIR}"
       DEPENDS ${infile}
       COMMENT "Building LLVM bitcode ${bc_outfile}"
       VERBATIM
