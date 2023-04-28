@@ -51,6 +51,11 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIROpenMPToLLVM
   )
 
+target_compile_definitions(obj.MLIRPolygeistTransforms
+  PRIVATE
+  POLYGEIST_PGO_DATA_DIR="${POLYGEIST_PGO_DATA_DIR}"
+)
+
 if(POLYGEIST_ENABLE_CUDA)
   find_package(CUDA)
   enable_language(CUDA)

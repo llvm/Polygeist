@@ -95,41 +95,41 @@ func.func @alloc_3d_static() -> memref<2x4x42xf32> {
 // CHECK-LABEL: @alloca_0d
 // CHECK: %[[num_elems:.+]] = llvm.mlir.constant(1 : index)
 // CHECK: llvm.alloca %[[num_elems]] x f32
-func.func @alloca_0d() {
+func.func @alloca_0d() -> memref<f32> {
   %0 = memref.alloca() : memref<f32>
-  return
+  return %0 : memref<f32>
 }
 
 // CHECK-LABEL: @alloca_1d_dynamic
 // CHECK-SAME: %[[num_elems:.+]]: i{{.*}}
 // CHECK: llvm.alloca %[[num_elems]] x f32
-func.func @alloca_1d_dynamic(%arg0: index) {    
+func.func @alloca_1d_dynamic(%arg0: index) -> memref<?xf32> {    
   %0 = memref.alloca(%arg0) : memref<?xf32>
-  return
+  return %0 : memref<?xf32>
 }
 
 // CHECK-LABEL: @alloca_1d_static
 // CHECK: %[[num_elems:.+]] = llvm.mlir.constant(42 : index)
 // CHECK: llvm.alloca %[[num_elems]] x f32
-func.func @alloca_1d_static() {
+func.func @alloca_1d_static() -> memref<42xf32> {
   %0 = memref.alloca() : memref<42xf32>
-  return
+  return %0 : memref<42xf32>
 }
 
 // CHECK-LABEL: @alloca_3d_dynamic
 // CHECK-SAME: %[[num_elems:.+]]: i{{.*}}
 // CHECK: llvm.alloca %[[num_elems]] x !llvm.array<4 x array<42 x f32>>
-func.func @alloca_3d_dynamic(%arg0: index) {
+func.func @alloca_3d_dynamic(%arg0: index) -> memref<?x4x42xf32> {
   %0 = memref.alloca(%arg0) : memref<?x4x42xf32>
-  return
+  return %0 : memref<?x4x42xf32>
 }
 
 // CHECK-LABEL: @alloca_3d_static
 // CHECK: %[[num_elems:.+]] = llvm.mlir.constant(2 : index)
 // CHECK: llvm.alloca %[[num_elems]] x !llvm.array<4 x array<42 x f32>>
-func.func @alloca_3d_static() {
+func.func @alloca_3d_static() -> memref<2x4x42xf32> {
   %0 = memref.alloca() : memref<2x4x42xf32>
-  return
+  return %0 : memref<2x4x42xf32>
 }
 
 // CHECK-LABEL: @dealloc_0d
