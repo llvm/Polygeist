@@ -220,6 +220,10 @@ static cl::opt<int>
 static cl::opt<std::string>
     McpuOpt("mcpu", cl::init(""), cl::desc("Target CPU"), cl::cat(toolOptions));
 
+static cl::opt<bool> PMEnablePrinting(
+    "pm-enable-printing", cl::init(false),
+    cl::desc("Enable printing of IR before and after all passes"));
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
 class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
@@ -409,18 +413,6 @@ int emitBinary(char *Argv0, const char *filename,
   return Res;
 }
 
-#define dump_module(PASS_MANAGER, EXEC)                                        \
-  do {                                                                         \
-    llvm::errs() << "at line" << __LINE__ << "\n";                             \
-    (void)PASS_MANAGER.run(module.get());                                      \
-    module->dump();                                                            \
-    EXEC;                                                                      \
-  } while (0)
-#undef dump_module
-#define dump_module(PASS_MANAGER, EXEC)                                        \
-  do {                                                                         \
-  } while (0)
-
 #include "Lib/clang-mlir.cc"
 int main(int argc, char **argv) {
 
@@ -539,7 +531,29 @@ int main(int argc, char **argv) {
   parseMLIR(argv[0], files, cfunction, includeDirs, defines, module, triple, DL,
             gpuTriple, gpuDL);
 
+  auto convertGepInBounds = [](llvm::Module &llvmModule) {
+    for (auto &F : llvmModule) {
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (auto g = dyn_cast<GetElementPtrInst>(&I))
+            g->setIsInBounds(true);
+        }
+      }
+    }
+  };
+  auto addLICM = [](auto &pm) {
+    if (ParallelLICM)
+      pm.addPass(polygeist::createParallelLICMPass());
+    else
+      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
+  };
+  auto enablePrinting = [](auto &pm) {
+    if (PMEnablePrinting)
+      pm.enableIRPrinting();
+  };
+
   mlir::PassManager pm(&context);
+  enablePrinting(pm);
 
   OpPrintingFlags flags;
   if (PrintDebugInfo)
@@ -567,24 +581,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 #endif
-
-  auto convertGepInBounds = [](llvm::Module &llvmModule) {
-    for (auto &F : llvmModule) {
-      for (auto &BB : F) {
-        for (auto &I : BB) {
-          if (auto g = dyn_cast<GetElementPtrInst>(&I))
-            g->setIsInBounds(true);
-        }
-      }
-    }
-  };
-  bool ParallelLICM_ = ParallelLICM;
-  auto addLICM = [&ParallelLICM_](auto &pm) {
-    if (ParallelLICM)
-      pm.addPass(polygeist::createParallelLICMPass());
-    else
-      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
-  };
 
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
@@ -634,6 +630,7 @@ int main(int argc, char **argv) {
 #define pm pm2
     {
       mlir::PassManager pm(&context);
+      enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
 
       if (DetectReduction)
@@ -678,6 +675,7 @@ int main(int argc, char **argv) {
 
     if (CudaLower) {
       mlir::PassManager pm(&context);
+      enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -746,6 +744,7 @@ int main(int argc, char **argv) {
     }
 
     mlir::PassManager pm(&context);
+    enablePrinting(pm);
     mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
     if (CudaLower) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
@@ -861,6 +860,7 @@ int main(int argc, char **argv) {
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
+      enablePrinting(pm2);
       if (SCFOpenMP) {
         pm2.addPass(createConvertSCFToOpenMPPass());
       } else
@@ -880,6 +880,7 @@ int main(int argc, char **argv) {
       if (!EmitOpenMPIR) {
         module->walk([&](mlir::omp::ParallelOp) { LinkOMP = true; });
         mlir::PassManager pm3(&context);
+        enablePrinting(pm3);
         LowerToLLVMOptions options(&context);
         options.dataLayout = DL;
         // invalid for gemm.c init array
