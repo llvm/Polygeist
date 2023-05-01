@@ -12,9 +12,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/ExecutionEngine/CRunnerUtils.h"
-
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <mutex>
+#include <ctime>
 
 #include "cuda.h"
 #include "cuda_runtime.h"

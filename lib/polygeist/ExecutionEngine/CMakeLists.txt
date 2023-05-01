@@ -49,22 +49,23 @@ if(POLYGEIST_ENABLE_CUDA)
 
     # TODO I think CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES is supposed to be a
     # list but seems to contain only one dir so this usage currently works - fix
-    add_custom_target(${bc_outfile} ALL
+    add_custom_command(OUTPUT ${bc_outfile}
       COMMAND ${CLANG_TOOL}
       ${bc_flags}
       ${infile} -o ${bc_outfile}
-      -I${MLIR_MAIN_SRC_DIR}/include
       -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
       DEPENDS ${infile}
       COMMENT "Building LLVM bitcode ${bc_outfile}"
       VERBATIM
     )
-    add_custom_target(${inc_outfile} ALL
+    add_custom_target(${bc_outfile}_target DEPENDS ${bc_outfile})
+    add_custom_command(OUTPUT ${inc_outfile}
       COMMAND ${XXD_BIN} -i ${bc_outfile} ${inc_outfile}
       DEPENDS ${bc_outfile}
       COMMENT "Generating C header ${inc_outfile}"
       VERBATIM
     )
+    add_custom_target(${inc_outfile}_target DEPENDS ${inc_outfile})
     if("${CLANG_TOOL}" STREQUAL "$<TARGET_FILE:clang>")
       # Add a target-level dependency to ensure that clang is up-to-date.
       # By default, add_custom_target only builds clang if the
