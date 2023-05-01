@@ -43,28 +43,36 @@ if(POLYGEIST_ENABLE_CUDA)
 
   foreach(src ${src_files})
     get_filename_component(infile ${src} ABSOLUTE)
-    get_filename_component(outfile ${src} NAME)
-    set(outfile "${outfile}.bc")
+    get_filename_component(filename ${src} NAME)
+    set(inc_outfile "${filename}.bin.h")
+    set(bc_outfile "${filename}.bc")
 
     # TODO I think CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES is supposed to be a
     # list but seems to contain only one dir so this usage currently works - fix
-    add_custom_target(${outfile} ALL
+    add_custom_target(${bc_outfile} ALL
       COMMAND ${CLANG_TOOL}
       ${bc_flags}
-      ${infile} -o ${outfile}
+      ${infile} -o ${bc_outfile}
       -I${MLIR_MAIN_SRC_DIR}/include
       -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
       DEPENDS ${infile}
-      COMMENT "Building LLVM bitcode ${outfile}"
+      COMMENT "Building LLVM bitcode ${bc_outfile}"
+      VERBATIM
+    )
+    add_custom_target(${inc_outfile} ALL
+      COMMAND ${XXD_BIN} -i ${bc_outfile} ${inc_outfile}
+      DEPENDS ${bc_outfile}
+      COMMENT "Generating C header ${inc_outfile}"
       VERBATIM
     )
     if("${CLANG_TOOL}" STREQUAL "$<TARGET_FILE:clang>")
       # Add a target-level dependency to ensure that clang is up-to-date.
       # By default, add_custom_target only builds clang if the
       # executable is missing.
-      add_dependencies(${outfile} clang)
+      add_dependencies(${bc_outfile} clang)
     endif()
-    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${outfile})
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${bc_outfile})
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES ${inc_outfile})
 
   endforeach()
 
