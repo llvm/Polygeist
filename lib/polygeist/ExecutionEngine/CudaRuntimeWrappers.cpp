@@ -17,9 +17,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <map>
-#include <mutex>
-#include <ctime>
 
 #include "cuda.h"
 #include "cuda_runtime.h"
@@ -87,8 +84,8 @@ mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
                                           smem, stream));
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *
-mgpurtMemAlloc(uint64_t sizeBytes, CUstream /*stream*/) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAlloc(uint64_t sizeBytes,
+                                                          CUstream /*stream*/) {
   void *ptr;
   CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
   return reinterpret_cast<void *>(ptr);

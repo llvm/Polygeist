@@ -2197,7 +2197,8 @@ private:
     // auto stream = adaptor.getAsyncDependencies().front();
     auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
     Value allocatedPtr =
-        rtAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream}).getResult();
+        rtAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream})
+            .getResult();
     allocatedPtr =
         rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, allocatedPtr);
 
