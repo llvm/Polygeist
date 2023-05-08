@@ -75,12 +75,13 @@ namespace {
 // TODO do not take wrap argument, instead, always wrap and if we will be
 // lowering to cpu, remove them before continuing
 struct ParallelLower : public ParallelLowerBase<ParallelLower> {
-  ParallelLower(bool wrapParallelOps, bool preserveGPUKernelStructure)
+  ParallelLower(bool wrapParallelOps,
+                PolygeistGPUStructureMode gpuKernelStructureMode)
       : wrapParallelOps(wrapParallelOps),
-        preserveGPUKernelStructure(preserveGPUKernelStructure) {}
+        gpuKernelStructureMode(gpuKernelStructureMode) {}
   void runOnOperation() override;
   bool wrapParallelOps;
-  bool preserveGPUKernelStructure;
+  PolygeistGPUStructureMode gpuKernelStructureMode;
 };
 struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
   void runOnOperation() override;
@@ -95,10 +96,11 @@ namespace polygeist {
 std::unique_ptr<Pass> createCudaRTLowerPass() {
   return std::make_unique<CudaRTLower>();
 }
-std::unique_ptr<Pass> createParallelLowerPass(bool wrapParallelOps,
-                                              bool preserveGPUKernelStructure) {
+std::unique_ptr<Pass>
+createParallelLowerPass(bool wrapParallelOps,
+                        PolygeistGPUStructureMode gpuKernelStructureMode) {
   return std::make_unique<ParallelLower>(wrapParallelOps,
-                                         preserveGPUKernelStructure);
+                                         gpuKernelStructureMode);
 }
 } // namespace polygeist
 } // namespace mlir
@@ -482,8 +484,10 @@ void ParallelLower::runOnOperation() {
 
     if (wrapParallelOps) {
       auto pw = builder.create<polygeist::GPUWrapperOp>(
-          loc, ValueRange({launchOp.getBlockSizeX(), launchOp.getBlockSizeY(),
-                           launchOp.getBlockSizeZ()}));
+          loc,
+          ValueRange({launchOp.getGridSizeX(), launchOp.getGridSizeY(),
+                      launchOp.getGridSizeZ(), launchOp.getBlockSizeX(),
+                      launchOp.getBlockSizeY(), launchOp.getBlockSizeZ()}));
       builder.setInsertionPointToStart(pw.getBody());
     }
 
@@ -495,11 +499,17 @@ void ParallelLower::runOnOperation() {
     Block *blockB = &block.getRegion().front();
     builder.setInsertionPointToStart(blockB);
 
-    if (preserveGPUKernelStructure) {
+    if (gpuKernelStructureMode == PGSM_BlockThreadWrappers) {
       auto gpuBlock = builder.create<polygeist::GPUBlockOp>(
           loc, blockB->getArguments()[0], blockB->getArguments()[1],
           blockB->getArguments()[2]);
       builder.setInsertionPointToStart(&gpuBlock.getRegion().front());
+    } else if (gpuKernelStructureMode == PGSM_BlockThreadNoops) {
+      auto noop = builder.create<polygeist::NoopOp>(
+          loc, ValueRange({blockB->getArguments()[0], blockB->getArguments()[1],
+                           blockB->getArguments()[2]}));
+      noop->setAttr("polygeist.noop_type",
+                    StringAttr::get(noop->getContext(), "gpu_kernel.block"));
     }
 
     auto threadr = builder.create<mlir::scf::ParallelOp>(
@@ -511,14 +521,29 @@ void ParallelLower::runOnOperation() {
     builder.setInsertionPointToStart(threadB);
     Operation *mergeLoc = threadB->getTerminator();
 
-    if (preserveGPUKernelStructure) {
+    if (gpuKernelStructureMode == PGSM_BlockThreadWrappers) {
       auto gpuThread = builder.create<polygeist::GPUThreadOp>(
           loc, threadB->getArguments()[0], threadB->getArguments()[1],
           threadB->getArguments()[2]);
       builder.setInsertionPointToStart(&gpuThread.getRegion().front());
       mergeLoc = gpuThread.getRegion().front().getTerminator();
+    } else if (gpuKernelStructureMode == PGSM_BlockThreadNoops ||
+               gpuKernelStructureMode == PGSM_ThreadNoop) {
+      OpBuilder::InsertionGuard guard(builder);
+      builder.setInsertionPoint(mergeLoc);
+      auto noop = builder.create<polygeist::NoopOp>(
+          loc,
+          ValueRange({threadB->getArguments()[0], threadB->getArguments()[1],
+                      threadB->getArguments()[2]}));
+      if (gpuKernelStructureMode == PGSM_BlockThreadNoops) {
+        noop->setAttr("polygeist.noop_type",
+                      StringAttr::get(noop->getContext(), "gpu_kernel.thread"));
+      } else if (gpuKernelStructureMode == PGSM_ThreadNoop) {
+        noop->setAttr(
+            "polygeist.noop_type",
+            StringAttr::get(noop->getContext(), "gpu_kernel.thread_only"));
+      }
     }
-
     launchOp.getRegion().front().getTerminator()->erase();
 
     SmallVector<Value> launchArgs;
