@@ -18,6 +18,17 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 
+def NoopOp
+    : Polygeist_Op<"noop",
+                   [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Noop for preventing folding or transformations";
+  let arguments = (ins Variadic<Index>:$blockDims);
+  let skipDefaultBuilders = 1;
+  let builders = [
+      OpBuilder<(ins "ValueRange":$indices)>];
+  let description = [{}];
+}
+
 def CacheLoad
     : Polygeist_Op<"cacheload"> {
 

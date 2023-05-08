@@ -87,9 +87,16 @@ static cl::opt<bool>
                             cl::desc("Try not to alter the GPU kernel block "
                                      "sizes originally used in the code"));
 
-static cl::opt<bool> PreserveGPUKernelStructure(
-    "preserve-gpu-kernel-structure", cl::init(false),
-    cl::desc("Do not alter the original gpu kernel parallel structure"));
+static cl::opt<PolygeistGPUStructureMode> GPUKernelStructureMode(
+    "gpu-kernel-structure-mode", cl::init(PGSM_Discard),
+    cl::desc("How to hangle the original gpu kernel parallel structure"),
+    llvm::cl::values(
+        clEnumValN(PGSM_Discard, "discard", "Discard the structure"),
+        clEnumValN(PGSM_BlockThreadWrappers, "block_thread_wrappers",
+                   "Wrap blocks and thread in operations"),
+        clEnumValN(PGSM_ThreadNoop, "thread_noop", "Put noop in the thread"),
+        clEnumValN(PGSM_BlockThreadNoops, "block_thread_noops",
+                   "Put noops in the block and thread")));
 
 static cl::opt<bool> EmitGPUKernelLaunchBounds(
     "emit-gpu-kernel-launch-bounds", cl::init(true),
@@ -681,7 +688,7 @@ int main(int argc, char **argv) {
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 #if POLYGEIST_ENABLE_CUDA
       pm.addPass(polygeist::createParallelLowerPass(
-          /* wrapParallelOps */ EmitCuda, PreserveGPUKernelStructure));
+          /* wrapParallelOps */ EmitCuda, GPUKernelStructureMode));
       if (!EmitCuda)
         pm.addPass(polygeist::createCudaRTLowerPass());
 #else
@@ -846,7 +853,8 @@ int main(int argc, char **argv) {
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
       // cudaFuncSetCacheConfig e.g.
-      pm.addPass(polygeist::createConvertParallelToGPUPass2(EmitGPUKernelLaunchBounds));
+      pm.addPass(polygeist::createConvertParallelToGPUPass2(
+          EmitGPUKernelLaunchBounds));
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
       addLICM(pm);

@@ -43,6 +43,30 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
+// NoopOp
+//===----------------------------------------------------------------------===//
+
+struct NoopResource : public SideEffects::Resource::Base<NoopResource> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(NoopResource)
+
+  StringRef getName() final { return "<NoopResource>"; }
+};
+
+void NoopOp::build(OpBuilder &builder, OperationState &result,
+                   ValueRange indices) {
+  result.addOperands(indices);
+}
+
+void NoopOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // TODO CHECK is it okay to ::get() a new resource every time?
+  SideEffects::Resource *resource = NoopResource::get();
+  MemoryEffects::Effect *effect =
+      MemoryEffects::Effect::get<MemoryEffects::Write>();
+  effects.emplace_back(effect, resource);
+}
+
+//===----------------------------------------------------------------------===//
 // GPUErrorOp
 //===----------------------------------------------------------------------===//
 
@@ -652,6 +676,8 @@ static bool mayAlias(Value v, Value v2) {
 
 bool mayAlias(MemoryEffects::EffectInstance a,
               MemoryEffects::EffectInstance b) {
+  if (a.getResource()->getResourceID() != b.getResource()->getResourceID())
+    return false;
   if (Value v2 = b.getValue()) {
     return mayAlias(a, v2);
   } else if (Value v = a.getValue()) {
