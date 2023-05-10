@@ -40,9 +40,8 @@ module {
 // CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 10000000 : index
 // CHECK:           gpu.launch blocks(%[[VAL_4:.*]], %[[VAL_5:.*]], %[[VAL_6:.*]]) in (%[[VAL_7:.*]] = %[[VAL_2]], %[[VAL_8:.*]] = %[[VAL_0]], %[[VAL_9:.*]] = %[[VAL_0]]) threads(%[[VAL_10:.*]], %[[VAL_11:.*]], %[[VAL_12:.*]]) in (%[[VAL_13:.*]] = %[[VAL_1]], %[[VAL_14:.*]] = %[[VAL_0]], %[[VAL_15:.*]] = %[[VAL_0]]) {
 // CHECK:             %[[VAL_16:.*]] = gpu.block_id  x
-// CHECK:             %[[VAL_17:.*]] = gpu.block_dim  x
 // CHECK:             %[[VAL_18:.*]] = gpu.thread_id  x
-// CHECK:             %[[VAL_19:.*]] = arith.muli %[[VAL_16]], %[[VAL_17]] : index
+// CHECK:             %[[VAL_19:.*]] = arith.muli %[[VAL_16]], %[[VAL_1]] : index
 // CHECK:             %[[VAL_20:.*]] = arith.addi %[[VAL_19]], %[[VAL_18]] : index
 // CHECK:             %[[VAL_21:.*]] = arith.cmpi ult, %[[VAL_20]], %[[VAL_3]] : index
 // CHECK:             scf.if %[[VAL_21]] {
@@ -150,11 +149,10 @@ module {
 // CHECK:               gpu.launch blocks(%[[VAL_165:.*]], %[[VAL_166:.*]], %[[VAL_167:.*]]) in (%[[VAL_168:.*]] = %[[VAL_0]], %[[VAL_169:.*]] = %[[VAL_163]], %[[VAL_170:.*]] = %[[VAL_10]]) threads(%[[VAL_171:.*]], %[[VAL_172:.*]], %[[VAL_173:.*]]) in (%[[VAL_174:.*]] = %[[VAL_7]], %[[VAL_175:.*]] = %[[VAL_9]], %[[VAL_176:.*]] = %[[VAL_8]]) {
 // CHECK:                 %[[VAL_177:.*]] = gpu.block_id  x
 // CHECK:                 %[[VAL_178:.*]] = gpu.block_id  y
-// CHECK:                 %[[VAL_179:.*]] = gpu.block_dim  x
 // CHECK:                 %[[VAL_180:.*]] = gpu.thread_id  x
 // CHECK:                 %[[VAL_181:.*]] = gpu.thread_id  y
 // CHECK:                 %[[VAL_182:.*]] = gpu.thread_id  z
-// CHECK:                 %[[VAL_183:.*]] = arith.muli %[[VAL_178]], %[[VAL_179]] : index
+// CHECK:                 %[[VAL_183:.*]] = arith.muli %[[VAL_178]], %[[VAL_7]] : index
 // CHECK:                 %[[VAL_184:.*]] = arith.addi %[[VAL_183]], %[[VAL_180]] : index
 // CHECK:                 %[[VAL_185:.*]] = arith.cmpi ult, %[[VAL_184]], %[[VAL_1]] : index
 // CHECK:                 scf.if %[[VAL_185]] {
