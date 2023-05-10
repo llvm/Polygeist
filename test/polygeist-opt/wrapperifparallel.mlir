@@ -36,9 +36,8 @@ module {
 // CHECK:               %[[VAL_144:.*]] = "polygeist.gpu_error"() ({
 // CHECK:                 gpu.launch blocks(%[[VAL_145:.*]], %[[VAL_146:.*]], %[[VAL_147:.*]]) in (%[[VAL_148:.*]] = %[[VAL_143]], %[[VAL_149:.*]] = %[[VAL_7]], %[[VAL_150:.*]] = %[[VAL_7]]) threads(%[[VAL_151:.*]], %[[VAL_152:.*]], %[[VAL_153:.*]]) in (%[[VAL_154:.*]] = %[[VAL_6]], %[[VAL_155:.*]] = %[[VAL_7]], %[[VAL_156:.*]] = %[[VAL_7]]) {
 // CHECK:                   %[[VAL_157:.*]] = gpu.block_id  x
-// CHECK:                   %[[VAL_158:.*]] = gpu.block_dim  x
 // CHECK:                   %[[VAL_159:.*]] = gpu.thread_id  x
-// CHECK:                   %[[VAL_160:.*]] = arith.muli %[[VAL_157]], %[[VAL_158]] : index
+// CHECK:                   %[[VAL_160:.*]] = arith.muli %[[VAL_157]], %[[VAL_6]] : index
 // CHECK:                   %[[VAL_161:.*]] = arith.addi %[[VAL_160]], %[[VAL_159]] : index
 // CHECK:                   %[[VAL_162:.*]] = arith.cmpi ult, %[[VAL_161]], %[[VAL_1]] : index
 // CHECK:                   scf.if %[[VAL_162]] {

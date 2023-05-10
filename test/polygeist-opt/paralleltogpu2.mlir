@@ -33,9 +33,8 @@ module {
 // CHECK:           %[[VAL_10:.*]] = arith.addi %[[VAL_9]], %[[VAL_3]] : index
 // CHECK:           gpu.launch blocks(%[[VAL_11:.*]], %[[VAL_12:.*]], %[[VAL_13:.*]]) in (%[[VAL_14:.*]] = %[[VAL_10]], %[[VAL_15:.*]] = %[[VAL_3]], %[[VAL_16:.*]] = %[[VAL_3]]) threads(%[[VAL_17:.*]], %[[VAL_18:.*]], %[[VAL_19:.*]]) in (%[[VAL_20:.*]] = %[[VAL_5]], %[[VAL_21:.*]] = %[[VAL_3]], %[[VAL_22:.*]] = %[[VAL_3]]) {
 // CHECK:             %[[VAL_23:.*]] = gpu.block_id  x
-// CHECK:             %[[VAL_24:.*]] = gpu.block_dim  x
 // CHECK:             %[[VAL_25:.*]] = gpu.thread_id  x
-// CHECK:             %[[VAL_26:.*]] = arith.muli %[[VAL_23]], %[[VAL_24]] : index
+// CHECK:             %[[VAL_26:.*]] = arith.muli %[[VAL_23]], %[[VAL_5]] : index
 // CHECK:             %[[VAL_27:.*]] = arith.addi %[[VAL_26]], %[[VAL_25]] : index
 // CHECK:             %[[VAL_28:.*]] = arith.cmpi ult, %[[VAL_27]], %[[VAL_2]] : index
 // CHECK:             scf.if %[[VAL_28]] {
