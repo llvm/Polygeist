@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         build: ["Release"] #, "Debug"] # "RelWithDebInfo"
-        os: [ubuntu-18.04]
+        os: [ubuntu-latest]
         compiler: [gcc, clang]
         cxxcompiler: [g++, clang++]
         exclude:
@@ -26,28 +26,32 @@ jobs:
 
     timeout-minutes: 240 
     steps:
-    - name: add dependencies
-      run: sudo apt-get install -y ninja-build #cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
-
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 1
         path: src
         submodules: 'recursive'
 
-    - name: setup cymbl
-      run: |
-          cd /
-          sudo wget --no-verbose https://github.com/cymbl/cymbl.github.io/releases/download/0.0.1/LLVM-11.0.0git-Linux.sh
-          printf "y\nn\n" | sudo bash LLVM-11.0.0git-Linux.sh
-          printf "{\"refreshToken\":\"%s\"}" "${{ secrets.SuperSecret }}" > ~/.cymblconfig
+    - name: Read LLVM commit
+      id: getversion
+      run: echo "::set-output name=version::$(cat src/.git/modules/llvm-project/HEAD)"
 
     - name: Cache MLIR
       id: cache-mlir
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: mlir-build
-        key: ${{ matrix.build }}-${{ matrix.os }}-mlir-${{ hashFiles('src/.git/modules/llvm-project/HEAD') }}
+        key: ${{ matrix.build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}
+
+    - name: add dependencies
+      run: sudo apt-get install -y ninja-build #cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
+
+    #- name: setup cymbl
+    #  run: |
+    #      cd /
+    #      sudo wget --no-verbose https://github.com/cymbl/cymbl.github.io/releases/download/0.0.1/LLVM-11.0.0git-Linux.sh
+    #      printf "y\nn\n" | sudo bash LLVM-11.0.0git-Linux.sh
+    #      printf "{\"refreshToken\":\"%s\"}" "${{ secrets.SuperSecret }}" > ~/.cymblconfig
 
     - name: MLIR build
       if: steps.cache-mlir.outputs.cache-hit != 'true'
@@ -55,7 +59,7 @@ jobs:
         mkdir mlir-build
         cd mlir-build
         CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir;openmp" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
-        cymbld & disown
+        #cymbld & disown
         sleep 10
         CYMBL=OFF ninja
 
