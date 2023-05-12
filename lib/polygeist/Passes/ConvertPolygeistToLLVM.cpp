@@ -1692,6 +1692,9 @@ struct LowerGPUAlternativesOp
         return stream.str();
       }();
       locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+      for (char &c : locStr)
+        if (c == '/')
+          c = '+';
 
       if (PolygeistAlternativesMode == PAM_PGO_Profile) {
         rewriter.setInsertionPoint(gao);
@@ -1734,7 +1737,13 @@ struct LowerGPUAlternativesOp
         rewriter.eraseOp(gao);
         return success();
       } else if (PolygeistAlternativesMode == PAM_PGO_Opt) {
-        static constexpr const char *dirname = POLYGEIST_PGO_DATA_DIR;
+        std::string dirname = []() {
+          if (char *d = getenv(POLYGEIST_PGO_DATA_DIR_ENV_VAR)) {
+            return std::string(d);
+          } else {
+            return std::string(POLYGEIST_PGO_DEFAULT_DATA_DIR);
+          }
+        }();
         // TODO error handling
         std::ifstream ifile;
         int numAlternatives = gao->getNumRegions();
@@ -1742,7 +1751,7 @@ struct LowerGPUAlternativesOp
         for (int i = 0; i < numAlternatives; i++) {
           timings.push_back({});
         }
-        ifile.open(std::string(dirname) + locStr, std::ios::in);
+        ifile.open(std::string(dirname) + "/" + locStr, std::ios::in);
         while (ifile) {
           int alt;
           double time;
@@ -1763,6 +1772,7 @@ struct LowerGPUAlternativesOp
             avgs.push_back(std::numeric_limits<double>::infinity());
           } else {
             // TODO might get some round off errors here, maybe use a better alg
+            // or median
             avgs.push_back(
                 std::accumulate(timings[i].begin(), timings[i].end(), 0.0f) /
                 timings[i].size());

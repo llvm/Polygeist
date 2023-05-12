@@ -86,21 +86,21 @@ public:
     struct timespec start_clock;
   };
 
-  // TODO define these in cmake files (depending on target OS and used in the
-  // compiler too)
-  static constexpr const char *dirname = POLYGEIST_PGO_DATA_DIR;
-  static constexpr const char *alternativeEnvVar =
-      "POLYGEIST_PGO_KERNEL_ALTERNATIVE";
-
   inline static int alternative;
+  inline static std::string dirname;
   inline thread_local static std::mutex mutex;
   inline thread_local static std::map<std::string, State *> states;
 
   std::string kernelId;
   int totalAlternatives;
 
-  PGOState(const char *kernelId, int totalAlternatives)
-      : kernelId(kernelId), totalAlternatives(totalAlternatives) {}
+  PGOState(const char *kernelId_c, int totalAlternatives)
+      : totalAlternatives(totalAlternatives) {
+    kernelId = kernelId_c;
+    for (char &c : kernelId)
+      if (c == '/')
+        c = '+';
+  }
   void end() {
     struct timespec end_clock;
     cudaDeviceSynchronize();
@@ -123,7 +123,7 @@ public:
     if (0 <= alternative && alternative < totalAlternatives) {
       // TODO error handling
       std::ofstream ofile;
-      ofile.open(std::string(dirname) + kernelId,
+      ofile.open(std::string(dirname) + "/" + kernelId,
                  std::ios::out | std::ios::app);
       ofile << alternative << " " << elapsed << std::endl;
       ofile.close();
@@ -149,11 +149,17 @@ public:
 
   int getAlternative() {
     static int init = [&] {
-      if (char *i = getenv(alternativeEnvVar)) {
+      if (char *i = getenv(POLYGEIST_PGO_ALTERNATIVE_ENV_VAR)) {
         this->alternative = atoi(i);
       } else {
-        std::cerr << alternativeEnvVar << " not defined" << std::endl;
+        std::cerr << POLYGEIST_PGO_ALTERNATIVE_ENV_VAR << " not defined"
+                  << std::endl;
         exit(1);
+      }
+      if (char *d = getenv(POLYGEIST_PGO_DATA_DIR_ENV_VAR)) {
+        this->dirname = d;
+      } else {
+        this->dirname = POLYGEIST_PGO_DEFAULT_DATA_DIR;
       }
       std::filesystem::create_directories(dirname);
       return 0;

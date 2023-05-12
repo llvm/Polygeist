@@ -26,7 +26,9 @@ set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
 find_program(XXD_BIN xxd)
 
 # TODO should depend on OS
-set(POLYGEIST_PGO_DATA_DIR "/var/tmp/polygeist/pgo/" CACHE STRING "Directory for PGO data")
+set(POLYGEIST_PGO_DEFAULT_DATA_DIR "/var/tmp/polygeist/pgo/" CACHE STRING "Directory for PGO data")
+set(POLYGEIST_PGO_ALTERNATIVE_ENV_VAR "POLYGEIST_PGO_ALTERNATIVE" CACHE STRING "Env var name to specify alternative to profile")
+set(POLYGEIST_PGO_DATA_DIR_ENV_VAR "POLYGEIST_PGO_DATA_DIR" CACHE STRING "Env var name to specify PGO data dir")
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(polygeist LANGUAGES CXX C)
