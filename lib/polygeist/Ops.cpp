@@ -5510,6 +5510,10 @@ struct MulDivMul : public OpRewritePattern<arith::MulIOp> {
   }
 };
 
+static llvm::cl::opt<bool>
+    BufferElim("enable-buffer-elim", llvm::cl::init(true),
+               llvm::cl::desc("Enable buffer elimination"));
+
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
@@ -5520,15 +5524,21 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
-      MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter,
-      BufferElimination<memref::AllocaOp>, BufferElimination<memref::AllocOp>,
-      AffineBufferElimination<memref::AllocaOp>,
-      AffineBufferElimination<memref::AllocOp>,
-      SimplifyDeadAllocV2<memref::AllocaOp>,
-      SimplifyDeadAllocV2<memref::AllocOp>, SimplifyDeadAllocV2<LLVM::AllocaOp>,
-      MulDivMul, MergeParallelInductions,
-      // RankReduction<memref::AllocaOp, scf::ParallelOp>,
-      AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
+      MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter>(context);
+
+  if (BufferElim) {
+    results.insert<BufferElimination<memref::AllocaOp>,
+                   BufferElimination<memref::AllocOp>,
+                   AffineBufferElimination<memref::AllocaOp>,
+                   AffineBufferElimination<memref::AllocOp>>(context);
+  }
+
+  results.insert<SimplifyDeadAllocV2<memref::AllocaOp>,
+                 SimplifyDeadAllocV2<memref::AllocOp>,
+                 SimplifyDeadAllocV2<LLVM::AllocaOp>, MulDivMul,
+                 MergeParallelInductions,
+                 // RankReduction<memref::AllocaOp, scf::ParallelOp>,
+                 AggressiveAllocaScopeInliner, InductiveVarRemoval>(context);
 }
 
 //===----------------------------------------------------------------------===//
