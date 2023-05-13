@@ -129,14 +129,15 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // to only set idx to the total num
     // TODO grab the attr name from the NVVM dialect after bumping llvm
     int blockSize = *bx * *by * *bz;
-    if (!gpuFuncOp->hasAttr("maxntidx")) {
-      gpuFuncOp->setAttr("maxntidx", rewriter.getIntegerAttr(
-                                         rewriter.getIndexType(), blockSize));
+    if (!gpuFuncOp->hasAttr("nvvm.maxntidx")) {
+      gpuFuncOp->setAttr(
+          "nvvm.maxntidx",
+          rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
       return success();
     } else {
-      assert(blockSize ==
-             gpuFuncOp->getAttr("maxntidx").dyn_cast<IntegerAttr>().getInt());
-      // TODO assert it is the same
+      assert(
+          blockSize ==
+          gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
       return failure();
     }
   }
