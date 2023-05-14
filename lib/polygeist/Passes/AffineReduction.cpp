@@ -12,7 +12,7 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
-struct AffineReductionPass : public affine::AffineReductionBase<AffineReductionPass> {
+struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
   void runOnOperation() override;
 };
 } // end namespace.
