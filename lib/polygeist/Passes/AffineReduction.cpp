@@ -19,7 +19,7 @@ struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
 
 namespace {
 
-struct affine::AffineForReductionIter : public OpRewritePattern<affine::AffineForOp> {
+struct AffineForReductionIter : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
 
   bool isInCurrentAffineFor(Operation *op, affine::AffineForOp forOp) const {
@@ -256,7 +256,7 @@ struct affine::AffineForReductionIter : public OpRewritePattern<affine::AffineFo
 
 void AffineReductionPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
-  rpl.add<affine::AffineForReductionIter>(getOperation()->getContext());
+  rpl.add<AffineForReductionIter>(getOperation()->getContext());
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }
