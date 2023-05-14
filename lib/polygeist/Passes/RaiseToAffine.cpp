@@ -32,7 +32,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   bool isAffine(scf::ForOp loop) const {
     // return true;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
-    return isValidSymbol(loop.getStep());
+    return affine::isValidSymbol(loop.getStep());
   }
 
   int64_t getStep(mlir::Value value) const {
@@ -119,19 +119,19 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         rewrittenStep = true;
       }
 
-      auto *scope = getAffineScope(loop)->getParentOp();
+      auto *scope = affine::getAffineScope(loop)->getParentOp();
       DominanceInfo DI(scope);
 
       AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
-        canonicalizeMapAndOperands(&lbMap, &lbs);
+        affine::canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
       AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
-        canonicalizeMapAndOperands(&ubMap, &ubs);
+        affine::canonicalizeMapAndOperands(&ubMap, &ubs);
         ubMap = removeDuplicateExprs(ubMap);
       }
 
@@ -189,14 +189,14 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
     auto lbMap = forOp.getLowerBoundsMap();
     auto ubMap = forOp.getUpperBoundsMap();
 
-    auto *scope = getAffineScope(forOp)->getParentOp();
+    auto *scope = affine::getAffineScope(forOp)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
-    canonicalizeMapAndOperands(&lbMap, &lbOperands);
+    affine::canonicalizeMapAndOperands(&lbMap, &lbOperands);
 
     fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
-    canonicalizeMapAndOperands(&ubMap, &ubOperands);
+    affine::canonicalizeMapAndOperands(&ubMap, &ubOperands);
 
     forOp.setLowerBounds(lbOperands, lbMap);
     forOp.setUpperBounds(ubOperands, ubMap);
