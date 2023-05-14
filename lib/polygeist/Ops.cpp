@@ -10,7 +10,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/IR/affine::AffineExpr.h"
+#include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
@@ -19,7 +19,7 @@
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.cpp.inc"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -2698,7 +2698,7 @@ struct RankReduction : public OpRewritePattern<T> {
       if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
         SmallVector<Value> indices;
         auto map = load.getAffineMapAttr().getValue();
-        for (affine::AffineExpr op : map.getResults()) {
+        for (AffineExpr op : map.getResults()) {
           if (auto opd = op.dyn_cast<affine::AffineDimExpr>()) {
             indices.push_back(load.getMapOperands()[opd.getPosition()]);
           }
@@ -2742,7 +2742,7 @@ struct RankReduction : public OpRewritePattern<T> {
           return failure();
         SmallVector<Value> indices;
         auto map = store.getAffineMapAttr().getValue();
-        for (affine::AffineExpr op : map.getResults()) {
+        for (AffineExpr op : map.getResults()) {
           if (auto opd = op.dyn_cast<affine::AffineDimExpr>()) {
             indices.push_back(store.getMapOperands()[opd.getPosition()]);
           }
@@ -2839,7 +2839,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         SmallVector<Value> indices;
         auto map = load.getAffineMapAttr().getValue();
         if (!set) {
-          for (affine::AffineExpr op : map.getResults()) {
+          for (AffineExpr op : map.getResults()) {
             auto opd = op.dyn_cast<affine::AffineConstantExpr>();
             if (!opd)
               return failure();
@@ -3176,7 +3176,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
   return false;
 }
 
-bool valueCmp(Cmp cmp, affine::AffineExpr expr, size_t numDim, ValueRange operands,
+bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
               ValueOrInt val) {
 
   if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
@@ -3201,7 +3201,7 @@ bool valueCmp(Cmp cmp, affine::AffineExpr expr, size_t numDim, ValueRange operan
   }
 
   if (auto bop = expr.dyn_cast<affine::AffineBinaryOpExpr>()) {
-    if (bop.getKind() == affine::AffineExprKind::Add) {
+    if (bop.getKind() == AffineExprKind::Add) {
       switch (cmp) {
       case Cmp::EQ:
         return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) &&
@@ -3238,7 +3238,7 @@ bool valueCmp(Cmp cmp, affine::AffineExpr expr, size_t numDim, ValueRange operan
                 valueCmp(cmp, bop.getRHS(), numDim, operands, val));
       }
     }
-    if (bop.getKind() == affine::AffineExprKind::Mul && val == 0) {
+    if (bop.getKind() == AffineExprKind::Mul && val == 0) {
       switch (cmp) {
       case Cmp::EQ:
         return (valueCmp(cmp, bop.getLHS(), numDim, operands, val) ||
@@ -3330,7 +3330,7 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
 }
 
 // Range is [lb, ub)
-bool rangeIncludes(affine::AffineExpr expr, size_t numDims, ValueRange operands,
+bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
                    ValueOrInt lb, ValueOrInt ub) {
   if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
     return lb == opd.getValue() && ub == opd.getValue() + 1;
@@ -3378,19 +3378,19 @@ struct affine::AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
     SmallVector<bool> doneConstraints(
         op.getIntegerSet().getConstraints().size(), false);
 
-    SmallVector<affine::AffineExpr> remaining;
+    SmallVector<AffineExpr> remaining;
     SmallVector<bool> isEq;
     SmallVector<Value> dimVals;
     SmallVector<Value> symVals;
 
-    SmallVector<affine::AffineExpr> dimReplacements;
+    SmallVector<AffineExpr> dimReplacements;
 
     for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumDims(); ++idx) {
       dimReplacements.push_back(
           getAffineDimExpr(dimVals.size(), op.getContext()));
       dimVals.push_back(par.getUpperBoundsOperands()[idx]);
     }
-    SmallVector<affine::AffineExpr> symReplacements;
+    SmallVector<AffineExpr> symReplacements;
     for (unsigned idx = 0; idx < par.getUpperBoundsMap().getNumSymbols();
          ++idx) {
       symReplacements.push_back(
@@ -3535,7 +3535,7 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
 
   LogicalResult matchAndRewrite(affine::AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
-    SmallVector<affine::AffineExpr> todo;
+    SmallVector<AffineExpr> todo;
     SmallVector<bool> eqFlags;
     bool knownFalse = false;
     bool removed = false;
@@ -3544,8 +3544,8 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
       if (!opd) {
         if (op.getIntegerSet().isEq(cst.index())) {
           if (auto bop = cst.value().dyn_cast<affine::AffineBinaryOpExpr>()) {
-            if (bop.getKind() == affine::AffineExprKind::Mul &&
-                bop.getRHS().getKind() == affine::AffineExprKind::Constant) {
+            if (bop.getKind() == AffineExprKind::Mul &&
+                bop.getRHS().getKind() == AffineExprKind::Constant) {
               removed = true;
               if (bop.getRHS().cast<affine::AffineConstantExpr>().getValue() != 0) {
                 todo.push_back(bop.getLHS());
@@ -3553,7 +3553,7 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
               }
               continue;
             }
-            if (bop.getKind() == affine::AffineExprKind::Add &&
+            if (bop.getKind() == AffineExprKind::Add &&
                 valueCmp(Cmp::GE, bop, op.getIntegerSet().getNumDims(),
                          op.getOperands(), 0)) {
               todo.push_back(bop.getLHS());
@@ -3623,7 +3623,7 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
             }
           }
           if (auto bop = cst.value().dyn_cast<affine::AffineBinaryOpExpr>()) {
-            if (bop.getKind() == affine::AffineExprKind::Add) {
+            if (bop.getKind() == AffineExprKind::Add) {
             }
           }
         }
@@ -3843,8 +3843,8 @@ struct MergeNestedAffineParallelLoops
       newTypes.push_back(T);
 
     ArrayRef<Attribute> reductions;
-    SmallVector<affine::AffineExpr> lbounds;
-    SmallVector<affine::AffineExpr> ubounds;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
     SmallVector<Value> lboundValues;
     SmallVector<Value> uboundValues;
 
@@ -4032,8 +4032,8 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
     for (auto U : op.getUpperBoundsGroups())
       uboundGroup.push_back(U.getZExtValue());
 
-    SmallVector<affine::AffineExpr> lbounds;
-    SmallVector<affine::AffineExpr> ubounds;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
 
     for (auto e : op.getLowerBoundsMap().getResults()) {
       lbounds.push_back(e);
@@ -4044,7 +4044,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
     }
 
     bool changed = false;
-    SmallVector<affine::AffineExpr> remaining;
+    SmallVector<AffineExpr> remaining;
     SmallVector<bool> isEq;
     for (auto cst : llvm::enumerate(innerOp.getIntegerSet().getConstraints())) {
       if (innerOp.getIntegerSet().isEq(cst.index())) {
@@ -4053,12 +4053,12 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
         continue;
       }
 
-      auto getIndUsage = [&op](affine::AffineExpr cst, ValueRange operands,
-                               std::map<size_t, affine::AffineExpr> &indUsage,
+      auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
+                               std::map<size_t, AffineExpr> &indUsage,
                                bool &legal,
-                               bool *failure = nullptr) -> affine::AffineExpr {
-        affine::AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
-        SmallVector<affine::AffineExpr> todo = {cst};
+                               bool *failure = nullptr) -> AffineExpr {
+        AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
+        SmallVector<AffineExpr> todo = {cst};
         legal = true;
         while (todo.size()) {
           auto cur = todo.back();
@@ -4084,12 +4084,12 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
             continue;
           }
           if (auto bop = cur.dyn_cast<affine::AffineBinaryOpExpr>()) {
-            if (bop.getKind() == affine::AffineExprKind::Add) {
+            if (bop.getKind() == AffineExprKind::Add) {
               todo.push_back(bop.getLHS());
               todo.push_back(bop.getRHS());
               continue;
             }
-            if (bop.getKind() == affine::AffineExprKind::Mul) {
+            if (bop.getKind() == AffineExprKind::Mul) {
               if (!(bop.getRHS().isa<affine::AffineConstantExpr>() ||
                     bop.getRHS().isa<affine::AffineSymbolExpr>())) {
                 legal = false;
@@ -4126,9 +4126,9 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
       };
 
       bool legal;
-      std::map<size_t, affine::AffineExpr> indUsage;
+      std::map<size_t, AffineExpr> indUsage;
       bool failureV = false;
-      affine::AffineExpr rhs = getIndUsage(cst.value(), innerOp.getOperands(), indUsage,
+      AffineExpr rhs = getIndUsage(cst.value(), innerOp.getOperands(), indUsage,
                                    legal, &failureV);
       if (failureV)
         return failure();
@@ -4275,11 +4275,11 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
     if (!op.getReductions().empty())
       return failure();
 
-    auto getIndUsage = [&op](affine::AffineExpr cst, ValueRange operands,
-                             std::map<size_t, affine::AffineExpr> &indUsage,
-                             bool &legal) -> affine::AffineExpr {
-      affine::AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
-      SmallVector<affine::AffineExpr> todo = {cst};
+    auto getIndUsage = [&op](AffineExpr cst, ValueRange operands,
+                             std::map<size_t, AffineExpr> &indUsage,
+                             bool &legal) -> AffineExpr {
+      AffineExpr rhs = getAffineConstantExpr(0, cst.getContext());
+      SmallVector<AffineExpr> todo = {cst};
       legal = true;
       while (todo.size()) {
         auto cur = todo.back();
@@ -4303,12 +4303,12 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
           continue;
         }
         if (auto bop = cur.dyn_cast<affine::AffineBinaryOpExpr>()) {
-          if (bop.getKind() == affine::AffineExprKind::Add) {
+          if (bop.getKind() == AffineExprKind::Add) {
             todo.push_back(bop.getLHS());
             todo.push_back(bop.getRHS());
             continue;
           }
-          if (bop.getKind() == affine::AffineExprKind::Mul) {
+          if (bop.getKind() == AffineExprKind::Mul) {
             if (!(bop.getRHS().isa<affine::AffineConstantExpr>() ||
                   bop.getRHS().isa<affine::AffineSymbolExpr>())) {
               legal = false;
@@ -4380,7 +4380,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
 
       SmallVector<Operation *, 1> affineMapUsers_t;
       for (auto U : iv.getUsers()) {
-        SmallVector<affine::AffineExpr> exprs;
+        SmallVector<AffineExpr> exprs;
         ValueRange operands;
         if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
           for (auto E : AL.getAffineMap().getResults())
@@ -4411,7 +4411,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
         }
         for (auto expr : exprs) {
           bool flegal = true;
-          std::map<size_t, affine::AffineExpr> indUsage;
+          std::map<size_t, AffineExpr> indUsage;
           getIndUsage(expr, operands, indUsage, flegal);
           if (!flegal || indUsage.size() < 2) {
             legal = false;
@@ -4435,7 +4435,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
             affineMapUsers.remove(U);
     }
     for (auto U : affineMapUsers) {
-      SmallVector<affine::AffineExpr> exprs;
+      SmallVector<AffineExpr> exprs;
       ValueRange operands;
       size_t numDim;
       if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
@@ -4459,7 +4459,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
 
       for (auto expr : exprs) {
         bool flegal;
-        std::map<size_t, affine::AffineExpr> indUsage;
+        std::map<size_t, AffineExpr> indUsage;
         getIndUsage(expr, operands, indUsage, flegal);
 
         for (auto pair1 : indUsage) {
@@ -4486,7 +4486,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
             for (auto U : affineMapUsers) {
               if (!legalPair)
                 break;
-              SmallVector<affine::AffineExpr> exprs;
+              SmallVector<AffineExpr> exprs;
               ValueRange operands;
               if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
                 for (auto E : AL.getAffineMap().getResults())
@@ -4508,7 +4508,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
                 if (!legalPair)
                   break;
                 bool sublegal;
-                std::map<size_t, affine::AffineExpr> subIndUsage;
+                std::map<size_t, AffineExpr> subIndUsage;
                 getIndUsage(expr, operands, subIndUsage, sublegal);
                 auto find1 = subIndUsage.find(pair1.first);
                 auto find2 = subIndUsage.find(pair2.first);
@@ -4558,7 +4558,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
             for (auto U : op.getUpperBoundsGroups())
               uboundGroup.push_back(U.getZExtValue());
 
-            SmallVector<affine::AffineExpr> ubounds;
+            SmallVector<AffineExpr> ubounds;
 
             for (auto e : op.getUpperBoundsMap().getResults()) {
               ubounds.push_back(e);
@@ -4607,8 +4607,8 @@ struct RemoveAffineParallelSingleIter
       return failure();
 
     ArrayRef<Attribute> reductions;
-    SmallVector<affine::AffineExpr> lbounds;
-    SmallVector<affine::AffineExpr> ubounds;
+    SmallVector<AffineExpr> lbounds;
+    SmallVector<AffineExpr> ubounds;
 
     for (auto e : op.getLowerBoundsMap().getResults()) {
       lbounds.push_back(e);
@@ -5004,7 +5004,7 @@ struct affine::AffineBufferElimination : public OpRewritePattern<T> {
       SmallVector<ValueOrInt> storeIdxs;
       if (auto store2 = dyn_cast<affine::AffineStoreOp>(store)) {
         bool legal = true;
-        for (affine::AffineExpr ores : store2.getAffineMap().getResults()) {
+        for (AffineExpr ores : store2.getAffineMap().getResults()) {
           ValueOrInt V((Value) nullptr);
           if (auto dim = ores.dyn_cast<affine::AffineDimExpr>()) {
             V = ValueOrInt(store2.getMapOperands()[dim.getPosition()]);

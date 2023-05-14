@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -477,7 +477,7 @@ static bool isNormalized(scf::ParallelOp op) {
          llvm::all_of(op.getStep(), isOne);
 }
 static bool isNormalized(affine::AffineParallelOp op) {
-  auto isZero = [](affine::AffineExpr v) {
+  auto isZero = [](AffineExpr v) {
     if (auto ce = v.dyn_cast<affine::AffineConstantExpr>())
       return ce.getValue() == 0;
     return false;
@@ -1289,7 +1289,7 @@ mlir::OperandRange getLowerBounds(scf::ParallelOp op,
 SmallVector<Value> getLowerBounds(affine::AffineParallelOp op,
                                   PatternRewriter &rewriter) {
   SmallVector<Value> vals;
-  for (affine::AffineExpr expr : op.getLowerBoundsMap().getResults()) {
+  for (AffineExpr expr : op.getLowerBoundsMap().getResults()) {
     vals.push_back(rewriter
                        .create<affine::AffineApplyOp>(op.getLoc(), expr,
                                               op.getLowerBoundsOperands())

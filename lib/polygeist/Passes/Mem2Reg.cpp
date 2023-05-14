@@ -13,8 +13,8 @@
 // SSA scalars live out of 'affine.for'/'affine.if' statements is available.
 //===----------------------------------------------------------------------===//
 #include "PassDetails.h"
-#include "mlir/Dialect/affine::Affine/Analysis/affine::AffineAnalysis.h"
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -71,7 +71,7 @@ public:
   enum class Type { Value, Index, affine::Affine } type;
   mlir::Value val;
   size_t idx;
-  affine::AffineExpr aff;
+  AffineExpr aff;
   SmallVector<Value> dim;
   SmallVector<Value> sym;
   Offset(mlir::Value v) {
@@ -88,7 +88,7 @@ public:
     val = v;
     type = Type::Value;
   }
-  Offset(affine::AffineExpr op, unsigned numDims, unsigned numSymbols,
+  Offset(AffineExpr op, unsigned numDims, unsigned numSymbols,
          mlir::OperandRange vals) {
     if (auto opc = op.dyn_cast<affine::AffineConstantExpr>()) {
       idx = opc.getValue();

@@ -9,7 +9,7 @@
 #ifndef POLYGEISTOPS_H
 #define POLYGEISTOPS_H
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -25,7 +25,7 @@
 #define GET_OP_CLASSES
 #include "polygeist/PolygeistOps.h.inc"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -224,7 +224,7 @@ struct ValueOrInt {
 
 enum class Cmp { EQ, LT, LE, GT, GE };
 
-bool valueCmp(Cmp cmp, mlir::affine::AffineExpr expr, size_t numDim,
+bool valueCmp(Cmp cmp, mlir::AffineExpr expr, size_t numDim,
               mlir::ValueRange operands, ValueOrInt val);
 
 bool valueCmp(Cmp cmp, mlir::Value bval, ValueOrInt val);

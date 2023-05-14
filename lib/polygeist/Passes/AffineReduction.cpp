@@ -1,7 +1,7 @@
 #include "PassDetails.h"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
-#include "mlir/Dialect/affine::Affine/Passes.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"

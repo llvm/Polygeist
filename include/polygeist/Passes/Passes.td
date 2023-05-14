@@ -3,7 +3,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def affine::AffineCFG : Pass<"affine-cfg"> {
+def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
@@ -27,7 +27,7 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
-def affine::AffineReduction : Pass<"detect-reduction"> {
+def AffineReduction : Pass<"detect-reduction"> {
   let summary = "Detect reductions in affine.for";
   let constructor = "mlir::polygeist::detectReductionPass()";
 }

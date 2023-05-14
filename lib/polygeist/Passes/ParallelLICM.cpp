@@ -1,6 +1,6 @@
 #include "PassDetails.h"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -238,7 +238,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   return true;
 }
 
-bool below(affine::AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
+bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
 
 bool below(Value bval, int64_t val) {
   // Unknown size currently unhandled.
@@ -287,7 +287,7 @@ bool below(Value bval, int64_t val) {
   return false;
 }
 
-bool below(affine::AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
+bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   // Unknown size currently unhandled.
   if (val == -1)
     return false;
@@ -451,19 +451,19 @@ void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
-    SmallVector<affine::AffineExpr, 2> exprs;
+    SmallVector<AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
 
     for (auto step : llvm::enumerate(looplike.getSteps())) {
       for (auto ub : looplike.getUpperBoundMap(step.index()).getResults()) {
-        SmallVector<affine::AffineExpr, 4> symbols;
+        SmallVector<AffineExpr, 4> symbols;
         for (unsigned idx = 0;
              idx < looplike.getUpperBoundsMap().getNumSymbols(); ++idx)
           symbols.push_back(getAffineSymbolExpr(
               idx + looplike.getLowerBoundsMap().getNumSymbols(),
               looplike.getContext()));
 
-        SmallVector<affine::AffineExpr, 4> dims;
+        SmallVector<AffineExpr, 4> dims;
         for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumDims();
              ++idx)
           dims.push_back(
@@ -615,19 +615,19 @@ void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
-    SmallVector<affine::AffineExpr, 2> exprs;
+    SmallVector<AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
 
     auto step = looplike.getStep();
     for (auto ub : looplike.getUpperBoundMap().getResults()) {
-      SmallVector<affine::AffineExpr, 4> symbols;
+      SmallVector<AffineExpr, 4> symbols;
       for (unsigned idx = 0; idx < looplike.getUpperBoundMap().getNumSymbols();
            ++idx)
         symbols.push_back(getAffineSymbolExpr(
             idx + looplike.getLowerBoundMap().getNumSymbols(),
             looplike.getContext()));
 
-      SmallVector<affine::AffineExpr, 4> dims;
+      SmallVector<AffineExpr, 4> dims;
       for (unsigned idx = 0; idx < looplike.getUpperBoundMap().getNumDims();
            ++idx)
         dims.push_back(

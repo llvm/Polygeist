@@ -12,8 +12,8 @@
 
 #include "PassDetails.h"
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Dialect/affine::Affine/Analysis/affine::AffineAnalysis.h"
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
+#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"

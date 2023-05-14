@@ -1,7 +1,7 @@
 #include "PassDetails.h"
 
-#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
-#include "mlir/Dialect/affine::Affine/Passes.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -197,8 +197,8 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
   unsigned numDims = map.getNumDims();
   unsigned numSymbols = map.getNumSymbols();
 
-  SmallVector<affine::AffineExpr, 8> dimReplacements;
-  SmallVector<affine::AffineExpr, 8> symReplacements;
+  SmallVector<AffineExpr, 8> dimReplacements;
+  SmallVector<AffineExpr, 8> symReplacements;
 
   SmallVector<SmallVectorImpl<Value> *> opsTodos;
   auto replaceOp = [&](Operation *oldOp, Operation *newOp) {
@@ -471,9 +471,9 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
         llvm_unreachable("");
       }
 
-      SmallVector<affine::AffineExpr, 0> dimRemapping;
+      SmallVector<AffineExpr, 0> dimRemapping;
       unsigned numOtherSymbols = affineApplyOperands.size();
-      SmallVector<affine::AffineExpr, 2> symRemapping(numOtherSymbols);
+      SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols);
       for (unsigned idx = 0; idx < numOtherSymbols; ++idx) {
         symRemapping[idx] = renumberOneSymbol(affineApplyOperands[idx]);
       }
@@ -502,14 +502,14 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
       SmallVector<Value, 8> affineApplyOperands(
           affineApply.getOperands().begin(), affineApply.getOperands().end());
 
-      SmallVector<affine::AffineExpr, 0> dimRemapping(affineApplyMap.getNumDims());
+      SmallVector<AffineExpr, 0> dimRemapping(affineApplyMap.getNumDims());
 
       for (size_t i = 0; i < affineApplyMap.getNumDims(); ++i) {
         assert(i < affineApplyOperands.size());
         dimRemapping[i] = renumberOneDim(affineApplyOperands[i]);
       }
       unsigned numOtherSymbols = affineApplyOperands.size();
-      SmallVector<affine::AffineExpr, 2> symRemapping(numOtherSymbols -
+      SmallVector<AffineExpr, 2> symRemapping(numOtherSymbols -
                                               affineApplyMap.getNumDims());
       for (unsigned idx = 0; idx < symRemapping.size(); ++idx) {
         symRemapping[idx] = renumberOneSymbol(
@@ -1069,7 +1069,7 @@ bool handleMinMax(Value start, SmallVectorImpl<Value> &out, bool &min,
   return !(min && max);
 }
 
-bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<affine::AffineExpr> &exprs,
+bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<AffineExpr> &exprs,
             SmallVectorImpl<bool> &eqflags, SmallVectorImpl<Value> &applies) {
   SmallVector<Value> lhs;
   bool lhs_min = false;
@@ -1109,7 +1109,7 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<affine::AffineExpr>
 
     applies.push_back(lhs[0]);
     applies.push_back(rhs[0]);
-    affine::AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
+    AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
                           b.getAffineSymbolExpr(2 * exprs.size() + 1)};
     exprs.push_back(dims[0] - dims[1]);
   } break;
@@ -1142,7 +1142,7 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<affine::AffineExpr>
         eqflags.push_back(false);
         applies.push_back(lhspack);
         applies.push_back(rhspack);
-        affine::AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
+        AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
                               b.getAffineSymbolExpr(2 * exprs.size() + 1)};
         auto expr = dims[0] - dims[1];
         if (cmpi.getPredicate() == CmpIPredicate::sgt ||
@@ -1176,7 +1176,7 @@ bool handle(PatternRewriter &b, CmpIOp cmpi, SmallVectorImpl<affine::AffineExpr>
         eqflags.push_back(false);
         applies.push_back(lhspack);
         applies.push_back(rhspack);
-        affine::AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
+        AffineExpr dims[2] = {b.getAffineSymbolExpr(2 * exprs.size() + 0),
                               b.getAffineSymbolExpr(2 * exprs.size() + 1)};
         auto expr = dims[1] - dims[0];
         if (cmpi.getPredicate() == CmpIPredicate::slt ||
@@ -1240,7 +1240,7 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
 
     // Create identity map for memrefs with at least one dimension or () -> ()
     // for zero-dimensional memrefs.
-    SmallVector<affine::AffineExpr, 4> dimExprs;
+    SmallVector<AffineExpr, 4> dimExprs;
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(rewriter.getAffineSymbolExpr(i));
@@ -1282,7 +1282,7 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
 
     // Create identity map for memrefs with at least one dimension or () -> ()
     // for zero-dimensional memrefs.
-    SmallVector<affine::AffineExpr, 4> dimExprs;
+    SmallVector<AffineExpr, 4> dimExprs;
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(rewriter.getAffineSymbolExpr(i));
@@ -1492,7 +1492,7 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
       types.push_back(v.getType());
     }
 
-    SmallVector<affine::AffineExpr, 2> exprs;
+    SmallVector<AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
     SmallVector<Value, 4> applies;
 
