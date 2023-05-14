@@ -717,7 +717,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
 }
 
 namespace {
-struct affine::AffineCFGPass : public affine::AffineCFGBase<affine::AffineCFGPass> {
+struct AffineCFGPass : public AffineCFGBase<AffineCFGPass> {
   void runOnOperation() override;
 };
 } // namespace
@@ -1549,7 +1549,7 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
   }
 };
 
-void affine::AffineCFGPass::runOnOperation() {
+void AffineCFGPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add</*SimplfyIntegerCastMath, */ CanonicalizeAffineApply,
           CanonicalizeIndexCast,
@@ -1562,5 +1562,5 @@ void affine::AffineCFGPass::runOnOperation() {
 }
 
 std::unique_ptr<Pass> mlir::polygeist::replaceAffineCFGPass() {
-  return std::make_unique<affine::AffineCFGPass>();
+  return std::make_unique<AffineCFGPass>();
 }

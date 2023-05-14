@@ -3344,7 +3344,7 @@ bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
   return false;
 }
 
-struct affine::AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
+struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
   using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(affine::AffineIfOp op,
@@ -3530,7 +3530,7 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   rewriter.eraseOp(terminator);
 }
 
-struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIfOp> {
+struct AffineIfSimplification : public OpRewritePattern<affine::AffineIfOp> {
   using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(affine::AffineIfOp op,
@@ -4946,7 +4946,7 @@ template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
 };
 
 template <typename T>
-struct affine::AffineBufferElimination : public OpRewritePattern<T> {
+struct AffineBufferElimination : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(T op,
@@ -5518,15 +5518,15 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
       AlwaysAllocaScopeHoister<scf::ForOp>,
       AlwaysAllocaScopeHoister<affine::AffineForOp>, ConstantRankReduction,
-      affine::AffineIfSinking, affine::AffineIfSimplification, CombineAffineIfs,
+      AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter>(context);
 
   if (BufferElim) {
     results.insert<BufferElimination<memref::AllocaOp>,
                    BufferElimination<memref::AllocOp>,
-                   affine::AffineBufferElimination<memref::AllocaOp>,
-                   affine::AffineBufferElimination<memref::AllocOp>>(context);
+                   AffineBufferElimination<memref::AllocaOp>,
+                   AffineBufferElimination<memref::AllocOp>>(context);
   }
 
   results.insert<SimplifyDeadAllocV2<memref::AllocaOp>,
