@@ -1179,7 +1179,7 @@ ValueCategory MLIRScanner::VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
   std::vector<mlir::Value> sizes = {
       getConstantIndex(CAT->getSize().getLimitedValue())};
   AffineMap map = builder.getSymbolIdentityMap();
-  auto affineOp = builder.create<AffineForOp>(loc, start, map, sizes, map);
+  auto affineOp = builder.create<affine::AffineForOp>(loc, start, map, sizes, map);
 
   auto oldpoint = builder.getInsertionPoint();
   auto oldblock = builder.getInsertionBlock();
@@ -2416,7 +2416,7 @@ bool hasAffineArith(Operation *op, AffineExpr &expr,
           return false;
         auto indexCastOperand = maybeIndexCast->getOperand(0);
         if (auto blockArg = indexCastOperand.dyn_cast<mlir::BlockArgument>()) {
-          if (auto affineForOp = dyn_cast<mlir::AffineForOp>(
+          if (auto affineForOp = dyn_cast<mlir::affine::AffineForOp>(
                   blockArg.getOwner()->getParentOp()))
             affineForIndVar = affineForOp.getInductionVar();
           else
