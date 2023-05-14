@@ -12,8 +12,8 @@
 
 #include "PassDetails.h"
 #include "mlir/Analysis/CallGraph.h"
-#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/affine::Affine/Analysis/affine::AffineAnalysis.h"
+#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
@@ -645,12 +645,12 @@ void ParallelLower::runOnOperation() {
       builder.replaceOp(bidx, val);
     });
 
-    container.walk([&](AffineStoreOp storeOp) {
+    container.walk([&](affine::AffineStoreOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
@@ -658,12 +658,12 @@ void ParallelLower::runOnOperation() {
                                                   storeOp.getMemref(), indices);
     });
 
-    container.walk([&](AffineLoadOp storeOp) {
+    container.walk([&](affine::AffineLoadOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }

@@ -1,6 +1,6 @@
 #include "PassDetails.h"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
@@ -186,7 +186,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       bool conflict = false;
       // If the parent operation is not guaranteed to execute its (single-block)
       // region once, walk the block.
-      if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(b))
+      if (!isa<scf::IfOp, affine::AffineIfOp, memref::AllocaScopeOp>(b))
         b->walk([&](Operation *in) {
           if (conflict)
             return WalkResult::interrupt();
@@ -238,7 +238,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   return true;
 }
 
-bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
+bool below(affine::AffineExpr expr, size_t numDim, ValueRange operands, int64_t val);
 
 bool below(Value bval, int64_t val) {
   // Unknown size currently unhandled.
@@ -246,8 +246,8 @@ bool below(Value bval, int64_t val) {
     return false;
 
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
-    if (AffineForOp afFor =
-            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineForOp afFor =
+            dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       for (auto ub : afFor.getUpperBoundMap().getResults()) {
         if (!below(ub, afFor.getUpperBoundMap().getNumDims(),
                    afFor.getUpperBoundOperands(), val + 1))
@@ -255,8 +255,8 @@ bool below(Value bval, int64_t val) {
       }
       return true;
     }
-    if (AffineParallelOp afFor =
-            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineParallelOp afFor =
+            dyn_cast<affine::AffineParallelOp>(baval.getOwner()->getParentOp())) {
       for (auto ub :
            afFor.getUpperBoundMap(baval.getArgNumber()).getResults()) {
         if (!below(ub, afFor.getUpperBoundsMap().getNumDims(),
@@ -287,20 +287,20 @@ bool below(Value bval, int64_t val) {
   return false;
 }
 
-bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
+bool below(affine::AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   // Unknown size currently unhandled.
   if (val == -1)
     return false;
 
-  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
+  if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
     if (opd.getValue() < val)
       return true;
     return false;
   }
-  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
+  if (auto opd = expr.dyn_cast<affine::AffineDimExpr>()) {
     return below(operands[opd.getPosition()], val);
   }
-  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
+  if (auto opd = expr.dyn_cast<affine::AffineSymbolExpr>()) {
     return below(operands[opd.getPosition() + numDim], val);
   }
   return false;
@@ -312,12 +312,12 @@ static bool isSpeculatable(Operation *op) {
     if (memInterface.hasNoEffect())
       return true;
 
-    if (auto load = dyn_cast<AffineLoadOp>(op)) {
+    if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
       Value ptr = load.getMemref();
       if (ptr.getDefiningOp<memref::AllocOp>() ||
           ptr.getDefiningOp<memref::AllocaOp>()) {
         auto S = ptr.getType().cast<MemRefType>().getShape();
-        AffineMap map = load.getAffineMapAttr().getValue();
+        affine::AffineMap map = load.getAffineMapAttr().getValue();
         for (auto idx : llvm::enumerate(map.getResults())) {
           if (!below(idx.value(), map.getNumDims(), load.getMapOperands(),
                      S[idx.index()])) {
@@ -420,7 +420,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 }
 
 // TODO affine parallel licm
-void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
+void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -451,19 +451,19 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
-    SmallVector<AffineExpr, 2> exprs;
+    SmallVector<affine::AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
 
     for (auto step : llvm::enumerate(looplike.getSteps())) {
       for (auto ub : looplike.getUpperBoundMap(step.index()).getResults()) {
-        SmallVector<AffineExpr, 4> symbols;
+        SmallVector<affine::AffineExpr, 4> symbols;
         for (unsigned idx = 0;
              idx < looplike.getUpperBoundsMap().getNumSymbols(); ++idx)
           symbols.push_back(getAffineSymbolExpr(
               idx + looplike.getLowerBoundsMap().getNumSymbols(),
               looplike.getContext()));
 
-        SmallVector<AffineExpr, 4> dims;
+        SmallVector<affine::AffineExpr, 4> dims;
         for (unsigned idx = 0; idx < looplike.getUpperBoundsMap().getNumDims();
              ++idx)
           dims.push_back(
@@ -508,7 +508,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
         /*symbols*/ looplike.getLowerBoundsMap().getNumSymbols() +
             looplike.getUpperBoundsMap().getNumSymbols(),
         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(
+    auto ifOp = b.create<affine::AffineIfOp>(
         looplike.getLoc(), looplike.getResultTypes(), iset, values,
         /*hasElse*/ !looplike.getResultTypes().empty());
     if (!ifOp.getThenBlock()->empty())
@@ -517,11 +517,11 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
-    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.getElseBlock());
       // TODO affine parallel initial value for reductions.
-      // B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+      // B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
     }
   }
   for (auto op : opsToMove)
@@ -582,7 +582,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
-void moveSerialLoopInvariantCode(AffineForOp looplike) {
+void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -615,19 +615,19 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
-    SmallVector<AffineExpr, 2> exprs;
+    SmallVector<affine::AffineExpr, 2> exprs;
     SmallVector<bool, 2> eqflags;
 
     auto step = looplike.getStep();
     for (auto ub : looplike.getUpperBoundMap().getResults()) {
-      SmallVector<AffineExpr, 4> symbols;
+      SmallVector<affine::AffineExpr, 4> symbols;
       for (unsigned idx = 0; idx < looplike.getUpperBoundMap().getNumSymbols();
            ++idx)
         symbols.push_back(getAffineSymbolExpr(
             idx + looplike.getLowerBoundMap().getNumSymbols(),
             looplike.getContext()));
 
-      SmallVector<AffineExpr, 4> dims;
+      SmallVector<affine::AffineExpr, 4> dims;
       for (unsigned idx = 0; idx < looplike.getUpperBoundMap().getNumDims();
            ++idx)
         dims.push_back(
@@ -671,7 +671,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
         /*symbols*/ looplike.getLowerBoundMap().getNumSymbols() +
             looplike.getUpperBoundMap().getNumSymbols(),
         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(
+    auto ifOp = b.create<affine::AffineIfOp>(
         looplike.getLoc(), looplike.getResultTypes(), iset, values,
         /*hasElse*/ !looplike.getResultTypes().empty());
     if (!ifOp.getThenBlock()->empty())
@@ -680,10 +680,10 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
     looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
-    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.getElseBlock());
-      B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+      B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
     }
   }
   for (auto op : opsToMove)
@@ -697,11 +697,11 @@ void ParallelLICM::runOnOperation() {
     moveLoopInvariantCode(loopLike);
     if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
       moveParallelLoopInvariantCode(par);
-    } else if (auto par = dyn_cast<AffineParallelOp>((Operation *)loopLike)) {
+    } else if (auto par = dyn_cast<affine::AffineParallelOp>((Operation *)loopLike)) {
       moveParallelLoopInvariantCode(par);
     } else if (auto par = dyn_cast<scf::ForOp>((Operation *)loopLike)) {
       moveSerialLoopInvariantCode(par);
-    } else if (auto par = dyn_cast<AffineForOp>((Operation *)loopLike)) {
+    } else if (auto par = dyn_cast<affine::AffineForOp>((Operation *)loopLike)) {
       moveSerialLoopInvariantCode(par);
     }
   });

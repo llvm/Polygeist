@@ -3,7 +3,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def AffineCFG : Pass<"affine-cfg"> {
+def affine::AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
@@ -27,7 +27,7 @@ def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
-def AffineReduction : Pass<"detect-reduction"> {
+def affine::AffineReduction : Pass<"detect-reduction"> {
   let summary = "Detect reductions in affine.for";
   let constructor = "mlir::polygeist::detectReductionPass()";
 }
@@ -76,7 +76,7 @@ def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation"
 def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
   let summary = "Raise SCF to affine";
   let constructor = "mlir::polygeist::createRaiseSCFToAffinePass()";
-  let dependentDialects = ["AffineDialect"];
+  let dependentDialects = ["affine::AffineDialect"];
 }
 
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {

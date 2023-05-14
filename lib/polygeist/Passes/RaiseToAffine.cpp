@@ -1,6 +1,6 @@
 #include "PassDetails.h"
 
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/affine::Affine/IR/affine::AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -43,12 +43,12 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       return 1;
   }
 
-  AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
-    SmallVector<AffineExpr, 4> dimExprs;
+  affine::AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
+    SmallVector<affine::AffineExpr, 4> dimExprs;
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(B.getAffineSymbolExpr(i));
-    return AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
+    return affine::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
                           B.getContext());
   }
   LogicalResult matchAndRewrite(scf::ForOp loop,
@@ -122,20 +122,20 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       auto *scope = getAffineScope(loop)->getParentOp();
       DominanceInfo DI(scope);
 
-      AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
+      affine::AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
         canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
-      AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
+      affine::AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
         canonicalizeMapAndOperands(&ubMap, &ubs);
         ubMap = removeDuplicateExprs(ubMap);
       }
 
-      AffineForOp affineLoop = rewriter.create<AffineForOp>(
+      affine::AffineForOp affineLoop = rewriter.create<affine::AffineForOp>(
           loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
           loop.getIterOperands());
 
@@ -166,7 +166,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
                            &affineLoop.getRegion().front(), vals);
 
       rewriter.setInsertionPoint(mergedYieldOp);
-      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
+      rewriter.create<affine::AffineYieldOp>(mergedYieldOp.getLoc(),
                                      mergedYieldOp.getOperands());
       rewriter.eraseOp(mergedYieldOp);
 
@@ -182,7 +182,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
   void canonicalizeLoopBounds(PatternRewriter &rewriter,
-                              AffineParallelOp forOp) const {
+                              affine::AffineParallelOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundsOperands());
 
@@ -225,12 +225,12 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
         return failure();
 
     ArrayRef<AtomicRMWKind> reductions;
-    SmallVector<AffineMap> bounds;
+    SmallVector<affine::AffineMap> bounds;
     for (size_t i = 0; i < loop.getLowerBound().size(); i++)
-      bounds.push_back(AffineMap::get(
+      bounds.push_back(affine::AffineMap::get(
           /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
           builder.getAffineSymbolExpr(i)));
-    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
+    affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(
         loop.getLoc(), loop.getResultTypes(), reductions, bounds,
         loop.getLowerBound(), bounds, loop.getUpperBound(),
         steps); //, loop.getInitVals());
@@ -257,7 +257,7 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
                          &affineLoop.getRegion().front(), vals);
 
     rewriter.setInsertionPoint(mergedYieldOp);
-    rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
+    rewriter.create<affine::AffineYieldOp>(mergedYieldOp.getLoc(),
                                    mergedYieldOp.getOperands());
     rewriter.eraseOp(mergedYieldOp);
 
