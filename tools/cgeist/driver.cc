@@ -505,7 +505,7 @@ int main(int argc, char **argv) {
   MLIRContext context(registry);
 
   context.disableMultithreading();
-  context.getOrLoadDialect<AffineDialect>();
+  context.getOrLoadDialect<affine::AffineDialect>();
   context.getOrLoadDialect<func::FuncDialect>();
   context.getOrLoadDialect<DLTIDialect>();
   context.getOrLoadDialect<mlir::scf::SCFDialect>();

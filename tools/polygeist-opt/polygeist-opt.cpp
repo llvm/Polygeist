@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
 
   // Register MLIR stuff
-  registry.insert<mlir::AffineDialect>();
+  registry.insert<mlir::affine::AffineDialect>();
   registry.insert<mlir::LLVM::LLVMDialect>();
   registry.insert<mlir::memref::MemRefDialect>();
   registry.insert<mlir::async::AsyncDialect>();
