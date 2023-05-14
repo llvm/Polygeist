@@ -83,8 +83,8 @@ bool isValidSymbolInt(Value value, bool recur) {
   return false;
 }
 
-struct affine::AffineApplyNormalizer {
-  affine::AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands,
+struct AffineApplyNormalizer {
+  AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands,
                         PatternRewriter &rewriter, DominanceInfo &DI);
 
   /// Returns the AffineMap resulting from normalization.
@@ -98,7 +98,7 @@ struct affine::AffineApplyNormalizer {
 
 private:
   /// Helper function to insert `v` into the coordinate system of the current
-  /// affine::AffineApplyNormalizer. Returns the AffineDimExpr with the corresponding
+  /// AffineApplyNormalizer. Returns the AffineDimExpr with the corresponding
   /// renumbered position.
   AffineDimExpr renumberOneDim(Value v);
 
@@ -181,7 +181,7 @@ static bool legalCondition(Value en, bool dim = false) {
 /// extra API calls for such uses, which haven't popped up until now) and the
 /// benefit potentially big: simpler and more maintainable code for a
 /// non-trivial, recursive, procedure.
-affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(AffineMap map,
+AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
                                              ArrayRef<Value> operands,
                                              PatternRewriter &rewriter,
                                              DominanceInfo &DI) {
@@ -566,7 +566,7 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(AffineMap map,
   LLVM_DEBUG(llvm::dbgs() << "\n");
 }
 
-AffineDimExpr affine::AffineApplyNormalizer::renumberOneDim(Value v) {
+AffineDimExpr AffineApplyNormalizer::renumberOneDim(Value v) {
   DenseMap<Value, unsigned>::iterator iterPos;
   bool inserted = false;
   std::tie(iterPos, inserted) =
@@ -582,7 +582,7 @@ static void composeAffineMapAndOperands(AffineMap *map,
                                         SmallVectorImpl<Value> *operands,
                                         PatternRewriter &rewriter,
                                         DominanceInfo &DI) {
-  affine::AffineApplyNormalizer normalizer(*map, *operands, rewriter, DI);
+  AffineApplyNormalizer normalizer(*map, *operands, rewriter, DI);
   auto normalizedMap = normalizer.getAffineMap();
   auto normalizedOperands = normalizer.getOperands();
   affine::canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
