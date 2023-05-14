@@ -292,15 +292,15 @@ bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   if (val == -1)
     return false;
 
-  if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
     if (opd.getValue() < val)
       return true;
     return false;
   }
-  if (auto opd = expr.dyn_cast<affine::AffineDimExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
     return below(operands[opd.getPosition()], val);
   }
-  if (auto opd = expr.dyn_cast<affine::AffineSymbolExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
     return below(operands[opd.getPosition() + numDim], val);
   }
   return false;
@@ -317,7 +317,7 @@ static bool isSpeculatable(Operation *op) {
       if (ptr.getDefiningOp<memref::AllocOp>() ||
           ptr.getDefiningOp<memref::AllocaOp>()) {
         auto S = ptr.getType().cast<MemRefType>().getShape();
-        affine::AffineMap map = load.getAffineMapAttr().getValue();
+        AffineMap map = load.getAffineMapAttr().getValue();
         for (auto idx : llvm::enumerate(map.getResults())) {
           if (!below(idx.value(), map.getNumDims(), load.getMapOperands(),
                      S[idx.index()])) {

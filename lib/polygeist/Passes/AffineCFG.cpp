@@ -84,11 +84,11 @@ bool isValidSymbolInt(Value value, bool recur) {
 }
 
 struct affine::AffineApplyNormalizer {
-  affine::AffineApplyNormalizer(affine::AffineMap map, ArrayRef<Value> operands,
+  affine::AffineApplyNormalizer(AffineMap map, ArrayRef<Value> operands,
                         PatternRewriter &rewriter, DominanceInfo &DI);
 
-  /// Returns the affine::AffineMap resulting from normalization.
-  affine::AffineMap getAffineMap() { return affineMap; }
+  /// Returns the AffineMap resulting from normalization.
+  AffineMap getAffineMap() { return affineMap; }
 
   SmallVector<Value, 8> getOperands() {
     SmallVector<Value, 8> res(reorderedDims);
@@ -98,9 +98,9 @@ struct affine::AffineApplyNormalizer {
 
 private:
   /// Helper function to insert `v` into the coordinate system of the current
-  /// affine::AffineApplyNormalizer. Returns the affine::AffineDimExpr with the corresponding
+  /// affine::AffineApplyNormalizer. Returns the AffineDimExpr with the corresponding
   /// renumbered position.
-  affine::AffineDimExpr renumberOneDim(Value v);
+  AffineDimExpr renumberOneDim(Value v);
 
   /// Maps of Value to position in `affineMap`.
   DenseMap<Value, unsigned> dimValueToPosition;
@@ -110,7 +110,7 @@ private:
   SmallVector<Value, 8> reorderedDims;
   SmallVector<Value, 8> concatenatedSymbols;
 
-  affine::AffineMap affineMap;
+  AffineMap affineMap;
 };
 
 static bool isAffineForArg(Value val) {
@@ -160,17 +160,17 @@ static bool legalCondition(Value en, bool dim = false) {
 ///
 /// Rationale for locally rewriting symbols as dims:
 /// ================================================
-/// The mathematical composition of affine::AffineMap must always concatenate symbols
+/// The mathematical composition of AffineMap must always concatenate symbols
 /// because it does not have enough information to do otherwise. For example,
 /// composing `(d0)[s0] -> (d0 + s0)` with itself must produce
 /// `(d0)[s0, s1] -> (d0 + s0 + s1)`.
 ///
 /// The result is only equivalent to `(d0)[s0] -> (d0 + 2 * s0)` when
 /// applied to the same mlir::Value for both s0 and s1.
-/// As a consequence mathematical composition of affine::AffineMap always concatenates
+/// As a consequence mathematical composition of AffineMap always concatenates
 /// symbols.
 ///
-/// When affine::AffineMaps are used in affine::AffineApplyOp however, they may specify
+/// When AffineMaps are used in affine::AffineApplyOp however, they may specify
 /// composition via symbols, which is ambiguous mathematically. This corner case
 /// is handled by locally rewriting such symbols that come from affine::AffineApplyOp
 /// into dims and composing through dims.
@@ -181,7 +181,7 @@ static bool legalCondition(Value en, bool dim = false) {
 /// extra API calls for such uses, which haven't popped up until now) and the
 /// benefit potentially big: simpler and more maintainable code for a
 /// non-trivial, recursive, procedure.
-affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap map,
+affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(AffineMap map,
                                              ArrayRef<Value> operands,
                                              PatternRewriter &rewriter,
                                              DominanceInfo &DI) {
@@ -353,37 +353,37 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
       t = decast;
       LLVM_DEBUG(llvm::dbgs() << " Replacing: " << t << "\n");
 
-      affine::AffineMap affineApplyMap;
+      AffineMap affineApplyMap;
       SmallVector<Value, 8> affineApplyOperands;
 
       // llvm::dbgs() << "\nop to start: " << t << "\n";
 
       if (auto op = t.getDefiningOp<AddIOp>()) {
         affineApplyMap =
-            affine::AffineMap::get(0, 2,
+            AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) +
                                getAffineSymbolExpr(1, op.getContext()));
         affineApplyOperands.push_back(op.getLhs());
         affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<SubIOp>()) {
         affineApplyMap =
-            affine::AffineMap::get(0, 2,
+            AffineMap::get(0, 2,
                            getAffineSymbolExpr(0, op.getContext()) -
                                getAffineSymbolExpr(1, op.getContext()));
         affineApplyOperands.push_back(op.getLhs());
         affineApplyOperands.push_back(op.getRhs());
       } else if (auto op = t.getDefiningOp<MulIOp>()) {
         if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) * ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else {
           affineApplyMap =
-              affine::AffineMap::get(0, 2,
+              AffineMap::get(0, 2,
                              getAffineSymbolExpr(0, op.getContext()) *
                                  getAffineSymbolExpr(1, op.getContext()));
           affineApplyOperands.push_back(op.getLhs());
@@ -391,17 +391,17 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
         }
       } else if (auto op = t.getDefiningOp<DivSIOp>()) {
         if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1,
               getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
           affineApplyOperands.push_back(op.getLhs());
         } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1,
               getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
           affineApplyOperands.push_back(op.getLhs());
         } else {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 2,
               getAffineSymbolExpr(0, op.getContext())
                   .floorDiv(getAffineSymbolExpr(1, op.getContext())));
@@ -410,17 +410,17 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
         }
       } else if (auto op = t.getDefiningOp<DivUIOp>()) {
         if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1,
               getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
           affineApplyOperands.push_back(op.getLhs());
         } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1,
               getAffineSymbolExpr(0, op.getContext()).floorDiv(ci.value()));
           affineApplyOperands.push_back(op.getLhs());
         } else {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 2,
               getAffineSymbolExpr(0, op.getContext())
                   .floorDiv(getAffineSymbolExpr(1, op.getContext())));
@@ -429,16 +429,16 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
         }
       } else if (auto op = t.getDefiningOp<RemSIOp>()) {
         if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else {
           affineApplyMap =
-              affine::AffineMap::get(0, 2,
+              AffineMap::get(0, 2,
                              getAffineSymbolExpr(0, op.getContext()) %
                                  getAffineSymbolExpr(1, op.getContext()));
           affineApplyOperands.push_back(op.getLhs());
@@ -446,26 +446,26 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
         }
       } else if (auto op = t.getDefiningOp<RemUIOp>()) {
         if (auto ci = op.getRhs().getDefiningOp<ConstantIntOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else if (auto ci = op.getRhs().getDefiningOp<ConstantIndexOp>()) {
-          affineApplyMap = affine::AffineMap::get(
+          affineApplyMap = AffineMap::get(
               0, 1, getAffineSymbolExpr(0, op.getContext()) % ci.value());
           affineApplyOperands.push_back(op.getLhs());
         } else {
           affineApplyMap =
-              affine::AffineMap::get(0, 2,
+              AffineMap::get(0, 2,
                              getAffineSymbolExpr(0, op.getContext()) %
                                  getAffineSymbolExpr(1, op.getContext()));
           affineApplyOperands.push_back(op.getLhs());
           affineApplyOperands.push_back(op.getRhs());
         }
       } else if (auto op = t.getDefiningOp<ConstantIntOp>()) {
-        affineApplyMap = affine::AffineMap::get(
+        affineApplyMap = AffineMap::get(
             0, 0, getAffineConstantExpr(op.value(), op.getContext()));
       } else if (auto op = t.getDefiningOp<ConstantIndexOp>()) {
-        affineApplyMap = affine::AffineMap::get(
+        affineApplyMap = AffineMap::get(
             0, 0, getAffineConstantExpr(op.value(), op.getContext()));
       } else {
         llvm_unreachable("");
@@ -498,7 +498,7 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
       // a. Compose affine.apply operations.
       LLVM_DEBUG(affineApply->print(
           llvm::dbgs() << "\nCompose affine::AffineApplyOp recursively: "));
-      affine::AffineMap affineApplyMap = affineApply.getAffineMap();
+      AffineMap affineApplyMap = affineApply.getAffineMap();
       SmallVector<Value, 8> affineApplyOperands(
           affineApply.getOperands().begin(), affineApply.getOperands().end());
 
@@ -536,10 +536,10 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
           assert(0 && "cannot move2");
       }
       if (i < numDims) {
-        // b. The mathematical composition of affine::AffineMap composes dims.
+        // b. The mathematical composition of AffineMap composes dims.
         dimReplacements.push_back(renumberOneDim(t));
       } else {
-        // c. The mathematical composition of affine::AffineMap concatenates symbols.
+        // c. The mathematical composition of AffineMap concatenates symbols.
         //    Note that the map composition will put symbols already present
         //    in the map before any symbols coming from the auxiliary map, so
         //    we insert them before any symbols that are due to renumbering,
@@ -566,7 +566,7 @@ affine::AffineApplyNormalizer::affine::AffineApplyNormalizer(affine::AffineMap m
   LLVM_DEBUG(llvm::dbgs() << "\n");
 }
 
-affine::AffineDimExpr affine::AffineApplyNormalizer::renumberOneDim(Value v) {
+AffineDimExpr affine::AffineApplyNormalizer::renumberOneDim(Value v) {
   DenseMap<Value, unsigned>::iterator iterPos;
   bool inserted = false;
   std::tie(iterPos, inserted) =
@@ -575,10 +575,10 @@ affine::AffineDimExpr affine::AffineApplyNormalizer::renumberOneDim(Value v) {
     reorderedDims.push_back(v);
   }
   return getAffineDimExpr(iterPos->second, v.getContext())
-      .cast<affine::AffineDimExpr>();
+      .cast<AffineDimExpr>();
 }
 
-static void composeAffineMapAndOperands(affine::AffineMap *map,
+static void composeAffineMapAndOperands(AffineMap *map,
                                         SmallVectorImpl<Value> *operands,
                                         PatternRewriter &rewriter,
                                         DominanceInfo &DI) {
@@ -591,7 +591,7 @@ static void composeAffineMapAndOperands(affine::AffineMap *map,
   assert(*map);
 }
 
-bool need(affine::AffineMap *map, SmallVectorImpl<Value> *operands) {
+bool need(AffineMap *map, SmallVectorImpl<Value> *operands) {
   assert(map->getNumInputs() == operands->size());
   for (size_t i = 0; i < map->getNumInputs(); ++i) {
     auto v = (*operands)[i];
@@ -609,7 +609,7 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
   return false;
 }
 
-void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, affine::AffineMap *map,
+void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI) {
   IRMapping indexMap;
@@ -686,7 +686,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
       }
     }
   }
-  auto map = affine::AffineMap::get(set->getNumDims(), set->getNumSymbols(),
+  auto map = AffineMap::get(set->getNumDims(), set->getNumSymbols(),
                             set->getConstraints(), set->getContext());
   while (need(&map, operands)) {
     composeAffineMapAndOperands(&map, operands, builder, DI);
@@ -1244,7 +1244,7 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(rewriter.getAffineSymbolExpr(i));
-    auto map = affine::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
+    auto map = AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
                               rewriter.getContext());
 
     SmallVector<Value, 4> operands = load.getIndices();
@@ -1286,7 +1286,7 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(rewriter.getAffineSymbolExpr(i));
-    auto map = affine::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
+    auto map = AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
                               rewriter.getContext());
     SmallVector<Value, 4> operands = store.getIndices();
 
@@ -1318,7 +1318,7 @@ template <typename T> struct affine::AffineFixup : public OpRewritePattern<T> {
 
   /// Replace the affine op with another instance of it with the supplied
   /// map and mapOperands.
-  void replaceAffineOp(PatternRewriter &rewriter, T affineOp, affine::AffineMap map,
+  void replaceAffineOp(PatternRewriter &rewriter, T affineOp, AffineMap map,
                        ArrayRef<Value> mapOperands) const;
 
   LogicalResult matchAndRewrite(T op,
@@ -1350,14 +1350,14 @@ template <typename T> struct affine::AffineFixup : public OpRewritePattern<T> {
 // affine load, store, and apply ops.
 template <>
 void affine::AffineFixup<affine::AffineLoadOp>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineLoadOp load, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffineLoadOp load, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(load, load.getMemRef(), map,
                                             mapOperands);
 }
 template <>
 void affine::AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffinePrefetchOp prefetch, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffinePrefetchOp>(
       prefetch, prefetch.getMemref(), map, mapOperands,
@@ -1366,14 +1366,14 @@ void affine::AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
 }
 template <>
 void affine::AffineFixup<affine::AffineStoreOp>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineStoreOp store, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffineStoreOp store, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineStoreOp>(
       store, store.getValueToStore(), store.getMemRef(), map, mapOperands);
 }
 template <>
 void affine::AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineVectorLoadOp vectorload, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffineVectorLoadOp vectorload, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineVectorLoadOp>(
       vectorload, vectorload.getVectorType(), vectorload.getMemRef(), map,
@@ -1381,7 +1381,7 @@ void affine::AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
 }
 template <>
 void affine::AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineVectorStoreOp vectorstore, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffineVectorStoreOp vectorstore, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineVectorStoreOp>(
       vectorstore, vectorstore.getValueToStore(), vectorstore.getMemRef(), map,
@@ -1391,7 +1391,7 @@ void affine::AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
 // Generic version for ops that don't have extra operands.
 template <typename affine::AffineOpTy>
 void affine::AffineFixup<affine::AffineOpTy>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineOpTy op, affine::AffineMap map,
+    PatternRewriter &rewriter, affine::AffineOpTy op, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineOpTy>(op, map, mapOperands);
 }

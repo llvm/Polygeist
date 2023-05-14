@@ -478,7 +478,7 @@ static bool isNormalized(scf::ParallelOp op) {
 }
 static bool isNormalized(affine::AffineParallelOp op) {
   auto isZero = [](AffineExpr v) {
-    if (auto ce = v.dyn_cast<affine::AffineConstantExpr>())
+    if (auto ce = v.dyn_cast<AffineConstantExpr>())
       return ce.getValue() == 0;
     return false;
   };
@@ -599,11 +599,11 @@ LogicalResult splitSubLoop(affine::AffineParallelOp op, PatternRewriter &rewrite
                            affine::AffineParallelOp &outerLoop,
                            memref::AllocaScopeOp &outerEx) {
 
-  SmallVector<affine::AffineMap> outerLower;
-  SmallVector<affine::AffineMap> outerUpper;
+  SmallVector<AffineMap> outerLower;
+  SmallVector<AffineMap> outerUpper;
   SmallVector<int64_t> outerStep;
-  SmallVector<affine::AffineMap> innerLower;
-  SmallVector<affine::AffineMap> innerUpper;
+  SmallVector<AffineMap> innerLower;
+  SmallVector<AffineMap> innerUpper;
   SmallVector<int64_t> innerStep;
   unsigned idx = 0;
   for (auto en : llvm::enumerate(
@@ -669,7 +669,7 @@ LogicalResult splitSubLoop(affine::AffineParallelOp op, PatternRewriter &rewrite
     SmallVector<Value> ops = dims;
     ops.append(symbols);
     iterCounts.push_back(rewriter.create<affine::AffineApplyOp>(
-        op.getLoc(), affine::AffineMap::get(dims.size(), symbols.size(), expr), ops));
+        op.getLoc(), AffineMap::get(dims.size(), symbols.size(), expr), ops));
   }
   preLoop = rewriter.create<affine::AffineParallelOp>(
       op.getLoc(), TypeRange(), ArrayRef<AtomicRMWKind>(), innerLower,

@@ -43,12 +43,12 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       return 1;
   }
 
-  affine::AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
+  AffineMap getMultiSymbolIdentity(Builder &B, unsigned rank) const {
     SmallVector<AffineExpr, 4> dimExprs;
     dimExprs.reserve(rank);
     for (unsigned i = 0; i < rank; ++i)
       dimExprs.push_back(B.getAffineSymbolExpr(i));
-    return affine::AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
+    return AffineMap::get(/*dimCount=*/0, /*symbolCount=*/rank, dimExprs,
                           B.getContext());
   }
   LogicalResult matchAndRewrite(scf::ForOp loop,
@@ -122,13 +122,13 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       auto *scope = getAffineScope(loop)->getParentOp();
       DominanceInfo DI(scope);
 
-      affine::AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
+      AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
         canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
-      affine::AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
+      AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
         canonicalizeMapAndOperands(&ubMap, &ubs);
@@ -225,9 +225,9 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
         return failure();
 
     ArrayRef<AtomicRMWKind> reductions;
-    SmallVector<affine::AffineMap> bounds;
+    SmallVector<AffineMap> bounds;
     for (size_t i = 0; i < loop.getLowerBound().size(); i++)
-      bounds.push_back(affine::AffineMap::get(
+      bounds.push_back(AffineMap::get(
           /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
           builder.getAffineSymbolExpr(i)));
     affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(

@@ -2699,10 +2699,10 @@ struct RankReduction : public OpRewritePattern<T> {
         SmallVector<Value> indices;
         auto map = load.getAffineMapAttr().getValue();
         for (AffineExpr op : map.getResults()) {
-          if (auto opd = op.dyn_cast<affine::AffineDimExpr>()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
             indices.push_back(load.getMapOperands()[opd.getPosition()]);
           }
-          if (auto opd = op.dyn_cast<affine::AffineSymbolExpr>()) {
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
             indices.push_back(
                 load.getMapOperands()[opd.getPosition() + map.getNumDims()]);
           }
@@ -2743,10 +2743,10 @@ struct RankReduction : public OpRewritePattern<T> {
         SmallVector<Value> indices;
         auto map = store.getAffineMapAttr().getValue();
         for (AffineExpr op : map.getResults()) {
-          if (auto opd = op.dyn_cast<affine::AffineDimExpr>()) {
+          if (auto opd = op.dyn_cast<AffineDimExpr>()) {
             indices.push_back(store.getMapOperands()[opd.getPosition()]);
           }
-          if (auto opd = op.dyn_cast<affine::AffineSymbolExpr>()) {
+          if (auto opd = op.dyn_cast<AffineSymbolExpr>()) {
             indices.push_back(
                 store.getMapOperands()[opd.getPosition() + map.getNumDims()]);
           }
@@ -2788,12 +2788,12 @@ struct RankReduction : public OpRewritePattern<T> {
       }
       if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
         rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(
-            load, newOp, affine::AffineMap::get(load.getContext()), ArrayRef<Value>());
+            load, newOp, AffineMap::get(load.getContext()), ArrayRef<Value>());
         continue;
       }
       if (auto store = dyn_cast<affine::AffineStoreOp>(u)) {
         rewriter.replaceOpWithNewOp<affine::AffineStoreOp>(
-            store, store.getValue(), newOp, affine::AffineMap::get(store.getContext()),
+            store, store.getValue(), newOp, AffineMap::get(store.getContext()),
             ArrayRef<Value>());
         continue;
       }
@@ -2840,7 +2840,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         auto map = load.getAffineMapAttr().getValue();
         if (!set) {
           for (AffineExpr op : map.getResults()) {
-            auto opd = op.dyn_cast<affine::AffineConstantExpr>();
+            auto opd = op.dyn_cast<AffineConstantExpr>();
             if (!opd)
               return failure();
             v.push_back(opd.getValue());
@@ -2848,7 +2848,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
           set = true;
         } else {
           for (auto pair : llvm::zip(map.getResults(), v)) {
-            auto opd = std::get<0>(pair).dyn_cast<affine::AffineConstantExpr>();
+            auto opd = std::get<0>(pair).dyn_cast<AffineConstantExpr>();
             if (!opd)
               return failure();
             if (opd.getValue() != std::get<1>(pair))
@@ -2887,7 +2887,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
       }
       if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
         rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(
-            load, newOp, affine::AffineMap::get(op.getContext()), ArrayRef<Value>());
+            load, newOp, AffineMap::get(op.getContext()), ArrayRef<Value>());
         continue;
       }
       if (auto store = dyn_cast<memref::StoreOp>(u)) {
@@ -2932,7 +2932,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
             store, TypeRange(), cond, /*hasElse*/ false);
         rewriter.setInsertionPointToStart(ifOp.thenBlock());
         rewriter.create<affine::AffineStoreOp>(loc, val, newOp,
-                                       affine::AffineMap::get(op.getContext()),
+                                       AffineMap::get(op.getContext()),
                                        ArrayRef<Value>());
         continue;
       }
@@ -3179,7 +3179,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
 bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
               ValueOrInt val) {
 
-  if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
     switch (cmp) {
     case Cmp::EQ:
       return val == opd.getValue();
@@ -3193,14 +3193,14 @@ bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
       return val <= opd.getValue();
     }
   }
-  if (auto opd = expr.dyn_cast<affine::AffineDimExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
     return valueCmp(cmp, operands[opd.getPosition()], val);
   }
-  if (auto opd = expr.dyn_cast<affine::AffineSymbolExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
     return valueCmp(cmp, operands[opd.getPosition() + numDim], val);
   }
 
-  if (auto bop = expr.dyn_cast<affine::AffineBinaryOpExpr>()) {
+  if (auto bop = expr.dyn_cast<AffineBinaryOpExpr>()) {
     if (bop.getKind() == AffineExprKind::Add) {
       switch (cmp) {
       case Cmp::EQ:
@@ -3332,13 +3332,13 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
 // Range is [lb, ub)
 bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
                    ValueOrInt lb, ValueOrInt ub) {
-  if (auto opd = expr.dyn_cast<affine::AffineConstantExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineConstantExpr>()) {
     return lb == opd.getValue() && ub == opd.getValue() + 1;
   }
-  if (auto opd = expr.dyn_cast<affine::AffineDimExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineDimExpr>()) {
     return rangeIncludes(operands[opd.getPosition()], lb, ub);
   }
-  if (auto opd = expr.dyn_cast<affine::AffineSymbolExpr>()) {
+  if (auto opd = expr.dyn_cast<AffineSymbolExpr>()) {
     return rangeIncludes(operands[opd.getPosition() + numDims], lb, ub);
   }
   return false;
@@ -3405,7 +3405,7 @@ struct affine::AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
         return failure();
       }
 
-      auto opd = cst.value().dyn_cast<affine::AffineDimExpr>();
+      auto opd = cst.value().dyn_cast<AffineDimExpr>();
       if (!opd) {
         return failure();
       }
@@ -3540,14 +3540,14 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
     bool knownFalse = false;
     bool removed = false;
     for (auto cst : llvm::enumerate(op.getIntegerSet().getConstraints())) {
-      auto opd = cst.value().dyn_cast<affine::AffineConstantExpr>();
+      auto opd = cst.value().dyn_cast<AffineConstantExpr>();
       if (!opd) {
         if (op.getIntegerSet().isEq(cst.index())) {
-          if (auto bop = cst.value().dyn_cast<affine::AffineBinaryOpExpr>()) {
+          if (auto bop = cst.value().dyn_cast<AffineBinaryOpExpr>()) {
             if (bop.getKind() == AffineExprKind::Mul &&
                 bop.getRHS().getKind() == AffineExprKind::Constant) {
               removed = true;
-              if (bop.getRHS().cast<affine::AffineConstantExpr>().getValue() != 0) {
+              if (bop.getRHS().cast<AffineConstantExpr>().getValue() != 0) {
                 todo.push_back(bop.getLHS());
                 eqFlags.push_back(op.getIntegerSet().isEq(cst.index()));
               }
@@ -3598,8 +3598,8 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
             for (auto tup : llvm::enumerate(paren.getSteps())) {
               bool found = false;
               for (auto ub : paren.getUpperBoundMap(tup.index()).getResults()) {
-                if (auto exprS = expr.dyn_cast<affine::AffineSymbolExpr>()) {
-                  if (auto ubS = ub.dyn_cast<affine::AffineSymbolExpr>()) {
+                if (auto exprS = expr.dyn_cast<AffineSymbolExpr>()) {
+                  if (auto ubS = ub.dyn_cast<AffineSymbolExpr>()) {
                     if (op.getOperands()[exprS.getPosition() +
                                          op.getIntegerSet().getNumDims()] ==
                         paren.getUpperBoundsOperands()[ubS.getPosition() +
@@ -3622,7 +3622,7 @@ struct affine::AffineIfSimplification : public OpRewritePattern<affine::AffineIf
               break;
             }
           }
-          if (auto bop = cst.value().dyn_cast<affine::AffineBinaryOpExpr>()) {
+          if (auto bop = cst.value().dyn_cast<AffineBinaryOpExpr>()) {
             if (bop.getKind() == AffineExprKind::Add) {
             }
           }
@@ -3922,15 +3922,15 @@ struct MergeNestedAffineParallelLoops
 
     affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(
         op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
-        affine::AffineMapAttr::get(
-            affine::AffineMap::get(op.getLowerBoundsMap().getNumDims() +
+        AffineMapAttr::get(
+            AffineMap::get(op.getLowerBoundsMap().getNumDims() +
                                innerOp.getLowerBoundsMap().getNumDims(),
                            op.getLowerBoundsMap().getNumSymbols() +
                                innerOp.getLowerBoundsMap().getNumSymbols(),
                            lbounds, op.getContext())),
         rewriter.getI32TensorAttr(lboundGroup),
-        affine::AffineMapAttr::get(
-            affine::AffineMap::get(op.getUpperBoundsMap().getNumDims() +
+        AffineMapAttr::get(
+            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
                                innerOp.getUpperBoundsMap().getNumDims(),
                            op.getUpperBoundsMap().getNumSymbols() +
                                innerOp.getUpperBoundsMap().getNumSymbols(),
@@ -4063,11 +4063,11 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
         while (todo.size()) {
           auto cur = todo.back();
           todo.pop_back();
-          if (cur.isa<affine::AffineConstantExpr>() || cur.isa<affine::AffineSymbolExpr>()) {
+          if (cur.isa<AffineConstantExpr>() || cur.isa<AffineSymbolExpr>()) {
             rhs = rhs + cur;
             continue;
           }
-          if (auto dim = cur.dyn_cast<affine::AffineDimExpr>()) {
+          if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
             auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
             if (!ival || ival.getOwner()->getParentOp() != op) {
               rhs = rhs + dim;
@@ -4083,20 +4083,20 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
                 getAffineConstantExpr(1, op.getContext());
             continue;
           }
-          if (auto bop = cur.dyn_cast<affine::AffineBinaryOpExpr>()) {
+          if (auto bop = cur.dyn_cast<AffineBinaryOpExpr>()) {
             if (bop.getKind() == AffineExprKind::Add) {
               todo.push_back(bop.getLHS());
               todo.push_back(bop.getRHS());
               continue;
             }
             if (bop.getKind() == AffineExprKind::Mul) {
-              if (!(bop.getRHS().isa<affine::AffineConstantExpr>() ||
-                    bop.getRHS().isa<affine::AffineSymbolExpr>())) {
+              if (!(bop.getRHS().isa<AffineConstantExpr>() ||
+                    bop.getRHS().isa<AffineSymbolExpr>())) {
                 legal = false;
                 continue;
               }
 
-              if (auto dim = bop.getLHS().dyn_cast<affine::AffineDimExpr>()) {
+              if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
                 auto ival =
                     operands[dim.getPosition()].dyn_cast<BlockArgument>();
                 if (!ival || ival.getOwner()->getParentOp() != op) {
@@ -4139,7 +4139,7 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
         continue;
       }
       auto pair = *indUsage.begin();
-      auto affCst = pair.second.dyn_cast<affine::AffineConstantExpr>();
+      auto affCst = pair.second.dyn_cast<AffineConstantExpr>();
       if (!affCst) {
         remaining.push_back(cst.value());
         isEq.push_back(innerOp.getIntegerSet().isEq(cst.index()));
@@ -4164,10 +4164,10 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
       for (size_t i = 0; i < pair.first; i++)
         off += uboundGroup[i];
 
-      if (auto newCst = rhs.dyn_cast<affine::AffineConstantExpr>()) {
+      if (auto newCst = rhs.dyn_cast<AffineConstantExpr>()) {
         bool seen = false;
         for (size_t i = 0; i < uboundGroup[pair.first]; i++) {
-          if (auto oldCst = ubounds[i].dyn_cast<affine::AffineConstantExpr>()) {
+          if (auto oldCst = ubounds[i].dyn_cast<AffineConstantExpr>()) {
             seen = true;
             if (newCst.getValue() < oldCst.getValue())
               ubounds[i] = rhs;
@@ -4219,12 +4219,12 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<affine::AffineParal
 
     affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(
         op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-        affine::AffineMapAttr::get(affine::AffineMap::get(
+        AffineMapAttr::get(AffineMap::get(
             op.getLowerBoundsMap().getNumDims(),
             op.getLowerBoundsMap().getNumSymbols(), lbounds, op.getContext())),
         rewriter.getI32TensorAttr(lboundGroup),
-        affine::AffineMapAttr::get(
-            affine::AffineMap::get(op.getUpperBoundsMap().getNumDims() +
+        AffineMapAttr::get(
+            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
                                innerOp.getIntegerSet().getNumDims(),
                            op.getUpperBoundsMap().getNumSymbols() +
                                innerOp.getIntegerSet().getNumSymbols(),
@@ -4284,11 +4284,11 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
       while (todo.size()) {
         auto cur = todo.back();
         todo.pop_back();
-        if (cur.isa<affine::AffineConstantExpr>() || cur.isa<affine::AffineSymbolExpr>()) {
+        if (cur.isa<AffineConstantExpr>() || cur.isa<AffineSymbolExpr>()) {
           rhs = rhs + cur;
           continue;
         }
-        if (auto dim = cur.dyn_cast<affine::AffineDimExpr>()) {
+        if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
           auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
           if (!ival || ival.getOwner()->getParentOp() != op) {
             rhs = rhs + dim;
@@ -4302,20 +4302,20 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
               getAffineConstantExpr(1, op.getContext());
           continue;
         }
-        if (auto bop = cur.dyn_cast<affine::AffineBinaryOpExpr>()) {
+        if (auto bop = cur.dyn_cast<AffineBinaryOpExpr>()) {
           if (bop.getKind() == AffineExprKind::Add) {
             todo.push_back(bop.getLHS());
             todo.push_back(bop.getRHS());
             continue;
           }
           if (bop.getKind() == AffineExprKind::Mul) {
-            if (!(bop.getRHS().isa<affine::AffineConstantExpr>() ||
-                  bop.getRHS().isa<affine::AffineSymbolExpr>())) {
+            if (!(bop.getRHS().isa<AffineConstantExpr>() ||
+                  bop.getRHS().isa<AffineSymbolExpr>())) {
               legal = false;
               continue;
             }
 
-            if (auto dim = bop.getLHS().dyn_cast<affine::AffineDimExpr>()) {
+            if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
               auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
               if (!ival || ival.getOwner()->getParentOp() != op) {
                 rhs = rhs + bop;
@@ -4346,7 +4346,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
       IndexCastOp idxCst = nullptr;
 
       for (auto lb : op.getLowerBoundMap(iv.getArgNumber()).getResults()) {
-        if (auto cst = lb.dyn_cast<affine::AffineConstantExpr>()) {
+        if (auto cst = lb.dyn_cast<AffineConstantExpr>()) {
           if (cst.getValue() != 0) {
             legal = false;
             break;
@@ -4363,12 +4363,12 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
           break;
         }
         seenub = true;
-        if (auto cst = ub.dyn_cast<affine::AffineConstantExpr>()) {
+        if (auto cst = ub.dyn_cast<AffineConstantExpr>()) {
           fixedUpperBounds.push_back(ValueOrInt(cst.getValue()));
-        } else if (auto dim = ub.dyn_cast<affine::AffineDimExpr>()) {
+        } else if (auto dim = ub.dyn_cast<AffineDimExpr>()) {
           fixedUpperBounds.push_back(
               ValueOrInt(op.getUpperBoundsOperands()[dim.getPosition()]));
-        } else if (auto sym = ub.dyn_cast<affine::AffineSymbolExpr>()) {
+        } else if (auto sym = ub.dyn_cast<AffineSymbolExpr>()) {
           fixedUpperBounds.push_back(ValueOrInt(
               op.getUpperBoundsOperands()[op.getUpperBoundsMap().getNumDims() +
                                           sym.getPosition()]));
@@ -4466,7 +4466,7 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
           for (auto pair2 : indUsage) {
             if (pair1.first == pair2.first)
               continue;
-            if (auto cst = pair1.second.dyn_cast<affine::AffineConstantExpr>()) {
+            if (auto cst = pair1.second.dyn_cast<AffineConstantExpr>()) {
               if (cst.getValue() == -1) {
                 pair2.second = -pair2.second;
                 pair1.second = -pair1.second;
@@ -4577,8 +4577,8 @@ struct MergeParallelInductions : public OpRewritePattern<affine::AffineParallelO
             affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(
                 op.getLoc(), op.getResultTypes(), op.getReductionsAttr(),
                 op.getLowerBoundsMapAttr(), op.getLowerBoundsGroupsAttr(),
-                affine::AffineMapAttr::get(
-                    affine::AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                AffineMapAttr::get(
+                    AffineMap::get(op.getUpperBoundsMap().getNumDims(),
                                    op.getUpperBoundsMap().getNumSymbols(),
                                    ubounds, op.getContext())),
                 op.getUpperBoundsGroupsAttr(), op.getStepsAttr(),
@@ -4649,10 +4649,10 @@ struct RemoveAffineParallelSingleIter
       for (size_t i = 0; i < idx; i++)
         uoff += uboundGroup[i];
 
-      auto lb = lbounds[loff].dyn_cast<affine::AffineConstantExpr>();
+      auto lb = lbounds[loff].dyn_cast<AffineConstantExpr>();
       if (!lb)
         continue;
-      auto ub = ubounds[uoff].dyn_cast<affine::AffineConstantExpr>();
+      auto ub = ubounds[uoff].dyn_cast<AffineConstantExpr>();
       if (!ub)
         continue;
       if (lb.getValue() >= ub.getValue())
@@ -4688,13 +4688,13 @@ struct RemoveAffineParallelSingleIter
 
       affine::AffineParallelOp affineLoop = rewriter.create<affine::AffineParallelOp>(
           op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-          affine::AffineMapAttr::get(
-              affine::AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+          AffineMapAttr::get(
+              AffineMap::get(op.getLowerBoundsMap().getNumDims(),
                              op.getLowerBoundsMap().getNumSymbols(), lbounds,
                              op.getContext())),
           rewriter.getI32TensorAttr(lboundGroup),
-          affine::AffineMapAttr::get(
-              affine::AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+          AffineMapAttr::get(
+              AffineMap::get(op.getUpperBoundsMap().getNumDims(),
                              op.getUpperBoundsMap().getNumSymbols(), ubounds,
                              op.getContext())),
           rewriter.getI32TensorAttr(uboundGroup),
@@ -4752,10 +4752,10 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
     for (auto U : op->getResult(0).getUsers()) {
       if (auto load = dyn_cast<affine::AffineLoadOp>(U)) {
-        affine::AffineMap map = load.getAffineMapAttr().getValue();
+        AffineMap map = load.getAffineMapAttr().getValue();
         if (map.getNumResults() != 1)
           continue;
-        auto opd = map.getResults()[0].dyn_cast<affine::AffineDimExpr>();
+        auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
         if (!opd)
           continue;
         auto val = ((Value)load.getMapOperands()[opd.getPosition()])
@@ -4802,10 +4802,10 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
         for (auto U2 : otherBuf.getUsers()) {
           if (auto load = dyn_cast<affine::AffineLoadOp>(U2)) {
-            affine::AffineMap map = load.getAffineMapAttr().getValue();
+            AffineMap map = load.getAffineMapAttr().getValue();
             if (map.getNumResults() != 1)
               continue;
-            auto opd = map.getResults()[0].dyn_cast<affine::AffineDimExpr>();
+            auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
             if (!opd)
               continue;
             auto val = ((Value)load.getMapOperands()[opd.getPosition()])
@@ -5006,13 +5006,13 @@ struct affine::AffineBufferElimination : public OpRewritePattern<T> {
         bool legal = true;
         for (AffineExpr ores : store2.getAffineMap().getResults()) {
           ValueOrInt V((Value) nullptr);
-          if (auto dim = ores.dyn_cast<affine::AffineDimExpr>()) {
+          if (auto dim = ores.dyn_cast<AffineDimExpr>()) {
             V = ValueOrInt(store2.getMapOperands()[dim.getPosition()]);
-          } else if (auto dim = ores.dyn_cast<affine::AffineSymbolExpr>()) {
+          } else if (auto dim = ores.dyn_cast<AffineSymbolExpr>()) {
             V = ValueOrInt(
                 store2.getMapOperands()[dim.getPosition() +
                                         store2.getAffineMap().getNumDims()]);
-          } else if (auto dim = ores.dyn_cast<affine::AffineConstantExpr>()) {
+          } else if (auto dim = ores.dyn_cast<AffineConstantExpr>()) {
             V = ValueOrInt(dim.getValue());
           } else {
             legal = false;
@@ -5079,7 +5079,7 @@ struct affine::AffineBufferElimination : public OpRewritePattern<T> {
             if (auto ald = dyn_cast<affine::AffineLoadOp>(ld)) {
               if (auto ac = ald.getAffineMap()
                                 .getResult(i)
-                                .dyn_cast<affine::AffineConstantExpr>()) {
+                                .dyn_cast<AffineConstantExpr>()) {
                 if (idx == ac.getValue())
                   continue;
               }
@@ -5354,7 +5354,7 @@ struct affine::AffineBufferElimination : public OpRewritePattern<T> {
                   for (auto pair :
                        llvm::enumerate(AS.getAffineMap().getResults())) {
                     auto V = storeIdxs[pair.index()];
-                    if (auto c = pair.value().dyn_cast<affine::AffineConstantExpr>()) {
+                    if (auto c = pair.value().dyn_cast<AffineConstantExpr>()) {
                       if (!V.isValue && V.i_val != c.getValue())
                         return;
                     }

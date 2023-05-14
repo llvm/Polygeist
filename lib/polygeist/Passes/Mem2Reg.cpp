@@ -90,17 +90,17 @@ public:
   }
   Offset(AffineExpr op, unsigned numDims, unsigned numSymbols,
          mlir::OperandRange vals) {
-    if (auto opc = op.dyn_cast<affine::AffineConstantExpr>()) {
+    if (auto opc = op.dyn_cast<AffineConstantExpr>()) {
       idx = opc.getValue();
       type = Type::Index;
       return;
     }
-    if (auto opd = op.dyn_cast<affine::AffineDimExpr>()) {
+    if (auto opd = op.dyn_cast<AffineDimExpr>()) {
       val = vals[opd.getPosition()];
       type = Type::Value;
       return;
     }
-    if (auto ops = op.dyn_cast<affine::AffineSymbolExpr>()) {
+    if (auto ops = op.dyn_cast<AffineSymbolExpr>()) {
       val = vals[numDims + ops.getPosition()];
       type = Type::Value;
       return;
@@ -235,7 +235,7 @@ Match matchesIndices(mlir::OperandRange ops, const std::vector<Offset> &idx) {
   return Match::Exact;
 }
 
-Match matchesIndices(affine::AffineMap map, mlir::OperandRange ops,
+Match matchesIndices(AffineMap map, mlir::OperandRange ops,
                      const std::vector<Offset> &idx) {
   auto idxs = map.getResults();
   if (idxs.size() != idx.size())
