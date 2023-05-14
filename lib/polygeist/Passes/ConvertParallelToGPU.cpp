@@ -1109,7 +1109,7 @@ struct RemovePolygeistNoopOp : public OpRewritePattern<polygeist::NoopOp> {
 
       Operation *toClone = pop->getNextNode();
       SmallVector<Operation *> toErase;
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       rewriter.setInsertionPointToStart(pop.getBody());
       while (toClone != term) {
         Operation *cloned = rewriter.clone(*toClone, mapping);
@@ -1190,7 +1190,7 @@ struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
 
       Operation *toClone = pop->getNextNode();
       SmallVector<Operation *> toErase;
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       rewriter.setInsertionPointToStart(pop.getBody());
       while (toClone != term) {
         Operation *cloned = rewriter.clone(*toClone, mapping);

@@ -178,7 +178,7 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
 
   tmpModule->getRegion(0).front().erase();
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   gpum->getRegion(0).cloneInto(&tmpModule->getRegion(0), mapping);
 
   std::unique_ptr<llvm::Module> llvmModule =
