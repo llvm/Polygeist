@@ -1690,7 +1690,7 @@ struct LowerGPUAlternativesOp
         static int num = 0;
         auto kernelId = LLVM::createGlobalString(
             loc, rewriter, std::string("kernelId.") + std::to_string(num++),
-            locStr, LLVM::Linkage::Internal);
+            locStr, LLVM::Linkage::Internal, /* useOpaquePointers */ false);
         auto totalAlternatives = rewriter.create<LLVM::ConstantOp>(
             loc, llvmInt32Type, gao->getNumRegions());
         auto alternative =
