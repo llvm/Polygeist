@@ -71,7 +71,7 @@ bool isValidSymbolInt(Operation *defOp, bool recur) {
 // isValidSymbol, even if not index
 bool isValidSymbolInt(Value value, bool recur) {
   // Check that the value is a top level value.
-  if (isTopLevelValue(value))
+  if (affine::isTopLevelValue(value))
     return true;
 
   if (auto *defOp = value.getDefiningOp()) {
@@ -1313,7 +1313,7 @@ static bool areChanged(SmallVectorImpl<Value> &afterOperands,
   return false;
 }
 
-template <typename T> struct affine::AffineFixup : public OpRewritePattern<T> {
+template <typename T> struct AffineFixup : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
   /// Replace the affine op with another instance of it with the supplied
@@ -1349,14 +1349,14 @@ template <typename T> struct affine::AffineFixup : public OpRewritePattern<T> {
 // Specialize the template to account for the different build signatures for
 // affine load, store, and apply ops.
 template <>
-void affine::AffineFixup<affine::AffineLoadOp>::replaceAffineOp(
+void AffineFixup<affine::AffineLoadOp>::replaceAffineOp(
     PatternRewriter &rewriter, affine::AffineLoadOp load, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(load, load.getMemRef(), map,
                                             mapOperands);
 }
 template <>
-void affine::AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
+void AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
     PatternRewriter &rewriter, affine::AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffinePrefetchOp>(
@@ -1365,14 +1365,14 @@ void affine::AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
       prefetch.getIsDataCache());
 }
 template <>
-void affine::AffineFixup<affine::AffineStoreOp>::replaceAffineOp(
+void AffineFixup<affine::AffineStoreOp>::replaceAffineOp(
     PatternRewriter &rewriter, affine::AffineStoreOp store, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineStoreOp>(
       store, store.getValueToStore(), store.getMemRef(), map, mapOperands);
 }
 template <>
-void affine::AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
+void AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
     PatternRewriter &rewriter, affine::AffineVectorLoadOp vectorload, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineVectorLoadOp>(
@@ -1380,7 +1380,7 @@ void affine::AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
       mapOperands);
 }
 template <>
-void affine::AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
+void AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
     PatternRewriter &rewriter, affine::AffineVectorStoreOp vectorstore, AffineMap map,
     ArrayRef<Value> mapOperands) const {
   rewriter.replaceOpWithNewOp<affine::AffineVectorStoreOp>(
@@ -1389,11 +1389,11 @@ void affine::AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
 }
 
 // Generic version for ops that don't have extra operands.
-template <typename affine::AffineOpTy>
-void affine::AffineFixup<affine::AffineOpTy>::replaceAffineOp(
-    PatternRewriter &rewriter, affine::AffineOpTy op, AffineMap map,
+template <typename AffineOpTy>
+void AffineFixup<AffineOpTy>::replaceAffineOp(
+    PatternRewriter &rewriter, AffineOpTy op, AffineMap map,
     ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<affine::AffineOpTy>(op, map, mapOperands);
+  rewriter.replaceOpWithNewOp<AffineOpTy>(op, map, mapOperands);
 }
 
 struct CanonicalieForBounds : public OpRewritePattern<affine::AffineForOp> {
@@ -1553,8 +1553,8 @@ void AffineCFGPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add</*SimplfyIntegerCastMath, */ CanonicalizeAffineApply,
           CanonicalizeIndexCast,
-          /* IndexCastMovement,*/ affine::AffineFixup<affine::AffineLoadOp>,
-          affine::AffineFixup<affine::AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
+          /* IndexCastMovement,*/ AffineFixup<affine::AffineLoadOp>,
+          AffineFixup<affine::AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
           MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
       getOperation()->getContext());
   GreedyRewriteConfig config;
