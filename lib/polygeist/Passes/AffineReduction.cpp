@@ -12,7 +12,7 @@ using namespace mlir;
 using namespace polygeist;
 
 namespace {
-struct affine::AffineReductionPass : public affine::AffineReductionBase<affine::AffineReductionPass> {
+struct AffineReductionPass : public affine::AffineReductionBase<AffineReductionPass> {
   void runOnOperation() override;
 };
 } // end namespace.
@@ -254,7 +254,7 @@ struct affine::AffineForReductionIter : public OpRewritePattern<affine::AffineFo
 
 } // end namespace.
 
-void affine::AffineReductionPass::runOnOperation() {
+void AffineReductionPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add<affine::AffineForReductionIter>(getOperation()->getContext());
   GreedyRewriteConfig config;
@@ -264,7 +264,7 @@ void affine::AffineReductionPass::runOnOperation() {
 namespace mlir {
 namespace polygeist {
 std::unique_ptr<Pass> detectReductionPass() {
-  return std::make_unique<affine::AffineReductionPass>();
+  return std::make_unique<AffineReductionPass>();
 }
 } // namespace polygeist
 } // namespace mlir
