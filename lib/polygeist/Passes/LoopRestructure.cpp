@@ -21,7 +21,8 @@
 #include "mlir/Transforms/Passes.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/Analysis/LoopInfo.h"
+#include "llvm/Support/GenericLoopInfo.h"
+#include "llvm/Support/GenericLoopInfoImpl.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
