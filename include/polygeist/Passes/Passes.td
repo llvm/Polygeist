@@ -8,9 +8,9 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
-def Mem2Reg : Pass<"mem2reg"> {
+def PolygeistMem2Reg : Pass<"mem2reg"> {
   let summary = "Replace scf.if and similar with affine.if";
-  let constructor = "mlir::polygeist::createMem2RegPass()";
+  let constructor = "mlir::polygeist::createPolygeistMem2RegPass()";
 }
 
 def CudaRTLower : Pass<"cudart-lower", "mlir::ModuleOp"> {

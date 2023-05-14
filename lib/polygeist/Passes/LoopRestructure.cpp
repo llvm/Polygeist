@@ -22,7 +22,6 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopInfoImpl.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
