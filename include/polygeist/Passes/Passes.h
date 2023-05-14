@@ -80,9 +80,7 @@ namespace func {
 class FuncDialect;
 }
 
-namespace affine {
 class AffineDialect;
-}
 
 namespace LLVM {
 class LLVMDialect;

@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
   mlir::registerSymbolDCEPass();
   mlir::registerLoopInvariantCodeMotionPass();
   mlir::registerConvertSCFToOpenMPPass();
-  mlir::registerAffinePasses();
+  mlir::affine::registerAffinePasses();
 
   registry.addExtension(+[](MLIRContext *ctx, LLVM::LLVMDialect *dialect) {
     LLVM::LLVMFunctionType::attachInterface<MemRefInsider>(*ctx);
