@@ -1204,7 +1204,7 @@ struct RemovePolygeistGPUWrapperOp : public OpRewritePattern<OpType> {
     }
     rewriter.eraseOp(wrapper.getBody()->getTerminator());
     rewriter.setInsertionPoint(wrapper);
-    rewriter.mergeBlockBefore(wrapper.getBody(), wrapper);
+    rewriter.inlineBlockBefore(wrapper.getBody(), wrapper);
     rewriter.eraseOp(wrapper);
     return success();
   }
