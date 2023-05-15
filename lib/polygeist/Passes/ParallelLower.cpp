@@ -86,6 +86,9 @@ struct ParallelLower : public ParallelLowerBase<ParallelLower> {
 struct ConvertCudaRTtoCPU : public ConvertCudaRTtoCPUBase<ConvertCudaRTtoCPU> {
   void runOnOperation() override;
 };
+struct ConvertCudaRTtoGPU : public ConvertCudaRTtoGPUBase<ConvertCudaRTtoGPU> {
+  void runOnOperation() override;
+};
 
 } // end anonymous namespace
 
@@ -93,6 +96,9 @@ struct ConvertCudaRTtoCPU : public ConvertCudaRTtoCPUBase<ConvertCudaRTtoCPU> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
+std::unique_ptr<Pass> createConvertCudaRTtoGPUPass() {
+  return std::make_unique<ConvertCudaRTtoGPU>();
+}
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass() {
   return std::make_unique<ConvertCudaRTtoCPU>();
 }
@@ -814,9 +820,118 @@ void ConvertCudaRTtoCPU::runOnOperation() {
       };
 
   getOperation()->walk([&](CallOp bidx) {
+    // TODO Why are we erasing this??? it has the same beviour as cudaDeviceSynchronize
     if (bidx.getCallee() == "cudaThreadSynchronize")
       bidx.erase();
   });
+  getOperation().walk([&](LLVM::CallOp call) {
+    if (!call.getCallee())
+      return;
+    replace(call, *call.getCallee());
+  });
+
+  getOperation().walk([&](CallOp call) { replace(call, call.getCallee()); });
+
+  // Fold the copy memtype cast
+  {
+    mlir::RewritePatternSet rpl(getOperation()->getContext());
+    GreedyRewriteConfig config;
+    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
+  }
+}
+
+void ConvertCudaRTtoGPU::runOnOperation() {
+  SymbolTableCollection symbolTable;
+  symbolTable.getSymbolTable(getOperation());
+
+  std::function<void(Operation * call, StringRef callee)> replace =
+      [&](Operation *call, StringRef callee) {
+        auto loc = call->getLoc();
+        OpBuilder bz(call);
+        auto memrefify = [&](Value ptr) {
+          if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+            return bz.create<polygeist::Pointer2MemrefOp>(
+              loc,
+              mlir::MemRefType::get({-1}, PT.getElementType()),
+              ptr);
+          } else {
+            assert(ptr.getType().isa<mlir::MemRefType>());
+            return ptr;
+          }
+        };
+
+        if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
+          auto dst = memrefify(call->getOperand(0));
+          auto src = memrefify(call->getOperand(1));
+          bz.create<gpu::MemcpyOp>(loc, TypeRange(), ValueRange(), dst, src);
+          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+              call->getLoc(), 0, call->getResult(0).getType()));
+          call->erase();
+        } else if (callee == "cudaMemcpyToSymbol") {
+          assert(0);
+          // TODO
+        } else if (callee == "cudaMemset") {
+          auto dst = memrefify(call->getOperand(0));
+          bz.create<gpu::MemsetOp>(loc, dst,
+                                    bz.create<TruncIOp>(call->getLoc(),
+                                                        bz.getI8Type(),
+                                                        call->getOperand(1)),
+                                    call->getOperand(2),
+                                    /*isVolatile*/ falsev);
+          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+              call->getLoc(), 0, call->getResult(0).getType()));
+          call->erase();
+        } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
+          OpBuilder bz(call);
+          Value arg = call->getOperand(1);
+          if (arg.getType().cast<IntegerType>().getWidth() < 64)
+            arg =
+                bz.create<arith::ExtUIOp>(call->getLoc(), bz.getI64Type(), arg);
+          mlir::Value alloc =
+              callMalloc(bz, getOperation(), call->getLoc(), arg);
+          bz.create<LLVM::StoreOp>(call->getLoc(), alloc, call->getOperand(0));
+          {
+            auto retv = bz.create<ConstantIntOp>(
+                call->getLoc(), 0,
+                call->getResult(0).getType().cast<IntegerType>().getWidth());
+            Value vals[] = {retv};
+            call->replaceAllUsesWith(ArrayRef<Value>(vals));
+            call->erase();
+          }
+        } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
+          auto mf = GetOrCreateFreeFunction(getOperation());
+          OpBuilder bz(call);
+          Value args[] = {call->getOperand(0)};
+          bz.create<mlir::LLVM::CallOp>(call->getLoc(), mf, args);
+          {
+            auto retv = bz.create<ConstantIntOp>(
+                call->getLoc(), 0,
+                call->getResult(0).getType().cast<IntegerType>().getWidth());
+            Value vals[] = {retv};
+            call->replaceAllUsesWith(ArrayRef<Value>(vals));
+            call->erase();
+          }
+        } else if (callee == "cudaDeviceSynchronize") {
+          OpBuilder bz(call);
+          auto retv = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          Value vals[] = {retv};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        } else if (callee == "cudaGetLastError" ||
+                   callee == "cudaPeekAtLastError") {
+          OpBuilder bz(call);
+          auto retv = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          Value vals[] = {retv};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        } else if (callee == "cudaThreadSynchronize") {
+        }
+      };
+
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
