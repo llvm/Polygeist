@@ -406,6 +406,35 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     llvm::errs() << " val: " << val << " T: " << T << "\n";
     assert(0 && "unhandled builtin addressof");
   }
+  case Builtin::BI__builtin_operator_new: {
+    mlir::Value count = Visit(*expr->arg_begin()).getValue(loc, builder);
+    count = builder.create<IndexCastOp>(
+        loc, mlir::IndexType::get(builder.getContext()), count);
+    auto ty = getMLIRType(expr->getType());
+    mlir::Value alloc;
+    if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+      auto shape = std::vector<int64_t>(mt.getShape());
+      mlir::Value args[1] = {count};
+      alloc = builder.create<mlir::memref::AllocOp>(loc, mt, args);
+    } else {
+      auto PT = ty.cast<LLVM::LLVMPointerType>();
+      alloc = builder.create<mlir::LLVM::BitcastOp>(
+          loc, ty, Glob.CallMalloc(builder, loc, count));
+    }
+    return make_pair(ValueCategory(alloc, /*isRef*/ false), true);
+  }
+  case Builtin::BI__builtin_operator_delete: {
+    mlir::Value toDelete = Visit(*expr->arg_begin()).getValue(loc, builder);
+    if (toDelete.getType().isa<mlir::MemRefType>()) {
+      builder.create<mlir::memref::DeallocOp>(loc, toDelete);
+    } else {
+      mlir::Value args[1] = {builder.create<LLVM::BitcastOp>(
+          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), toDelete)};
+      builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateFreeFunction(),
+                                         args);
+    }
+    return make_pair(nullptr, true);
+  }
   default:
     break;
   }
