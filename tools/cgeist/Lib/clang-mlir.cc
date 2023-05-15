@@ -1894,7 +1894,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
       llvm::raw_string_ostream ss(str);
       ss.str();
       sr->getDecl()->printQualifiedName(ss);
-      if (str == "free" || ((CudaLower && !EmitCuda) &&
+      if (str == "free" || ((CudaLower && ToCPU.size() > 0) &&
                             (str == "cudaFree" || str == "cudaFreeHost"))) {
 
         auto sub = expr->getArg(0);
@@ -1921,7 +1921,7 @@ MLIRScanner::EmitGPUCallExpr(clang::CallExpr *expr) {
         // TODO remove me when the free is removed.
         return make_pair(ValueCategory(), true);
       }
-      if ((CudaLower && !EmitCuda) &&
+      if ((CudaLower && ToCPU.size() > 0) &&
           (str == "cudaMalloc" || str == "cudaMallocHost" ||
            str == "cudaMallocPitch")) {
         auto sub = expr->getArg(0);
@@ -6040,7 +6040,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
       }
     }
 
-    if (jobTriple.isNVPTX()) {
+    // TODO investigate what AMDGCN and AMDGPU are, do we need them both?
+    if (jobTriple.isNVPTX() || jobTriple.isAMDGCN() || jobTriple.isAMDGPU()) {
       gpuTriple = jobTriple;
       module.get()->setAttr(
           StringRef("polygeist.gpu_module." +
