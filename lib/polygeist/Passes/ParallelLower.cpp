@@ -83,7 +83,7 @@ struct ParallelLower : public ParallelLowerBase<ParallelLower> {
   bool wrapParallelOps;
   PolygeistGPUStructureMode gpuKernelStructureMode;
 };
-struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
+struct ConvertCudaRTtoCPU : public ConvertCudaRTtoCPUBase<ConvertCudaRTtoCPU> {
   void runOnOperation() override;
 };
 
@@ -93,8 +93,8 @@ struct CudaRTLower : public CudaRTLowerBase<CudaRTLower> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createCudaRTLowerPass() {
-  return std::make_unique<CudaRTLower>();
+std::unique_ptr<Pass> createConvertCudaRTtoCPUPass() {
+  return std::make_unique<ConvertCudaRTtoCPU>();
 }
 std::unique_ptr<Pass>
 createParallelLowerPass(bool wrapParallelOps,
@@ -681,7 +681,7 @@ void ParallelLower::runOnOperation() {
   }
 }
 
-void CudaRTLower::runOnOperation() {
+void ConvertCudaRTtoCPU::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
   // as the callgraph will need to resolve references.
 

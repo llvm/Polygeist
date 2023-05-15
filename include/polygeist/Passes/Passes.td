@@ -13,11 +13,11 @@ def Mem2Reg : Pass<"mem2reg"> {
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
-def CudaRTLower : Pass<"cudart-lower", "mlir::ModuleOp"> {
+def ConvertCudaRTtoCPU : Pass<"cudart-lower", "mlir::ModuleOp"> {
   let summary = "Lower cudart functions to cpu versions";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
-  let constructor = "mlir::polygeist::createCudaRTLowerPass()";
+  let constructor = "mlir::polygeist::createConvertCudaRTtoCPUPass()";
 }
 
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
