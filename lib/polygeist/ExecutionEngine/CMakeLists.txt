@@ -54,6 +54,15 @@ if(POLYGEIST_ENABLE_CUDA)
 
 endif()
 if(POLYGEIST_ENABLE_ROCM)
+  if (NOT DEFINED ROCM_PATH)
+    if (NOT DEFINED ENV{ROCM_PATH})
+      set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to which ROCm has been installed")
+    else()
+      set(ROCM_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which ROCm has been installed")
+    endif()
+  endif()
+  list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} "${ROCM_PATH}/hip")
+  find_package(hip REQUIRED)
 
   # Bitcode lib wrapper
   find_program(CLANG_TOOL clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
@@ -66,7 +75,12 @@ if(POLYGEIST_ENABLE_ROCM)
   set(bc_flags -c -emit-llvm -std=c++17 -fvisibility=hidden
     -O3
     #-nocudalib
+    -D__HIP_PLATFORM_AMD__
     -Xclang -no-opaque-pointers
+    -I${ROCM_PATH}/include
+    -DPOLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
+    -DPOLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"
+    -DPOLYGEIST_PGO_DATA_DIR_ENV_VAR="${POLYGEIST_PGO_DATA_DIR_ENV_VAR}"
     )
 
   foreach(src ${src_files})
@@ -79,10 +93,6 @@ if(POLYGEIST_ENABLE_ROCM)
       COMMAND ${CLANG_TOOL}
       ${bc_flags}
       ${infile} -o ${bc_outfile}
-      #-I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
-      -DPOLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
-      -DPOLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"
-      -DPOLYGEIST_PGO_DATA_DIR_ENV_VAR="${POLYGEIST_PGO_DATA_DIR_ENV_VAR}"
       DEPENDS ${infile}
       COMMENT "Building LLVM bitcode ${bc_outfile}"
       VERBATIM
