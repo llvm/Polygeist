@@ -1,12 +1,18 @@
 #ifndef POLYGEIST_PASSES_RUNTIMEWRAPPERUTILS_H_
 #define POLYGEIST_PASSES_RUNTIMEWRAPPERUTILS_H_
 
+#include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
+#include "mlir/Conversion/LLVMCommon/Pattern.h"
+#include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 
 namespace {
+
+using namespace mlir;
+
 struct FunctionCallBuilder {
   FunctionCallBuilder(StringRef functionName, Type returnType,
                       ArrayRef<Type> argumentTypes)
@@ -31,21 +37,16 @@ LLVM::CallOp FunctionCallBuilder::create(Location loc, OpBuilder &builder,
   return builder.create<LLVM::CallOp>(loc, function, arguments);
 }
 
-class GpuRuntimeCallBuildersContextHolder {
-protected:
-  GpuRuntimeCallBuildersContextHolder(MLIRContext *context,
-                                      LLVMTypeConverter &typeConverter)
-      : holder_context(context), holder_typeConverter(typeConverter){};
-  MLIRContext *holder_context;
-  LLVMTypeConverter &holder_typeConverter;
-};
-class GpuRuntimeCallBuilders : private GpuRuntimeCallBuildersContextHolder {
-
-protected:
+class GpuRuntimeCallBuilders {
+public:
   GpuRuntimeCallBuilders(MLIRContext *context, LLVMTypeConverter &typeConverter)
-      : GpuRuntimeCallBuildersContextHolder(context, typeConverter) {}
+      : pointerBitwidth(typeConverter.getPointerBitwidth(0)), context(context) {
+  }
+  GpuRuntimeCallBuilders(MLIRContext *context, int pointerBitwidth)
+      : pointerBitwidth(pointerBitwidth), context(context) {}
 
-  MLIRContext *context = holder_context;
+  int pointerBitwidth;
+  MLIRContext *context;
 
   Type llvmVoidType = LLVM::LLVMVoidType::get(context);
   Type llvmPointerType =
@@ -54,8 +55,7 @@ protected:
   Type llvmInt8Type = IntegerType::get(context, 8);
   Type llvmInt32Type = IntegerType::get(context, 32);
   Type llvmInt64Type = IntegerType::get(context, 64);
-  Type llvmIntPtrType =
-      IntegerType::get(context, holder_typeConverter.getPointerBitwidth(0));
+  Type llvmIntPtrType = IntegerType::get(context, pointerBitwidth);
 
   FunctionCallBuilder rtRegisterFunctionCallBuilder = {
       "__cudaRegisterFunction",

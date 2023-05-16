@@ -35,7 +35,7 @@ std::unique_ptr<Pass> createParallelLowerPass(
     bool wrapParallelOps = false,
     PolygeistGPUStructureMode gpuKernelStructureMode = PGSM_Discard);
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass();
-std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
+std::unique_ptr<Pass> createConvertCudaRTtoGPUPass(std::string DL = "");
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
                                  bool useCStyleMemRef, bool onlyGpuModules);
