@@ -22,7 +22,7 @@ struct FunctionCallBuilder {
                       ArrayRef<Value> arguments) const;
   LLVM::CallOp operator()(Location loc, OpBuilder &builder,
                           ArrayRef<Value> arguments) const {
-    create(loc, builder, arguments);
+    return create(loc, builder, arguments);
   }
 
   StringRef functionName;
