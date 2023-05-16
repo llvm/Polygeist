@@ -847,6 +847,8 @@ void ConvertCudaRTtoCPU::runOnOperation() {
 }
 
 void ConvertCudaRTtoGPU::runOnOperation() {
+  // Use an integer with the bitwidth of a pointer (intptr_t) to get the size_t
+  // type which is the same on modern systems
   const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
   LowerToLLVMOptions options(&getContext(),
                              dataLayoutAnalysis.getAtOrAbove(getOperation()));
@@ -907,26 +909,30 @@ void ConvertCudaRTtoGPU::runOnOperation() {
             llvm_unreachable("?");
           }
         };
+        auto replaceWith = [&](Operation *call, auto op) {
+          call->replaceAllUsesWith(op);
+          call->erase();
+        };
         auto replaceWithSuccess = [&](Operation *call) {
           auto retv = bz.create<ConstantIntOp>(
               call->getLoc(), 0,
               call->getResult(0).getType().cast<IntegerType>().getWidth());
           Value vals[] = {retv};
-          call->replaceAllUsesWith(ArrayRef<Value>(vals));
-          call->erase();
+          replaceWith(call, ArrayRef<Value>(vals));
         };
 
         if (callee == "cudaMemcpy") {
           auto dst = pointerify(call->getOperand(0));
           auto src = pointerify(call->getOperand(1));
-          call->replaceAllUsesWith(rtBuilder.rtMemcpyErrCallBuilder(
-              loc, bz, {dst, src, call->getOperand(2)}));
-        } else if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
+          replaceWith(call, rtBuilder.rtMemcpyErrCallBuilder(
+                                loc, bz, {dst, src, call->getOperand(2)}));
+        } else if (callee == "cudaMemcpyAsync") {
           auto dst = pointerify(call->getOperand(0));
           auto src = pointerify(call->getOperand(1));
           auto stream = pointerify(call->getOperand(3));
-          call->replaceAllUsesWith(rtBuilder.rtMemcpyErrCallBuilder(
-              loc, bz, {dst, src, call->getOperand(2), stream}));
+          replaceWith(call,
+                      rtBuilder.rtMemcpyErrCallBuilder(
+                          loc, bz, {dst, src, call->getOperand(2), stream}));
         } else if (callee == "cudaMemcpyToSymbol") {
           // TODO
           llvm::errs() << "unhandled case: " << callee << "\n";
@@ -956,8 +962,8 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           replaceWithSuccess(call);
         } else if (callee == "cudaDeviceSynchronize" ||
                    callee == "cudaThreadSynchronize") {
-          call->replaceAllUsesWith(
-              rtBuilder.rtDeviceSynchronizeErrCallBuilder(loc, bz, {}));
+          replaceWith(call,
+                      rtBuilder.rtDeviceSynchronizeErrCallBuilder(loc, bz, {}));
         } else if (callee == "cudaGetLastError" ||
                    callee == "cudaPeekAtLastError") {
           // TODO
