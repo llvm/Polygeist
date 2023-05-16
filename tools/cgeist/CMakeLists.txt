@@ -38,6 +38,13 @@ if(POLYGEIST_ENABLE_CUDA)
   )
   add_dependencies(cgeist execution_engine_cuda_wrapper_binary_include)
 endif()
+if(POLYGEIST_ENABLE_ROCM)
+  target_compile_definitions(cgeist
+    PRIVATE
+    POLYGEIST_ENABLE_ROCM=1
+  )
+  add_dependencies(cgeist execution_engine_rocm_wrapper_binary_include)
+endif()
 install(TARGETS cgeist
 EXPORT PolygeistTargets
 RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}

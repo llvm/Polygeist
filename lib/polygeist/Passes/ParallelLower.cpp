@@ -844,11 +844,12 @@ void ConvertCudaRTtoGPU::runOnOperation() {
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
 
+  // TODO try to somehow preserver the error return
   std::function<void(Operation * call, StringRef callee)> replace =
       [&](Operation *call, StringRef callee) {
         auto loc = call->getLoc();
         OpBuilder bz(call);
-        auto memrefify = [&](Value ptr) {
+        auto memrefify = [&](Value ptr) -> mlir::Value {
           if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
             return bz.create<polygeist::Pointer2MemrefOp>(
               loc,
@@ -859,45 +860,51 @@ void ConvertCudaRTtoGPU::runOnOperation() {
             return ptr;
           }
         };
+        auto getElTy = [&](mlir::Type ty) -> mlir::Type {
+          if (auto PT = ty.dyn_cast<LLVM::LLVMPointerType>()) {
+            return PT.getElementType();
+          } else if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+            return mt.getElementType();
+          } else {
+            assert(0);
+            llvm_unreachable("?");
+          }
+        };
+        auto replaceWithSuccess = [&](Operation *call) {
+          auto retv = bz.create<ConstantIntOp>(
+              call->getLoc(), 0,
+              call->getResult(0).getType().cast<IntegerType>().getWidth());
+          Value vals[] = {retv};
+          call->replaceAllUsesWith(ArrayRef<Value>(vals));
+          call->erase();
+        };
 
         if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
           auto dst = memrefify(call->getOperand(0));
           auto src = memrefify(call->getOperand(1));
           bz.create<gpu::MemcpyOp>(loc, TypeRange(), ValueRange(), dst, src);
-          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
-              call->getLoc(), 0, call->getResult(0).getType()));
-          call->erase();
+          replaceWithSuccess(call);
         } else if (callee == "cudaMemcpyToSymbol") {
-          assert(0);
           // TODO
+          llvm::errs() << "unhandled case: " << callee << "\n";
+          exit(1);
         } else if (callee == "cudaMemset") {
-          auto dst = memrefify(call->getOperand(0));
-          bz.create<gpu::MemsetOp>(loc, dst,
-                                    bz.create<TruncIOp>(call->getLoc(),
-                                                        bz.getI8Type(),
-                                                        call->getOperand(1)),
-                                    call->getOperand(2),
-                                    /*isVolatile*/ falsev);
-          call->replaceAllUsesWith(bz.create<ConstantIntOp>(
-              call->getLoc(), 0, call->getResult(0).getType()));
-          call->erase();
+          // TODO
+          llvm::errs() << "unhandled case: " << callee << "\n";
+          exit(1);
         } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
-          OpBuilder bz(call);
-          Value arg = call->getOperand(1);
-          if (arg.getType().cast<IntegerType>().getWidth() < 64)
-            arg =
-                bz.create<arith::ExtUIOp>(call->getLoc(), bz.getI64Type(), arg);
-          mlir::Value alloc =
-              callMalloc(bz, getOperation(), call->getLoc(), arg);
-          bz.create<LLVM::StoreOp>(call->getLoc(), alloc, call->getOperand(0));
-          {
-            auto retv = bz.create<ConstantIntOp>(
-                call->getLoc(), 0,
-                call->getResult(0).getType().cast<IntegerType>().getWidth());
-            Value vals[] = {retv};
-            call->replaceAllUsesWith(ArrayRef<Value>(vals));
-            call->erase();
-          }
+          Value size = call->getOperand(1);
+          size = bz.create<arith::IndexCastOp>(
+              loc, mlir::IndexType::get(bz.getContext()), size);
+          auto mt = MemRefType::get({}, getElTy(call->getOperand(0).getType()));
+          auto alloc =
+              bz.create<gpu::AllocOp>(loc, mt, /*asyncTokenType*/ nullptr,
+                                      /*TODO asyncDependencies*/ ValueRange(),
+                                      /*dynamicSizes*/ ValueRange(size),
+                                      /*symbolOperands*/ ValueRange());
+          bz.create<LLVM::StoreOp>(call->getLoc(), alloc.getResult(0),
+                                   call->getOperand(0));
+          replaceWithSuccess(call);
         } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
           auto mf = GetOrCreateFreeFunction(getOperation());
           OpBuilder bz(call);

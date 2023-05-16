@@ -70,6 +70,8 @@
 
 using namespace llvm;
 
+#define POLYGEIST_ENABLE_GPU (POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM)
+
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
@@ -855,7 +857,7 @@ int main(int argc, char **argv) {
       }
     }
 
-#if POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM
+#if POLYGEIST_ENABLE_GPU
     if (EmitGPU) {
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
@@ -911,7 +913,7 @@ int main(int argc, char **argv) {
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
 
-#if POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM
+#if POLYGEIST_ENABLE_GPU
         if (EmitGPU) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
               options, CStyleMemRef, /* onlyGpuModules */ true));
@@ -931,6 +933,7 @@ int main(int argc, char **argv) {
           CudaInstallationDetector detector(*driver, triple, argList);
 
           if (EmitCUDA) {
+#if POLYGEIST_ENABLE_CUDA
             std::string arch = CUDAGPUArch;
             if (arch == "")
               arch = "sm_60";
@@ -943,14 +946,16 @@ int main(int argc, char **argv) {
             gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
                 gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
                 ptxasPath, libDevicePath, OutputIntermediateGPU));
+#endif
           } else if (EmitROCM) {
+#if POLYGEIST_ENABLE_ROCM
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
                 gpuTriple.getTriple(), OutputIntermediateGPU));
-
+#endif
           } else {
             assert(0);
-            llvm_unreachable();
+            llvm_unreachable("?");
           }
         }
 #endif
