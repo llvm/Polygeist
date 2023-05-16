@@ -846,6 +846,14 @@ void ConvertCudaRTtoCPU::runOnOperation() {
   }
 }
 
+static mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace,
+                                              MLIRContext *ctx) {
+  if (memorySpace == 0)
+    return nullptr;
+
+  return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
+}
+
 void ConvertCudaRTtoGPU::runOnOperation() {
   // Use an integer with the bitwidth of a pointer (intptr_t) to get the size_t
   // type which is the same on modern systems
@@ -865,6 +873,18 @@ void ConvertCudaRTtoGPU::runOnOperation() {
       [&](Operation *call, StringRef callee) {
         auto loc = call->getLoc();
         OpBuilder bz(call);
+        auto memrefifyType = [&](Type ty) -> mlir::MemRefType {
+          if (auto PT = ty.dyn_cast<LLVM::LLVMPointerType>()) {
+            return mlir::MemRefType::get(
+                {-1}, PT.getElementType(), MemRefLayoutAttrInterface(),
+                wrapIntegerMemorySpace(PT.getAddressSpace(), &getContext()));
+          } else if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
+            return mt;
+          } else {
+            assert(0);
+            return nullptr;
+          }
+        };
         auto memrefify = [&](Value ptr) -> mlir::Value {
           if (auto m2p =
                   dyn_cast<polygeist::Memref2PointerOp>(ptr.getDefiningOp())) {
@@ -872,31 +892,31 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           } else if (auto PT =
                          ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
             return bz.create<polygeist::Pointer2MemrefOp>(
-              loc,
-              mlir::MemRefType::get({-1}, PT.getElementType()),
-              ptr);
+                loc,
+                mlir::MemRefType::get({-1}, PT.getElementType(),
+                                      MemRefLayoutAttrInterface(),
+                                      wrapIntegerMemorySpace(
+                                          PT.getAddressSpace(), &getContext())),
+                ptr);
           } else {
             assert(ptr.getType().isa<mlir::MemRefType>());
             return ptr;
           }
         };
-        auto pointerify = [&](Value v, Type ty = nullptr) -> mlir::Value {
+        auto pointerify = [&](Value v, Type elTy = nullptr) -> mlir::Value {
           if (auto p2m =
                   dyn_cast<polygeist::Pointer2MemrefOp>(v.getDefiningOp())) {
             v = p2m->getOperand(0);
           } else if (auto PT = v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
           } else if (auto mt = v.getType().dyn_cast<mlir::MemRefType>()) {
+            auto ty = elTy ? elTy : mt.getElementType();
             v = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
-                                           mt.getMemorySpaceAsInt()),
-                v);
+                LLVM::LLVMPointerType::get(ty, mt.getMemorySpaceAsInt()), v);
           } else {
             assert(0);
             llvm_unreachable("?");
           }
-          if (ty)
-            v = bz.create<LLVM::BitcastOp>(loc, ty, v);
           return v;
         };
         auto getElTy = [&](mlir::Type ty) -> mlir::Type {
@@ -941,25 +961,55 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           // TODO
           llvm::errs() << "unhandled case: " << callee << "\n";
           exit(1);
-        } else if (callee == "cudaMalloc" || callee == "cudaMallocHost") {
-          Value size = call->getOperand(1);
-          size = bz.create<arith::IndexCastOp>(
-              loc, mlir::IndexType::get(bz.getContext()), size);
-          auto mt = MemRefType::get({}, getElTy(call->getOperand(0).getType()));
-          auto alloc =
-              bz.create<gpu::AllocOp>(loc, mt, /*asyncTokenType*/ nullptr,
-                                      /*asyncDependencies*/ ValueRange(),
-                                      /*dynamicSizes*/ ValueRange(size),
-                                      /*symbolOperands*/ ValueRange());
-          // TODO I think I need to cast the alloc result
-          bz.create<LLVM::StoreOp>(call->getLoc(), alloc.getResult(0),
-                                   call->getOperand(0));
+        } else if (callee == "cudaMallocHost") {
+          // TODO
+          llvm::errs() << "unhandled case: " << callee << "\n";
+          exit(1);
+        } else if (callee == "cudaMalloc") {
+          auto nullPtr =
+              bz.create<LLVM::NullOp>(loc, rtBuilder.llvmPointerType);
+          auto size = call->getOperand(1);
+          mlir::Value alloc =
+              rtBuilder.rtMemAllocCallBuilder(loc, bz, {size, nullPtr})
+                  ->getResult(0);
+          auto dst = call->getOperand(0);
+          if (getElTy(dst.getType()).isa<LLVM::LLVMPointerType>())
+            alloc = pointerify(alloc);
+          else
+            alloc = memrefify(alloc);
+          if (auto mt = dst.getType().dyn_cast<mlir::MemRefType>())
+            bz.create<memref::StoreOp>(
+                loc, alloc, dst,
+                ValueRange({bz.create<arith::ConstantIndexOp>(loc, 0)}));
+          else if (auto PT = dst.getType().dyn_cast<LLVM::LLVMPointerType>())
+            bz.create<LLVM::StoreOp>(loc, alloc, dst);
           replaceWithSuccess(call);
-        } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
-          Value mem = memrefify(call->getOperand(0));
-          bz.create<gpu::DeallocOp>(loc, /*asyncTokenType*/ TypeRange(),
-                                    /*asyncDependencies*/ ValueRange(), mem);
-          replaceWithSuccess(call);
+
+          // TODO Need to properly resize the arg by sizeof(type) if we want to
+          // convert to gpu.malloc
+
+          // Value size = call->getOperand(1);
+          // size = bz.create<arith::IndexCastOp>(
+          //     loc, mlir::IndexType::get(bz.getContext()), size);
+          // auto type = memrefifyType(getElTy(call->getOperand(0).getType()));
+          // auto alloc =
+          //     bz.create<gpu::AllocOp>(loc, type, /*asyncTokenType*/ nullptr,
+          //                             /*asyncDependencies*/ ValueRange(),
+          //                             /*dynamicSizes*/ ValueRange(size),
+          //                             /*symbolOperands*/ ValueRange());
+          // // TODO I think I need to cast the alloc result
+          // bz.create<LLVM::StoreOp>(call->getLoc(),
+          // pointerify(alloc.getResult(0),
+          // getElTy(getElTy(call->getOperand(0).getType()))),
+          //                          call->getOperand(0));
+          // replaceWithSuccess(call);
+        } else if (callee == "cudaFreeHost") {
+        } else if (callee == "cudaFree") {
+
+          // Value mem = memrefify(call->getOperand(0));
+          // bz.create<gpu::DeallocOp>(loc, /*asyncTokenType*/ TypeRange(),
+          //                           /*asyncDependencies*/ ValueRange(), mem);
+          // replaceWithSuccess(call);
         } else if (callee == "cudaDeviceSynchronize" ||
                    callee == "cudaThreadSynchronize") {
           replaceWith(call,
