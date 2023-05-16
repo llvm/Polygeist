@@ -850,7 +850,11 @@ void ConvertCudaRTtoGPU::runOnOperation() {
         auto loc = call->getLoc();
         OpBuilder bz(call);
         auto memrefify = [&](Value ptr) -> mlir::Value {
-          if (auto PT = ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+          if (auto m2p =
+                  dyn_cast<polygeist::Memref2PointerOp>(ptr.getDefiningOp())) {
+            return m2p->getOperand(0);
+          } else if (auto PT =
+                         ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
             return bz.create<polygeist::Pointer2MemrefOp>(
               loc,
               mlir::MemRefType::get({-1}, PT.getElementType()),
@@ -858,6 +862,23 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           } else {
             assert(ptr.getType().isa<mlir::MemRefType>());
             return ptr;
+          }
+        };
+        auto pointerify = [&](Value v) -> mlir::Value {
+          if (auto p2m =
+                  dyn_cast<polygeist::Pointer2MemrefOp>(v.getDefiningOp())) {
+            return p2m->getOperand(0);
+          } else if (auto PT = v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+            return v;
+          } else if (auto mt = v.getType().dyn_cast<mlir::MemRefType>()) {
+            return bz.create<polygeist::Memref2PointerOp>(
+                call->getLoc(),
+                LLVM::LLVMPointerType::get(mt.getElementType(),
+                                           mt.getMemorySpaceAsInt()),
+                v);
+          } else {
+            assert(0);
+            llvm_unreachable("?");
           }
         };
         auto getElTy = [&](mlir::Type ty) -> mlir::Type {
@@ -880,8 +901,8 @@ void ConvertCudaRTtoGPU::runOnOperation() {
         };
 
         if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
-          auto dst = memrefify(call->getOperand(0));
-          auto src = memrefify(call->getOperand(1));
+          auto dst = pointerify(call->getOperand(0));
+          auto src = pointerify(call->getOperand(1));
           bz.create<gpu::MemcpyOp>(loc, TypeRange(), ValueRange(), dst, src);
           replaceWithSuccess(call);
         } else if (callee == "cudaMemcpyToSymbol") {

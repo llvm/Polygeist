@@ -79,6 +79,10 @@ public:
   ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
 
+// TODO Remove the syncs and move PGO related stuff in a separate wrapper file.
+// The syncs should instead be emitted by the code that emits the calls to the
+// PGO functions which should know whether the code in the alternatives op is
+// GPU code - we can add an attrib to the alternatives op for that
 class PGOState {
 public:
   enum Type { Start, End };
@@ -191,10 +195,12 @@ extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtPGOEnd(const char *kernelID,
   pgoState.end();
 }
 
+//========= CUDA RUNTIME API =========//
+
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
 mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
                    intptr_t gridZ, intptr_t blockX, intptr_t blockY,
-                   intptr_t blockZ, int32_t smem, CUstream stream,
+                   intptr_t blockZ, int32_t smem, cudaStream_t stream,
                    void **params) {
   CUDART_REPORT_IF_ERROR(cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
                                           dim3(blockX, blockY, blockZ), params,
@@ -204,18 +210,30 @@ mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtLaunchKernelErr(
     void *function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
     intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
-    CUstream stream, void **params) {
+    cudaStream_t stream, void **params) {
   return CUDART_REPORT_IF_ERROR(
       cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
                        dim3(blockX, blockY, blockZ), params, smem, stream));
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAlloc(uint64_t sizeBytes,
-                                                          CUstream /*stream*/) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *
+mgpurtMemAlloc(uint64_t sizeBytes, cudaStream_t /*stream*/) {
   void *ptr;
   CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
   return reinterpret_cast<void *>(ptr);
 }
+
+extern "C" void mgpurtMemcpyErr(void *dst, void *src, size_t sizeBytes) {
+  CUDART_REPORT_IF_ERROR(cudaMemcpy(dst, src, sizeBytes, cudaMemcpyDefault));
+}
+
+extern "C" void mgpurtMemcpyAsyncErr(void *dst, void *src, size_t sizeBytes,
+                                     cudaStream_t stream) {
+  CUDART_REPORT_IF_ERROR(
+      cudaMemcpyAsync(dst, src, sizeBytes, cudaMemcpyDefault, stream));
+}
+
+//========= CUDA DRIVER API =========//
 
 // The wrapper uses intptr_t instead of CUDA's unsigned int to match
 // the type of MLIR's index type. This avoids the need for casts in the
