@@ -12,6 +12,7 @@
 
 #include "PassDetails.h"
 #include "mlir/Analysis/CallGraph.h"
+#include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -29,8 +30,11 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+
 #include <algorithm>
 #include <mutex>
+
+#include "RuntimeWrapperUtils.h"
 
 #define DEBUG_TYPE "parallel-lower-opt"
 
@@ -87,7 +91,9 @@ struct ConvertCudaRTtoCPU : public ConvertCudaRTtoCPUBase<ConvertCudaRTtoCPU> {
   void runOnOperation() override;
 };
 struct ConvertCudaRTtoGPU : public ConvertCudaRTtoGPUBase<ConvertCudaRTtoGPU> {
+  ConvertCudaRTtoGPU(std::string DL) : DL(DL) {}
   void runOnOperation() override;
+  llvm::DataLayout DL;
 };
 
 } // end anonymous namespace
@@ -96,8 +102,8 @@ struct ConvertCudaRTtoGPU : public ConvertCudaRTtoGPUBase<ConvertCudaRTtoGPU> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createConvertCudaRTtoGPUPass() {
-  return std::make_unique<ConvertCudaRTtoGPU>();
+std::unique_ptr<Pass> createConvertCudaRTtoGPUPass(std::string DL) {
+  return std::make_unique<ConvertCudaRTtoGPU>(DL);
 }
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass() {
   return std::make_unique<ConvertCudaRTtoCPU>();
@@ -841,6 +847,14 @@ void ConvertCudaRTtoCPU::runOnOperation() {
 }
 
 void ConvertCudaRTtoGPU::runOnOperation() {
+  const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
+  LowerToLLVMOptions options(&getContext(),
+                             dataLayoutAnalysis.getAtOrAbove(getOperation()));
+  options.dataLayout = llvm::DataLayout(DL);
+  LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
+  int pointerBitwidth = converter.getPointerBitwidth();
+  GpuRuntimeCallBuilders rtBuilder(&getContext(), pointerBitwidth);
+
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
 
@@ -864,14 +878,14 @@ void ConvertCudaRTtoGPU::runOnOperation() {
             return ptr;
           }
         };
-        auto pointerify = [&](Value v) -> mlir::Value {
+        auto pointerify = [&](Value v, Type ty = nullptr) -> mlir::Value {
           if (auto p2m =
                   dyn_cast<polygeist::Pointer2MemrefOp>(v.getDefiningOp())) {
-            return p2m->getOperand(0);
+            v = p2m->getOperand(0);
           } else if (auto PT = v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
-            return v;
+            v = v;
           } else if (auto mt = v.getType().dyn_cast<mlir::MemRefType>()) {
-            return bz.create<polygeist::Memref2PointerOp>(
+            v = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
                                            mt.getMemorySpaceAsInt()),
@@ -880,6 +894,9 @@ void ConvertCudaRTtoGPU::runOnOperation() {
             assert(0);
             llvm_unreachable("?");
           }
+          if (ty)
+            v = bz.create<LLVM::BitCastOp>(loc, ty);
+          return v;
         };
         auto getElTy = [&](mlir::Type ty) -> mlir::Type {
           if (auto PT = ty.dyn_cast<LLVM::LLVMPointerType>()) {

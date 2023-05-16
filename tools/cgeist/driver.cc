@@ -714,7 +714,8 @@ int main(int argc, char **argv) {
       if (ToCPU.size() > 0) {
         pm.addPass(polygeist::createConvertCudaRTtoCPUPass());
       } else if (EmitROCM) {
-        pm.addPass(polygeist::createConvertCudaRTtoGPUPass());
+        pm.addPass(polygeist::createConvertCudaRTtoGPUPass(
+            DL.getStringRepresentation()));
       }
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
