@@ -604,7 +604,7 @@ int main(int argc, char **argv) {
     llvm::errs() << "Cannot emit both CUDA and ROCM\n";
     return 1;
   }
-  if (EmitCUDA || EmitROCM || ToCPU.size() > 0) {
+  if (!(EmitCUDA || EmitROCM || ToCPU.size() > 0)) {
     llvm::errs() << "Need to emit either CUDA, ROCM, or CPU code\n";
     return 1;
   }
@@ -701,20 +701,21 @@ int main(int argc, char **argv) {
       }
     }
 
-    if (CudaLower) {
+    if (CudaLower || EmitROCM) {
       mlir::PassManager pm(&context);
       enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-      pm.addPass(polygeist::createParallelLowerPass(
-          /* wrapParallelOps */ EmitGPU, GPUKernelStructureMode));
+      if (CudaLower) {
+        pm.addPass(polygeist::createParallelLowerPass(
+            /* wrapParallelOps */ EmitGPU, GPUKernelStructureMode));
+      }
       if (ToCPU.size() > 0) {
         pm.addPass(polygeist::createConvertCudaRTtoCPUPass());
       } else if (EmitROCM) {
         pm.addPass(polygeist::createConvertCudaRTtoGPUPass());
       }
-
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
       noptPM.addPass(
@@ -1020,8 +1021,8 @@ int main(int argc, char **argv) {
 #if POLYGEIST_ENABLE_ROCM
     if (EmitROCM) {
 // This header defines:
-// unsigned char CudaRuntimeWrappers_cpp_bc[]
-// unsigned int CudaRuntimeWrappers_cpp_bc_len
+// unsigned char RocmRuntimeWrappers_cpp_bc[]
+// unsigned int RocmRuntimeWrappers_cpp_bc_len
 #include "../lib/polygeist/ExecutionEngine/RocmRuntimeWrappers.cpp.bin.h"
       StringRef blobStrRef((const char *)RocmRuntimeWrappers_cpp_bc,
                            RocmRuntimeWrappers_cpp_bc_len);
