@@ -21,6 +21,16 @@
 #endif // _WIN32
 
 #define HIP_REPORT_IF_ERROR(expr)                                              \
+  [](hipError_t result) {                                                      \
+    if (!result)                                                               \
+      return;                                                                  \
+    const char *name = hipGetErrorName(result);                                \
+    if (!name)                                                                 \
+      name = "<unknown>";                                                      \
+    fprintf(stderr, "'%s' failed with '%s'\n", #expr, name);                   \
+  }(expr)
+
+#define ERR_HIP_REPORT_IF_ERROR(expr)                                          \
   [](hipError_t result) -> hipError_t {                                        \
     if (!result)                                                               \
       return result;                                                           \
@@ -38,12 +48,23 @@ mgpurtMemAlloc(uint64_t sizeBytes, hipStream_t /*stream*/) {
   return reinterpret_cast<void *>(ptr);
 }
 
-extern "C" void mgpurtMemcpyErr(void *dst, void *src, size_t sizeBytes) {
-  HIP_REPORT_IF_ERROR(hipMemcpy(dst, src, sizeBytes, hipMemcpyDefault));
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void mgpuMemFree(void *ptr,
+                                                     hipStream_t /*stream*/) {
+  HIP_REPORT_IF_ERROR(hipFree(ptr));
 }
 
-extern "C" void mgpurtMemcpyAsyncErr(void *dst, void *src, size_t sizeBytes,
-                                     hipStream_t stream) {
-  HIP_REPORT_IF_ERROR(
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t
+mgpurtMemcpyErr(void *dst, void *src, intptr_t sizeBytes) {
+  return ERR_HIP_REPORT_IF_ERROR(
+      hipMemcpy(dst, src, sizeBytes, hipMemcpyDefault));
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtMemcpyAsyncErr(
+    void *dst, void *src, size_t sizeBytes, hipStream_t stream) {
+  return ERR_HIP_REPORT_IF_ERROR(
       hipMemcpyAsync(dst, src, sizeBytes, hipMemcpyDefault, stream));
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtDeviceSynchronizeErr(void) {
+  return ERR_HIP_REPORT_IF_ERROR(hipDeviceSynchronize());
 }

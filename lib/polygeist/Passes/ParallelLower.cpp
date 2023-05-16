@@ -883,7 +883,6 @@ void ConvertCudaRTtoGPU::runOnOperation() {
                   dyn_cast<polygeist::Pointer2MemrefOp>(v.getDefiningOp())) {
             v = p2m->getOperand(0);
           } else if (auto PT = v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
-            v = v;
           } else if (auto mt = v.getType().dyn_cast<mlir::MemRefType>()) {
             v = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
@@ -895,7 +894,7 @@ void ConvertCudaRTtoGPU::runOnOperation() {
             llvm_unreachable("?");
           }
           if (ty)
-            v = bz.create<LLVM::BitCastOp>(loc, ty);
+            v = bz.create<LLVM::BitcastOp>(loc, ty, v);
           return v;
         };
         auto getElTy = [&](mlir::Type ty) -> mlir::Type {
@@ -917,11 +916,17 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           call->erase();
         };
 
-        if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
+        if (callee == "cudaMemcpy") {
           auto dst = pointerify(call->getOperand(0));
           auto src = pointerify(call->getOperand(1));
-          bz.create<gpu::MemcpyOp>(loc, TypeRange(), ValueRange(), dst, src);
-          replaceWithSuccess(call);
+          call->replaceAllUsesWith(rtBuilder.rtMemcpyErrCallBuilder(
+              loc, bz, {dst, src, call->getOperand(2)}));
+        } else if (callee == "cudaMemcpy" || callee == "cudaMemcpyAsync") {
+          auto dst = pointerify(call->getOperand(0));
+          auto src = pointerify(call->getOperand(1));
+          auto stream = pointerify(call->getOperand(3));
+          call->replaceAllUsesWith(rtBuilder.rtMemcpyErrCallBuilder(
+              loc, bz, {dst, src, call->getOperand(2), stream}));
         } else if (callee == "cudaMemcpyToSymbol") {
           // TODO
           llvm::errs() << "unhandled case: " << callee << "\n";
@@ -937,43 +942,26 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           auto mt = MemRefType::get({}, getElTy(call->getOperand(0).getType()));
           auto alloc =
               bz.create<gpu::AllocOp>(loc, mt, /*asyncTokenType*/ nullptr,
-                                      /*TODO asyncDependencies*/ ValueRange(),
+                                      /*asyncDependencies*/ ValueRange(),
                                       /*dynamicSizes*/ ValueRange(size),
                                       /*symbolOperands*/ ValueRange());
+          // TODO I think I need to cast the alloc result
           bz.create<LLVM::StoreOp>(call->getLoc(), alloc.getResult(0),
                                    call->getOperand(0));
           replaceWithSuccess(call);
         } else if (callee == "cudaFree" || callee == "cudaFreeHost") {
-          auto mf = GetOrCreateFreeFunction(getOperation());
-          OpBuilder bz(call);
-          Value args[] = {call->getOperand(0)};
-          bz.create<mlir::LLVM::CallOp>(call->getLoc(), mf, args);
-          {
-            auto retv = bz.create<ConstantIntOp>(
-                call->getLoc(), 0,
-                call->getResult(0).getType().cast<IntegerType>().getWidth());
-            Value vals[] = {retv};
-            call->replaceAllUsesWith(ArrayRef<Value>(vals));
-            call->erase();
-          }
-        } else if (callee == "cudaDeviceSynchronize") {
-          OpBuilder bz(call);
-          auto retv = bz.create<ConstantIntOp>(
-              call->getLoc(), 0,
-              call->getResult(0).getType().cast<IntegerType>().getWidth());
-          Value vals[] = {retv};
-          call->replaceAllUsesWith(ArrayRef<Value>(vals));
-          call->erase();
+          Value mem = memrefify(call->getOperand(0));
+          bz.create<gpu::DeallocOp>(loc, /*asyncTokenType*/ TypeRange(),
+                                    /*asyncDependencies*/ ValueRange(), mem);
+          replaceWithSuccess(call);
+        } else if (callee == "cudaDeviceSynchronize" ||
+                   callee == "cudaThreadSynchronize") {
+          call->replaceAllUsesWith(
+              rtBuilder.rtDeviceSynchronizeErrCallBuilder(loc, bz, {}));
         } else if (callee == "cudaGetLastError" ||
                    callee == "cudaPeekAtLastError") {
-          OpBuilder bz(call);
-          auto retv = bz.create<ConstantIntOp>(
-              call->getLoc(), 0,
-              call->getResult(0).getType().cast<IntegerType>().getWidth());
-          Value vals[] = {retv};
-          call->replaceAllUsesWith(ArrayRef<Value>(vals));
-          call->erase();
-        } else if (callee == "cudaThreadSynchronize") {
+          // TODO
+          replaceWithSuccess(call);
         }
       };
 
