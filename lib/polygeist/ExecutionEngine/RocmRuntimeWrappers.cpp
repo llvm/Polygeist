@@ -60,7 +60,7 @@ mgpurtMemcpyErr(void *dst, void *src, intptr_t sizeBytes) {
 }
 
 extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtMemcpyAsyncErr(
-    void *dst, void *src, intpt_t sizeBytes, hipStream_t stream) {
+    void *dst, void *src, intptr_t sizeBytes, hipStream_t stream) {
   return ERR_HIP_REPORT_IF_ERROR(
       hipMemcpyAsync(dst, src, sizeBytes, hipMemcpyDefault, stream));
 }
