@@ -279,3 +279,35 @@ mgpuModuleGetFunction(CUmodule module, const char *name) {
   CUDA_REPORT_IF_ERROR(cuModuleGetFunction(&function, module, name));
   return function;
 }
+
+extern "C" void __cudaRegisterFunction(void **fatCubinHandle, void *hostFun,
+                                       void *deviceFun, void *deviceName,
+                                       int32_t thread_limit, void *tid,
+                                       void *bid, void *bDim, void *gDim,
+                                       void *wSize);
+extern "C" void **__cudaRegisterFatBinary(void *fatCubin);
+extern "C" void __cudaRegisterFatBinaryEnd(void **fatCubinHandle);
+extern "C" void __cudaUnregisterFatBinary(void **fatCubinHandle);
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtRegisterFunction(void **fatCubinHandle, void *hostFun, void *deviceFun,
+                         void *deviceName, int32_t thread_limit, void *tid,
+                         void *bid, void *bDim, void *gDim, void *wSize) {
+  __cudaRegisterFunction(fatCubinHandle, hostFun, deviceFun, deviceName,
+                         thread_limit, tid, bid, bDim, gDim, wSize);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void **
+__mgpurtRegisterFatBinary(void *fatCubin) {
+  return __cudaRegisterFatBinary(fatCubin);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtRegisterFatBinaryEnd(void **fatCubinHandle) {
+  return __cudaRegisterFatBinaryEnd(fatCubinHandle);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtUnregisterFatBinary(void **fatCubinHandle) {
+  return __cudaUnregisterFatBinary(fatCubinHandle);
+}

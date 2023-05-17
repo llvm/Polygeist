@@ -1326,9 +1326,10 @@ class ConvertLaunchFuncOpToGpuRuntimeCallPattern
     : public ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp> {
 public:
   ConvertLaunchFuncOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter,
-                                             StringRef gpuBinaryAnnotation)
+                                             StringRef gpuBinaryAnnotation,
+                                             std::string gpuTarget)
       : ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp>(typeConverter),
-        gpuBinaryAnnotation(gpuBinaryAnnotation) {}
+        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget) {}
 
 private:
   Value generateParamsArray(gpu::LaunchFuncOp launchOp, OpAdaptor adaptor,
@@ -1341,6 +1342,7 @@ private:
                   ConversionPatternRewriter &rewriter) const override;
 
   llvm::SmallString<32> gpuBinaryAnnotation;
+  std::string gpuTarget;
 };
 
 template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
@@ -1912,8 +1914,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
              nullPtr, nullPtr, nullPtr, nullPtr, nullPtr});
       }
       // TODO this has to happen only for some CUDA versions
-      rtRegisterFatBinaryEndCallBuilder.create(loc, ctorBuilder,
-                                               {module.getResult()});
+      if (gpuTarget == "cuda")
+        rtRegisterFatBinaryEndCallBuilder.create(loc, ctorBuilder,
+                                                 {module.getResult()});
       ctorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
       auto ctorSymbol = FlatSymbolRefAttr::get(ctor);
       moduleBuilder.create<LLVM::GlobalCtorsOp>(
@@ -2522,7 +2525,7 @@ struct ConvertPolygeistToLLVMPass
       // Our custom versions of the gpu patterns
       if (useCStyleMemRef) {
         patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
-            converter, gpu::getDefaultGpuBinaryAnnotation());
+            converter, gpu::getDefaultGpuBinaryAnnotation(), gpuTarget);
         patterns.add<ConvertAllocOpToGpuRuntimeCallPattern>(converter);
       }
 
