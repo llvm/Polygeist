@@ -92,6 +92,13 @@ public:
       {llvmPointerType /* void *ptr */, llvmPointerType /* void *stream */}};
   FunctionCallBuilder rtDeviceSynchronizeErrCallBuilder = {
       "mgpurtDeviceSynchronizeErr", llvmInt32Type /* int32_t err */, {}};
+  FunctionCallBuilder rtMemAllocErrCallBuilder = {
+      "mgpurtMemAlloc",
+      llvmInt32Type /* int32_t err */,
+      {
+          llvmPointerPointerType /* void **mem */,
+          llvmIntPtrType /* intptr_t sizeBytes */,
+      }};
   FunctionCallBuilder rtMemAllocCallBuilder = {
       "mgpurtMemAlloc",
       llvmPointerType /* void * */,
