@@ -10,9 +10,12 @@ class RewritePatternSet;
 class DominanceInfo;
 namespace sql {
 
-std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createSQLLowerPass();
+std::unique_ptr<Pass>  createSQLRaisingPass();
 } // namespace sql
 } // namespace mlir
+
+
 
 namespace mlir {
 // Forward declaration from Dialect.h
