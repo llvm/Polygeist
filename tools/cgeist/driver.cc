@@ -25,6 +25,7 @@
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
@@ -35,6 +36,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -169,6 +171,9 @@ static cl::opt<bool>
 
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
+
+static cl::opt<std::string> AMDGPUArch("amd-gpu-arch", cl::init(""),
+                                       cl::desc("AMD GPU arch"));
 
 static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
                                         cl::desc("CUDA GPU arch"));
@@ -514,6 +519,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::async::AsyncDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
+  context.getOrLoadDialect<mlir::ROCDL::ROCDLDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
   context.getOrLoadDialect<mlir::omp::OpenMPDialect>();
   context.getOrLoadDialect<mlir::math::MathDialect>();
@@ -918,7 +924,8 @@ int main(int argc, char **argv) {
 #if POLYGEIST_ENABLE_GPU
         if (EmitGPU) {
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
-              options, CStyleMemRef, /* onlyGpuModules */ true));
+              options, CStyleMemRef, /* onlyGpuModules */ true,
+              EmitCUDA ? "cuda" : "rocm"));
 
           using namespace clang;
           using namespace clang::driver;
@@ -951,6 +958,9 @@ int main(int argc, char **argv) {
 #endif
           } else if (EmitROCM) {
 #if POLYGEIST_ENABLE_ROCM
+            std::string arch = AMDGPUArch;
+            if (arch == "")
+              arch = "gfx1030";
 
             {
               auto triple = module.get()->getAttr(StringRef(
@@ -976,7 +986,7 @@ int main(int argc, char **argv) {
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
             int HsaOptLevel = NvptxOptLevel;
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
-                "gfx1030", "", optLevel,
+                arch, "", optLevel,
                 /* TODO do we need this param? */ HsaOptLevel,
                 /* TODO */ "/opt/rocm/", OutputIntermediateGPU));
 #endif
@@ -988,7 +998,8 @@ int main(int argc, char **argv) {
 #endif
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
-            options, CStyleMemRef, /* onlyGpuModules */ false));
+            options, CStyleMemRef, /* onlyGpuModules */ false,
+            EmitCUDA ? "cuda" : "rocm"));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
         if (mlir::failed(pm3.run(module.get()))) {

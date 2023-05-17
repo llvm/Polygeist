@@ -18,6 +18,7 @@
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -35,6 +36,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -55,6 +57,8 @@
 #include <numeric>
 
 #include "RuntimeWrapperUtils.h"
+
+extern llvm::cl::opt<bool> EmitROCM;
 
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
@@ -2321,12 +2325,15 @@ populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
 /// pointer to arrays of arrays.
 static void
 populateCStyleGPUFuncLoweringPatterns(RewritePatternSet &patterns,
-                                      LLVMTypeConverter &typeConverter) {
+                                      LLVMTypeConverter &typeConverter,
+                                      std::string gpuTarget) {
   patterns.add<GPUFuncOpLowering>(
       typeConverter,
       /*allocaAddrSpace=*/0,
       StringAttr::get(&typeConverter.getContext(),
-                      NVVM::NVVMDialect::getKernelFuncAttrName()));
+                      gpuTarget == "cuda"
+                          ? NVVM::NVVMDialect::getKernelFuncAttrName()
+                          : ROCDL::ROCDLDialect::getKernelFuncAttrName()));
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM
@@ -2346,16 +2353,19 @@ namespace {
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   bool onlyGpuModules;
+  std::string gpuTarget;
   ConvertPolygeistToLLVMPass() = default;
   ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
                              bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout,
-                             bool useCStyleMemRef, bool onlyGpuModules) {
+                             bool useCStyleMemRef, bool onlyGpuModules,
+                             std::string gpuTarget) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
     this->useCStyleMemRef = useCStyleMemRef;
     this->onlyGpuModules = onlyGpuModules;
+    this->gpuTarget = gpuTarget;
   }
 
   void convertModule(ModuleOp m, bool gpuModule) {
@@ -2484,7 +2494,7 @@ struct ConvertPolygeistToLLVMPass
       if (gpuModule) {
         // Insert our custom version of GPUFuncLowering
         if (useCStyleMemRef) {
-          populateCStyleGPUFuncLoweringPatterns(patterns, converter);
+          populateCStyleGPUFuncLoweringPatterns(patterns, converter, gpuTarget);
         }
       }
 
@@ -2501,6 +2511,8 @@ struct ConvertPolygeistToLLVMPass
       }
       if (gpuModule) {
         populateGpuToNVVMConversionPatterns(converter, patterns);
+        populateGpuToROCDLConversionPatterns(converter, patterns,
+                                             gpu::amd::Runtime::HIP);
       }
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
@@ -2543,6 +2555,7 @@ struct ConvertPolygeistToLLVMPass
         target.addIllegalOp<func::FuncOp>();
         target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
         target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+        target.addLegalDialect<::mlir::ROCDL::ROCDLDialect>();
         target.addIllegalDialect<gpu::GPUDialect>();
         target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::Exp2Op,
                             LLVM::FAbsOp, LLVM::FCeilOp, LLVM::FFloorOp,
@@ -2638,7 +2651,7 @@ struct ConvertPolygeistToLLVMPass
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
     const LowerToLLVMOptions &options, bool useCStyleMemRef,
-    bool onlyGpuModules) {
+    bool onlyGpuModules, std::string gpuTarget) {
   auto allocLowering = options.allocLowering;
   // There is no way to provide additional patterns for pass, so
   // AllocLowering::None will always fail.
@@ -2648,7 +2661,7 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
-      options.dataLayout, useCStyleMemRef, onlyGpuModules);
+      options.dataLayout, useCStyleMemRef, onlyGpuModules, gpuTarget);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -2658,5 +2671,6 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   auto dl = llvm::DataLayout("");
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       false, 64u, false, dl,
-      /*usecstylememref*/ true, /* onlyGpuModules */ false);
+      /*usecstylememref*/ true, /* onlyGpuModules */ false,
+      /* gpuTarget */ "cuda");
 }
