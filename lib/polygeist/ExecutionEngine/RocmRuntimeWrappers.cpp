@@ -41,6 +41,11 @@
     return result;                                                             \
   }(expr)
 
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t
+mgpurtMemAllocErr(void **mem, uint64_t sizeBytes) {
+  return ERR_HIP_REPORT_IF_ERROR(hipMalloc(mem, sizeBytes));
+}
+
 extern "C" MLIR_HIP_WRAPPERS_EXPORT void *
 mgpurtMemAlloc(uint64_t sizeBytes, hipStream_t /*stream*/) {
   void *ptr;

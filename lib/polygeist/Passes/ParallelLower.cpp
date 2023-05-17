@@ -966,24 +966,30 @@ void ConvertCudaRTtoGPU::runOnOperation() {
           llvm::errs() << "unhandled case: " << callee << "\n";
           exit(1);
         } else if (callee == "cudaMalloc") {
-          auto nullPtr =
-              bz.create<LLVM::NullOp>(loc, rtBuilder.llvmPointerType);
+          auto dst = pointerify(call->getOperand(0));
           auto size = call->getOperand(1);
-          mlir::Value alloc =
-              rtBuilder.rtMemAllocCallBuilder(loc, bz, {size, nullPtr})
-                  ->getResult(0);
-          auto dst = call->getOperand(0);
-          if (getElTy(dst.getType()).isa<LLVM::LLVMPointerType>())
-            alloc = pointerify(alloc);
-          else
-            alloc = memrefify(alloc);
-          if (auto mt = dst.getType().dyn_cast<mlir::MemRefType>())
-            bz.create<memref::StoreOp>(
-                loc, alloc, dst,
-                ValueRange({bz.create<arith::ConstantIndexOp>(loc, 0)}));
-          else if (auto PT = dst.getType().dyn_cast<LLVM::LLVMPointerType>())
-            bz.create<LLVM::StoreOp>(loc, alloc, dst);
-          replaceWithSuccess(call);
+          replaceWith(call,
+                      rtBuilder.rtMemAllocErrCallBuilder(loc, bz, {dst, size}));
+          // This doesnt work for whatever reason
+
+          // auto nullPtr =
+          //     bz.create<LLVM::NullOp>(loc, rtBuilder.llvmPointerType);
+          // auto size = call->getOperand(1);
+          // mlir::Value alloc =
+          //     rtBuilder.rtMemAllocCallBuilder(loc, bz, {size, nullPtr})
+          //         ->getResult(0);
+          // auto dst = call->getOperand(0);
+          // if (getElTy(dst.getType()).isa<LLVM::LLVMPointerType>())
+          //   alloc = pointerify(alloc);
+          // else
+          //   alloc = memrefify(alloc);
+          // if (auto mt = dst.getType().dyn_cast<mlir::MemRefType>())
+          //   bz.create<memref::StoreOp>(
+          //       loc, alloc, dst,
+          //       ValueRange({bz.create<arith::ConstantIndexOp>(loc, 0)}));
+          // else if (auto PT = dst.getType().dyn_cast<LLVM::LLVMPointerType>())
+          //   bz.create<LLVM::StoreOp>(loc, alloc, dst);
+          // replaceWithSuccess(call);
 
           // TODO Need to properly resize the arg by sizeof(type) if we want to
           // convert to gpu.malloc
