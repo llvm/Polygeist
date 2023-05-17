@@ -711,11 +711,11 @@ int main(int argc, char **argv) {
         pm.addPass(polygeist::createParallelLowerPass(
             /* wrapParallelOps */ EmitGPU, GPUKernelStructureMode));
       }
+      pm.addPass(polygeist::createConvertCudaRTtoGPUPass());
       if (ToCPU.size() > 0) {
         pm.addPass(polygeist::createConvertCudaRTtoCPUPass());
       } else if (EmitROCM) {
-        pm.addPass(polygeist::createConvertCudaRTtoGPUPass(
-            DL.getStringRepresentation()));
+        pm.addPass(polygeist::createConvertCudaRTtoHipRTPass());
       }
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();

@@ -27,6 +27,13 @@ def ConvertCudaRTtoGPU : Pass<"convert-cudart-to-gpu", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createConvertCudaRTtoGPUPass()";
 }
 
+def ConvertCudaRTtoHipRT : Pass<"convert-cudart-to-gpu", "mlir::ModuleOp"> {
+  let summary = "Lower cudart functions to generic gpu versions";
+  let dependentDialects =
+      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect", "gpu::GPUDialect"];
+  let constructor = "mlir::polygeist::createConvertCudaRTtoGPUPass()";
+}
+
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary = "Lower gpu launch op to parallel ops";
   let dependentDialects =

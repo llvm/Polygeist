@@ -30,9 +30,11 @@
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/StringRef.h"
 
 #include <algorithm>
 #include <mutex>
+#include <regex>
 
 #include "RuntimeWrapperUtils.h"
 
@@ -91,9 +93,11 @@ struct ConvertCudaRTtoCPU : public ConvertCudaRTtoCPUBase<ConvertCudaRTtoCPU> {
   void runOnOperation() override;
 };
 struct ConvertCudaRTtoGPU : public ConvertCudaRTtoGPUBase<ConvertCudaRTtoGPU> {
-  ConvertCudaRTtoGPU(std::string DL) : DL(DL) {}
   void runOnOperation() override;
-  llvm::DataLayout DL;
+};
+struct ConvertCudaRTtoHipRT
+    : public ConvertCudaRTtoHipRTBase<ConvertCudaRTtoHipRT> {
+  void runOnOperation() override;
 };
 
 } // end anonymous namespace
@@ -102,8 +106,11 @@ struct ConvertCudaRTtoGPU : public ConvertCudaRTtoGPUBase<ConvertCudaRTtoGPU> {
 /// store to load forwarding, elimination of dead stores, and dead allocs.
 namespace mlir {
 namespace polygeist {
-std::unique_ptr<Pass> createConvertCudaRTtoGPUPass(std::string DL) {
-  return std::make_unique<ConvertCudaRTtoGPU>(DL);
+std::unique_ptr<Pass> createConvertCudaRTtoGPUPass() {
+  return std::make_unique<ConvertCudaRTtoGPU>();
+}
+std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass() {
+  return std::make_unique<ConvertCudaRTtoHipRT>();
 }
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass() {
   return std::make_unique<ConvertCudaRTtoCPU>();
@@ -846,199 +853,518 @@ void ConvertCudaRTtoCPU::runOnOperation() {
   }
 }
 
-static mlir::Attribute wrapIntegerMemorySpace(unsigned memorySpace,
-                                              MLIRContext *ctx) {
-  if (memorySpace == 0)
-    return nullptr;
+// Returns a list of all symbols provided by cudart (obtained from
+// libcudart_static.a)
+static std::vector<llvm::StringRef> getCudartSymbols();
 
-  return mlir::IntegerAttr::get(mlir::IntegerType::get(ctx, 64), memorySpace);
+namespace {
+
+bool isCudartCall(StringRef name) {
+  static std::vector<llvm::StringRef> sortedCudartSymbols = []() {
+    auto tmp = getCudartSymbols();
+    std::sort(tmp.begin(), tmp.end());
+    return tmp;
+  }();
+  return std::binary_search(sortedCudartSymbols.begin(),
+                            sortedCudartSymbols.end(), name);
 }
 
-void ConvertCudaRTtoGPU::runOnOperation() {
-  // Use an integer with the bitwidth of a pointer (intptr_t) to get the size_t
-  // type which is the same on modern systems
-  const auto &dataLayoutAnalysis = getAnalysis<DataLayoutAnalysis>();
-  LowerToLLVMOptions options(&getContext(),
-                             dataLayoutAnalysis.getAtOrAbove(getOperation()));
-  options.dataLayout = llvm::DataLayout(DL);
-  LLVMTypeConverter converter(&getContext(), options, &dataLayoutAnalysis);
-  int pointerBitwidth = converter.getPointerBitwidth();
-  GpuRuntimeCallBuilders rtBuilder(&getContext(), pointerBitwidth);
+// TEMP
+std::string getHipName(StringRef name) {
+  std::string hipName =
+      std::regex_replace(std::string(name), std::regex("cuda"), "hip");
+  return hipName;
+}
 
-  SymbolTableCollection symbolTable;
-  symbolTable.getSymbolTable(getOperation());
+// TEMP
+bool isHipCallEquivalent(StringRef name) { return true; }
 
-  // TODO try to somehow preserver the error return
-  std::function<void(Operation * call, StringRef callee)> replace =
-      [&](Operation *call, StringRef callee) {
+} // namespace
+
+void ConvertCudaRTtoHipRT::runOnOperation() {
+  std::function<void(CallOp call, StringRef callee)> replaceCallOpWithHipCall =
+      [&](CallOp call, StringRef callee) {
         auto loc = call->getLoc();
-        OpBuilder bz(call);
-        auto memrefifyType = [&](Type ty) -> mlir::MemRefType {
-          if (auto PT = ty.dyn_cast<LLVM::LLVMPointerType>()) {
-            return mlir::MemRefType::get(
-                {-1}, PT.getElementType(), MemRefLayoutAttrInterface(),
-                wrapIntegerMemorySpace(PT.getAddressSpace(), &getContext()));
-          } else if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
-            return mt;
-          } else {
-            assert(0);
-            return nullptr;
+        ModuleOp m = getOperation();
+        OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
+        OpBuilder callBuilder(call);
+        if (isHipCallEquivalent(callee)) {
+          auto funcOp = m.lookupSymbol<func::FuncOp>(callee);
+          assert(funcOp);
+          auto hipName = getHipName(callee);
+          if (!m.lookupSymbol<func::FuncOp>(hipName)) {
+            auto hipFuncOp =
+                cast<func::FuncOp>(moduleBuilder.clone(*funcOp.getOperation()));
+            hipFuncOp.setSymName(hipName);
           }
-        };
-        auto memrefify = [&](Value ptr) -> mlir::Value {
-          if (auto m2p =
-                  dyn_cast<polygeist::Memref2PointerOp>(ptr.getDefiningOp())) {
-            return m2p->getOperand(0);
-          } else if (auto PT =
-                         ptr.getType().dyn_cast<LLVM::LLVMPointerType>()) {
-            return bz.create<polygeist::Pointer2MemrefOp>(
-                loc,
-                mlir::MemRefType::get({-1}, PT.getElementType(),
-                                      MemRefLayoutAttrInterface(),
-                                      wrapIntegerMemorySpace(
-                                          PT.getAddressSpace(), &getContext())),
-                ptr);
-          } else {
-            assert(ptr.getType().isa<mlir::MemRefType>());
-            return ptr;
+          call.setCallee(hipName.c_str());
+        } else {
+          llvm::errs() << "Unsupported CUDART call " << callee << " to HIP\n";
+          assert(0);
+        }
+      };
+  std::function<void(LLVM::CallOp call, StringRef callee)>
+      replaceLLVMCallOpWithHipCall = [&](LLVM::CallOp call, StringRef callee) {
+        auto loc = call->getLoc();
+        ModuleOp m = getOperation();
+        OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
+        OpBuilder callBuilder(call);
+        if (isHipCallEquivalent(callee)) {
+          auto funcOp = m.lookupSymbol<func::FuncOp>(callee);
+          assert(funcOp);
+          auto hipName = getHipName(callee);
+          if (!m.lookupSymbol<LLVM::LLVMFuncOp>(hipName)) {
+            auto hipFuncOp = cast<LLVM::LLVMFuncOp>(
+                moduleBuilder.clone(*funcOp.getOperation()));
+            hipFuncOp.setSymName(hipName);
           }
-        };
-        auto pointerify = [&](Value v, Type elTy = nullptr) -> mlir::Value {
-          if (auto p2m =
-                  dyn_cast<polygeist::Pointer2MemrefOp>(v.getDefiningOp())) {
-            v = p2m->getOperand(0);
-          } else if (auto PT = v.getType().dyn_cast<LLVM::LLVMPointerType>()) {
-          } else if (auto mt = v.getType().dyn_cast<mlir::MemRefType>()) {
-            auto ty = elTy ? elTy : mt.getElementType();
-            v = bz.create<polygeist::Memref2PointerOp>(
-                call->getLoc(),
-                LLVM::LLVMPointerType::get(ty, mt.getMemorySpaceAsInt()), v);
-          } else {
-            assert(0);
-            llvm_unreachable("?");
-          }
-          return v;
-        };
-        auto getElTy = [&](mlir::Type ty) -> mlir::Type {
-          if (auto PT = ty.dyn_cast<LLVM::LLVMPointerType>()) {
-            return PT.getElementType();
-          } else if (auto mt = ty.dyn_cast<mlir::MemRefType>()) {
-            return mt.getElementType();
-          } else {
-            assert(0);
-            llvm_unreachable("?");
-          }
-        };
-        auto replaceWith = [&](Operation *call, auto op) {
-          call->replaceAllUsesWith(op);
-          call->erase();
-        };
-        auto replaceWithSuccess = [&](Operation *call) {
-          auto retv = bz.create<ConstantIntOp>(
-              call->getLoc(), 0,
-              call->getResult(0).getType().cast<IntegerType>().getWidth());
-          Value vals[] = {retv};
-          replaceWith(call, ArrayRef<Value>(vals));
-        };
-
-        if (callee == "cudaMemcpy") {
-          auto dst = pointerify(call->getOperand(0));
-          auto src = pointerify(call->getOperand(1));
-          replaceWith(call, rtBuilder.rtMemcpyErrCallBuilder(
-                                loc, bz, {dst, src, call->getOperand(2)}));
-        } else if (callee == "cudaMemcpyAsync") {
-          auto dst = pointerify(call->getOperand(0));
-          auto src = pointerify(call->getOperand(1));
-          auto stream = pointerify(call->getOperand(3));
-          replaceWith(call,
-                      rtBuilder.rtMemcpyErrCallBuilder(
-                          loc, bz, {dst, src, call->getOperand(2), stream}));
-        } else if (callee == "cudaMemcpyToSymbol") {
-          // TODO
-          llvm::errs() << "unhandled case: " << callee << "\n";
-          exit(1);
-        } else if (callee == "cudaMemset") {
-          // TODO
-          llvm::errs() << "unhandled case: " << callee << "\n";
-          exit(1);
-        } else if (callee == "cudaMallocHost") {
-          // TODO
-          llvm::errs() << "unhandled case: " << callee << "\n";
-          exit(1);
-        } else if (callee == "cudaMalloc") {
-          auto dst = pointerify(call->getOperand(0));
-          auto size = call->getOperand(1);
-          replaceWith(call,
-                      rtBuilder.rtMemAllocErrCallBuilder(loc, bz, {dst, size}));
-          // This doesnt work for whatever reason
-
-          // auto nullPtr =
-          //     bz.create<LLVM::NullOp>(loc, rtBuilder.llvmPointerType);
-          // auto size = call->getOperand(1);
-          // mlir::Value alloc =
-          //     rtBuilder.rtMemAllocCallBuilder(loc, bz, {size, nullPtr})
-          //         ->getResult(0);
-          // auto dst = call->getOperand(0);
-          // if (getElTy(dst.getType()).isa<LLVM::LLVMPointerType>())
-          //   alloc = pointerify(alloc);
-          // else
-          //   alloc = memrefify(alloc);
-          // if (auto mt = dst.getType().dyn_cast<mlir::MemRefType>())
-          //   bz.create<memref::StoreOp>(
-          //       loc, alloc, dst,
-          //       ValueRange({bz.create<arith::ConstantIndexOp>(loc, 0)}));
-          // else if (auto PT = dst.getType().dyn_cast<LLVM::LLVMPointerType>())
-          //   bz.create<LLVM::StoreOp>(loc, alloc, dst);
-          // replaceWithSuccess(call);
-
-          // TODO Need to properly resize the arg by sizeof(type) if we want to
-          // convert to gpu.malloc
-
-          // Value size = call->getOperand(1);
-          // size = bz.create<arith::IndexCastOp>(
-          //     loc, mlir::IndexType::get(bz.getContext()), size);
-          // auto type = memrefifyType(getElTy(call->getOperand(0).getType()));
-          // auto alloc =
-          //     bz.create<gpu::AllocOp>(loc, type, /*asyncTokenType*/ nullptr,
-          //                             /*asyncDependencies*/ ValueRange(),
-          //                             /*dynamicSizes*/ ValueRange(size),
-          //                             /*symbolOperands*/ ValueRange());
-          // // TODO I think I need to cast the alloc result
-          // bz.create<LLVM::StoreOp>(call->getLoc(),
-          // pointerify(alloc.getResult(0),
-          // getElTy(getElTy(call->getOperand(0).getType()))),
-          //                          call->getOperand(0));
-          // replaceWithSuccess(call);
-        } else if (callee == "cudaFreeHost") {
-        } else if (callee == "cudaFree") {
-
-          // Value mem = memrefify(call->getOperand(0));
-          // bz.create<gpu::DeallocOp>(loc, /*asyncTokenType*/ TypeRange(),
-          //                           /*asyncDependencies*/ ValueRange(), mem);
-          // replaceWithSuccess(call);
-        } else if (callee == "cudaDeviceSynchronize" ||
-                   callee == "cudaThreadSynchronize") {
-          replaceWith(call,
-                      rtBuilder.rtDeviceSynchronizeErrCallBuilder(loc, bz, {}));
-        } else if (callee == "cudaGetLastError" ||
-                   callee == "cudaPeekAtLastError") {
-          // TODO
-          replaceWithSuccess(call);
+          call.setCallee(llvm::Optional<StringRef>(StringRef(hipName)));
+        } else {
+          llvm::errs() << "Unsupported CUDART call " << callee << " to HIP\n";
+          assert(0);
         }
       };
 
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
-    replace(call, *call.getCallee());
+    auto name = *call.getCallee();
+    if (!isCudartCall(name))
+      return;
+    replaceLLVMCallOpWithHipCall(call, name);
   });
 
-  getOperation().walk([&](CallOp call) { replace(call, call.getCallee()); });
-
-  // Fold the copy memtype cast
-  {
-    mlir::RewritePatternSet rpl(getOperation()->getContext());
-    GreedyRewriteConfig config;
-    (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
-  }
+  getOperation().walk([&](CallOp call) {
+    auto name = call.getCallee();
+    if (!isCudartCall(name))
+      return;
+    replaceCallOpWithHipCall(call, call.getCallee());
+  });
 }
+
+void ConvertCudaRTtoGPU::runOnOperation() {
+  std::function<void(Operation * call, StringRef callee)> replaceWithOp =
+      [&](Operation *call, StringRef callee) {
+        auto loc = call->getLoc();
+        OpBuilder bz(call);
+
+        // TODO Functions that would be nice to replace with MLIR ops
+        if (callee == "cudaMemcpy") {
+        } else if (callee == "cudaMemcpyAsync") {
+        } else if (callee == "cudaMemcpyToSymbol") {
+        } else if (callee == "cudaMemset") {
+        } else if (callee == "cudaMallocHost") {
+        } else if (callee == "cudaMalloc") {
+        } else if (callee == "cudaFreeHost") {
+        } else if (callee == "cudaFree") {
+        } else if (callee == "cudaDeviceSynchronize" ||
+                   callee == "cudaThreadSynchronize") {
+        }
+      };
+  getOperation().walk([&](LLVM::CallOp call) {
+    if (!call.getCallee())
+      return;
+    auto name = *call.getCallee();
+    if (!isCudartCall(name))
+      return;
+    replaceWithOp(call, name);
+  });
+  getOperation().walk([&](CallOp call) {
+    auto name = call.getCallee();
+    if (!isCudartCall(name))
+      return;
+    replaceWithOp(call, name);
+  });
+}
+
+// clang-format off
+std::vector<llvm::StringRef> cudartSymbols = {
+"cudaGetDevice",
+"cudaWaitExternalSemaphoresAsync_ptsz",
+"cudaStreamAddCallback",
+"cudaMemcpyArrayToArray",
+"cudaDeviceReset",
+"cudaGraphAddEventRecordNode",
+"cudaGetSurfaceObjectResourceDesc",
+"cudaGraphicsSubResourceGetMappedArray",
+"cudaMemRangeGetAttributes",
+"cudaGraphAddKernelNode",
+"cudaGraphDestroy",
+"cudaGraphAddExternalSemaphoresSignalNode",
+"cudaGraphExecChildGraphNodeSetParams",
+"cudaEGLStreamConsumerReleaseFrame",
+"__cudaRegisterManagedVar",
+"cudaMemcpy2DFromArray",
+"cudaEventRecord_ptsz",
+"cudaSetDoubleForHost",
+"cudaGraphExternalSemaphoresWaitNodeSetParams",
+"cudaMemPoolSetAttribute",
+"cudaDeviceFlushGPUDirectRDMAWrites",
+"cudaDestroyExternalMemory",
+"cudaDeviceGetGraphMemAttribute",
+"cudaEGLStreamConsumerConnect",
+"cudaGraphUpload",
+"cudaDestroyTextureObject",
+"cudaHostGetFlags",
+"cudaStreamQuery_ptsz",
+"cudaHostGetDevicePointer",
+"cudaPointerGetAttributes",
+"cudaWaitExternalSemaphoresAsync_v2",
+"cudaFuncSetAttribute",
+"cudaDeviceGetSharedMemConfig",
+"cudaGetDeviceFlags",
+"cudaGraphGetNodes",
+"cudaGraphMemAllocNodeGetParams",
+"cudaMemcpy3D",
+"cudaMemcpy2DArrayToArray",
+"cudaBindTextureToArray",
+"cudaDeviceDisablePeerAccess",
+"cudaGraphMemsetNodeGetParams",
+"cudaGraphExecExternalSemaphoresWaitNodeSetParams",
+"cudaGraphNodeGetDependentNodes",
+"cudaEventDestroy",
+"cudaDeviceCanAccessPeer",
+"cudaArrayGetInfo",
+"cudaMemcpyAsync",
+"cudaStreamEndCapture_ptsz",
+"cudaGraphMemFreeNodeGetParams",
+"cudaGraphExecMemcpyNodeSetParams1D",
+"cudaOccupancyMaxActiveBlocksPerMultiprocessor",
+"cudaGraphAddChildGraphNode",
+"cudaGraphicsGLRegisterImage",
+"cudaGraphExecMemcpyNodeSetParamsToSymbol",
+"cudaProfilerInitialize",
+"cudaWaitExternalSemaphoresAsync",
+"cudaMalloc3DArray",
+"cudaGraphKernelNodeSetParams",
+"cudaProfilerStart",
+"cudaGraphChildGraphNodeGetGraph",
+"cudaGetErrorString",
+"cudaMemset",
+"cudaGraphMemcpyNodeSetParamsFromSymbol",
+"cudaMemset3D",
+"cudaGraphExecMemcpyNodeSetParamsFromSymbol",
+"cudaMemcpyArrayToArray_ptds",
+"cudaMemcpy2D",
+"cudaGraphDestroyNode",
+"cudaStreamWaitEvent",
+"cudaMemcpy2DToArrayAsync_ptsz",
+"cudaGraphEventRecordNodeGetEvent",
+"cudaSetDoubleForDevice",
+"cudaLaunchCooperativeKernel_ptsz",
+"cudaLaunchKernel",
+"cudaFuncSetSharedMemConfig",
+"cudaPeekAtLastError",
+"cudaMemcpy3DAsync_ptsz",
+"cudaEventCreate",
+"cudaMemPrefetchAsync_ptsz",
+"cudaMalloc",
+"cudaMemPoolSetAccess",
+"cudaBindTexture2D",
+"cudaMemPoolTrimTo",
+"cudaThreadGetLimit",
+"cudaGraphMemsetNodeSetParams",
+"cudaGLRegisterBufferObject",
+"cudaGraphicsVDPAURegisterOutputSurface",
+"cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags",
+"cudaEventCreateFromEGLSync",
+"cudaGraphExternalSemaphoresSignalNodeGetParams",
+"cudaMemPoolExportPointer",
+"cudaGraphNodeFindInClone",
+"cudaGetTextureAlignmentOffset",
+"cudaSignalExternalSemaphoresAsync_v2_ptsz",
+"cudaGraphKernelNodeGetAttribute",
+"cudaHostUnregister",
+"cudaStreamSetAttribute",
+"cudaLaunchHostFunc",
+"__cudaRegisterFatBinaryEnd",
+"cudaGetTextureObjectResourceDesc",
+"cudaGraphExternalSemaphoresSignalNodeSetParams",
+"cudaMemPoolImportFromShareableHandle",
+"cudaStreamDestroy",
+"cudaMalloc3D",
+"cudaGLSetGLDevice",
+"cudaGraphRetainUserObject",
+"cudaGraphExecExternalSemaphoresSignalNodeSetParams",
+"cudaMemAdvise",
+"cudaEventRecordWithFlags",
+"cudaMemcpy3DPeerAsync_ptsz",
+"cudaGraphExecMemcpyNodeSetParams",
+"cudaProfilerStop",
+"cudaFreeMipmappedArray",
+"cudaStreamCopyAttributes_ptsz",
+"cudaMemcpyFromArray",
+"cudaMemcpy3DPeer",
+"cudaMemPoolImportPointer",
+"cudaMemPoolCreate",
+"cudaCreateTextureObject",
+"cudaGraphExecDestroy",
+"cudaMemGetInfo",
+"cudaStreamGetFlags",
+"cudaGetMipmappedArrayLevel",
+"cudaMemset2DAsync_ptsz",
+"cudaMemcpyAsync_ptsz",
+"cudaCreateSurfaceObject",
+"cudaMemRangeGetAttribute",
+"cudaStreamCopyAttributes",
+"cudaMemcpyToSymbol",
+"cudaMemcpy3D_ptds",
+"cudaGLUnregisterBufferObject",
+"cudaGraphInstantiate",
+"cudaStreamBeginCapture",
+"cudaDestroySurfaceObject",
+"cudaMemcpy3DAsync",
+"cudaFuncGetAttributes",
+"cudaStreamIsCapturing_ptsz",
+"cudaChooseDevice",
+"cudaGraphExecMemsetNodeSetParams",
+"cudaArrayGetPlane",
+"__cudaPopCallConfiguration",
+"cudaThreadSetCacheConfig",
+"cudaStreamAttachMemAsync_ptsz",
+"cudaGLMapBufferObjectAsync",
+"cudaMemcpyFromArrayAsync_ptsz",
+"cudaMemcpy2DFromArrayAsync_ptsz",
+"cudaMemcpyToArrayAsync_ptsz",
+"cudaArrayGetSparseProperties",
+"cudaExternalMemoryGetMappedMipmappedArray",
+"cudaGraphClone",
+"cudaStreamGetPriority_ptsz",
+"cudaRuntimeGetVersion",
+"cudaMemPoolDestroy",
+"cudaGraphMemcpyNodeSetParamsToSymbol",
+"cudaGraphExecUpdate",
+"cudaEGLStreamConsumerDisconnect",
+"cudaGetSymbolAddress",
+"__cudaRegisterVar",
+"cudaStreamGetCaptureInfo",
+"cudaMemcpy3DPeerAsync",
+"cudaMemcpyPeer",
+"cudaDeviceGetByPCIBusId",
+"cudaEGLStreamProducerDisconnect",
+"cudaEGLStreamConsumerAcquireFrame",
+"__cudaRegisterTexture",
+"cudaGraphicsVDPAURegisterVideoSurface",
+"cudaDeviceSetCacheConfig",
+"cudaMemcpyFromArrayAsync",
+"cudaGraphEventRecordNodeSetEvent",
+"cudaGraphAddMemcpyNode",
+"cudaDeviceGetDefaultMemPool",
+"cudaStreamSynchronize_ptsz",
+"cudaBindSurfaceToArray",
+"cudaMallocAsync",
+"cudaGraphGetEdges",
+"cudaGetDriverEntryPoint_ptsz",
+"cudaGraphMemcpyNodeSetParams1D",
+"cudaGraphKernelNodeCopyAttributes",
+"cudaVDPAUSetVDPAUDevice",
+"cudaDeviceGraphMemTrim",
+"cudaGraphicsResourceGetMappedMipmappedArray",
+"cudaThreadSynchronize",
+"cudaDeviceGetTexture1DLinearMaxWidth",
+"cudaDeviceSynchronize",
+"cudaMemcpyFromSymbolAsync",
+"cudaSetValidDevices",
+"cudaOccupancyAvailableDynamicSMemPerBlock",
+"cudaStreamSetAttribute_ptsz",
+"cudaMemcpyFromSymbol",
+"cudaStreamEndCapture",
+"cudaImportExternalMemory",
+"__cudaRegisterSurface",
+"cudaThreadSetLimit",
+"cudaGLMapBufferObject",
+"cudaBindTextureToMipmappedArray",
+"cudaGraphUpload_ptsz",
+"cudaGLGetDevices",
+"cudaGraphAddMemAllocNode",
+"cudaMemsetAsync",
+"cudaGLUnmapBufferObjectAsync",
+"cudaUserObjectRetain",
+"cudaGraphNodeGetDependencies",
+"cudaStreamCreateWithPriority",
+"cudaStreamGetCaptureInfo_ptsz",
+"cudaStreamGetAttribute",
+"cudaStreamAttachMemAsync",
+"cudaGetDeviceCount",
+"cudaMemset3D_ptds",
+"cudaFreeAsync",
+"cudaUserObjectRelease",
+"cudaCreateChannelDesc",
+"cudaGetSurfaceReference",
+"cudaGetChannelDesc",
+"cudaGraphDebugDotPrint",
+"cudaEGLStreamProducerPresentFrame",
+"cudaEventQuery",
+"cudaStreamBeginCapture_ptsz",
+"cudaMallocMipmappedArray",
+"cudaThreadExchangeStreamCaptureMode",
+"cudaStreamGetFlags_ptsz",
+"cudaStreamUpdateCaptureDependencies_ptsz",
+"cudaGraphicsGLRegisterBuffer",
+"cudaDeviceGetNvSciSyncAttributes",
+"cudaEGLStreamProducerReturnFrame",
+"cudaIpcOpenEventHandle",
+"cudaMemPoolGetAccess",
+"cudaGraphicsResourceGetMappedPointer",
+"cudaMallocFromPoolAsync",
+"cudaCtxResetPersistingL2Cache",
+"cudaMemcpyFromSymbol_ptds",
+"cudaDeviceEnablePeerAccess",
+"cudaEGLStreamConsumerConnectWithFlags",
+"cudaGraphInstantiateWithFlags",
+"__cudaRegisterHostVar",
+"cudaGetLastError",
+"cudaMemcpy3DPeer_ptds",
+"cudaGraphAddMemsetNode",
+"cudaEGLStreamProducerConnect",
+"cudaExternalMemoryGetMappedBuffer",
+"cudaGetExportTable",
+"cudaMallocManaged",
+"cudaThreadExit",
+"cudaDeviceGetMemPool",
+"cudaGraphicsMapResources",
+"cudaGraphEventWaitNodeGetEvent",
+"cudaDeviceGetCacheConfig",
+"cudaStreamQuery",
+"cudaGraphGetRootNodes",
+"cudaGraphMemcpyNodeSetParams",
+"cudaDeviceSetGraphMemAttribute",
+"cudaHostAlloc",
+"cudaMemcpy2DAsync",
+"cudaFreeHost",
+"cudaGLUnmapBufferObject",
+"cudaGraphAddEmptyNode",
+"cudaMemcpyToArray",
+"cudaMemcpy2DFromArrayAsync",
+"cudaMemset_ptds",
+"cudaDeviceSetSharedMemConfig",
+"cudaGraphicsResourceSetMapFlags",
+"cudaIpcGetEventHandle",
+"cudaGraphAddEventWaitNode",
+"cudaGraphKernelNodeSetAttribute",
+"cudaEventRecordWithFlags_ptsz",
+"cudaGraphicsUnregisterResource",
+"cudaGraphHostNodeSetParams",
+"cudaGetSymbolSize",
+"cudaMemcpyToArray_ptds",
+"cudaMemcpyToArrayAsync",
+"cudaGraphicsUnmapResources",
+"cudaSetDevice",
+"cudaMemcpyFromSymbolAsync_ptsz",
+"cudaMemcpyToSymbol_ptds",
+"cudaGraphKernelNodeGetParams",
+"cudaIpcGetMemHandle",
+"cudaMipmappedArrayGetSparseProperties",
+"cudaMemcpy",
+"cudaFreeArray",
+"cudaLaunchKernel_ptsz",
+"cudaStreamWaitEvent_ptsz",
+"cudaGraphCreate",
+"cudaDeviceGetStreamPriorityRange",
+"__cudaUnregisterFatBinary",
+"cudaGraphEventWaitNodeSetEvent",
+"cudaDeviceGetPCIBusId",
+"cudaMemPoolExportToShareableHandle",
+"cudaDeviceGetAttribute",
+"cudaStreamAddCallback_ptsz",
+"cudaGraphicsEGLRegisterImage",
+"cudaMemset3DAsync_ptsz",
+"cudaMemsetAsync_ptsz",
+"cudaGLSetBufferObjectMapFlags",
+"cudaMemcpy2DToArrayAsync",
+"cudaMemcpy2DToArray",
+"cudaVDPAUGetDevice",
+"cudaUnbindTexture",
+"cudaGetFuncBySymbol",
+"cudaGraphAddHostNode",
+"cudaSignalExternalSemaphoresAsync_ptsz",
+"cudaStreamCreateWithFlags",
+"__cudaInitModule",
+"cudaGraphExecEventRecordNodeSetEvent",
+"cudaMemPrefetchAsync",
+"cudaFuncSetCacheConfig",
+"cudaStreamGetAttribute_ptsz",
+"cudaDeviceSetLimit",
+"cudaDriverGetVersion",
+"cudaGraphExternalSemaphoresWaitNodeGetParams",
+"cudaGraphMemcpyNodeGetParams",
+"cudaGetTextureReference",
+"cudaDeviceSetMemPool",
+"cudaSignalExternalSemaphoresAsync",
+"cudaSetDeviceFlags",
+"cudaMemcpy2D_ptds",
+"cudaGraphLaunch_ptsz",
+"cudaMemset3DAsync",
+"cudaEventCreateWithFlags",
+"cudaStreamCreate",
+"cudaMallocAsync_ptsz",
+"cudaEventElapsedTime",
+"cudaGraphLaunch",
+"cudaGetTextureObjectTextureDesc",
+"cudaStreamGetCaptureInfo_v2",
+"__cudaRegisterFunction",
+"cudaGraphAddDependencies",
+"cudaMemset2D",
+"cudaGraphExecKernelNodeSetParams",
+"cudaDeviceGetP2PAttribute",
+"cudaDestroyExternalSemaphore",
+"cudaFreeAsync_ptsz",
+"__cudaRegisterFatBinary",
+"cudaGraphAddMemcpyNodeToSymbol",
+"cudaStreamUpdateCaptureDependencies",
+"cudaGraphAddMemFreeNode",
+"cudaDeviceGetLimit",
+"cudaStreamGetCaptureInfo_v2_ptsz",
+"__cudaPushCallConfiguration",
+"cudaMemcpy2DFromArray_ptds",
+"cudaGetTextureObjectResourceViewDesc",
+"cudaGraphNodeGetType",
+"cudaMemcpyToSymbolAsync",
+"cudaSignalExternalSemaphoresAsync_v2",
+"cudaMallocFromPoolAsync_ptsz",
+"cudaLaunchCooperativeKernel",
+"cudaStreamIsCapturing",
+"cudaHostRegister",
+"cudaGraphAddExternalSemaphoresWaitNode",
+"cudaGraphExecEventWaitNodeSetEvent",
+"cudaIpcOpenMemHandle",
+"cudaLaunchCooperativeKernelMultiDevice",
+"cudaMemcpy_ptds",
+"cudaMemcpy2DAsync_ptsz",
+"cudaGetDeviceProperties",
+"cudaImportExternalSemaphore",
+"cudaMemcpyToSymbolAsync_ptsz",
+"cudaBindTexture",
+"cudaGraphicsResourceGetMappedEglFrame",
+"cudaIpcCloseMemHandle",
+"cudaWaitExternalSemaphoresAsync_v2_ptsz",
+"cudaGraphHostNodeGetParams",
+"cudaStreamSynchronize",
+"cudaEventSynchronize",
+"cudaUserObjectCreate",
+"cudaGetErrorName",
+"cudaThreadGetCacheConfig",
+"cudaGraphRemoveDependencies",
+"cudaStreamGetPriority",
+"cudaMemset2DAsync",
+"cudaMemcpy2DArrayToArray_ptds",
+"cudaGraphReleaseUserObject",
+"cudaFree",
+"cudaGetDriverEntryPoint",
+"cudaMemcpy2DToArray_ptds",
+"cudaGraphAddMemcpyNodeFromSymbol",
+"cudaMemPoolGetAttribute",
+"cudaMemset2D_ptds",
+"cudaGraphAddMemcpyNode1D",
+"cudaMallocHost",
+"cudaGraphExecHostNodeSetParams",
+"cudaMallocArray",
+"cudaLaunchHostFunc_ptsz",
+"cudaMemcpyFromArray_ptds",
+"cudaEventRecord",
+"cudaMemcpyPeerAsync",
+"cudaMallocPitch",
+};
+// clang-format on
+
+static std::vector<llvm::StringRef> getCudartSymbols() { return cudartSymbols; }
