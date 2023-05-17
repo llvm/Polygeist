@@ -39,7 +39,8 @@ std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
 std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef, bool onlyGpuModules);
+                                 bool useCStyleMemRef, bool onlyGpuModules,
+                                 std::string gpuTarget);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass>

@@ -48,6 +48,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSCFToControlFlow
   MLIRTargetLLVMIRImport
   MLIRTransformUtils
+  MLIRGPUToROCDLTransforms
   MLIRControlFlowToLLVM
   MLIRMemRefToLLVM
   MLIRFuncToLLVM

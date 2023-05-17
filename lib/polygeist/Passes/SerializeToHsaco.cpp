@@ -116,7 +116,7 @@ SerializeToHsacoPass::SerializeToHsacoPass(StringRef arch, StringRef features,
                                            int llvmOptLevel, int hsaOptLevel,
                                            std::string rocmPath,
                                            bool outputIntermediate) {
-  maybeSetOption(this->chip, chip);
+  maybeSetOption(this->chip, arch);
   maybeSetOption(this->features, features);
   this->llvmOptLevel = llvmOptLevel;
   this->hsaOptLevel = hsaOptLevel;
@@ -472,6 +472,17 @@ SerializeToHsacoPass::createHsaco(const SmallVectorImpl<char> &isaBinary) {
 
 std::unique_ptr<std::vector<char>>
 SerializeToHsacoPass::serializeISA(const std::string &isa) {
+  if (outputIntermediate) {
+    llvm::outs() << "AMD isa for: " << getOperation().getNameAttr() << "\n"
+                 << isa << "\n";
+    llvm::outs().flush();
+  }
+  LLVM_DEBUG({
+    llvm::dbgs() << "AMD isa for: " << getOperation().getNameAttr() << "\n"
+                 << isa << "\n";
+    llvm::dbgs().flush();
+  });
+
   auto isaBinary = assembleIsa(isa);
   if (!isaBinary)
     return {};
@@ -516,7 +527,10 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
 }
 
 void SerializeToHsacoPass::getDependentDialects(
-    DialectRegistry &registry) const {}
+    DialectRegistry &registry) const {
+  registerROCDLDialectTranslation(registry);
+  gpu::SerializeToBlobPass::getDependentDialects(registry);
+}
 
 namespace mlir::polygeist {
 

@@ -32,6 +32,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
 
+#include <llvm/ADT/StringRef.h>
 #include <optional>
 
 // TODO when we add other backends, we would need to to add an argument to the
@@ -129,15 +130,26 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // to only set idx to the total num
     // TODO grab the attr name from the NVVM dialect after bumping llvm
     int blockSize = *bx * *by * *bz;
-    if (!gpuFuncOp->hasAttr("nvvm.maxntidx")) {
-      gpuFuncOp->setAttr(
-          "nvvm.maxntidx",
-          rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
+    llvm::StringRef attrName = "nvvm.maxntidx";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(attrName, rewriter.getIntegerAttr(
+                                       rewriter.getIndexType(), blockSize));
       return success();
     } else {
-      assert(
-          blockSize ==
-          gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
+      assert(blockSize ==
+             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+      return failure();
+    }
+    attrName = "amdgpu-flat-work-group-size";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(
+          attrName, rewriter.getStringAttr(std::to_string(blockSize) + ", " +
+                                           std::to_string(blockSize)));
+      return success();
+    } else {
+      auto attr = gpuFuncOp->getAttrOfType<StringAttr>(attrName);
+      assert(attr && attr.getValue() == std::to_string(blockSize) + ", " +
+                                            std::to_string(blockSize));
       return failure();
     }
   }
