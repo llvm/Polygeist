@@ -946,14 +946,39 @@ int main(int argc, char **argv) {
             // TODO what should the ptx version be?
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
             gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
-                gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
-                ptxasPath, libDevicePath, OutputIntermediateGPU));
+                arch, "+ptx74", optLevel, NvptxOptLevel, ptxasPath,
+                libDevicePath, OutputIntermediateGPU));
 #endif
           } else if (EmitROCM) {
 #if POLYGEIST_ENABLE_ROCM
+
+            {
+              auto triple = module.get()->getAttr(StringRef(
+                  "polygeist.gpu_module." +
+                  LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+              auto DL =
+                  module.get()
+                      ->getAttrOfType<mlir::StringAttr>(StringRef(
+                          "polygeist.gpu_module." +
+                          LLVM::LLVMDialect::getDataLayoutAttrName().str()))
+                      .getValue();
+
+              // amdgcn-amd-amdhsa is fixed for our purposes
+              module.get()->setAttr(
+                  StringRef("polygeist.gpu_module." +
+                            LLVM::LLVMDialect::getTargetTripleAttrName().str()),
+                  StringAttr::get(module->getContext(), "amdgcn-amd-amdhsa"));
+              module.get()->setAttr(
+                  StringRef("polygeist.gpu_module." +
+                            LLVM::LLVMDialect::getDataLayoutAttrName().str()),
+                  StringAttr::get(module.get()->getContext(), DL));
+            }
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+            int HsaOptLevel = NvptxOptLevel;
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
-                gpuTriple.getTriple(), OutputIntermediateGPU));
+                "gfx1030", "", optLevel,
+                /* TODO do we need this param? */ HsaOptLevel,
+                /* TODO */ "/opt/rocm/", OutputIntermediateGPU));
 #endif
           } else {
             assert(0);

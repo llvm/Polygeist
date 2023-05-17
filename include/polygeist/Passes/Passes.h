@@ -47,11 +47,12 @@ createConvertParallelToGPUPass1(bool useOriginalThreadNums = false);
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
-    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
-    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
-    bool outputIntermediate);
-std::unique_ptr<Pass> createGpuSerializeToHsacoPass(StringRef triple,
-                                                    bool outputIntermediate);
+    StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
+    std::string ptxasPath, std::string libDevicePath, bool outputIntermediate);
+std::unique_ptr<Pass>
+createGpuSerializeToHsacoPass(StringRef arch, StringRef features,
+                              int llvmOptLevel, int hsaOptLevel,
+                              std::string rocmPath, bool outputIntermediate);
 
 void registerGpuSerializeToCubinPass();
 void registerGpuSerializeToHsacoPass();
