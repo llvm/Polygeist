@@ -73,3 +73,44 @@ extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtMemcpyAsyncErr(
 extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtDeviceSynchronizeErr(void) {
   return ERR_HIP_REPORT_IF_ERROR(hipDeviceSynchronize());
 }
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtLaunchKernelErr(
+    void *function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
+    intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
+    hipStream_t stream, void **params) {
+  return ERR_HIP_REPORT_IF_ERROR(
+      hipLaunchKernel(function, dim3(gridX, gridY, gridZ),
+                      dim3(blockX, blockY, blockZ), params, smem, stream));
+}
+
+extern "C" void __hipRegisterFunction(void **fatCubinHandle, void *hostFun,
+                                      void *deviceFun, void *deviceName,
+                                      int32_t thread_limit, void *tid,
+                                      void *bid, void *bDim, void *gDim,
+                                      void *wSize);
+extern "C" void **__hipRegisterFatBinary(void *fatCubin);
+extern "C" void __hipRegisterFatBinaryEnd(void **fatCubinHandle);
+extern "C" void __hipUnregisterFatBinary(void **fatCubinHandle);
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void
+__mgpurtRegisterFunction(void **fatCubinHandle, void *hostFun, void *deviceFun,
+                         void *deviceName, int32_t thread_limit, void *tid,
+                         void *bid, void *bDim, void *gDim, void *wSize) {
+  __hipRegisterFunction(fatCubinHandle, hostFun, deviceFun, deviceName,
+                        thread_limit, tid, bid, bDim, gDim, wSize);
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void **
+__mgpurtRegisterFatBinary(void *fatCubin) {
+  return __hipRegisterFatBinary(fatCubin);
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void
+__mgpurtRegisterFatBinaryEnd(void **fatCubinHandle) {
+  return __hipRegisterFatBinaryEnd(fatCubinHandle);
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void
+__mgpurtUnregisterFatBinary(void **fatCubinHandle) {
+  return __hipUnregisterFatBinary(fatCubinHandle);
+}

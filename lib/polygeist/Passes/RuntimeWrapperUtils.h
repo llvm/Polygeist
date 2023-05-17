@@ -63,18 +63,18 @@ public:
 
   //======================= GPU rt runtime =======================//
   FunctionCallBuilder rtRegisterFunctionCallBuilder = {
-      "__cudaRegisterFunction",
+      "__mgpurtRegisterFunction",
       llvmInt32Type,
       {llvmPointerPointerType, llvmPointerType, llvmPointerType,
        llvmPointerType, llvmInt32Type, llvmPointerType, llvmPointerType,
        llvmPointerType, llvmPointerType,
        llvmPointerType /* should actually be a pointer to int */}};
   FunctionCallBuilder rtUnregisterFatBinaryCallBuilder = {
-      "__cudaUnregisterFatBinary", llvmVoidType, {llvmPointerPointerType}};
+      "__mgpurtUnregisterFatBinary", llvmVoidType, {llvmPointerPointerType}};
   FunctionCallBuilder rtRegisterFatBinaryCallBuilder = {
-      "__cudaRegisterFatBinary", llvmPointerPointerType, {llvmPointerType}};
+      "__mgpurtRegisterFatBinary", llvmPointerPointerType, {llvmPointerType}};
   FunctionCallBuilder rtRegisterFatBinaryEndCallBuilder = {
-      "__cudaRegisterFatBinaryEnd", llvmVoidType, {llvmPointerPointerType}};
+      "__mgpurtRegisterFatBinaryEnd", llvmVoidType, {llvmPointerPointerType}};
   FunctionCallBuilder rtMemcpyAsyncErrCallBuilder = {
       "mgpurtMemcpyAsyncErr",
       llvmInt32Type /* int32_t err */,
