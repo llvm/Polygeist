@@ -129,27 +129,28 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // TODO should we only set idx or separately set idx, idy, idz? clang seems
     // to only set idx to the total num
     // TODO grab the attr name from the NVVM dialect after bumping llvm
+    bool succeeded = false;
     int blockSize = *bx * *by * *bz;
     llvm::StringRef attrName = "nvvm.maxntidx";
     if (!gpuFuncOp->hasAttr(attrName)) {
       gpuFuncOp->setAttr(attrName, rewriter.getIntegerAttr(
                                        rewriter.getIndexType(), blockSize));
+      succeeded = true;
+    } else {
+      assert(blockSize ==
+             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+      succeeded = false;
+    }
+    attrName = "rocdl.max_flat_work_group_size";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(attrName, rewriter.getIntegerAttr(
+                                       rewriter.getIndexType(), blockSize));
+      assert(succeeded);
       return success();
     } else {
       assert(blockSize ==
              gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
-      return failure();
-    }
-    attrName = "amdgpu-flat-work-group-size";
-    if (!gpuFuncOp->hasAttr(attrName)) {
-      gpuFuncOp->setAttr(
-          attrName, rewriter.getStringAttr(std::to_string(blockSize) + ", " +
-                                           std::to_string(blockSize)));
-      return success();
-    } else {
-      auto attr = gpuFuncOp->getAttrOfType<StringAttr>(attrName);
-      assert(attr && attr.getValue() == std::to_string(blockSize) + ", " +
-                                            std::to_string(blockSize));
+      assert(!succeeded);
       return failure();
     }
   }
