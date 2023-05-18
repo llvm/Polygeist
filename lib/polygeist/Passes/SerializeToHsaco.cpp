@@ -189,6 +189,9 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       StringRef("polygeist.gpu_module." +
                 LLVM::LLVMDialect::getTargetTripleAttrName().str()));
   this->triple = std::string(triple.getValue());
+
+  // TODO This is the CUDA data layout - we need to somehow get the correct one
+  // for our target AMDGPU - the modules linked in below contain the correct one
   auto DL = m->getAttrOfType<mlir::StringAttr>(
                  StringRef("polygeist.gpu_module." +
                            LLVM::LLVMDialect::getDataLayoutAttrName().str()))
