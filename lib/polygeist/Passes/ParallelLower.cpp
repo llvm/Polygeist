@@ -21,6 +21,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
@@ -958,6 +959,13 @@ void ConvertCudaRTtoHipRT::runOnOperation() {
     if (!isCudartCall(name))
       return;
     replaceCallOpWithHipCall(call, call.getCallee());
+  });
+
+  OpBuilder builder(&getContext());
+  getOperation().walk([&](mlir::NVVM::Barrier0Op op) {
+    builder.setInsertionPoint(op);
+    builder.create<mlir::ROCDL::BarrierOp>(op->getLoc());
+    op->erase();
   });
 }
 

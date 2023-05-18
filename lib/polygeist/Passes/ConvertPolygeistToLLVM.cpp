@@ -2582,8 +2582,10 @@ struct ConvertPolygeistToLLVMPass
       if (gpuModule) {
         target.addIllegalOp<func::FuncOp>();
         target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
-        target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
-        target.addLegalDialect<::mlir::ROCDL::ROCDLDialect>();
+        if (gpuTarget == "cuda")
+          target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+        else if (gpuTarget == "rocm")
+          target.addLegalDialect<::mlir::ROCDL::ROCDLDialect>();
         target.addIllegalDialect<gpu::GPUDialect>();
         target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::Exp2Op,
                             LLVM::FAbsOp, LLVM::FCeilOp, LLVM::FFloorOp,
