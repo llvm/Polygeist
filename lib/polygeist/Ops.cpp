@@ -79,11 +79,11 @@ void GPUErrorOp::build(OpBuilder &builder, OperationState &result) {
 }
 
 //===----------------------------------------------------------------------===//
-// GPUAlternativesOp
+// AlternativesOp
 //===----------------------------------------------------------------------===//
 
-void GPUAlternativesOp::build(OpBuilder &builder, OperationState &result,
-                              int regionNum) {
+void AlternativesOp::build(OpBuilder &builder, OperationState &result,
+                           int regionNum) {
   OpBuilder::InsertionGuard g(builder);
   for (int i = 0; i < regionNum; i++) {
     Region *bodyRegion = result.addRegion();

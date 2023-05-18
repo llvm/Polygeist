@@ -5,7 +5,7 @@ module {
   func.func private @wow1()
   func.func private @wow2()
   func.func @f() {
-    "polygeist.gpu_alternatives"() ({
+    "polygeist.alternatives"() ({
       func.call @wow0() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
     }, {
