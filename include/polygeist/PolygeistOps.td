@@ -100,7 +100,7 @@ def GPUThreadOp : Polygeist_Op<"gpu_thread", [
       "Value":$threadIndexX, "Value":$threadIndexY, "Value":$threadIndexZ)>];
 }
 
-def GPUAlternativesOp : Polygeist_Op<"gpu_alternatives", [
+def AlternativesOp : Polygeist_Op<"alternatives", [
   RecursiveMemoryEffects]> {
   let summary = "Provides several alternatives kernels for gpu code";
   let regions = (region VariadicRegion<SizedRegion<1>>:$regions);
@@ -141,7 +141,7 @@ def GPUErrorOp : Polygeist_Op<"gpu_error", [
 }
 
 def PolygeistYieldOp : Polygeist_Op<"polygeist_yield", [Pure, ReturnLike, Terminator,
-    ParentOneOf<["GPUAlternativesOp", "GPUWrapperOp", "GPUErrorOp", "GPUBlockOp", "GPUThreadOp"]>]> {
+    ParentOneOf<["AlternativesOp", "GPUWrapperOp", "GPUErrorOp", "GPUBlockOp", "GPUThreadOp"]>]> {
   let summary = "Polygeist ops terminator";
 }
 

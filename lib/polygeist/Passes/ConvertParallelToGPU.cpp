@@ -385,7 +385,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     int curRegion = 0;
     auto emitAlternative = [&](int defaultThreads,
-                               polygeist::GPUAlternativesOp alternativesOp) {
+                               polygeist::AlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
@@ -395,20 +395,18 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       curRegion++;
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
-      auto alternativesOp =
-          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
       llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
                    << " threads\n";
       emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else if (shouldEmitAlternatives(pop)) {
-      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(
           loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
     } else {
-      auto alternativesOp =
-          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
       emitAlternative(-1, alternativesOp);
     }
 

@@ -1352,13 +1352,12 @@ template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
                     tuple);
 }
 
-struct LowerGPUAlternativesOp
-    : public OpRewritePattern<polygeist::GPUAlternativesOp>,
-      public GpuRuntimeCallBuilders {
-  using OpRewritePattern<polygeist::GPUAlternativesOp>::OpRewritePattern;
+struct LowerAlternativesOp : public OpRewritePattern<polygeist::AlternativesOp>,
+                             public GpuRuntimeCallBuilders {
+  using OpRewritePattern<polygeist::AlternativesOp>::OpRewritePattern;
   const char *PATTERN = "lower-gpu-alternatives";
 
-  LogicalResult matchAndRewrite(polygeist::GPUAlternativesOp gao,
+  LogicalResult matchAndRewrite(polygeist::AlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
     Location loc = gao->getLoc();
 
@@ -1436,7 +1435,7 @@ struct LowerGPUAlternativesOp
         }
 
         // in the current state, only kernels with no shared memory should use
-        // the gpu_alternatives op, thus assume 0 TODO check it
+        // the alternatives op, thus assume 0 TODO check it
         size_t dynamicSharedMemSize = 0;
 
         int occupancyNumBlocks;
@@ -1617,9 +1616,9 @@ struct LowerGPUAlternativesOp
     }
   }
 
-  LowerGPUAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
-                         StringRef gpuBinaryAnnotation)
-      : OpRewritePattern<polygeist::GPUAlternativesOp>(context),
+  LowerAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
+                      StringRef gpuBinaryAnnotation)
+      : OpRewritePattern<polygeist::AlternativesOp>(context),
         GpuRuntimeCallBuilders(context, typeConverter),
         gpuBinaryAnnotation(gpuBinaryAnnotation) {}
 
@@ -2459,7 +2458,7 @@ struct ConvertPolygeistToLLVMPass
       // TODO I am assuming this will walk in the same order every time, might
       // not be the case
       std::map<std::string, int> num;
-      m->walk([&](polygeist::GPUAlternativesOp altOp) {
+      m->walk([&](polygeist::AlternativesOp altOp) {
         std::string funcName;
         if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
           funcName = funcOp.getName();
@@ -2480,8 +2479,8 @@ struct ConvertPolygeistToLLVMPass
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());
-      patterns.add<LowerGPUAlternativesOp>(
-          &getContext(), converter, gpu::getDefaultGpuBinaryAnnotation());
+      patterns.add<LowerAlternativesOp>(&getContext(), converter,
+                                        gpu::getDefaultGpuBinaryAnnotation());
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 

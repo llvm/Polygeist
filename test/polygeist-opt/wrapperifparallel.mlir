@@ -29,7 +29,7 @@ module {
 // CHECK-DAG:           %[[VAL_6:.*]] = arith.constant 1024 : index
 // CHECK-DAG:           %[[VAL_7:.*]] = arith.constant 1 : index
 // CHECK:           scf.if %[[VAL_0]] {
-// CHECK:             "polygeist.gpu_alternatives"() ({
+// CHECK:             "polygeist.alternatives"() ({
 // CHECK:               %[[VAL_141:.*]] = arith.subi %[[VAL_1]], %[[VAL_7]] : index
 // CHECK:               %[[VAL_142:.*]] = arith.divui %[[VAL_141]], %[[VAL_6]] : index
 // CHECK:               %[[VAL_143:.*]] = arith.addi %[[VAL_142]], %[[VAL_7]] : index
