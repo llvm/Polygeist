@@ -1426,7 +1426,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     launchBlock->walk([&](mlir::polygeist::BarrierOp op) {
       rewriter.setInsertionPoint(op);
-      rewriter.replaceOpWithNewOp<mlir::NVVM::Barrier0Op>(op);
+      rewriter.replaceOpWithNewOp<gpu::BarrierOp>(op);
     });
 
     return success();

@@ -871,6 +871,8 @@ bool isCudartCall(StringRef name) {
 
 // TEMP
 std::string getHipName(StringRef name) {
+  if (name == "cudaThreadSynchronize")
+    return "hipDeviceSynchronize";
   std::string hipName =
       std::regex_replace(std::string(name), std::regex("cuda"), "hip");
   return hipName;

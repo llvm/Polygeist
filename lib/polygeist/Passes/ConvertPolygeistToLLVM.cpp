@@ -2535,9 +2535,12 @@ struct ConvertPolygeistToLLVMPass
         populateFuncToLLVMConversionPatterns(converter, patterns);
       }
       if (gpuModule) {
-        populateGpuToNVVMConversionPatterns(converter, patterns);
-        populateGpuToROCDLConversionPatterns(converter, patterns,
-                                             gpu::amd::Runtime::HIP);
+        if (gpuTarget == "cuda") {
+          populateGpuToNVVMConversionPatterns(converter, patterns);
+        } else if (gpuTarget == "rocm") {
+          populateGpuToROCDLConversionPatterns(converter, patterns,
+                                               gpu::amd::Runtime::HIP);
+        }
       }
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
