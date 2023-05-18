@@ -2295,7 +2295,7 @@ public:
   }
 };
 
-class SelectI1Ext final : public OpRewritePattern<arith::SelectOp> {
+class SelectOfExt final : public OpRewritePattern<arith::SelectOp> {
 public:
   using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
 
@@ -2304,30 +2304,48 @@ public:
     auto ty = op.getType().dyn_cast<IntegerType>();
     if (!ty)
       return failure();
-    if (ty.getWidth() == 1)
-      return failure();
     IntegerAttr lhs, rhs;
     Value lhs_v = nullptr, rhs_v = nullptr;
+    unsigned lhs_w = 0, rhs_w = 0;
     if (auto ext = op.getTrueValue().getDefiningOp<arith::ExtUIOp>()) {
       lhs_v = ext.getIn();
-      if (lhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
+      lhs_w = lhs_v.getType().cast<IntegerType>().getWidth();
     } else if (matchPattern(op.getTrueValue(), m_Constant(&lhs))) {
-    } else
+    } else {
       return failure();
+    }
 
     if (auto ext = op.getFalseValue().getDefiningOp<arith::ExtUIOp>()) {
       rhs_v = ext.getIn();
-      if (rhs_v.getType().cast<IntegerType>().getWidth() != 1)
-        return failure();
+      rhs_w = rhs_v.getType().cast<IntegerType>().getWidth();
     } else if (matchPattern(op.getFalseValue(), m_Constant(&rhs))) {
-    } else
+    } else {
+      return failure();
+    }
+
+    // No ext's
+    if (!lhs_v && !rhs_v)
       return failure();
 
-    if (!lhs_v)
-      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), 1);
-    if (!rhs_v)
-      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), 1);
+    auto fitsIn = [&](auto i, int width) {
+      // if there is nothing in the bits that would be discarded
+      return !((~((static_cast<typeof i>(1) << width) - 1)) & i);
+    };
+
+    // Truncate the other non-extended const but only if the original constant
+    // fits in the new width
+    if (!lhs_v && fitsIn(lhs.getInt(), rhs_w)) {
+      assert(rhs_v);
+      lhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), lhs.getInt(), rhs_w);
+    }
+    if (!rhs_v && fitsIn(rhs.getInt(), lhs_w)) {
+      assert(lhs_v);
+      rhs_v = rewriter.create<ConstantIntOp>(op.getLoc(), rhs.getInt(), lhs_w);
+    }
+
+    // If we werent able to truncate the const
+    if (!(lhs_v && rhs_v))
+      return failure();
 
     rewriter.replaceOpWithNewOp<ExtUIOp>(
         op, op.getType(),
@@ -5526,7 +5544,7 @@ static llvm::cl::opt<bool>
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
-      TypeAlignCanonicalize, OrIExcludedMiddle, SelectI1Ext, UndefProp<ExtUIOp>,
+      TypeAlignCanonicalize, OrIExcludedMiddle, SelectOfExt, UndefProp<ExtUIOp>,
       UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
       AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
       AlwaysAllocaScopeHoister<scf::ForOp>,
