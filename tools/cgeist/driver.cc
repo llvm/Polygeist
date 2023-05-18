@@ -966,21 +966,18 @@ int main(int argc, char **argv) {
               arch = "gfx1030";
 
             {
-              auto triple = module.get()->getAttr(StringRef(
-                  "polygeist.gpu_module." +
-                  LLVM::LLVMDialect::getTargetTripleAttrName().str()));
-              auto DL =
-                  module.get()
-                      ->getAttrOfType<mlir::StringAttr>(StringRef(
-                          "polygeist.gpu_module." +
-                          LLVM::LLVMDialect::getDataLayoutAttrName().str()))
-                      .getValue();
+              // AMDGPU triple is fixed for our purposes
+              auto triple = "amdgcn-amd-amdhsa";
+              // TODO this should probably depend on the gpu arch
+              auto DL = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:"
+                        "32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:"
+                        "128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-"
+                        "n32:64-S32-A5-G1-ni:7";
 
-              // amdgcn-amd-amdhsa is fixed for our purposes
               module.get()->setAttr(
                   StringRef("polygeist.gpu_module." +
                             LLVM::LLVMDialect::getTargetTripleAttrName().str()),
-                  StringAttr::get(module->getContext(), "amdgcn-amd-amdhsa"));
+                  StringAttr::get(module->getContext(), triple));
               module.get()->setAttr(
                   StringRef("polygeist.gpu_module." +
                             LLVM::LLVMDialect::getDataLayoutAttrName().str()),
