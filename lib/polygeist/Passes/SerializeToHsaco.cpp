@@ -180,6 +180,16 @@ std::unique_ptr<llvm::Module>
 SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   gpu::GPUModuleOp gpum = getOperation();
 
+  // Set the max block size to 1024 by default (otherwise it will be 256)
+  OpBuilder builder(&getContext());
+  getOperation().walk([&](gpu::GPUFuncOp gpuFuncOp) {
+    StringRef attrName = "rocdl.max_flat_work_group_size";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(attrName,
+                         builder.getIntegerAttr(builder.getIndexType(), 1024));
+    }
+  });
+
   mlir::ModuleOp m = gpum->getParentOfType<mlir::ModuleOp>();
 
   mlir::ModuleOp tmpModule(
