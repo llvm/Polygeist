@@ -1808,18 +1808,40 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
 
-      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
+      const char *fatbinConstantName;
+      const char *fatbinSectionName;
+      const char *moduleIDSectionName;
+      StringRef moduleIDPrefix;
+      unsigned fatMagic;
+      constexpr unsigned CudaFatMagic = 0x466243b1;
+      constexpr unsigned HIPFatMagic = 0x48495046; // "HIPF"
+      if (gpuTarget == "cuda") {
+        fatbinConstantName = // CGM.getTriple().isMacOSX() ?
+                             // "__NV_CUDA,__nv_fatbin" :
+            ".nv_fatbin";
+        // NVIDIA's cuobjdump looks for fatbins in this section.
+        fatbinSectionName = // CGM.getTriple().isMacOSX() ? "__NV_CUDA,__fatbin"
+                            // :
+            ".nvFatBinSegment";
+        moduleIDSectionName = // CGM.getTriple().isMacOSX() ?
+                              // "__NV_CUDA,__nv_module_id" :
+            "__nv_module_id";
+        moduleIDPrefix = "__nv_";
+        fatMagic = CudaFatMagic;
+      } else {
+        fatbinConstantName = ".hip_fatbin";
+        fatbinSectionName = ".hipFatBinSegment";
+        moduleIDSectionName = "__hip_module_id";
+        moduleIDPrefix = "__hip_";
+        fatMagic = HIPFatMagic;
+      }
 
-      // TODO this is for the non-relocatable non-macOS case, handle others, see
-      // clang/CodeGen/CGCUDANV.cpp
-      const char *fatbinSectionName = ".nv_fatbin";
-      const char *fatbinWrapperSectionName = ".nvFatBinSegment";
+      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
 
       // Create and initialize the fatbin wrapper struct
       auto fatBinWrapperType = mlir::LLVM::LLVMStructType::getLiteral(
           moduleOp->getContext(),
           {llvmInt32Type, llvmInt32Type, llvmPointerType, llvmPointerType});
-      constexpr unsigned CudaFatMagic = 0x466243b1;
       auto fatBinWrapper = moduleBuilder.create<LLVM::GlobalOp>(
           loc, fatBinWrapperType, /*constant*/ true, LLVM::Linkage::Internal,
           std::string(
@@ -1827,13 +1849,13 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           /* initValue */ mlir::Attribute(),
           /* alignment */ 8, /* addrSpace */ 0);
       fatBinWrapper.setSectionAttr(
-          moduleBuilder.getStringAttr(fatbinWrapperSectionName));
+          moduleBuilder.getStringAttr(fatbinSectionName));
 
       OpBuilder globalBuilder(moduleOp->getContext());
       fatBinWrapper.getRegion().push_back(new Block);
       globalBuilder.setInsertionPointToStart(fatBinWrapper.getBody());
-      auto fatbinMagicVal = globalBuilder.create<LLVM::ConstantOp>(
-          loc, llvmInt32Type, CudaFatMagic);
+      auto fatbinMagicVal =
+          globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, fatMagic);
       auto fatbinVersionVal =
           globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, 1);
       auto nullPtr = globalBuilder.create<LLVM::NullOp>(loc, llvmPointerType);
