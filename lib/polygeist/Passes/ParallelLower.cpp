@@ -700,6 +700,12 @@ void ParallelLower::runOnOperation() {
   }
 }
 
+static void replaceCallWithSuccess(Operation *call, OpBuilder &bz) {
+  call->replaceAllUsesWith(bz.create<ConstantIntOp>(
+      call->getLoc(), 0, call->getResult(0).getType()));
+  call->erase();
+}
+
 void ConvertCudaRTtoCPU::runOnOperation() {
   // The inliner should only be run on operations that define a symbol table,
   // as the callgraph will need to resolve references.
@@ -856,6 +862,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
 // Returns a list of all symbols provided by cudart (obtained from
 // libcudart_static.a)
 static std::vector<llvm::StringRef> getCudartSymbols();
+static std::vector<llvm::StringRef> getCudartInequivalentSymbols();
 
 namespace {
 
@@ -879,7 +886,15 @@ std::string getHipName(StringRef name) {
 }
 
 // TEMP
-bool isHipCallEquivalent(StringRef name) { return true; }
+bool isHipCallEquivalent(StringRef name) {
+  static std::vector<llvm::StringRef> sortedCudartSymbols = []() {
+    auto tmp = getCudartInequivalentSymbols();
+    std::sort(tmp.begin(), tmp.end());
+    return tmp;
+  }();
+  return !std::binary_search(sortedCudartSymbols.begin(),
+                             sortedCudartSymbols.end(), name);
+}
 
 } // namespace
 
@@ -901,8 +916,9 @@ void ConvertCudaRTtoHipRT::runOnOperation() {
           }
           call.setCallee(hipName.c_str());
         } else {
-          llvm::errs() << "Unsupported CUDART call " << callee << " to HIP\n";
-          assert(0);
+          llvm::errs() << "warning: Unsupported CUDART call " << callee
+                       << " for conversion to HIP, will be removed instead\n";
+          replaceCallWithSuccess(call, callBuilder);
         }
       };
   std::function<void(LLVM::CallOp call, StringRef callee)>
@@ -922,8 +938,9 @@ void ConvertCudaRTtoHipRT::runOnOperation() {
           }
           call.setCallee(llvm::Optional<StringRef>(StringRef(hipName)));
         } else {
-          llvm::errs() << "Unsupported CUDART call " << callee << " to HIP\n";
-          assert(0);
+          llvm::errs() << "warning: Unsupported CUDART call " << callee
+                       << " for conversion to HIP, will be removed instead\n";
+          replaceCallWithSuccess(call, callBuilder);
         }
       };
 
@@ -1370,3 +1387,13 @@ std::vector<llvm::StringRef> cudartSymbols = {
 // clang-format on
 
 static std::vector<llvm::StringRef> getCudartSymbols() { return cudartSymbols; }
+
+// clang-format off
+std::vector<llvm::StringRef> inequivalentCudartSymbols = {
+"cudaGetDeviceProperties",
+};
+// clang-format on
+
+static std::vector<llvm::StringRef> getCudartInequivalentSymbols() {
+  return inequivalentCudartSymbols;
+}
