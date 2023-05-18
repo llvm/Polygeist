@@ -926,6 +926,17 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_GPU
         if (EmitGPU) {
+          // Set the max block size to 1024 by default for ROCM (otherwise it
+          // will be 256)
+          OpBuilder builder(module.get()->getContext());
+          module.get().walk([&](gpu::GPUFuncOp gpuFuncOp) {
+            StringRef attrName = "rocdl.max_flat_work_group_size";
+            if (!gpuFuncOp->hasAttr(attrName)) {
+              gpuFuncOp->setAttr(attrName, builder.getIntegerAttr(
+                                               builder.getIndexType(), 1024));
+            }
+          });
+
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
               options, CStyleMemRef, /* onlyGpuModules */ true,
               EmitCUDA ? "cuda" : "rocm"));
@@ -983,6 +994,7 @@ int main(int argc, char **argv) {
                             LLVM::LLVMDialect::getDataLayoutAttrName().str()),
                   StringAttr::get(module.get()->getContext(), DL));
             }
+
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
             int HsaOptLevel = NvptxOptLevel;
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
