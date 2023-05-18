@@ -181,6 +181,9 @@ static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
 static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
                                      cl::desc("CUDA Path"));
 
+static cl::opt<std::string> ROCMPath("rocm-path", cl::init(""),
+                                     cl::desc("ROCM Path"));
+
 static cl::opt<bool> NoCUDAInc("nocudainc", cl::init(false),
                                cl::desc("Do not include CUDA headers"));
 
@@ -987,8 +990,8 @@ int main(int argc, char **argv) {
             int HsaOptLevel = NvptxOptLevel;
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
                 arch, "", optLevel,
-                /* TODO do we need this param? */ HsaOptLevel,
-                /* TODO */ "/opt/rocm/", OutputIntermediateGPU));
+                /* TODO do we need this param? */ HsaOptLevel, ROCMPath,
+                OutputIntermediateGPU));
 #endif
           } else {
             assert(0);
