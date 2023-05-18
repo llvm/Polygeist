@@ -1352,13 +1352,19 @@ template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
                     tuple);
 }
 
-struct LowerAlternativesOp : public OpRewritePattern<polygeist::AlternativesOp>,
-                             public GpuRuntimeCallBuilders {
+struct LowerGPUAlternativesOp
+    : public OpRewritePattern<polygeist::AlternativesOp>,
+      public GpuRuntimeCallBuilders {
   using OpRewritePattern<polygeist::AlternativesOp>::OpRewritePattern;
   const char *PATTERN = "lower-gpu-alternatives";
 
   LogicalResult matchAndRewrite(polygeist::AlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
+
+    if (alternativesOp.getAttrOfType<StringAttr>("alternatives.type")
+            .getValue() != "gpu_kernel")
+      return failure();
+
     Location loc = gao->getLoc();
 
     // TODO each region in the alternatives op should containt only a single
@@ -1616,8 +1622,8 @@ struct LowerAlternativesOp : public OpRewritePattern<polygeist::AlternativesOp>,
     }
   }
 
-  LowerAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
-                      StringRef gpuBinaryAnnotation)
+  LowerGPUAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
+                         StringRef gpuBinaryAnnotation)
       : OpRewritePattern<polygeist::AlternativesOp>(context),
         GpuRuntimeCallBuilders(context, typeConverter),
         gpuBinaryAnnotation(gpuBinaryAnnotation) {}
@@ -2479,8 +2485,8 @@ struct ConvertPolygeistToLLVMPass
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());
-      patterns.add<LowerAlternativesOp>(&getContext(), converter,
-                                        gpu::getDefaultGpuBinaryAnnotation());
+      patterns.add<LowerGPUAlternativesOp>(
+          &getContext(), converter, gpu::getDefaultGpuBinaryAnnotation());
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 
