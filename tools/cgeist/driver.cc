@@ -613,10 +613,6 @@ int main(int argc, char **argv) {
     llvm::errs() << "Cannot emit both CUDA and ROCM\n";
     return 1;
   }
-  if (!(EmitCUDA || EmitROCM || ToCPU.size() > 0)) {
-    llvm::errs() << "Need to emit either CUDA, ROCM, or CPU code\n";
-    return 1;
-  }
   bool EmitGPU = EmitROCM || EmitCUDA;
 
   int unrollSize = 32;
