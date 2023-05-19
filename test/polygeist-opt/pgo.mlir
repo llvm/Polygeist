@@ -11,7 +11,8 @@ module {
     }, {
       func.call @wow1() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
-    }) : () -> ()
+    }) {alternatives.type = "gpu_kernel"} : () -> ()
+
     return
   }
 }
