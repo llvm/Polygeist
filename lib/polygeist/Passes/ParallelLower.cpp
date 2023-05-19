@@ -246,11 +246,6 @@ void ParallelLower::runOnOperation() {
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());
 
-  getOperation()->walk([&](CallOp bidx) {
-    if (bidx.getCallee() == "cudaThreadSynchronize")
-      bidx.erase();
-  });
-
   std::function<void(LLVM::CallOp)> LLVMcallInliner;
   std::function<void(CallOp)> callInliner = [&](CallOp caller) {
     // Build the inliner interface.
@@ -819,7 +814,10 @@ void ConvertCudaRTtoCPU::runOnOperation() {
             call->replaceAllUsesWith(ArrayRef<Value>(vals));
             call->erase();
           }
-        } else if (callee == "cudaDeviceSynchronize") {
+        } else if (callee == "cudaDeviceSynchronize" ||
+                   callee == "cudaThreadSynchronize") {
+          // TODO if we have async kernels we must preserve this and lower it to
+          // a CPU equivalent
           OpBuilder bz(call);
           auto retv = bz.create<ConstantIntOp>(
               call->getLoc(), 0,
@@ -839,11 +837,6 @@ void ConvertCudaRTtoCPU::runOnOperation() {
         }
       };
 
-  getOperation()->walk([&](CallOp bidx) {
-    // TODO Why are we erasing this??? it has the same beviour as cudaDeviceSynchronize
-    if (bidx.getCallee() == "cudaThreadSynchronize")
-      bidx.erase();
-  });
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
