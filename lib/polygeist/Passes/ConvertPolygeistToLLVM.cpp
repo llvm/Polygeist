@@ -1361,8 +1361,8 @@ struct LowerGPUAlternativesOp
   LogicalResult matchAndRewrite(polygeist::AlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
 
-    if (alternativesOp.getAttrOfType<StringAttr>("alternatives.type")
-            .getValue() != "gpu_kernel")
+    if (gao->getAttrOfType<StringAttr>("alternatives.type").getValue() !=
+        "gpu_kernel")
       return failure();
 
     Location loc = gao->getLoc();
@@ -1371,136 +1371,147 @@ struct LowerGPUAlternativesOp
     // block - write a verifier for that
 
     if (PolygeistAlternativesMode == PAM_Static) {
+      Block *block = nullptr;
 #if POLYGEIST_ENABLE_CUDA
-      char cuErrorBuffer[4096] = {0};
+      if (gpuTarget == "cuda") {
+        char cuErrorBuffer[4096] = {0};
 
-      // TODO implement a version that does this at runtime for when we dont
-      // have block sizes or shared mem
+        // TODO implement a version that does this at runtime for when we dont
+        // have block sizes or shared mem
 
-      RETURN_ON_CUDA_ERROR(cuInit(0));
-      // For whatever reason we need a device context
-      CUdevice device;
-      RETURN_ON_CUDA_ERROR(cuDeviceGet(&device, 0));
-      CUcontext context;
-      RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
+        RETURN_ON_CUDA_ERROR(cuInit(0));
+        // For whatever reason we need a device context
+        CUdevice device;
+        RETURN_ON_CUDA_ERROR(cuDeviceGet(&device, 0));
+        CUcontext context;
+        RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
 
-      std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-          occupancies;
+        std::vector<std::tuple<Region *, int, int, int, int, int, int>>
+            occupancies;
 
-      for (auto &region : gao->getRegions()) {
-        gpu::LaunchFuncOp launchOp = nullptr;
-        region.walk([&](gpu::LaunchFuncOp l) {
-          assert(!launchOp);
-          launchOp = l;
-        });
-        assert(launchOp);
+        for (auto &region : gao->getRegions()) {
+          gpu::LaunchFuncOp launchOp = nullptr;
+          region.walk([&](gpu::LaunchFuncOp l) {
+            assert(!launchOp);
+            launchOp = l;
+          });
+          assert(launchOp);
 
-        auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
-            launchOp.getKernel());
-        assert(gpuFunc);
-        auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
-        assert(gpuModule);
-        const char *blob =
-            gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
+          auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+              launchOp.getKernel());
+          assert(gpuFunc);
+          auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
+          assert(gpuModule);
+          const char *blob =
+              gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
 
-        CUmodule cuModule;
-        CUfunction cuFunction;
-        RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
-        RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
-            &cuFunction, cuModule, launchOp.getKernelName().data()));
+          CUmodule cuModule;
+          CUfunction cuFunction;
+          RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
+          RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
+              &cuFunction, cuModule, launchOp.getKernelName().data()));
 
-        int maxThreadsPerBlock, sharedMemSize, constMemSize,
-            /* stack frame size */ localMemSize, numRegs;
-        // TODO we dont seem to be able to get spilled stores/loads count from
-        // here but ptxas outputs it? should we parse the ptxas output and add
-        // an attribute for those values
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-            cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
+          int maxThreadsPerBlock, sharedMemSize, constMemSize,
+              /* stack frame size */ localMemSize, numRegs;
+          // TODO we dont seem to be able to get spilled stores/loads count from
+          // here but ptxas outputs it? should we parse the ptxas output and add
+          // an attribute for those values
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+              cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
 
-        int blockSize = 1;
-        gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
-        for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
-          if (auto cstint =
-                  dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
-            blockSize *= cstint.value();
-          } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
-                         dim.getDefiningOp())) {
-            blockSize *= cstindex.value();
-          } else {
-            assert(0);
+          int blockSize = 1;
+          gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
+          for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
+            if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(
+                    dim.getDefiningOp())) {
+              blockSize *= cstint.value();
+            } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                           dim.getDefiningOp())) {
+              blockSize *= cstindex.value();
+            } else {
+              assert(0);
+            }
           }
+
+          // in the current state, only kernels with no shared memory should use
+          // the alternatives op, thus assume 0 TODO check it
+          size_t dynamicSharedMemSize = 0;
+
+          int occupancyNumBlocks;
+          RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+              &occupancyNumBlocks, cuFunction, blockSize,
+              dynamicSharedMemSize));
+
+          RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
+
+          assert(maxThreadsPerBlock >= blockSize);
+          int activeThreads = occupancyNumBlocks * blockSize;
+          occupancies.push_back({
+              &region, localMemSize,   /* lower is better */
+              activeThreads,           /* higher is better */
+              numRegs * activeThreads, /* higher is better */
+              blockSize,               /* hisher is better??? maybe? */
+              sharedMemSize,           /* lower is better */
+              constMemSize,            /* lower is better */
+          });
         }
 
-        // in the current state, only kernels with no shared memory should use
-        // the alternatives op, thus assume 0 TODO check it
-        size_t dynamicSharedMemSize = 0;
+        auto printOccupancies =
+            [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
+                    occupancies) {
+              for (auto tup : occupancies)
+                DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
+                       << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
+                       << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
+                       << std::get<6>(tup) << ", "
+                       << "\n";
+            };
 
-        int occupancyNumBlocks;
-        RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancyNumBlocks, cuFunction, blockSize, dynamicSharedMemSize));
+        LLVM_DEBUG(
+            DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
+        LLVM_DEBUG(printOccupancies(occupancies));
 
-        RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
+        auto getCost = [](auto a) -> double {
+          std::vector<float> coefficients = {4, -2, -0.1, -0.01};
+          return coefficients[0] * std::get<0>(a) +
+                 coefficients[1] * std::get<1>(a) +
+                 coefficients[2] * std::get<2>(a) +
+                 coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
+                 0 * std::get<5>(a);
+        };
+        std::stable_sort(occupancies.begin(), occupancies.end(),
+                         [&](auto a, auto b) {
+                           auto _a = pop_front(a);
+                           auto _b = pop_front(b);
+                           return getCost(_a) < getCost(_b);
+                         });
 
-        assert(maxThreadsPerBlock >= blockSize);
-        int activeThreads = occupancyNumBlocks * blockSize;
-        occupancies.push_back({
-            &region, localMemSize,   /* lower is better */
-            activeThreads,           /* higher is better */
-            numRegs * activeThreads, /* higher is better */
-            blockSize,               /* hisher is better??? maybe? */
-            sharedMemSize,           /* lower is better */
-            constMemSize,            /* lower is better */
-        });
+        LLVM_DEBUG(
+            DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
+        LLVM_DEBUG(printOccupancies(occupancies));
+        LLVM_DEBUG(DBGS() << "Choosing top option\n");
+
+        block = &*std::get<0>(occupancies[0])->begin();
       }
-
-      auto printOccupancies =
-          [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-                  occupancies) {
-            for (auto tup : occupancies)
-              DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
-                     << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
-                     << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
-                     << std::get<6>(tup) << ", "
-                     << "\n";
-          };
-
-      LLVM_DEBUG(
-          DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
-      LLVM_DEBUG(printOccupancies(occupancies));
-
-      auto getCost = [](auto a) -> double {
-        std::vector<float> coefficients = {4, -2, -0.1, -0.01};
-        return coefficients[0] * std::get<0>(a) +
-               coefficients[1] * std::get<1>(a) +
-               coefficients[2] * std::get<2>(a) +
-               coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
-               0 * std::get<5>(a);
-      };
-      std::stable_sort(occupancies.begin(), occupancies.end(),
-                       [&](auto a, auto b) {
-                         auto _a = pop_front(a);
-                         auto _b = pop_front(b);
-                         return getCost(_a) < getCost(_b);
-                       });
-
-      LLVM_DEBUG(
-          DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
-      LLVM_DEBUG(printOccupancies(occupancies));
-      LLVM_DEBUG(DBGS() << "Choosing top option\n");
-
-      auto block = &*std::get<0>(occupancies[0])->begin();
-#else
-      auto block = &*gao->getRegions()[0].begin();
 #endif
+#if POLYGEIST_ENABLE_ROCM
+      if (gpuTarget == "rocm") {
+        llvm::errs() << "warning: no support for statically choosing ROCM "
+                        "kernel alternative, picking the first one\n";
+        block = &*gao->getRegions()[0].begin();
+      }
+#endif
+      if (!block)
+        block = &*gao->getRegions()[0].begin();
 
       rewriter.eraseOp(block->getTerminator());
       rewriter.mergeBlockBefore(block, gao);
@@ -1623,12 +1634,13 @@ struct LowerGPUAlternativesOp
   }
 
   LowerGPUAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
-                         StringRef gpuBinaryAnnotation)
+                         StringRef gpuBinaryAnnotation, StringRef gpuTarget)
       : OpRewritePattern<polygeist::AlternativesOp>(context),
         GpuRuntimeCallBuilders(context, typeConverter),
-        gpuBinaryAnnotation(gpuBinaryAnnotation) {}
+        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget) {}
 
   llvm::SmallString<32> gpuBinaryAnnotation;
+  llvm::SmallString<4> gpuTarget;
 };
 
 // Creates a struct containing all kernel parameters on the stack and returns
@@ -2485,8 +2497,9 @@ struct ConvertPolygeistToLLVMPass
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());
-      patterns.add<LowerGPUAlternativesOp>(
-          &getContext(), converter, gpu::getDefaultGpuBinaryAnnotation());
+      patterns.add<LowerGPUAlternativesOp>(&getContext(), converter,
+                                           gpu::getDefaultGpuBinaryAnnotation(),
+                                           gpuTarget);
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 

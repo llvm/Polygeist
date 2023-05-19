@@ -396,23 +396,23 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
-      alternativesOp.setAttr("alternatives.type",
-                             rewriter.getStringAttr("gpu_kernel"));
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
                    << " threads\n";
       emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else if (shouldEmitAlternatives(pop)) {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(
           loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
-      alternativesOp.setAttr("alternatives.type",
-                             rewriter.getStringAttr("gpu_kernel"));
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
     } else {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
-      alternativesOp.setAttr("alternatives.type",
-                             rewriter.getStringAttr("gpu_kernel"));
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       emitAlternative(-1, alternativesOp);
     }
 

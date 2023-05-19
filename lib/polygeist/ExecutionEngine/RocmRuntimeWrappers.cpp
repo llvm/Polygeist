@@ -12,7 +12,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstdio>
+#include <cstdlib>
+
 #include "hip/hip_runtime.h"
+
+#include "PGORuntime.h"
 
 #ifdef _WIN32
 #define MLIR_HIP_WRAPPERS_EXPORT __declspec(dllexport) __attribute__((weak))
