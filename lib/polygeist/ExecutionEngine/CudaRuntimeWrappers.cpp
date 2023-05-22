@@ -169,6 +169,10 @@ extern "C" void __cudaRegisterFunction(void **fatCubinHandle, void *hostFun,
                                        int32_t thread_limit, void *tid,
                                        void *bid, void *bDim, void *gDim,
                                        void *wSize);
+extern "C" void __cudaRegisterVar(void **fatCubinHandle, char *hostVar,
+                                  char *deviceAddress, const char *deviceName,
+                                  int ext, size_t size, int constant,
+                                  int global);
 extern "C" void **__cudaRegisterFatBinary(void *fatCubin);
 extern "C" void __cudaRegisterFatBinaryEnd(void **fatCubinHandle);
 extern "C" void __cudaUnregisterFatBinary(void **fatCubinHandle);
@@ -181,6 +185,14 @@ __mgpurtRegisterFunction(void **fatCubinHandle, void *hostFun, void *deviceFun,
                          thread_limit, tid, bid, bDim, gDim, wSize);
 }
 
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress,
+                    const char *deviceName, int ext, size_t size, int constant,
+                    int global) {
+  __cudaRegisterVar(fatCubinHandle, hostVar, deviceAddress, deviceName, ext,
+                    size, constant, global);
+}
+
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void **
 __mgpurtRegisterFatBinary(void *fatCubin) {
   return __cudaRegisterFatBinary(fatCubin);
@@ -188,10 +200,10 @@ __mgpurtRegisterFatBinary(void *fatCubin) {
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
 __mgpurtRegisterFatBinaryEnd(void **fatCubinHandle) {
-  return __cudaRegisterFatBinaryEnd(fatCubinHandle);
+  __cudaRegisterFatBinaryEnd(fatCubinHandle);
 }
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
 __mgpurtUnregisterFatBinary(void **fatCubinHandle) {
-  return __cudaUnregisterFatBinary(fatCubinHandle);
+  __cudaUnregisterFatBinary(fatCubinHandle);
 }

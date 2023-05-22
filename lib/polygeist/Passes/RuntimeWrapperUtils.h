@@ -69,6 +69,12 @@ public:
        llvmPointerType, llvmInt32Type, llvmPointerType, llvmPointerType,
        llvmPointerType, llvmPointerType,
        llvmPointerType /* should actually be a pointer to int */}};
+  FunctionCallBuilder rtRegisterVarCallBuilder = {
+      "__mgpurtRegisterVar",
+      llvmVoidType,
+      {llvmPointerPointerType, llvmPointerType, llvmPointerType,
+       llvmPointerType, llvmInt32Type, llvmIntPtrType, llvmInt32Type,
+       llvmInt32Type}};
   FunctionCallBuilder rtUnregisterFatBinaryCallBuilder = {
       "__mgpurtUnregisterFatBinary", llvmVoidType, {llvmPointerPointerType}};
   FunctionCallBuilder rtRegisterFatBinaryCallBuilder = {
