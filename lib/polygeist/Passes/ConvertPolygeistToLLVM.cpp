@@ -397,16 +397,27 @@ struct GPUGlobalConversion : public OpRewritePattern<memref::GlobalOp> {
       return failure();
     }
     auto mt = globalOp.getType();
-    auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
-                                /* memspace */ 4);
     auto memSpace = mt.getMemorySpaceAsInt();
     if (memSpace != 0) {
       return failure();
     }
-    // In the case of cuda TODO
-    // using clang: dso_local addrspace(4) externally_initialized global
-    // zeroinitializer current cgeist: local_unnamed_addr addrspace(4) global [5
-    // x float] undef
+    int newMemspace = 0;
+    if (globalOp->getAttr("polygeist.cuda_device")) {
+      newMemspace = 1;
+    } else if (globalOp->getAttr("polygeist.cuda_constant")) {
+      newMemspace = 4;
+    } else {
+      // TODO what else is there? managed?
+      globalOp.emitError("Unsupported global type in gpu module");
+      assert(0);
+    }
+    auto type =
+        MemRefType::get(mt.getShape(), mt.getElementType(), {}, newMemspace);
+    // clang: dso_local addrspace(4) externally_initialized global
+    // zeroinitializer cgeist: local_unnamed_addr addrspace(4)
+    // externally_initialized
+    //
+    // TODO add zetoinitializer and dso_local
     mlir::Attribute initial_value = rewriter.getUnitAttr();
     if (globalOp.getInitialValue())
       initial_value = globalOp.getInitialValue().value();
@@ -425,7 +436,8 @@ struct GPUGetGlobalConversion : public OpRewritePattern<memref::GetGlobalOp> {
 
   LogicalResult matchAndRewrite(memref::GetGlobalOp ggo,
                                 PatternRewriter &rewriter) const override {
-    if (!ggo->getParentOfType<gpu::GPUModuleOp>()) {
+    auto gpuModule = ggo->getParentOfType<gpu::GPUModuleOp>();
+    if (!gpuModule) {
       return failure();
     }
     auto loc = ggo->getLoc();
@@ -433,8 +445,24 @@ struct GPUGetGlobalConversion : public OpRewritePattern<memref::GetGlobalOp> {
     if (mt.getMemorySpaceAsInt() != 0) {
       return failure();
     }
-    auto newMT = MemRefType::get(mt.getShape(), mt.getElementType(), {},
-                                 /* memspace */ 4);
+    auto globalOp =
+        cast<memref::GlobalOp>(gpuModule.lookupSymbol(ggo.getNameAttr()));
+    int newMemspace = 0;
+    int globalMemspace = globalOp.getType().getMemorySpaceAsInt();
+    if (globalOp->getAttr("polygeist.cuda_device") || globalMemspace == 1) {
+      newMemspace = 1;
+    } else if (globalOp->getAttr("polygeist.cuda_constant") ||
+               globalMemspace == 4) {
+      newMemspace = 4;
+    } else {
+      // TODO what else is there? managed?
+      ggo.emitError("Unsupported global type in gpu module");
+      ggo->dump();
+      globalOp->dump();
+      assert(0);
+    }
+    auto newMT =
+        MemRefType::get(mt.getShape(), mt.getElementType(), {}, newMemspace);
     auto newGetGlobalOp =
         rewriter.create<memref::GetGlobalOp>(loc, newMT, ggo.getName());
     auto castOp =
