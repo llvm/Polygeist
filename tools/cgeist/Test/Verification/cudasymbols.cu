@@ -1,5 +1,5 @@
 // clang-format off
-// RUN: cgeist %s --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S -emit-llvm -output-intermediate-gpu=1 -emit-cuda -c | FileCheck %s
+// RUN: cgeist %s --cuda-lower --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S -emit-llvm-dialect -output-intermediate-gpu=1 -emit-cuda -c | FileCheck %s
 // TODO only do this test if we have a cuda build
 
 #include "Inputs/cuda.h"
@@ -57,6 +57,18 @@ void baz() {
     cudaMemcpyToSymbol(&const_i, &ai, sizeof(int));
 }
 
+// When there are multiple callsites that use the same global symbol, the kernel
+// outlining will duplicate that into two different gpu.module's, they then need
+// to be merged together so that we only get a single global symbol on the gpu
+// side too
 void bar() {
     foo<<<1,1>>>();
 }
+void barr() {
+    foo<<<1,1>>>();
+}
+
+// check that we register _exactly_ 4 symbols
+
+// CHECK-COUNT-4:   llvm.call @__mgpurtRegisterVar(
+// CHECK-NOT:   llvm.call @__mgpurtRegisterVar(
