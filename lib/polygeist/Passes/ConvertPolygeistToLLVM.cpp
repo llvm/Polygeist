@@ -1996,6 +1996,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
                ctorBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, -1),
                nullPtr, nullPtr, nullPtr, nullPtr, nullPtr});
         } else if (LLVM::GlobalOp g = dyn_cast<LLVM::GlobalOp>(op)) {
+          int addrSpace = g.getAddrSpace();
+          if (addrSpace != 1 /* device */ && addrSpace != 4 /* constant */)
+            continue;
           auto symbolName = [&]() {
             auto name = g.getName();
             std::vector<char> sname(name.begin(), name.end());
