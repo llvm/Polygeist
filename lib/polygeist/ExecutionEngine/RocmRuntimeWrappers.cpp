@@ -93,6 +93,10 @@ extern "C" void __hipRegisterFunction(void **fatCubinHandle, void *hostFun,
                                       int32_t thread_limit, void *tid,
                                       void *bid, void *bDim, void *gDim,
                                       void *wSize);
+extern "C" void __hipRegisterVar(void **fatCubinHandle, char *hostVar,
+                                 char *deviceAddress, const char *deviceName,
+                                 int ext, size_t size, int constant,
+                                 int global);
 extern "C" void **__hipRegisterFatBinary(void *fatCubin);
 extern "C" void __hipRegisterFatBinaryEnd(void **fatCubinHandle);
 extern "C" void __hipUnregisterFatBinary(void **fatCubinHandle);
@@ -103,6 +107,13 @@ __mgpurtRegisterFunction(void **fatCubinHandle, void *hostFun, void *deviceFun,
                          void *bid, void *bDim, void *gDim, void *wSize) {
   __hipRegisterFunction(fatCubinHandle, hostFun, deviceFun, deviceName,
                         thread_limit, tid, bid, bDim, gDim, wSize);
+}
+extern "C" MLIR_HIP_WRAPPERS_EXPORT void
+__mgpurtRegisterVar(void **fatCubinHandle, char *hostVar, char *deviceAddress,
+                    const char *deviceName, int ext, size_t size, int constant,
+                    int global) {
+  __hipRegisterVar(fatCubinHandle, hostVar, deviceAddress, deviceName, ext,
+                   size, constant, global);
 }
 
 extern "C" MLIR_HIP_WRAPPERS_EXPORT void **

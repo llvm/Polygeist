@@ -421,11 +421,18 @@ struct GPUGlobalConversion : public OpRewritePattern<memref::GlobalOp> {
     mlir::Attribute initial_value = rewriter.getUnitAttr();
     if (globalOp.getInitialValue())
       initial_value = globalOp.getInitialValue().value();
-    globalOp = rewriter.replaceOpWithNewOp<memref::GlobalOp>(
-        globalOp, rewriter.getStringAttr(globalOp.getSymName()),
+    rewriter.setInsertionPoint(globalOp);
+    auto newGlobalOp = rewriter.create<memref::GlobalOp>(
+        globalOp->getLoc(), rewriter.getStringAttr(globalOp.getSymName()),
         /* sym_visibility */ mlir::StringAttr(), mlir::TypeAttr::get(type),
         initial_value, mlir::UnitAttr(), /* alignment */ nullptr);
-    globalOp->setAttr("externally_initialized", rewriter.getUnitAttr());
+    newGlobalOp->setAttr("externally_initialized", rewriter.getUnitAttr());
+    if (globalOp->getAttr("polygeist.cuda_device")) {
+      newGlobalOp->setAttr("polygeist.cuda_device", rewriter.getUnitAttr());
+    } else if (globalOp->getAttr("polygeist.cuda_constant")) {
+      newGlobalOp->setAttr("polygeist.cuda_constant", rewriter.getUnitAttr());
+    }
+    rewriter.eraseOp(globalOp);
     return success();
   }
 };
@@ -1057,13 +1064,17 @@ public:
         initialValue = elementsAttr.getSplatValue<Attribute>();
     }
 
-    uint64_t alignment = globalOp.getAlignment().value_or(0);
+    IntegerAttr alignment = globalOp.getAlignmentAttr();
+    bool dso_local = globalOp->getAttr("polygeist.cuda_device") ||
+                     globalOp->getAttr("polygeist.cuda_constant");
+    bool thread_local_ = false;
+    LLVM::UnnamedAddrAttr unnamed_addr = nullptr;
+    StringAttr section = nullptr;
     auto newGlobal = rewriter.replaceOpWithNewOp<LLVM::GlobalOp>(
-        globalOp, convertedType, globalOp.getConstant(), linkage,
-        globalOp.getSymName(), initialValue, alignment,
-        originalType.getMemorySpaceAsInt());
-    if (!globalOp.isExternal() && globalOp.isUninitialized() &&
-        !globalOp->getAttr("externally_initialized")) {
+        globalOp, convertedType, globalOp.getConstant(), globalOp.getSymName(),
+        linkage, dso_local, thread_local_, initialValue, alignment,
+        originalType.getMemorySpaceAsInt(), unnamed_addr, section);
+    if (!globalOp.isExternal() && globalOp.isUninitialized()) {
       Block *block =
           rewriter.createBlock(&newGlobal.getInitializerRegion(),
                                newGlobal.getInitializerRegion().begin());
