@@ -47,6 +47,7 @@ std::unique_ptr<Pass>
 createConvertParallelToGPUPass1(bool useOriginalThreadNums = false);
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
+std::unique_ptr<Pass> createMergeGPUModulesPass();
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
     std::string ptxasPath, std::string libDevicePath, bool outputIntermediate);

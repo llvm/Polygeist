@@ -1560,8 +1560,78 @@ struct ConvertParallelToGPU2Pass
   }
 };
 
+struct MergeGPUModulesPass
+    : public MergeGPUModulesPassBase<MergeGPUModulesPass> {
+  void runOnOperation() override {
+    auto m = getOperation();
+    Region &moduleRegion = m->getRegion(0);
+    OpBuilder mBuilder(moduleRegion);
+    std::string newModuleName = "__polygeist_gpu_module";
+    auto newGpuModule =
+        mBuilder.create<gpu::GPUModuleOp>(m->getLoc(), newModuleName);
+    OpBuilder gpumBuilder(newGpuModule->getRegion(0));
+    std::vector<gpu::GPUModuleOp> toErase;
+    m->walk([&](gpu::GPUModuleOp gpum) {
+      if (gpum == newGpuModule)
+        return;
+      toErase.push_back(gpum);
+      for (auto &op : *gpum.getBody()) {
+        auto cloneIf = [&](auto op) {
+          if (op) {
+            if (!SymbolTable::lookupSymbolIn(newGpuModule, op.getName())) {
+              gpumBuilder.clone(*op.getOperation());
+            }
+            return true;
+          }
+          return false;
+        };
+
+        if (auto f = dyn_cast<gpu::GPUFuncOp>(&op)) {
+          auto newF = cast<gpu::GPUFuncOp>(gpumBuilder.clone(op));
+          if (SymbolTable::lookupSymbolIn(newGpuModule, f.getName())) {
+            auto newKernelName =
+                std::string(f.getName()) +
+                std::to_string(reinterpret_cast<intptr_t>(f.getOperation()));
+            newF.setName(newKernelName);
+          }
+          auto symbolUses = SymbolTable::getSymbolUses(f.getOperation(), m);
+          assert(symbolUses);
+          for (auto symbolUse : *symbolUses) {
+            if (auto launchOp =
+                    dyn_cast<gpu::LaunchFuncOp>(symbolUse.getUser())) {
+              auto kernelSymbol =
+                  SymbolRefAttr::get(newGpuModule.getNameAttr(),
+                                     {SymbolRefAttr::get(newF.getNameAttr())});
+              launchOp->setAttr(
+                  gpu::LaunchFuncOp::getKernelAttrName(launchOp->getName()),
+                  kernelSymbol);
+            } else {
+              f.emitError("Unexpected user of gpu func op");
+              assert(0);
+            }
+          }
+        } else if (!(cloneIf(dyn_cast<memref::GlobalOp>(&op)) ||
+                     cloneIf(dyn_cast<LLVM::GlobalOp>(&op)) ||
+                     cloneIf(dyn_cast<func::FuncOp>(&op)) ||
+                     cloneIf(dyn_cast<LLVM::LLVMFuncOp>(&op)) ||
+                     isa<gpu::ModuleEndOp>(&op))) {
+          op.emitError("Unexpected global type in gpu module");
+          op.dump();
+          assert(0);
+        }
+      }
+    });
+
+    for (auto gpum : toErase)
+      gpum->erase();
+  }
+};
+
 } // namespace
 
+std::unique_ptr<Pass> mlir::polygeist::createMergeGPUModulesPass() {
+  return std::make_unique<MergeGPUModulesPass>();
+}
 std::unique_ptr<Pass>
 mlir::polygeist::createConvertParallelToGPUPass1(bool useOriginalThreadNums) {
   return std::make_unique<ConvertParallelToGPU1Pass>(useOriginalThreadNums);
