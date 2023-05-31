@@ -1630,6 +1630,9 @@ struct MergeGPUModulesPass
       }
     });
 
+    if (toErase.size() == 0)
+      newGpuModule->erase();
+
     for (auto gpum : toErase)
       gpum->erase();
   }
