@@ -875,6 +875,7 @@ int main(int argc, char **argv) {
 
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(polygeist::createMergeGPUModulesPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       // TODO maybe preserve info about which original kernel corresponds to
       // which outlined kernel, might be useful for calls to
