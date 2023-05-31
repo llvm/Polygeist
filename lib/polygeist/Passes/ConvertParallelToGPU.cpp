@@ -950,7 +950,15 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       bool read = hasEffect<MemoryEffects::Read>(effects);
       bool write = hasEffect<MemoryEffects::Write>(effects);
       SmallVector<Value, 1> cloned;
-      if (effects.empty()) {
+      // Special case for get_global because what if actually refers to is the
+      // device-side global, so this must remain in the gpu wrapper
+      if (isa<memref::GetGlobalOp>(op)) {
+        // This is the same as the case for a parallelizable read op
+        rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
+        rewriter.clone(*op, splitMapping);
+        rewriter.setInsertionPoint(firstGridOp);
+        cloned = rewriter.clone(*op, parallelizedMapping)->getResults();
+      } else if (effects.empty()) {
         rewriter.setInsertionPoint(firstGridOp);
         rewriter.clone(*op, parallelizedMapping);
         rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
