@@ -1847,11 +1847,13 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       ctor = moduleBuilder.create<LLVM::LLVMFuncOp>(
           loc, ctorNameBuffer,
           LLVM::LLVMFunctionType::get(
-              LLVM::LLVMVoidType::get(moduleOp.getContext()), {}));
+              LLVM::LLVMVoidType::get(moduleOp.getContext()), {}),
+          LLVM::Linkage::Private);
       dtor = moduleBuilder.create<LLVM::LLVMFuncOp>(
           loc, dtorNameBuffer,
           LLVM::LLVMFunctionType::get(
-              LLVM::LLVMVoidType::get(moduleOp.getContext()), {}));
+              LLVM::LLVMVoidType::get(moduleOp.getContext()), {}),
+          LLVM::Linkage::Private);
 
       auto binaryAttr =
           kernelModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation);
