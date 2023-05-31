@@ -2044,7 +2044,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       auto ctorSymbol = FlatSymbolRefAttr::get(ctor);
       moduleBuilder.create<LLVM::GlobalCtorsOp>(
           loc, moduleBuilder.getArrayAttr({std::move(ctorSymbol)}),
-          moduleBuilder.getI32ArrayAttr({100}));
+          moduleBuilder.getI32ArrayAttr({65535}));
       {
         OpBuilder dtorBuilder(moduleOp->getContext());
         dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock());
@@ -2056,7 +2056,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         auto dtorSymbol = FlatSymbolRefAttr::get(dtor);
         moduleBuilder.create<LLVM::GlobalDtorsOp>(
             loc, moduleBuilder.getArrayAttr({std::move(dtorSymbol)}),
-            moduleBuilder.getI32ArrayAttr({100}));
+            moduleBuilder.getI32ArrayAttr({65535}));
       }
     }
   }
