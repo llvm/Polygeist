@@ -413,11 +413,8 @@ struct GPUGlobalConversion : public OpRewritePattern<memref::GlobalOp> {
     }
     auto type =
         MemRefType::get(mt.getShape(), mt.getElementType(), {}, newMemspace);
-    // clang: dso_local addrspace(4) externally_initialized global
-    // zeroinitializer cgeist: local_unnamed_addr addrspace(4)
-    // externally_initialized
-    //
-    // TODO add zetoinitializer and dso_local
+
+    // TODO add zeroinitializer
     mlir::Attribute initial_value = rewriter.getUnitAttr();
     if (globalOp.getInitialValue())
       initial_value = globalOp.getInitialValue().value();
