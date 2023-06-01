@@ -199,6 +199,15 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
     llvm::dbgs().flush();
   });
 
+  // Set correct attributes for global __constant__ and __device__ variables
+  for (auto &GV : llvmModule->globals()) {
+    auto AS = GV.getAddressSpace();
+    if (AS == 4 || AS == 1) {
+      GV.setDSOLocal(true);
+      GV.setExternallyInitialized(true);
+    }
+  }
+
   // Link libdevice
   llvm::SMDiagnostic err;
   std::unique_ptr<llvm::Module> libDevice =
