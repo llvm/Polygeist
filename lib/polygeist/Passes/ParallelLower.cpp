@@ -856,7 +856,8 @@ void ConvertCudaRTtoCPU::runOnOperation() {
 // Returns a list of all symbols provided by cudart (obtained from
 // libcudart_static.a)
 static std::vector<llvm::StringRef> getCudartSymbols();
-static std::vector<llvm::StringRef> getCudartInequivalentSymbols();
+static std::map<llvm::StringRef, llvm::StringRef>
+getCudartEquivalentSymbolsMap();
 
 namespace {
 
@@ -870,88 +871,59 @@ bool isCudartCall(StringRef name) {
                             sortedCudartSymbols.end(), name);
 }
 
-// TEMP
-std::string getHipName(StringRef name) {
-  if (name == "cudaThreadSynchronize")
-    return "hipDeviceSynchronize";
-  std::string hipName =
-      std::regex_replace(std::string(name), std::regex("cuda"), "hip");
-  return hipName;
+llvm::StringRef getHipName(StringRef name) {
+  return getCudartEquivalentSymbolsMap()[name];
 }
 
-// TEMP
 bool isHipCallEquivalent(StringRef name) {
-  static std::vector<llvm::StringRef> sortedCudartSymbols = []() {
-    auto tmp = getCudartInequivalentSymbols();
-    std::sort(tmp.begin(), tmp.end());
-    return tmp;
-  }();
-  return !std::binary_search(sortedCudartSymbols.begin(),
-                             sortedCudartSymbols.end(), name);
+  return getCudartEquivalentSymbolsMap().count(name) > 0;
 }
 
 } // namespace
 
-void ConvertCudaRTtoHipRT::runOnOperation() {
-  std::function<void(CallOp call, StringRef callee)> replaceCallOpWithHipCall =
-      [&](CallOp call, StringRef callee) {
-        auto loc = call->getLoc();
-        ModuleOp m = getOperation();
-        OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
-        OpBuilder callBuilder(call);
-        if (isHipCallEquivalent(callee)) {
-          auto funcOp = m.lookupSymbol<func::FuncOp>(callee);
-          assert(funcOp);
-          auto hipName = getHipName(callee);
-          if (!m.lookupSymbol<func::FuncOp>(hipName)) {
-            auto hipFuncOp =
-                cast<func::FuncOp>(moduleBuilder.clone(*funcOp.getOperation()));
-            hipFuncOp.setSymName(hipName);
-          }
-          call.setCallee(hipName.c_str());
-        } else {
-          llvm::errs() << "warning: Unsupported CUDART call " << callee
-                       << " for conversion to HIP, will be removed instead\n";
-          replaceCallWithSuccess(call, callBuilder);
-        }
-      };
-  std::function<void(LLVM::CallOp call, StringRef callee)>
-      replaceLLVMCallOpWithHipCall = [&](LLVM::CallOp call, StringRef callee) {
-        auto loc = call->getLoc();
-        ModuleOp m = getOperation();
-        OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
-        OpBuilder callBuilder(call);
-        if (isHipCallEquivalent(callee)) {
-          auto funcOp = m.lookupSymbol<func::FuncOp>(callee);
-          assert(funcOp);
-          auto hipName = getHipName(callee);
-          if (!m.lookupSymbol<LLVM::LLVMFuncOp>(hipName)) {
-            auto hipFuncOp = cast<LLVM::LLVMFuncOp>(
-                moduleBuilder.clone(*funcOp.getOperation()));
-            hipFuncOp.setSymName(hipName);
-          }
-          call.setCallee(llvm::Optional<StringRef>(StringRef(hipName)));
-        } else {
-          llvm::errs() << "warning: Unsupported CUDART call " << callee
-                       << " for conversion to HIP, will be removed instead\n";
-          replaceCallWithSuccess(call, callBuilder);
-        }
-      };
+static void setCallee(func::CallOp call, StringRef symName) {
+  call.setCallee(symName);
+}
+static void setCallee(LLVM::CallOp call, StringRef symName) {
+  call.setCallee(llvm::Optional<StringRef>(symName));
+}
+template <typename CallOpTy, typename FuncOpTy>
+void replaceCallOp(ModuleOp m, CallOpTy call, StringRef callee) {
+  auto loc = call->getLoc();
+  OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
+  OpBuilder callBuilder(call);
+  auto funcOp = m.lookupSymbol<FuncOpTy>(callee);
+  if (isHipCallEquivalent(callee)) {
+    assert(funcOp);
+    auto hipName = getHipName(callee);
+    if (!m.lookupSymbol<FuncOpTy>(hipName)) {
+      auto hipFuncOp =
+          cast<FuncOpTy>(moduleBuilder.clone(*funcOp.getOperation()));
+      hipFuncOp.setSymName(hipName);
+    }
+    setCallee(call, hipName);
+  } else {
+    llvm::errs() << "warning: Unsupported CUDART call " << callee
+                 << " for conversion to HIP, will be removed instead\n";
+    replaceCallWithSuccess(call, callBuilder);
+  }
+}
 
+void ConvertCudaRTtoHipRT::runOnOperation() {
   getOperation().walk([&](LLVM::CallOp call) {
     if (!call.getCallee())
       return;
     auto name = *call.getCallee();
     if (!isCudartCall(name))
       return;
-    replaceLLVMCallOpWithHipCall(call, name);
+    replaceCallOp<LLVM::CallOp, LLVM::LLVMFuncOp>(getOperation(), call, name);
   });
 
   getOperation().walk([&](CallOp call) {
     auto name = call.getCallee();
     if (!isCudartCall(name))
       return;
-    replaceCallOpWithHipCall(call, call.getCallee());
+    replaceCallOp<CallOp, func::FuncOp>(getOperation(), call, name);
   });
 
   OpBuilder builder(&getContext());
@@ -1386,15 +1358,399 @@ std::vector<llvm::StringRef> cudartSymbols = {
 "cudaMallocPitch",
 };
 // clang-format on
-
 static std::vector<llvm::StringRef> getCudartSymbols() { return cudartSymbols; }
 
 // clang-format off
-std::vector<llvm::StringRef> inequivalentCudartSymbols = {
-"cudaGetDeviceProperties",
+static std::map<llvm::StringRef, llvm::StringRef> cudartEquivalentSymbolsMap = {
+{"cudaGetDevice", "hipGetDevice"},
+{"cudaWaitExternalSemaphoresAsync_ptsz", "hipWaitExternalSemaphoresAsync_ptsz"},
+{"cudaStreamAddCallback", "hipStreamAddCallback"},
+{"cudaMemcpyArrayToArray", "hipMemcpyArrayToArray"},
+{"cudaDeviceReset", "hipDeviceReset"},
+{"cudaGraphAddEventRecordNode", "hipGraphAddEventRecordNode"},
+{"cudaGetSurfaceObjectResourceDesc", "hipGetSurfaceObjectResourceDesc"},
+{"cudaGraphicsSubResourceGetMappedArray", "hipGraphicsSubResourceGetMappedArray"},
+{"cudaMemRangeGetAttributes", "hipMemRangeGetAttributes"},
+{"cudaGraphAddKernelNode", "hipGraphAddKernelNode"},
+{"cudaGraphDestroy", "hipGraphDestroy"},
+{"cudaGraphAddExternalSemaphoresSignalNode", "hipGraphAddExternalSemaphoresSignalNode"},
+{"cudaGraphExecChildGraphNodeSetParams", "hipGraphExecChildGraphNodeSetParams"},
+{"cudaEGLStreamConsumerReleaseFrame", "hipEGLStreamConsumerReleaseFrame"},
+{"__cudaRegisterManagedVar", "__hipRegisterManagedVar"},
+{"cudaMemcpy2DFromArray", "hipMemcpy2DFromArray"},
+{"cudaEventRecord_ptsz", "hipEventRecord_ptsz"},
+{"cudaSetDoubleForHost", "hipSetDoubleForHost"},
+{"cudaGraphExternalSemaphoresWaitNodeSetParams", "hipGraphExternalSemaphoresWaitNodeSetParams"},
+{"cudaMemPoolSetAttribute", "hipMemPoolSetAttribute"},
+{"cudaDeviceFlushGPUDirectRDMAWrites", "hipDeviceFlushGPUDirectRDMAWrites"},
+{"cudaDestroyExternalMemory", "hipDestroyExternalMemory"},
+{"cudaDeviceGetGraphMemAttribute", "hipDeviceGetGraphMemAttribute"},
+{"cudaEGLStreamConsumerConnect", "hipEGLStreamConsumerConnect"},
+{"cudaGraphUpload", "hipGraphUpload"},
+{"cudaDestroyTextureObject", "hipDestroyTextureObject"},
+{"cudaHostGetFlags", "hipHostGetFlags"},
+{"cudaStreamQuery_ptsz", "hipStreamQuery_ptsz"},
+{"cudaHostGetDevicePointer", "hipHostGetDevicePointer"},
+{"cudaPointerGetAttributes", "hipPointerGetAttributes"},
+{"cudaWaitExternalSemaphoresAsync_v2", "hipWaitExternalSemaphoresAsync_v2"},
+{"cudaFuncSetAttribute", "hipFuncSetAttribute"},
+{"cudaDeviceGetSharedMemConfig", "hipDeviceGetSharedMemConfig"},
+{"cudaGetDeviceFlags", "hipGetDeviceFlags"},
+{"cudaGraphGetNodes", "hipGraphGetNodes"},
+{"cudaGraphMemAllocNodeGetParams", "hipGraphMemAllocNodeGetParams"},
+{"cudaMemcpy3D", "hipMemcpy3D"},
+{"cudaMemcpy2DArrayToArray", "hipMemcpy2DArrayToArray"},
+{"cudaBindTextureToArray", "hipBindTextureToArray"},
+{"cudaDeviceDisablePeerAccess", "hipDeviceDisablePeerAccess"},
+{"cudaGraphMemsetNodeGetParams", "hipGraphMemsetNodeGetParams"},
+{"cudaGraphExecExternalSemaphoresWaitNodeSetParams", "hipGraphExecExternalSemaphoresWaitNodeSetParams"},
+{"cudaGraphNodeGetDependentNodes", "hipGraphNodeGetDependentNodes"},
+{"cudaEventDestroy", "hipEventDestroy"},
+{"cudaDeviceCanAccessPeer", "hipDeviceCanAccessPeer"},
+{"cudaArrayGetInfo", "hipArrayGetInfo"},
+{"cudaMemcpyAsync", "hipMemcpyAsync"},
+{"cudaStreamEndCapture_ptsz", "hipStreamEndCapture_ptsz"},
+{"cudaGraphMemFreeNodeGetParams", "hipGraphMemFreeNodeGetParams"},
+{"cudaGraphExecMemcpyNodeSetParams1D", "hipGraphExecMemcpyNodeSetParams1D"},
+{"cudaOccupancyMaxActiveBlocksPerMultiprocessor", "hipOccupancyMaxActiveBlocksPerMultiprocessor"},
+{"cudaGraphAddChildGraphNode", "hipGraphAddChildGraphNode"},
+{"cudaGraphicsGLRegisterImage", "hipGraphicsGLRegisterImage"},
+{"cudaGraphExecMemcpyNodeSetParamsToSymbol", "hipGraphExecMemcpyNodeSetParamsToSymbol"},
+{"cudaProfilerInitialize", "hipProfilerInitialize"},
+{"cudaWaitExternalSemaphoresAsync", "hipWaitExternalSemaphoresAsync"},
+{"cudaMalloc3DArray", "hipMalloc3DArray"},
+{"cudaGraphKernelNodeSetParams", "hipGraphKernelNodeSetParams"},
+{"cudaProfilerStart", "hipProfilerStart"},
+{"cudaGraphChildGraphNodeGetGraph", "hipGraphChildGraphNodeGetGraph"},
+{"cudaGetErrorString", "hipGetErrorString"},
+{"cudaMemset", "hipMemset"},
+{"cudaGraphMemcpyNodeSetParamsFromSymbol", "hipGraphMemcpyNodeSetParamsFromSymbol"},
+{"cudaMemset3D", "hipMemset3D"},
+{"cudaGraphExecMemcpyNodeSetParamsFromSymbol", "hipGraphExecMemcpyNodeSetParamsFromSymbol"},
+{"cudaMemcpyArrayToArray_ptds", "hipMemcpyArrayToArray_ptds"},
+{"cudaMemcpy2D", "hipMemcpy2D"},
+{"cudaGraphDestroyNode", "hipGraphDestroyNode"},
+{"cudaStreamWaitEvent", "hipStreamWaitEvent"},
+{"cudaMemcpy2DToArrayAsync_ptsz", "hipMemcpy2DToArrayAsync_ptsz"},
+{"cudaGraphEventRecordNodeGetEvent", "hipGraphEventRecordNodeGetEvent"},
+{"cudaSetDoubleForDevice", "hipSetDoubleForDevice"},
+{"cudaLaunchCooperativeKernel_ptsz", "hipLaunchCooperativeKernel_ptsz"},
+{"cudaLaunchKernel", "hipLaunchKernel"},
+{"cudaFuncSetSharedMemConfig", "hipFuncSetSharedMemConfig"},
+{"cudaPeekAtLastError", "hipPeekAtLastError"},
+{"cudaMemcpy3DAsync_ptsz", "hipMemcpy3DAsync_ptsz"},
+{"cudaEventCreate", "hipEventCreate"},
+{"cudaMemPrefetchAsync_ptsz", "hipMemPrefetchAsync_ptsz"},
+{"cudaMalloc", "hipMalloc"},
+{"cudaMemPoolSetAccess", "hipMemPoolSetAccess"},
+{"cudaBindTexture2D", "hipBindTexture2D"},
+{"cudaMemPoolTrimTo", "hipMemPoolTrimTo"},
+{"cudaThreadGetLimit", "hipThreadGetLimit"},
+{"cudaGraphMemsetNodeSetParams", "hipGraphMemsetNodeSetParams"},
+{"cudaGLRegisterBufferObject", "hipGLRegisterBufferObject"},
+{"cudaGraphicsVDPAURegisterOutputSurface", "hipGraphicsVDPAURegisterOutputSurface"},
+{"cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags", "hipOccupancyMaxActiveBlocksPerMultiprocessorWithFlags"},
+{"cudaEventCreateFromEGLSync", "hipEventCreateFromEGLSync"},
+{"cudaGraphExternalSemaphoresSignalNodeGetParams", "hipGraphExternalSemaphoresSignalNodeGetParams"},
+{"cudaMemPoolExportPointer", "hipMemPoolExportPointer"},
+{"cudaGraphNodeFindInClone", "hipGraphNodeFindInClone"},
+{"cudaGetTextureAlignmentOffset", "hipGetTextureAlignmentOffset"},
+{"cudaSignalExternalSemaphoresAsync_v2_ptsz", "hipSignalExternalSemaphoresAsync_v2_ptsz"},
+{"cudaGraphKernelNodeGetAttribute", "hipGraphKernelNodeGetAttribute"},
+{"cudaHostUnregister", "hipHostUnregister"},
+{"cudaStreamSetAttribute", "hipStreamSetAttribute"},
+{"cudaLaunchHostFunc", "hipLaunchHostFunc"},
+{"__cudaRegisterFatBinaryEnd", "__hipRegisterFatBinaryEnd"},
+{"cudaGetTextureObjectResourceDesc", "hipGetTextureObjectResourceDesc"},
+{"cudaGraphExternalSemaphoresSignalNodeSetParams", "hipGraphExternalSemaphoresSignalNodeSetParams"},
+{"cudaMemPoolImportFromShareableHandle", "hipMemPoolImportFromShareableHandle"},
+{"cudaStreamDestroy", "hipStreamDestroy"},
+{"cudaMalloc3D", "hipMalloc3D"},
+{"cudaGLSetGLDevice", "hipGLSetGLDevice"},
+{"cudaGraphRetainUserObject", "hipGraphRetainUserObject"},
+{"cudaGraphExecExternalSemaphoresSignalNodeSetParams", "hipGraphExecExternalSemaphoresSignalNodeSetParams"},
+{"cudaMemAdvise", "hipMemAdvise"},
+{"cudaEventRecordWithFlags", "hipEventRecordWithFlags"},
+{"cudaMemcpy3DPeerAsync_ptsz", "hipMemcpy3DPeerAsync_ptsz"},
+{"cudaGraphExecMemcpyNodeSetParams", "hipGraphExecMemcpyNodeSetParams"},
+{"cudaProfilerStop", "hipProfilerStop"},
+{"cudaFreeMipmappedArray", "hipFreeMipmappedArray"},
+{"cudaStreamCopyAttributes_ptsz", "hipStreamCopyAttributes_ptsz"},
+{"cudaMemcpyFromArray", "hipMemcpyFromArray"},
+{"cudaMemcpy3DPeer", "hipMemcpy3DPeer"},
+{"cudaMemPoolImportPointer", "hipMemPoolImportPointer"},
+{"cudaMemPoolCreate", "hipMemPoolCreate"},
+{"cudaCreateTextureObject", "hipCreateTextureObject"},
+{"cudaGraphExecDestroy", "hipGraphExecDestroy"},
+{"cudaMemGetInfo", "hipMemGetInfo"},
+{"cudaStreamGetFlags", "hipStreamGetFlags"},
+{"cudaGetMipmappedArrayLevel", "hipGetMipmappedArrayLevel"},
+{"cudaMemset2DAsync_ptsz", "hipMemset2DAsync_ptsz"},
+{"cudaMemcpyAsync_ptsz", "hipMemcpyAsync_ptsz"},
+{"cudaCreateSurfaceObject", "hipCreateSurfaceObject"},
+{"cudaMemRangeGetAttribute", "hipMemRangeGetAttribute"},
+{"cudaStreamCopyAttributes", "hipStreamCopyAttributes"},
+{"cudaMemcpyToSymbol", "hipMemcpyToSymbol"},
+{"cudaMemcpy3D_ptds", "hipMemcpy3D_ptds"},
+{"cudaGLUnregisterBufferObject", "hipGLUnregisterBufferObject"},
+{"cudaGraphInstantiate", "hipGraphInstantiate"},
+{"cudaStreamBeginCapture", "hipStreamBeginCapture"},
+{"cudaDestroySurfaceObject", "hipDestroySurfaceObject"},
+{"cudaMemcpy3DAsync", "hipMemcpy3DAsync"},
+{"cudaFuncGetAttributes", "hipFuncGetAttributes"},
+{"cudaStreamIsCapturing_ptsz", "hipStreamIsCapturing_ptsz"},
+{"cudaChooseDevice", "hipChooseDevice"},
+{"cudaGraphExecMemsetNodeSetParams", "hipGraphExecMemsetNodeSetParams"},
+{"cudaArrayGetPlane", "hipArrayGetPlane"},
+{"__cudaPopCallConfiguration", "__hipPopCallConfiguration"},
+{"cudaThreadSetCacheConfig", "hipThreadSetCacheConfig"},
+{"cudaStreamAttachMemAsync_ptsz", "hipStreamAttachMemAsync_ptsz"},
+{"cudaGLMapBufferObjectAsync", "hipGLMapBufferObjectAsync"},
+{"cudaMemcpyFromArrayAsync_ptsz", "hipMemcpyFromArrayAsync_ptsz"},
+{"cudaMemcpy2DFromArrayAsync_ptsz", "hipMemcpy2DFromArrayAsync_ptsz"},
+{"cudaMemcpyToArrayAsync_ptsz", "hipMemcpyToArrayAsync_ptsz"},
+{"cudaArrayGetSparseProperties", "hipArrayGetSparseProperties"},
+{"cudaExternalMemoryGetMappedMipmappedArray", "hipExternalMemoryGetMappedMipmappedArray"},
+{"cudaGraphClone", "hipGraphClone"},
+{"cudaStreamGetPriority_ptsz", "hipStreamGetPriority_ptsz"},
+{"cudaRuntimeGetVersion", "hipRuntimeGetVersion"},
+{"cudaMemPoolDestroy", "hipMemPoolDestroy"},
+{"cudaGraphMemcpyNodeSetParamsToSymbol", "hipGraphMemcpyNodeSetParamsToSymbol"},
+{"cudaGraphExecUpdate", "hipGraphExecUpdate"},
+{"cudaEGLStreamConsumerDisconnect", "hipEGLStreamConsumerDisconnect"},
+{"cudaGetSymbolAddress", "hipGetSymbolAddress"},
+{"__cudaRegisterVar", "__hipRegisterVar"},
+{"cudaStreamGetCaptureInfo", "hipStreamGetCaptureInfo"},
+{"cudaMemcpy3DPeerAsync", "hipMemcpy3DPeerAsync"},
+{"cudaMemcpyPeer", "hipMemcpyPeer"},
+{"cudaDeviceGetByPCIBusId", "hipDeviceGetByPCIBusId"},
+{"cudaEGLStreamProducerDisconnect", "hipEGLStreamProducerDisconnect"},
+{"cudaEGLStreamConsumerAcquireFrame", "hipEGLStreamConsumerAcquireFrame"},
+{"__cudaRegisterTexture", "__hipRegisterTexture"},
+{"cudaGraphicsVDPAURegisterVideoSurface", "hipGraphicsVDPAURegisterVideoSurface"},
+{"cudaDeviceSetCacheConfig", "hipDeviceSetCacheConfig"},
+{"cudaMemcpyFromArrayAsync", "hipMemcpyFromArrayAsync"},
+{"cudaGraphEventRecordNodeSetEvent", "hipGraphEventRecordNodeSetEvent"},
+{"cudaGraphAddMemcpyNode", "hipGraphAddMemcpyNode"},
+{"cudaDeviceGetDefaultMemPool", "hipDeviceGetDefaultMemPool"},
+{"cudaStreamSynchronize_ptsz", "hipStreamSynchronize_ptsz"},
+{"cudaBindSurfaceToArray", "hipBindSurfaceToArray"},
+{"cudaMallocAsync", "hipMallocAsync"},
+{"cudaGraphGetEdges", "hipGraphGetEdges"},
+{"cudaGetDriverEntryPoint_ptsz", "hipGetDriverEntryPoint_ptsz"},
+{"cudaGraphMemcpyNodeSetParams1D", "hipGraphMemcpyNodeSetParams1D"},
+{"cudaGraphKernelNodeCopyAttributes", "hipGraphKernelNodeCopyAttributes"},
+{"cudaVDPAUSetVDPAUDevice", "hipVDPAUSetVDPAUDevice"},
+{"cudaDeviceGraphMemTrim", "hipDeviceGraphMemTrim"},
+{"cudaGraphicsResourceGetMappedMipmappedArray", "hipGraphicsResourceGetMappedMipmappedArray"},
+{"cudaThreadSynchronize", "hipDeviceSynchronize"},
+{"cudaDeviceGetTexture1DLinearMaxWidth", "hipDeviceGetTexture1DLinearMaxWidth"},
+{"cudaDeviceSynchronize", "hipDeviceSynchronize"},
+{"cudaMemcpyFromSymbolAsync", "hipMemcpyFromSymbolAsync"},
+{"cudaSetValidDevices", "hipSetValidDevices"},
+{"cudaOccupancyAvailableDynamicSMemPerBlock", "hipOccupancyAvailableDynamicSMemPerBlock"},
+{"cudaStreamSetAttribute_ptsz", "hipStreamSetAttribute_ptsz"},
+{"cudaMemcpyFromSymbol", "hipMemcpyFromSymbol"},
+{"cudaStreamEndCapture", "hipStreamEndCapture"},
+{"cudaImportExternalMemory", "hipImportExternalMemory"},
+{"__cudaRegisterSurface", "__hipRegisterSurface"},
+{"cudaThreadSetLimit", "hipThreadSetLimit"},
+{"cudaGLMapBufferObject", "hipGLMapBufferObject"},
+{"cudaBindTextureToMipmappedArray", "hipBindTextureToMipmappedArray"},
+{"cudaGraphUpload_ptsz", "hipGraphUpload_ptsz"},
+{"cudaGLGetDevices", "hipGLGetDevices"},
+{"cudaGraphAddMemAllocNode", "hipGraphAddMemAllocNode"},
+{"cudaMemsetAsync", "hipMemsetAsync"},
+{"cudaGLUnmapBufferObjectAsync", "hipGLUnmapBufferObjectAsync"},
+{"cudaUserObjectRetain", "hipUserObjectRetain"},
+{"cudaGraphNodeGetDependencies", "hipGraphNodeGetDependencies"},
+{"cudaStreamCreateWithPriority", "hipStreamCreateWithPriority"},
+{"cudaStreamGetCaptureInfo_ptsz", "hipStreamGetCaptureInfo_ptsz"},
+{"cudaStreamGetAttribute", "hipStreamGetAttribute"},
+{"cudaStreamAttachMemAsync", "hipStreamAttachMemAsync"},
+{"cudaGetDeviceCount", "hipGetDeviceCount"},
+{"cudaMemset3D_ptds", "hipMemset3D_ptds"},
+{"cudaFreeAsync", "hipFreeAsync"},
+{"cudaUserObjectRelease", "hipUserObjectRelease"},
+{"cudaCreateChannelDesc", "hipCreateChannelDesc"},
+{"cudaGetSurfaceReference", "hipGetSurfaceReference"},
+{"cudaGetChannelDesc", "hipGetChannelDesc"},
+{"cudaGraphDebugDotPrint", "hipGraphDebugDotPrint"},
+{"cudaEGLStreamProducerPresentFrame", "hipEGLStreamProducerPresentFrame"},
+{"cudaEventQuery", "hipEventQuery"},
+{"cudaStreamBeginCapture_ptsz", "hipStreamBeginCapture_ptsz"},
+{"cudaMallocMipmappedArray", "hipMallocMipmappedArray"},
+{"cudaThreadExchangeStreamCaptureMode", "hipThreadExchangeStreamCaptureMode"},
+{"cudaStreamGetFlags_ptsz", "hipStreamGetFlags_ptsz"},
+{"cudaStreamUpdateCaptureDependencies_ptsz", "hipStreamUpdateCaptureDependencies_ptsz"},
+{"cudaGraphicsGLRegisterBuffer", "hipGraphicsGLRegisterBuffer"},
+{"cudaDeviceGetNvSciSyncAttributes", "hipDeviceGetNvSciSyncAttributes"},
+{"cudaEGLStreamProducerReturnFrame", "hipEGLStreamProducerReturnFrame"},
+{"cudaIpcOpenEventHandle", "hipIpcOpenEventHandle"},
+{"cudaMemPoolGetAccess", "hipMemPoolGetAccess"},
+{"cudaGraphicsResourceGetMappedPointer", "hipGraphicsResourceGetMappedPointer"},
+{"cudaMallocFromPoolAsync", "hipMallocFromPoolAsync"},
+{"cudaCtxResetPersistingL2Cache", "hipCtxResetPersistingL2Cache"},
+{"cudaMemcpyFromSymbol_ptds", "hipMemcpyFromSymbol_ptds"},
+{"cudaDeviceEnablePeerAccess", "hipDeviceEnablePeerAccess"},
+{"cudaEGLStreamConsumerConnectWithFlags", "hipEGLStreamConsumerConnectWithFlags"},
+{"cudaGraphInstantiateWithFlags", "hipGraphInstantiateWithFlags"},
+{"__cudaRegisterHostVar", "__hipRegisterHostVar"},
+{"cudaGetLastError", "hipGetLastError"},
+{"cudaMemcpy3DPeer_ptds", "hipMemcpy3DPeer_ptds"},
+{"cudaGraphAddMemsetNode", "hipGraphAddMemsetNode"},
+{"cudaEGLStreamProducerConnect", "hipEGLStreamProducerConnect"},
+{"cudaExternalMemoryGetMappedBuffer", "hipExternalMemoryGetMappedBuffer"},
+{"cudaGetExportTable", "hipGetExportTable"},
+{"cudaMallocManaged", "hipMallocManaged"},
+{"cudaThreadExit", "hipThreadExit"},
+{"cudaDeviceGetMemPool", "hipDeviceGetMemPool"},
+{"cudaGraphicsMapResources", "hipGraphicsMapResources"},
+{"cudaGraphEventWaitNodeGetEvent", "hipGraphEventWaitNodeGetEvent"},
+{"cudaDeviceGetCacheConfig", "hipDeviceGetCacheConfig"},
+{"cudaStreamQuery", "hipStreamQuery"},
+{"cudaGraphGetRootNodes", "hipGraphGetRootNodes"},
+{"cudaGraphMemcpyNodeSetParams", "hipGraphMemcpyNodeSetParams"},
+{"cudaDeviceSetGraphMemAttribute", "hipDeviceSetGraphMemAttribute"},
+{"cudaHostAlloc", "hipHostAlloc"},
+{"cudaMemcpy2DAsync", "hipMemcpy2DAsync"},
+{"cudaFreeHost", "hipFreeHost"},
+{"cudaGLUnmapBufferObject", "hipGLUnmapBufferObject"},
+{"cudaGraphAddEmptyNode", "hipGraphAddEmptyNode"},
+{"cudaMemcpyToArray", "hipMemcpyToArray"},
+{"cudaMemcpy2DFromArrayAsync", "hipMemcpy2DFromArrayAsync"},
+{"cudaMemset_ptds", "hipMemset_ptds"},
+{"cudaDeviceSetSharedMemConfig", "hipDeviceSetSharedMemConfig"},
+{"cudaGraphicsResourceSetMapFlags", "hipGraphicsResourceSetMapFlags"},
+{"cudaIpcGetEventHandle", "hipIpcGetEventHandle"},
+{"cudaGraphAddEventWaitNode", "hipGraphAddEventWaitNode"},
+{"cudaGraphKernelNodeSetAttribute", "hipGraphKernelNodeSetAttribute"},
+{"cudaEventRecordWithFlags_ptsz", "hipEventRecordWithFlags_ptsz"},
+{"cudaGraphicsUnregisterResource", "hipGraphicsUnregisterResource"},
+{"cudaGraphHostNodeSetParams", "hipGraphHostNodeSetParams"},
+{"cudaGetSymbolSize", "hipGetSymbolSize"},
+{"cudaMemcpyToArray_ptds", "hipMemcpyToArray_ptds"},
+{"cudaMemcpyToArrayAsync", "hipMemcpyToArrayAsync"},
+{"cudaGraphicsUnmapResources", "hipGraphicsUnmapResources"},
+{"cudaSetDevice", "hipSetDevice"},
+{"cudaMemcpyFromSymbolAsync_ptsz", "hipMemcpyFromSymbolAsync_ptsz"},
+{"cudaMemcpyToSymbol_ptds", "hipMemcpyToSymbol_ptds"},
+{"cudaGraphKernelNodeGetParams", "hipGraphKernelNodeGetParams"},
+{"cudaIpcGetMemHandle", "hipIpcGetMemHandle"},
+{"cudaMipmappedArrayGetSparseProperties", "hipMipmappedArrayGetSparseProperties"},
+{"cudaMemcpy", "hipMemcpy"},
+{"cudaFreeArray", "hipFreeArray"},
+{"cudaLaunchKernel_ptsz", "hipLaunchKernel_ptsz"},
+{"cudaStreamWaitEvent_ptsz", "hipStreamWaitEvent_ptsz"},
+{"cudaGraphCreate", "hipGraphCreate"},
+{"cudaDeviceGetStreamPriorityRange", "hipDeviceGetStreamPriorityRange"},
+{"__cudaUnregisterFatBinary", "__hipUnregisterFatBinary"},
+{"cudaGraphEventWaitNodeSetEvent", "hipGraphEventWaitNodeSetEvent"},
+{"cudaDeviceGetPCIBusId", "hipDeviceGetPCIBusId"},
+{"cudaMemPoolExportToShareableHandle", "hipMemPoolExportToShareableHandle"},
+{"cudaDeviceGetAttribute", "hipDeviceGetAttribute"},
+{"cudaStreamAddCallback_ptsz", "hipStreamAddCallback_ptsz"},
+{"cudaGraphicsEGLRegisterImage", "hipGraphicsEGLRegisterImage"},
+{"cudaMemset3DAsync_ptsz", "hipMemset3DAsync_ptsz"},
+{"cudaMemsetAsync_ptsz", "hipMemsetAsync_ptsz"},
+{"cudaGLSetBufferObjectMapFlags", "hipGLSetBufferObjectMapFlags"},
+{"cudaMemcpy2DToArrayAsync", "hipMemcpy2DToArrayAsync"},
+{"cudaMemcpy2DToArray", "hipMemcpy2DToArray"},
+{"cudaVDPAUGetDevice", "hipVDPAUGetDevice"},
+{"cudaUnbindTexture", "hipUnbindTexture"},
+{"cudaGetFuncBySymbol", "hipGetFuncBySymbol"},
+{"cudaGraphAddHostNode", "hipGraphAddHostNode"},
+{"cudaSignalExternalSemaphoresAsync_ptsz", "hipSignalExternalSemaphoresAsync_ptsz"},
+{"cudaStreamCreateWithFlags", "hipStreamCreateWithFlags"},
+{"__cudaInitModule", "__hipInitModule"},
+{"cudaGraphExecEventRecordNodeSetEvent", "hipGraphExecEventRecordNodeSetEvent"},
+{"cudaMemPrefetchAsync", "hipMemPrefetchAsync"},
+{"cudaFuncSetCacheConfig", "hipFuncSetCacheConfig"},
+{"cudaStreamGetAttribute_ptsz", "hipStreamGetAttribute_ptsz"},
+{"cudaDeviceSetLimit", "hipDeviceSetLimit"},
+{"cudaDriverGetVersion", "hipDriverGetVersion"},
+{"cudaGraphExternalSemaphoresWaitNodeGetParams", "hipGraphExternalSemaphoresWaitNodeGetParams"},
+{"cudaGraphMemcpyNodeGetParams", "hipGraphMemcpyNodeGetParams"},
+{"cudaGetTextureReference", "hipGetTextureReference"},
+{"cudaDeviceSetMemPool", "hipDeviceSetMemPool"},
+{"cudaSignalExternalSemaphoresAsync", "hipSignalExternalSemaphoresAsync"},
+{"cudaSetDeviceFlags", "hipSetDeviceFlags"},
+{"cudaMemcpy2D_ptds", "hipMemcpy2D_ptds"},
+{"cudaGraphLaunch_ptsz", "hipGraphLaunch_ptsz"},
+{"cudaMemset3DAsync", "hipMemset3DAsync"},
+{"cudaEventCreateWithFlags", "hipEventCreateWithFlags"},
+{"cudaStreamCreate", "hipStreamCreate"},
+{"cudaMallocAsync_ptsz", "hipMallocAsync_ptsz"},
+{"cudaEventElapsedTime", "hipEventElapsedTime"},
+{"cudaGraphLaunch", "hipGraphLaunch"},
+{"cudaGetTextureObjectTextureDesc", "hipGetTextureObjectTextureDesc"},
+{"cudaStreamGetCaptureInfo_v2", "hipStreamGetCaptureInfo_v2"},
+{"__cudaRegisterFunction", "__hipRegisterFunction"},
+{"cudaGraphAddDependencies", "hipGraphAddDependencies"},
+{"cudaMemset2D", "hipMemset2D"},
+{"cudaGraphExecKernelNodeSetParams", "hipGraphExecKernelNodeSetParams"},
+{"cudaDeviceGetP2PAttribute", "hipDeviceGetP2PAttribute"},
+{"cudaDestroyExternalSemaphore", "hipDestroyExternalSemaphore"},
+{"cudaFreeAsync_ptsz", "hipFreeAsync_ptsz"},
+{"__cudaRegisterFatBinary", "__hipRegisterFatBinary"},
+{"cudaGraphAddMemcpyNodeToSymbol", "hipGraphAddMemcpyNodeToSymbol"},
+{"cudaStreamUpdateCaptureDependencies", "hipStreamUpdateCaptureDependencies"},
+{"cudaGraphAddMemFreeNode", "hipGraphAddMemFreeNode"},
+{"cudaDeviceGetLimit", "hipDeviceGetLimit"},
+{"cudaStreamGetCaptureInfo_v2_ptsz", "hipStreamGetCaptureInfo_v2_ptsz"},
+{"__cudaPushCallConfiguration", "__hipPushCallConfiguration"},
+{"cudaMemcpy2DFromArray_ptds", "hipMemcpy2DFromArray_ptds"},
+{"cudaGetTextureObjectResourceViewDesc", "hipGetTextureObjectResourceViewDesc"},
+{"cudaGraphNodeGetType", "hipGraphNodeGetType"},
+{"cudaMemcpyToSymbolAsync", "hipMemcpyToSymbolAsync"},
+{"cudaSignalExternalSemaphoresAsync_v2", "hipSignalExternalSemaphoresAsync_v2"},
+{"cudaMallocFromPoolAsync_ptsz", "hipMallocFromPoolAsync_ptsz"},
+{"cudaLaunchCooperativeKernel", "hipLaunchCooperativeKernel"},
+{"cudaStreamIsCapturing", "hipStreamIsCapturing"},
+{"cudaHostRegister", "hipHostRegister"},
+{"cudaGraphAddExternalSemaphoresWaitNode", "hipGraphAddExternalSemaphoresWaitNode"},
+{"cudaGraphExecEventWaitNodeSetEvent", "hipGraphExecEventWaitNodeSetEvent"},
+{"cudaIpcOpenMemHandle", "hipIpcOpenMemHandle"},
+{"cudaLaunchCooperativeKernelMultiDevice", "hipLaunchCooperativeKernelMultiDevice"},
+{"cudaMemcpy_ptds", "hipMemcpy_ptds"},
+{"cudaMemcpy2DAsync_ptsz", "hipMemcpy2DAsync_ptsz"},
+{"cudaGetDeviceProperties", "mgpurtCudaGetDeviceProperties"},
+{"cudaImportExternalSemaphore", "hipImportExternalSemaphore"},
+{"cudaMemcpyToSymbolAsync_ptsz", "hipMemcpyToSymbolAsync_ptsz"},
+{"cudaBindTexture", "hipBindTexture"},
+{"cudaGraphicsResourceGetMappedEglFrame", "hipGraphicsResourceGetMappedEglFrame"},
+{"cudaIpcCloseMemHandle", "hipIpcCloseMemHandle"},
+{"cudaWaitExternalSemaphoresAsync_v2_ptsz", "hipWaitExternalSemaphoresAsync_v2_ptsz"},
+{"cudaGraphHostNodeGetParams", "hipGraphHostNodeGetParams"},
+{"cudaStreamSynchronize", "hipStreamSynchronize"},
+{"cudaEventSynchronize", "hipEventSynchronize"},
+{"cudaUserObjectCreate", "hipUserObjectCreate"},
+{"cudaGetErrorName", "hipGetErrorName"},
+{"cudaThreadGetCacheConfig", "hipThreadGetCacheConfig"},
+{"cudaGraphRemoveDependencies", "hipGraphRemoveDependencies"},
+{"cudaStreamGetPriority", "hipStreamGetPriority"},
+{"cudaMemset2DAsync", "hipMemset2DAsync"},
+{"cudaMemcpy2DArrayToArray_ptds", "hipMemcpy2DArrayToArray_ptds"},
+{"cudaGraphReleaseUserObject", "hipGraphReleaseUserObject"},
+{"cudaFree", "hipFree"},
+{"cudaGetDriverEntryPoint", "hipGetDriverEntryPoint"},
+{"cudaMemcpy2DToArray_ptds", "hipMemcpy2DToArray_ptds"},
+{"cudaGraphAddMemcpyNodeFromSymbol", "hipGraphAddMemcpyNodeFromSymbol"},
+{"cudaMemPoolGetAttribute", "hipMemPoolGetAttribute"},
+{"cudaMemset2D_ptds", "hipMemset2D_ptds"},
+{"cudaGraphAddMemcpyNode1D", "hipGraphAddMemcpyNode1D"},
+{"cudaMallocHost", "hipMallocHost"},
+{"cudaGraphExecHostNodeSetParams", "hipGraphExecHostNodeSetParams"},
+{"cudaMallocArray", "hipMallocArray"},
+{"cudaLaunchHostFunc_ptsz", "hipLaunchHostFunc_ptsz"},
+{"cudaMemcpyFromArray_ptds", "hipMemcpyFromArray_ptds"},
+{"cudaEventRecord", "hipEventRecord"},
+{"cudaMemcpyPeerAsync", "hipMemcpyPeerAsync"},
+{"cudaMallocPitch", "hipMallocPitch"},
 };
 // clang-format on
 
-static std::vector<llvm::StringRef> getCudartInequivalentSymbols() {
-  return inequivalentCudartSymbols;
+static std::map<llvm::StringRef, llvm::StringRef>
+getCudartEquivalentSymbolsMap() {
+  return cudartEquivalentSymbolsMap;
 }
