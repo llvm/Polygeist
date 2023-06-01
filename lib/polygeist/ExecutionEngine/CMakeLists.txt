@@ -18,6 +18,10 @@ if(POLYGEIST_ENABLE_CUDA)
     -O3 -nocudalib -Xclang -no-opaque-pointers
     )
 
+  set(cuda_includes
+      -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      )
+
   foreach(src ${src_files})
     get_filename_component(infile ${src} ABSOLUTE)
     get_filename_component(filename ${src} NAME)
@@ -30,10 +34,11 @@ if(POLYGEIST_ENABLE_CUDA)
       COMMAND ${CLANG_TOOL}
       ${bc_flags}
       ${infile} -o ${bc_outfile}
-      -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+      ${cuda_includes}
       -DPOLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
       -DPOLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"
       -DPOLYGEIST_PGO_DATA_DIR_ENV_VAR="${POLYGEIST_PGO_DATA_DIR_ENV_VAR}"
+      -DPOLYGEIST_ENABLE_CUDA=${POLYGEIST_ENABLE_CUDA}
       DEPENDS ${infile}
       COMMENT "Building LLVM bitcode ${bc_outfile}"
       VERBATIM
@@ -81,6 +86,7 @@ if(POLYGEIST_ENABLE_ROCM)
     -DPOLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
     -DPOLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"
     -DPOLYGEIST_PGO_DATA_DIR_ENV_VAR="${POLYGEIST_PGO_DATA_DIR_ENV_VAR}"
+    -DPOLYGEIST_ENABLE_CUDA=${POLYGEIST_ENABLE_CUDA}
     )
 
   foreach(src ${src_files})
@@ -92,6 +98,7 @@ if(POLYGEIST_ENABLE_ROCM)
     add_custom_command(OUTPUT ${bc_outfile}
       COMMAND ${CLANG_TOOL}
       ${bc_flags}
+      ${cuda_includes}
       ${infile} -o ${bc_outfile}
       DEPENDS ${infile}
       COMMENT "Building LLVM bitcode ${bc_outfile}"
