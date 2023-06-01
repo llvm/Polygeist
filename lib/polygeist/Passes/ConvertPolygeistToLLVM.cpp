@@ -423,7 +423,6 @@ struct GPUGlobalConversion : public OpRewritePattern<memref::GlobalOp> {
         globalOp->getLoc(), rewriter.getStringAttr(globalOp.getSymName()),
         /* sym_visibility */ mlir::StringAttr(), mlir::TypeAttr::get(type),
         initial_value, mlir::UnitAttr(), /* alignment */ nullptr);
-    newGlobalOp->setAttr("externally_initialized", rewriter.getUnitAttr());
     if (globalOp->getAttr("polygeist.cuda_device")) {
       newGlobalOp->setAttr("polygeist.cuda_device", rewriter.getUnitAttr());
     } else if (globalOp->getAttr("polygeist.cuda_constant")) {
@@ -1080,8 +1079,6 @@ public:
           rewriter.create<LLVM::UndefOp>(globalOp->getLoc(), convertedType);
       rewriter.create<LLVM::ReturnOp>(globalOp->getLoc(), undef);
     }
-    if (globalOp->getAttr("externally_initialized"))
-      newGlobal->setAttr("externally_initialized", rewriter.getUnitAttr());
     return success();
   }
 };
