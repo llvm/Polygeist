@@ -38,3 +38,83 @@
 using namespace mlir;
 using namespace sql;
 using namespace mlir::arith;
+
+
+class GetValueOpTypeFix final : public OpRewritePattern<GetValueOp> {
+public:
+  using OpRewritePattern<GetValueOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(GetValueOp op,
+                                PatternRewriter &rewriter) const override {
+
+    bool changed = false;
+
+    Value handle = op.getOperand(0);
+
+    if (!handle.getType().isa<IndexType>()) {
+        handle = rewriter.create<IndexCastOp>(op.getLoc(),
+                                                   rewriter.getIndexType(),  handle);
+        changed = true;
+    }
+    Value row = op.getOperand(1);
+    if (!row.getType().isa<IndexType>()) {
+        row = rewriter.create<IndexCastOp>(op.getLoc(), 
+                                                   rewriter.getIndexType(), row);
+        changed = true;
+    }
+    Value column = op.getOperand(2);
+    if (!column.getType().isa<IndexType>()) {
+        column = rewriter.create<IndexCastOp>(op.getLoc(), 
+                                                   rewriter.getIndexType(), column);
+        changed = true;
+    }
+
+    if (!changed) return failure();
+
+    rewriter.replaceOpWithNewOp<GetValueOp>(op, op.getType(), handle, row, column);
+
+    return success(changed);
+  }
+};
+
+void GetValueOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<GetValueOpTypeFix>(context);
+}
+
+
+
+class NumResultsOpTypeFix final : public OpRewritePattern<NumResultsOp> {
+public:
+  using OpRewritePattern<NumResultsOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(NumResultsOp op,
+                                PatternRewriter &rewriter) const override {
+    bool changed = false;
+    Value handle = op->getOperand(0);
+
+    if (handle.getType().isa<IndexType>() && op->getResultTypes()[0].isa<IndexType>())
+      return failure();
+
+    if (!handle.getType().isa<IndexType>()) {
+        handle = rewriter.create<IndexCastOp>(op.getLoc(),
+                                                   rewriter.getIndexType(),  handle);
+        changed = true;
+    }
+
+    mlir::Value res = rewriter.create<NumResultsOp>(op.getLoc(), rewriter.getIndexType(), handle);
+
+    if (op->getResultTypes()[0].isa<IndexType>()) {
+      rewriter.replaceOp(op, res);
+    } else {
+      rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
+    }
+
+    return success(changed);
+  }
+};
+
+void NumResultsOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<NumResultsOpTypeFix>(context);
+}

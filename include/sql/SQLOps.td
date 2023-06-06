@@ -26,7 +26,7 @@ def SelectOp : SQL_Op<"select", [Pure]> {
 def ExecuteOp : SQL_Op<"execute", []> {
   let summary = "execute query";
 
-  let arguments = (ins Index:$handle);
+  let arguments = (ins Index:$conn, Index:$command);
   let results = (outs Index:$result);
 
   let hasFolder = 0;
@@ -40,17 +40,17 @@ def NumResultsOp : SQL_Op<"num_results", [Pure]> {
   let results = (outs Index:$result);
 
   let hasFolder = 0;
-  let hasCanonicalizer = 0;
+  let hasCanonicalizer = 1;
 }  
 
-def ResultOp : SQL_Op<"get_result", [Pure]> {
-  let summary = "get results of execution";
+def GetValueOp : SQL_Op<"get_value", [Pure]> {
+  let summary = "get value of execution";
 
-  let arguments = (ins Index:$handle, StrAttr:$column, Index:$row);
+  let arguments = (ins Index:$handle, Index:$column, Index:$row);
   let results = (outs AnyType:$result);
 
   let hasFolder = 0;
-  let hasCanonicalizer = 0;
+  let hasCanonicalizer = 1;
 }  
  
 #endif // SQL_OPS

@@ -8,8 +8,14 @@
 #pragma lower_to(num_rows_fn, "sql.num_results")
 int num_rows_fn(size_t);// char*
 
+#pragma lower_to(get_value_fn_int, "sql.get_value")
+int get_value_fn_int(size_t, int, int);
+
+#pragma lower_to(get_value_fn_double, "sql.get_value")
+double get_value_fn_double(size_t, int, int);
+
+
 void do_exit(PGconn *conn) {
-    
     PQfinish(conn);
     exit(1);
 }
@@ -35,6 +41,7 @@ int main() {
     }    
 
     printf("%s\n", PQgetvalue(res, 0, 0));
+    printf("%d\n", get_value_fn_int((size_t)res, 0, 0));
     printf("%d\n", num_rows_fn((size_t)res));
     // res, 0, 0));
 

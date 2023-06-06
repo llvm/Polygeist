@@ -77,6 +77,90 @@ struct PQcmdTuplesRaising : public OpRewritePattern<func::CallOp> {
   }
 };
 
+
+
+struct PQgetvalueRaising : public OpRewritePattern<func::CallOp> {
+  using OpRewritePattern<func::CallOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(func::CallOp call,
+                                PatternRewriter &rewriter) const final {                                
+    if (call.getCallee() != "PQgetvalue") {
+        return failure();
+    }
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(call);
+    auto module = call->getParentOfType<ModuleOp>();
+
+    // 2) convert the args to valid args to postgres_getresult abi
+    Value handle = call.getArgOperands()[0];
+    handle = rewriter.create<LLVM::PtrToIntOp>(
+        call.getLoc(), rewriter.getIntegerType(64), handle);
+
+    handle = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getIndexType(), handle);
+
+    Value row = call.getArgOperands()[1];
+    Value column = call.getArgOperands()[2];
+    
+    Value res = rewriter.create<sql::GetValueOp>(call.getLoc(), rewriter.getIndexType(), handle, row, column);
+    // or Value res = rewriter.create<sql::GetValueOp>(call.getLoc(), rewriter.getIndexType(), {handle, row, column});
+
+    res = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getI64Type(), res);
+
+    auto itoafn = dyn_cast_or_null<func::FuncOp>(
+      symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("itoa")));
+
+    Value args2[] = {res};
+
+    rewriter.replaceOpWithNewOp<mlir::func::CallOp>(call, itoafn, args2);
+
+    // 4) done
+    return success();
+  }
+};
+
+
+struct PQexecRaising : public OpRewritePattern<func::CallOp> {
+  using OpRewritePattern<func::CallOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(func::CallOp call,
+                                PatternRewriter &rewriter) const final {                                
+    if (call.getCallee() != "PQexec") {
+        return failure();
+    }
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(call);
+    auto module = call->getParentOfType<ModuleOp>();
+
+    // 2) convert the args to valid args to postgres_getresult abi
+    Value conn = call.getArgOperands()[0];
+    conn = rewriter.create<LLVM::PtrToIntOp>(
+        call.getLoc(), rewriter.getIntegerType(64), conn);
+
+    conn = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getIndexType(), conn);
+
+    Value command = call.getArgOperands()[1];
+    command = rewriter.create<LLVM::PtrToIntOp>(
+        call.getLoc(), rewriter.getIntegerType(64), command);
+
+    command = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getIndexType(), command);
+
+    Value res = rewriter.create<sql::ExecuteOp>(call.getLoc(), rewriter.getIndexType(), conn, command);
+
+    res = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getI64Type(), res);
+
+    rewriter.replaceOp(call, res);
+    /// rewriter.replaceOpWithNewOp<mlir::func::CallOp>(call, itoafn, res);
+
+    // 4) done
+    return success();
+  }
+};
+
 void SQLRaising::runOnOperation() {
   auto module = getOperation();
   SymbolTableCollection symbolTable;
@@ -98,6 +182,8 @@ void SQLRaising::runOnOperation() {
 
   RewritePatternSet patterns(&getContext());
   patterns.insert<PQcmdTuplesRaising>(&getContext());
+  patterns.insert<PQgetvalueRaising>(&getContext());
+  // patterns.insert<PQexecRaising>(&getContext());
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
