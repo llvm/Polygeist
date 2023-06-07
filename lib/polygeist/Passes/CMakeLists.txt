@@ -17,6 +17,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertParallelToGPU.cpp
   SerializeToCubin.cpp
   SerializeToHsaco.cpp
+  ParallelLoopUnroll.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine

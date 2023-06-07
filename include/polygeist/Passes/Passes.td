@@ -13,6 +13,16 @@ def Mem2Reg : Pass<"mem2reg"> {
   let constructor = "mlir::polygeist::createMem2RegPass()";
 }
 
+def SCFParallelLoopUnroll : Pass<"scf-parallel-loop-unroll"> {
+  let summary = "Unroll and interleave scf parallel loops";
+  let dependentDialects =
+      ["::mlir::scf::SCFDialect"];
+  let constructor = "mlir::polygeist::createSCFParallelLoopUnrollPass()";
+  let options = [
+  Option<"unrollFactor", "unrollFactor", "int", /*default=*/"2", "Unroll factor">
+  ];
+}
+
 def ConvertCudaRTtoCPU : Pass<"convert-cudart-to-cpu", "mlir::ModuleOp"> {
   let summary = "Lower cudart functions to cpu versions";
   let dependentDialects =
