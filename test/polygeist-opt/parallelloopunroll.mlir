@@ -17,7 +17,6 @@ module {
     }
     return
   }
-}
 // CHECK-LABEL:   func.func @f1() {
 // CHECK:           %[[VAL_0:.*]] = arith.constant 1 : index
 // CHECK:           %[[VAL_1:.*]] = arith.constant 0 : index
@@ -47,3 +46,61 @@ module {
 // CHECK:           return
 // CHECK:         }
 
+
+  func.func @f2(%cond: i1) {
+    %mc1 = arith.constant 1 : index
+    %mc1024 = arith.constant 1024 : index
+    affine.parallel (%a0, %a1) = (0, 0) to (300, 30) {
+      affine.for %a2 = 0 to 30 {
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a2) : (index) -> ()
+        "polygeist.barrier"(%a0) : (index) -> ()
+        func.call @use1(%a0) : (index) -> ()
+        func.call @use1(%a2) : (index) -> ()
+      }
+      "polygeist.barrier"(%a0) : (index) -> ()
+      scf.if %cond {
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a1) : (index) -> ()
+        "polygeist.barrier"(%a0) : (index) -> ()
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a1) : (index) -> ()
+      }
+      affine.yield
+    }
+    return
+  }
+  func.func @f3() {
+    %mc0 = arith.constant 0 : index
+    %mc1 = arith.constant 1 : index
+    %mc1024 = arith.constant 1024 : index
+    affine.parallel (%a0, %a1) = (0, 0) to (300, 30) {
+      scf.for %a2 = %mc0 to %a0 step %mc1{
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a2) : (index) -> ()
+        "polygeist.barrier"(%a0) : (index) -> ()
+        func.call @use1(%a0) : (index) -> ()
+        func.call @use1(%a2) : (index) -> ()
+      }
+      affine.yield
+    }
+    return
+  }
+  func.func @f4() {
+    %mc1 = arith.constant 1 : index
+    %mc1024 = arith.constant 1024 : index
+    affine.parallel (%a0, %a1) = (0, 0) to (300, 30) {
+      func.call @use0(%a0) : (index) -> ()
+      %cond = arith.cmpi slt, %a0, %mc1 : index
+      scf.if %cond {
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a1) : (index) -> ()
+        "polygeist.barrier"(%a0) : (index) -> ()
+        func.call @use0(%a0) : (index) -> ()
+        func.call @use0(%a1) : (index) -> ()
+      }
+      affine.yield
+    }
+    return
+  }
+}
