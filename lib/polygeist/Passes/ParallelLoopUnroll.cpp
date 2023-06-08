@@ -162,6 +162,9 @@ static LogicalResult generateUnrolledInterleavedLoop(
             builder.clone(*it, barrierBlockArgMap);
           } else if (interleaveOp(&*it).failed()) {
             if (hasNestedBarrier(&*it)) {
+              if (getenv("POLYGEIST_EMIT_REMARKS_SCF_PARALLEL_LOOP_UNROLL")) {
+                it->emitRemark("failed to interleave op with nested barrier");
+              }
               return failure();
             }
             for (unsigned i = 0; i < unrollFactor; i++) {
