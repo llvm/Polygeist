@@ -25,6 +25,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
+#include "polygeist/Dialect.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SetVector.h"

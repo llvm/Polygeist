@@ -11,12 +11,13 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
@@ -2229,7 +2230,7 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     }
     rewriter.setInsertionPoint(IP);
     for (auto en : llvm::enumerate(oldOps)) {
-      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+      if (!isa_and_nonnull<LLVM::UndefOp>(en.value().getDefiningOp()))
         rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
                                          allocated[en.index()], ValueRange());
     }

@@ -88,6 +88,14 @@ namespace LLVM {
 class LLVMDialect;
 }
 
+namespace math {
+class MathDialect;
+}
+
+namespace NVVM {
+class NVVMDialect;
+}
+
 #define GEN_PASS_REGISTRATION
 #include "polygeist/Passes/Passes.h.inc"
 

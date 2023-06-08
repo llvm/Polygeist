@@ -23,7 +23,8 @@ def CudaRTLower : Pass<"cudart-lower", "mlir::ModuleOp"> {
 def ParallelLower : Pass<"parallel-lower", "mlir::ModuleOp"> {
   let summary = "Lower gpu launch op to parallel ops";
   let dependentDialects =
-      ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
+      ["memref::MemRefDialect", "func::FuncDialect", 
+       "LLVM::LLVMDialect", "scf::SCFDialect", "polygeist::PolygeistDialect"];
   let constructor = "mlir::polygeist::createParallelLowerPass()";
 }
 
@@ -45,13 +46,16 @@ def SCFCPUify : Pass<"cpuify"> {
 def ConvertParallelToGPU1 : Pass<"convert-parallel-to-gpu1"> {
   let summary = "Convert parallel loops to gpu";
   let constructor = "mlir::polygeist::createConvertParallelToGPUPass1()";
-  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", 
+                           "memref::MemRefDialect", "mlir::gpu::GPUDialect",
+                           "NVVM::NVVMDialect"];
 }
 
 def ConvertParallelToGPU2 : Pass<"convert-parallel-to-gpu2"> {
   let summary = "Convert parallel loops to gpu";
   let constructor = "mlir::polygeist::createConvertParallelToGPUPass2()";
-  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", 
+                           "memref::MemRefDialect"];
 }
 
 def InnerSerialization : Pass<"inner-serialize"> {
@@ -67,7 +71,8 @@ def Serialization : Pass<"serialize"> {
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
 }
 
-def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", "FunctionOpInterface"> {
+def SCFBarrierRemovalContinuation : InterfacePass<"barrier-removal-continuation", 
+                                                  "FunctionOpInterface"> {
   let summary = "Remove scf.barrier using continuations";
   let constructor = "mlir::polygeist::createBarrierRemovalContinuation()";
   let dependentDialects = ["memref::MemRefDialect", "func::FuncDialect"];
@@ -82,6 +87,7 @@ def SCFRaiseToAffine : Pass<"raise-scf-to-affine"> {
 def SCFCanonicalizeFor : Pass<"canonicalize-scf-for"> {
   let summary = "Run some additional canonicalization for scf::for";
   let constructor = "mlir::polygeist::createCanonicalizeForPass()";
+  let dependentDialects = ["affine::AffineDialect", "math::MathDialect"];
 }
 
 def ForBreakToWhile : Pass<"for-break-to-while"> {
@@ -98,11 +104,12 @@ def ParallelLICM : Pass<"parallel-licm"> {
 def OpenMPOptPass : Pass<"openmp-opt"> {
   let summary = "Optimize OpenMP";
   let constructor = "mlir::polygeist::createOpenMPOptPass()";
+  let dependentDialects = ["memref::MemRefDialect"];
 }
 
 def LoopRestructure : Pass<"loop-restructure"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
-  let dependentDialects = ["::mlir::scf::SCFDialect"];
+  let dependentDialects = ["scf::SCFDialect", "LLVM::LLVMDialect"];
 }
 
 def RemoveTrivialUse : Pass<"trivialuse"> {
@@ -137,7 +144,7 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp">
     LLVM IR types.
   }];
   let constructor = "mlir::polygeist::createConvertPolygeistToLLVMPass()";
-  let dependentDialects = ["LLVM::LLVMDialect"];
+  let dependentDialects = ["LLVM::LLVMDialect", "scf::SCFDialect"];
   let options = [
     Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",
            /*default=*/"false",
