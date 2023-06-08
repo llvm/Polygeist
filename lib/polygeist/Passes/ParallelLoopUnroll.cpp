@@ -126,7 +126,31 @@ static LogicalResult generateUnrolledInterleavedLoop(
           } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
             if (!threadIndependent(ifOp.getCondition()))
               return failure();
-            return failure();
+            auto hasElse = !ifOp.getElseRegion().empty();
+            auto dstIfOp = builder.cloneWithoutRegions(ifOp);
+            dstIfOp.getThenRegion().push_back(new Block());
+            OpBuilder::atBlockBegin(dstIfOp.getBody(0))
+                .clone(*ifOp.getBody(0)->getTerminator());
+            if (hasElse) {
+              dstIfOp.getElseRegion().push_back(new Block());
+              OpBuilder::atBlockBegin(dstIfOp.getBody(1))
+                  .clone(*ifOp.getBody(1)->getTerminator());
+            }
+            OpBuilder::InsertionGuard _(builder);
+            builder.setInsertionPointToStart(dstIfOp.getBody(0));
+            auto resThen = interleaveBlock(ifOp.getBody(0), dstIfOp.getBody(0))
+                               .succeeded();
+            if (hasElse)
+              builder.setInsertionPointToStart(dstIfOp.getBody(1));
+            auto resElse =
+                !hasElse || interleaveBlock(ifOp.getBody(1), dstIfOp.getBody(1))
+                                .succeeded();
+            if (resThen && resElse) {
+              return success();
+            } else {
+              dstIfOp->erase();
+              return failure();
+            }
           } else {
             return failure();
           }
