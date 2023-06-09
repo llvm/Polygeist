@@ -49,6 +49,14 @@ using namespace polygeist;
 #define DEBUG_TYPE "convert-parallel-to-gpu"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
 
+#define POLYGEIST_REMARK_TYPE "CONVERT_PARALLEL_TO_GPU"
+#define POLYGEIST_REMARK(X)                                                    \
+  do {                                                                         \
+    if (getenv("POLYGEIST_EMIT_REMARKS_" POLYGEIST_REMARK_TYPE)) {             \
+      X;                                                                       \
+    }                                                                          \
+  } while (0)
+
 namespace {
 
 std::optional<int> getConstantInteger(Value v) {
@@ -363,7 +371,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   const unsigned MAX_GPU_THREADS = 1024;
 
   const std::vector<unsigned> ALTERNATIVE_KERNEL_BLOCK_SIZES = {
-      32 * 1, 32 * 2, 32 * 4, 32 * 8, 32 * 16, 32 * 24, 32 * 32};
+      32 * 1, 32 * 2, 32 * 4, 32 * 8, 32 * 16, 32 * 32};
 
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
@@ -1540,9 +1548,16 @@ struct ConvertParallelToGPU1Pass
       }
     });
 
-    // TODO walk everything in the gpu.funcs we created and serialize any stray
-    // parallels that may remain (optimally we would want to use them for the
-    // gpu.launch op but there may be cases where we cannot?)
+    getOperation()->walk([](scf::ParallelOp pop) {
+      if (pop->getParentOfType<gpu::GPUModuleOp>()) {
+        POLYGEIST_REMARK(
+            pop->emitRemark("Could not use parallel loop for parallelism in "
+                            "GPU kernel - serializing instead"));
+        // TODO the gpu.funcs we created and serialize any stray
+        // parallels that may remain (optimally we would want to use them for
+        // the gpu.launch op but there may be cases where we cannot?)
+      }
+    });
   }
 };
 
