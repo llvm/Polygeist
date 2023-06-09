@@ -29,6 +29,8 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include <set>
+
 using namespace mlir;
 using namespace polygeist;
 
@@ -74,6 +76,19 @@ static LogicalResult generateUnrolledInterleavedLoop(
     // the induction variale we are unrolling wrt
     return dyn_cast<polygeist::BarrierOp>(op);
   };
+  auto collectNestedBarrierOperands = [&](Operation *op) {
+    std::vector<Value> operands;
+    op->walk([&](polygeist::BarrierOp barrier) {
+      for (auto opr : barrier->getOperands()) {
+        operands.push_back(opr);
+      }
+    });
+    return operands;
+  };
+  auto nestedBarrierSyncsOverArg = [&](Operation *op, Value arg) {
+    auto oprs = collectNestedBarrierOperands(op);
+    return std::find(oprs.begin(), oprs.end(), arg) != oprs.end();
+  };
   auto hasNestedBarrier = [&](Operation *op) {
     return op
         ->walk([&](polygeist::BarrierOp barrier) {
@@ -95,16 +110,20 @@ static LogicalResult generateUnrolledInterleavedLoop(
   std::function<LogicalResult(Block *, Block *)> interleaveBlock =
       [&](Block *srcBlock, Block *dstBlock) {
         auto interleaveOp = [&](Operation *op) {
+          // An operation can be recursively interleaved if its control flow is
+          // the same across the threads
           if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-            if (!llvm::all_of(SmallVector<Value, 3>({forOp.getUpperBound(),
-                                                     forOp.getLowerBound(),
-                                                     forOp.getStep()}),
-                              threadIndependent))
+            if (!(llvm::all_of(SmallVector<Value, 3>({forOp.getUpperBound(),
+                                                      forOp.getLowerBound(),
+                                                      forOp.getStep()}),
+                               threadIndependent) ||
+                  nestedBarrierSyncsOverArg(op, srcIV)))
               return failure();
             if (forOp.getNumIterOperands() != 0)
               // TODO I think we should be able to do this?
               return failure();
-            auto dstForOp = builder.cloneWithoutRegions(forOp);
+            auto dstForOp = cast<scf::ForOp>(builder.cloneWithoutRegions(
+                *forOp.getOperation(), operandMap[0]));
             dstForOp.getRegion().push_back(new Block());
             for (auto a : forOp.getBody()->getArguments()) {
               auto b =
@@ -124,10 +143,12 @@ static LogicalResult generateUnrolledInterleavedLoop(
               return failure();
             }
           } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-            if (!threadIndependent(ifOp.getCondition()))
+            if (!(threadIndependent(ifOp.getCondition()) ||
+                  nestedBarrierSyncsOverArg(op, srcIV)))
               return failure();
             auto hasElse = !ifOp.getElseRegion().empty();
-            auto dstIfOp = builder.cloneWithoutRegions(ifOp);
+            auto dstIfOp = cast<scf::IfOp>(builder.cloneWithoutRegions(
+                *ifOp.getOperation(), operandMap[0]));
             dstIfOp.getThenRegion().push_back(new Block());
             OpBuilder::atBlockBegin(dstIfOp.getBody(0))
                 .clone(*ifOp.getBody(0)->getTerminator());
@@ -149,6 +170,41 @@ static LogicalResult generateUnrolledInterleavedLoop(
               return success();
             } else {
               dstIfOp->erase();
+              return failure();
+            }
+          } else if (auto pop = dyn_cast<scf::ParallelOp>(op)) {
+            if (/*interleaveNestedParallelOps*/ true) {
+              SmallVector<Value, 9> operands;
+              operands.append(pop.getUpperBound().begin(),
+                              pop.getUpperBound().end());
+              operands.append(pop.getLowerBound().begin(),
+                              pop.getLowerBound().end());
+              operands.append(pop.getStep().begin(), pop.getStep().end());
+              if (!(llvm::all_of(operands, threadIndependent) ||
+                    nestedBarrierSyncsOverArg(op, srcIV)))
+                return failure();
+              auto dstPop = cast<scf::ParallelOp>(builder.cloneWithoutRegions(
+                  *pop.getOperation(), operandMap[0]));
+              dstPop.getRegion().push_back(new Block());
+              for (auto a : pop.getBody()->getArguments()) {
+                auto b =
+                    dstPop.getBody()->addArgument(a.getType(), op->getLoc());
+                for (unsigned i = 0; i < unrollFactor; i++)
+                  operandMap[i].map(a, b);
+              }
+              OpBuilder::InsertionGuard _(builder);
+              builder.setInsertionPointToStart(dstPop.getBody());
+              builder.clone(*pop.getBody()->getTerminator());
+              builder.setInsertionPointToStart(dstPop.getBody());
+              if (interleaveBlock(pop.getBody(), dstPop.getBody())
+                      .succeeded()) {
+                return success();
+              } else {
+                dstPop->erase();
+                return failure();
+              }
+            } else {
+              // We can instead increase the trip count by unrollFactor
               return failure();
             }
           } else {
@@ -269,11 +325,7 @@ struct SCFParallelLoopUnroll
     // Unroll the innermost parallel loops
     std::vector<scf::ParallelOp> pops;
     getOperation()->walk([&](scf::ParallelOp pop) {
-      if (!pop.getBody()
-               ->walk([&](scf::ParallelOp nestedForOp) {
-                 return WalkResult::interrupt();
-               })
-               .wasInterrupted())
+      if (!pop->getParentOfType<scf::ParallelOp>())
         pops.push_back(pop);
     });
     for (auto pop : pops) {
