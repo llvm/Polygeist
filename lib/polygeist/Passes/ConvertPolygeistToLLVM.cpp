@@ -100,6 +100,10 @@ static llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode(
         clEnumValN(PAM_PGO_Opt, "pgo_opt",
                    "Profile Guided Optimization - optimization mode")));
 
+static llvm::cl::opt<bool> GPUKernelEmitCoarsenedAlternatives(
+    "gpu-kernel-emit-coarsened-alternatives", llvm::cl::init(false),
+    llvm::cl::desc("Emit alternative kernels with coarsened threads"));
+
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
 /// Conversion pattern that transforms a subview op into:
@@ -2774,8 +2778,19 @@ struct ConvertPolygeistToLLVMPass
       gpum->moveBefore(block, block->end());
       tmpModule->erase();
     }
-    if (!onlyGpuModules)
+    if (!onlyGpuModules) {
+      if (PolygeistAlternativesMode == PAM_PGO_Profile) {
+        unsigned maxAlternatives = 0;
+        m->walk([&](polygeist::AlternativesOp aop) {
+          auto alts = aop->getNumRegions();
+          if (maxAlternatives < alts)
+            maxAlternatives = alts;
+        });
+        if (maxAlternatives > 0)
+          llvm::errs() << "Generated " << maxAlternatives << " alternatives\n";
+      }
       convertModule(m, /* gpuModule */ false);
+    }
   }
 };
 } // namespace

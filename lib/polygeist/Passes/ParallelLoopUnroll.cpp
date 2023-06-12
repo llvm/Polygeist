@@ -31,14 +31,10 @@
 
 #include <set>
 
+#include "ParallelLoopUnroll.h"
+
 using namespace mlir;
 using namespace polygeist;
-
-namespace mlir::polygeist {
-LogicalResult loopUnrollByFactor(
-    scf::ParallelOp pop, uint64_t unrollFactor, unsigned dim,
-    function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn);
-}
 
 // Adapted from "mlir/lib/Dialect/SCF/Utils/Utils.cpp"
 
@@ -255,8 +251,8 @@ template <int S = 3> SmallVector<Value, S> getUpperBounds(scf::ParallelOp pop) {
 }
 
 /// Unrolls 'pop' by 'unrollFactor', returns success if the loop is unrolled.
-LogicalResult mlir::polygeist::loopUnrollByFactor(
-    scf::ParallelOp pop, uint64_t unrollFactor, unsigned dim,
+LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
+    scf::ParallelOp &pop, uint64_t unrollFactor, unsigned dim,
     function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn) {
   assert(unrollFactor > 0 && "expected positive unroll factor");
   assert(dim >= 0 && dim < pop.getUpperBound().size());
@@ -308,10 +304,12 @@ LogicalResult mlir::polygeist::loopUnrollByFactor(
         return b.create<arith::AddIOp>(
             loc, base, b.create<arith::ConstantIndexOp>(loc, i));
       });
-  if (res.succeeded())
+  if (res.succeeded()) {
     pop->erase();
-  else
+    pop = dstPop;
+  } else {
     dstPop->erase();
+  }
   return res;
 }
 
@@ -329,7 +327,8 @@ struct SCFParallelLoopUnroll
         pops.push_back(pop);
     });
     for (auto pop : pops) {
-      (void)loopUnrollByFactor(pop, unrollFactor, 0, nullptr).succeeded();
+      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, nullptr)
+          .succeeded();
     }
   }
 };

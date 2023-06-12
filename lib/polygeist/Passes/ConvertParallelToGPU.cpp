@@ -35,6 +35,8 @@
 #include <llvm/ADT/StringRef.h>
 #include <optional>
 
+#include "ParallelLoopUnroll.h"
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -1510,6 +1512,79 @@ struct ConvertParallelToGPU1Pass
       } else  {
         patterns.insert<SplitParallelOp<false>>(&getContext());
       }
+      // clang-format on
+      GreedyRewriteConfig config;
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                              std::move(patterns), config))) {
+        signalPassFailure();
+        return;
+      }
+    }
+    if (/*emit coarsened alternatives*/ true) {
+      std::vector<polygeist::GPUWrapperOp> toHandle;
+      getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+        toHandle.push_back(wrapper);
+      });
+      for (polygeist::GPUWrapperOp wrapper : toHandle) {
+        const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS = {
+            {},
+            {{2}, {4}, {8}, {16}},
+            {{1, 2}, {2, 2}, {2, 4}, {4, 4}},
+            {{1, 1, 2}, {1, 2, 2}, {2, 2, 2}, {2, 2, 4}},
+        };
+
+        const char *PATTERN = "coarsen-threads";
+        scf::ParallelOp gridPop =
+            getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+        assert(gridPop);
+        scf::ParallelOp blockPop =
+            getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
+        assert(blockPop);
+
+        int blockDims = blockPop.getUpperBound().size();
+        assert(blockDims >= 1 && blockDims <= 3);
+
+        auto loc = wrapper->getLoc();
+
+        OpBuilder builder(wrapper);
+        auto alternativesOp = builder.create<polygeist::AlternativesOp>(
+            loc, UNROLL_FACTORS[blockDims].size() + 1);
+        alternativesOp->setAttr("alternatives.type",
+                                builder.getStringAttr("gpu_kernel"));
+
+        int curRegion = 0;
+
+        // Original version
+        auto block = &*alternativesOp->getRegion(curRegion).begin();
+        builder.setInsertionPointToStart(block);
+        builder.clone(*wrapper.getOperation());
+        curRegion++;
+
+        // Coarsened versions
+        for (auto unrollFactors : UNROLL_FACTORS[blockDims]) {
+          auto block = &*alternativesOp->getRegion(curRegion).begin();
+          builder.setInsertionPointToStart(block);
+          auto newWrapper = cast<polygeist::GPUWrapperOp>(
+              builder.clone(*wrapper.getOperation()));
+          scf::ParallelOp gridPop =
+              getDirectlyNestedSingleParallel(newWrapper.getBody(), PATTERN);
+          assert(gridPop);
+          scf::ParallelOp blockPop =
+              getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
+          assert(blockPop);
+          if (polygeist::scfParallelUnrollByFactors(
+                  blockPop, ArrayRef<uint64_t>(unrollFactors), nullptr)
+                  .failed())
+            wrapper->emitRemark("Failed to coarsen threads");
+          curRegion++;
+        }
+
+        wrapper->erase();
+      }
+    }
+    {
+      RewritePatternSet patterns(&getContext());
+      // clang-format off
       patterns.insert<
         ParallelToGPULaunch
         >(&getContext());
