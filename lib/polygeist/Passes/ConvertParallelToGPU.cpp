@@ -37,6 +37,10 @@
 
 #include "ParallelLoopUnroll.h"
 
+static llvm::cl::opt<bool> GPUKernelEmitCoarsenedAlternatives(
+    "gpu-kernel-emit-coarsened-alternatives", llvm::cl::init(false),
+    llvm::cl::desc("Emit alternative kernels with coarsened threads"));
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -95,9 +99,13 @@ void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
                                   std::vector<Value>{});
 }
 
-scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
-                                                const char *PATTERN) {
+scf::ParallelOp getDirectlyNestedSingleParallel_(const char *PATTERN,
+                                                 Block *block,
+                                                 bool allowAllocas = false) {
   auto it = block->begin();
+  if (allowAllocas)
+    while (isa<memref::AllocaOp>(&*it))
+      it++;
   auto pop = dyn_cast<scf::ParallelOp>(&*it);
   it++;
   if (!pop) {
@@ -112,6 +120,9 @@ scf::ParallelOp getDirectlyNestedSingleParallel(Block *block,
   assert(it == block->end());
   return pop;
 }
+
+#define getDirectlyNestedSingleParallel(...)                                   \
+  getDirectlyNestedSingleParallel_(PATTERN, __VA_ARGS__)
 
 // Set launch bound attributes
 //
@@ -377,8 +388,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
   LogicalResult matchAndRewrite(polygeist::GPUWrapperOp wrapper,
                                 PatternRewriter &rewriter) const override {
-    scf::ParallelOp pop =
-        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+    scf::ParallelOp pop = getDirectlyNestedSingleParallel(wrapper.getBody());
     if (!pop)
       return failure();
     bool child = false;
@@ -456,8 +466,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                            PatternRewriter &rewriter) const {
     mlir::OpBuilder::InsertionGuard guard(rewriter);
 
-    scf::ParallelOp pop =
-        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+    scf::ParallelOp pop = getDirectlyNestedSingleParallel(wrapper.getBody());
 
     auto loc = pop->getLoc();
 
@@ -698,7 +707,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
     Block *outerBlock = pop->getBlock();
     Block *innerBlock = pop.getBody();
 
-    if (std::next(outerBlock->begin(), 2) == outerBlock->end()) {
+    if (getDirectlyNestedSingleParallel(outerBlock, /* allowAllocas */ true)) {
       LLVM_DEBUG(DBGS() << "no ops to parallelize\n");
       return failure();
     }
@@ -739,18 +748,9 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-        auto mt = alloca.getType();
-        auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
-                                    /* memspace */ 5);
-        auto newAlloca =
-            rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
-        auto cast = rewriter.create<memref::CastOp>(
-            alloca.getLoc(), alloca.getType(), newAlloca);
-        mapping.map(op.getResults(), cast->getResults());
-        newOp = cast;
+        continue;
       } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-        assert(0 && "Unhandled case");
-        break;
+        continue;
       } else {
         mlir::OpBuilder::InsertionGuard guard(rewriter);
         SmallVector<MemoryEffects::EffectInstance> effects;
@@ -1354,11 +1354,11 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // with lower bounds zero and constant upper bounds for the inner parallel,
     // the memory they use is on the gpu, are there more conditions?
     scf::ParallelOp gridPop =
-        getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+        getDirectlyNestedSingleParallel(wrapper.getBody());
     if (!gridPop)
       return failure();
-    scf::ParallelOp blockPop =
-        getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
+    scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+        gridPop.getBody(), /* allowAllocas */ true);
     if (!blockPop)
       return failure();
 
@@ -1422,6 +1422,21 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
       argReplacements.push_back(blockIdx);
     }
     rewriter.mergeBlocks(blockPop.getBody(), launchBlock, argReplacements);
+    rewriter.setInsertionPointToStart(launchBlock);
+    for (auto it = gridPop.begin(); !isa<scf::ParallelOp>(&*it); it++) {
+      if (auto alloca = dyn_cast<memref::AllocaOp>(&*it)) {
+        auto mt = alloca.getType();
+        auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {},
+                                    /* memspace */ 5);
+        auto newAlloca =
+            rewriter.create<memref::AllocaOp>(alloca.getLoc(), type);
+        auto cast = rewriter.create<memref::CastOp>(
+            alloca.getLoc(), alloca.getType(), newAlloca);
+        it->replaceAllUsesWith(cast);
+      } else {
+        assert(0);
+      }
+    }
     rewriter.setInsertionPointToStart(launchBlock);
 
     for (auto en : llvm::enumerate(gridPop.getBody()->getArguments())) {
@@ -1520,7 +1535,7 @@ struct ConvertParallelToGPU1Pass
         return;
       }
     }
-    if (/*emit coarsened alternatives*/ true) {
+    if (GPUKernelEmitCoarsenedAlternatives) {
       std::vector<polygeist::GPUWrapperOp> toHandle;
       getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
         toHandle.push_back(wrapper);
@@ -1535,10 +1550,10 @@ struct ConvertParallelToGPU1Pass
 
         const char *PATTERN = "coarsen-threads";
         scf::ParallelOp gridPop =
-            getDirectlyNestedSingleParallel(wrapper.getBody(), PATTERN);
+            getDirectlyNestedSingleParallel(wrapper.getBody());
         assert(gridPop);
-        scf::ParallelOp blockPop =
-            getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
+        scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+            gridPop.getBody(), /* allowAllocas */ true);
         assert(blockPop);
 
         int blockDims = blockPop.getUpperBound().size();
@@ -1567,10 +1582,10 @@ struct ConvertParallelToGPU1Pass
           auto newWrapper = cast<polygeist::GPUWrapperOp>(
               builder.clone(*wrapper.getOperation()));
           scf::ParallelOp gridPop =
-              getDirectlyNestedSingleParallel(newWrapper.getBody(), PATTERN);
+              getDirectlyNestedSingleParallel(newWrapper.getBody());
           assert(gridPop);
           scf::ParallelOp blockPop =
-              getDirectlyNestedSingleParallel(gridPop.getBody(), PATTERN);
+              getDirectlyNestedSingleParallel(gridPop.getBody(), true);
           assert(blockPop);
           if (polygeist::scfParallelUnrollByFactors(
                   blockPop, ArrayRef<uint64_t>(unrollFactors), nullptr)

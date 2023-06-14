@@ -250,6 +250,20 @@ template <int S = 3> SmallVector<Value, S> getUpperBounds(scf::ParallelOp pop) {
   return bounds;
 }
 
+// Build the IR that performs ceil division of a positive value by another
+// positive value:
+//    ceildiv(a, b) = divis(a + (b - 1), b)
+// where divis is rounding-to-zero division.
+static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
+                             Value divisor) {
+  assert(dividend.getType().isIndex() && "expected index-typed value");
+
+  Value cstOne = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value divisorMinusOne = builder.create<arith::SubIOp>(loc, divisor, cstOne);
+  Value sum = builder.create<arith::AddIOp>(loc, dividend, divisorMinusOne);
+  return builder.create<arith::DivUIOp>(loc, sum, divisor);
+}
+
 /// Unrolls 'pop' by 'unrollFactor', returns success if the loop is unrolled.
 LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     scf::ParallelOp &pop, uint64_t unrollFactor, unsigned dim,
@@ -265,7 +279,8 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   // Compute tripCount = ceilDiv((upperBound - lowerBound), step) and populate
   // 'upperBoundUnrolled' and 'stepUnrolled' for static and dynamic cases.
   auto loc = pop.getLoc();
-  int64_t upperBoundUnrolled;
+  OpBuilder boundsBuilder(pop);
+  Value upperBoundUnrolled = nullptr;
 
   auto lbCstOp =
       pop.getLowerBound()[dim].getDefiningOp<arith::ConstantIndexOp>();
@@ -277,23 +292,49 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     int64_t lbCst = lbCstOp.value();
     int64_t ubCst = ubCstOp.value();
     int64_t stepCst = stepCstOp.value();
-    assert(lbCst == 0 && ubCst >= 0 && stepCst == 1 &&
-           "expected positive loop bounds and step");
+    if (!(lbCst == 0 && ubCst >= 0 && stepCst == 1)) {
+      assert(0 && "expected positive loop bounds and step");
+      return failure();
+    }
     int64_t upperBoundRem = mlir::mod(ubCst, unrollFactor);
 
     if (upperBoundRem) {
       return failure();
     }
+    upperBoundUnrolled = boundsBuilder.create<arith::ConstantIndexOp>(
+        loc, mlir::ceilDiv(ubCst, unrollFactor));
+  } else if (lbCstOp && !ubCstOp && stepCstOp) {
+    int64_t lbCst = lbCstOp.value();
+    int64_t stepCst = stepCstOp.value();
+    if (!(lbCst == 0 && stepCst == 1)) {
+      assert(0 && "expected positive loop bounds and step");
+      return failure();
+    }
+    auto lowerBound = pop.getLowerBound()[dim];
+    auto upperBound = pop.getUpperBound()[dim];
+    auto step = pop.getStep()[dim];
+    Value diff =
+        boundsBuilder.create<arith::SubIOp>(loc, upperBound, lowerBound);
+    Value tripCount = ceilDivPositive(boundsBuilder, loc, diff, step);
+    Value unrollFactorCst =
+        boundsBuilder.create<arith::ConstantIndexOp>(loc, unrollFactor);
+    Value tripCountRem =
+        boundsBuilder.create<arith::RemSIOp>(loc, tripCount, unrollFactorCst);
+    // Compute tripCountEvenMultiple = tripCount - (tripCount % unrollFactor)
+    Value tripCountEvenMultiple =
+        boundsBuilder.create<arith::SubIOp>(loc, tripCount, tripCountRem);
 
-    upperBoundUnrolled = mlir::ceilDiv(ubCst, unrollFactor);
+    // TODO emit a runtime error if Rem != 0
+    upperBoundUnrolled = tripCount;
+  } else {
+    assert(0);
   }
 
-  OpBuilder builder(pop);
   auto ub = getUpperBounds(pop);
   auto unrollFactorVal =
-      builder.create<arith::ConstantIndexOp>(loc, unrollFactor);
-  ub[dim] = builder.create<arith::ConstantIndexOp>(loc, upperBoundUnrolled);
-  auto dstPop = builder.create<scf::ParallelOp>(
+      boundsBuilder.create<arith::ConstantIndexOp>(loc, unrollFactor);
+  ub[dim] = upperBoundUnrolled;
+  auto dstPop = boundsBuilder.create<scf::ParallelOp>(
       pop->getLoc(), pop.getLowerBound(), ub, pop.getStep());
 
   auto res = generateUnrolledInterleavedLoop(
