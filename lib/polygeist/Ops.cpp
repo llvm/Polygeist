@@ -93,6 +93,78 @@ void AlternativesOp::build(OpBuilder &builder, OperationState &result,
   }
 }
 
+class FlattenAlternatives final : public OpRewritePattern<AlternativesOp> {
+public:
+  using OpRewritePattern<AlternativesOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AlternativesOp aop,
+                                PatternRewriter &rewriter) const override {
+    // Ignore nested alternatives ops
+    if (aop->getParentOfType<AlternativesOp>())
+      return failure();
+
+    AlternativesOp innerAop = nullptr;
+    for (auto &region : aop->getRegions()) {
+      for (auto &op : region.getOps()) {
+        if (auto aop = dyn_cast<AlternativesOp>(&op)) {
+          innerAop = aop;
+          break;
+        }
+      }
+      if (innerAop)
+        break;
+    }
+    if (!innerAop)
+      return failure();
+
+    // TODO use block insertion etc for better performance
+    auto newAop = rewriter.create<polygeist::AlternativesOp>(
+        aop->getLoc(), innerAop->getNumRegions() + aop->getNumRegions() - 1);
+    newAop->setAttrs(aop->getAttrs());
+    auto srcBlock = &*aop->getBlock()->getParent()->begin();
+    unsigned curRegion = 0;
+    for (; curRegion < innerAop->getNumRegions(); curRegion++) {
+      BlockAndValueMapping mapping;
+      auto block = &*newAop->getRegion(curRegion).begin();
+      rewriter.setInsertionPointToStart(block);
+      for (auto &op : *innerAop->getBlock()) {
+        if (&op == innerAop.getOperation()) {
+          for (auto &op : innerAop->getRegion(curRegion).getOps())
+            if (!isa<PolygeistYieldOp>(&op))
+              rewriter.clone(op, mapping);
+        } else {
+          if (!isa<PolygeistYieldOp>(&op))
+            rewriter.clone(op, mapping);
+        }
+      }
+    }
+
+    unsigned oldRegion = 0;
+    for (; oldRegion < aop->getNumRegions(); oldRegion++) {
+      auto &srcRegion = aop->getRegion(oldRegion);
+      if (innerAop->getBlock()->getParent() == &srcRegion) {
+        continue;
+      }
+      auto block = &*newAop->getRegion(curRegion).begin();
+      rewriter.setInsertionPointToStart(block);
+      BlockAndValueMapping mapping;
+      for (auto &op : srcRegion.getOps())
+        if (!isa<PolygeistYieldOp>(&op))
+          rewriter.clone(op, mapping);
+      curRegion++;
+    }
+
+    rewriter.eraseOp(aop);
+
+    return success();
+  }
+};
+
+void AlternativesOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                                 MLIRContext *context) {
+  results.insert<FlattenAlternatives>(context);
+}
+
 //===----------------------------------------------------------------------===//
 // GPUBlockOp
 //===----------------------------------------------------------------------===//
