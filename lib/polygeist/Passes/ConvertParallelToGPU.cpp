@@ -1543,9 +1543,9 @@ struct ConvertParallelToGPU1Pass
       for (polygeist::GPUWrapperOp wrapper : toHandle) {
         const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS = {
             {},
-            {{2}, {4}, {8}, {16}},
-            {{1, 2}, {2, 2}, {2, 4}, {4, 4}},
-            {{1, 1, 2}, {1, 2, 2}, {2, 2, 2}, {2, 2, 4}},
+            {{32}, {16}, {8}, {4}, {2}},
+            {{4, 8}, {4, 4}, {2, 4}, {2, 2}, {1, 2}},
+            {{2, 4, 4}, {2, 2, 4}, {2, 2, 2}, {1, 2, 2}, {1, 1, 2}},
         };
 
         const char *PATTERN = "coarsen-threads";
@@ -1556,18 +1556,35 @@ struct ConvertParallelToGPU1Pass
             gridPop.getBody(), /* allowAllocas */ true);
         assert(blockPop);
 
-        int blockDims = blockPop.getUpperBound().size();
+        auto ubs = blockPop.getUpperBound();
+        int blockDims = ubs.size();
         assert(blockDims >= 1 && blockDims <= 3);
+
+        unsigned originalThreadNum = 1;
+        for (auto ub : ubs) {
+          if (auto cio = ub.getDefiningOp<arith::ConstantIndexOp>()) {
+            originalThreadNum *= cio.value();
+          } else {
+            originalThreadNum = 0;
+            break;
+          }
+        }
+        unsigned firstUnrollFactorId = 0;
+        if (originalThreadNum > 0)
+          while (firstUnrollFactorId < UNROLL_FACTORS[1].size() &&
+                 originalThreadNum / UNROLL_FACTORS[1][firstUnrollFactorId][0] <
+                     32)
+            firstUnrollFactorId++;
 
         auto loc = wrapper->getLoc();
 
         OpBuilder builder(wrapper);
         auto alternativesOp = builder.create<polygeist::AlternativesOp>(
-            loc, UNROLL_FACTORS[blockDims].size() + 1);
+            loc, UNROLL_FACTORS[blockDims].size() + 1 - firstUnrollFactorId);
         alternativesOp->setAttr("alternatives.type",
                                 builder.getStringAttr("gpu_kernel"));
 
-        int curRegion = 0;
+        unsigned curRegion = 0;
 
         // Original version
         auto block = &*alternativesOp->getRegion(curRegion).begin();
@@ -1576,7 +1593,9 @@ struct ConvertParallelToGPU1Pass
         curRegion++;
 
         // Coarsened versions
-        for (auto unrollFactors : UNROLL_FACTORS[blockDims]) {
+        for (unsigned i = firstUnrollFactorId;
+             i < UNROLL_FACTORS[blockDims].size(); i++) {
+          auto unrollFactors = UNROLL_FACTORS[blockDims][i];
           auto block = &*alternativesOp->getRegion(curRegion).begin();
           builder.setInsertionPointToStart(block);
           auto newWrapper = cast<polygeist::GPUWrapperOp>(
