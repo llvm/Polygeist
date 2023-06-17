@@ -13,6 +13,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+
 #include "sql/SQLDialect.h"
 #include "sql/SQLOps.h"
 
@@ -29,6 +30,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/SideEffectUtils.h"
+// #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
@@ -94,7 +96,7 @@ public:
     Value handle = op->getOperand(0);
 
     if (handle.getType().isa<IndexType>() && op->getResultTypes()[0].isa<IndexType>())
-      return failure();
+        return failure();
 
     if (!handle.getType().isa<IndexType>()) {
         handle = rewriter.create<IndexCastOp>(op.getLoc(),
@@ -105,9 +107,9 @@ public:
     mlir::Value res = rewriter.create<NumResultsOp>(op.getLoc(), rewriter.getIndexType(), handle);
 
     if (op->getResultTypes()[0].isa<IndexType>()) {
-      rewriter.replaceOp(op, res);
+        rewriter.replaceOp(op, res);
     } else {
-      rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
+        rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
     }
 
     return success(changed);
