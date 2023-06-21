@@ -1510,8 +1510,7 @@ struct ConvertParallelToGPU1Pass
         return;
       }
     }
-    {
-      RewritePatternSet patterns(&getContext());
+    auto populateNormalizationPatterns = [&](RewritePatternSet &patterns) {
       // clang-format off
       patterns.insert<
         BarrierElim</*TopLevelOnly*/ false>,
@@ -1528,14 +1527,86 @@ struct ConvertParallelToGPU1Pass
         patterns.insert<SplitParallelOp<false>>(&getContext());
       }
       // clang-format on
+    };
+    auto runNormalization = [&]() {
+      RewritePatternSet patterns(&getContext());
+      populateNormalizationPatterns(patterns);
       GreedyRewriteConfig config;
       if (failed(applyPatternsAndFoldGreedily(getOperation(),
                                               std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
+    };
+    runNormalization();
+
+    // Check if the user specified coarsening factors
+    unsigned coarsenThreads = 1;
+    unsigned coarsenBlocks = 1;
+    if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_THREADS"))
+      coarsenThreads = atoi(e);
+    if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_BLOCKS"))
+      coarsenBlocks = atoi(e);
+    if (coarsenThreads < 1 || coarsenBlocks < 1) {
+      llvm::errs() << "Invalid values for gpu kernel coarsen environment "
+                      "variables, ignoring\n";
+      coarsenThreads = 1;
+      coarsenBlocks = 1;
     }
-    if (GPUKernelEmitCoarsenedAlternatives) {
+
+    if (coarsenThreads > 1 || coarsenBlocks > 1) {
+      std::vector<polygeist::GPUWrapperOp> toHandle;
+      getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+        toHandle.push_back(wrapper);
+      });
+      for (polygeist::GPUWrapperOp wrapper : toHandle) {
+        const char *PATTERN = "coarsen-threads";
+        scf::ParallelOp gridPop =
+            getDirectlyNestedSingleParallel(wrapper.getBody());
+        assert(gridPop);
+        scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+            gridPop.getBody(), /* allowAllocas */ true);
+        assert(blockPop);
+
+        auto ubs = blockPop.getUpperBound();
+        int blockDims = ubs.size();
+        assert(blockDims >= 1 && blockDims <= 3);
+
+        auto getUnrollFactors = [&](unsigned unrollFactor) {
+          unsigned powsOf2 = std::log2(unrollFactor);
+          unsigned initial = std::pow(2, powsOf2 / blockDims);
+          unsigned currentFactor = 1;
+          std::vector<uint64_t> unrollFactors;
+          for (int i = 0; i < blockDims; i++) {
+            unrollFactors.push_back(initial);
+            currentFactor *= initial;
+          }
+          for (int i = blockDims - 1; currentFactor < unrollFactor; i--) {
+            currentFactor *= 2;
+            unrollFactors[i] *= 2;
+          }
+          return unrollFactors;
+        };
+
+        if (coarsenThreads > 1) {
+          auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
+          if (polygeist::scfParallelUnrollByFactors(
+                  blockPop, ArrayRef<uint64_t>(threadUnrollFactors), nullptr)
+                  .failed())
+            wrapper->emitRemark("Failed to coarsen threads");
+        }
+        if (coarsenBlocks > 1) {
+          auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
+          if (polygeist::scfParallelUnrollByFactors(
+                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors), nullptr)
+                  .failed())
+            wrapper->emitRemark("Failed to coarsen blocks");
+        }
+      }
+    } else if (GPUKernelEmitCoarsenedAlternatives) {
+      // If the user did not specify coarsening factors, generate pre-determined
+      // set of alternative coarsened kernels
+
       std::vector<polygeist::GPUWrapperOp> toHandle;
       getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
         toHandle.push_back(wrapper);
@@ -1616,6 +1687,9 @@ struct ConvertParallelToGPU1Pass
         wrapper->erase();
       }
     }
+
+    runNormalization();
+
     {
       RewritePatternSet patterns(&getContext());
       // clang-format off

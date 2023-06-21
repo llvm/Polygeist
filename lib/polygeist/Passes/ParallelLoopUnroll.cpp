@@ -185,8 +185,10 @@ static LogicalResult generateUnrolledInterleavedLoop(
               for (auto a : pop.getBody()->getArguments()) {
                 auto b =
                     dstPop.getBody()->addArgument(a.getType(), op->getLoc());
-                for (unsigned i = 0; i < unrollFactor; i++)
+                for (unsigned i = 0; i < unrollFactor; i++) {
                   operandMap[i].map(a, b);
+                }
+                barrierBlockArgMap.map(a, b);
               }
               OpBuilder::InsertionGuard _(builder);
               builder.setInsertionPointToStart(dstPop.getBody());
