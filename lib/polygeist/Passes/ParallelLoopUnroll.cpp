@@ -24,6 +24,7 @@
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -269,6 +270,7 @@ static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
 /// Unrolls 'pop' by 'unrollFactor', returns success if the loop is unrolled.
 LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     scf::ParallelOp &pop, uint64_t unrollFactor, unsigned dim,
+    bool generateEpilogueLoop,
     function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn) {
   assert(unrollFactor > 0 && "expected positive unroll factor");
   assert(dim >= 0 && dim < pop.getUpperBound().size());
@@ -281,8 +283,12 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   // Compute tripCount = ceilDiv((upperBound - lowerBound), step) and populate
   // 'upperBoundUnrolled' and 'stepUnrolled' for static and dynamic cases.
   auto loc = pop.getLoc();
-  OpBuilder boundsBuilder(pop);
+  OpBuilder builder(pop);
+  Value unrollFactorCst =
+      builder.create<arith::ConstantIndexOp>(loc, unrollFactor);
   Value upperBoundUnrolled = nullptr;
+  Value remUnrolled = nullptr;
+  llvm::Optional<int64_t> remUnrolledCst = {};
 
   auto lbCstOp =
       pop.getLowerBound()[dim].getDefiningOp<arith::ConstantIndexOp>();
@@ -300,11 +306,16 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     }
     int64_t upperBoundRem = mlir::mod(ubCst, unrollFactor);
 
-    if (upperBoundRem) {
+    if (upperBoundRem && !generateEpilogueLoop) {
       return failure();
     }
-    upperBoundUnrolled = boundsBuilder.create<arith::ConstantIndexOp>(
-        loc, mlir::ceilDiv(ubCst, unrollFactor));
+
+    upperBoundUnrolled =
+        builder.create<arith::ConstantIndexOp>(loc, ubCst / unrollFactor);
+    if (upperBoundUnrolled == 0)
+      return failure();
+    remUnrolled = builder.create<arith::ConstantIndexOp>(loc, upperBoundRem);
+    remUnrolledCst = upperBoundRem;
   } else if (lbCstOp && !ubCstOp && stepCstOp) {
     int64_t lbCst = lbCstOp.value();
     int64_t stepCst = stepCstOp.value();
@@ -312,38 +323,45 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
       assert(0 && "expected positive loop bounds and step");
       return failure();
     }
-    auto lowerBound = pop.getLowerBound()[dim];
+    // auto lowerBound = pop.getLowerBound()[dim];
     auto upperBound = pop.getUpperBound()[dim];
-    auto step = pop.getStep()[dim];
-    Value diff =
-        boundsBuilder.create<arith::SubIOp>(loc, upperBound, lowerBound);
-    Value tripCount = ceilDivPositive(boundsBuilder, loc, diff, step);
-    Value unrollFactorCst =
-        boundsBuilder.create<arith::ConstantIndexOp>(loc, unrollFactor);
-    Value tripCountRem =
-        boundsBuilder.create<arith::RemSIOp>(loc, tripCount, unrollFactorCst);
-    // Compute tripCountEvenMultiple = tripCount - (tripCount % unrollFactor)
-    Value tripCountEvenMultiple =
-        boundsBuilder.create<arith::SubIOp>(loc, tripCount, tripCountRem);
-
-    // TODO emit a runtime error if Rem != 0
-    upperBoundUnrolled = tripCount;
+    // auto step = pop.getStep()[dim];
+    upperBoundUnrolled =
+        builder.create<arith::DivSIOp>(loc, upperBound, unrollFactorCst);
+    // TODO what do we do if we dont generateEpilogueLoop but remUnrolled != 0 ?
+    remUnrolled =
+        builder.create<arith::RemSIOp>(loc, upperBound, unrollFactorCst);
   } else {
     assert(0);
+    return failure();
   }
 
   auto ub = getUpperBounds(pop);
-  auto unrollFactorVal =
-      boundsBuilder.create<arith::ConstantIndexOp>(loc, unrollFactor);
   ub[dim] = upperBoundUnrolled;
-  auto dstPop = boundsBuilder.create<scf::ParallelOp>(
+  auto dstPop = builder.create<scf::ParallelOp>(
       pop->getLoc(), pop.getLowerBound(), ub, pop.getStep());
+
+  if (generateEpilogueLoop && (!remUnrolledCst || *remUnrolledCst != 0)) {
+    auto mainLoopTrips =
+        builder.create<arith::MulIOp>(loc, upperBoundUnrolled, unrollFactorCst);
+    auto epiloguePop = cast<scf::ParallelOp>(builder.clone(*pop));
+    // TODO more robust way to set the upper bound
+    epiloguePop->setOperand(pop.getUpperBound().size() + dim, remUnrolled);
+    OpBuilder::InsertionGuard _(builder);
+    builder.setInsertionPointToStart(epiloguePop.getBody());
+    auto oldIV = epiloguePop.getBody()->getArgument(dim);
+    auto newIV = builder.create<arith::AddIOp>(loc, mainLoopTrips, oldIV);
+    oldIV.replaceAllUsesExcept(newIV, newIV);
+  } else {
+    // TODO throw runtime error if rem != 0 or should we expect the caller of
+    // this fucntion to handle that case?
+  }
 
   auto res = generateUnrolledInterleavedLoop(
       pop.getBody(), dstPop.getBody(), dim, unrollFactor,
       [&](unsigned i, Value iv, OpBuilder b) {
         // iv' = iv * unrollFactor + i
-        auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorVal);
+        auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorCst);
         return b.create<arith::AddIOp>(
             loc, base, b.create<arith::ConstantIndexOp>(loc, i));
       });
@@ -370,7 +388,7 @@ struct SCFParallelLoopUnroll
         pops.push_back(pop);
     });
     for (auto pop : pops) {
-      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, nullptr)
+      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, true, nullptr)
           .succeeded();
     }
   }

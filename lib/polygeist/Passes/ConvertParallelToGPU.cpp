@@ -1589,16 +1589,23 @@ struct ConvertParallelToGPU1Pass
         };
 
         if (coarsenThreads > 1) {
+          // TODO We kind of assume that the upper bounds will be divisible by
+          // the factors and in that case this will succeed if the upper bounds
+          // are dynamic - we need to insert runtime checks and fallback to a
+          // non-coarsened kernel, or have an 'if' statement in the unrolled
+          // parallel that will do the "epilogue" part
           auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
           if (polygeist::scfParallelUnrollByFactors(
-                  blockPop, ArrayRef<uint64_t>(threadUnrollFactors), nullptr)
+                  blockPop, ArrayRef<uint64_t>(threadUnrollFactors),
+                  /* generateEpilogueLoop */ false, nullptr)
                   .failed())
             wrapper->emitRemark("Failed to coarsen threads");
         }
         if (coarsenBlocks > 1) {
           auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
           if (polygeist::scfParallelUnrollByFactors(
-                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors), nullptr)
+                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
+                  /* generateEpilogueLoop */ true, nullptr)
                   .failed())
             wrapper->emitRemark("Failed to coarsen blocks");
         }
@@ -1678,7 +1685,8 @@ struct ConvertParallelToGPU1Pass
               getDirectlyNestedSingleParallel(gridPop.getBody(), true);
           assert(blockPop);
           if (polygeist::scfParallelUnrollByFactors(
-                  blockPop, ArrayRef<uint64_t>(unrollFactors), nullptr)
+                  blockPop, ArrayRef<uint64_t>(unrollFactors),
+                  /* generateEpilogueLoop */ false, nullptr)
                   .failed())
             wrapper->emitRemark("Failed to coarsen threads");
           curRegion++;

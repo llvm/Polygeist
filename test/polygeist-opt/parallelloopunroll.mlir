@@ -6,6 +6,24 @@ module {
   func.func private @use2(%arg0: index)
   func.func private @get() -> i1
   func.func private @wow()
+  func.func @f00(%upperBound: index) {
+    %mc1 = arith.constant 1 : index
+    %mc1024 = arith.constant 1024 : index
+    affine.parallel (%a0, %a1) = (0, 0) to (%upperBound, 30) {
+      func.call @use0(%a0) : (index) -> ()
+      affine.yield
+    }
+    return
+  }
+  func.func @f0() {
+    %mc1 = arith.constant 1 : index
+    %mc1024 = arith.constant 1024 : index
+    affine.parallel (%a0, %a1) = (0, 0) to (299, 30) {
+      func.call @use0(%a0) : (index) -> ()
+      affine.yield
+    }
+    return
+  }
   func.func @f1() {
     %mc1 = arith.constant 1 : index
     %mc1024 = arith.constant 1024 : index
