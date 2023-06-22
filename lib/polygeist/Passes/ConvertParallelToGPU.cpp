@@ -32,6 +32,7 @@
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
 
+#include <llvm/ADT/StringRef.h>
 #include <optional>
 
 // TODO when we add other backends, we would need to to add an argument to the
@@ -128,16 +129,28 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
     // TODO should we only set idx or separately set idx, idy, idz? clang seems
     // to only set idx to the total num
     // TODO grab the attr name from the NVVM dialect after bumping llvm
+    bool succeeded = false;
     int blockSize = *bx * *by * *bz;
-    if (!gpuFuncOp->hasAttr("nvvm.maxntidx")) {
-      gpuFuncOp->setAttr(
-          "nvvm.maxntidx",
-          rewriter.getIntegerAttr(rewriter.getIndexType(), blockSize));
+    llvm::StringRef attrName = "nvvm.maxntidx";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(attrName, rewriter.getIntegerAttr(
+                                       rewriter.getIndexType(), blockSize));
+      succeeded = true;
+    } else {
+      assert(blockSize ==
+             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+      succeeded = false;
+    }
+    attrName = "rocdl.max_flat_work_group_size";
+    if (!gpuFuncOp->hasAttr(attrName)) {
+      gpuFuncOp->setAttr(attrName, rewriter.getIntegerAttr(
+                                       rewriter.getIndexType(), blockSize));
+      assert(succeeded);
       return success();
     } else {
-      assert(
-          blockSize ==
-          gpuFuncOp->getAttr("nvvm.maxntidx").dyn_cast<IntegerAttr>().getInt());
+      assert(blockSize ==
+             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+      assert(!succeeded);
       return failure();
     }
   }
@@ -372,7 +385,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     int curRegion = 0;
     auto emitAlternative = [&](int defaultThreads,
-                               polygeist::GPUAlternativesOp alternativesOp) {
+                               polygeist::AlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
@@ -382,20 +395,24 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       curRegion++;
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
-      auto alternativesOp =
-          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
                    << " threads\n";
       emitAlternative(atoi(blockSizeStr), alternativesOp);
     } else if (shouldEmitAlternatives(pop)) {
-      auto alternativesOp = rewriter.create<polygeist::GPUAlternativesOp>(
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(
           loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
     } else {
-      auto alternativesOp =
-          rewriter.create<polygeist::GPUAlternativesOp>(loc, 1);
+      auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
+      alternativesOp->setAttr("alternatives.type",
+                              rewriter.getStringAttr("gpu_kernel"));
       emitAlternative(-1, alternativesOp);
     }
 
@@ -1413,7 +1430,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     launchBlock->walk([&](mlir::polygeist::BarrierOp op) {
       rewriter.setInsertionPoint(op);
-      rewriter.replaceOpWithNewOp<mlir::NVVM::Barrier0Op>(op);
+      rewriter.replaceOpWithNewOp<gpu::BarrierOp>(op);
     });
 
     return success();

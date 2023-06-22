@@ -18,6 +18,7 @@
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
@@ -35,6 +36,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
+#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -53,6 +55,10 @@
 #include <limits>
 #include <map>
 #include <numeric>
+
+#include "RuntimeWrapperUtils.h"
+
+extern llvm::cl::opt<bool> EmitROCM;
 
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
@@ -1312,194 +1318,6 @@ convertFunctionType(FuncOpType funcOp, TypeConverter &typeConverter) {
 
 namespace {
 
-struct FunctionCallBuilder {
-  FunctionCallBuilder(StringRef functionName, Type returnType,
-                      ArrayRef<Type> argumentTypes)
-      : functionName(functionName),
-        functionType(LLVM::LLVMFunctionType::get(returnType, argumentTypes)) {}
-  LLVM::CallOp create(Location loc, OpBuilder &builder,
-                      ArrayRef<Value> arguments) const;
-
-  StringRef functionName;
-  LLVM::LLVMFunctionType functionType;
-};
-
-LLVM::CallOp FunctionCallBuilder::create(Location loc, OpBuilder &builder,
-                                         ArrayRef<Value> arguments) const {
-  auto module = builder.getBlock()->getParent()->getParentOfType<ModuleOp>();
-  auto function = [&] {
-    if (auto function = module.lookupSymbol<LLVM::LLVMFuncOp>(functionName))
-      return function;
-    return OpBuilder::atBlockEnd(module.getBody())
-        .create<LLVM::LLVMFuncOp>(loc, functionName, functionType);
-  }();
-  return builder.create<LLVM::CallOp>(loc, function, arguments);
-}
-
-class GpuRuntimeCallBuildersContextHolder {
-protected:
-  GpuRuntimeCallBuildersContextHolder(MLIRContext *context,
-                                      LLVMTypeConverter &typeConverter)
-      : holder_context(context), holder_typeConverter(typeConverter){};
-  MLIRContext *holder_context;
-  LLVMTypeConverter &holder_typeConverter;
-};
-class GpuRuntimeCallBuilders : private GpuRuntimeCallBuildersContextHolder {
-
-protected:
-  GpuRuntimeCallBuilders(MLIRContext *context, LLVMTypeConverter &typeConverter)
-      : GpuRuntimeCallBuildersContextHolder(context, typeConverter) {}
-
-  MLIRContext *context = holder_context;
-
-  Type llvmVoidType = LLVM::LLVMVoidType::get(context);
-  Type llvmPointerType =
-      LLVM::LLVMPointerType::get(IntegerType::get(context, 8));
-  Type llvmPointerPointerType = LLVM::LLVMPointerType::get(llvmPointerType);
-  Type llvmInt8Type = IntegerType::get(context, 8);
-  Type llvmInt32Type = IntegerType::get(context, 32);
-  Type llvmInt64Type = IntegerType::get(context, 64);
-  Type llvmIntPtrType =
-      IntegerType::get(context, holder_typeConverter.getPointerBitwidth(0));
-
-  FunctionCallBuilder rtRegisterFunctionCallBuilder = {
-      "__cudaRegisterFunction",
-      llvmInt32Type,
-      {llvmPointerPointerType, llvmPointerType, llvmPointerType,
-       llvmPointerType, llvmInt32Type, llvmPointerType, llvmPointerType,
-       llvmPointerType, llvmPointerType,
-       llvmPointerType /* should actually be a pointer to int */}};
-  FunctionCallBuilder rtUnregisterFatBinaryCallBuilder = {
-      "__cudaUnregisterFatBinary", llvmVoidType, {llvmPointerPointerType}};
-  FunctionCallBuilder rtRegisterFatBinaryCallBuilder = {
-      "__cudaRegisterFatBinary", llvmPointerPointerType, {llvmPointerType}};
-  FunctionCallBuilder rtRegisterFatBinaryEndCallBuilder = {
-      "__cudaRegisterFatBinaryEnd", llvmVoidType, {llvmPointerPointerType}};
-  FunctionCallBuilder rtAllocCallBuilder = {
-      "mgpurtMemAlloc",
-      llvmPointerType /* void * */,
-      {llvmIntPtrType /* intptr_t sizeBytes */,
-       llvmPointerType /* void *stream */}};
-  FunctionCallBuilder allocCallBuilder = {
-      "mgpuMemAlloc",
-      llvmPointerType /* void * */,
-      {llvmIntPtrType /* intptr_t sizeBytes */,
-       llvmPointerType /* void *stream */}};
-  FunctionCallBuilder moduleLoadCallBuilder = {
-      "mgpuModuleLoad",
-      llvmPointerType /* void *module */,
-      {llvmPointerType /* void *cubin */}};
-  FunctionCallBuilder moduleUnloadCallBuilder = {
-      "mgpuModuleUnload", llvmVoidType, {llvmPointerType /* void *module */}};
-  FunctionCallBuilder moduleGetFunctionCallBuilder = {
-      "mgpuModuleGetFunction",
-      llvmPointerType /* void *function */,
-      {
-          llvmPointerType, /* void *module */
-          llvmPointerType  /* char *name   */
-      }};
-  FunctionCallBuilder launchKernelErrCallBuilder = {
-      "mgpuLaunchKernelErr",
-      llvmInt32Type, /* unsigned int */
-      {
-          llvmPointerType,        /* void* f */
-          llvmIntPtrType,         /* intptr_t gridXDim */
-          llvmIntPtrType,         /* intptr_t gridyDim */
-          llvmIntPtrType,         /* intptr_t gridZDim */
-          llvmIntPtrType,         /* intptr_t blockXDim */
-          llvmIntPtrType,         /* intptr_t blockYDim */
-          llvmIntPtrType,         /* intptr_t blockZDim */
-          llvmInt32Type,          /* unsigned int sharedMemBytes */
-          llvmPointerType,        /* void *hstream */
-          llvmPointerPointerType, /* void **kernelParams */
-          llvmPointerPointerType  /* void **extra */
-      }};
-  FunctionCallBuilder rtLaunchKernelCallBuilder = {
-      "mgpurtLaunchKernel",
-      llvmVoidType,
-      {
-          llvmPointerType,        /* void* f */
-          llvmIntPtrType,         /* intptr_t gridXDim */
-          llvmIntPtrType,         /* intptr_t gridyDim */
-          llvmIntPtrType,         /* intptr_t gridZDim */
-          llvmIntPtrType,         /* intptr_t blockXDim */
-          llvmIntPtrType,         /* intptr_t blockYDim */
-          llvmIntPtrType,         /* intptr_t blockZDim */
-          llvmInt32Type,          /* unsigned int sharedMemBytes */
-          llvmPointerType,        /* void *hstream */
-          llvmPointerPointerType, /* void **kernelParams */
-      }};
-  FunctionCallBuilder rtLaunchKernelErrCallBuilder = {
-      "mgpurtLaunchKernelErr",
-      llvmInt32Type,
-      {
-          llvmPointerType,        /* void* f */
-          llvmIntPtrType,         /* intptr_t gridXDim */
-          llvmIntPtrType,         /* intptr_t gridyDim */
-          llvmIntPtrType,         /* intptr_t gridZDim */
-          llvmIntPtrType,         /* intptr_t blockXDim */
-          llvmIntPtrType,         /* intptr_t blockYDim */
-          llvmIntPtrType,         /* intptr_t blockZDim */
-          llvmInt32Type,          /* unsigned int sharedMemBytes */
-          llvmPointerType,        /* void *hstream */
-          llvmPointerPointerType, /* void **kernelParams */
-      }};
-  FunctionCallBuilder rtPGOGetAlternativeCallBuilder = {
-      "mgpurtPGOGetAlternative",
-      llvmInt32Type,
-      {
-          llvmPointerType, /* const char *kernelId */
-          llvmInt32Type,   /* int totalAlternatives */
-      }};
-  FunctionCallBuilder rtPGOStartCallBuilder = {
-      "mgpurtPGOStart",
-      llvmVoidType,
-      {
-          llvmPointerType, /* const char *kernelId */
-          llvmInt32Type,   /* int totalAlternatives */
-      }};
-  FunctionCallBuilder rtPGOEndCallBuilder = {
-      "mgpurtPGOEnd",
-      llvmVoidType,
-      {
-          llvmPointerType, /* const char *kernelId */
-          llvmInt32Type,   /* int totalAlternatives */
-      }};
-  FunctionCallBuilder launchKernelCallBuilder = {
-      "mgpuLaunchKernel",
-      llvmVoidType,
-      {
-          llvmPointerType,        /* void* f */
-          llvmIntPtrType,         /* intptr_t gridXDim */
-          llvmIntPtrType,         /* intptr_t gridyDim */
-          llvmIntPtrType,         /* intptr_t gridZDim */
-          llvmIntPtrType,         /* intptr_t blockXDim */
-          llvmIntPtrType,         /* intptr_t blockYDim */
-          llvmIntPtrType,         /* intptr_t blockZDim */
-          llvmInt32Type,          /* unsigned int sharedMemBytes */
-          llvmPointerType,        /* void *hstream */
-          llvmPointerPointerType, /* void **kernelParams */
-          llvmPointerPointerType  /* void **extra */
-      }};
-  FunctionCallBuilder streamCreateCallBuilder = {
-      "mgpuStreamCreate", llvmPointerType /* void *stream */, {}};
-  FunctionCallBuilder streamDestroyCallBuilder = {
-      "mgpuStreamDestroy", llvmVoidType, {llvmPointerType /* void *stream */}};
-  FunctionCallBuilder streamSynchronizeCallBuilder = {
-      "mgpuStreamSynchronize",
-      llvmVoidType,
-      {llvmPointerType /* void *stream */}};
-};
-
-template <typename OpTy>
-class ConvertOpToGpuRuntimeCallPattern : public ConvertOpToLLVMPattern<OpTy>,
-                                         public GpuRuntimeCallBuilders {
-public:
-  explicit ConvertOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        GpuRuntimeCallBuilders(&typeConverter.getContext(), typeConverter) {}
-};
-
 static constexpr const char *kGpuBinaryStorageSuffix = "_gpubin_cst";
 static constexpr const char *kGpuModuleCtorSuffix = "_gpubin_ctor";
 static constexpr const char *kGpuModuleDtorSuffix = "_gpubin_dtor";
@@ -1508,9 +1326,10 @@ class ConvertLaunchFuncOpToGpuRuntimeCallPattern
     : public ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp> {
 public:
   ConvertLaunchFuncOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter,
-                                             StringRef gpuBinaryAnnotation)
+                                             StringRef gpuBinaryAnnotation,
+                                             std::string gpuTarget)
       : ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp>(typeConverter),
-        gpuBinaryAnnotation(gpuBinaryAnnotation) {}
+        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget) {}
 
 private:
   Value generateParamsArray(gpu::LaunchFuncOp launchOp, OpAdaptor adaptor,
@@ -1523,6 +1342,7 @@ private:
                   ConversionPatternRewriter &rewriter) const override;
 
   llvm::SmallString<32> gpuBinaryAnnotation;
+  std::string gpuTarget;
 };
 
 template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
@@ -1533,149 +1353,165 @@ template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
 }
 
 struct LowerGPUAlternativesOp
-    : public OpRewritePattern<polygeist::GPUAlternativesOp>,
+    : public OpRewritePattern<polygeist::AlternativesOp>,
       public GpuRuntimeCallBuilders {
-  using OpRewritePattern<polygeist::GPUAlternativesOp>::OpRewritePattern;
+  using OpRewritePattern<polygeist::AlternativesOp>::OpRewritePattern;
   const char *PATTERN = "lower-gpu-alternatives";
 
-  LogicalResult matchAndRewrite(polygeist::GPUAlternativesOp gao,
+  LogicalResult matchAndRewrite(polygeist::AlternativesOp gao,
                                 PatternRewriter &rewriter) const override {
+
+    if (gao->getAttrOfType<StringAttr>("alternatives.type").getValue() !=
+        "gpu_kernel")
+      return failure();
+
     Location loc = gao->getLoc();
 
     // TODO each region in the alternatives op should containt only a single
     // block - write a verifier for that
 
     if (PolygeistAlternativesMode == PAM_Static) {
+      Block *block = nullptr;
 #if POLYGEIST_ENABLE_CUDA
-      char cuErrorBuffer[4096] = {0};
+      if (gpuTarget == "cuda") {
+        char cuErrorBuffer[4096] = {0};
 
-      // TODO implement a version that does this at runtime for when we dont
-      // have block sizes or shared mem
+        // TODO implement a version that does this at runtime for when we dont
+        // have block sizes or shared mem
 
-      RETURN_ON_CUDA_ERROR(cuInit(0));
-      // For whatever reason we need a device context
-      CUdevice device;
-      RETURN_ON_CUDA_ERROR(cuDeviceGet(&device, 0));
-      CUcontext context;
-      RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
+        RETURN_ON_CUDA_ERROR(cuInit(0));
+        // For whatever reason we need a device context
+        CUdevice device;
+        RETURN_ON_CUDA_ERROR(cuDeviceGet(&device, 0));
+        CUcontext context;
+        RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
 
-      std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-          occupancies;
+        std::vector<std::tuple<Region *, int, int, int, int, int, int>>
+            occupancies;
 
-      for (auto &region : gao->getRegions()) {
-        gpu::LaunchFuncOp launchOp = nullptr;
-        region.walk([&](gpu::LaunchFuncOp l) {
-          assert(!launchOp);
-          launchOp = l;
-        });
-        assert(launchOp);
+        for (auto &region : gao->getRegions()) {
+          gpu::LaunchFuncOp launchOp = nullptr;
+          region.walk([&](gpu::LaunchFuncOp l) {
+            assert(!launchOp);
+            launchOp = l;
+          });
+          assert(launchOp);
 
-        auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
-            launchOp.getKernel());
-        assert(gpuFunc);
-        auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
-        assert(gpuModule);
-        const char *blob =
-            gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
+          auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+              launchOp.getKernel());
+          assert(gpuFunc);
+          auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
+          assert(gpuModule);
+          const char *blob =
+              gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
 
-        CUmodule cuModule;
-        CUfunction cuFunction;
-        RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
-        RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
-            &cuFunction, cuModule, launchOp.getKernelName().data()));
+          CUmodule cuModule;
+          CUfunction cuFunction;
+          RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
+          RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
+              &cuFunction, cuModule, launchOp.getKernelName().data()));
 
-        int maxThreadsPerBlock, sharedMemSize, constMemSize,
-            /* stack frame size */ localMemSize, numRegs;
-        // TODO we dont seem to be able to get spilled stores/loads count from
-        // here but ptxas outputs it? should we parse the ptxas output and add
-        // an attribute for those values
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-            cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
-        RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
-            &numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
+          int maxThreadsPerBlock, sharedMemSize, constMemSize,
+              /* stack frame size */ localMemSize, numRegs;
+          // TODO we dont seem to be able to get spilled stores/loads count from
+          // here but ptxas outputs it? should we parse the ptxas output and add
+          // an attribute for those values
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &maxThreadsPerBlock, CU_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+              cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &sharedMemSize, CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &constMemSize, CU_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &localMemSize, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, cuFunction));
+          RETURN_ON_CUDA_ERROR(cuFuncGetAttribute(
+              &numRegs, CU_FUNC_ATTRIBUTE_NUM_REGS, cuFunction));
 
-        int blockSize = 1;
-        gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
-        for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
-          if (auto cstint =
-                  dyn_cast_or_null<arith::ConstantIntOp>(dim.getDefiningOp())) {
-            blockSize *= cstint.value();
-          } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
-                         dim.getDefiningOp())) {
-            blockSize *= cstindex.value();
-          } else {
-            assert(0);
+          int blockSize = 1;
+          gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
+          for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
+            if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(
+                    dim.getDefiningOp())) {
+              blockSize *= cstint.value();
+            } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                           dim.getDefiningOp())) {
+              blockSize *= cstindex.value();
+            } else {
+              assert(0);
+            }
           }
+
+          // in the current state, only kernels with no shared memory should use
+          // the alternatives op, thus assume 0 TODO check it
+          size_t dynamicSharedMemSize = 0;
+
+          int occupancyNumBlocks;
+          RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+              &occupancyNumBlocks, cuFunction, blockSize,
+              dynamicSharedMemSize));
+
+          RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
+
+          assert(maxThreadsPerBlock >= blockSize);
+          int activeThreads = occupancyNumBlocks * blockSize;
+          occupancies.push_back({
+              &region, localMemSize,   /* lower is better */
+              activeThreads,           /* higher is better */
+              numRegs * activeThreads, /* higher is better */
+              blockSize,               /* hisher is better??? maybe? */
+              sharedMemSize,           /* lower is better */
+              constMemSize,            /* lower is better */
+          });
         }
 
-        // in the current state, only kernels with no shared memory should use
-        // the gpu_alternatives op, thus assume 0 TODO check it
-        size_t dynamicSharedMemSize = 0;
+        auto printOccupancies =
+            [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
+                    occupancies) {
+              for (auto tup : occupancies)
+                DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
+                       << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
+                       << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
+                       << std::get<6>(tup) << ", "
+                       << "\n";
+            };
 
-        int occupancyNumBlocks;
-        RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancyNumBlocks, cuFunction, blockSize, dynamicSharedMemSize));
+        LLVM_DEBUG(
+            DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
+        LLVM_DEBUG(printOccupancies(occupancies));
 
-        RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
+        auto getCost = [](auto a) -> double {
+          std::vector<float> coefficients = {4, -2, -0.1, -0.01};
+          return coefficients[0] * std::get<0>(a) +
+                 coefficients[1] * std::get<1>(a) +
+                 coefficients[2] * std::get<2>(a) +
+                 coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
+                 0 * std::get<5>(a);
+        };
+        std::stable_sort(occupancies.begin(), occupancies.end(),
+                         [&](auto a, auto b) {
+                           auto _a = pop_front(a);
+                           auto _b = pop_front(b);
+                           return getCost(_a) < getCost(_b);
+                         });
 
-        assert(maxThreadsPerBlock >= blockSize);
-        int activeThreads = occupancyNumBlocks * blockSize;
-        occupancies.push_back({
-            &region, localMemSize,   /* lower is better */
-            activeThreads,           /* higher is better */
-            numRegs * activeThreads, /* higher is better */
-            blockSize,               /* hisher is better??? maybe? */
-            sharedMemSize,           /* lower is better */
-            constMemSize,            /* lower is better */
-        });
+        LLVM_DEBUG(
+            DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
+        LLVM_DEBUG(printOccupancies(occupancies));
+        LLVM_DEBUG(DBGS() << "Choosing top option\n");
+
+        block = &*std::get<0>(occupancies[0])->begin();
       }
-
-      auto printOccupancies =
-          [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-                  occupancies) {
-            for (auto tup : occupancies)
-              DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
-                     << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
-                     << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
-                     << std::get<6>(tup) << ", "
-                     << "\n";
-          };
-
-      LLVM_DEBUG(
-          DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
-      LLVM_DEBUG(printOccupancies(occupancies));
-
-      auto getCost = [](auto a) -> double {
-        std::vector<float> coefficients = {4, -2, -0.1, -0.01};
-        return coefficients[0] * std::get<0>(a) +
-               coefficients[1] * std::get<1>(a) +
-               coefficients[2] * std::get<2>(a) +
-               coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
-               0 * std::get<5>(a);
-      };
-      std::stable_sort(occupancies.begin(), occupancies.end(),
-                       [&](auto a, auto b) {
-                         auto _a = pop_front(a);
-                         auto _b = pop_front(b);
-                         return getCost(_a) < getCost(_b);
-                       });
-
-      LLVM_DEBUG(
-          DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
-      LLVM_DEBUG(printOccupancies(occupancies));
-      LLVM_DEBUG(DBGS() << "Choosing top option\n");
-
-      auto block = &*std::get<0>(occupancies[0])->begin();
-#else
-      auto block = &*gao->getRegions()[0].begin();
 #endif
+#if POLYGEIST_ENABLE_ROCM
+      if (gpuTarget == "rocm") {
+        llvm::errs() << "warning: no support for statically choosing ROCM "
+                        "kernel alternative, picking the first one\n";
+        block = &*gao->getRegions()[0].begin();
+      }
+#endif
+      if (!block)
+        block = &*gao->getRegions()[0].begin();
 
       rewriter.eraseOp(block->getTerminator());
       rewriter.mergeBlockBefore(block, gao);
@@ -1798,12 +1634,13 @@ struct LowerGPUAlternativesOp
   }
 
   LowerGPUAlternativesOp(MLIRContext *context, LLVMTypeConverter &typeConverter,
-                         StringRef gpuBinaryAnnotation)
-      : OpRewritePattern<polygeist::GPUAlternativesOp>(context),
+                         StringRef gpuBinaryAnnotation, StringRef gpuTarget)
+      : OpRewritePattern<polygeist::AlternativesOp>(context),
         GpuRuntimeCallBuilders(context, typeConverter),
-        gpuBinaryAnnotation(gpuBinaryAnnotation) {}
+        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget) {}
 
   llvm::SmallString<32> gpuBinaryAnnotation;
+  llvm::SmallString<4> gpuTarget;
 };
 
 // Creates a struct containing all kernel parameters on the stack and returns
@@ -1988,18 +1825,40 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
 
-      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
+      const char *fatbinConstantName;
+      const char *fatbinSectionName;
+      const char *moduleIDSectionName;
+      StringRef moduleIDPrefix;
+      unsigned fatMagic;
+      constexpr unsigned CudaFatMagic = 0x466243b1;
+      constexpr unsigned HIPFatMagic = 0x48495046; // "HIPF"
+      if (gpuTarget == "cuda") {
+        fatbinConstantName = // CGM.getTriple().isMacOSX() ?
+                             // "__NV_CUDA,__nv_fatbin" :
+            ".nv_fatbin";
+        // NVIDIA's cuobjdump looks for fatbins in this section.
+        fatbinSectionName = // CGM.getTriple().isMacOSX() ? "__NV_CUDA,__fatbin"
+                            // :
+            ".nvFatBinSegment";
+        moduleIDSectionName = // CGM.getTriple().isMacOSX() ?
+                              // "__NV_CUDA,__nv_module_id" :
+            "__nv_module_id";
+        moduleIDPrefix = "__nv_";
+        fatMagic = CudaFatMagic;
+      } else {
+        fatbinConstantName = ".hip_fatbin";
+        fatbinSectionName = ".hipFatBinSegment";
+        moduleIDSectionName = "__hip_module_id";
+        moduleIDPrefix = "__hip_";
+        fatMagic = HIPFatMagic;
+      }
 
-      // TODO this is for the non-relocatable non-macOS case, handle others, see
-      // clang/CodeGen/CGCUDANV.cpp
-      const char *fatbinSectionName = ".nv_fatbin";
-      const char *fatbinWrapperSectionName = ".nvFatBinSegment";
+      // Register modules and functions like clang (clang/CodeGen/CGCUDANV.cpp)
 
       // Create and initialize the fatbin wrapper struct
       auto fatBinWrapperType = mlir::LLVM::LLVMStructType::getLiteral(
           moduleOp->getContext(),
           {llvmInt32Type, llvmInt32Type, llvmPointerType, llvmPointerType});
-      constexpr unsigned CudaFatMagic = 0x466243b1;
       auto fatBinWrapper = moduleBuilder.create<LLVM::GlobalOp>(
           loc, fatBinWrapperType, /*constant*/ true, LLVM::Linkage::Internal,
           std::string(
@@ -2007,13 +1866,13 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           /* initValue */ mlir::Attribute(),
           /* alignment */ 8, /* addrSpace */ 0);
       fatBinWrapper.setSectionAttr(
-          moduleBuilder.getStringAttr(fatbinWrapperSectionName));
+          moduleBuilder.getStringAttr(fatbinSectionName));
 
       OpBuilder globalBuilder(moduleOp->getContext());
       fatBinWrapper.getRegion().push_back(new Block);
       globalBuilder.setInsertionPointToStart(fatBinWrapper.getBody());
-      auto fatbinMagicVal = globalBuilder.create<LLVM::ConstantOp>(
-          loc, llvmInt32Type, CudaFatMagic);
+      auto fatbinMagicVal =
+          globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, fatMagic);
       auto fatbinVersionVal =
           globalBuilder.create<LLVM::ConstantOp>(loc, llvmInt32Type, 1);
       auto nullPtr = globalBuilder.create<LLVM::NullOp>(loc, llvmPointerType);
@@ -2094,8 +1953,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
              nullPtr, nullPtr, nullPtr, nullPtr, nullPtr});
       }
       // TODO this has to happen only for some CUDA versions
-      rtRegisterFatBinaryEndCallBuilder.create(loc, ctorBuilder,
-                                               {module.getResult()});
+      if (gpuTarget == "cuda")
+        rtRegisterFatBinaryEndCallBuilder.create(loc, ctorBuilder,
+                                                 {module.getResult()});
       ctorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
       auto ctorSymbol = FlatSymbolRefAttr::get(ctor);
       moduleBuilder.create<LLVM::GlobalCtorsOp>(
@@ -2373,7 +2233,7 @@ private:
     // auto stream = adaptor.getAsyncDependencies().front();
     auto stream = rewriter.create<LLVM::UndefOp>(loc, llvmPointerType);
     Value allocatedPtr =
-        rtAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream})
+        rtMemAllocCallBuilder.create(loc, rewriter, {sizeBytes, stream})
             .getResult();
     allocatedPtr =
         rewriter.create<LLVM::BitcastOp>(loc, elementPtrType, allocatedPtr);
@@ -2507,12 +2367,15 @@ populateCStyleMemRefLoweringPatterns(RewritePatternSet &patterns,
 /// pointer to arrays of arrays.
 static void
 populateCStyleGPUFuncLoweringPatterns(RewritePatternSet &patterns,
-                                      LLVMTypeConverter &typeConverter) {
+                                      LLVMTypeConverter &typeConverter,
+                                      std::string gpuTarget) {
   patterns.add<GPUFuncOpLowering>(
       typeConverter,
       /*allocaAddrSpace=*/0,
       StringAttr::get(&typeConverter.getContext(),
-                      NVVM::NVVMDialect::getKernelFuncAttrName()));
+                      gpuTarget == "cuda"
+                          ? NVVM::NVVMDialect::getKernelFuncAttrName()
+                          : ROCDL::ROCDLDialect::getKernelFuncAttrName()));
 }
 
 /// Appends the patterns lowering operations from the Func dialect to the LLVM
@@ -2532,16 +2395,19 @@ namespace {
 struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   bool onlyGpuModules;
+  std::string gpuTarget;
   ConvertPolygeistToLLVMPass() = default;
   ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
                              bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout,
-                             bool useCStyleMemRef, bool onlyGpuModules) {
+                             bool useCStyleMemRef, bool onlyGpuModules,
+                             std::string gpuTarget) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
     this->useCStyleMemRef = useCStyleMemRef;
     this->onlyGpuModules = onlyGpuModules;
+    this->gpuTarget = gpuTarget;
   }
 
   void convertModule(ModuleOp m, bool gpuModule) {
@@ -2610,7 +2476,7 @@ struct ConvertPolygeistToLLVMPass
       // TODO I am assuming this will walk in the same order every time, might
       // not be the case
       std::map<std::string, int> num;
-      m->walk([&](polygeist::GPUAlternativesOp altOp) {
+      m->walk([&](polygeist::AlternativesOp altOp) {
         std::string funcName;
         if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
           funcName = funcOp.getName();
@@ -2631,8 +2497,9 @@ struct ConvertPolygeistToLLVMPass
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());
-      patterns.add<LowerGPUAlternativesOp>(
-          &getContext(), converter, gpu::getDefaultGpuBinaryAnnotation());
+      patterns.add<LowerGPUAlternativesOp>(&getContext(), converter,
+                                           gpu::getDefaultGpuBinaryAnnotation(),
+                                           gpuTarget);
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 
@@ -2670,7 +2537,7 @@ struct ConvertPolygeistToLLVMPass
       if (gpuModule) {
         // Insert our custom version of GPUFuncLowering
         if (useCStyleMemRef) {
-          populateCStyleGPUFuncLoweringPatterns(patterns, converter);
+          populateCStyleGPUFuncLoweringPatterns(patterns, converter, gpuTarget);
         }
       }
 
@@ -2686,7 +2553,12 @@ struct ConvertPolygeistToLLVMPass
         populateFuncToLLVMConversionPatterns(converter, patterns);
       }
       if (gpuModule) {
-        populateGpuToNVVMConversionPatterns(converter, patterns);
+        if (gpuTarget == "cuda") {
+          populateGpuToNVVMConversionPatterns(converter, patterns);
+        } else if (gpuTarget == "rocm") {
+          populateGpuToROCDLConversionPatterns(converter, patterns,
+                                               gpu::amd::Runtime::HIP);
+        }
       }
       populateMathToLLVMConversionPatterns(converter, patterns);
       populateOpenMPToLLVMConversionPatterns(converter, patterns);
@@ -2696,7 +2568,7 @@ struct ConvertPolygeistToLLVMPass
       // Our custom versions of the gpu patterns
       if (useCStyleMemRef) {
         patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
-            converter, gpu::getDefaultGpuBinaryAnnotation());
+            converter, gpu::getDefaultGpuBinaryAnnotation(), gpuTarget);
         patterns.add<ConvertAllocOpToGpuRuntimeCallPattern>(converter);
       }
 
@@ -2728,7 +2600,10 @@ struct ConvertPolygeistToLLVMPass
       if (gpuModule) {
         target.addIllegalOp<func::FuncOp>();
         target.addLegalDialect<::mlir::LLVM::LLVMDialect>();
-        target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+        if (gpuTarget == "cuda")
+          target.addLegalDialect<::mlir::NVVM::NVVMDialect>();
+        else if (gpuTarget == "rocm")
+          target.addLegalDialect<::mlir::ROCDL::ROCDLDialect>();
         target.addIllegalDialect<gpu::GPUDialect>();
         target.addIllegalOp<LLVM::CosOp, LLVM::ExpOp, LLVM::Exp2Op,
                             LLVM::FAbsOp, LLVM::FCeilOp, LLVM::FFloorOp,
@@ -2824,7 +2699,7 @@ struct ConvertPolygeistToLLVMPass
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
     const LowerToLLVMOptions &options, bool useCStyleMemRef,
-    bool onlyGpuModules) {
+    bool onlyGpuModules, std::string gpuTarget) {
   auto allocLowering = options.allocLowering;
   // There is no way to provide additional patterns for pass, so
   // AllocLowering::None will always fail.
@@ -2834,7 +2709,7 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
-      options.dataLayout, useCStyleMemRef, onlyGpuModules);
+      options.dataLayout, useCStyleMemRef, onlyGpuModules, gpuTarget);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
@@ -2844,5 +2719,6 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {
   auto dl = llvm::DataLayout("");
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       false, 64u, false, dl,
-      /*usecstylememref*/ true, /* onlyGpuModules */ false);
+      /*usecstylememref*/ true, /* onlyGpuModules */ false,
+      /* gpuTarget */ "cuda");
 }

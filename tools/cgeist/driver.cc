@@ -25,6 +25,7 @@
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
+#include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
 #include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
@@ -35,6 +36,7 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -70,13 +72,18 @@
 
 using namespace llvm;
 
+#define POLYGEIST_ENABLE_GPU (POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM)
+
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
 
-static cl::opt<bool> EmitCuda("emit-cuda", cl::init(false),
+static cl::opt<bool> EmitCUDA("emit-cuda", cl::init(false),
                               cl::desc("Emit CUDA code"));
+
+static cl::opt<bool> EmitROCM("emit-rocm", cl::init(false),
+                              cl::desc("Emit ROCM code"));
 
 static cl::opt<bool>
     OutputIntermediateGPU("output-intermediate-gpu", cl::init(false),
@@ -165,11 +172,17 @@ static cl::opt<bool>
 static cl::opt<std::string> Standard("std", cl::init(""),
                                      cl::desc("C/C++ std"));
 
+static cl::opt<std::string> AMDGPUArch("amd-gpu-arch", cl::init(""),
+                                       cl::desc("AMD GPU arch"));
+
 static cl::opt<std::string> CUDAGPUArch("cuda-gpu-arch", cl::init(""),
                                         cl::desc("CUDA GPU arch"));
 
 static cl::opt<std::string> CUDAPath("cuda-path", cl::init(""),
                                      cl::desc("CUDA Path"));
+
+static cl::opt<std::string> ROCMPath("rocm-path", cl::init(""),
+                                     cl::desc("ROCM Path"));
 
 static cl::opt<bool> NoCUDAInc("nocudainc", cl::init(false),
                                cl::desc("Do not include CUDA headers"));
@@ -498,6 +511,7 @@ int main(int argc, char **argv) {
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
   polygeist::registerGpuSerializeToCubinPass();
+  polygeist::registerGpuSerializeToHsacoPass();
   MLIRContext context(registry);
 
   context.disableMultithreading();
@@ -508,6 +522,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::async::AsyncDialect>();
   context.getOrLoadDialect<mlir::LLVM::LLVMDialect>();
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
+  context.getOrLoadDialect<mlir::ROCDL::ROCDLDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
   context.getOrLoadDialect<mlir::omp::OpenMPDialect>();
   context.getOrLoadDialect<mlir::math::MathDialect>();
@@ -583,11 +598,22 @@ int main(int argc, char **argv) {
     optLevel = 3;
 
 #if !POLYGEIST_ENABLE_CUDA
-  if (EmitCuda) {
+  if (EmitCUDA) {
     llvm::errs() << "error: no CUDA support, aborting\n";
     return 1;
   }
 #endif
+#if !POLYGEIST_ENABLE_ROCM
+  if (EmitROCM) {
+    llvm::errs() << "error: no ROCM support, aborting\n";
+    return 1;
+  }
+#endif
+  if (EmitCUDA && EmitROCM) {
+    llvm::errs() << "Cannot emit both CUDA and ROCM\n";
+    return 1;
+  }
+  bool EmitGPU = EmitROCM || EmitCUDA;
 
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
@@ -680,22 +706,22 @@ int main(int argc, char **argv) {
       }
     }
 
-    if (CudaLower) {
+    if (CudaLower || EmitROCM) {
       mlir::PassManager pm(&context);
       enablePrinting(pm);
       mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
       optPM.addPass(mlir::createLowerAffinePass());
       optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
-#if POLYGEIST_ENABLE_CUDA
-      pm.addPass(polygeist::createParallelLowerPass(
-          /* wrapParallelOps */ EmitCuda, GPUKernelStructureMode));
-      if (!EmitCuda)
-        pm.addPass(polygeist::createCudaRTLowerPass());
-#else
-      pm.addPass(polygeist::createParallelLowerPass());
-      pm.addPass(polygeist::createCudaRTLowerPass());
-#endif
-
+      if (CudaLower) {
+        pm.addPass(polygeist::createParallelLowerPass(
+            /* wrapParallelOps */ EmitGPU, GPUKernelStructureMode));
+      }
+      pm.addPass(polygeist::createConvertCudaRTtoGPUPass());
+      if (ToCPU.size() > 0) {
+        pm.addPass(polygeist::createConvertCudaRTtoCPUPass());
+      } else if (EmitROCM) {
+        pm.addPass(polygeist::createConvertCudaRTtoHipRTPass());
+      }
       pm.addPass(mlir::createSymbolDCEPass());
       mlir::OpPassManager &noptPM = pm.nest<mlir::func::FuncOp>();
       noptPM.addPass(
@@ -825,7 +851,7 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-    if (EmitCuda || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
+    if (EmitGPU || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
         EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
       if (InnerSerialize)
@@ -838,8 +864,8 @@ int main(int argc, char **argv) {
       }
     }
 
-#if POLYGEIST_ENABLE_CUDA
-    if (EmitCuda) {
+#if POLYGEIST_ENABLE_GPU
+    if (EmitGPU) {
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
@@ -894,10 +920,22 @@ int main(int argc, char **argv) {
         // invalid for gemm.c init array
         // options.useBarePtrCallConv = true;
 
-#if POLYGEIST_ENABLE_CUDA
-        if (EmitCuda) {
+#if POLYGEIST_ENABLE_GPU
+        if (EmitGPU) {
+          // Set the max block size to 1024 by default for ROCM (otherwise it
+          // will be 256)
+          OpBuilder builder(module.get()->getContext());
+          module.get().walk([&](gpu::GPUFuncOp gpuFuncOp) {
+            StringRef attrName = "rocdl.max_flat_work_group_size";
+            if (!gpuFuncOp->hasAttr(attrName)) {
+              gpuFuncOp->setAttr(attrName, builder.getIntegerAttr(
+                                               builder.getIndexType(), 1024));
+            }
+          });
+
           pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
-              options, CStyleMemRef, /* onlyGpuModules */ true));
+              options, CStyleMemRef, /* onlyGpuModules */ true,
+              EmitCUDA ? "cuda" : "rocm"));
 
           using namespace clang;
           using namespace clang::driver;
@@ -913,22 +951,63 @@ int main(int argc, char **argv) {
           PolygeistCudaDetectorArgList argList;
           CudaInstallationDetector detector(*driver, triple, argList);
 
-          std::string arch = CUDAGPUArch;
-          if (arch == "")
-            arch = "sm_60";
-          std::string libDevicePath = detector.getLibDeviceFile(arch);
-          std::string ptxasPath = std::string(detector.getBinPath()) + "/ptxas";
+          if (EmitCUDA) {
+#if POLYGEIST_ENABLE_CUDA
+            std::string arch = CUDAGPUArch;
+            if (arch == "")
+              arch = "sm_60";
+            std::string libDevicePath = detector.getLibDeviceFile(arch);
+            std::string ptxasPath =
+                std::string(detector.getBinPath()) + "/ptxas";
 
-          // TODO what should the ptx version be?
-          mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
-          gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
-              gpuTriple.getTriple(), arch, "+ptx74", optLevel, NvptxOptLevel,
-              ptxasPath, libDevicePath, OutputIntermediateGPU));
+            // TODO what should the ptx version be?
+            mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+            gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
+                arch, "+ptx74", optLevel, NvptxOptLevel, ptxasPath,
+                libDevicePath, OutputIntermediateGPU));
+#endif
+          } else if (EmitROCM) {
+#if POLYGEIST_ENABLE_ROCM
+            std::string arch = AMDGPUArch;
+            if (arch == "")
+              arch = "gfx1030";
+
+            {
+              // AMDGPU triple is fixed for our purposes
+              auto triple = "amdgcn-amd-amdhsa";
+              // TODO this should probably depend on the gpu arch
+              auto DL = "e-p:64:64-p1:64:64-p2:32:32-p3:32:32-p4:64:64-p5:32:"
+                        "32-p6:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:"
+                        "128-v192:256-v256:256-v512:512-v1024:1024-v2048:2048-"
+                        "n32:64-S32-A5-G1-ni:7";
+
+              module.get()->setAttr(
+                  StringRef("polygeist.gpu_module." +
+                            LLVM::LLVMDialect::getTargetTripleAttrName().str()),
+                  StringAttr::get(module->getContext(), triple));
+              module.get()->setAttr(
+                  StringRef("polygeist.gpu_module." +
+                            LLVM::LLVMDialect::getDataLayoutAttrName().str()),
+                  StringAttr::get(module.get()->getContext(), DL));
+            }
+
+            mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
+            int HsaOptLevel = NvptxOptLevel;
+            gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
+                arch, "", optLevel,
+                /* TODO do we need this param? */ HsaOptLevel, ROCMPath,
+                OutputIntermediateGPU));
+#endif
+          } else {
+            assert(0);
+            llvm_unreachable("?");
+          }
         }
 #endif
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
-            options, CStyleMemRef, /* onlyGpuModules */ false));
+            options, CStyleMemRef, /* onlyGpuModules */ false,
+            EmitCUDA ? "cuda" : "rocm"));
         pm3.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
 
         if (mlir::failed(pm3.run(module.get()))) {
@@ -959,7 +1038,7 @@ int main(int argc, char **argv) {
       return -1;
     }
 #if POLYGEIST_ENABLE_CUDA
-    if (EmitCuda) {
+    if (EmitCUDA) {
 // This header defines:
 // unsigned char CudaRuntimeWrappers_cpp_bc[]
 // unsigned int CudaRuntimeWrappers_cpp_bc_len
@@ -981,6 +1060,32 @@ int main(int argc, char **argv) {
       // linking or make them linkeonce_odr (preferred) in so that llvm can
       // inline them
       llvm::Linker::linkModules(*llvmModule, std::move(cudaWrapper),
+                                llvm::Linker::Flags::LinkOnlyNeeded);
+    }
+#endif
+#if POLYGEIST_ENABLE_ROCM
+    if (EmitROCM) {
+// This header defines:
+// unsigned char RocmRuntimeWrappers_cpp_bc[]
+// unsigned int RocmRuntimeWrappers_cpp_bc_len
+#include "../lib/polygeist/ExecutionEngine/RocmRuntimeWrappers.cpp.bin.h"
+      StringRef blobStrRef((const char *)RocmRuntimeWrappers_cpp_bc,
+                           RocmRuntimeWrappers_cpp_bc_len);
+      MemoryBufferRef blobMemoryBufferRef(blobStrRef, "Binary include");
+      llvm::SMDiagnostic err;
+      std::unique_ptr<llvm::Module> rocmWrapper =
+          llvm::parseIR(blobMemoryBufferRef, err, llvmContext);
+      if (!rocmWrapper || llvm::verifyModule(*rocmWrapper, &llvm::errs())) {
+        llvm::errs() << "Failed to load ROCM wrapper bitcode module\n";
+        return -1;
+      }
+      // Link in required wrapper functions
+      //
+      // TODO currently the wrapper symbols have weak linkage which does not
+      // allow them to be inlined - we should either internalize them after
+      // linking or make them linkeonce_odr (preferred) in so that llvm can
+      // inline them
+      llvm::Linker::linkModules(*llvmModule, std::move(rocmWrapper),
                                 llvm::Linker::Flags::LinkOnlyNeeded);
     }
 #endif

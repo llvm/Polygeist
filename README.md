@@ -30,7 +30,11 @@ ninja
 ninja check-mlir
 ```
 
-To enable compilation to cuda add `-DMLIR_ENABLE_CUDA_RUNNER=1` and remove `-DLLVM_TARGETS_TO_BUILD="host"` from the cmake arguments. (You may need to specify `CUDACXX`, `CUDA_PATH`, or `CMAKE_CUDA_COMPILER`)
+To enable compilation to cuda add `-DMLIR_ENABLE_CUDA_RUNNER=1` and remove `-DLLVM_TARGETS_TO_BUILD="host"` from the cmake arguments. (You may need to specify `CUDACXX`, `CUDA_PATH`, and/or `-DCMAKE_CUDA_COMPILER`)
+
+To enable the ROCM backend add `-DMLIR_ENABLE_ROCM_RUNNER=1` and remove `-DLLVM_TARGETS_TO_BUILD="host"` from the cmake arguments. (You may need to specify `-DHIP_CLANG_INCLUDE_PATH`, and/or `ROCM_PATH`)
+
+For faster compilation we recommend using `-DLLVM_USE_LINKER=lld`.
 
 2. Build Polygeist:
 ```sh
@@ -47,6 +51,10 @@ ninja check-polygeist-opt && ninja check-cgeist
 ```
 
 To enable compilation to cuda add `-DPOLYGEIST_ENABLE_CUDA=1`
+
+To enable the ROCM backend add `-DPOLYGEIST_ENABLE_ROCM=1`
+
+For faster compilation we recommend using `-DPOLYGEIST_USE_LINKER=lld`.
 
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
 

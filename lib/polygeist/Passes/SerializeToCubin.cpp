@@ -93,8 +93,7 @@ class SerializeToCubinPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(SerializeToCubinPass)
 
-  SerializeToCubinPass(StringRef triple = "nvptx64-nvidia-cuda",
-                       StringRef chip = "sm_35", StringRef features = "+ptx60",
+  SerializeToCubinPass(StringRef chip = "sm_35", StringRef features = "+ptx60",
                        int llvmOptLevel = 3, int ptxasOptLevel = 3,
                        std::string ptxasPath = "",
                        std::string libDevicePath = "",
@@ -132,13 +131,11 @@ static void maybeSetOption(Pass::Option<std::string> &option, StringRef value) {
     option = value.str();
 }
 
-SerializeToCubinPass::SerializeToCubinPass(StringRef triple, StringRef chip,
-                                           StringRef features, int llvmOptLevel,
-                                           int ptxasOptLevel,
+SerializeToCubinPass::SerializeToCubinPass(StringRef chip, StringRef features,
+                                           int llvmOptLevel, int ptxasOptLevel,
                                            std::string ptxasPath,
                                            std::string libDevicePath,
                                            bool outputIntermediate) {
-  maybeSetOption(this->triple, triple);
   maybeSetOption(this->chip, chip);
   maybeSetOption(this->features, features);
   this->llvmOptLevel = llvmOptLevel;
@@ -163,9 +160,10 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   mlir::ModuleOp tmpModule(
       mlir::ModuleOp::create(mlir::OpBuilder(m->getContext()).getUnknownLoc()));
   // Prepare DL, triple attributes
-  auto triple =
-      m->getAttr(StringRef("polygeist.gpu_module." +
-                           LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+  auto triple = m->getAttrOfType<StringAttr>(
+      StringRef("polygeist.gpu_module." +
+                LLVM::LLVMDialect::getTargetTripleAttrName().str()));
+  this->triple = std::string(triple.getValue());
   auto DL = m->getAttrOfType<mlir::StringAttr>(
                  StringRef("polygeist.gpu_module." +
                            LLVM::LLVMDialect::getDataLayoutAttrName().str()))
@@ -393,18 +391,17 @@ void registerGpuSerializeToCubinPass() {
 }
 
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
-    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
-    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
-    bool outputIntermediate) {
+    StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
+    std::string ptxasPath, std::string libDevicePath, bool outputIntermediate) {
   return std::make_unique<SerializeToCubinPass>(
-      triple, arch, features, llvmOptLevel, ptxasOptLevel, ptxasPath,
-      libDevicePath, outputIntermediate);
+      arch, features, llvmOptLevel, ptxasOptLevel, ptxasPath, libDevicePath,
+      outputIntermediate);
 }
 
 } // namespace mlir::polygeist
 
-#else // MLIR_GPU_TO_CUBIN_PASS_ENABLE
+#else
 namespace mlir::polygeist {
 void registerGpuSerializeToCubinPass() {}
 } // namespace mlir::polygeist
-#endif // MLIR_GPU_TO_CUBIN_PASS_ENABLE
+#endif

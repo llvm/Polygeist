@@ -87,7 +87,7 @@ module {
 // CHECK:             scf.if %[[VAL_23]] {
 // CHECK:               memref.store %[[VAL_6]], %[[VAL_2]]{{\[}}%[[VAL_21]]] : memref<?xf64>
 // CHECK:             }
-// CHECK:             nvvm.barrier0
+// CHECK:             gpu.barrier
 // CHECK:             memref.store %[[VAL_7]], %[[VAL_0]]{{\[}}%[[VAL_21]], %[[VAL_22]]] : memref<?x100xf64>
 // CHECK:             gpu.terminator
 // CHECK:           }

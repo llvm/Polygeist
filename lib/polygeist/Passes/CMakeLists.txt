@@ -16,6 +16,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ForBreakToWhile.cpp
   ConvertParallelToGPU.cpp
   SerializeToCubin.cpp
+  SerializeToHsaco.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
@@ -47,6 +48,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRSCFToControlFlow
   MLIRTargetLLVMIRImport
   MLIRTransformUtils
+  MLIRGPUToROCDLTransforms
   MLIRControlFlowToLLVM
   MLIRMemRefToLLVM
   MLIRFuncToLLVM
@@ -84,4 +86,11 @@ if(POLYGEIST_ENABLE_CUDA)
     ${CUDA_DRIVER_LIBRARY}
   )
 
+endif()
+if(POLYGEIST_ENABLE_ROCM)
+  # Enable gpu-to-hsaco pass.
+  target_compile_definitions(obj.MLIRPolygeistTransforms
+    PRIVATE
+    POLYGEIST_ENABLE_ROCM=1
+  )
 endif()

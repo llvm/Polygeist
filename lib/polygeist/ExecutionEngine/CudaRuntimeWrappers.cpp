@@ -14,15 +14,11 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <mutex>
-#include <time.h>
 
 #include "cuda.h"
 #include "cuda_runtime.h"
+
+#include "PGORuntime.h"
 
 #ifdef _WIN32
 #define MLIR_CUDA_WRAPPERS_EXPORT __declspec(dllexport) __attribute__((weak))
@@ -79,122 +75,12 @@ public:
   ~ScopedContext() { CUDA_REPORT_IF_ERROR(cuCtxPopCurrent(nullptr)); }
 };
 
-class PGOState {
-public:
-  enum Type { Start, End };
-  struct State {
-    struct timespec start_clock;
-  };
-
-  inline static int alternative;
-  inline static std::string dirname;
-  inline thread_local static std::mutex mutex;
-  inline thread_local static std::map<std::string, State *> states;
-
-  std::string kernelId;
-  int totalAlternatives;
-
-  PGOState(const char *kernelId_c, int totalAlternatives)
-      : totalAlternatives(totalAlternatives) {
-    kernelId = kernelId_c;
-    for (char &c : kernelId)
-      if (c == '/')
-        c = '+';
-  }
-  void end() {
-    struct timespec end_clock;
-    cudaDeviceSynchronize();
-    clock_gettime(CLOCK_MONOTONIC, &end_clock);
-
-    std::unique_lock<std::mutex> lock(mutex);
-    if (states.count(kernelId) == 0) {
-      std::cerr << "No kernel with id " << kernelId << "running" << std::endl;
-      exit(1);
-    }
-    State *state = states[kernelId];
-    struct timespec tmp_clock {
-      end_clock.tv_sec - state->start_clock.tv_sec,
-          end_clock.tv_nsec - state->start_clock.tv_nsec
-    };
-    double elapsed =
-        (tmp_clock.tv_sec + ((double)tmp_clock.tv_nsec) * .000000001);
-
-    // Only write to file if we are profiling a valid alternative
-    if (0 <= alternative && alternative < totalAlternatives) {
-      // TODO error handling
-      std::ofstream ofile;
-      ofile.open(std::string(dirname) + "/" + kernelId,
-                 std::ios::out | std::ios::app);
-      ofile << alternative << " " << elapsed << std::endl;
-      ofile.close();
-    }
-
-    delete state;
-    states.erase(states.find(kernelId));
-  }
-
-  void start() {
-    std::unique_lock<std::mutex> lock(mutex);
-    State *state = new State();
-    if (states.count(kernelId) == 1) {
-      std::cerr << "Two kernels with id " << kernelId
-                << "running at the same time" << std::endl;
-      exit(1);
-    }
-    states[kernelId] = state;
-    // Start timing
-    cudaDeviceSynchronize();
-    clock_gettime(CLOCK_MONOTONIC, &state->start_clock);
-  }
-
-  int getAlternative() {
-    static int init = [&] {
-      if (char *i = getenv(POLYGEIST_PGO_ALTERNATIVE_ENV_VAR)) {
-        this->alternative = atoi(i);
-      } else {
-        std::cerr << POLYGEIST_PGO_ALTERNATIVE_ENV_VAR << " not defined"
-                  << std::endl;
-        exit(1);
-      }
-      if (char *d = getenv(POLYGEIST_PGO_DATA_DIR_ENV_VAR)) {
-        this->dirname = d;
-      } else {
-        this->dirname = POLYGEIST_PGO_DEFAULT_DATA_DIR;
-      }
-      std::filesystem::create_directories(dirname);
-      return 0;
-    }();
-    if (0 <= alternative && alternative < totalAlternatives)
-      return alternative;
-    else
-      return 0;
-  }
-
-  ~PGOState() {}
-};
-
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
-mgpurtPGOGetAlternative(const char *kernelID, int totalAlternatives) {
-  PGOState pgoState(kernelID, totalAlternatives);
-  return pgoState.getAlternative();
-}
-
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
-mgpurtPGOStart(const char *kernelID, int totalAlternatives) {
-  PGOState pgoState(kernelID, totalAlternatives);
-  pgoState.start();
-}
-
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtPGOEnd(const char *kernelID,
-                                                       int totalAlternatives) {
-  PGOState pgoState(kernelID, totalAlternatives);
-  pgoState.end();
-}
+//========= CUDA RUNTIME API =========//
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
 mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
                    intptr_t gridZ, intptr_t blockX, intptr_t blockY,
-                   intptr_t blockZ, int32_t smem, CUstream stream,
+                   intptr_t blockZ, int32_t smem, cudaStream_t stream,
                    void **params) {
   CUDART_REPORT_IF_ERROR(cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
                                           dim3(blockX, blockY, blockZ), params,
@@ -204,18 +90,30 @@ mgpurtLaunchKernel(void *function, intptr_t gridX, intptr_t gridY,
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtLaunchKernelErr(
     void *function, intptr_t gridX, intptr_t gridY, intptr_t gridZ,
     intptr_t blockX, intptr_t blockY, intptr_t blockZ, int32_t smem,
-    CUstream stream, void **params) {
+    cudaStream_t stream, void **params) {
   return CUDART_REPORT_IF_ERROR(
       cudaLaunchKernel(function, dim3(gridX, gridY, gridZ),
                        dim3(blockX, blockY, blockZ), params, smem, stream));
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAlloc(uint64_t sizeBytes,
-                                                          CUstream /*stream*/) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *
+mgpurtMemAlloc(uint64_t sizeBytes, cudaStream_t /*stream*/) {
   void *ptr;
   CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
   return reinterpret_cast<void *>(ptr);
 }
+
+extern "C" void mgpurtMemcpyErr(void *dst, void *src, size_t sizeBytes) {
+  CUDART_REPORT_IF_ERROR(cudaMemcpy(dst, src, sizeBytes, cudaMemcpyDefault));
+}
+
+extern "C" void mgpurtMemcpyAsyncErr(void *dst, void *src, size_t sizeBytes,
+                                     cudaStream_t stream) {
+  CUDART_REPORT_IF_ERROR(
+      cudaMemcpyAsync(dst, src, sizeBytes, cudaMemcpyDefault, stream));
+}
+
+//========= CUDA DRIVER API =========//
 
 // The wrapper uses intptr_t instead of CUDA's unsigned int to match
 // the type of MLIR's index type. This avoids the need for casts in the
@@ -260,4 +158,40 @@ mgpuModuleGetFunction(CUmodule module, const char *name) {
   CUfunction function = nullptr;
   CUDA_REPORT_IF_ERROR(cuModuleGetFunction(&function, module, name));
   return function;
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtDeviceSynchronizeErr(void) {
+  return CUDART_REPORT_IF_ERROR(cudaDeviceSynchronize());
+}
+
+extern "C" void __cudaRegisterFunction(void **fatCubinHandle, void *hostFun,
+                                       void *deviceFun, void *deviceName,
+                                       int32_t thread_limit, void *tid,
+                                       void *bid, void *bDim, void *gDim,
+                                       void *wSize);
+extern "C" void **__cudaRegisterFatBinary(void *fatCubin);
+extern "C" void __cudaRegisterFatBinaryEnd(void **fatCubinHandle);
+extern "C" void __cudaUnregisterFatBinary(void **fatCubinHandle);
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtRegisterFunction(void **fatCubinHandle, void *hostFun, void *deviceFun,
+                         void *deviceName, int32_t thread_limit, void *tid,
+                         void *bid, void *bDim, void *gDim, void *wSize) {
+  __cudaRegisterFunction(fatCubinHandle, hostFun, deviceFun, deviceName,
+                         thread_limit, tid, bid, bDim, gDim, wSize);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void **
+__mgpurtRegisterFatBinary(void *fatCubin) {
+  return __cudaRegisterFatBinary(fatCubin);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtRegisterFatBinaryEnd(void **fatCubinHandle) {
+  return __cudaRegisterFatBinaryEnd(fatCubinHandle);
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void
+__mgpurtUnregisterFatBinary(void **fatCubinHandle) {
+  return __cudaUnregisterFatBinary(fatCubinHandle);
 }

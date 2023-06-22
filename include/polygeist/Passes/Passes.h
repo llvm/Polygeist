@@ -34,10 +34,13 @@ std::unique_ptr<Pass> createRemoveTrivialUsePass();
 std::unique_ptr<Pass> createParallelLowerPass(
     bool wrapParallelOps = false,
     PolygeistGPUStructureMode gpuKernelStructureMode = PGSM_Discard);
-std::unique_ptr<Pass> createCudaRTLowerPass();
+std::unique_ptr<Pass> createConvertCudaRTtoCPUPass();
+std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
+std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass();
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef, bool onlyGpuModules);
+                                 bool useCStyleMemRef, bool onlyGpuModules,
+                                 std::string gpuTarget);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass>
@@ -45,10 +48,15 @@ createConvertParallelToGPUPass1(bool useOriginalThreadNums = false);
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
-    StringRef triple, StringRef arch, StringRef features, int llvmOptLevel,
-    int ptxasOptLevel, std::string ptxasPath, std::string libDevicePath,
-    bool outputIntermediate);
+    StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
+    std::string ptxasPath, std::string libDevicePath, bool outputIntermediate);
+std::unique_ptr<Pass>
+createGpuSerializeToHsacoPass(StringRef arch, StringRef features,
+                              int llvmOptLevel, int hsaOptLevel,
+                              std::string rocmPath, bool outputIntermediate);
+
 void registerGpuSerializeToCubinPass();
+void registerGpuSerializeToHsacoPass();
 
 void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
 } // namespace polygeist
