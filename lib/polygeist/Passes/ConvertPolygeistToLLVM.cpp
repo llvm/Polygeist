@@ -2104,6 +2104,23 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   return success();
 }
 
+struct ReplaceErrOpWithSuccess
+    : public OpRewritePattern<polygeist::GPUErrorOp> {
+  using OpRewritePattern<polygeist::GPUErrorOp>::OpRewritePattern;
+  const char *PATTERN = "lower-gpu-alternatives";
+
+  LogicalResult matchAndRewrite(polygeist::GPUErrorOp errOp,
+                                PatternRewriter &rewriter) const override {
+    rewriter.setInsertionPoint(errOp);
+    rewriter.eraseOp(errOp.getBody()->getTerminator());
+    rewriter.mergeBlockBefore(errOp.getBody(), errOp);
+    rewriter.setInsertionPoint(errOp);
+    auto zero = rewriter.create<arith::ConstantIndexOp>(errOp->getLoc(), 0);
+    rewriter.replaceOp(errOp, zero->getResults());
+    return success();
+  }
+};
+
 /// Pattern for gpu function declarations and definitions.
 struct GPUFuncOpLowering : public ConvertOpToLLVMPattern<gpu::GPUFuncOp> {
 private:
@@ -2583,6 +2600,7 @@ struct ConvertPolygeistToLLVMPass
       patterns.add<LowerGPUAlternativesOp>(&getContext(), converter,
                                            gpu::getDefaultGpuBinaryAnnotation(),
                                            gpuTarget);
+      patterns.add<ReplaceErrOpWithSuccess>(&getContext());
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 

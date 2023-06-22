@@ -1393,6 +1393,22 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // async{parallel {parallel {}}} to a gpu.launch
     // TODO handle dyn shmem
     rewriter.setInsertionPoint(gridPop);
+
+    // Launch only if the grid size > 0 because launching with 0 blocks is an
+    // error in cuda (we do not need the same for blocks because this only
+    // happens when we coarsen the blocks with an epilogue loop)
+    auto one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    auto cond0 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                gridBounds[0], one);
+    auto cond1 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                gridBounds[1], one);
+    auto cond2 = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+                                                gridBounds[2], one);
+    auto cond = rewriter.create<arith::AndIOp>(loc, cond0, cond1);
+    cond = rewriter.create<arith::AndIOp>(loc, cond, cond2);
+    auto ifOp = rewriter.create<scf::IfOp>(loc, cond, /*hasElse*/ false);
+
+    rewriter.setInsertionPointToStart(&*ifOp.getThenRegion().begin());
     auto launchOp = rewriter.create<gpu::LaunchOp>(
         loc, gridBounds[0], gridBounds[1], gridBounds[2], blockBounds[0],
         blockBounds[1], blockBounds[2],
