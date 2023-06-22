@@ -226,7 +226,15 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
     llvm::dbgs().flush();
   });
 
-  // TODO is there a libdevice equivalent in AMD land?
+  // Set correct attributes for global __constant__ and __device__ variables
+  for (auto &GV : llvmModule->globals()) {
+    auto AS = GV.getAddressSpace();
+    if (AS == 4 || AS == 1) {
+      GV.setVisibility(
+          llvm::GlobalVariable::VisibilityTypes::ProtectedVisibility);
+      GV.setExternallyInitialized(true);
+    }
+  }
 
   auto ret = std::move(llvmModule);
 

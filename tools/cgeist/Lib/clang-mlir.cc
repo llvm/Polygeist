@@ -4910,6 +4910,16 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix,
       initial_value, mlir::UnitAttr(), /*alignment*/ nullptr);
   SymbolTable::setSymbolVisibility(globalOp, lnk);
 
+  // TODO we should probably set the mem spaces here? But I am not sure that
+  // works well with our one-module representation because the host-side "stubs"
+  // have the default 0 memespace and it is only the device side globals that
+  // should have the gpu specific memspace
+  if (VD->hasAttr<CUDAConstantAttr>()) {
+    globalOp->setAttr("polygeist.cuda_constant", builder.getUnitAttr());
+  } else if (VD->hasAttr<CUDADeviceAttr>()) {
+    globalOp->setAttr("polygeist.cuda_device", builder.getUnitAttr());
+  }
+
   globals[name] = std::make_pair(globalOp, isArray);
 
   if (tryInit)
