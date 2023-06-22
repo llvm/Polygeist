@@ -276,6 +276,10 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   assert(dim >= 0 && dim < pop.getUpperBound().size());
   assert(isNormalized(pop));
 
+  if (unrollFactor == 1) {
+    return success();
+  }
+
   // Return if the loop body is empty.
   if (llvm::hasSingleElement(pop.getBody()->getOperations()))
     return success();
