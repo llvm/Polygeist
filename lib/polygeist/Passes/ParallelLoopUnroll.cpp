@@ -309,11 +309,11 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     if (upperBoundRem && !generateEpilogueLoop) {
       return failure();
     }
-
-    upperBoundUnrolled =
-        builder.create<arith::ConstantIndexOp>(loc, ubCst / unrollFactor);
-    if (upperBoundUnrolled == 0)
+    auto upperBoundUnrolledCst = ubCst / unrollFactor;
+    if (upperBoundUnrolledCst == 0)
       return failure();
+    upperBoundUnrolled =
+        builder.create<arith::ConstantIndexOp>(loc, upperBoundUnrolledCst);
     remUnrolled = builder.create<arith::ConstantIndexOp>(loc, upperBoundRem);
     remUnrolledCst = upperBoundRem;
   } else if (lbCstOp && !ubCstOp && stepCstOp) {
