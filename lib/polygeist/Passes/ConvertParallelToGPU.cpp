@@ -1637,9 +1637,9 @@ struct ConvertParallelToGPU1Pass
       for (polygeist::GPUWrapperOp wrapper : toHandle) {
         const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS = {
             {},
-            {{32}, {16}, {8}, {4}, {2}},
-            {{4, 8}, {4, 4}, {2, 4}, {2, 2}, {1, 2}},
-            {{2, 4, 4}, {2, 2, 4}, {2, 2, 2}, {1, 2, 2}, {1, 1, 2}},
+            {{32}, {16}, {8}, {4}, {2}, {1}},
+            {{4, 8}, {4, 4}, {2, 4}, {2, 2}, {1, 2}, {1, 1}},
+            {{2, 4, 4}, {2, 2, 4}, {2, 2, 2}, {1, 2, 2}, {1, 1, 2}, {1, 1, 1}},
         };
 
         const char *PATTERN = "coarsen-threads";
@@ -1673,39 +1673,47 @@ struct ConvertParallelToGPU1Pass
         auto loc = wrapper->getLoc();
 
         OpBuilder builder(wrapper);
-        auto alternativesOp = builder.create<polygeist::AlternativesOp>(
-            loc, UNROLL_FACTORS[blockDims].size() + 1 - firstUnrollFactorId);
+        // Coarsen blocks with all factors, and coarsen threads only by factors
+        // which do not bring the number of threads under 32
+        unsigned numAlternatives =
+            UNROLL_FACTORS[blockDims].size() *
+            (UNROLL_FACTORS[blockDims].size() - firstUnrollFactorId);
+        auto alternativesOp =
+            builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
         alternativesOp->setAttr("alternatives.type",
                                 builder.getStringAttr("gpu_kernel"));
 
         unsigned curRegion = 0;
 
-        // Original version
-        auto block = &*alternativesOp->getRegion(curRegion).begin();
-        builder.setInsertionPointToStart(block);
-        builder.clone(*wrapper.getOperation());
-        curRegion++;
-
         // Coarsened versions
-        for (unsigned i = firstUnrollFactorId;
-             i < UNROLL_FACTORS[blockDims].size(); i++) {
-          auto unrollFactors = UNROLL_FACTORS[blockDims][i];
-          auto block = &*alternativesOp->getRegion(curRegion).begin();
-          builder.setInsertionPointToStart(block);
-          auto newWrapper = cast<polygeist::GPUWrapperOp>(
-              builder.clone(*wrapper.getOperation()));
-          scf::ParallelOp gridPop =
-              getDirectlyNestedSingleParallel(newWrapper.getBody());
-          assert(gridPop);
-          scf::ParallelOp blockPop =
-              getDirectlyNestedSingleParallel(gridPop.getBody(), true);
-          assert(blockPop);
-          if (polygeist::scfParallelUnrollByFactors(
-                  blockPop, ArrayRef<uint64_t>(unrollFactors),
-                  /* generateEpilogueLoop */ false, nullptr)
-                  .failed())
-            wrapper->emitRemark("Failed to coarsen threads");
-          curRegion++;
+        for (unsigned iThread = firstUnrollFactorId;
+             iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
+          for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[blockDims].size();
+               iBlock++) {
+            auto block = &*alternativesOp->getRegion(curRegion).begin();
+            builder.setInsertionPointToStart(block);
+            auto newWrapper = cast<polygeist::GPUWrapperOp>(
+                builder.clone(*wrapper.getOperation()));
+            scf::ParallelOp gridPop =
+                getDirectlyNestedSingleParallel(newWrapper.getBody());
+            assert(gridPop);
+            scf::ParallelOp blockPop =
+                getDirectlyNestedSingleParallel(gridPop.getBody(), true);
+            assert(blockPop);
+            auto unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+            if (polygeist::scfParallelUnrollByFactors(
+                    blockPop, ArrayRef<uint64_t>(unrollFactors),
+                    /* generateEpilogueLoop */ false, nullptr)
+                    .failed())
+              wrapper->emitRemark("Failed to coarsen threads");
+            unrollFactors = UNROLL_FACTORS[blockDims][iBlock];
+            if (polygeist::scfParallelUnrollByFactors(
+                    gridPop, ArrayRef<uint64_t>(unrollFactors),
+                    /* generateEpilogueLoop */ true, nullptr)
+                    .failed())
+              wrapper->emitRemark("Failed to coarsen threads");
+            curRegion++;
+          }
         }
 
         wrapper->erase();
