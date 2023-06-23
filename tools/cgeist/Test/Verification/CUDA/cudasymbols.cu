@@ -2,7 +2,7 @@
 // RUN: cgeist %s --cuda-lower --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S -emit-llvm-dialect -output-intermediate-gpu=1 -emit-cuda -c | FileCheck %s
 // TODO only do this test if we have a cuda build
 
-#include "Inputs/cuda.h"
+#include "../Inputs/cuda.h"
 #include "__clang_cuda_builtin_vars.h"
 
 __device__ float dev_array[2];

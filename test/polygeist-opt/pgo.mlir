@@ -23,8 +23,8 @@ module {
 // CHECK:           %[[VAL_0:.*]] = llvm.mlir.constant(2 : i32) : i32
 // CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:           %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK:           %[[VAL_3:.*]] = llvm.mlir.addressof @kernelId.0 : !llvm.ptr<array<70 x i8>>
-// CHECK:           %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_3]][0, 0] : (!llvm.ptr<array<70 x i8>>) -> !llvm.ptr<i8>
+// CHECK:           %[[VAL_3:.*]] = llvm.mlir.addressof @kernelId.0 : !llvm.ptr<array<[[LEN:.*]] x i8>>
+// CHECK:           %[[VAL_4:.*]] = llvm.getelementptr %[[VAL_3]][0, 0] : (!llvm.ptr<array<[[LEN]] x i8>>) -> !llvm.ptr<i8>
 // CHECK:           %[[VAL_5:.*]] = llvm.call @mgpurtPGOGetAlternative(%[[VAL_4]], %[[VAL_0]]) : (!llvm.ptr<i8>, i32) -> i32
 // CHECK:           %[[VAL_6:.*]] = llvm.icmp "eq" %[[VAL_5]], %[[VAL_1]] : i32
 // CHECK:           llvm.cond_br %[[VAL_6]], ^bb1, ^bb2
