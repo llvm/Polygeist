@@ -44,7 +44,8 @@ createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
                                  std::string gpuTarget);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
-std::unique_ptr<Pass> createConvertParallelToGPUPass1();
+std::unique_ptr<Pass>
+createConvertParallelToGPUPass1(std::string arch = "sm_60");
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
 std::unique_ptr<Pass> createMergeGPUModulesPass();

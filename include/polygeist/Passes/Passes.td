@@ -70,6 +70,9 @@ def ConvertParallelToGPU1 : Pass<"convert-parallel-to-gpu1"> {
   let summary = "Convert parallel loops to gpu";
   let constructor = "mlir::polygeist::createConvertParallelToGPUPass1()";
   let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "memref::MemRefDialect"];
+  let options = [
+  Option<"arch", "arch", "std::string", /*default=*/"\"sm_60\"", "Target GPU architecture">
+  ];
 }
 
 def ConvertParallelToGPU2 : Pass<"convert-parallel-to-gpu2"> {

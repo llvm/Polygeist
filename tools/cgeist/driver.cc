@@ -868,7 +868,8 @@ int main(int argc, char **argv) {
     if (EmitGPU) {
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
-        pm.addPass(polygeist::createConvertParallelToGPUPass1());
+        pm.addPass(polygeist::createConvertParallelToGPUPass1(
+            EmitCUDA ? CUDAGPUArch : AMDGPUArch));
       // We cannot canonicalize here because we have sunk some operations in the
       // kernel which the canonicalizer would hoist
 

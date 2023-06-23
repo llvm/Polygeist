@@ -1519,7 +1519,7 @@ uint64_t getSharedMemUsage(scf::ParallelOp pop) {
 // TODO parallel wrapper LICM
 struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
-  ConvertParallelToGPU1Pass() {}
+  ConvertParallelToGPU1Pass(std::string arch) { this->arch.setValue(arch); }
   void runOnOperation() override {
     // TODO we need to transform all parallels in gpu_wrappers to have lower
     // bounds of 0 and steps of 1 as we kind of assume that in many patterns (or
@@ -1732,8 +1732,32 @@ struct ConvertParallelToGPU1Pass
               succeeded = false;
             }
 
-            if (getSharedMemUsage(gridPop) >
-                /* TODO get this from the target GPU */ 65536)
+            auto getMaxSharedMem = [](StringRef arch) -> unsigned {
+              if (arch.consume_front("sm_")) {
+                return 48 * 1024;
+                // TODO we can use more than 48KB (below) but it is only
+                // available as dynamic shared mem
+                int sm;
+                arch.getAsInteger(10, sm);
+                if (50 <= sm && sm <= 62)
+                  return 48 * 1024;
+                else if (70 <= sm && sm <= 72)
+                  return 96 * 1024;
+                else if (75 == sm)
+                  return 64 * 1024;
+                else if (80 == sm)
+                  return 163 * 1024;
+                else if (86 == sm || 89 == sm)
+                  return 99 * 1024;
+                else if (90 == sm)
+                  return 227 * 1024;
+              } else if (arch.consume_front("gfx")) {
+                // TODO find the proper value for this
+                return 48 * 1024;
+              }
+              return 48 * 1024;
+            };
+            if (getSharedMemUsage(gridPop) > getMaxSharedMem(arch))
               succeeded = false;
 
             if (succeeded) {
@@ -1914,8 +1938,9 @@ struct MergeGPUModulesPass
 std::unique_ptr<Pass> mlir::polygeist::createMergeGPUModulesPass() {
   return std::make_unique<MergeGPUModulesPass>();
 }
-std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass1() {
-  return std::make_unique<ConvertParallelToGPU1Pass>();
+std::unique_ptr<Pass>
+mlir::polygeist::createConvertParallelToGPUPass1(std::string arch) {
+  return std::make_unique<ConvertParallelToGPU1Pass>(arch);
 }
 std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2(
     bool emitGPUKernelLaunchBounds) {
