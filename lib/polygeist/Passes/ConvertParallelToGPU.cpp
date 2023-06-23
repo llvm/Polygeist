@@ -99,13 +99,14 @@ void insertReturn(PatternRewriter &rewriter, LLVM::LLVMFuncOp f) {
                                   std::vector<Value>{});
 }
 
-scf::ParallelOp getDirectlyNestedSingleParallel_(const char *PATTERN,
-                                                 Block *block,
-                                                 bool allowAllocas = false) {
+scf::ParallelOp
+getDirectlyNestedSingleParallel_(const char *PATTERN, Block *block,
+                                 bool allowAllocas = false,
+                                 bool allowIndexComputation = false) {
   auto it = block->begin();
-  if (allowAllocas)
-    while (isa<memref::AllocaOp>(&*it))
-      it++;
+  while ((allowAllocas && isa<memref::AllocaOp>(&*it)) ||
+         (allowIndexComputation && isa<arith::ArithDialect>(it->getDialect())))
+    it++;
   auto pop = dyn_cast<scf::ParallelOp>(&*it);
   it++;
   if (!pop) {
@@ -1604,6 +1605,17 @@ struct ConvertParallelToGPU1Pass
           return unrollFactors;
         };
 
+        if (coarsenBlocks > 1) {
+          auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
+          if (polygeist::scfParallelUnrollByFactors(
+                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
+                  /* generateEpilogueLoop */ true, nullptr)
+                  .failed())
+            wrapper->emitRemark("Failed to coarsen blocks");
+        }
+        blockPop = getDirectlyNestedSingleParallel(
+            gridPop.getBody(), /*allowAllocas*/ true,
+            /*allowIndexComputation*/ true);
         if (coarsenThreads > 1) {
           // TODO We kind of assume that the upper bounds will be divisible by
           // the factors and in that case this will succeed if the upper bounds
@@ -1616,14 +1628,6 @@ struct ConvertParallelToGPU1Pass
                   /* generateEpilogueLoop */ false, nullptr)
                   .failed())
             wrapper->emitRemark("Failed to coarsen threads");
-        }
-        if (coarsenBlocks > 1) {
-          auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
-          if (polygeist::scfParallelUnrollByFactors(
-                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
-                  /* generateEpilogueLoop */ true, nullptr)
-                  .failed())
-            wrapper->emitRemark("Failed to coarsen blocks");
         }
       }
     } else if (GPUKernelEmitCoarsenedAlternatives) {
@@ -1665,7 +1669,7 @@ struct ConvertParallelToGPU1Pass
         }
         unsigned firstUnrollFactorId = 0;
         if (originalThreadNum > 0)
-          while (firstUnrollFactorId < UNROLL_FACTORS[1].size() &&
+          while (firstUnrollFactorId < UNROLL_FACTORS[1].size() - 1 &&
                  originalThreadNum / UNROLL_FACTORS[1][firstUnrollFactorId][0] <
                      32)
             firstUnrollFactorId++;
@@ -1697,19 +1701,20 @@ struct ConvertParallelToGPU1Pass
             scf::ParallelOp gridPop =
                 getDirectlyNestedSingleParallel(newWrapper.getBody());
             assert(gridPop);
-            scf::ParallelOp blockPop =
-                getDirectlyNestedSingleParallel(gridPop.getBody(), true);
-            assert(blockPop);
-            auto unrollFactors = UNROLL_FACTORS[blockDims][iThread];
-            if (polygeist::scfParallelUnrollByFactors(
-                    blockPop, ArrayRef<uint64_t>(unrollFactors),
-                    /* generateEpilogueLoop */ false, nullptr)
-                    .failed())
-              wrapper->emitRemark("Failed to coarsen threads");
-            unrollFactors = UNROLL_FACTORS[blockDims][iBlock];
+            auto unrollFactors = UNROLL_FACTORS[blockDims][iBlock];
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(unrollFactors),
                     /* generateEpilogueLoop */ true, nullptr)
+                    .failed())
+              wrapper->emitRemark("Failed to coarsen threads");
+            scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+                gridPop.getBody(), /*allowAllocas*/ true,
+                /*allowIndexComputation*/ true);
+            assert(blockPop);
+            unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+            if (polygeist::scfParallelUnrollByFactors(
+                    blockPop, ArrayRef<uint64_t>(unrollFactors),
+                    /* generateEpilogueLoop */ false, nullptr)
                     .failed())
               wrapper->emitRemark("Failed to coarsen threads");
             curRegion++;
