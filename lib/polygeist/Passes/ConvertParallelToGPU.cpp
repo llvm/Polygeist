@@ -376,7 +376,6 @@ struct CreateParallelOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 ///   }
 /// }
 ///
-template <bool useOriginalThreadNums>
 struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
   using OpRewritePattern<polygeist::GPUWrapperOp>::OpRewritePattern;
   const char *PATTERN = "split-parallel-op";
@@ -1501,12 +1500,26 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
   }
 };
 
+uint64_t getSharedMemUsage(scf::ParallelOp pop) {
+  uint64_t shmem = 0;
+  ModuleOp moduleOp = pop->getParentOfType<ModuleOp>();
+  DataLayout DLI(moduleOp);
+  for (auto &op : *pop.getBody()) {
+    if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
+      auto mt = alloca.getType();
+      auto elTy = mt.getElementType();
+      auto elSize = DLI.getTypeSize(elTy);
+      auto size = elSize * mt.getNumElements();
+      shmem += size;
+    }
+  }
+  return shmem;
+}
+
 // TODO parallel wrapper LICM
 struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
-  bool useOriginalThreadNums;
-  ConvertParallelToGPU1Pass(bool useOriginalThreadNums = false)
-      : useOriginalThreadNums(useOriginalThreadNums) {}
+  ConvertParallelToGPU1Pass() {}
   void runOnOperation() override {
     // TODO we need to transform all parallels in gpu_wrappers to have lower
     // bounds of 0 and steps of 1 as we kind of assume that in many patterns (or
@@ -1538,11 +1551,7 @@ struct ConvertParallelToGPU1Pass
         CreateParallelOps,
         ParallelizeBlockOps
         >(&getContext());
-      if (useOriginalThreadNums) {
-        patterns.insert<SplitParallelOp<true>>(&getContext());
-      } else  {
-        patterns.insert<SplitParallelOp<false>>(&getContext());
-      }
+      patterns.insert<SplitParallelOp>(&getContext());
       // clang-format on
     };
     auto runNormalization = [&]() {
@@ -1701,12 +1710,15 @@ struct ConvertParallelToGPU1Pass
             scf::ParallelOp gridPop =
                 getDirectlyNestedSingleParallel(newWrapper.getBody());
             assert(gridPop);
+            bool succeeded = true;
             auto unrollFactors = UNROLL_FACTORS[blockDims][iBlock];
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(unrollFactors),
                     /* generateEpilogueLoop */ true, nullptr)
-                    .failed())
+                    .failed()) {
               wrapper->emitRemark("Failed to coarsen threads");
+              succeeded = false;
+            }
             scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
                 gridPop.getBody(), /*allowAllocas*/ true,
                 /*allowIndexComputation*/ true);
@@ -1715,13 +1727,37 @@ struct ConvertParallelToGPU1Pass
             if (polygeist::scfParallelUnrollByFactors(
                     blockPop, ArrayRef<uint64_t>(unrollFactors),
                     /* generateEpilogueLoop */ false, nullptr)
-                    .failed())
+                    .failed()) {
               wrapper->emitRemark("Failed to coarsen threads");
-            curRegion++;
+              succeeded = false;
+            }
+
+            if (getSharedMemUsage(gridPop) >
+                /* TODO get this from the target GPU */ 65536)
+              succeeded = false;
+
+            if (succeeded) {
+              curRegion++;
+            } else {
+              newWrapper->erase();
+            }
           }
         }
 
         wrapper->erase();
+
+        // New AOP with the exact number of regions needed
+        builder.setInsertionPoint(alternativesOp);
+        auto newAop = builder.create<polygeist::AlternativesOp>(loc, curRegion);
+        newAop->setAttr("alternatives.type",
+                        builder.getStringAttr("gpu_kernel"));
+        assert(newAop->getNumRegions() > 0);
+
+        for (unsigned i = 0; i < newAop->getNumRegions(); i++) {
+          auto &region = alternativesOp->getRegion(i);
+          newAop->getRegion(i).takeBody(region);
+        }
+        alternativesOp->erase();
       }
     }
 
@@ -1878,9 +1914,8 @@ struct MergeGPUModulesPass
 std::unique_ptr<Pass> mlir::polygeist::createMergeGPUModulesPass() {
   return std::make_unique<MergeGPUModulesPass>();
 }
-std::unique_ptr<Pass>
-mlir::polygeist::createConvertParallelToGPUPass1(bool useOriginalThreadNums) {
-  return std::make_unique<ConvertParallelToGPU1Pass>(useOriginalThreadNums);
+std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass1() {
+  return std::make_unique<ConvertParallelToGPU1Pass>();
 }
 std::unique_ptr<Pass> mlir::polygeist::createConvertParallelToGPUPass2(
     bool emitGPUKernelLaunchBounds) {
