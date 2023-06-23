@@ -2329,7 +2329,7 @@ public:
 
     auto fitsIn = [&](auto i, int width) {
       // if there is nothing in the bits that would be discarded
-      return !((~((static_cast<typeof i>(1) << width) - 1)) & i);
+      return !((~((static_cast<decltype(i)>(1) << width) - 1)) & i);
     };
 
     // Truncate the other non-extended const but only if the original constant
