@@ -1666,6 +1666,9 @@ struct ConvertParallelToGPU1Pass
         auto ubs = blockPop.getUpperBound();
         int blockDims = ubs.size();
         assert(blockDims >= 1 && blockDims <= 3);
+        auto gubs = gridPop.getUpperBound();
+        int gridDims = gubs.size();
+        assert(gridDims >= 1 && gridDims <= 3);
 
         unsigned originalThreadNum = 1;
         for (auto ub : ubs) {
@@ -1689,7 +1692,7 @@ struct ConvertParallelToGPU1Pass
         // Coarsen blocks with all factors, and coarsen threads only by factors
         // which do not bring the number of threads under 32
         unsigned numAlternatives =
-            UNROLL_FACTORS[blockDims].size() *
+            UNROLL_FACTORS[gridDims].size() *
             (UNROLL_FACTORS[blockDims].size() - firstUnrollFactorId);
         auto alternativesOp =
             builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
@@ -1701,8 +1704,12 @@ struct ConvertParallelToGPU1Pass
         // Coarsened versions
         for (unsigned iThread = firstUnrollFactorId;
              iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
-          for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[blockDims].size();
+          for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[gridDims].size();
                iBlock++) {
+            // Do not coarsen with factor of over 32
+            if (UNROLL_FACTORS[1][iThread][0] * UNROLL_FACTORS[1][iBlock][0] >
+                32)
+              continue;
             auto block = &*alternativesOp->getRegion(curRegion).begin();
             builder.setInsertionPointToStart(block);
             auto newWrapper = cast<polygeist::GPUWrapperOp>(
@@ -1711,7 +1718,7 @@ struct ConvertParallelToGPU1Pass
                 getDirectlyNestedSingleParallel(newWrapper.getBody());
             assert(gridPop);
             bool succeeded = true;
-            auto unrollFactors = UNROLL_FACTORS[blockDims][iBlock];
+            auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(unrollFactors),
                     /* generateEpilogueLoop */ true, nullptr)
