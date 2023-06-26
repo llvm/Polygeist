@@ -31,6 +31,7 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include <llvm/ADT/StringRef.h>
 #include <optional>
@@ -63,7 +64,36 @@ using namespace polygeist;
     }                                                                          \
   } while (0)
 
+// From ParallelLICM.cpp
+void moveParallelLoopInvariantCode(scf::ParallelOp looplike);
+
 namespace {
+
+static void shrinkAlternativesOpImpl(polygeist::AlternativesOp alternativesOp,
+                                     unsigned size, OpBuilder &builder) {
+  // New AOP with the exact number of regions needed
+  builder.setInsertionPoint(alternativesOp);
+  auto newAop =
+      builder.create<polygeist::AlternativesOp>(alternativesOp->getLoc(), size);
+  newAop->setAttr("alternatives.type",
+                  alternativesOp->getAttr("alternatives.type"));
+  assert(newAop->getNumRegions() > 0);
+
+  for (unsigned i = 0; i < newAop->getNumRegions(); i++) {
+    auto &region = alternativesOp->getRegion(i);
+    newAop->getRegion(i).takeBody(region);
+  }
+}
+static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
+                                 unsigned size, PatternRewriter &rewriter) {
+  shrinkAlternativesOpImpl(alternativesOp, size, rewriter);
+  rewriter.eraseOp(alternativesOp);
+}
+static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
+                                 unsigned size, OpBuilder &builder) {
+  shrinkAlternativesOpImpl(alternativesOp, size, builder);
+  alternativesOp->erase();
+}
 
 std::optional<int> getConstantInteger(Value v) {
   if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(v.getDefiningOp())) {
@@ -404,15 +434,22 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     auto loc = pop->getLoc();
 
     int curRegion = 0;
+    llvm::SmallSet<int, 6> emittedBlockSizes;
     auto emitAlternative = [&](int defaultThreads,
                                polygeist::AlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       // TODO not very efficient...
       auto newWrapper = rewriter.clone(*wrapper.getOperation());
-      newWrapper = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
-                                 defaultThreads, rewriter);
-      curRegion++;
+      auto blockSize = createSplitOp(cast<polygeist::GPUWrapperOp>(newWrapper),
+                                     defaultThreads, rewriter);
+      if (emittedBlockSizes.contains(blockSize) ||
+          /* failed */ blockSize == -1) {
+        rewriter.eraseOp(newWrapper);
+      } else {
+        emittedBlockSizes.insert(blockSize);
+        curRegion++;
+      }
     };
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
@@ -429,6 +466,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
+      shrinkAlternativesOp(alternativesOp, curRegion, rewriter);
     } else {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
       alternativesOp->setAttr("alternatives.type",
@@ -441,29 +479,53 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     return success();
   }
 
+  // Get the IVs that are synced over
+  llvm::SmallVector<BlockArgument, 3> getSyncIVs(scf::ParallelOp pop) const {
+    llvm::SmallVector<BlockArgument, 3> syncIVs;
+    pop->walk([&](polygeist::BarrierOp barrier) {
+      for (auto o : barrier.getOperands())
+        if (auto ba = o.dyn_cast<BlockArgument>())
+          if (std::find(syncIVs.begin(), syncIVs.end(), ba) == syncIVs.end())
+            syncIVs.push_back(ba);
+    });
+    return syncIVs;
+  }
+
   // If the parallel op is suitable for emitting alternatives
   bool shouldEmitAlternatives(scf::ParallelOp pop) const {
     auto dea = pop->getAttrOfType<DenseElementsAttr>(
         "polygeist.kernel_thread_indices");
-    if (!dea)
+
+    auto syncIVs = getSyncIVs(pop);
+
+    if (!dea && syncIVs.empty())
       return true;
+
     auto upperBounds = getUpperBounds<6>(pop);
 
     // If any of the original dimensions were not consts we cannot effectively
     // vary the block size as we cannot make proper assumptions about the
     // resulting block size and transforming what was originally a block dim
     // into a grid dim usually has bad effects on performance
-    return llvm::all_of(dea.getValues<IntegerAttr>(), [&](auto index_) {
-      auto index = index_.getValue().getLimitedValue();
-      auto cst = getConstantInteger(upperBounds[index]);
-      return cst;
-    });
+    return llvm::all_of(dea.getValues<IntegerAttr>(),
+                        [&](auto index_) {
+                          auto index = index_.getValue().getLimitedValue();
+                          auto cst = getConstantInteger(upperBounds[index]);
+                          return cst;
+                        }) &&
+           llvm::all_of(syncIVs, [&](BlockArgument bo) {
+             auto cst = getConstantInteger(upperBounds[bo.getArgNumber()]);
+             return cst;
+           });
   }
 
   // If maxThreads == -1, then pick the original block dims, otherwise try to
   // maximize the block size up to maxThreads
-  Operation *createSplitOp(polygeist::GPUWrapperOp wrapper, int maxThreads,
-                           PatternRewriter &rewriter) const {
+  //
+  // Returns the resulting block size if it is static; if it is dynamic, returns
+  // 0, if we failed to split the parallel op, then returns -1
+  int createSplitOp(polygeist::GPUWrapperOp wrapper, int maxThreads,
+                    PatternRewriter &rewriter) const {
     mlir::OpBuilder::InsertionGuard guard(rewriter);
 
     scf::ParallelOp pop = getDirectlyNestedSingleParallel(wrapper.getBody());
@@ -492,40 +554,76 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       }
       return tmp;
     }();
+    auto isOriginalBlockDim = [&](int index) {
+      return std::find(originalBlockDimIndices.begin(),
+                       originalBlockDimIndices.end(),
+                       index) != originalBlockDimIndices.end();
+    };
+
+    auto mustBeBlockIVs = getSyncIVs(pop);
+    auto isMustBeBlockIV = [&](int index) {
+      auto ba = pop.getBody()->getArgument(index);
+      return std::find(mustBeBlockIVs.begin(), mustBeBlockIVs.end(), ba) !=
+             mustBeBlockIVs.end();
+    };
 
     int threadNum = 1;
+
     for (int i = totalDims - 1; i >= 0; i--) {
-      // TODO have we covered all possibilities for a constant? maybe use
-      // ->hasTrait<OpTrait::ConstantLike>
       auto &bound = upperBounds[i];
       auto cst =
           dyn_cast_or_null<arith::ConstantIndexOp>(bound.getDefiningOp());
-      int val = cst ? cst.value() : 1;
-      bool isBlockDim = [&]() {
-        if (maxThreads != -1) {
-          return cst && blockDims.size() < 3 && threadNum * val <= maxThreads;
-        } else {
-          return llvm::any_of(originalBlockDimIndices,
-                              [&](auto _i) { return i == _i; });
-        }
-      }();
-
-      if (isBlockDim) {
+      int val = cst ? cst.value() : 0;
+      if (isMustBeBlockIV(i)) {
         blockDims.insert(blockDims.begin(), bound);
         blockArgId.insert(blockArgId.begin(), i);
         threadNum *= val;
-      } else {
-        gridDims.insert(gridDims.begin(), bound);
-        gridArgId.insert(gridArgId.begin(), i);
       }
     }
-    // TODO if we have too many dims, we have to merge some of them
+    assert(threadNum >= 0 && threadNum <= (int)MAX_GPU_THREADS);
+
+    if (mustBeBlockIVs.empty()) {
+      // TODO We can actually add more block dims even if there were IVs that
+      // need to be synced over if we can prove that there will be no barriers
+      // in divergent branches (i.e. same loop trip count or if conditions of
+      // regions containing barriers, check the parallel loop unroll logic)
+      for (int i = totalDims - 1; i >= 0; i--) {
+        if (isMustBeBlockIV(i))
+          // Already added
+          continue;
+        auto &bound = upperBounds[i];
+        auto cst =
+            dyn_cast_or_null<arith::ConstantIndexOp>(bound.getDefiningOp());
+        int val = cst ? cst.value() : 1;
+        bool isBlockDim = [&]() {
+          if (maxThreads != -1) {
+            return cst && blockDims.size() < 3 && threadNum * val <= maxThreads;
+          } else {
+            return isOriginalBlockDim(i);
+          }
+        }();
+
+        if (isBlockDim) {
+          blockDims.insert(blockDims.begin(), bound);
+          blockArgId.insert(blockArgId.begin(), i);
+          threadNum *= val;
+        } else {
+          gridDims.insert(gridDims.begin(), bound);
+          gridArgId.insert(gridArgId.begin(), i);
+        }
+      }
+    }
+
+    // TODO if we have too many dims, we have to merge some of them - currently
+    // unsupported - we need to have some kernel structure preservation to
+    // support all cases currently
     if (gridDims.size() > 3) {
       rewriter.setInsertionPoint(wrapper);
       auto err = rewriter.create<arith::ConstantIndexOp>(
           loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
       rewriter.replaceOp(wrapper, err->getResults());
-      return err;
+      assert(0);
+      return -1;
     }
 
     rewriter.setInsertionPoint(pop);
@@ -658,7 +756,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     rewriter.eraseOp(pop);
 
-    return wrapper.getOperation();
+    return threadNum;
   }
 };
 
@@ -1577,229 +1675,252 @@ struct ConvertParallelToGPU1Pass
     };
     runNormalization();
 
-    // Check if the user specified coarsening factors
-    unsigned coarsenThreads = 1;
-    unsigned coarsenBlocks = 1;
-    if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_THREADS"))
-      coarsenThreads = atoi(e);
-    if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_BLOCKS"))
-      coarsenBlocks = atoi(e);
-    if (coarsenThreads < 1 || coarsenBlocks < 1) {
-      llvm::errs() << "Invalid values for gpu kernel coarsen environment "
-                      "variables, ignoring\n";
-      coarsenThreads = 1;
-      coarsenBlocks = 1;
-    }
-
-    if (coarsenThreads > 1 || coarsenBlocks > 1) {
-      std::vector<polygeist::GPUWrapperOp> toHandle;
-      getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
-        toHandle.push_back(wrapper);
-      });
-      for (polygeist::GPUWrapperOp wrapper : toHandle) {
-        const char *PATTERN = "coarsen-threads";
-        scf::ParallelOp gridPop =
-            getDirectlyNestedSingleParallel(wrapper.getBody());
-        assert(gridPop);
-        scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
-            gridPop.getBody(), /* allowAllocas */ true);
-        assert(blockPop);
-
-        auto ubs = blockPop.getUpperBound();
-        int blockDims = ubs.size();
-        assert(blockDims >= 1 && blockDims <= 3);
-
-        auto getUnrollFactors = [&](unsigned unrollFactor) {
-          unsigned powsOf2 = std::log2(unrollFactor);
-          unsigned initial = std::pow(2, powsOf2 / blockDims);
-          unsigned currentFactor = 1;
-          std::vector<uint64_t> unrollFactors;
-          for (int i = 0; i < blockDims; i++) {
-            unrollFactors.push_back(initial);
-            currentFactor *= initial;
+    // Thread/Block coarsening
+    {
+      auto runLICM = [&]() {
+        getOperation()->walk([&](LoopLikeOpInterface loopLike) {
+          if (((Operation *)loopLike)
+                  ->getParentOfType<polygeist::GPUWrapperOp>()) {
+            if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
+              moveParallelLoopInvariantCode(par);
+            }
           }
-          for (int i = blockDims - 1; currentFactor < unrollFactor; i--) {
-            currentFactor *= 2;
-            unrollFactors[i] *= 2;
-          }
-          return unrollFactors;
-        };
+        });
+      };
 
-        if (coarsenBlocks > 1) {
-          auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
-          if (polygeist::scfParallelUnrollByFactors(
-                  gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
-                  /* generateEpilogueLoop */ true, nullptr)
-                  .failed())
-            wrapper->emitRemark("Failed to coarsen blocks");
-        }
-        blockPop = getDirectlyNestedSingleParallel(
-            gridPop.getBody(), /*allowAllocas*/ true,
-            /*allowIndexComputation*/ true);
-        if (coarsenThreads > 1) {
-          // TODO We kind of assume that the upper bounds will be divisible by
-          // the factors and in that case this will succeed if the upper bounds
-          // are dynamic - we need to insert runtime checks and fallback to a
-          // non-coarsened kernel, or have an 'if' statement in the unrolled
-          // parallel that will do the "epilogue" part
-          auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
-          if (polygeist::scfParallelUnrollByFactors(
-                  blockPop, ArrayRef<uint64_t>(threadUnrollFactors),
-                  /* generateEpilogueLoop */ false, nullptr)
-                  .failed())
-            wrapper->emitRemark("Failed to coarsen threads");
-        }
+      // Check if the user specified coarsening factors
+      unsigned coarsenThreads = 1;
+      unsigned coarsenBlocks = 1;
+      if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_THREADS"))
+        coarsenThreads = atoi(e);
+      if (char *e = getenv("POLYGEIST_GPU_KERNEL_COARSEN_BLOCKS"))
+        coarsenBlocks = atoi(e);
+      if (coarsenThreads < 1 || coarsenBlocks < 1) {
+        llvm::errs() << "Invalid values for gpu kernel coarsen environment "
+                        "variables, ignoring\n";
+        coarsenThreads = 1;
+        coarsenBlocks = 1;
       }
-    } else if (GPUKernelEmitCoarsenedAlternatives) {
-      // If the user did not specify coarsening factors, generate pre-determined
-      // set of alternative coarsened kernels
 
-      std::vector<polygeist::GPUWrapperOp> toHandle;
-      getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
-        toHandle.push_back(wrapper);
-      });
-      for (polygeist::GPUWrapperOp wrapper : toHandle) {
-        const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS = {
-            {},
-            {{32}, {16}, {8}, {4}, {2}, {1}},
-            {{4, 8}, {4, 4}, {2, 4}, {2, 2}, {1, 2}, {1, 1}},
-            {{2, 4, 4}, {2, 2, 4}, {2, 2, 2}, {1, 2, 2}, {1, 1, 2}, {1, 1, 1}},
-        };
+      if (coarsenThreads > 1 || coarsenBlocks > 1) {
+        std::vector<polygeist::GPUWrapperOp> toHandle;
+        getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+          toHandle.push_back(wrapper);
+        });
+        for (polygeist::GPUWrapperOp wrapper : toHandle) {
+          const char *PATTERN = "coarsen-threads";
+          scf::ParallelOp gridPop =
+              getDirectlyNestedSingleParallel(wrapper.getBody());
+          assert(gridPop);
+          scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+              gridPop.getBody(), /* allowAllocas */ true);
+          assert(blockPop);
 
-        const char *PATTERN = "coarsen-threads";
-        scf::ParallelOp gridPop =
-            getDirectlyNestedSingleParallel(wrapper.getBody());
-        assert(gridPop);
-        scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
-            gridPop.getBody(), /* allowAllocas */ true);
-        assert(blockPop);
+          auto ubs = blockPop.getUpperBound();
+          int blockDims = ubs.size();
+          assert(blockDims >= 1 && blockDims <= 3);
 
-        auto ubs = blockPop.getUpperBound();
-        int blockDims = ubs.size();
-        assert(blockDims >= 1 && blockDims <= 3);
-        auto gubs = gridPop.getUpperBound();
-        int gridDims = gubs.size();
-        assert(gridDims >= 1 && gridDims <= 3);
+          auto getUnrollFactors = [&](unsigned unrollFactor) {
+            unsigned powsOf2 = std::log2(unrollFactor);
+            unsigned initial = std::pow(2, powsOf2 / blockDims);
+            unsigned currentFactor = 1;
+            std::vector<uint64_t> unrollFactors;
+            for (int i = 0; i < blockDims; i++) {
+              unrollFactors.push_back(initial);
+              currentFactor *= initial;
+            }
+            for (int i = blockDims - 1; currentFactor < unrollFactor; i--) {
+              currentFactor *= 2;
+              unrollFactors[i] *= 2;
+            }
+            return unrollFactors;
+          };
 
-        unsigned originalThreadNum = 1;
-        for (auto ub : ubs) {
-          if (auto cio = ub.getDefiningOp<arith::ConstantIndexOp>()) {
-            originalThreadNum *= cio.value();
-          } else {
-            originalThreadNum = 0;
-            break;
-          }
-        }
-        unsigned firstUnrollFactorId = 0;
-        if (originalThreadNum > 0)
-          while (firstUnrollFactorId < UNROLL_FACTORS[1].size() - 1 &&
-                 originalThreadNum / UNROLL_FACTORS[1][firstUnrollFactorId][0] <
-                     32)
-            firstUnrollFactorId++;
-
-        auto loc = wrapper->getLoc();
-
-        OpBuilder builder(wrapper);
-        // Coarsen blocks with all factors, and coarsen threads only by factors
-        // which do not bring the number of threads under 32
-        unsigned numAlternatives =
-            UNROLL_FACTORS[gridDims].size() *
-            (UNROLL_FACTORS[blockDims].size() - firstUnrollFactorId);
-        auto alternativesOp =
-            builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
-        alternativesOp->setAttr("alternatives.type",
-                                builder.getStringAttr("gpu_kernel"));
-
-        unsigned curRegion = 0;
-
-        // Coarsened versions
-        for (unsigned iThread = firstUnrollFactorId;
-             iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
-          for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[gridDims].size();
-               iBlock++) {
-            // Do not coarsen with factor of over 32
-            if (UNROLL_FACTORS[1][iThread][0] * UNROLL_FACTORS[1][iBlock][0] >
-                32)
-              continue;
-            auto block = &*alternativesOp->getRegion(curRegion).begin();
-            builder.setInsertionPointToStart(block);
-            auto newWrapper = cast<polygeist::GPUWrapperOp>(
-                builder.clone(*wrapper.getOperation()));
-            scf::ParallelOp gridPop =
-                getDirectlyNestedSingleParallel(newWrapper.getBody());
-            assert(gridPop);
-            bool succeeded = true;
-            auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
+          if (coarsenBlocks > 1) {
+            auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
             if (polygeist::scfParallelUnrollByFactors(
-                    gridPop, ArrayRef<uint64_t>(unrollFactors),
+                    gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
                     /* generateEpilogueLoop */ true, nullptr)
-                    .failed()) {
-              wrapper->emitRemark("Failed to coarsen threads");
-              succeeded = false;
-            }
-            scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
-                gridPop.getBody(), /*allowAllocas*/ true,
-                /*allowIndexComputation*/ true);
-            assert(blockPop);
-            unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+                    .failed())
+              wrapper->emitRemark("Failed to coarsen blocks");
+          }
+          blockPop = getDirectlyNestedSingleParallel(
+              gridPop.getBody(), /*allowAllocas*/ true,
+              /*allowIndexComputation*/ true);
+          if (coarsenThreads > 1) {
+            // TODO We kind of assume that the upper bounds will be divisible by
+            // the factors and in that case this will succeed if the upper
+            // bounds are dynamic - we need to insert runtime checks and
+            // fallback to a non-coarsened kernel, or have an 'if' statement in
+            // the unrolled parallel that will do the "epilogue" part
+            auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
             if (polygeist::scfParallelUnrollByFactors(
-                    blockPop, ArrayRef<uint64_t>(unrollFactors),
+                    blockPop, ArrayRef<uint64_t>(threadUnrollFactors),
                     /* generateEpilogueLoop */ false, nullptr)
-                    .failed()) {
+                    .failed())
               wrapper->emitRemark("Failed to coarsen threads");
-              succeeded = false;
-            }
-
-            auto getMaxSharedMem = [](StringRef arch) -> unsigned {
-              if (arch.consume_front("sm_")) {
-                return 48 * 1024;
-                // TODO we can use more than 48KB (below) but it is only
-                // available as dynamic shared mem
-                int sm;
-                arch.getAsInteger(10, sm);
-                if (50 <= sm && sm <= 62)
-                  return 48 * 1024;
-                else if (70 <= sm && sm <= 72)
-                  return 96 * 1024;
-                else if (75 == sm)
-                  return 64 * 1024;
-                else if (80 == sm)
-                  return 163 * 1024;
-                else if (86 == sm || 89 == sm)
-                  return 99 * 1024;
-                else if (90 == sm)
-                  return 227 * 1024;
-              } else if (arch.consume_front("gfx")) {
-                // TODO find the proper value for this
-                return 48 * 1024;
-              }
-              return 48 * 1024;
-            };
-            if (getSharedMemUsage(gridPop) > getMaxSharedMem(arch))
-              succeeded = false;
-
-            if (succeeded) {
-              curRegion++;
-            } else {
-              newWrapper->erase();
-            }
           }
         }
+        runLICM();
+      } else if (GPUKernelEmitCoarsenedAlternatives) {
+        // If the user did not specify coarsening factors, generate
+        // pre-determined set of alternative coarsened kernels
 
-        wrapper->erase();
+        std::vector<polygeist::GPUWrapperOp> toHandle;
+        getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+          toHandle.push_back(wrapper);
+        });
+        for (polygeist::GPUWrapperOp wrapper : toHandle) {
+          // clang-format off
+          const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS =
+              {{},
+               {{32},
+                {16},
+                {8},
+                {4},
+                {2},
+                {1}},
+               {{4, 8},
+                {4, 4},
+                {2, 4},
+                {2, 2},
+                {1, 2},
+                {1, 1}},
+               {{2, 4, 4},
+                {2, 2, 4},
+                {2, 2, 2},
+                {1, 2, 2},
+                {1, 1, 2},
+                {1, 1, 1}},
+              };
+          // clang-format on
 
-        // New AOP with the exact number of regions needed
-        builder.setInsertionPoint(alternativesOp);
-        auto newAop = builder.create<polygeist::AlternativesOp>(loc, curRegion);
-        newAop->setAttr("alternatives.type",
-                        builder.getStringAttr("gpu_kernel"));
-        assert(newAop->getNumRegions() > 0);
+          const char *PATTERN = "coarsen-threads";
+          scf::ParallelOp gridPop =
+              getDirectlyNestedSingleParallel(wrapper.getBody());
+          assert(gridPop);
+          scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+              gridPop.getBody(), /* allowAllocas */ true);
+          assert(blockPop);
 
-        for (unsigned i = 0; i < newAop->getNumRegions(); i++) {
-          auto &region = alternativesOp->getRegion(i);
-          newAop->getRegion(i).takeBody(region);
+          auto ubs = blockPop.getUpperBound();
+          int blockDims = ubs.size();
+          assert(blockDims >= 1 && blockDims <= 3);
+          auto gubs = gridPop.getUpperBound();
+          int gridDims = gubs.size();
+          assert(gridDims >= 1 && gridDims <= 3);
+
+          unsigned originalThreadNum = 1;
+          for (auto ub : ubs) {
+            if (auto cio = ub.getDefiningOp<arith::ConstantIndexOp>()) {
+              originalThreadNum *= cio.value();
+            } else {
+              originalThreadNum = 0;
+              break;
+            }
+          }
+          unsigned firstUnrollFactorId = 0;
+          if (originalThreadNum > 0)
+            while (firstUnrollFactorId < UNROLL_FACTORS[1].size() - 1 &&
+                   originalThreadNum /
+                           UNROLL_FACTORS[1][firstUnrollFactorId][0] <
+                       32)
+              firstUnrollFactorId++;
+
+          auto loc = wrapper->getLoc();
+
+          OpBuilder builder(wrapper);
+          // Coarsen blocks with all factors, and coarsen threads only by
+          // factors which do not bring the number of threads under 32
+          unsigned numAlternatives =
+              UNROLL_FACTORS[gridDims].size() *
+              (UNROLL_FACTORS[blockDims].size() - firstUnrollFactorId);
+          auto alternativesOp =
+              builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
+          alternativesOp->setAttr("alternatives.type",
+                                  builder.getStringAttr("gpu_kernel"));
+
+          unsigned curRegion = 0;
+
+          // Coarsened versions
+          for (unsigned iThread = firstUnrollFactorId;
+               iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
+            for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[gridDims].size();
+                 iBlock++) {
+              // Do not coarsen with factor of over 32
+              if (UNROLL_FACTORS[1][iThread][0] * UNROLL_FACTORS[1][iBlock][0] >
+                  32)
+                continue;
+              auto block = &*alternativesOp->getRegion(curRegion).begin();
+              builder.setInsertionPointToStart(block);
+              auto newWrapper = cast<polygeist::GPUWrapperOp>(
+                  builder.clone(*wrapper.getOperation()));
+              scf::ParallelOp gridPop =
+                  getDirectlyNestedSingleParallel(newWrapper.getBody());
+              assert(gridPop);
+              bool succeeded = true;
+              auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
+              if (polygeist::scfParallelUnrollByFactors(
+                      gridPop, ArrayRef<uint64_t>(unrollFactors),
+                      /* generateEpilogueLoop */ true, nullptr)
+                      .failed()) {
+                wrapper->emitRemark("Failed to coarsen threads");
+                succeeded = false;
+              }
+              scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+                  gridPop.getBody(), /*allowAllocas*/ true,
+                  /*allowIndexComputation*/ true);
+              assert(blockPop);
+              unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+              if (polygeist::scfParallelUnrollByFactors(
+                      blockPop, ArrayRef<uint64_t>(unrollFactors),
+                      /* generateEpilogueLoop */ false, nullptr)
+                      .failed()) {
+                wrapper->emitRemark("Failed to coarsen threads");
+                succeeded = false;
+              }
+
+              auto getMaxSharedMem = [](StringRef arch) -> unsigned {
+                if (arch.consume_front("sm_")) {
+                  return 48 * 1024;
+                  // TODO we can use more than 48KB (below) but it is only
+                  // available as dynamic shared mem
+                  int sm;
+                  arch.getAsInteger(10, sm);
+                  if (50 <= sm && sm <= 62)
+                    return 48 * 1024;
+                  else if (70 <= sm && sm <= 72)
+                    return 96 * 1024;
+                  else if (75 == sm)
+                    return 64 * 1024;
+                  else if (80 == sm)
+                    return 163 * 1024;
+                  else if (86 == sm || 89 == sm)
+                    return 99 * 1024;
+                  else if (90 == sm)
+                    return 227 * 1024;
+                } else if (arch.consume_front("gfx")) {
+                  // TODO find the proper value for this
+                  return 48 * 1024;
+                }
+                return 48 * 1024;
+              };
+              if (getSharedMemUsage(gridPop) > getMaxSharedMem(arch))
+                succeeded = false;
+
+              if (succeeded) {
+                curRegion++;
+              } else {
+                newWrapper->erase();
+              }
+            }
+          }
+
+          wrapper->erase();
+
+          shrinkAlternativesOp(alternativesOp, curRegion, builder);
         }
-        alternativesOp->erase();
+        runLICM();
       }
     }
 
