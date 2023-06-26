@@ -93,6 +93,24 @@ void AlternativesOp::build(OpBuilder &builder, OperationState &result,
   }
 }
 
+class HoistSingleAlternative final : public OpRewritePattern<AlternativesOp> {
+public:
+  using OpRewritePattern<AlternativesOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AlternativesOp aop,
+                                PatternRewriter &rewriter) const override {
+    assert(aop->getNumRegions() > 0);
+    if (aop->getNumRegions() > 1) {
+      return failure();
+    }
+    auto block = &*aop->getRegions()[0].begin();
+    rewriter.eraseOp(block->getTerminator());
+    rewriter.mergeBlockBefore(block, aop);
+    rewriter.eraseOp(aop);
+    return success();
+  }
+};
+
 class FlattenAlternatives final : public OpRewritePattern<AlternativesOp> {
 public:
   using OpRewritePattern<AlternativesOp>::OpRewritePattern;
@@ -162,7 +180,7 @@ public:
 
 void AlternativesOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
-  results.insert<FlattenAlternatives>(context);
+  results.insert<HoistSingleAlternative, FlattenAlternatives>(context);
 }
 
 //===----------------------------------------------------------------------===//
