@@ -1382,11 +1382,28 @@ private:
   std::string gpuTarget;
 };
 
+// tuple helpers
 template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
   static_assert(std::tuple_size<Tuple>::value > 0,
                 "Cannot pop from an empty tuple");
   return std::apply([](auto, auto... rest) { return std::make_tuple(rest...); },
                     tuple);
+}
+template <typename Stream, class Tuple, std::size_t N> struct TuplePrinter {
+  static void print(Stream &stream, const Tuple &t) {
+    TuplePrinter<Stream, Tuple, N - 1>::print(stream, t);
+    stream << ", " << std::get<N - 1>(t);
+  }
+};
+template <typename Stream, class Tuple> struct TuplePrinter<Stream, Tuple, 1> {
+  static void print(Stream &stream, const Tuple &t) {
+    stream << std::get<0>(t);
+  }
+};
+template <typename Stream, typename... Args,
+          std::enable_if_t<sizeof...(Args) != 0, int> = 0>
+void print(Stream &stream, const std::tuple<Args...> &t) {
+  TuplePrinter<Stream, decltype(t), sizeof...(Args)>::print(stream, t);
 }
 
 struct LowerGPUAlternativesOp
@@ -1403,12 +1420,40 @@ struct LowerGPUAlternativesOp
       return failure();
 
     Location loc = gao->getLoc();
+    std::string locStr = [&loc]() {
+      std::string str;
+      llvm::raw_string_ostream stream(str);
+      loc.print(stream);
+      stream.flush();
+      return stream.str();
+    }();
+    locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+    for (char &c : locStr)
+      if (c == '/')
+        c = '+';
 
     // TODO each region in the alternatives op should containt only a single
     // block - write a verifier for that
 
-    if (PolygeistAlternativesMode == PAM_Static) {
-      Block *block = nullptr;
+    typedef std::tuple<Region *, int, int, int, int, int, int, int, int, int,
+                       int, int, int>
+        kernelInfoTy;
+    std::vector<kernelInfoTy> infos;
+
+    auto printInfos = [&](auto &strm, std::vector<kernelInfoTy> infos) {
+      int i = 0;
+      // clang-format off
+          for (auto tup : infos) {
+            strm << "polygeistKernelInfo: "
+                << locStr << ","
+                << i++ << ",";
+            print(strm, tup);
+            strm << "\n";
+          }
+      // clang-format on
+    };
+
+    auto gatherInfos = [&]() {
 #if POLYGEIST_ENABLE_CUDA
       if (gpuTarget == "cuda") {
         char cuErrorBuffer[4096] = {0};
@@ -1423,14 +1468,11 @@ struct LowerGPUAlternativesOp
         CUcontext context;
         RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
 
-        std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-            occupancies;
-
         for (auto &region : gao->getRegions()) {
           gpu::LaunchFuncOp launchOp = nullptr;
           region.walk([&](gpu::LaunchFuncOp l) {
-            assert(!launchOp);
             launchOp = l;
+            return WalkResult::interrupt();
           });
           assert(launchOp);
 
@@ -1475,7 +1517,8 @@ struct LowerGPUAlternativesOp
                            dim.getDefiningOp())) {
               blockSize *= cstindex.value();
             } else {
-              assert(0);
+              blockSize = 0;
+              break;
             }
           }
 
@@ -1484,71 +1527,116 @@ struct LowerGPUAlternativesOp
           size_t dynamicSharedMemSize = 0;
 
           int occupancyNumBlocks;
-          RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
-              &occupancyNumBlocks, cuFunction, blockSize,
-              dynamicSharedMemSize));
+          if (blockSize > 0) {
+            RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+                &occupancyNumBlocks, cuFunction, blockSize,
+                dynamicSharedMemSize));
+          } else {
+            occupancyNumBlocks = 0;
+          }
 
           RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
 
+          int ops = 0, floatOps = 0, intOps = 0, loads = 0, stores = 0,
+              branches = 0;
+
+          // TODO This should use the GPU data layout and not the Host one
+          DataLayout DLI(gao->getParentOfType<ModuleOp>());
+          gpuFunc->walk([&](Operation *op) {
+            ops++;
+            if (isa<LLVM::BrOp>(op)) {
+              branches++;
+            } else if (isa<LLVM::FAddOp>(op) || isa<LLVM::FMulOp>(op) ||
+                       isa<LLVM::FDivOp>(op) || isa<LLVM::FSubOp>(op) ||
+                       isa<LLVM::FRemOp>(op)) {
+              int width =
+                  op->getOperand(0).getType().dyn_cast<FloatType>().getWidth();
+              // TODO these are pretty random atm
+              if (width == 16) {
+                floatOps++;
+              } else if (width == 32) {
+                floatOps += 2;
+              } else if (width == 64) {
+                floatOps += 4;
+              }
+            } else if (isa<LLVM::AddOp>(op) || isa<LLVM::SubOp>(op) ||
+                       isa<LLVM::MulOp>(op) || isa<LLVM::UDivOp>(op) ||
+                       isa<LLVM::SDivOp>(op)) {
+              intOps++;
+            } else if (auto load = dyn_cast<LLVM::LoadOp>(op)) {
+              int bytes = DLI.getTypeSize(load.getRes().getType());
+              loads += bytes;
+            } else if (auto store = dyn_cast<LLVM::StoreOp>(op)) {
+              int bytes = DLI.getTypeSize(store->getOperand(0).getType());
+              stores += bytes;
+            }
+          });
+
           assert(maxThreadsPerBlock >= blockSize);
-          int activeThreads = occupancyNumBlocks * blockSize;
-          occupancies.push_back({
-              &region, localMemSize,   /* lower is better */
-              activeThreads,           /* higher is better */
-              numRegs * activeThreads, /* higher is better */
-              blockSize,               /* hisher is better??? maybe? */
-              sharedMemSize,           /* lower is better */
-              constMemSize,            /* lower is better */
+          // int activeThreads = occupancyNumBlocks * blockSize;
+          infos.push_back({
+              &region,
+              localMemSize,
+              occupancyNumBlocks,
+              numRegs,
+              blockSize,
+              sharedMemSize,
+              constMemSize,
+              ops,
+              floatOps,
+              intOps,
+              loads,
+              stores,
+              branches,
           });
         }
-
-        auto printOccupancies =
-            [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-                    occupancies) {
-              for (auto tup : occupancies)
-                DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
-                       << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
-                       << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
-                       << std::get<6>(tup) << ", "
-                       << "\n";
-            };
-
-        LLVM_DEBUG(
-            DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
-        LLVM_DEBUG(printOccupancies(occupancies));
-
-        auto getCost = [](auto a) -> double {
-          std::vector<float> coefficients = {4, -2, -0.1, -0.01};
-          return coefficients[0] * std::get<0>(a) +
-                 coefficients[1] * std::get<1>(a) +
-                 coefficients[2] * std::get<2>(a) +
-                 coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
-                 0 * std::get<5>(a);
-        };
-        std::stable_sort(occupancies.begin(), occupancies.end(),
-                         [&](auto a, auto b) {
-                           auto _a = pop_front(a);
-                           auto _b = pop_front(b);
-                           return getCost(_a) < getCost(_b);
-                         });
-
-        LLVM_DEBUG(
-            DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
-        LLVM_DEBUG(printOccupancies(occupancies));
-        LLVM_DEBUG(DBGS() << "Choosing top option\n");
-
-        block = &*std::get<0>(occupancies[0])->begin();
       }
 #endif
 #if POLYGEIST_ENABLE_ROCM
       if (gpuTarget == "rocm") {
         llvm::errs() << "warning: no support for statically choosing ROCM "
                         "kernel alternative, picking the first one\n";
-        block = &*gao->getRegions()[0].begin();
       }
 #endif
-      if (!block)
-        block = &*gao->getRegions()[0].begin();
+      return success();
+    };
+
+    auto sortInfos = [&]() {
+      auto getCost = [](auto a) -> double {
+        std::vector<float> coefficients = {4, -2, -0.1, -0.01};
+        return coefficients[0] * std::get<0>(a) +
+               coefficients[1] * std::get<1>(a) +
+               coefficients[2] * std::get<2>(a) +
+               coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
+               0 * std::get<5>(a);
+      };
+      std::stable_sort(infos.begin(), infos.end(), [&](auto a, auto b) {
+        auto _a = pop_front(a);
+        auto _b = pop_front(b);
+        return getCost(_a) < getCost(_b);
+      });
+    };
+
+    bool shouldPrintInfo = getenv("POLYGEIST_GPU_ALTERNATIVES_PRINT_INFO");
+    if (shouldPrintInfo || PolygeistAlternativesMode == PAM_Static) {
+      if (gatherInfos().failed())
+        return failure();
+      LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical infos unsorted:\n");
+      LLVM_DEBUG(printInfos(DBGS(), infos));
+    }
+    if (shouldPrintInfo)
+      printInfos(llvm::errs(), infos);
+
+    if (PolygeistAlternativesMode == PAM_Static) {
+      Block *block = nullptr;
+      sortInfos();
+      LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical infos sorted:\n");
+      LLVM_DEBUG(printInfos(DBGS(), infos));
+      LLVM_DEBUG(DBGS() << "Choosing top option\n");
+
+      block = &*gao->getRegions()[0].begin();
+      if (!infos.empty())
+        block = &*std::get<0>(infos[0])->begin();
 
       rewriter.eraseOp(block->getTerminator());
       rewriter.mergeBlockBefore(block, gao);
@@ -1557,18 +1645,6 @@ struct LowerGPUAlternativesOp
       return success();
 
     } else {
-      std::string locStr = [&loc]() {
-        std::string str;
-        llvm::raw_string_ostream stream(str);
-        loc.print(stream);
-        stream.flush();
-        return stream.str();
-      }();
-      locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
-      for (char &c : locStr)
-        if (c == '/')
-          c = '+';
-
       if (PolygeistAlternativesMode == PAM_PGO_Profile) {
         rewriter.setInsertionPoint(gao);
         static int num = 0;
