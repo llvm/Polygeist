@@ -1097,14 +1097,25 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
 ///   }
 /// }
 ///
-/// TODO allow for mering parallels, e.g. generate the noop as such:
+/// or:
 ///
 /// gpu_wrapper {
 ///   ...
 ///   parallel bix, biy, biz {
 ///     ...
 ///     parallel tix, tiy, tiz {
-///       noop(bix, biy, biz, tix, tiy, tiz)
+///       noop(tix, tiy, tiz)
+///       ...
+///     }
+///   }
+/// }
+///
+/// or in case the block and thread parallels were merged:
+///
+/// gpu_wrapper {
+///   ...
+///   parallel bix, [biy, biz,] tix, [tiy, tiz] {
+///       noop(tix, tiy, tiz)
 ///       ...
 ///     }
 ///   }
