@@ -445,7 +445,6 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
                                      defaultThreads, rewriter);
       if (emittedBlockSizes.contains(blockSize) ||
           /* failed */ blockSize == -1) {
-        rewriter.eraseOp(newWrapper);
       } else {
         emittedBlockSizes.insert(blockSize);
         curRegion++;
@@ -622,7 +621,6 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       auto err = rewriter.create<arith::ConstantIndexOp>(
           loc, CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES);
       rewriter.replaceOp(wrapper, err->getResults());
-      assert(0);
       return -1;
     }
 
