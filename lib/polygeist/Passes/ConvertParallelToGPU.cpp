@@ -1824,6 +1824,12 @@ struct ConvertParallelToGPU1Pass
                            UNROLL_FACTORS[1][firstUnrollFactorId][0] <
                        32)
               firstUnrollFactorId++;
+          // If we have already varied the block size in SplitParallelOp, avoid
+          // doing that here too.
+          if (auto aop = wrapper->getParentOfType<polygeist::AlternativesOp>())
+            if (aop->getAttrOfType<StringAttr>("alternatives.type")
+                    .getValue() == "gpu_kernel")
+              firstUnrollFactorId = UNROLL_FACTORS[1].size() - 1;
 
           auto loc = wrapper->getLoc();
 
