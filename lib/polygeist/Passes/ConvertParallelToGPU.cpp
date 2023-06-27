@@ -1824,14 +1824,42 @@ struct ConvertParallelToGPU1Pass
                            UNROLL_FACTORS[1][firstUnrollFactorId][0] <
                        32)
               firstUnrollFactorId++;
+
           // If we have already varied the block size in SplitParallelOp, avoid
           // doing that here too.
+          bool altBlockSize = false;
           if (auto aop = wrapper->getParentOfType<polygeist::AlternativesOp>())
             if (aop->getAttrOfType<StringAttr>("alternatives.type")
                     .getValue() == "gpu_kernel")
-              firstUnrollFactorId = UNROLL_FACTORS[1].size() - 1;
+              altBlockSize = true;
 
           auto loc = wrapper->getLoc();
+
+          auto getMaxSharedMem = [](StringRef arch) -> unsigned {
+            if (arch.consume_front("sm_")) {
+              return 48 * 1024;
+              // TODO we can use more than 48KB (below) but it is only
+              // available as dynamic shared mem
+              int sm;
+              arch.getAsInteger(10, sm);
+              if (50 <= sm && sm <= 62)
+                return 48 * 1024;
+              else if (70 <= sm && sm <= 72)
+                return 96 * 1024;
+              else if (75 == sm)
+                return 64 * 1024;
+              else if (80 == sm)
+                return 163 * 1024;
+              else if (86 == sm || 89 == sm)
+                return 99 * 1024;
+              else if (90 == sm)
+                return 227 * 1024;
+            } else if (arch.consume_front("gfx")) {
+              // TODO find the proper value for this
+              return 48 * 1024;
+            }
+            return 48 * 1024;
+          };
 
           OpBuilder builder(wrapper);
           // Coarsen blocks with all factors, and coarsen threads only by
@@ -1843,79 +1871,77 @@ struct ConvertParallelToGPU1Pass
               builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
           alternativesOp->setAttr("alternatives.type",
                                   builder.getStringAttr("gpu_kernel"));
-
           unsigned curRegion = 0;
 
-          // Coarsened versions
-          for (unsigned iThread = firstUnrollFactorId;
-               iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
+          auto emitAlternative = [&](unsigned iBlock, unsigned iThread) {
+            // Do not coarsen with factor of over 32
+            if (UNROLL_FACTORS[1][iThread][0] * UNROLL_FACTORS[1][iBlock][0] >
+                32)
+              return failure();
+            auto block = &*alternativesOp->getRegion(curRegion).begin();
+            builder.setInsertionPointToStart(block);
+            auto newWrapper = cast<polygeist::GPUWrapperOp>(
+                builder.clone(*wrapper.getOperation()));
+            scf::ParallelOp gridPop =
+                getDirectlyNestedSingleParallel(newWrapper.getBody());
+            assert(gridPop);
+            bool succeeded = true;
+            auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
+            if (polygeist::scfParallelUnrollByFactors(
+                    gridPop, ArrayRef<uint64_t>(unrollFactors),
+                    /* generateEpilogueLoop */ true, nullptr)
+                    .failed()) {
+              wrapper->emitRemark("Failed to coarsen threads");
+              succeeded = false;
+            }
+            scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
+                gridPop.getBody(), /*allowAllocas*/ true,
+                /*allowIndexComputation*/ true);
+            assert(blockPop);
+            unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+            if (polygeist::scfParallelUnrollByFactors(
+                    blockPop, ArrayRef<uint64_t>(unrollFactors),
+                    /* generateEpilogueLoop */ false, nullptr)
+                    .failed()) {
+              wrapper->emitRemark("Failed to coarsen threads");
+              succeeded = false;
+            }
+
+            if (getSharedMemUsage(gridPop) > getMaxSharedMem(arch))
+              succeeded = false;
+
+            if (succeeded) {
+              curRegion++;
+              return success();
+            } else {
+              newWrapper->erase();
+              return failure();
+            }
+          };
+
+          if (altBlockSize) {
+            bool failed = false;
+            unsigned unrollFactorOne = UNROLL_FACTORS[blockDims].size() - 1;
             for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[gridDims].size();
                  iBlock++) {
-              // Do not coarsen with factor of over 32
-              if (UNROLL_FACTORS[1][iThread][0] * UNROLL_FACTORS[1][iBlock][0] >
-                  32)
-                continue;
-              auto block = &*alternativesOp->getRegion(curRegion).begin();
-              builder.setInsertionPointToStart(block);
-              auto newWrapper = cast<polygeist::GPUWrapperOp>(
-                  builder.clone(*wrapper.getOperation()));
-              scf::ParallelOp gridPop =
-                  getDirectlyNestedSingleParallel(newWrapper.getBody());
-              assert(gridPop);
-              bool succeeded = true;
-              auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
-              if (polygeist::scfParallelUnrollByFactors(
-                      gridPop, ArrayRef<uint64_t>(unrollFactors),
-                      /* generateEpilogueLoop */ true, nullptr)
-                      .failed()) {
-                wrapper->emitRemark("Failed to coarsen threads");
-                succeeded = false;
+              if ((failed = emitAlternative(iBlock, unrollFactorOne).failed()))
+                break;
+            }
+            if (failed) {
+              curRegion = 0;
+              for (unsigned iThread = firstUnrollFactorId;
+                   iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
+                auto succeeded =
+                    emitAlternative(unrollFactorOne, iThread).succeeded();
+                assert(succeeded);
               }
-              scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
-                  gridPop.getBody(), /*allowAllocas*/ true,
-                  /*allowIndexComputation*/ true);
-              assert(blockPop);
-              unrollFactors = UNROLL_FACTORS[blockDims][iThread];
-              if (polygeist::scfParallelUnrollByFactors(
-                      blockPop, ArrayRef<uint64_t>(unrollFactors),
-                      /* generateEpilogueLoop */ false, nullptr)
-                      .failed()) {
-                wrapper->emitRemark("Failed to coarsen threads");
-                succeeded = false;
-              }
-
-              auto getMaxSharedMem = [](StringRef arch) -> unsigned {
-                if (arch.consume_front("sm_")) {
-                  return 48 * 1024;
-                  // TODO we can use more than 48KB (below) but it is only
-                  // available as dynamic shared mem
-                  int sm;
-                  arch.getAsInteger(10, sm);
-                  if (50 <= sm && sm <= 62)
-                    return 48 * 1024;
-                  else if (70 <= sm && sm <= 72)
-                    return 96 * 1024;
-                  else if (75 == sm)
-                    return 64 * 1024;
-                  else if (80 == sm)
-                    return 163 * 1024;
-                  else if (86 == sm || 89 == sm)
-                    return 99 * 1024;
-                  else if (90 == sm)
-                    return 227 * 1024;
-                } else if (arch.consume_front("gfx")) {
-                  // TODO find the proper value for this
-                  return 48 * 1024;
-                }
-                return 48 * 1024;
-              };
-              if (getSharedMemUsage(gridPop) > getMaxSharedMem(arch))
-                succeeded = false;
-
-              if (succeeded) {
-                curRegion++;
-              } else {
-                newWrapper->erase();
+            }
+          } else {
+            for (unsigned iThread = firstUnrollFactorId;
+                 iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
+              for (unsigned iBlock = 0;
+                   iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
+                (void)emitAlternative(iBlock, iThread);
               }
             }
           }
