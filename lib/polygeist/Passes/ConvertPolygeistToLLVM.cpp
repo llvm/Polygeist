@@ -1466,15 +1466,12 @@ struct LowerGPUAlternativesOp
 
     auto printInfos = [&](auto &strm, std::vector<kernelInfoTy> infos) {
       int i = 0;
-      // clang-format off
-          for (auto tup : infos) {
-            strm << "polygeistKernelInfo: "
-                << locStr << ","
-                << i++ << ",";
-            print(strm, tup);
-            strm << "\n";
-          }
-      // clang-format on
+      for (auto tup : infos) {
+        strm << "polygeistKernelInfo: " << locStr << "," << i++ << ",";
+        auto _tup = pop_front(tup);
+        print(strm, _tup);
+        strm << "\n";
+      }
     };
 
     auto gatherInfos = [&]() {
