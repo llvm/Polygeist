@@ -1684,9 +1684,22 @@ struct LowerGPUAlternativesOp
 
           int occupancyNumBlocks;
           if (blockSize > 0) {
-            RETURN_ON_HIP_ERROR(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                &occupancyNumBlocks, hipFunction, blockSize,
-                dynamicSharedMemSize));
+            auto succeeded =
+                [&]() {
+                  RETURN_ON_HIP_ERROR(
+                      hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                          &occupancyNumBlocks, hipFunction, blockSize,
+                          dynamicSharedMemSize));
+                  return success();
+                }()
+                    .succeeded();
+
+            if (!succeeded) {
+              llvm::errs() << "Why does this fail with block size " << blockSize
+                           << " and dynamic shared mem size "
+                           << dynamicSharedMemSize << " \n";
+              occupancyNumBlocks = 0;
+            }
           } else {
             occupancyNumBlocks = 0;
           }
