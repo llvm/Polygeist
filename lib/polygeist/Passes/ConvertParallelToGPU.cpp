@@ -1631,10 +1631,11 @@ struct ConvertParallelToGPU1Pass
     : public ConvertParallelToGPU1Base<ConvertParallelToGPU1Pass> {
   ConvertParallelToGPU1Pass(std::string arch) { this->arch.setValue(arch); }
   void runOnOperation() override {
+    auto m = getOperation();
     // TODO we need to transform all parallels in gpu_wrappers to have lower
     // bounds of 0 and steps of 1 as we kind of assume that in many patterns (or
     // have the patterns check)
-    {
+    auto removeNoops = [&]() {
       RewritePatternSet patterns(&getContext());
       // clang-format off
       patterns.insert<
@@ -1644,12 +1645,12 @@ struct ConvertParallelToGPU1Pass
         >(&getContext());
       // clang-format on
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                              std::move(patterns), config))) {
+      if (failed(
+              applyPatternsAndFoldGreedily(m, std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
-    }
+    };
     auto populateNormalizationPatterns = [&](RewritePatternSet &patterns) {
       // clang-format off
       patterns.insert<
@@ -1665,11 +1666,12 @@ struct ConvertParallelToGPU1Pass
       // clang-format on
     };
     auto runNormalization = [&]() {
+      removeNoops();
       RewritePatternSet patterns(&getContext());
       populateNormalizationPatterns(patterns);
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                              std::move(patterns), config))) {
+      if (failed(
+              applyPatternsAndFoldGreedily(m, std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
@@ -1679,7 +1681,7 @@ struct ConvertParallelToGPU1Pass
     // Thread/Block coarsening
     {
       auto runLICM = [&]() {
-        getOperation()->walk([&](LoopLikeOpInterface loopLike) {
+        m->walk([&](LoopLikeOpInterface loopLike) {
           if (((Operation *)loopLike)
                   ->getParentOfType<polygeist::GPUWrapperOp>()) {
             if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
@@ -1705,7 +1707,7 @@ struct ConvertParallelToGPU1Pass
 
       if (coarsenThreads > 1 || coarsenBlocks > 1) {
         std::vector<polygeist::GPUWrapperOp> toHandle;
-        getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+        m->walk([&](polygeist::GPUWrapperOp wrapper) {
           toHandle.push_back(wrapper);
         });
         for (polygeist::GPUWrapperOp wrapper : toHandle) {
@@ -1768,7 +1770,7 @@ struct ConvertParallelToGPU1Pass
         // pre-determined set of alternative coarsened kernels
 
         std::vector<polygeist::GPUWrapperOp> toHandle;
-        getOperation()->walk([&](polygeist::GPUWrapperOp wrapper) {
+        m->walk([&](polygeist::GPUWrapperOp wrapper) {
           toHandle.push_back(wrapper);
         });
         for (polygeist::GPUWrapperOp wrapper : toHandle) {
@@ -1984,6 +1986,25 @@ struct ConvertParallelToGPU1Pass
 
           shrinkAlternativesOp(alternativesOp, curRegion, builder);
         }
+
+        // Make sure LICM doesnt change the structure
+        m->walk([&](scf::ParallelOp pop) {
+          if (!pop->getParentOfType<polygeist::GPUWrapperOp>())
+            return;
+          auto loc = pop->getLoc();
+          auto noop = OpBuilder::atBlockBegin(pop.getBody())
+                          .create<polygeist::NoopOp>(
+                              loc, pop.getBody()->getArguments());
+          if (pop->getParentOfType<scf::ParallelOp>()) {
+            noop->setAttr(
+                "polygeist.noop_type",
+                StringAttr::get(noop->getContext(), "gpu_kernel.thread"));
+          } else {
+            noop->setAttr(
+                "polygeist.noop_type",
+                StringAttr::get(noop->getContext(), "gpu_kernel.block"));
+          }
+        });
         runLICM();
       }
     }
@@ -1998,15 +2019,15 @@ struct ConvertParallelToGPU1Pass
         >(&getContext());
       // clang-format on
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(),
-                                              std::move(patterns), config))) {
+      if (failed(
+              applyPatternsAndFoldGreedily(m, std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
     }
 
     // Sink constants in the body
-    getOperation()->walk([](gpu::LaunchOp launchOp) {
+    m->walk([](gpu::LaunchOp launchOp) {
       Region &launchOpBody = launchOp.getBody();
       SetVector<Value> sinkCandidates;
       getUsedValuesDefinedAbove(launchOpBody, sinkCandidates);
@@ -2031,7 +2052,7 @@ struct ConvertParallelToGPU1Pass
       }
     });
 
-    getOperation()->walk([](scf::ParallelOp pop) {
+    m->walk([](scf::ParallelOp pop) {
       if (pop->getParentOfType<gpu::GPUModuleOp>()) {
         POLYGEIST_REMARK(
             pop->emitRemark("Could not use parallel loop for parallelism in "
