@@ -506,12 +506,13 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     // vary the block size as we cannot make proper assumptions about the
     // resulting block size and transforming what was originally a block dim
     // into a grid dim usually has bad effects on performance
-    return llvm::all_of(dea.getValues<IntegerAttr>(),
-                        [&](auto index_) {
-                          auto index = index_.getValue().getLimitedValue();
-                          auto cst = getConstantInteger(upperBounds[index]);
-                          return cst;
-                        }) &&
+    return (!dea ||
+            llvm::all_of(dea.getValues<IntegerAttr>(),
+                         [&](auto index_) {
+                           auto index = index_.getValue().getLimitedValue();
+                           auto cst = getConstantInteger(upperBounds[index]);
+                           return cst;
+                         })) &&
            llvm::all_of(syncIVs, [&](BlockArgument bo) {
              auto cst = getConstantInteger(upperBounds[bo.getArgNumber()]);
              return cst;
