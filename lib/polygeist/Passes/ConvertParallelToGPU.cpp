@@ -31,12 +31,14 @@
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 
 #include <llvm/ADT/StringRef.h>
 #include <optional>
 
 #include "ParallelLoopUnroll.h"
+#include "RuntimeWrapperUtils.h"
 
 static llvm::cl::opt<bool> GPUKernelEmitCoarsenedAlternatives(
     "gpu-kernel-emit-coarsened-alternatives", llvm::cl::init(false),
@@ -1863,6 +1865,32 @@ struct ConvertParallelToGPU1Pass
           };
 
           OpBuilder builder(wrapper);
+
+          auto emitBlockRemCheck = [&](unsigned iThread) {
+            auto zero = builder.create<arith::ConstantIndexOp>(loc, 0);
+            auto unrollFactors = UNROLL_FACTORS[blockDims][iThread];
+            Value cond = nullptr;
+            for (unsigned i = 0; i < unrollFactors.size(); i++) {
+              auto unrollFactor = unrollFactors[i];
+              auto unrollFactorCst =
+                  builder.create<arith::ConstantIndexOp>(loc, unrollFactor);
+              auto rem =
+                  builder.create<arith::RemUIOp>(loc, ubs[i], unrollFactorCst);
+              auto cmp = builder.create<arith::CmpIOp>(
+                  loc, arith::CmpIPredicate::eq, rem, zero);
+              if (cond)
+                cond = builder.create<arith::AndIOp>(loc, cond, cmp);
+              else
+                cond = cmp;
+            }
+
+            auto ifOp = builder.create<scf::IfOp>(loc, cond, /*hasElse*/ true);
+            auto elseBuilder = ifOp.getElseBodyBuilder();
+            GpuRuntimeCallBuilders callBuilder(
+                ifOp.getContext(), /*pointerBitwidth, doesnt matter*/ 64);
+            callBuilder.abortCallBuilder(loc, elseBuilder, {});
+          };
+
           // Coarsen blocks with all factors, and coarsen threads only by
           // factors which do not bring the number of threads under 32
           unsigned numAlternatives =
@@ -1881,6 +1909,7 @@ struct ConvertParallelToGPU1Pass
               return failure();
             auto block = &*alternativesOp->getRegion(curRegion).begin();
             builder.setInsertionPointToStart(block);
+            emitBlockRemCheck(iThread);
             auto newWrapper = cast<polygeist::GPUWrapperOp>(
                 builder.clone(*wrapper.getOperation()));
             scf::ParallelOp gridPop =
@@ -1892,7 +1921,7 @@ struct ConvertParallelToGPU1Pass
                     gridPop, ArrayRef<uint64_t>(unrollFactors),
                     /* generateEpilogueLoop */ true, nullptr)
                     .failed()) {
-              wrapper->emitRemark("Failed to coarsen threads");
+              wrapper->emitRemark("Failed to coarsen blocks");
               succeeded = false;
             }
             scf::ParallelOp blockPop = getDirectlyNestedSingleParallel(
@@ -1915,7 +1944,11 @@ struct ConvertParallelToGPU1Pass
               curRegion++;
               return success();
             } else {
-              newWrapper->erase();
+              // Clear block
+              auto newBlock = new Block();
+              block->getParent()->push_front(newBlock);
+              OpBuilder::atBlockBegin(newBlock).clone(*block->getTerminator());
+              block->erase();
               return failure();
             }
           };

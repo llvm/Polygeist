@@ -223,6 +223,9 @@ public:
           llvmPointerType, /* const char *kernelId */
           llvmInt32Type,   /* int totalAlternatives */
       }};
+
+  //======================= Other =======================//
+  FunctionCallBuilder abortCallBuilder = {"abort", llvmVoidType, {}};
 };
 
 template <typename OpTy>
