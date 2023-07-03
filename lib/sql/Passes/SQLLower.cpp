@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PassDetails.h"
+#include "polygeist/Ops.h"
 #include "mlir/Analysis/CallGraph.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Async/IR/Async.h"
@@ -41,57 +42,6 @@ struct SQLLower : public SQLLowerBase<SQLLower> {
 } // end anonymous namespace
 
 
-struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
-  using OpRewritePattern<sql::ExecuteOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(sql::ExecuteOp op,
-                                PatternRewriter &rewriter) const final {
-    auto module = op->getParentOfType<ModuleOp>();
-
-    SymbolTableCollection symbolTable;
-    symbolTable.getSymbolTable(module);
-
-    // 1) make sure the postgres_getresult function is declared
-    auto execfn = dyn_cast_or_null<func::FuncOp>(
-        symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("PQexec")));
-    
-    auto atoifn = dyn_cast_or_null<func::FuncOp>(
-        symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("atoi")));
-
-    // 2) convert the args to valid args to postgres_getresult abi
-    Value conn = op.getConn();
-    conn = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-                                              rewriter.getI64Type(), conn);
-    conn = rewriter.create<LLVM::IntToPtrOp>(
-        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), conn);
-
-    Value command = op.getCommand();
-    command = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-                                              rewriter.getI64Type(), command);
-    command = rewriter.create<LLVM::IntToPtrOp>(
-        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);
-
-    // 3) call and replace
-    Value args[] = {conn, command}; 
-    
-    Value res =
-        rewriter.create<mlir::func::CallOp>(op.getLoc(), execfn, args)
-            ->getResult(0);
-
-    Value args2[] = {res}; 
-    
-    Value res2 =
-        rewriter.create<mlir::func::CallOp>(op.getLoc(), atoifn, args2)
-            ->getResult(0);
-
-    rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
-        op, rewriter.getIndexType(), res2);
-
-    return success();
-  }
-};
-
-
 struct NumResultsOpLowering : public OpRewritePattern<sql::NumResultsOp> {
   using OpRewritePattern<sql::NumResultsOp>::OpRewritePattern;
 
@@ -106,16 +56,16 @@ struct NumResultsOpLowering : public OpRewritePattern<sql::NumResultsOp> {
     auto rowsfn = dyn_cast_or_null<func::FuncOp>(
         symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("PQntuples")));
 
-    auto atoifn = dyn_cast_or_null<func::FuncOp>(
-        symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("atoi")));
-
     // 2) convert the args to valid args to postgres_getresult abi
     Value arg = op.getHandle();
     arg = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-                                              rewriter.getI64Type(), arg);
+                                              rewriter.getI8Type(), arg);
 
     arg = rewriter.create<LLVM::IntToPtrOp>(
         op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), arg);
+    
+    arg = rewriter.create<polygeist::Pointer2MemrefOp>(op.getLoc(), 
+                        rowsfn.getFunctionType().getInput(0), arg);
 
     // 3) call and replace
     Value args[] = {arg}; 
@@ -124,14 +74,8 @@ struct NumResultsOpLowering : public OpRewritePattern<sql::NumResultsOp> {
         rewriter.create<mlir::func::CallOp>(op.getLoc(), rowsfn, args)
             ->getResult(0);
 
-    Value args2[] = {res}; 
-    
-    Value res2 =
-        rewriter.create<mlir::func::CallOp>(op.getLoc(), atoifn, args2)
-            ->getResult(0);
-
     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
-        op, rewriter.getIndexType(), res2);
+        op, rewriter.getIndexType(), res);
 
     return success();
   }
@@ -162,11 +106,16 @@ struct GetValueOpLowering : public OpRewritePattern<sql::GetValueOp> {
     handle = rewriter.create<LLVM::IntToPtrOp>(
         op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), handle);
 
-    Value row = op.getRow();
-    Value column = op.getColumn(); 
+    handle = rewriter.create<polygeist::Pointer2MemrefOp>(op.getLoc(), 
+                        valuefn.getFunctionType().getInput(0), handle);
 
-                                            
-    // 3) call and replace
+    Value row = op.getRow();
+    row = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              valuefn.getFunctionType().getInput(1), row);
+    Value column = op.getColumn(); 
+    column = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              valuefn.getFunctionType().getInput(2), column);
+
     Value args[] = {handle, row, column}; 
     
     Value res =
@@ -202,44 +151,55 @@ struct GetValueOpLowering : public OpRewritePattern<sql::GetValueOp> {
   }
 };
 
+struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
+  using OpRewritePattern<sql::ExecuteOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(sql::ExecuteOp op,
+                                PatternRewriter &rewriter) const final {
+    auto module = op->getParentOfType<ModuleOp>();
+
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(module);
+
+    // 1) make sure the postgres_getresult function is declared
+    auto executefn = dyn_cast_or_null<func::FuncOp>(
+        symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("PQexec")));
+
+    // 2) convert the args to valid args to postgres_getresult abi
+    Value conn = op.getConn();
+    conn = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              rewriter.getI8Type(), conn);
+    conn = rewriter.create<LLVM::IntToPtrOp>(
+        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), conn);
+    conn = rewriter.create<polygeist::Pointer2MemrefOp>(op.getLoc(), 
+                        executefn.getFunctionType().getInput(0), conn);
+
+    Value command = op.getCommand(); 
+    command = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              rewriter.getI8Type(), command);
+    command = rewriter.create<LLVM::IntToPtrOp>(
+        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);
+    StringRef strname = command.getDefiningOp<LLVM::AddressOfOp>().getGlobalName();
+    Attribute strattr = dyn_cast_or_null<LLVM::GlobalOp>(
+            symbolTable.lookupSymbolIn(module, rewriter.getStringAttr(strname))).getValueAttr();
+    auto str = strattr.cast<StringAttr>().getValue();
+    llvm::errs() << str << "\n";
+    command = rewriter.create<polygeist::Pointer2MemrefOp>(op.getLoc(), 
+                        executefn.getFunctionType().getInput(1), command);
 
 
-// struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
-//   using OpRewritePattern<sql::ExecuteOp>::OpRewritePattern;
-
-//   LogicalResult matchAndRewrite(sql::ExecuteOp op,
-//                                 PatternRewriter &rewriter) const final {
-//     auto module = op->getParentOfType<ModuleOp>();
-
-//     SymbolTableCollection symbolTable;
-//     symbolTable.getSymbolTable(module);
-
-//     // 1) make sure the postgres_getresult function is declared
-//     auto executefn = dyn_cast_or_null<func::FuncOp>(
-//         symbolTable.lookupSymbolIn(module, rewriter.getStringAttr("PQexec")));
-
-//     // 2) convert the args to valid args to postgres_getresult abi
-//     Value conn = op.getConn();
-//     conn = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-//                                               rewriter.getI64Type(), conn);
-//     conn = rewriter.create<LLVM::IntToPtrOp>(
-//         op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), conn);
-
-//     Value command = op.getCommand(); 
-                                            
-//     // 3) call and replace
-//     Value args[] = {conn, command}; 
+    // 3) call and replace
+    Value args[] = {conn, command}; 
     
-//     Value res =
-//         rewriter.create<mlir::func::CallOp>(op.getLoc(), executefn, args)
-//             ->getResult(0);
+    Value res =
+        rewriter.create<mlir::func::CallOp>(op.getLoc(), executefn, args)
+            ->getResult(0);
 
-//     rewriter.replaceOpWithNewOp<arith::IndexCastOp>(
-//         op, rewriter.getIndexType(), res);
+    rewriter.replaceOp(op, res);
 
-//     return success();
-//   }
-// };
+    return success();
+  }
+};
 
 void SQLLower::runOnOperation() {
   auto module = getOperation();
@@ -251,8 +211,8 @@ void SQLLower::runOnOperation() {
 
   if (!dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
           module, builder.getStringAttr("PQntuples")))) {
-    mlir::Type argtypes[] = {LLVM::LLVMPointerType::get(builder.getI8Type())};
-    mlir::Type rettypes[] = {LLVM::LLVMPointerType::get(builder.getI64Type())};
+    mlir::Type argtypes[] = {MemRefType::get({-1}, builder.getI8Type())};
+    mlir::Type rettypes[] = {builder.getI64Type()};
 
     auto fn =
         builder.create<func::FuncOp>(module.getLoc(), "PQntuples",
@@ -263,10 +223,10 @@ void SQLLower::runOnOperation() {
   if (!dyn_cast_or_null<func::FuncOp>(symbolTable.lookupSymbolIn(
           module, builder.getStringAttr("PQgetvalue")))) {
     mlir::Type argtypes[] = {
-                LLVM::LLVMPointerType::get(builder.getI8Type()), 
-                LLVM::LLVMPointerType::get(builder.getI64Type()), 
-                LLVM::LLVMPointerType::get(builder.getI64Type())};
-    mlir::Type rettypes[] = {LLVM::LLVMPointerType::get(builder.getI8Type())};
+                MemRefType::get({-1}, builder.getI8Type()), 
+                builder.getI64Type(), 
+                builder.getI64Type()};
+    mlir::Type rettypes[] = {MemRefType::get({-1}, builder.getI8Type())};
 
     auto fn =
         builder.create<func::FuncOp>(module.getLoc(), "PQgetvalue",
@@ -274,21 +234,21 @@ void SQLLower::runOnOperation() {
     SymbolTable::setSymbolVisibility(fn, SymbolTable::Visibility::Private);
   }
 
-//   if (!dyn_cast_or_null<func::FuncOp>(
-//           symbolTable.lookupSymbolIn(module, builder.getStringAttr("PQexec")))) {
-//     mlir::Type argtypes[] = {LLVM::LLVMPointerType::get(builder.getI64Type()),
-//                              LLVM::LLVMPointerType::get(builder.getI8Type())};
-//     mlir::Type rettypes[] = {LLVM::LLVMPointerType::get(builder.getI64Type())};
+  if (!dyn_cast_or_null<func::FuncOp>(
+          symbolTable.lookupSymbolIn(module, builder.getStringAttr("PQexec")))) {
+    mlir::Type argtypes[] = {MemRefType::get({-1}, builder.getI8Type()),
+                             MemRefType::get({-1}, builder.getI8Type())};
+    mlir::Type rettypes[] = {MemRefType::get({-1}, builder.getI8Type())};
 
-//     auto fn = builder.create<func::FuncOp>(
-//         module.getLoc(), "PQexec", builder.getFunctionType(argtypes, rettypes));
-//     SymbolTable::setSymbolVisibility(fn, SymbolTable::Visibility::Private);
-//   }
+    auto fn = builder.create<func::FuncOp>(
+        module.getLoc(), "PQexec", builder.getFunctionType(argtypes, rettypes));
+    SymbolTable::setSymbolVisibility(fn, SymbolTable::Visibility::Private);
+  }
 
   if (!dyn_cast_or_null<func::FuncOp>(
           symbolTable.lookupSymbolIn(module, builder.getStringAttr("atoi")))) {
-    // mlir::Type argtypes[] = {MemRefType::get({-1}, builder.getI8Type())};
-    mlir::Type argtypes[] = {LLVM::LLVMPointerType::get(builder.getI64Type())};
+    mlir::Type argtypes[] = {MemRefType::get({-1}, builder.getI8Type())};
+    // mlir::Type argtypes[] = {LLVM::LLVMPointerType::get(builder.getI64Type())};
 
     // todo use data layout
     mlir::Type rettypes[] = {builder.getI64Type()};
@@ -301,7 +261,7 @@ void SQLLower::runOnOperation() {
   RewritePatternSet patterns(&getContext());
   patterns.insert<NumResultsOpLowering>(&getContext());
   patterns.insert<GetValueOpLowering>(&getContext());
-  // patterns.insert<ExecuteOpLowering>(&getContext());
+  patterns.insert<ExecuteOpLowering>(&getContext());
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

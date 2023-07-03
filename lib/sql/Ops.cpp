@@ -16,6 +16,7 @@
 
 #include "sql/SQLDialect.h"
 #include "sql/SQLOps.h"
+#include "polygeist/Ops.h"
 
 #define GET_OP_CLASSES
 #include "sql/SQLOps.cpp.inc"
@@ -30,7 +31,6 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Transforms/SideEffectUtils.h"
-// #include "mlir/Target/LLVMIR/LLVMTranslationInterface.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
@@ -52,7 +52,6 @@ public:
     bool changed = false;
 
     Value handle = op.getOperand(0);
-
     if (!handle.getType().isa<IndexType>()) {
         handle = rewriter.create<IndexCastOp>(op.getLoc(),
                                                    rewriter.getIndexType(),  handle);
@@ -119,4 +118,58 @@ public:
 void NumResultsOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
   results.insert<NumResultsOpTypeFix>(context);
+}
+
+
+
+class ExecuteOpTypeFix final : public OpRewritePattern<ExecuteOp> {
+public:
+  using OpRewritePattern<ExecuteOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(ExecuteOp op,
+                                PatternRewriter &rewriter) const override {
+    bool changed = false;
+
+    Value conn = op->getOperand(0);
+    Value command = op->getOperand(1);
+
+    if (conn.getType().isa<IndexType>() && command.getType().isa<IndexType>() && op->getResultTypes()[0].isa<IndexType>())
+        return failure();
+
+    if (!conn.getType().isa<IndexType>()) {
+        conn = rewriter.create<IndexCastOp>(op.getLoc(),
+                                                   rewriter.getIndexType(), conn);
+        changed = true;
+    }
+    if (command.getType().isa<MemRefType>()) {
+        command = rewriter.create<polygeist::Memref2PointerOp>(op.getLoc(), 
+                                                   LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);                          
+        changed = true;
+    }
+    if (command.getType().isa<LLVM::LLVMPointerType>()) {
+        command = rewriter.create<LLVM::PtrToIntOp>(op.getLoc(), 
+                                                   rewriter.getI64Type(), command);                          
+        changed = true;
+    }
+    if (!command.getType().isa<IndexType>()) {
+        command = rewriter.create<IndexCastOp>(op.getLoc(), 
+                                               rewriter.getIndexType(), command);                          
+        changed = true;
+    }
+
+    if (!changed) return failure();
+    mlir::Value res = rewriter.create<ExecuteOp>(op.getLoc(), rewriter.getIndexType(), conn, command);
+    rewriter.replaceOp(op, res);
+    // if (op->getResultTypes()[0].isa<IndexType>()) {
+    //     rewriter.replaceOp(op, res);
+    // } else {
+    //     rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
+    // }
+    return success(changed);
+  }
+};
+
+void ExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<ExecuteOpTypeFix>(context);
 }

@@ -12,26 +12,66 @@
 include "mlir/IR/AttrTypeBase.td"
 include "SQLDialect.td"
 
-def SelectOp : SQL_Op<"select", [Pure]> {
+def IntOp : SQL_Op<"int", [Pure]> {
   let summary = "select";
 
-  // TODO: limit (optional), where clauses, join, etc
-  let arguments = (ins StrArrayAttr:$column, StrAttr:$table);
-  let results = (outs Index : $result);
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLExprType:$result);
 
   let hasFolder = 0;
   let hasCanonicalizer = 0;
 } 
 
-def ExecuteOp : SQL_Op<"execute", []> {
-  let summary = "execute query";
+def ColumnOp : SQL_Op<"column", [Pure]> {
+  let summary = "select";
 
-  let arguments = (ins Index:$conn, Index:$command);
-  let results = (outs Index:$result);
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLExprType:$result);
 
   let hasFolder = 0;
   let hasCanonicalizer = 0;
+} 
+
+def TableOp : SQL_Op<"table", [Pure]> {
+  let summary = "select";
+
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+} 
+
+def SelectOp : SQL_Op<"select", [Pure]> {
+  let summary = "select";
+
+  let arguments = (ins Variadic<SQLExprType>:$columns, Optional<SQLExprType>:$table);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+} 
+
+def UnparsedOp : SQL_Op<"unparsed", [Pure]> {
+  let summary = "unparsed sql op";
+
+  let arguments = (ins AnyType:$input);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 1;
+} 
+
+def ExecuteOp : SQL_Op<"execute", []> {
+  let summary = "execute query";
+
+  let arguments = (ins Index:$conn, SQLExprType:$command);
+  let results = (outs Index:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 1;
 }
+
 
 def NumResultsOp : SQL_Op<"num_results", [Pure]> {
   let summary = "number of results";
@@ -52,5 +92,18 @@ def GetValueOp : SQL_Op<"get_value", [Pure]> {
   let hasFolder = 0;
   let hasCanonicalizer = 1;
 }  
- 
+
+// def SelectOp : SQL_Op<"select", [Pure]>{
+//   let summary = "select";
+
+//   let arguments = (ins StrArrayAttr:$columns, 
+//                        Optional<AnyMemRef>:$from);
+//                       //  optional<list<clauses>>:$where,
+//                       //  optional<int>:$limit, 
+//                       //  optional<int>:$order);
+//   let results = (outs AnyType:$result);
+
+//   let hasFolder = 0;
+//   let hasCanonicalizer = 0;
+// }
 #endif // SQL_OPS
