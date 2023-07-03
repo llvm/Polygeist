@@ -1682,9 +1682,12 @@ struct ConvertParallelToGPU1Pass
     {
       auto runLICM = [&]() {
         m->walk([&](LoopLikeOpInterface loopLike) {
-          if (((Operation *)loopLike)
-                  ->getParentOfType<polygeist::GPUWrapperOp>()) {
-            if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
+          auto op = (Operation *)loopLike;
+          if (auto par = dyn_cast<scf::ParallelOp>(op)) {
+            // Only LICM outermost parallel loops in GPU regions which would be
+            // the ones affected by thread/block coarsening
+            if (op->getParentOfType<polygeist::GPUWrapperOp>() &&
+                !op->getParentOfType<scf::ParallelOp>()) {
               moveParallelLoopInvariantCode(par);
             }
           }
