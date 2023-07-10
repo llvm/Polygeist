@@ -126,6 +126,20 @@ static llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode(
 
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
+struct UndefLowering : public ConvertOpToLLVMPattern<UndefOp> {
+  using ConvertOpToLLVMPattern<UndefOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(UndefOp uop, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto ty = uop.getResult().getType();
+    if (!LLVM::isCompatibleType(ty))
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(uop, ty);
+    return success();
+  }
+};
+
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor
 ///   2. Updates to the descriptor to introduce the data ptr, offset, size

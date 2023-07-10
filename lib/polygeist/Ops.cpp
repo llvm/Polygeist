@@ -43,6 +43,29 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
+// UndefOp
+//===----------------------------------------------------------------------===//
+
+class UndefToLLVM final : public OpRewritePattern<UndefOp> {
+public:
+  using OpRewritePattern<UndefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(UndefOp uop,
+                                PatternRewriter &rewriter) const override {
+    auto ty = uop.getResult().getType();
+    if (!LLVM::isCompatibleType(ty))
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(uop, ty);
+    return success();
+  }
+};
+
+void UndefOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                          MLIRContext *context) {
+  results.insert<UndefToLLVM>(context);
+}
+
+//===----------------------------------------------------------------------===//
 // NoopOp
 //===----------------------------------------------------------------------===//
 
