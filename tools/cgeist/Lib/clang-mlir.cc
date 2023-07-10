@@ -2896,6 +2896,18 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     }
   }
   case clang::BinaryOperator::Opcode::BO_Add: {
+    auto emitSubindex = [&](auto mr, auto ptradd) {
+      auto mt = mr.getType().template dyn_cast<mlir::MemRefType>();
+      auto shape = std::vector<int64_t>(mt.getShape());
+      shape[0] = -1;
+      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
+                                       MemRefLayoutAttrInterface(),
+                                       mt.getMemorySpace());
+      ptradd = castToIndex(loc, ptradd);
+      return ValueCategory(
+          builder.create<polygeist::SubIndexOp>(loc, mt0, mr, ptradd),
+          /*isReference*/ false);
+    };
     if (auto cty = dyn_cast<clang::ComplexType>(BO->getType())) {
       mlir::Value real =
           builder.create<AddFOp>(loc, getComplexPart(loc, lhs.val, 0),
@@ -2911,17 +2923,10 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     if (lhs_v.getType().isa<mlir::FloatType>()) {
       return ValueCategory(builder.create<AddFOp>(loc, lhs_v, rhs_v),
                            /*isReference*/ false);
-    } else if (auto mt = lhs_v.getType().dyn_cast<mlir::MemRefType>()) {
-      auto shape = std::vector<int64_t>(mt.getShape());
-      shape[0] = -1;
-      auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
-                                       MemRefLayoutAttrInterface(),
-                                       mt.getMemorySpace());
-      auto ptradd = rhs_v;
-      ptradd = castToIndex(loc, ptradd);
-      return ValueCategory(
-          builder.create<polygeist::SubIndexOp>(loc, mt0, lhs_v, ptradd),
-          /*isReference*/ false);
+    } else if (lhs_v.getType().isa<mlir::MemRefType>()) {
+      return emitSubindex(lhs_v, rhs_v);
+    } else if (rhs_v.getType().isa<mlir::MemRefType>()) {
+      return emitSubindex(rhs_v, lhs_v);
     } else if (auto pt =
                    lhs_v.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
       return ValueCategory(
