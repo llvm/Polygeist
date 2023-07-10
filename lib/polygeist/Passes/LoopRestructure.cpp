@@ -563,7 +563,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               for (auto p : preservedVals)
                 args.push_back(p.first);
               for (auto tup : llvm::zip(returns, returnLocs)) {
-                args.push_back(builder.create<mlir::LLVM::UndefOp>(
+                args.push_back(builder.create<polygeist::UndefOp>(
                     std::get<1>(tup), std::get<0>(tup)));
               }
               terminator =
@@ -579,7 +579,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 for (auto pair : preservedVals)
                   trueargs.push_back(pair.first);
                 for (auto tup : llvm::zip(returns, returnLocs)) {
-                  trueargs.push_back(builder.create<mlir::LLVM::UndefOp>(
+                  trueargs.push_back(builder.create<polygeist::UndefOp>(
                       std::get<1>(tup), std::get<0>(tup)));
                 }
               }
@@ -588,7 +588,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
                 for (auto pair : preservedVals)
                   falseargs.push_back(pair.first);
                 for (auto tup : llvm::zip(returns, returnLocs)) {
-                  falseargs.push_back(builder.create<mlir::LLVM::UndefOp>(
+                  falseargs.push_back(builder.create<polygeist::UndefOp>(
                       std::get<1>(tup), std::get<0>(tup)));
                 }
               }
