@@ -106,6 +106,7 @@ def AlternativesOp : Polygeist_Op<"alternatives", [
   let regions = (region VariadicRegion<SizedRegion<1>>:$regions);
   let skipDefaultBuilders = 1;
   let builders = [OpBuilder<(ins "int":$regionNum)>];
+  let hasCanonicalizer = 1;
 }
 
 def GPUWrapperOp : Polygeist_Op<"gpu_wrapper", [

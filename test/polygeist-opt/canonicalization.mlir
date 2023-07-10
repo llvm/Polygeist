@@ -53,3 +53,50 @@ func.func @memref2ptr(%arg0: memref<10xi32>) -> !llvm.ptr<i8> {
 // CHECK-NEXT: %[[V1:.+]] = llvm.getelementptr %[[V0]][8] : (!llvm.ptr<i8>) -> !llvm.ptr<i8>
 // CHECK-NEXT: return %[[V1]] : !llvm.ptr<i8>
 // CHECK-NEXT: }
+
+module {
+func.func private @wow0()
+func.func private @wow1()
+func.func private @wow2()
+func.func private @wow3()
+func.func private @wow4()
+func.func @flatten_alternatives() {
+  "polygeist.alternatives"() ({
+    func.call @wow0() : () -> ()
+    "polygeist.alternatives"() ({
+      func.call @wow1() : () -> ()
+      "polygeist.polygeist_yield"() : () -> ()
+    }, {
+      func.call @wow2() : () -> ()
+      "polygeist.polygeist_yield"() : () -> ()
+    }) {} : () -> ()
+    "polygeist.polygeist_yield"() : () -> ()
+  }, {
+    "polygeist.alternatives"() ({
+      func.call @wow3() : () -> ()
+      "polygeist.polygeist_yield"() : () -> ()
+    }, {
+      func.call @wow4() : () -> ()
+      "polygeist.polygeist_yield"() : () -> ()
+    }) {} : () -> ()
+    "polygeist.polygeist_yield"() : () -> ()
+  }) {} : () -> ()
+  return
+}
+}
+// CHECK:  func.func @flatten_alternatives() {
+// CHECK-NEXT:    "polygeist.alternatives"() ({
+// CHECK-NEXT:      func.call @wow3() : () -> ()
+// CHECK-NEXT:      "polygeist.polygeist_yield"() : () -> ()
+// CHECK-NEXT:    }, {
+// CHECK-NEXT:      func.call @wow4() : () -> ()
+// CHECK-NEXT:      "polygeist.polygeist_yield"() : () -> ()
+// CHECK-NEXT:    }, {
+// CHECK-NEXT:      func.call @wow0() : () -> ()
+// CHECK-NEXT:      func.call @wow1() : () -> ()
+// CHECK-NEXT:      "polygeist.polygeist_yield"() : () -> ()
+// CHECK-NEXT:    }, {
+// CHECK-NEXT:      func.call @wow0() : () -> ()
+// CHECK-NEXT:      func.call @wow2() : () -> ()
+// CHECK-NEXT:      "polygeist.polygeist_yield"() : () -> ()
+// CHECK-NEXT:    }) : () -> ()

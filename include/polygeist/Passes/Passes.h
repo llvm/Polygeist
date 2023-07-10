@@ -37,6 +37,7 @@ std::unique_ptr<Pass> createParallelLowerPass(
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass();
 std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
 std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass();
+std::unique_ptr<Pass> createSCFParallelLoopUnrollPass(int unrollFactor = 2);
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
                                  bool useCStyleMemRef, bool onlyGpuModules,
@@ -44,7 +45,7 @@ createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass>
-createConvertParallelToGPUPass1(bool useOriginalThreadNums = false);
+createConvertParallelToGPUPass1(std::string arch = "sm_60");
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
 std::unique_ptr<Pass> createMergeGPUModulesPass();

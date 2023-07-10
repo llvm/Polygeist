@@ -17,6 +17,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertParallelToGPU.cpp
   SerializeToCubin.cpp
   SerializeToHsaco.cpp
+  ParallelLoopUnroll.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
@@ -88,9 +89,31 @@ if(POLYGEIST_ENABLE_CUDA)
 
 endif()
 if(POLYGEIST_ENABLE_ROCM)
-  # Enable gpu-to-hsaco pass.
   target_compile_definitions(obj.MLIRPolygeistTransforms
     PRIVATE
     POLYGEIST_ENABLE_ROCM=1
+    __HIP_PLATFORM_AMD__
   )
+
+  if (NOT DEFINED ROCM_PATH)
+    if (NOT DEFINED ENV{ROCM_PATH})
+      set(ROCM_PATH "/opt/rocm" CACHE PATH "Path to which ROCm has been installed")
+    else()
+      set(ROCM_PATH $ENV{ROCM_PATH} CACHE PATH "Path to which ROCm has been installed")
+    endif()
+  endif()
+  list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} "${ROCM_PATH}/hip")
+  find_package(hip REQUIRED)
+
+  # there should be some variable for this
+  target_include_directories(obj.MLIRPolygeistTransforms
+    PRIVATE
+    ${ROCM_PATH}/include
+  )
+
+  target_link_libraries(MLIRPolygeistTransforms
+    PRIVATE
+    hip::host
+  )
+
 endif()

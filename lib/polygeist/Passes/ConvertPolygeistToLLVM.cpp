@@ -63,6 +63,30 @@ extern llvm::cl::opt<bool> EmitROCM;
 #define DEBUG_TYPE "convert-polygeist-to-llvm"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE ":" << PATTERN << "] "
 
+#if POLYGEIST_ENABLE_ROCM
+#include <hip/hip_runtime_api.h>
+
+static void emitHipError(const llvm::Twine &expr, const char *buffer,
+                         hipError_t result, Location loc) {
+  const char *error;
+  error = hipGetErrorString(result);
+  emitError(loc, expr.concat(" failed with error code ")
+                     .concat(llvm::Twine{error})
+                     .concat("[")
+                     .concat(buffer)
+                     .concat("]"));
+}
+
+#define RETURN_ON_HIP_ERROR(expr)                                              \
+  do {                                                                         \
+    if (auto status = (expr)) {                                                \
+      emitHipError(#expr, hipErrorBuffer, status, loc);                        \
+      return failure();                                                        \
+    }                                                                          \
+  } while (false)
+
+#endif
+
 #if POLYGEIST_ENABLE_CUDA
 #include <cuda.h>
 
@@ -1382,11 +1406,28 @@ private:
   std::string gpuTarget;
 };
 
+// tuple helpers
 template <typename Tuple> constexpr auto pop_front(Tuple tuple) {
   static_assert(std::tuple_size<Tuple>::value > 0,
                 "Cannot pop from an empty tuple");
   return std::apply([](auto, auto... rest) { return std::make_tuple(rest...); },
                     tuple);
+}
+template <typename Stream, class Tuple, std::size_t N> struct TuplePrinter {
+  static void print(Stream &stream, const Tuple &t) {
+    TuplePrinter<Stream, Tuple, N - 1>::print(stream, t);
+    stream << ", " << std::get<N - 1>(t);
+  }
+};
+template <typename Stream, class Tuple> struct TuplePrinter<Stream, Tuple, 1> {
+  static void print(Stream &stream, const Tuple &t) {
+    stream << std::get<0>(t);
+  }
+};
+template <typename Stream, typename... Args,
+          std::enable_if_t<sizeof...(Args) != 0, int> = 0>
+void print(Stream &stream, const std::tuple<Args...> &t) {
+  TuplePrinter<Stream, decltype(t), sizeof...(Args)>::print(stream, t);
 }
 
 struct LowerGPUAlternativesOp
@@ -1403,12 +1444,78 @@ struct LowerGPUAlternativesOp
       return failure();
 
     Location loc = gao->getLoc();
+    std::string locStr = [&loc]() {
+      std::string str;
+      llvm::raw_string_ostream stream(str);
+      loc.print(stream);
+      stream.flush();
+      return stream.str();
+    }();
+    locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+    for (char &c : locStr)
+      if (c == '/')
+        c = '+';
 
     // TODO each region in the alternatives op should containt only a single
     // block - write a verifier for that
 
-    if (PolygeistAlternativesMode == PAM_Static) {
-      Block *block = nullptr;
+    typedef std::tuple<Region *, int, int, int, int, int, int, int, int, int,
+                       int, int, int>
+        kernelInfoTy;
+    std::vector<kernelInfoTy> infos;
+
+    auto printInfos = [&](auto &strm, std::vector<kernelInfoTy> infos) {
+      int i = 0;
+      for (auto tup : infos) {
+        strm << "polygeistKernelInfo: " << locStr << "," << i++ << ",";
+        auto _tup = pop_front(tup);
+        print(strm, _tup);
+        strm << "\n";
+      }
+    };
+
+    auto gatherInfos = [&]() {
+      typedef std::tuple<int, int, int, int, int, int> kernelLLVMInfoTy;
+      auto gatherLLVMInfos = [&](Operation *gpuFunc) -> kernelLLVMInfoTy {
+        int ops = 0, floatOps = 0, intOps = 0, loads = 0, stores = 0,
+            branches = 0;
+
+        // TODO This should use the GPU data layout and not the Host one
+        DataLayout DLI(gao->getParentOfType<ModuleOp>());
+        gpuFunc->walk([&](Operation *op) {
+          ops++;
+          if (isa<LLVM::BrOp>(op)) {
+            branches++;
+          } else if (isa<LLVM::FAddOp>(op) || isa<LLVM::FMulOp>(op) ||
+                     isa<LLVM::FDivOp>(op) || isa<LLVM::FSubOp>(op) ||
+                     isa<LLVM::FRemOp>(op)) {
+            int width =
+                op->getOperand(0).getType().dyn_cast<FloatType>().getWidth();
+            // TODO these are pretty random atm
+            if (width == 16) {
+              floatOps++;
+            } else if (width == 32) {
+              floatOps += 2;
+            } else if (width == 64) {
+              floatOps += 4;
+            }
+          } else if (isa<LLVM::AddOp>(op) || isa<LLVM::SubOp>(op) ||
+                     isa<LLVM::MulOp>(op) || isa<LLVM::UDivOp>(op) ||
+                     isa<LLVM::SDivOp>(op)) {
+            intOps++;
+          } else if (auto load = dyn_cast<LLVM::LoadOp>(op)) {
+            int bytes = DLI.getTypeSize(load.getRes().getType());
+            loads += bytes;
+          } else if (auto store = dyn_cast<LLVM::StoreOp>(op)) {
+            int bytes = DLI.getTypeSize(store->getOperand(0).getType());
+            stores += bytes;
+          }
+        });
+        return {
+            ops, floatOps, intOps, loads, stores, branches,
+        };
+      };
+
 #if POLYGEIST_ENABLE_CUDA
       if (gpuTarget == "cuda") {
         char cuErrorBuffer[4096] = {0};
@@ -1423,14 +1530,11 @@ struct LowerGPUAlternativesOp
         CUcontext context;
         RETURN_ON_CUDA_ERROR(cuCtxCreate(&context, 0, device));
 
-        std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-            occupancies;
-
         for (auto &region : gao->getRegions()) {
           gpu::LaunchFuncOp launchOp = nullptr;
           region.walk([&](gpu::LaunchFuncOp l) {
-            assert(!launchOp);
             launchOp = l;
+            return WalkResult::interrupt();
           });
           assert(launchOp);
 
@@ -1475,7 +1579,8 @@ struct LowerGPUAlternativesOp
                            dim.getDefiningOp())) {
               blockSize *= cstindex.value();
             } else {
-              assert(0);
+              blockSize = 0;
+              break;
             }
           }
 
@@ -1484,71 +1589,174 @@ struct LowerGPUAlternativesOp
           size_t dynamicSharedMemSize = 0;
 
           int occupancyNumBlocks;
-          RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
-              &occupancyNumBlocks, cuFunction, blockSize,
-              dynamicSharedMemSize));
+          if (blockSize > 0) {
+            RETURN_ON_CUDA_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+                &occupancyNumBlocks, cuFunction, blockSize,
+                dynamicSharedMemSize));
+          } else {
+            occupancyNumBlocks = 0;
+          }
 
           RETURN_ON_CUDA_ERROR(cuModuleUnload(cuModule));
 
+          auto kernelLLVMInfo = gatherLLVMInfos(gpuFunc);
+
           assert(maxThreadsPerBlock >= blockSize);
-          int activeThreads = occupancyNumBlocks * blockSize;
-          occupancies.push_back({
-              &region, localMemSize,   /* lower is better */
-              activeThreads,           /* higher is better */
-              numRegs * activeThreads, /* higher is better */
-              blockSize,               /* hisher is better??? maybe? */
-              sharedMemSize,           /* lower is better */
-              constMemSize,            /* lower is better */
-          });
+          // int activeThreads = occupancyNumBlocks * blockSize;
+          infos.push_back(std::tuple_cat(
+              std::make_tuple(&region),
+              std::make_tuple(localMemSize, occupancyNumBlocks, numRegs,
+                              blockSize, sharedMemSize, constMemSize),
+              kernelLLVMInfo));
         }
-
-        auto printOccupancies =
-            [&](std::vector<std::tuple<Region *, int, int, int, int, int, int>>
-                    occupancies) {
-              for (auto tup : occupancies)
-                DBGS() << std::get<0>(tup) << ", " << std::get<1>(tup) << ", "
-                       << std::get<2>(tup) << ", " << std::get<3>(tup) << ", "
-                       << std::get<4>(tup) << ", " << std::get<5>(tup) << ", "
-                       << std::get<6>(tup) << ", "
-                       << "\n";
-            };
-
-        LLVM_DEBUG(
-            DBGS() << "GPU Alternatives theoretical occupancies unsorted:\n");
-        LLVM_DEBUG(printOccupancies(occupancies));
-
-        auto getCost = [](auto a) -> double {
-          std::vector<float> coefficients = {4, -2, -0.1, -0.01};
-          return coefficients[0] * std::get<0>(a) +
-                 coefficients[1] * std::get<1>(a) +
-                 coefficients[2] * std::get<2>(a) +
-                 coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
-                 0 * std::get<5>(a);
-        };
-        std::stable_sort(occupancies.begin(), occupancies.end(),
-                         [&](auto a, auto b) {
-                           auto _a = pop_front(a);
-                           auto _b = pop_front(b);
-                           return getCost(_a) < getCost(_b);
-                         });
-
-        LLVM_DEBUG(
-            DBGS() << "GPU Alternatives theoretical occupancies sorted:\n");
-        LLVM_DEBUG(printOccupancies(occupancies));
-        LLVM_DEBUG(DBGS() << "Choosing top option\n");
-
-        block = &*std::get<0>(occupancies[0])->begin();
       }
 #endif
 #if POLYGEIST_ENABLE_ROCM
       if (gpuTarget == "rocm") {
-        llvm::errs() << "warning: no support for statically choosing ROCM "
-                        "kernel alternative, picking the first one\n";
-        block = &*gao->getRegions()[0].begin();
+        char hipErrorBuffer[4096] = {0};
+
+        // TODO implement a version that does this at runtime for when we dont
+        // have block sizes or shared mem
+
+        RETURN_ON_HIP_ERROR(hipInit(0));
+        // For whatever reason we need a device context
+        hipDevice_t device;
+        RETURN_ON_HIP_ERROR(hipDeviceGet(&device, 0));
+
+        for (auto &region : gao->getRegions()) {
+          gpu::LaunchFuncOp launchOp = nullptr;
+          region.walk([&](gpu::LaunchFuncOp l) {
+            launchOp = l;
+            return WalkResult::interrupt();
+          });
+          assert(launchOp);
+
+          auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
+              launchOp.getKernel());
+          assert(gpuFunc);
+          auto gpuModule = gpuFunc->getParentOfType<gpu::GPUModuleOp>();
+          assert(gpuModule);
+          const char *blob =
+              gpuModule->getAttrOfType<StringAttr>(gpuBinaryAnnotation).data();
+
+          hipModule_t hipModule;
+          hipFunction_t hipFunction;
+          RETURN_ON_HIP_ERROR(hipModuleLoadData(&hipModule, blob));
+          RETURN_ON_HIP_ERROR(hipModuleGetFunction(
+              &hipFunction, hipModule, launchOp.getKernelName().data()));
+
+          int maxThreadsPerBlock, sharedMemSize, constMemSize,
+              /* stack frame size */ localMemSize, numRegs;
+          // TODO we dont seem to be able to get spilled stores/loads count from
+          // here but ptxas outputs it? should we parse the ptxas output and add
+          // an attribute for those values
+          RETURN_ON_HIP_ERROR(hipFuncGetAttribute(
+              &maxThreadsPerBlock, HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+              hipFunction));
+          RETURN_ON_HIP_ERROR(hipFuncGetAttribute(
+              &sharedMemSize, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
+              hipFunction));
+          RETURN_ON_HIP_ERROR(hipFuncGetAttribute(
+              &constMemSize, HIP_FUNC_ATTRIBUTE_CONST_SIZE_BYTES, hipFunction));
+          RETURN_ON_HIP_ERROR(hipFuncGetAttribute(
+              &localMemSize, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hipFunction));
+          RETURN_ON_HIP_ERROR(hipFuncGetAttribute(
+              &numRegs, HIP_FUNC_ATTRIBUTE_NUM_REGS, hipFunction));
+
+          int blockSize = 1;
+          gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
+          for (auto dim : {blockDims.x, blockDims.y, blockDims.z}) {
+            if (auto cstint = dyn_cast_or_null<arith::ConstantIntOp>(
+                    dim.getDefiningOp())) {
+              blockSize *= cstint.value();
+            } else if (auto cstindex = dyn_cast_or_null<arith::ConstantIndexOp>(
+                           dim.getDefiningOp())) {
+              blockSize *= cstindex.value();
+            } else {
+              blockSize = 0;
+              break;
+            }
+          }
+
+          // in the current state, only kernels with no shared memory should use
+          // the alternatives op, thus assume 0 TODO check it
+          size_t dynamicSharedMemSize = 0;
+
+          int occupancyNumBlocks;
+          if (blockSize > 0) {
+            auto succeeded =
+                [&]() {
+                  RETURN_ON_HIP_ERROR(
+                      hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                          &occupancyNumBlocks, hipFunction, blockSize,
+                          dynamicSharedMemSize));
+                  return success();
+                }()
+                    .succeeded();
+
+            if (!succeeded) {
+              llvm::errs() << "Why does this fail with block size " << blockSize
+                           << " and dynamic shared mem size "
+                           << dynamicSharedMemSize << " \n";
+              occupancyNumBlocks = 0;
+            }
+          } else {
+            occupancyNumBlocks = 0;
+          }
+
+          RETURN_ON_HIP_ERROR(hipModuleUnload(hipModule));
+
+          auto kernelLLVMInfo = gatherLLVMInfos(gpuFunc);
+
+          assert(maxThreadsPerBlock >= blockSize);
+          // int activeThreads = occupancyNumBlocks * blockSize;
+          infos.push_back(std::tuple_cat(
+              std::make_tuple(&region),
+              std::make_tuple(localMemSize, occupancyNumBlocks, numRegs,
+                              blockSize, sharedMemSize, constMemSize),
+              kernelLLVMInfo));
+        }
       }
 #endif
-      if (!block)
-        block = &*gao->getRegions()[0].begin();
+      return success();
+    };
+
+    auto sortInfos = [&]() {
+      auto getCost = [](auto a) -> double {
+        std::vector<float> coefficients = {4, -2, -0.1, -0.01};
+        return coefficients[0] * std::get<0>(a) +
+               coefficients[1] * std::get<1>(a) +
+               coefficients[2] * std::get<2>(a) +
+               coefficients[3] * std::get<3>(a) + 0 * std::get<4>(a) +
+               0 * std::get<5>(a);
+      };
+      std::stable_sort(infos.begin(), infos.end(), [&](auto a, auto b) {
+        auto _a = pop_front(a);
+        auto _b = pop_front(b);
+        return getCost(_a) < getCost(_b);
+      });
+    };
+
+    bool shouldPrintInfo = getenv("POLYGEIST_GPU_ALTERNATIVES_PRINT_INFO");
+    if (shouldPrintInfo || PolygeistAlternativesMode == PAM_Static) {
+      if (gatherInfos().failed())
+        return failure();
+      LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical infos unsorted:\n");
+      LLVM_DEBUG(printInfos(DBGS(), infos));
+    }
+    if (shouldPrintInfo)
+      printInfos(llvm::errs(), infos);
+
+    if (PolygeistAlternativesMode == PAM_Static) {
+      Block *block = nullptr;
+      sortInfos();
+      LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical infos sorted:\n");
+      LLVM_DEBUG(printInfos(DBGS(), infos));
+      LLVM_DEBUG(DBGS() << "Choosing top option\n");
+
+      block = &*gao->getRegions()[0].begin();
+      if (!infos.empty())
+        block = &*std::get<0>(infos[0])->begin();
 
       rewriter.eraseOp(block->getTerminator());
       rewriter.mergeBlockBefore(block, gao);
@@ -1556,117 +1764,102 @@ struct LowerGPUAlternativesOp
 
       return success();
 
-    } else {
-      std::string locStr = [&loc]() {
-        std::string str;
-        llvm::raw_string_ostream stream(str);
-        loc.print(stream);
-        stream.flush();
-        return stream.str();
-      }();
-      locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
-      for (char &c : locStr)
-        if (c == '/')
-          c = '+';
+    } else if (PolygeistAlternativesMode == PAM_PGO_Profile) {
+      rewriter.setInsertionPoint(gao);
+      static int num = 0;
+      auto kernelId = LLVM::createGlobalString(
+          loc, rewriter, std::string("kernelId.") + std::to_string(num++),
+          locStr, LLVM::Linkage::Internal);
+      auto totalAlternatives = rewriter.create<LLVM::ConstantOp>(
+          loc, llvmInt32Type, gao->getNumRegions());
+      auto alternative =
+          rtPGOGetAlternativeCallBuilder
+              .create(loc, rewriter, {kernelId, totalAlternatives})
+              ->getResult(0);
 
-      if (PolygeistAlternativesMode == PAM_PGO_Profile) {
-        rewriter.setInsertionPoint(gao);
-        static int num = 0;
-        auto kernelId = LLVM::createGlobalString(
-            loc, rewriter, std::string("kernelId.") + std::to_string(num++),
-            locStr, LLVM::Linkage::Internal);
-        auto totalAlternatives = rewriter.create<LLVM::ConstantOp>(
-            loc, llvmInt32Type, gao->getNumRegions());
-        auto alternative =
-            rtPGOGetAlternativeCallBuilder
-                .create(loc, rewriter, {kernelId, totalAlternatives})
-                ->getResult(0);
-
-        int i = 0;
-        for (auto &region : gao->getRegions()) {
-          auto cmpOp = rewriter.create<arith::CmpIOp>(
-              loc, arith::CmpIPredicate::eq, alternative,
-              rewriter.create<arith::ConstantIntOp>(loc, i, 32));
-          auto ifOp =
-              rewriter.create<scf::IfOp>(loc, cmpOp, /* hasElse */ true);
-          auto block = &region.front();
-          rewriter.eraseOp(block->getTerminator());
-          rewriter.mergeBlockBefore(
-              block, ifOp.getThenRegion().front().getTerminator());
-
-          // Timing
-          rewriter.setInsertionPointToStart(&ifOp.getThenRegion().front());
-          rtPGOStartCallBuilder.create(loc, rewriter,
-                                       {kernelId, totalAlternatives});
-          rewriter.setInsertionPoint(
-              ifOp.getThenRegion().front().getTerminator());
-          rtPGOEndCallBuilder.create(loc, rewriter,
-                                     {kernelId, totalAlternatives});
-
-          rewriter.setInsertionPointToStart(&ifOp.getElseRegion().front());
-          i++;
-        }
-
-        rewriter.eraseOp(gao);
-        return success();
-      } else if (PolygeistAlternativesMode == PAM_PGO_Opt) {
-        std::string dirname = []() {
-          if (char *d = getenv(POLYGEIST_PGO_DATA_DIR_ENV_VAR)) {
-            return std::string(d);
-          } else {
-            return std::string(POLYGEIST_PGO_DEFAULT_DATA_DIR);
-          }
-        }();
-        // TODO error handling
-        std::ifstream ifile;
-        int numAlternatives = gao->getNumRegions();
-        std::vector<std::vector<double>> timings;
-        for (int i = 0; i < numAlternatives; i++) {
-          timings.push_back({});
-        }
-        ifile.open(std::string(dirname) + "/" + locStr, std::ios::in);
-        while (ifile) {
-          int alt;
-          double time;
-          ifile >> alt >> time;
-          if (alt >= 0 && alt < numAlternatives) {
-            timings[alt].push_back(time);
-          } else {
-            llvm::errs() << "Invalid alternative data";
-            assert(0);
-          }
-        }
-        std::vector<double> avgs;
-        for (int i = 0; i < numAlternatives; i++) {
-          if (timings[i].size() == 0) {
-            llvm::errs() << "No data for alternative " << i << " of " << locStr
-                         << "\n";
-            assert(0);
-            avgs.push_back(std::numeric_limits<double>::infinity());
-          } else {
-            // TODO might get some round off errors here, maybe use a better alg
-            // or median
-            avgs.push_back(
-                std::accumulate(timings[i].begin(), timings[i].end(), 0.0f) /
-                timings[i].size());
-            llvm::errs() << "Alternative " << i << " is " << avgs[i] << "\n";
-          }
-        }
-
-        int bestAlt = std::distance(avgs.begin(),
-                                    std::min_element(avgs.begin(), avgs.end()));
-        llvm::errs() << "Picking " << bestAlt << "\n";
-
-        auto block = &*gao->getRegions()[bestAlt].begin();
-
+      int i = 0;
+      for (auto &region : gao->getRegions()) {
+        auto cmpOp = rewriter.create<arith::CmpIOp>(
+            loc, arith::CmpIPredicate::eq, alternative,
+            rewriter.create<arith::ConstantIntOp>(loc, i, 32));
+        auto ifOp = rewriter.create<scf::IfOp>(loc, cmpOp, /* hasElse */ true);
+        auto block = &region.front();
         rewriter.eraseOp(block->getTerminator());
-        rewriter.mergeBlockBefore(block, gao);
-        rewriter.eraseOp(gao);
+        rewriter.mergeBlockBefore(block,
+                                  ifOp.getThenRegion().front().getTerminator());
 
-        return success();
-      } else {
-        llvm_unreachable("Invalid enum");
+        // Timing
+        rewriter.setInsertionPointToStart(&ifOp.getThenRegion().front());
+        rtPGOStartCallBuilder.create(loc, rewriter,
+                                     {kernelId, totalAlternatives});
+        rewriter.setInsertionPoint(
+            ifOp.getThenRegion().front().getTerminator());
+        rtPGOEndCallBuilder.create(loc, rewriter,
+                                   {kernelId, totalAlternatives});
+
+        rewriter.setInsertionPointToStart(&ifOp.getElseRegion().front());
+        i++;
       }
+
+      rewriter.eraseOp(gao);
+      return success();
+    } else if (PolygeistAlternativesMode == PAM_PGO_Opt) {
+      std::string dirname = []() {
+        if (char *d = getenv(POLYGEIST_PGO_DATA_DIR_ENV_VAR)) {
+          return std::string(d);
+        } else {
+          return std::string(POLYGEIST_PGO_DEFAULT_DATA_DIR);
+        }
+      }();
+      // TODO error handling
+      std::ifstream ifile;
+      int numAlternatives = gao->getNumRegions();
+      std::vector<std::vector<double>> timings;
+      for (int i = 0; i < numAlternatives; i++) {
+        timings.push_back({});
+      }
+      ifile.open(std::string(dirname) + "/" + locStr, std::ios::in);
+      while (ifile) {
+        int alt;
+        double time;
+        ifile >> alt >> time;
+        if (alt >= 0 && alt < numAlternatives) {
+          timings[alt].push_back(time);
+        } else {
+          llvm::errs() << "Invalid alternative data";
+          assert(0);
+        }
+      }
+      std::vector<double> avgs;
+      for (int i = 0; i < numAlternatives; i++) {
+        if (timings[i].size() == 0) {
+          llvm::errs() << "No data for alternative " << i << " of " << locStr
+                       << "\n";
+          assert(0);
+          avgs.push_back(std::numeric_limits<double>::infinity());
+        } else {
+          // TODO might get some round off errors here, maybe use a better alg
+          // or median
+          avgs.push_back(
+              std::accumulate(timings[i].begin(), timings[i].end(), 0.0f) /
+              timings[i].size());
+          llvm::errs() << "Alternative " << i << " is " << avgs[i] << "\n";
+        }
+      }
+
+      int bestAlt = std::distance(avgs.begin(),
+                                  std::min_element(avgs.begin(), avgs.end()));
+      llvm::errs() << "Picking " << bestAlt << "\n";
+
+      auto block = &*gao->getRegions()[bestAlt].begin();
+
+      rewriter.eraseOp(block->getTerminator());
+      rewriter.mergeBlockBefore(block, gao);
+      rewriter.eraseOp(gao);
+
+      return success();
+    } else {
+      llvm_unreachable("Invalid enum");
     }
   }
 
@@ -2103,6 +2296,23 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
 
   return success();
 }
+
+struct ReplaceErrOpWithSuccess
+    : public OpRewritePattern<polygeist::GPUErrorOp> {
+  using OpRewritePattern<polygeist::GPUErrorOp>::OpRewritePattern;
+  const char *PATTERN = "lower-gpu-alternatives";
+
+  LogicalResult matchAndRewrite(polygeist::GPUErrorOp errOp,
+                                PatternRewriter &rewriter) const override {
+    rewriter.setInsertionPoint(errOp);
+    rewriter.eraseOp(errOp.getBody()->getTerminator());
+    rewriter.mergeBlockBefore(errOp.getBody(), errOp);
+    rewriter.setInsertionPoint(errOp);
+    auto zero = rewriter.create<arith::ConstantIndexOp>(errOp->getLoc(), 0);
+    rewriter.replaceOp(errOp, zero->getResults());
+    return success();
+  }
+};
 
 /// Pattern for gpu function declarations and definitions.
 struct GPUFuncOpLowering : public ConvertOpToLLVMPattern<gpu::GPUFuncOp> {
@@ -2583,6 +2793,7 @@ struct ConvertPolygeistToLLVMPass
       patterns.add<LowerGPUAlternativesOp>(&getContext(), converter,
                                            gpu::getDefaultGpuBinaryAnnotation(),
                                            gpuTarget);
+      patterns.add<ReplaceErrOpWithSuccess>(&getContext());
       (void)applyPatternsAndFoldGreedily(m, std::move(patterns));
     }
 
@@ -2774,8 +2985,19 @@ struct ConvertPolygeistToLLVMPass
       gpum->moveBefore(block, block->end());
       tmpModule->erase();
     }
-    if (!onlyGpuModules)
+    if (!onlyGpuModules) {
+      if (PolygeistAlternativesMode == PAM_PGO_Profile) {
+        unsigned maxAlternatives = 0;
+        m->walk([&](polygeist::AlternativesOp aop) {
+          auto alts = aop->getNumRegions();
+          if (maxAlternatives < alts)
+            maxAlternatives = alts;
+        });
+        if (maxAlternatives > 0)
+          llvm::errs() << "Generated " << maxAlternatives << " alternatives\n";
+      }
       convertModule(m, /* gpuModule */ false);
+    }
   }
 };
 } // namespace

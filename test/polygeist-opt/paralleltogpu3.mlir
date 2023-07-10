@@ -104,9 +104,9 @@ module {
 // CHECK:           %[[VAL_1:.*]] = arith.constant 1024 : index
 // CHECK:           %[[VAL_2:.*]] = "polygeist.gpu_error"() ({
 // CHECK:             gpu.launch blocks(%[[VAL_3:.*]], %[[VAL_4:.*]], %[[VAL_5:.*]]) in (%[[VAL_6:.*]] = %[[VAL_0]], %[[VAL_7:.*]] = %[[VAL_0]], %[[VAL_8:.*]] = %[[VAL_0]]) threads(%[[VAL_9:.*]], %[[VAL_10:.*]], %[[VAL_11:.*]]) in (%[[VAL_12:.*]] = %[[VAL_1]], %[[VAL_13:.*]] = %[[VAL_0]], %[[VAL_14:.*]] = %[[VAL_0]]) {
-// CHECK:               %[[VAL_15:.*]] = gpu.thread_id  x
+// CHECK-DAG:               %[[VAL_15:.*]] = gpu.thread_id  x
 // TODO converting this to shared memory should probably happen in this parallel-to-gpu1 and not 2 because having an alloca doesnt really make sense here
-// CHECK:               %alloca = memref.alloca() : memref<16x16xf32, 5>
+// CHECK-DAG:               %alloca = memref.alloca() : memref<16x16xf32, 5>
 // CHECK:               func.call @use(%1) : (index) -> ()
 // CHECK:               func.call @use_memref(%alloca) : (memref<16x16xf32, 5>) -> ()
 // CHECK:               gpu.terminator

@@ -109,11 +109,8 @@ static cl::opt<bool> EmitGPUKernelLaunchBounds(
     "emit-gpu-kernel-launch-bounds", cl::init(true),
     cl::desc("Emit GPU kernel launch bounds where possible"));
 
-#if POLYGEIST_ENABLE_CUDA
-static cl::opt<int> NvptxOptLevel("nvptx-opt-level", cl::init(4),
-                                  cl::desc("Optimization level for ptxas"));
-
-#endif
+static cl::opt<int> DeviceOptLevel("device-opt-level", cl::init(4),
+                                   cl::desc("Optimization level for ptxas"));
 
 static cl::opt<bool> EmitLLVM("emit-llvm", cl::init(false),
                               cl::desc("Emit llvm"));
@@ -869,7 +866,7 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
-            UseOriginalGPUBlockSize));
+            EmitCUDA ? CUDAGPUArch : AMDGPUArch));
       // We cannot canonicalize here because we have sunk some operations in the
       // kernel which the canonicalizer would hoist
 
@@ -964,7 +961,7 @@ int main(int argc, char **argv) {
             // TODO what should the ptx version be?
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
             gpuPM.addPass(polygeist::createGpuSerializeToCubinPass(
-                arch, "+ptx74", optLevel, NvptxOptLevel, ptxasPath,
+                arch, "+ptx74", optLevel, DeviceOptLevel, ptxasPath,
                 libDevicePath, OutputIntermediateGPU));
 #endif
           } else if (EmitROCM) {
@@ -993,7 +990,7 @@ int main(int argc, char **argv) {
             }
 
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();
-            int HsaOptLevel = NvptxOptLevel;
+            int HsaOptLevel = DeviceOptLevel;
             gpuPM.addPass(polygeist::createGpuSerializeToHsacoPass(
                 arch, "", optLevel,
                 /* TODO do we need this param? */ HsaOptLevel, ROCMPath,
