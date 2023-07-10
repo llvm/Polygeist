@@ -88,7 +88,7 @@ ValueCategory MLIRScanner::createComplexFloat(mlir::Location loc,
   }
 
   if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
-    mlir::Value str = builder.create<LLVM::UndefOp>(loc, ST);
+    mlir::Value str = builder.create<polygeist::UndefOp>(loc, ST);
     str = builder.create<LLVM::InsertValueOp>(loc, ST, str, real,
                                               builder.getDenseI64ArrayAttr(0));
     str = builder.create<LLVM::InsertValueOp>(loc, ST, str, imag,
@@ -404,7 +404,7 @@ void MLIRScanner::init(mlir::func::FuncOp function, const FunctionDecl *fd) {
     returnVal = builder.create<mlir::memref::AllocaOp>(loc, type);
     if (type.getElementType().isa<mlir::IntegerType, mlir::FloatType>()) {
       builder.create<mlir::memref::StoreOp>(
-          loc, builder.create<mlir::LLVM::UndefOp>(loc, type.getElementType()),
+          loc, builder.create<polygeist::UndefOp>(loc, type.getElementType()),
           returnVal, std::vector<mlir::Value>({}));
     }
   }
@@ -504,7 +504,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
             abuilder.create<arith::ConstantIntOp>(varLoc, 1, 64), 0);
         if (t.isa<mlir::IntegerType, mlir::FloatType>() && memspace == 0) {
           abuilder.create<LLVM::StoreOp>(
-              varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc);
+              varLoc, abuilder.create<polygeist::UndefOp>(varLoc, t), alloc);
         }
         // alloc = builder.create<mlir::LLVM::BitcastOp>(varLoc,
         // LLVM::LLVMPointerType::get(LLVM::LLVMArrayType::get(t, 1)), alloc);
@@ -523,7 +523,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
       if (t.isa<mlir::IntegerType, mlir::FloatType>() && memspace == 0) {
         mlir::Value idxs[] = {abuilder.create<ConstantIndexOp>(varLoc, 0)};
         abuilder.create<mlir::memref::StoreOp>(
-            varLoc, abuilder.create<mlir::LLVM::UndefOp>(varLoc, t), alloc,
+            varLoc, abuilder.create<polygeist::UndefOp>(varLoc, t), alloc,
             idxs);
       }
     }
@@ -1130,7 +1130,7 @@ ValueCategory MLIRScanner::VisitCXXStdInitializerListExpr(
 
   mlir::Type subType = getMLIRType(expr->getType());
 
-  mlir::Value res = builder.create<LLVM::UndefOp>(loc, subType);
+  mlir::Value res = builder.create<polygeist::UndefOp>(loc, subType);
 
   ArrayPtr = CommonArrayToPointer(loc, ArrayPtr);
 
@@ -4764,7 +4764,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
       res = ms.Visit(const_cast<Expr *>(init))
                 .getValue(getMLIRLocation(init->getBeginLoc()), builder);
     } else {
-      res = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
+      res = builder.create<polygeist::UndefOp>(module->getLoc(), rt);
     }
     bool legal = true;
     for (Operation &op : *blk) {
@@ -4781,7 +4781,8 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD,
     } else {
       Block *blk2 = new Block();
       builder.setInsertionPointToEnd(blk2);
-      mlir::Value nres = builder.create<LLVM::UndefOp>(module->getLoc(), rt);
+      mlir::Value nres =
+          builder.create<polygeist::UndefOp>(module->getLoc(), rt);
       builder.create<LLVM::ReturnOp>(module->getLoc(),
                                      std::vector<mlir::Value>({nres}));
       glob.getInitializerRegion().push_back(blk2);
