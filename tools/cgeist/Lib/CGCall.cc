@@ -8,6 +8,7 @@
 
 #include "TypeUtils.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "utils.h"
 #include "clang/Basic/Builtins.h"
@@ -434,6 +435,14 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
                                          args);
     }
     return make_pair(nullptr, true);
+  }
+  case Builtin::BI__builtin_constant_p: {
+    auto resultType = getMLIRType(expr->getType());
+    llvm::errs() << "warning: assuming __builtin_constant_p to be false\n";
+    return make_pair(
+        ValueCategory(builder.create<arith::ConstantIntOp>(loc, 0, resultType),
+                      /*isRef*/ false),
+        true);
   }
   default:
     break;
