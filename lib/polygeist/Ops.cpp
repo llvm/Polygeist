@@ -43,6 +43,29 @@ llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
 //===----------------------------------------------------------------------===//
+// UndefOp
+//===----------------------------------------------------------------------===//
+
+class UndefToLLVM final : public OpRewritePattern<UndefOp> {
+public:
+  using OpRewritePattern<UndefOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(UndefOp uop,
+                                PatternRewriter &rewriter) const override {
+    auto ty = uop.getResult().getType();
+    if (!LLVM::isCompatibleType(ty))
+      return failure();
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(uop, ty);
+    return success();
+  }
+};
+
+void UndefOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                          MLIRContext *context) {
+  results.insert<UndefToLLVM>(context);
+}
+
+//===----------------------------------------------------------------------===//
 // NoopOp
 //===----------------------------------------------------------------------===//
 
@@ -2020,11 +2043,13 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
                    prevIf.thenYield().getOperands())) {
       if (std::get<0>(it) == nextIf.getCondition()) {
         if (matchPattern(std::get<1>(it), m_Zero()) ||
-            std::get<1>(it).getDefiningOp<LLVM::UndefOp>()) {
+            std::get<1>(it).getDefiningOp<LLVM::UndefOp>() ||
+            std::get<1>(it).getDefiningOp<polygeist::UndefOp>()) {
           nextIfCondition = std::get<2>(it);
           getThenRegion = true;
         } else if (matchPattern(std::get<2>(it), m_Zero()) ||
-                   std::get<2>(it).getDefiningOp<LLVM::UndefOp>()) {
+                   std::get<2>(it).getDefiningOp<LLVM::UndefOp>() ||
+                   std::get<2>(it).getDefiningOp<polygeist::UndefOp>()) {
           nextIfCondition = std::get<1>(it);
           getThenRegion = false;
         } else
@@ -2445,7 +2470,8 @@ public:
   }
 };
 
-template <typename T> class UndefProp final : public OpRewritePattern<T> {
+template <typename T, typename UndefType>
+class UndefProp final : public OpRewritePattern<T> {
 public:
   using OpRewritePattern<T>::OpRewritePattern;
 
@@ -2453,14 +2479,15 @@ public:
                                 PatternRewriter &rewriter) const override {
     Value v = op->getOperand(0);
     Operation *undef;
-    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+    if (!(undef = v.getDefiningOp<UndefType>()))
       return failure();
     rewriter.setInsertionPoint(undef);
-    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    rewriter.replaceOpWithNewOp<UndefType>(op, op.getType());
     return success();
   }
 };
 
+template <typename UndefType>
 class UndefCmpProp final : public OpRewritePattern<CmpIOp> {
 public:
   using OpRewritePattern<CmpIOp>::OpRewritePattern;
@@ -2469,12 +2496,12 @@ public:
                                 PatternRewriter &rewriter) const override {
     Value v = op->getOperand(0);
     Operation *undef;
-    if (!(undef = v.getDefiningOp<LLVM::UndefOp>()))
+    if (!(undef = v.getDefiningOp<UndefType>()))
       return failure();
     if (!op.getRhs().getDefiningOp<ConstantOp>())
       return failure();
     rewriter.setInsertionPoint(undef);
-    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(op, op.getType());
+    rewriter.replaceOpWithNewOp<UndefType>(op, op.getType());
     return success();
   }
 };
@@ -2495,8 +2522,9 @@ public:
     bool change = false;
     for (auto v :
          {ifOp.thenYield().getOperand(idx), ifOp.elseYield().getOperand(idx)}) {
-      change |=
-          v.getDefiningOp<ConstantIntOp>() || v.getDefiningOp<LLVM::UndefOp>();
+      change |= v.getDefiningOp<ConstantIntOp>() ||
+                v.getDefiningOp<LLVM::UndefOp>() ||
+                v.getDefiningOp<polygeist::UndefOp>();
       if (auto extOp = v.getDefiningOp<ExtUIOp>())
         if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
           change |= it.getWidth() == 1;
@@ -5634,8 +5662,12 @@ static llvm::cl::opt<bool>
 void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.insert<
-      TypeAlignCanonicalize, OrIExcludedMiddle, SelectOfExt, UndefProp<ExtUIOp>,
-      UndefProp<ExtSIOp>, UndefProp<TruncIOp>, CmpProp, UndefCmpProp,
+      TypeAlignCanonicalize, OrIExcludedMiddle, SelectOfExt,
+      UndefProp<ExtUIOp, LLVM::UndefOp>, UndefProp<ExtUIOp, polygeist::UndefOp>,
+      UndefProp<ExtSIOp, LLVM::UndefOp>, UndefProp<ExtSIOp, polygeist::UndefOp>,
+      UndefProp<TruncIOp, LLVM::UndefOp>,
+      UndefProp<TruncIOp, polygeist::UndefOp>, CmpProp,
+      UndefCmpProp<LLVM::UndefOp>, UndefCmpProp<polygeist::UndefOp>,
       AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
       AlwaysAllocaScopeHoister<scf::ForOp>,
       AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,

@@ -633,6 +633,7 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::createLoopRestructurePass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (ScalarReplacement)
