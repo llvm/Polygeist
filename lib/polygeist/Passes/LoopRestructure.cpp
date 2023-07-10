@@ -403,7 +403,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
               headerArgumentTypes.push_back(V.getType());
               headerArgumentLocs.push_back(V.getLoc());
               valsCallingLoop.push_back(
-                  builder.create<mlir::LLVM::UndefOp>(V.getLoc(), V.getType()));
+                  builder.create<polygeist::UndefOp>(V.getLoc(), V.getType()));
               header->addArgument(V.getType(), V.getLoc());
             }
           }
