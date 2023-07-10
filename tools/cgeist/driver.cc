@@ -213,6 +213,9 @@ static cl::opt<bool> EarlyVerifier("early-verifier", cl::init(false),
 
 static cl::opt<bool> Verbose("v", cl::init(false), cl::desc("Verbose"));
 
+static cl::opt<std::string> Lang("x", cl::init(""),
+                                 cl::desc("Treat input as language"));
+
 static cl::list<std::string> includeDirs("I", cl::desc("include search path"),
                                          cl::cat(toolOptions));
 

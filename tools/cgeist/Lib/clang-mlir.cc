@@ -5893,6 +5893,12 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
       new Driver(binary, llvm::sys::getDefaultTargetTriple(), Diags));
   mlirclang::ArgumentList Argv;
   Argv.push_back(binary);
+  // TODO we should probably preserve the order of these args - they matter in
+  // some cases as is with this one - it has to be before the input file
+  if (Lang != "") {
+    Argv.push_back("-x");
+    Argv.emplace_back(Lang);
+  }
   for (const auto &filename : filenames) {
     Argv.emplace_back(filename);
   }
