@@ -37,6 +37,11 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 
+static bool isUndef(Value v) {
+  return v.getDefiningOp<LLVM::UndefOp>() ||
+         v.getDefiningOp<polygeist::UndefOp>();
+}
+
 static bool couldWrite(Operation *op) {
   if (auto iface = dyn_cast<MemoryEffectOpInterface>(op)) {
     SmallVector<MemoryEffects::EffectInstance> localEffects;
@@ -2197,7 +2202,7 @@ struct Reg2MemFor : public OpRewritePattern<T> {
           op.getLoc(), MemRefType::get(ArrayRef<int64_t>(), operand.getType()),
           ValueRange());
       allocated.push_back(alloc);
-      if (!operand.getDefiningOp<LLVM::UndefOp>())
+      if (!isUndef(operand))
         rewriter.create<memref::StoreOp>(op.getLoc(), operand, alloc,
                                          ValueRange());
     }
@@ -2229,7 +2234,7 @@ struct Reg2MemFor : public OpRewritePattern<T> {
     }
     rewriter.setInsertionPoint(IP);
     for (auto en : llvm::enumerate(oldOps)) {
-      if (!en.value().getDefiningOp<LLVM::UndefOp>())
+      if (!isUndef(en.value()))
         rewriter.create<memref::StoreOp>(op.getLoc(), en.value(),
                                          allocated[en.index()], ValueRange());
     }
@@ -2442,7 +2447,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
               storeOp.getLoc(), val, map.lookupOrDefault(storeOp.getMemref()),
               inds);
         }
-      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+      } else if (!isUndef(val)) {
         rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
       }
     }
@@ -2501,7 +2506,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           rewriter.replaceOpWithNewOp<memref::StoreOp>(
               storeOp, val, map.lookupOrDefault(storeOp.getMemref()), inds);
         }
-      } else if (!val.getDefiningOp<LLVM::UndefOp>()) {
+      } else if (!isUndef(val)) {
         rewriter.create<memref::StoreOp>(op.getLoc(), val, alloc, ValueRange());
       }
     }
@@ -2544,7 +2549,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
 static void storeValues(Location loc, ValueRange values, ValueRange pointers,
                         PatternRewriter &rewriter) {
   for (auto pair : llvm::zip(values, pointers)) {
-    if (!std::get<0>(pair).getDefiningOp<LLVM::UndefOp>())
+    if (!isUndef(std::get<0>(pair)))
       rewriter.create<memref::StoreOp>(loc, std::get<0>(pair),
                                        std::get<1>(pair), ValueRange());
   }
