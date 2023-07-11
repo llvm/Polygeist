@@ -58,3 +58,16 @@ Operation *mlirclang::replaceFuncByOperation(
                          f.getCallableResults(), {});
   return b.create(opState);
 }
+
+mlir::Value mlirclang::castInteger(mlir::OpBuilder &builder,
+                                   mlir::Location &loc, mlir::Value v,
+                                   mlir::Type postTy_) {
+  auto prevTy = v.getType().cast<mlir::IntegerType>();
+  auto postTy = postTy_.cast<mlir::IntegerType>();
+  if (prevTy.getWidth() < postTy.getWidth())
+    return builder.create<mlir::arith::ExtUIOp>(loc, postTy, v);
+  else if (prevTy.getWidth() > postTy.getWidth())
+    return builder.create<mlir::arith::TruncIOp>(loc, postTy, v);
+  else
+    return v;
+}
