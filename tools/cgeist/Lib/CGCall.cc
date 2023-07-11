@@ -10,6 +10,7 @@
 #include "clang-mlir.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "utils.h"
 #include "clang/Basic/Builtins.h"
 
@@ -369,6 +370,8 @@ ValueCategory MLIRScanner::CallHelper(
 
 std::pair<ValueCategory, bool>
 MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
+  auto success = [&](auto v) { return make_pair(v, true); };
+  auto failure = [&](auto v) { return make_pair(v, false); };
   auto loc = getMLIRLocation(expr->getExprLoc());
 
   switch (expr->getBuiltinCallee()) {
@@ -443,6 +446,29 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
         ValueCategory(builder.create<arith::ConstantIntOp>(loc, 0, resultType),
                       /*isRef*/ false),
         true);
+  }
+  case Builtin::BI__builtin_unreachable: {
+    llvm::errs() << "warning: ignoring __builtin_unreachable\n";
+    return make_pair(nullptr, true);
+  }
+  case Builtin::BI__builtin_is_constant_evaluated: {
+    auto resultType = getMLIRType(expr->getType());
+    llvm::errs()
+        << "warning: assuming __builtin_is_constant_evaluated to be false\n";
+    return success(
+        ValueCategory(builder.create<arith::ConstantIntOp>(loc, 0, resultType),
+                      /*isRef*/ false));
+  }
+  case Builtin::BI__builtin_clzs:
+  case Builtin::BI__builtin_clz:
+  case Builtin::BI__builtin_clzl:
+  case Builtin::BI__builtin_clzll: {
+    auto v = Visit(expr->getArg(0));
+    assert(!v.isReference);
+    Value res = builder.create<math::CountLeadingZerosOp>(loc, v.val);
+    auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    return success(
+        ValueCategory(castInteger(builder, loc, res, postTy), /*isRef*/ false));
   }
   default:
     break;
