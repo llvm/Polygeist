@@ -44,6 +44,10 @@ static llvm::cl::opt<bool> GPUKernelEmitCoarsenedAlternatives(
     "gpu-kernel-emit-coarsened-alternatives", llvm::cl::init(false),
     llvm::cl::desc("Emit alternative kernels with coarsened threads"));
 
+static llvm::cl::opt<bool> GPUKernelEnableBlockCoarsening(
+    "gpu-kernel-enable-block-coarsening", llvm::cl::init(true),
+    llvm::cl::desc("When emitting coarsened kernels, enable block coarsening"));
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -1967,10 +1971,15 @@ struct ConvertParallelToGPU1Pass
           if (altBlockSize) {
             bool failed = false;
             unsigned unrollFactorOne = UNROLL_FACTORS[blockDims].size() - 1;
-            for (unsigned iBlock = 0; iBlock < UNROLL_FACTORS[gridDims].size();
-                 iBlock++) {
-              if ((failed = emitAlternative(iBlock, unrollFactorOne).failed()))
-                break;
+            if (GPUKernelEnableBlockCoarsening) {
+              for (unsigned iBlock = 0;
+                   iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
+                if ((failed =
+                         emitAlternative(iBlock, unrollFactorOne).failed()))
+                  break;
+              }
+            } else {
+              failed = true;
             }
             if (failed) {
               curRegion = 0;
@@ -1984,7 +1993,9 @@ struct ConvertParallelToGPU1Pass
           } else {
             for (unsigned iThread = firstUnrollFactorId;
                  iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
-              for (unsigned iBlock = 0;
+              for (unsigned iBlock = GPUKernelEnableBlockCoarsening
+                                         ? 0
+                                         : UNROLL_FACTORS[gridDims].size() - 1;
                    iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
                 (void)emitAlternative(iBlock, iThread);
               }
