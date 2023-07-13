@@ -270,7 +270,7 @@ static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
 /// Unrolls 'pop' by 'unrollFactor', returns success if the loop is unrolled.
 LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     scf::ParallelOp &pop, uint64_t unrollFactor, unsigned dim,
-    bool generateEpilogueLoop,
+    bool generateEpilogueLoop, bool coalescingFriendlyIndexing,
     function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn) {
   assert(unrollFactor > 0 && "expected positive unroll factor");
   assert(dim >= 0 && dim < pop.getUpperBound().size());
@@ -364,10 +364,19 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   auto res = generateUnrolledInterleavedLoop(
       pop.getBody(), dstPop.getBody(), dim, unrollFactor,
       [&](unsigned i, Value iv, OpBuilder b) {
-        // iv' = iv * unrollFactor + i
-        auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorCst);
-        return b.create<arith::AddIOp>(
-            loc, base, b.create<arith::ConstantIndexOp>(loc, i));
+        if (coalescingFriendlyIndexing) {
+          // upperBoundUnrolled = upperBound / unrollFactor;
+          // iv(i) = iv + upperBoundUnrolled * i
+          auto base =
+              b.create<arith::MulIOp>(loc, upperBoundUnrolled,
+                                      b.create<arith::ConstantIndexOp>(loc, i));
+          return b.create<arith::AddIOp>(loc, base, iv);
+        } else {
+          // iv(i) = iv * unrollFactor + i
+          auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorCst);
+          return b.create<arith::AddIOp>(
+              loc, base, b.create<arith::ConstantIndexOp>(loc, i));
+        }
       });
   if (res.succeeded()) {
     pop->erase();
@@ -392,7 +401,8 @@ struct SCFParallelLoopUnroll
         pops.push_back(pop);
     });
     for (auto pop : pops) {
-      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, true, nullptr)
+      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, true, false,
+                                      nullptr)
           .succeeded();
     }
   }
