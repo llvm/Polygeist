@@ -48,6 +48,10 @@ static llvm::cl::opt<bool> GPUKernelEnableBlockCoarsening(
     "gpu-kernel-enable-block-coarsening", llvm::cl::init(true),
     llvm::cl::desc("When emitting coarsened kernels, enable block coarsening"));
 
+static llvm::cl::opt<bool> GPUKernelEnableCoalescingFriendlyUnroll(
+    "gpu-kernel-enable-coalescing-friendly-unroll", llvm::cl::init(false),
+    llvm::cl::desc("When thread coarsening, do coalescing-friendly unrolling"));
+
 // TODO when we add other backends, we would need to to add an argument to the
 // pass which one we are compiling to to provide the appropriate error id
 #if POLYGEIST_ENABLE_CUDA
@@ -1750,7 +1754,8 @@ struct ConvertParallelToGPU1Pass
             auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
-                    /* generateEpilogueLoop */ true, nullptr)
+                    /* generateEpilogueLoop */ true,
+                    /* coalescingFriendlyIndexing */ false, nullptr)
                     .failed())
               wrapper->emitRemark("Failed to coarsen blocks");
           }
@@ -1766,7 +1771,8 @@ struct ConvertParallelToGPU1Pass
             auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
             if (polygeist::scfParallelUnrollByFactors(
                     blockPop, ArrayRef<uint64_t>(threadUnrollFactors),
-                    /* generateEpilogueLoop */ false, nullptr)
+                    /* generateEpilogueLoop */ false,
+                    GPUKernelEnableCoalescingFriendlyUnroll, nullptr)
                     .failed())
               wrapper->emitRemark("Failed to coarsen threads");
           }
@@ -1934,7 +1940,8 @@ struct ConvertParallelToGPU1Pass
             auto unrollFactors = UNROLL_FACTORS[gridDims][iBlock];
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(unrollFactors),
-                    /* generateEpilogueLoop */ true, nullptr)
+                    /* generateEpilogueLoop */ true,
+                    /* coalescingFriendlyIndexing */ false, nullptr)
                     .failed()) {
               wrapper->emitRemark("Failed to coarsen blocks");
               succeeded = false;
@@ -1946,7 +1953,8 @@ struct ConvertParallelToGPU1Pass
             unrollFactors = UNROLL_FACTORS[blockDims][iThread];
             if (polygeist::scfParallelUnrollByFactors(
                     blockPop, ArrayRef<uint64_t>(unrollFactors),
-                    /* generateEpilogueLoop */ false, nullptr)
+                    /* generateEpilogueLoop */ false,
+                    GPUKernelEnableCoalescingFriendlyUnroll, nullptr)
                     .failed()) {
               wrapper->emitRemark("Failed to coarsen threads");
               succeeded = false;
