@@ -89,10 +89,16 @@ static void shrinkAlternativesOpImpl(polygeist::AlternativesOp alternativesOp,
                   alternativesOp->getAttr("alternatives.type"));
   assert(newAop->getNumRegions() > 0);
 
+  auto oldDescs =
+      alternativesOp->getAttrOfType<ArrayAttr>("alternatives.descs");
+
+  std::vector<Attribute> descs;
   for (unsigned i = 0; i < newAop->getNumRegions(); i++) {
     auto &region = alternativesOp->getRegion(i);
     newAop->getRegion(i).takeBody(region);
+    descs.push_back(oldDescs[i]);
   }
+  newAop->setAttr("alternatives.descs", builder.getArrayAttr(descs));
 }
 static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
                                  unsigned size, PatternRewriter &rewriter) {
@@ -445,6 +451,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     int curRegion = 0;
     llvm::SmallSet<int, 6> emittedBlockSizes;
+    std::vector<Attribute> descs;
     auto emitAlternative = [&](int defaultThreads,
                                polygeist::AlternativesOp alternativesOp) {
       auto block = &*alternativesOp->getRegion(curRegion).begin();
@@ -457,9 +464,12 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
           /* failed */ blockSize == -1) {
       } else {
         emittedBlockSizes.insert(blockSize);
+        descs.push_back(rewriter.getStringAttr(
+            std::string("block_size=" + std::to_string(blockSize) + ",")));
         curRegion++;
       }
     };
+
     if (char *blockSizeStr = getenv("POLYGEIST_GPU_KERNEL_BLOCK_SIZE")) {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
       alternativesOp->setAttr("alternatives.type",
@@ -475,6 +485,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       for (unsigned blockSize : ALTERNATIVE_KERNEL_BLOCK_SIZES) {
         emitAlternative(blockSize, alternativesOp);
       }
+      alternativesOp->setAttr("alternatives.descs",
+                              rewriter.getArrayAttr(descs));
       shrinkAlternativesOp(alternativesOp, curRegion, rewriter);
     } else {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(loc, 1);
@@ -1921,6 +1933,7 @@ struct ConvertParallelToGPU1Pass
               builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
           alternativesOp->setAttr("alternatives.type",
                                   builder.getStringAttr("gpu_kernel"));
+          std::vector<Attribute> descs;
           unsigned curRegion = 0;
 
           auto emitAlternative = [&](unsigned iBlock, unsigned iThread) {
@@ -1965,6 +1978,11 @@ struct ConvertParallelToGPU1Pass
 
             if (succeeded) {
               curRegion++;
+              descs.push_back(builder.getStringAttr(
+                  std::string("block_factor=") +
+                  std::to_string(UNROLL_FACTORS[1][iBlock][0]) + "," +
+                  std::string("thread_factor=") +
+                  std::to_string(UNROLL_FACTORS[1][iThread][0]) + ","));
               return success();
             } else {
               // Clear block
@@ -2011,6 +2029,9 @@ struct ConvertParallelToGPU1Pass
           }
 
           wrapper->erase();
+
+          alternativesOp->setAttr("alternatives.descs",
+                                  builder.getArrayAttr(descs));
 
           shrinkAlternativesOp(alternativesOp, curRegion, builder);
         }

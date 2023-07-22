@@ -1469,6 +1469,8 @@ struct LowerGPUAlternativesOp
       if (c == '/')
         c = '+';
 
+    auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
+
     // TODO each region in the alternatives op should containt only a single
     // block - write a verifier for that
 
@@ -1480,10 +1482,12 @@ struct LowerGPUAlternativesOp
     auto printInfos = [&](auto &strm, std::vector<kernelInfoTy> infos) {
       int i = 0;
       for (auto tup : infos) {
-        strm << "polygeistKernelInfo: " << locStr << "," << i++ << ",";
+        strm << "polygeistKernelInfo: " << locStr << "," << i << ","
+             << descs[i];
         auto _tup = pop_front(tup);
         print(strm, _tup);
         strm << "\n";
+        i++;
       }
     };
 
@@ -1846,8 +1850,8 @@ struct LowerGPUAlternativesOp
       std::vector<double> avgs;
       for (int i = 0; i < numAlternatives; i++) {
         if (timings[i].size() == 0) {
-          llvm::errs() << "No data for alternative " << i << " of " << locStr
-                       << "\n";
+          llvm::errs() << "No data for alternative " << i << "," << descs[i]
+                       << " of " << locStr << "\n";
           assert(0);
           avgs.push_back(std::numeric_limits<double>::infinity());
         } else {
@@ -1856,13 +1860,14 @@ struct LowerGPUAlternativesOp
           avgs.push_back(
               std::accumulate(timings[i].begin(), timings[i].end(), 0.0f) /
               timings[i].size());
-          llvm::errs() << "Alternative " << i << " is " << avgs[i] << "\n";
+          llvm::errs() << "Alternative " << i << "," << descs[i] << " is "
+                       << avgs[i] << "\n";
         }
       }
 
       int bestAlt = std::distance(avgs.begin(),
                                   std::min_element(avgs.begin(), avgs.end()));
-      llvm::errs() << "Picking " << bestAlt << "\n";
+      llvm::errs() << "Picking " << bestAlt << "," << descs[bestAlt] << "\n";
 
       auto block = &*gao->getRegions()[bestAlt].begin();
 

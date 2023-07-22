@@ -69,7 +69,7 @@ func.func @flatten_alternatives() {
     }, {
       func.call @wow2() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
-    }) {} : () -> ()
+    }) {alternatives.descs = ["1","2"]} : () -> ()
     "polygeist.polygeist_yield"() : () -> ()
   }, {
     "polygeist.alternatives"() ({
@@ -78,9 +78,9 @@ func.func @flatten_alternatives() {
     }, {
       func.call @wow4() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
-    }) {} : () -> ()
+    }) {alternatives.descs = ["3","4"]} : () -> ()
     "polygeist.polygeist_yield"() : () -> ()
-  }) {} : () -> ()
+  }) {alternatives.descs = ["a","b"]} : () -> ()
   return
 }
 }
@@ -99,4 +99,4 @@ func.func @flatten_alternatives() {
 // CHECK-NEXT:      func.call @wow0() : () -> ()
 // CHECK-NEXT:      func.call @wow2() : () -> ()
 // CHECK-NEXT:      "polygeist.polygeist_yield"() : () -> ()
-// CHECK-NEXT:    }) : () -> ()
+// CHECK-NEXT:      }) {alternatives.descs = ["b3", "b4", "a1", "a2"]} : () -> ()

@@ -145,6 +145,7 @@ public:
       return failure();
 
     AlternativesOp innerAop = nullptr;
+    unsigned regionId = 0;
     for (auto &region : aop->getRegions()) {
       for (auto &op : region.getOps()) {
         if (auto aop = dyn_cast<AlternativesOp>(&op)) {
@@ -154,6 +155,7 @@ public:
       }
       if (innerAop)
         break;
+      regionId++;
     }
     if (!innerAop)
       return failure();
@@ -162,7 +164,9 @@ public:
     auto newAop = rewriter.create<polygeist::AlternativesOp>(
         aop->getLoc(), innerAop->getNumRegions() + aop->getNumRegions() - 1);
     newAop->setAttrs(aop->getAttrs());
-    auto srcBlock = &*aop->getBlock()->getParent()->begin();
+    auto outerDescs = aop->getAttrOfType<ArrayAttr>("alternatives.descs");
+    auto innerDescs = innerAop->getAttrOfType<ArrayAttr>("alternatives.descs");
+    std::vector<Attribute> configs;
     unsigned curRegion = 0;
     for (; curRegion < innerAop->getNumRegions(); curRegion++) {
       BlockAndValueMapping mapping;
@@ -178,12 +182,16 @@ public:
             rewriter.clone(op, mapping);
         }
       }
+      configs.push_back(rewriter.getStringAttr(
+          outerDescs[regionId].cast<StringAttr>().str() +
+          innerDescs[curRegion].cast<StringAttr>().str()));
     }
 
     unsigned oldRegion = 0;
     for (; oldRegion < aop->getNumRegions(); oldRegion++) {
       auto &srcRegion = aop->getRegion(oldRegion);
       if (innerAop->getBlock()->getParent() == &srcRegion) {
+        assert(oldRegion == regionId);
         continue;
       }
       auto block = &*newAop->getRegion(curRegion).begin();
@@ -192,8 +200,11 @@ public:
       for (auto &op : srcRegion.getOps())
         if (!isa<PolygeistYieldOp>(&op))
           rewriter.clone(op, mapping);
+      configs.push_back(rewriter.getStringAttr(
+          outerDescs[oldRegion].cast<StringAttr>().str()));
       curRegion++;
     }
+    newAop->setAttr("alternatives.descs", rewriter.getArrayAttr(configs));
 
     rewriter.eraseOp(aop);
 
