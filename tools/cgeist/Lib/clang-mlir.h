@@ -133,7 +133,7 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
   mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
-                         bool allowMerge = true);
+                         bool allowMerge = true, bool isOutermostTy = true);
 
   llvm::Type *getLLVMType(clang::QualType t);
 

@@ -5417,35 +5417,41 @@ static void getConstantArrayShapeAndElemType(const clang::QualType &ty,
 }
 
 mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
-                                        bool allowMerge) {
+                                        bool allowMerge, bool isOutermostTy) {
   if (auto ET = dyn_cast<clang::ElaboratedType>(qt)) {
-    return getMLIRType(ET->getNamedType(), implicitRef, allowMerge);
+    return getMLIRType(ET->getNamedType(), implicitRef, allowMerge,
+                       isOutermostTy);
   }
   if (auto ET = dyn_cast<clang::UsingType>(qt)) {
-    return getMLIRType(ET->getUnderlyingType(), implicitRef, allowMerge);
+    return getMLIRType(ET->getUnderlyingType(), implicitRef, allowMerge,
+                       isOutermostTy);
   }
   if (auto ET = dyn_cast<clang::ParenType>(qt)) {
-    return getMLIRType(ET->getInnerType(), implicitRef, allowMerge);
+    return getMLIRType(ET->getInnerType(), implicitRef, allowMerge,
+                       isOutermostTy);
   }
   if (auto ET = dyn_cast<clang::DeducedType>(qt)) {
-    return getMLIRType(ET->getDeducedType(), implicitRef, allowMerge);
+    return getMLIRType(ET->getDeducedType(), implicitRef, allowMerge,
+                       isOutermostTy);
   }
   if (auto ST = dyn_cast<clang::SubstTemplateTypeParmType>(qt)) {
-    return getMLIRType(ST->getReplacementType(), implicitRef, allowMerge);
+    return getMLIRType(ST->getReplacementType(), implicitRef, allowMerge,
+                       isOutermostTy);
   }
   if (auto ST = dyn_cast<clang::TemplateSpecializationType>(qt)) {
-    return getMLIRType(ST->desugar(), implicitRef, allowMerge);
+    return getMLIRType(ST->desugar(), implicitRef, allowMerge, isOutermostTy);
   }
   if (auto ST = dyn_cast<clang::TypedefType>(qt)) {
-    return getMLIRType(ST->desugar(), implicitRef, allowMerge);
+    return getMLIRType(ST->desugar(), implicitRef, allowMerge, isOutermostTy);
   }
   if (auto DT = dyn_cast<clang::DecltypeType>(qt)) {
-    return getMLIRType(DT->desugar(), implicitRef, allowMerge);
+    return getMLIRType(DT->desugar(), implicitRef, allowMerge, isOutermostTy);
   }
 
   if (auto DT = dyn_cast<clang::DecayedType>(qt)) {
     bool assumeRef = false;
-    auto mlirty = getMLIRType(DT->getOriginalType(), &assumeRef, allowMerge);
+    auto mlirty =
+        getMLIRType(DT->getOriginalType(), &assumeRef, allowMerge, true);
     if (memRefABI && assumeRef) {
       // Constant array types like `int A[30][20]` will be converted to LLVM
       // type `[20 x i32]* %0`, which has the outermost dimension size erased,
@@ -5460,7 +5466,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
           clang::QualType elemTy;
           getConstantArrayShapeAndElemType(origTy, shape, elemTy);
 
-          return mlir::MemRefType::get(shape, getMLIRType(elemTy));
+          return mlir::MemRefType::get(
+              shape, getMLIRType(elemTy, nullptr, true, false));
         }
       }
 
@@ -5478,8 +5485,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   }
   if (auto CT = dyn_cast<clang::ComplexType>(qt)) {
     bool assumeRef = false;
-    auto subType =
-        getMLIRType(CT->getElementType(), &assumeRef, /*allowMerge*/ false);
+    auto subType = getMLIRType(CT->getElementType(), &assumeRef,
+                               /*allowMerge*/ false, true);
     if (CombinedStructABI && memRefABI && allowMerge) {
       assert(!assumeRef);
       if (implicitRef)
@@ -5540,7 +5547,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     if (CXRD) {
       for (auto f : CXRD->bases()) {
         bool subRef = false;
-        auto ty = getMLIRType(f.getType(), &subRef, /*allowMerge*/ false);
+        auto ty =
+            getMLIRType(f.getType(), &subRef, /*allowMerge*/ false, false);
         assert(!subRef);
         innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                             LLVM::LLVMArrayType>();
@@ -5550,7 +5558,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
     for (auto f : RT->getDecl()->fields()) {
       bool subRef = false;
-      auto ty = getMLIRType(f->getType(), &subRef, /*allowMerge*/ false);
+      auto ty = getMLIRType(f->getType(), &subRef, /*allowMerge*/ false, true);
       assert(!subRef);
       innerLLVM |= ty.isa<LLVM::LLVMPointerType, LLVM::LLVMStructType,
                           LLVM::LLVMArrayType>();
@@ -5558,7 +5566,8 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
 
     if (types.empty())
-      if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
+      if (isOutermostTy && ST->getNumElements() == 1 &&
+          ST->getElementType(0U)->isIntegerTy(8))
         return typeTranslator.translateType(anonymize(ST));
 
     if (recursive) {
@@ -5610,7 +5619,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
-    auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge);
+    auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge, true);
     int64_t size = -1;
     if (auto CAT = dyn_cast<clang::ConstantArrayType>(AT))
       size = CAT->getSize().getZExtValue();
@@ -5636,7 +5645,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
   if (auto AT = dyn_cast<clang::VectorType>(t)) {
     bool subRef = false;
-    auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge);
+    auto ET = getMLIRType(AT->getElementType(), &subRef, allowMerge, true);
     int64_t size = AT->getNumElements();
     if (CombinedStructABI && subRef) {
       auto mt = ET.cast<MemRefType>();
@@ -5707,7 +5716,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
         getMLIRType(isa<clang::PointerType>(t)
                         ? cast<clang::PointerType>(t)->getPointeeType()
                         : cast<clang::ReferenceType>(t)->getPointeeType(),
-                    &subRef, /*allowMerge*/ true);
+                    &subRef, /*allowMerge*/ true, true);
 
     if (!memRefABI)
       return LLVM::LLVMPointerType::get(subType);
