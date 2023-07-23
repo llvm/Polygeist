@@ -246,6 +246,8 @@ static cl::opt<bool> PMEnablePrinting(
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
+#include "CollectKernelStatistics.cpp"
+
 class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
 public:
   virtual ~PolygeistCudaDetectorArgList() {}
@@ -893,6 +895,8 @@ int main(int argc, char **argv) {
       }
     }
 #endif
+
+    generateAlternativeKernelDescs(module.get());
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
