@@ -184,7 +184,7 @@ std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
         return sub(getValue(subOp.getLhs()), getValue(subOp.getLhs()));
       } else if (auto mulOp = dyn_cast<arith::MulIOp>(op)) {
         // m0(f(x) * g(x)) = m0(f(x)) * m0(g(x))
-        return mul(getValue(subOp.getLhs()), getValue(subOp.getLhs()));
+        return mul(getValue(mulOp.getLhs()), getValue(mulOp.getLhs()));
       } else if (auto constIndexOp = dyn_cast<arith::ConstantIndexOp>(op)) {
         return constIndexOp.value();
       } else if (auto constIntOp = dyn_cast<arith::ConstantIntOp>(op)) {
