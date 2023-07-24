@@ -23,6 +23,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/Value.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/MathExtras.h"
@@ -41,6 +42,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include <limits>
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Ops.h"
@@ -111,8 +113,28 @@ static double estimateTripCount(Block *block, unsigned threadNum) {
   // TODO use memoization
 }
 
-int estimateStride(mlir::OperandRange indices) {
-  const int UNKNOWN = -1;
+typedef llvm::Optional<int64_t> StrideTy;
+StrideTy estimateStride(mlir::OperandRange indices) {
+  const StrideTy UNKNOWN = {};
+
+  auto sub = [](StrideTy a, StrideTy b) -> StrideTy {
+    if (a && b)
+      return a.value() - b.value();
+    else
+      return {};
+  };
+  auto mul = [](StrideTy a, StrideTy b) -> StrideTy {
+    if (a && b)
+      return a.value() * b.value();
+    else
+      return {};
+  };
+  auto add = [](StrideTy a, StrideTy b) -> StrideTy {
+    if (a && b)
+      return a.value() + b.value();
+    else
+      return {};
+  };
 
   auto isTidX = [&](mlir::Value v) -> bool {
     if (auto op = v.getDefiningOp())
@@ -121,9 +143,19 @@ int estimateStride(mlir::OperandRange indices) {
           return true;
     return false;
   };
-  std::function<int64_t(mlir::Value)> getValue = [&](mlir::Value v) -> int64_t {
+  std::function<StrideTy(mlir::Value)> getValue =
+      [&](mlir::Value v) -> StrideTy {
     if (auto op = v.getDefiningOp()) {
-      if (auto constIndexOp = dyn_cast<arith::ConstantIndexOp>(op)) {
+      if (auto addOp = dyn_cast<arith::AddIOp>(op)) {
+        // m0(f(x) + g(x)) = m0(f(x)) + m0(g(x))
+        return add(getValue(addOp.getLhs()), getValue(addOp.getLhs()));
+      } else if (auto subOp = dyn_cast<arith::SubIOp>(op)) {
+        // m0(f(x) - g(x)) = m0(f(x)) - m0(g(x))
+        return sub(getValue(subOp.getLhs()), getValue(subOp.getLhs()));
+      } else if (auto mulOp = dyn_cast<arith::MulIOp>(op)) {
+        // m0(f(x) * g(x)) = m0(f(x)) * m0(g(x))
+        return mul(getValue(subOp.getLhs()), getValue(subOp.getLhs()));
+      } else if (auto constIndexOp = dyn_cast<arith::ConstantIndexOp>(op)) {
         return constIndexOp.value();
       } else if (auto constIntOp = dyn_cast<arith::ConstantIntOp>(op)) {
         return constIntOp.value();
@@ -134,40 +166,49 @@ int estimateStride(mlir::OperandRange indices) {
       return UNKNOWN;
     }
   };
-  std::function<int64_t(mlir::Value)> getTidXMultiplier =
-      [&](mlir::Value v) -> int64_t {
-    if (isTidX(v))
+  std::function<StrideTy(mlir::Value)> getTidXCoef =
+      [&](mlir::Value v) -> StrideTy {
+    if (isTidX(v)) {
       return 1;
-    if (auto op = v.getDefiningOp()) {
+    } else if (auto op = v.getDefiningOp()) {
       if (auto addOp = dyn_cast<arith::AddIOp>(op)) {
-        return getTidXMultiplier(addOp.getLhs()) +
-               getTidXMultiplier(addOp.getLhs());
+        // m1(f(x) + g(x)) = m1(f(x)) + m1(g(x))
+        return add(getTidXCoef(addOp.getLhs()), getTidXCoef(addOp.getLhs()));
       } else if (auto subOp = dyn_cast<arith::SubIOp>(op)) {
-        return getTidXMultiplier(subOp.getLhs()) +
-               getTidXMultiplier(subOp.getLhs());
+        // m1(f(x) - g(x)) = m1(f(x)) - m1(g(x))
+        return sub(getTidXCoef(subOp.getLhs()), getTidXCoef(subOp.getLhs()));
       } else if (auto mulOp = dyn_cast<arith::MulIOp>(op)) {
-        if (isTidX(mulOp.getLhs()))
-          return getValue(mulOp.getRhs());
-        if (isTidX(mulOp.getRhs()))
-          return getValue(mulOp.getLhs());
+        // m1(f(x) * g(x)) = m1(f(x)) * m0(g(x)) + m1(g(x)) * m0(f(x))
+        return add(mul(getTidXCoef(mulOp.getLhs()), getValue(mulOp.getRhs())),
+                   mul(getTidXCoef(mulOp.getRhs()), getValue(mulOp.getLhs())));
       } else if (auto constIndexOp = dyn_cast<arith::ConstantIndexOp>(op)) {
         return 0;
       } else if (auto constIntOp = dyn_cast<arith::ConstantIntOp>(op)) {
         return 0;
       } else {
-        return 0;
+        return UNKNOWN;
       }
+    } else if (auto ba = v.dyn_cast<BlockArgument>()) {
+      return 0;
+      if (isa<gpu::GPUFuncOp>(ba.getOwner()->getParentOp())) {
+        return 0;
+      } else if (auto forOp =
+                     dyn_cast<scf::ForOp>(ba.getOwner()->getParentOp())) {
+        return getTidXCoef(forOp.getOpOperandForRegionIterArg(ba).get());
+      } else {
+        return UNKNOWN;
+      }
+    } else {
+      return UNKNOWN;
     }
-    return 0;
   };
 
   // Let us consider only the last index for now (not a problem unless the last
   // dimension of the memref is less than 32
   auto index = indices.back();
-  int stride = getTidXMultiplier(index);
-  if (stride < 0)
-    stride = -1;
-  return stride;
+
+  // Get the coefficient in front of the first degree of threadIdx.x
+  return getTidXCoef(index);
 }
 
 static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
@@ -202,15 +243,12 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
 
       mlir::DataLayout DLI(aop->getParentOfType<ModuleOp>());
 
-      unsigned f16Ops = 0;
-      unsigned f32Ops = 0;
-      unsigned f64Ops = 0;
-      typedef std::map<std::tuple<unsigned, unsigned, unsigned>, unsigned>
-          MemOpMap;
+      typedef std::map<unsigned, unsigned> ArithOpMap;
+      ArithOpMap floatOps, intOps;
+      typedef std::tuple<unsigned, StrideTy, unsigned> MemOpType;
+      typedef std::map<MemOpType, unsigned> MemOpMap;
       MemOpMap loads, stores;
-      auto addTo = [&](MemOpMap &m, unsigned bytes, unsigned stride,
-                       unsigned memSpace, unsigned num) {
-        auto index = std::make_tuple(bytes, stride, memSpace);
+      auto addTo = [&](auto &m, auto index, unsigned num) {
         if (m.count(index))
           m[index] += num;
         else
@@ -224,37 +262,50 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
               isa<arith::RemFOp>(&op) || false) {
             int width =
                 op.getOperand(0).getType().dyn_cast<FloatType>().getWidth();
-            // TODO these are pretty random atm
-            if (width == 16) {
-              f16Ops += blockTrips;
-            } else if (width == 32) {
-              f32Ops += blockTrips;
-            } else if (width == 64) {
-              f64Ops += blockTrips;
-            }
+            addTo(floatOps, width, blockTrips);
+          } else if (isa<arith::MulIOp>(&op) || isa<arith::DivUIOp>(&op) ||
+                     isa<arith::DivSIOp>(&op) || isa<arith::SubIOp>(&op) ||
+                     isa<arith::AddIOp>(&op) || isa<arith::RemUIOp>(&op) ||
+                     isa<arith::RemSIOp>(&op)) {
+            int width = DLI.getTypeSize(op.getOperand(0).getType());
+            addTo(intOps, width, blockTrips);
           } else if (auto load = dyn_cast<memref::LoadOp>(&op)) {
             int bytes = DLI.getTypeSize(load.getResult().getType());
             auto stride = estimateStride(load.getIndices());
-            addTo(loads, bytes, stride,
-                  load.getMemRefType().getMemorySpaceAsInt(), blockTrips);
+            auto memSpace = load.getMemRefType().getMemorySpaceAsInt();
+            addTo(loads, std::make_tuple(bytes, stride, memSpace), blockTrips);
           } else if (auto store = dyn_cast<memref::StoreOp>(&op)) {
             int bytes = DLI.getTypeSize(store.getValue().getType());
             auto stride = estimateStride(store.getIndices());
-            addTo(loads, bytes, stride,
-                  store.getMemRefType().getMemorySpaceAsInt(), blockTrips);
+            auto memSpace = store.getMemRefType().getMemorySpaceAsInt();
+            addTo(stores, std::make_tuple(bytes, stride, memSpace), blockTrips);
           }
         }
       });
 
-      auto toString = [&](MemOpMap m) {
+      auto toStringA = [&](ArithOpMap m) {
+        std::string s = "";
+        for (auto &[k, v] : m) {
+          s += std::to_string(k);
+          s += ":";
+          s += std::to_string(v);
+          s += ";";
+        }
+        return s;
+      };
+      auto toStringM = [&](MemOpMap m) {
         std::string s = "";
         for (auto &[k, v] : m) {
           s += std::to_string(std::get<0>(k));
-          s += ":";
-          s += std::to_string(std::get<1>(k));
-          s += ":";
+          s += "/";
+          auto stride = std::get<1>(k);
+          if (stride)
+            s += std::to_string(stride.value());
+          else
+            s += "unk";
+          s += "/";
           s += std::to_string(std::get<2>(k));
-          s += "=";
+          s += ":";
           s += std::to_string(v);
           s += ";";
         }
@@ -262,11 +313,10 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
       };
 
       std::string newDesc = oldDescs[regionId].cast<StringAttr>().str() +
-                            "f16=" + std::to_string(f16Ops) + "," +
-                            "f32=" + std::to_string(f32Ops) + "," +
-                            "f64=" + std::to_string(f64Ops) + "," +
-                            "loads=" + toString(loads) + "," +
-                            "stores=" + toString(stores) + ",";
+                            "floatOps=" + toStringA(floatOps) + "," +
+                            "intOps=" + toStringA(intOps) + "," +
+                            "loads=" + toStringM(loads) + "," +
+                            "stores=" + toStringM(stores) + ",";
       descs.push_back(StringAttr::get(m->getContext(), newDesc));
 
       regionId++;
