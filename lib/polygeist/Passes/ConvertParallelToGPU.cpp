@@ -477,6 +477,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       llvm::errs() << "Emitting kernel with " << atoi(blockSizeStr)
                    << " threads\n";
       emitAlternative(atoi(blockSizeStr), alternativesOp);
+      alternativesOp->setAttr("alternatives.descs",
+                              rewriter.getArrayAttr(descs));
     } else if (shouldEmitAlternatives(pop)) {
       auto alternativesOp = rewriter.create<polygeist::AlternativesOp>(
           loc, ALTERNATIVE_KERNEL_BLOCK_SIZES.size());
@@ -493,6 +495,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       alternativesOp->setAttr("alternatives.type",
                               rewriter.getStringAttr("gpu_kernel"));
       emitAlternative(-1, alternativesOp);
+      alternativesOp->setAttr("alternatives.descs",
+                              rewriter.getArrayAttr(descs));
     }
 
     rewriter.eraseOp(wrapper);
