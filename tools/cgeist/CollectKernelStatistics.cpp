@@ -20,6 +20,7 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
@@ -114,12 +115,20 @@ static double estimateTripCount(Block *block, unsigned threadNum) {
 }
 
 typedef llvm::Optional<int64_t> StrideTy;
-StrideTy estimateStride(mlir::OperandRange indices) {
+std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
+                                       mlir::MemRefType mt,
+                                       ArrayRef<int64_t> dims) {
   const StrideTy UNKNOWN = {};
 
   auto sub = [](StrideTy a, StrideTy b) -> StrideTy {
     if (a && b)
       return a.value() - b.value();
+    else
+      return {};
+  };
+  auto div = [](StrideTy a, StrideTy b) -> StrideTy {
+    if (a && b)
+      return a.value() / b.value();
     else
       return {};
   };
@@ -136,10 +145,34 @@ StrideTy estimateStride(mlir::OperandRange indices) {
       return {};
   };
 
-  auto isTidX = [&](mlir::Value v) -> bool {
+  auto isGdim = [&](mlir::Value v) -> bool {
+    if (auto op = v.getDefiningOp())
+      if (auto threadIdx = dyn_cast<gpu::GridDimOp>(op))
+        return true;
+    return false;
+  };
+  auto isBdim = [&](mlir::Value v) -> bool {
+    if (auto op = v.getDefiningOp())
+      if (auto threadIdx = dyn_cast<gpu::BlockDimOp>(op))
+        return true;
+    return false;
+  };
+  auto isBid = [&](mlir::Value v) -> bool {
+    if (auto op = v.getDefiningOp())
+      if (auto threadIdx = dyn_cast<gpu::BlockIdOp>(op))
+        return true;
+    return false;
+  };
+  auto isAnyTid = [&](mlir::Value v) -> bool {
     if (auto op = v.getDefiningOp())
       if (auto threadIdx = dyn_cast<gpu::ThreadIdOp>(op))
-        if (threadIdx.getDimension() == gpu::Dimension::x)
+        return true;
+    return false;
+  };
+  auto isTidDim = [&](mlir::Value v, auto dim) -> bool {
+    if (auto op = v.getDefiningOp())
+      if (auto threadIdx = dyn_cast<gpu::ThreadIdOp>(op))
+        if (threadIdx.getDimension() == dim)
           return true;
     return false;
   };
@@ -166,21 +199,27 @@ StrideTy estimateStride(mlir::OperandRange indices) {
       return UNKNOWN;
     }
   };
-  std::function<StrideTy(mlir::Value)> getTidXCoef =
-      [&](mlir::Value v) -> StrideTy {
-    if (isTidX(v)) {
+  std::function<StrideTy(mlir::Value, std::function<bool(mlir::Value)>)>
+      getTidXCoef = [&](mlir::Value v,
+                        std::function<bool(mlir::Value)> isTidI) -> StrideTy {
+    if (isTidI(v)) {
       return 1;
+    } else if (isAnyTid(v) || isBid(v) || isBdim(v) || isGdim(v)) {
+      return 0;
     } else if (auto op = v.getDefiningOp()) {
       if (auto addOp = dyn_cast<arith::AddIOp>(op)) {
         // m1(f(x) + g(x)) = m1(f(x)) + m1(g(x))
-        return add(getTidXCoef(addOp.getLhs()), getTidXCoef(addOp.getLhs()));
+        return add(getTidXCoef(addOp.getLhs(), isTidI),
+                   getTidXCoef(addOp.getLhs(), isTidI));
       } else if (auto subOp = dyn_cast<arith::SubIOp>(op)) {
         // m1(f(x) - g(x)) = m1(f(x)) - m1(g(x))
-        return sub(getTidXCoef(subOp.getLhs()), getTidXCoef(subOp.getLhs()));
+        return sub(getTidXCoef(subOp.getLhs(), isTidI),
+                   getTidXCoef(subOp.getLhs(), isTidI));
       } else if (auto mulOp = dyn_cast<arith::MulIOp>(op)) {
         // m1(f(x) * g(x)) = m1(f(x)) * m0(g(x)) + m1(g(x)) * m0(f(x))
-        return add(mul(getTidXCoef(mulOp.getLhs()), getValue(mulOp.getRhs())),
-                   mul(getTidXCoef(mulOp.getRhs()), getValue(mulOp.getLhs())));
+        return add(
+            mul(getTidXCoef(mulOp.getLhs(), isTidI), getValue(mulOp.getRhs())),
+            mul(getTidXCoef(mulOp.getRhs(), isTidI), getValue(mulOp.getLhs())));
       } else if (auto constIndexOp = dyn_cast<arith::ConstantIndexOp>(op)) {
         return 0;
       } else if (auto constIntOp = dyn_cast<arith::ConstantIntOp>(op)) {
@@ -194,7 +233,8 @@ StrideTy estimateStride(mlir::OperandRange indices) {
         return 0;
       } else if (auto forOp =
                      dyn_cast<scf::ForOp>(ba.getOwner()->getParentOp())) {
-        return getTidXCoef(forOp.getOpOperandForRegionIterArg(ba).get());
+        return getTidXCoef(forOp.getOpOperandForRegionIterArg(ba).get(),
+                           isTidI);
       } else {
         return UNKNOWN;
       }
@@ -203,12 +243,32 @@ StrideTy estimateStride(mlir::OperandRange indices) {
     }
   };
 
-  // Let us consider only the last index for now (not a problem unless the last
-  // dimension of the memref is less than 32
-  auto index = indices.back();
+  std::array<StrideTy, 3> dimStrides;
+  int i = 0;
+  for (auto dim : {
+           gpu::Dimension::x,
+           gpu::Dimension::y,
+           gpu::Dimension::z,
+       }) {
 
-  // Get the coefficient in front of the first degree of threadIdx.x
-  return getTidXCoef(index);
+    std::vector<StrideTy> strides;
+
+    for (auto index : indices) {
+      auto stride =
+          getTidXCoef(index, [&](mlir::Value v) { return isTidDim(v, dim); });
+
+      strides.push_back(stride);
+    }
+
+    StrideTy stride = strides.back();
+    for (int i = strides.size() - 2; i >= 0; i--) {
+      stride = mul(strides[i], mt.getDimSize(i));
+    }
+
+    dimStrides[i++] = stride;
+  }
+
+  return dimStrides;
 }
 
 static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
@@ -229,6 +289,22 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
         return WalkResult::interrupt();
       });
       assert(launchOp);
+
+      bool isBlockDimKnown = false;
+      auto blockDims = [&]() -> std::array<int64_t, 3> {
+        gpu::KernelDim3 blockDims = launchOp.getBlockSizeOperandValues();
+        auto x = getConstantIntValue(blockDims.x);
+        auto y = getConstantIntValue(blockDims.y);
+        auto z = getConstantIntValue(blockDims.z);
+        if (x && y && z) {
+          isBlockDimKnown = true;
+          return {x.value(), y.value(), z.value()};
+        } else {
+          isBlockDimKnown = false;
+          return {1024, 1, 1};
+        }
+      }();
+
       auto gpuFunc = launchOp->getParentOfType<ModuleOp>().lookupSymbol(
           launchOp.getKernel());
 
@@ -245,7 +321,7 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
 
       typedef std::map<unsigned, unsigned> ArithOpMap;
       ArithOpMap floatOps, intOps;
-      typedef std::tuple<unsigned, StrideTy, unsigned> MemOpType;
+      typedef std::tuple<unsigned, std::array<StrideTy, 3>, unsigned> MemOpType;
       typedef std::map<MemOpType, unsigned> MemOpMap;
       MemOpMap loads, stores;
       auto addTo = [&](auto &m, auto index, unsigned num) {
@@ -271,12 +347,15 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
             addTo(intOps, width, blockTrips);
           } else if (auto load = dyn_cast<memref::LoadOp>(&op)) {
             int bytes = DLI.getTypeSize(load.getResult().getType());
-            auto stride = estimateStride(load.getIndices());
+            auto stride = estimateStride(load.getIndices(),
+                                         load.getMemRefType(), blockDims);
             auto memSpace = load.getMemRefType().getMemorySpaceAsInt();
             addTo(loads, std::make_tuple(bytes, stride, memSpace), blockTrips);
           } else if (auto store = dyn_cast<memref::StoreOp>(&op)) {
             int bytes = DLI.getTypeSize(store.getValue().getType());
-            auto stride = estimateStride(store.getIndices());
+            auto stride = estimateStride(
+                store.getIndices(),
+                store.getMemRef().getType().cast<MemRefType>(), blockDims);
             auto memSpace = store.getMemRefType().getMemorySpaceAsInt();
             addTo(stores, std::make_tuple(bytes, stride, memSpace), blockTrips);
           }
@@ -298,11 +377,19 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
         for (auto &[k, v] : m) {
           s += std::to_string(std::get<0>(k));
           s += "/";
-          auto stride = std::get<1>(k);
-          if (stride)
-            s += std::to_string(stride.value());
-          else
-            s += "unk";
+          auto strides = std::get<1>(k);
+          auto appendStride = [&](std::string dimStr, int dim) {
+            auto stride = strides[dim];
+            s += dimStr + ":";
+            if (stride)
+              s += std::to_string(strides[dim].value());
+            else
+              s += "unk";
+            s += "|";
+          };
+          appendStride("x", 0);
+          appendStride("y", 1);
+          appendStride("z", 2);
           s += "/";
           s += std::to_string(std::get<2>(k));
           s += ":";
@@ -312,11 +399,19 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
         return s;
       };
 
-      std::string newDesc = oldDescs[regionId].cast<StringAttr>().str() +
-                            "floatOps=" + toStringA(floatOps) + "," +
-                            "intOps=" + toStringA(intOps) + "," +
-                            "loads=" + toStringM(loads) + "," +
-                            "stores=" + toStringM(stores) + ",";
+      std::string newDesc =
+          oldDescs[regionId].cast<StringAttr>().str() + "blockDims=" +
+          (isBlockDimKnown ? "x:" + std::to_string(blockDims[0]) +
+                                 ";"
+                                 "y:" +
+                                 std::to_string(blockDims[1]) +
+                                 ";"
+                                 "z:" +
+                                 std::to_string(blockDims[2]) + ";"
+                           : "unk") +
+          "," + "floatOps=" + toStringA(floatOps) + "," +
+          "intOps=" + toStringA(intOps) + "," + "loads=" + toStringM(loads) +
+          "," + "stores=" + toStringM(stores) + ",";
       descs.push_back(StringAttr::get(m->getContext(), newDesc));
 
       regionId++;
