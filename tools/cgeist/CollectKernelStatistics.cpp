@@ -126,17 +126,14 @@ std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
     else
       return {};
   };
-  auto div = [](StrideTy a, StrideTy b) -> StrideTy {
-    if (a && b)
-      return a.value() / b.value();
-    else
-      return {};
-  };
   auto mul = [](StrideTy a, StrideTy b) -> StrideTy {
-    if (a && b)
+    if ((a && a.value() == 0) || (b && b.value() == 0)) {
+      return 0;
+    } else if (a && b) {
       return a.value() * b.value();
-    else
+    } else {
       return {};
+    }
   };
   auto add = [](StrideTy a, StrideTy b) -> StrideTy {
     if (a && b)
@@ -262,7 +259,7 @@ std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
 
     StrideTy stride = strides.back();
     for (int i = strides.size() - 2; i >= 0; i--) {
-      stride = mul(strides[i], mt.getDimSize(i));
+      stride = add(stride, mul(strides[i], mt.getDimSize(i + 1)));
     }
 
     dimStrides[i++] = stride;
