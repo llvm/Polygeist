@@ -118,6 +118,9 @@ typedef llvm::Optional<int64_t> StrideTy;
 std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
                                        mlir::MemRefType mt,
                                        ArrayRef<int64_t> dims) {
+  if (indices.size() == 0)
+    return {0, 0, 0};
+
   const StrideTy UNKNOWN = {};
 
   auto sub = [](StrideTy a, StrideTy b) -> StrideTy {
