@@ -330,6 +330,38 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
         else
           m[index] = num;
       };
+      auto isCudaDeviceGlobal = [&](mlir::Value mr) {
+        if (auto getGlobalOp =
+                dyn_cast_or_null<memref::GetGlobalOp>(mr.getDefiningOp())) {
+          auto *symbolTableOp =
+              getGlobalOp->getParentWithTrait<OpTrait::SymbolTable>();
+          if (!symbolTableOp)
+            return false;
+          auto global =
+              dyn_cast_or_null<memref::GlobalOp>(SymbolTable::lookupSymbolIn(
+                  symbolTableOp, getGlobalOp.getNameAttr()));
+          if (!global)
+            return false;
+          return global->hasAttr("polygeist.cuda_device");
+        }
+        return false;
+      };
+      auto isCudaConstantGlobal = [&](mlir::Value mr) {
+        if (auto getGlobalOp =
+                dyn_cast_or_null<memref::GetGlobalOp>(mr.getDefiningOp())) {
+          auto *symbolTableOp =
+              getGlobalOp->getParentWithTrait<OpTrait::SymbolTable>();
+          if (!symbolTableOp)
+            return false;
+          auto global =
+              dyn_cast_or_null<memref::GlobalOp>(SymbolTable::lookupSymbolIn(
+                  symbolTableOp, getGlobalOp.getNameAttr()));
+          if (!global)
+            return false;
+          return global->hasAttr("polygeist.cuda_constant");
+        }
+        return false;
+      };
       gpuFunc->walk([&](Block *block) {
         auto blockTrips = std::lround(estimateTripCount(block, threadNum));
         for (auto &op : *block) {
@@ -350,6 +382,10 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
             auto stride = estimateStride(load.getIndices(),
                                          load.getMemRefType(), blockDims);
             auto memSpace = load.getMemRefType().getMemorySpaceAsInt();
+            if (isCudaConstantGlobal(load.getMemRef()))
+              memSpace = 4;
+            if (isCudaDeviceGlobal(load.getMemRef()))
+              memSpace = 1;
             addTo(loads, std::make_tuple(bytes, stride, memSpace), blockTrips);
           } else if (auto store = dyn_cast<memref::StoreOp>(&op)) {
             int bytes = DLI.getTypeSize(store.getValue().getType());
@@ -357,6 +393,10 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
                 store.getIndices(),
                 store.getMemRef().getType().cast<MemRefType>(), blockDims);
             auto memSpace = store.getMemRefType().getMemorySpaceAsInt();
+            if (isCudaConstantGlobal(store.getMemRef()))
+              memSpace = 4;
+            if (isCudaDeviceGlobal(store.getMemRef()))
+              memSpace = 1;
             addTo(stores, std::make_tuple(bytes, stride, memSpace), blockTrips);
           }
         }
