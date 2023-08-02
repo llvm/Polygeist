@@ -1984,6 +1984,7 @@ struct ConvertParallelToGPU1Pass
                     GPUKernelEnableCoalescingFriendlyUnroll, nullptr)
                     .failed()) {
               wrapper->emitRemark("Failed to coarsen threads");
+              llvm::errs() << "Failed to coarsen threads\n";
               succeeded = false;
             }
 
