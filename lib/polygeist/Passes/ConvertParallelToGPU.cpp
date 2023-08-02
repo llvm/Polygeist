@@ -638,6 +638,15 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
           gridArgId.insert(gridArgId.begin(), i);
         }
       }
+    } else {
+      for (int i = totalDims - 1; i >= 0; i--) {
+        if (isMustBeBlockIV(i))
+          // Already added
+          continue;
+        auto &bound = upperBounds[i];
+        gridDims.insert(gridDims.begin(), bound);
+        gridArgId.insert(gridArgId.begin(), i);
+      }
     }
 
     // TODO if we have too many dims, we have to merge some of them - currently
@@ -661,7 +670,8 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
       gridDims.push_back(oneindex);
       // Put a random index, we will override it
       gridArgId.push_back(0);
-    } else if (maxThreads != -1 && threadNum <= maxThreads / 2) {
+    } else if (maxThreads != -1 && threadNum <= maxThreads / 2 &&
+               mustBeBlockIVs.empty()) {
       // If we are not getting enough parallelism in the block, use part of the
       // grid dims
 
