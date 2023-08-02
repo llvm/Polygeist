@@ -131,11 +131,13 @@ __mgpurtUnregisterFatBinary(void **fatCubinHandle) {
   return __hipUnregisterFatBinary(fatCubinHandle);
 }
 
-#if POLYGEIST_ENABLE_CUDA
-
 #pragma push_macro("__forceinline__")
 #define __VECTOR_TYPES_H__
-#include <cuda_runtime_api.h>
+//#define __SURFACE_TYPES_H__
+//#define __TEXTURE_TYPES_H__
+#include "/home/ivan/opt/memkf02/cuda-12.1/include/cuda_runtime_api.h"
+//#undef __TEXTURE_TYPES_H__
+//#undef __SURFACE_TYPES_H__
 #undef __VECTOR_TYPES_H__
 #pragma pop_macro("__forceinline__")
 
@@ -226,5 +228,3 @@ mgpurtCudaGetDeviceProperties(struct cudaDeviceProp *cudaProp, int device) {
 
   return err;
 }
-
-#endif
