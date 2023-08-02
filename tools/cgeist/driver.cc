@@ -246,7 +246,7 @@ static cl::opt<bool> PMEnablePrinting(
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
-#include "CollectKernelStatistics.cpp"
+#include "CollectKernelStatistics.h"
 
 class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
 public:
