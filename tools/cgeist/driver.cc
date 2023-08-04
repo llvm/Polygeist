@@ -897,6 +897,7 @@ int main(int argc, char **argv) {
 #endif
 
     generateAlternativeKernelDescs(module.get());
+    chooseAlternative(module.get());
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
