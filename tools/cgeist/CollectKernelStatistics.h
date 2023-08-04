@@ -488,6 +488,30 @@ static void chooseAlternative(mlir::ModuleOp m) {
     }
   }
 
+  // Prune unused gpu module funcs
+  m->walk([&](gpu::GPUModuleOp gpum) {
+    bool changed;
+    do {
+      changed = false;
+      std::vector<Operation *> unused;
+      gpum->walk([&](Operation *op) {
+        if (
+            isa<gpu::GPUFuncOp>(op) ||
+            isa<func::FuncOp>(op) ||
+            isa<LLVM::LLVMFuncOp>(op)) {
+          auto symbolUses = SymbolTable::getSymbolUses(op, m);
+          if (symbolUses && symbolUses->empty()) {
+            unused.push_back(op);
+          }
+        }
+      });
+      for (auto op : unused) {
+        changed = true;
+        op->erase();
+      }
+    } while (changed);
+  });
+
 }
 
 } // namespace
