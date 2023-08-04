@@ -246,8 +246,6 @@ static cl::opt<bool> PMEnablePrinting(
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
-#include "CollectKernelStatistics.h"
-
 class PolygeistCudaDetectorArgList : public llvm::opt::ArgList {
 public:
   virtual ~PolygeistCudaDetectorArgList() {}
@@ -896,8 +894,40 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    generateAlternativeKernelDescs(module.get());
-    chooseAlternative(module.get());
+    {
+      mlir::PassManager pm(&context);
+      enablePrinting(pm);
+      pm.addPass(polygeist::createLowerAlternativesPass());
+      pm.addPass(polygeist::createCollectKernelStatisticsPass());
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 12;
+      }
+    }
+
+    // Prune unused gpu module funcs
+    module.get()->walk([&](gpu::GPUModuleOp gpum) {
+      bool changed;
+      do {
+        changed = false;
+        std::vector<Operation *> unused;
+        gpum->walk([&](Operation *op) {
+          if (
+              isa<gpu::GPUFuncOp>(op) ||
+              isa<func::FuncOp>(op) ||
+              isa<LLVM::LLVMFuncOp>(op)) {
+            auto symbolUses = SymbolTable::getSymbolUses(op, module.get());
+            if (symbolUses && symbolUses->empty()) {
+              unused.push_back(op);
+            }
+          }
+        });
+        for (auto op : unused) {
+          changed = true;
+          op->erase();
+        }
+      } while (changed);
+    });
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);
