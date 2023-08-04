@@ -912,9 +912,7 @@ int main(int argc, char **argv) {
         changed = false;
         std::vector<Operation *> unused;
         gpum->walk([&](Operation *op) {
-          if (
-              isa<gpu::GPUFuncOp>(op) ||
-              isa<func::FuncOp>(op) ||
+          if (isa<gpu::GPUFuncOp>(op) || isa<func::FuncOp>(op) ||
               isa<LLVM::LLVMFuncOp>(op)) {
             auto symbolUses = SymbolTable::getSymbolUses(op, module.get());
             if (symbolUses && symbolUses->empty()) {
