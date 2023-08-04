@@ -146,27 +146,29 @@ struct LowerAlternativesPass
         }
         aop->erase();
       }
-    } else if (PolygeistAlternativesMode == PAM_PGO_Opt) {
+      return;
+    }
 
-      std::map<std::string, int> num;
-      getOperation()->walk([&](polygeist::AlternativesOp altOp) {
-        std::string funcName;
-        if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".llvm";
-        } else if (auto funcOp = altOp->getParentOfType<func::FuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".func";
-        } else {
-          assert(0 && "How?");
-        }
-        if (num.count(funcName) == 0)
-          num[funcName] = 0;
-        std::string id = funcName + "." + std::to_string(num[funcName]++);
-        altOp->setAttr("polygeist.altop.id",
-                       StringAttr::get(&getContext(), id));
-      });
+    // TODO Should be its own pass really
+    std::map<std::string, int> num;
+    getOperation()->walk([&](polygeist::AlternativesOp altOp) {
+      std::string funcName;
+      if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
+        funcName = funcOp.getName();
+        funcName += ".llvm";
+      } else if (auto funcOp = altOp->getParentOfType<func::FuncOp>()) {
+        funcName = funcOp.getName();
+        funcName += ".func";
+      } else {
+        assert(0 && "How?");
+      }
+      if (num.count(funcName) == 0)
+        num[funcName] = 0;
+      std::string id = funcName + "." + std::to_string(num[funcName]++);
+      altOp->setAttr("polygeist.altop.id", StringAttr::get(&getContext(), id));
+    });
 
+    if (PolygeistAlternativesMode == PAM_PGO_Opt) {
       RewritePatternSet patterns(&getContext());
       patterns.insert<LowerGPUAlternativesOp>(&getContext());
       GreedyRewriteConfig config;
