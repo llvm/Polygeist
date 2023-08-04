@@ -1764,7 +1764,22 @@ struct LowerGPUAlternativesOp
     if (shouldPrintInfo)
       printInfos(llvm::errs(), infos);
 
-    if (PolygeistAlternativesMode == PAM_Static) {
+    if (char *e = getenv("POLYGEIST_CHOOSE_ALTERNATIVE")) {
+
+      int id = atoi(e);
+      if (id == -1)
+        id = gao->getNumRegions() - 1;
+      if (id < 0 || (unsigned) id >= gao->getNumRegions()) {
+        llvm::errs() << "Invalid alternative ID " << id << "\n";
+        return failure();
+      }
+      auto block = &*gao->getRegions()[id].begin();
+
+      rewriter.eraseOp(block->getTerminator());
+      rewriter.mergeBlockBefore(block, gao);
+      rewriter.eraseOp(gao);
+
+    } else if (PolygeistAlternativesMode == PAM_Static) {
       Block *block = nullptr;
       sortInfos();
       LLVM_DEBUG(DBGS() << "GPU Alternatives theoretical infos sorted:\n");
