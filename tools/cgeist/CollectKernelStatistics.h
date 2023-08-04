@@ -21,6 +21,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
@@ -459,4 +460,34 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
     aop->setAttr("alternatives.descs", ArrayAttr::get(m->getContext(), descs));
   });
 }
+
+static void chooseAlternative(mlir::ModuleOp m) {
+  if (char *e = getenv("POLYGEIST_CHOOSE_ALTERNATIVE")) {
+    int id = atoi(e);
+
+    std::vector<polygeist::AlternativesOp> toHandle;
+    m->walk([&](polygeist::AlternativesOp aop) {
+      toHandle.push_back(aop);
+    });
+    for (auto aop : toHandle) {
+      if (id == -1)
+        id = aop->getNumRegions() - 1;
+      if (id < 0 || (unsigned) id >= aop->getNumRegions()) {
+        llvm::errs() << "Invalid alternative ID " << id << "\n";
+        return;
+      }
+      auto block = &*aop->getRegions()[id].begin();
+
+      block->getTerminator()->erase();
+      OpBuilder builder(aop);
+      BlockAndValueMapping mapping;
+      for (auto &op : *block) {
+        builder.clone(op, mapping);
+      }
+      aop->erase();
+    }
+  }
+
+}
+
 } // namespace
