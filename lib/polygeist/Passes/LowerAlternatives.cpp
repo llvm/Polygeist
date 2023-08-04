@@ -11,9 +11,9 @@
 #include <map>
 #include <numeric>
 
+#include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 #include "polygeist/Passes/Utils.h"
-#include "polygeist/Ops.h"
 
 using namespace mlir;
 using namespace polygeist;
@@ -117,7 +117,7 @@ struct LowerGPUAlternativesOp
     }
   }
 };
-}
+} // namespace
 
 struct LowerAlternativesPass
     : public LowerAlternativesBase<LowerAlternativesPass> {
@@ -126,13 +126,12 @@ struct LowerAlternativesPass
       int id = atoi(e);
 
       std::vector<polygeist::AlternativesOp> toHandle;
-      getOperation()->walk([&](polygeist::AlternativesOp aop) {
-        toHandle.push_back(aop);
-      });
+      getOperation()->walk(
+          [&](polygeist::AlternativesOp aop) { toHandle.push_back(aop); });
       for (auto aop : toHandle) {
         if (id == -1)
           id = aop->getNumRegions() - 1;
-        if (id < 0 || (unsigned) id >= aop->getNumRegions()) {
+        if (id < 0 || (unsigned)id >= aop->getNumRegions()) {
           llvm::errs() << "Invalid alternative ID " << id << "\n";
           return;
         }
@@ -172,8 +171,8 @@ struct LowerAlternativesPass
       RewritePatternSet patterns(&getContext());
       patterns.insert<LowerGPUAlternativesOp>(&getContext());
       GreedyRewriteConfig config;
-      if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
-                                              config))) {
+      if (failed(applyPatternsAndFoldGreedily(getOperation(),
+                                              std::move(patterns), config))) {
         signalPassFailure();
         return;
       }
