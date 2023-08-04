@@ -867,6 +867,8 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_GPU
     if (EmitGPU) {
+      mlir::PassManager pm(&context);
+      enablePrinting(pm);
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
@@ -887,6 +889,9 @@ int main(int argc, char **argv) {
 
       addLICM(pm);
 
+      pm.addPass(mlir::createCSEPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 12;
@@ -897,6 +902,7 @@ int main(int argc, char **argv) {
     {
       mlir::PassManager pm(&context);
       enablePrinting(pm);
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createLowerAlternativesPass());
       pm.addPass(polygeist::createCollectKernelStatisticsPass());
       if (mlir::failed(pm.run(module.get()))) {
