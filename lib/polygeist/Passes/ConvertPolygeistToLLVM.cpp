@@ -114,15 +114,7 @@ static void emitCudaError(const llvm::Twine &expr, const char *buffer,
 using namespace mlir;
 using namespace polygeist;
 
-static llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode(
-    "polygeist-alternatives-mode", llvm::cl::init(PAM_Static),
-    llvm::cl::desc("Polygeist alternatives op mode"),
-    llvm::cl::values(
-        clEnumValN(PAM_Static, "static", "Pick at compile time"),
-        clEnumValN(PAM_PGO_Profile, "pgo_prof",
-                   "Profile Guided Optimization - profiling mode"),
-        clEnumValN(PAM_PGO_Opt, "pgo_opt",
-                   "Profile Guided Optimization - optimization mode")));
+extern llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode;
 
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
 
@@ -2170,6 +2162,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         if (LLVM::LLVMFuncOp f = dyn_cast<LLVM::LLVMFuncOp>(op)) {
           if (!f->getAttr("gpu.kernel"))
             continue;
+          auto symbolUses = SymbolTable::getSymbolUses(&op, moduleOp);
+          if (symbolUses && symbolUses->empty())
+            continue;
           auto kernelName = generateKernelNameConstant(
               launchOp.getKernelModuleName().getValue(), f.getName(), loc,
               ctorBuilder);
@@ -2784,27 +2779,6 @@ struct ConvertPolygeistToLLVMPass
     converter.addConversion([&](async::TokenType type) { return type; });
 
     {
-      // TODO I am assuming this will walk in the same order every time, might
-      // not be the case
-      std::map<std::string, int> num;
-      m->walk([&](polygeist::AlternativesOp altOp) {
-        std::string funcName;
-        if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".llvm";
-        } else if (auto funcOp = altOp->getParentOfType<func::FuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".func";
-        } else {
-          assert(0 && "How?");
-        }
-        if (num.count(funcName) == 0)
-          num[funcName] = 0;
-        std::string id = funcName + "." + std::to_string(num[funcName]++);
-        altOp->setAttr("polygeist.altop.id",
-                       StringAttr::get(&getContext(), id));
-      });
-
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());

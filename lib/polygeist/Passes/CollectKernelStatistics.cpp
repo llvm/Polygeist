@@ -1,26 +1,7 @@
-#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
-#include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
-#include "mlir/Conversion/GPUToNVVM/GPUToNVVMPass.h"
-#include "mlir/Conversion/GPUToROCDL/GPUToROCDLPass.h"
-#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
-#include "mlir/Conversion/MathToLLVM/MathToLLVM.h"
-#include "mlir/Conversion/OpenMPToLLVM/ConvertOpenMPToLLVM.h"
-#include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
-#include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
-#include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Async/IR/Async.h"
-#include "mlir/Dialect/DLTI/DLTI.h"
+#include "PassDetails.h"
+
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/GPU/Transforms/Passes.h"
-#include "mlir/Dialect/LLVMIR/ROCDLDialect.h"
-#include "mlir/Dialect/LLVMIR/Transforms/RequestCWrappers.h"
-#include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -29,29 +10,17 @@
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/MathExtras.h"
-#include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
-#include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/Verifier.h"
-#include "llvm/IRReader/IRReader.h"
-#include "llvm/Linker/Linker.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/Host.h"
-#include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/Program.h"
-#include "llvm/Transforms/IPO/Internalize.h"
-#include <limits>
-
-#include "polygeist/Dialect.h"
-#include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
 
-namespace {
 using namespace mlir;
+using namespace polygeist;
+
+extern llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode;
+
+namespace {
 
 // Per cuda block trip count
 static double estimateTripCount(Block *block, unsigned threadNum) {
@@ -460,58 +429,15 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
     aop->setAttr("alternatives.descs", ArrayAttr::get(m->getContext(), descs));
   });
 }
-
-static void chooseAlternative(mlir::ModuleOp m) {
-  if (char *e = getenv("POLYGEIST_CHOOSE_ALTERNATIVE")) {
-    int id = atoi(e);
-
-    std::vector<polygeist::AlternativesOp> toHandle;
-    m->walk([&](polygeist::AlternativesOp aop) {
-      toHandle.push_back(aop);
-    });
-    for (auto aop : toHandle) {
-      if (id == -1)
-        id = aop->getNumRegions() - 1;
-      if (id < 0 || (unsigned) id >= aop->getNumRegions()) {
-        llvm::errs() << "Invalid alternative ID " << id << "\n";
-        return;
-      }
-      auto block = &*aop->getRegions()[id].begin();
-
-      block->getTerminator()->erase();
-      OpBuilder builder(aop);
-      BlockAndValueMapping mapping;
-      for (auto &op : *block) {
-        builder.clone(op, mapping);
-      }
-      aop->erase();
-    }
-  }
-
-  // Prune unused gpu module funcs
-  m->walk([&](gpu::GPUModuleOp gpum) {
-    bool changed;
-    do {
-      changed = false;
-      std::vector<Operation *> unused;
-      gpum->walk([&](Operation *op) {
-        if (
-            isa<gpu::GPUFuncOp>(op) ||
-            isa<func::FuncOp>(op) ||
-            isa<LLVM::LLVMFuncOp>(op)) {
-          auto symbolUses = SymbolTable::getSymbolUses(op, m);
-          if (symbolUses && symbolUses->empty()) {
-            unused.push_back(op);
-          }
-        }
-      });
-      for (auto op : unused) {
-        changed = true;
-        op->erase();
-      }
-    } while (changed);
-  });
-
-}
-
 } // namespace
+
+struct CollectKernelStatisticsPass
+    : public CollectKernelStatisticsBase<CollectKernelStatisticsPass> {
+  void runOnOperation() override {
+    generateAlternativeKernelDescs(getOperation());
+  }
+};
+
+std::unique_ptr<Pass> mlir::polygeist::createCollectKernelStatisticsPass() {
+  return std::make_unique<CollectKernelStatisticsPass>();
+}
