@@ -23,6 +23,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "sql/SQLOps.h"
+#include "sql/Parser.h"
 #include "sql/Passes/Passes.h"
 #include <algorithm>
 #include <mutex>
@@ -112,51 +113,83 @@ struct PQgetvalueRaising : public OpRewritePattern<func::CallOp> {
 };
 
 
-// struct PQexecRaising : public OpRewritePattern<func::CallOp> {
-//   using OpRewritePattern<func::CallOp>::OpRewritePattern;
+struct PQexecRaising : public OpRewritePattern<func::CallOp> {
+  using OpRewritePattern<func::CallOp>::OpRewritePattern;
 
-//   LogicalResult matchAndRewrite(func::CallOp call,
-//                                 PatternRewriter &rewriter) const final {                                
-//     if (call.getCallee() != "PQexec") {
-//         return failure();
-//     }
-//     SymbolTableCollection symbolTable;
-//     symbolTable.getSymbolTable(call);
-//     auto module = call->getParentOfType<ModuleOp>();
+  LogicalResult matchAndRewrite(func::CallOp call,
+                                PatternRewriter &rewriter) const final {                                
+    if (call.getCallee() != "PQexec") {
+        return failure();
+    }
 
-//     // 2) convert the args to valid args to postgres_getresult abi
-//     Value conn = call.getArgOperands()[0];
-//     conn = rewriter.create<LLVM::PtrToIntOp>(
-//         call.getLoc(), rewriter.getIntegerType(64), conn);
+    // 2) convert the args to valid args to postgres_getresult abi
+    Value conn = call.getArgOperands()[0];
+    if (!conn.getType().isa<LLVM::LLVMPointerType>()) {
+        conn = rewriter.create<polygeist::Memref2PointerOp>(
+              call.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), conn);
+    }
+    conn = rewriter.create<LLVM::PtrToIntOp>(
+        call.getLoc(), rewriter.getIntegerType(64), conn);
 
-//     conn = rewriter.create<arith::IndexCastOp>(call.getLoc(),
-//                                               rewriter.getIndexType(), conn);
+    conn = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getIndexType(), conn);
 
-//     Value command = call.getArgOperands()[1];
-//     command = rewriter.create<LLVM::PtrToIntOp>(
-//         call.getLoc(), rewriter.getIntegerType(64), command);
+    Value command = call.getArgOperands()[1];
 
-//     command = rewriter.create<arith::IndexCastOp>(call.getLoc(),
-//                                               rewriter.getIndexType(), command);
+    command = rewriter.create<sql::UnparsedOp>(call.getLoc(), 
+                                                  ExprType::get(rewriter.getContext()), command);
 
-//     Value res = rewriter.create<sql::ExecuteOp>(call.getLoc(), rewriter.getIndexType(), conn, command);
+    Value res = rewriter.create<sql::ExecuteOp>(call.getLoc(), rewriter.getIndexType(), conn, command);
 
-//     res = rewriter.create<arith::IndexCastOp>(call.getLoc(),
-//                                               rewriter.getI64Type(), res);
+    res = rewriter.create<arith::IndexCastOp>(call.getLoc(),
+                                              rewriter.getI64Type(), res);
+    res = rewriter.create<LLVM::IntToPtrOp>(call.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), res);
+    res = rewriter.create<polygeist::Pointer2MemrefOp>(call.getLoc(), call.getResultTypes()[0], res);
 
-//     rewriter.replaceOp(call, res);
-//     /// rewriter.replaceOpWithNewOp<mlir::func::CallOp>(call, itoafn, res);
+    
+    assert(call.getResultTypes()[0] == res.getType());
+    rewriter.replaceOp(call, res);
 
-//     // 4) done
-//     return success();
-//   }
-// };
+    return success();
+  }
+};
+
+
+class UnparsedOpParseFix final : public OpRewritePattern<UnparsedOp> {
+public:
+  using OpRewritePattern<UnparsedOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(UnparsedOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Value input = op->getOperand(0);
+    
+    auto stringOp = input.getDefiningOp<LLVM::AddressOfOp>();
+    if (!stringOp) return failure();
+
+    StringRef strname = stringOp.getGlobalName();
+
+    auto module = op->getParentOfType<ModuleOp>();
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(module);
+
+    Attribute strattr = dyn_cast_or_null<LLVM::GlobalOp>(
+            symbolTable.lookupSymbolIn(module, rewriter.getStringAttr(strname))).getValueAttr();
+    auto str = strattr.cast<StringAttr>().getValue();
+
+    auto resOp = parseSQL(op.getLoc(), rewriter, std::string(str.data()));
+    assert(resOp);
+    rewriter.replaceOp(op,ValueRange(resOp));
+    return success();
+  }
+};
 
 void SQLRaising::runOnOperation() {
   auto module = getOperation();
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(module);
-  OpBuilder builder(module.getContext());
+  auto &context = getContext(); 
+  OpBuilder builder(&context);
   builder.setInsertionPointToStart(module.getBody());
 
   if (!dyn_cast_or_null<func::FuncOp>(
@@ -169,12 +202,13 @@ void SQLRaising::runOnOperation() {
     SymbolTable::setSymbolVisibility(fn, SymbolTable::Visibility::Private);
   }
 
+  RewritePatternSet patterns(&context);
+  patterns.insert<PQntuplesRaising, UnparsedOpParseFix, PQgetvalueRaising, PQexecRaising>(&getContext());
 
-
-  RewritePatternSet patterns(&getContext());
-  patterns.insert<PQntuplesRaising>(&getContext());
-  patterns.insert<PQgetvalueRaising>(&getContext());
-  // patterns.insert<PQexecRaising>(&getContext());
+  for (auto *dialect : context.getLoadedDialects())
+    dialect->getCanonicalizationPatterns(patterns);
+  for (RegisteredOperationName op : context.getRegisteredOperations())
+    op.getCanonicalizationPatterns(patterns, &context);
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

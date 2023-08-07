@@ -9,6 +9,7 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "sql/SQLDialect.h"
 #include "sql/SQLOps.h"
+#include "sql/SQLTypes.h"
 
 using namespace mlir;
 using namespace mlir::sql;
@@ -22,6 +23,8 @@ void SQLDialect::initialize() {
 #define GET_OP_LIST
 #include "sql/SQLOps.cpp.inc"
       >();
+registerTypes();
+
 }
 
 #include "sql/SQLOpsDialect.cpp.inc"

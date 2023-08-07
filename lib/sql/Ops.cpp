@@ -5,6 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <string>
+#include <vector>
+#include <regex>
+#include <algorithm>
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -16,6 +20,8 @@
 
 #include "sql/SQLDialect.h"
 #include "sql/SQLOps.h"
+#include "sql/SQLTypes.h"
+#include "sql/Parser.h"
 #include "polygeist/Ops.h"
 
 #define GET_OP_CLASSES
@@ -34,6 +40,14 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
+
+
+#include "mlir/IR/Value.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/Attributes.h"
+#include "llvm/ADT/SmallVector.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 #define DEBUG_TYPE "sql"
 
@@ -122,54 +136,80 @@ void NumResultsOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 
 
-class ExecuteOpTypeFix final : public OpRewritePattern<ExecuteOp> {
+// class ExecuteOpTypeFix final : public OpRewritePattern<ExecuteOp> {
+// public:
+//   using OpRewritePattern<ExecuteOp>::OpRewritePattern;
+
+//   LogicalResult matchAndRewrite(ExecuteOp op,
+//                                 PatternRewriter &rewriter) const override {
+//     bool changed = false;
+
+//     Value conn = op->getOperand(0);
+//     Value command = op->getOperand(1);
+
+//     if (conn.getType().isa<IndexType>() && command.getType().isa<IndexType>() && op->getResultTypes()[0].isa<IndexType>())
+//         return failure();
+
+//     if (!conn.getType().isa<IndexType>()) {
+//         conn = rewriter.create<IndexCastOp>(op.getLoc(),
+//                                                    rewriter.getIndexType(), conn);
+//         changed = true;
+//     }
+//     if (command.getType().isa<MemRefType>()) {
+//         command = rewriter.create<polygeist::Memref2PointerOp>(op.getLoc(), 
+//                                                    LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);                          
+//         changed = true;
+//     }
+
+
+//     if (command.getType().isa<LLVM::LLVMPointerType>()) {
+//         command = rewriter.create<LLVM::PtrToIntOp>(op.getLoc(), 
+//                                                    rewriter.getI64Type(), command);                          
+//         changed = true;
+//     }
+//     if (!command.getType().isa<IndexType>()) {
+//         command = rewriter.create<IndexCastOp>(op.getLoc(), 
+//                                                rewriter.getIndexType(), command);                          
+//         changed = true;
+//     }
+
+//     if (!changed) return failure();
+//     mlir::Value res = rewriter.create<ExecuteOp>(op.getLoc(), rewriter.getIndexType(), conn, command);
+//     rewriter.replaceOp(op, res);
+//     // if (op->getResultTypes()[0].isa<IndexType>()) {
+//     //     rewriter.replaceOp(op, res);
+//     // } else {
+//     //     rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
+//     // }
+//     return success(changed);
+//   }
+// };
+
+// void ExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
+//                                             MLIRContext *context) {
+//   results.insert<ExecuteOpTypeFix>(context);
+// }
+
+
+template<typename T>
+class UnparsedOpInnerCast final : public OpRewritePattern<UnparsedOp> {
 public:
-  using OpRewritePattern<ExecuteOp>::OpRewritePattern;
+  using OpRewritePattern<UnparsedOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(ExecuteOp op,
+  LogicalResult matchAndRewrite(UnparsedOp op,
                                 PatternRewriter &rewriter) const override {
-    bool changed = false;
 
-    Value conn = op->getOperand(0);
-    Value command = op->getOperand(1);
+    Value input = op->getOperand(0);
+    
+    auto cst = input.getDefiningOp<T>();
+    if (!cst) return failure();
 
-    if (conn.getType().isa<IndexType>() && command.getType().isa<IndexType>() && op->getResultTypes()[0].isa<IndexType>())
-        return failure();
-
-    if (!conn.getType().isa<IndexType>()) {
-        conn = rewriter.create<IndexCastOp>(op.getLoc(),
-                                                   rewriter.getIndexType(), conn);
-        changed = true;
-    }
-    if (command.getType().isa<MemRefType>()) {
-        command = rewriter.create<polygeist::Memref2PointerOp>(op.getLoc(), 
-                                                   LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);                          
-        changed = true;
-    }
-    if (command.getType().isa<LLVM::LLVMPointerType>()) {
-        command = rewriter.create<LLVM::PtrToIntOp>(op.getLoc(), 
-                                                   rewriter.getI64Type(), command);                          
-        changed = true;
-    }
-    if (!command.getType().isa<IndexType>()) {
-        command = rewriter.create<IndexCastOp>(op.getLoc(), 
-                                               rewriter.getIndexType(), command);                          
-        changed = true;
-    }
-
-    if (!changed) return failure();
-    mlir::Value res = rewriter.create<ExecuteOp>(op.getLoc(), rewriter.getIndexType(), conn, command);
-    rewriter.replaceOp(op, res);
-    // if (op->getResultTypes()[0].isa<IndexType>()) {
-    //     rewriter.replaceOp(op, res);
-    // } else {
-    //     rewriter.replaceOpWithNewOp<IndexCastOp>(op, op->getResultTypes()[0], res);
-    // }
-    return success(changed);
+    rewriter.replaceOpWithNewOp<UnparsedOp>(op, op.getType(), cst.getOperand());
+    return success();
   }
 };
 
-void ExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
+void UnparsedOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
-  results.insert<ExecuteOpTypeFix>(context);
+  results.insert<UnparsedOpInnerCast<polygeist::Pointer2MemrefOp> >(context);
 }

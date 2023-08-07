@@ -10,11 +10,10 @@
 #define SQL_DIALECT
 
 
-include "mlir/IR/OpBase.td"
+
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-
 include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/CastInterfaces.td"
 
@@ -26,15 +25,13 @@ def SQL_Dialect : Dialect {
   }];
   let name = "sql";
   let cppNamespace = "::mlir::sql";
+
+  let useDefaultTypePrinterParser = 1;
+  let extraClassDeclaration = [{
+      void registerTypes();
+  }];
 }
 
-
-//===----------------------------------------------------------------------===//
-// SQL Operations
-//===----------------------------------------------------------------------===//
-
-class SQL_Op<string mnemonic, list<Trait> traits = []>
-    : Op<SQL_Dialect, mnemonic, traits>; 
 
 #endif // SQL_DIALECT 
 

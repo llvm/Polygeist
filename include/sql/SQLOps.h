@@ -16,7 +16,7 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "llvm/Support/CommandLine.h"
-
+#include "sql/SQLTypes.h"
 #define GET_OP_CLASSES
 #include "sql/SQLOps.h.inc"
 

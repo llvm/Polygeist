@@ -9,11 +9,17 @@
 #ifndef SQL_OPS
 #define SQL_OPS
 
-include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/OpBase.td"
 include "SQLDialect.td"
+include "SQLTypes.td"
+
+
+class SQL_Op<string mnemonic, list<Trait> traits = []>
+    : Op<SQL_Dialect, mnemonic, traits>; 
+
 
 def IntOp : SQL_Op<"int", [Pure]> {
-  let summary = "select";
+  let summary = "int op";
 
   let arguments = (ins StrAttr:$expr);
   let results = (outs SQLExprType:$result);
@@ -23,7 +29,7 @@ def IntOp : SQL_Op<"int", [Pure]> {
 } 
 
 def ColumnOp : SQL_Op<"column", [Pure]> {
-  let summary = "select";
+  let summary = "column op";
 
   let arguments = (ins StrAttr:$expr);
   let results = (outs SQLExprType:$result);
@@ -33,7 +39,7 @@ def ColumnOp : SQL_Op<"column", [Pure]> {
 } 
 
 def TableOp : SQL_Op<"table", [Pure]> {
-  let summary = "select";
+  let summary = "table";
 
   let arguments = (ins StrAttr:$expr);
   let results = (outs SQLExprType:$result);
@@ -42,10 +48,24 @@ def TableOp : SQL_Op<"table", [Pure]> {
   let hasCanonicalizer = 0;
 } 
 
+def EmptyTableOp : SQL_Op<"empty_table", [Pure]> {
+  let summary = "empty_table";
+  // i need to specify the size of a Variadic? 
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+} 
+
+// def VectorNotEmpty : AttrConstraint<CPred<"$_self.size() > 0">,
+//                                      "VectorNotEmpty">; 
+
+                                    
 def SelectOp : SQL_Op<"select", [Pure]> {
   let summary = "select";
-
-  let arguments = (ins Variadic<SQLExprType>:$columns, Optional<SQLExprType>:$table);
+  // i need to specify the size of a Variadic? 
+  let arguments = (ins Variadic<SQLExprType>:$columns, SQLExprType:$table);
   let results = (outs SQLExprType:$result);
 
   let hasFolder = 0;
@@ -69,7 +89,7 @@ def ExecuteOp : SQL_Op<"execute", []> {
   let results = (outs Index:$result);
 
   let hasFolder = 0;
-  let hasCanonicalizer = 1;
+  let hasCanonicalizer = 0;
 }
 
 
