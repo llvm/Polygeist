@@ -618,6 +618,7 @@ int main(int argc, char **argv) {
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
+
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -902,6 +903,8 @@ int main(int argc, char **argv) {
     {
       mlir::PassManager pm(&context);
       enablePrinting(pm);
+      mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
+      gpuPM.addPass(polygeist::createFixGPUFuncPass());
       pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
       pm.addPass(polygeist::createLowerAlternativesPass());
       pm.addPass(polygeist::createCollectKernelStatisticsPass());
