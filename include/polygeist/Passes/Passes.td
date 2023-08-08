@@ -42,6 +42,12 @@ def ConvertCudaRTtoCPU : Pass<"convert-cudart-to-cpu", "mlir::ModuleOp"> {
   let constructor = "mlir::polygeist::createConvertCudaRTtoCPUPass()";
 }
 
+def FixGPUFunc : Pass<"fix-gpu-func", "mlir::gpu::GPUModuleOp"> {
+  let summary = "Fix nested calls to gpu functions we generate in the frontend";
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "gpu::GPUDialect"];
+  let constructor = "mlir::polygeist::createFixGPUFuncPass()";
+}
+
 def ConvertCudaRTtoGPU : Pass<"convert-cudart-to-gpu", "mlir::ModuleOp"> {
   let summary = "Lower cudart functions to generic gpu versions";
   let dependentDialects =
