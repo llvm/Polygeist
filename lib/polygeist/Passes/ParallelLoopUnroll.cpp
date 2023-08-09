@@ -376,11 +376,12 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   ub[dim] = upperBoundUnrolled;
   auto dstPop = builder.create<scf::ParallelOp>(
       pop->getLoc(), pop.getLowerBound(), ub, pop.getStep());
+  scf::ParallelOp epiloguePop = nullptr;
 
   if (generateEpilogueLoop && (!remUnrolledCst || *remUnrolledCst != 0)) {
     auto mainLoopTrips =
         builder.create<arith::MulIOp>(loc, upperBoundUnrolled, unrollFactorCst);
-    auto epiloguePop = cast<scf::ParallelOp>(builder.clone(*pop));
+    epiloguePop = cast<scf::ParallelOp>(builder.clone(*pop));
     // TODO more robust way to set the upper bound
     epiloguePop->setOperand(pop.getUpperBound().size() + dim, remUnrolled);
     OpBuilder::InsertionGuard _(builder);
@@ -414,6 +415,8 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     pop->erase();
     pop = dstPop;
   } else {
+    if (epiloguePop)
+      epiloguePop->erase();
     dstPop->erase();
   }
   return res;

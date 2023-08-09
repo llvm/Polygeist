@@ -741,10 +741,13 @@ void FixGPUFunc::runOnOperation() {
     if (blocks.size() != 1)
       return nullptr;
     auto block = &blocks.front();
-    auto callOp = cast<func::CallOp>(block->front());
-    if (!callOp->getNextNode()->hasTrait<OpTrait::IsTerminator>())
+    if (auto callOp = dyn_cast<func::CallOp>(block->front())) {
+      if (!callOp->getNextNode()->hasTrait<OpTrait::IsTerminator>())
+        return nullptr;
+      return callOp;
+    } else {
       return nullptr;
-    return callOp;
+    }
   };
   gpum->walk([&](gpu::GPUFuncOp gpuFuncOp) {
     auto callOp = getDirectlyNestedCallOp(gpuFuncOp);
@@ -760,9 +763,10 @@ void FixGPUFunc::runOnOperation() {
       return;
     }
     auto callOp2 = getDirectlyNestedCallOp(funcOp);
-    if (!callOp2)
-      return;
-    callInliner(callOp2);
+
+    if (callOp2)
+      callInliner(callOp2);
+
     callInliner(callOp);
   });
 }
