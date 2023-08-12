@@ -1756,11 +1756,46 @@ struct ConvertParallelToGPU1Pass
               gridPop.getBody(), /* allowAllocas */ true);
           assert(blockPop);
 
-          auto ubs = blockPop.getUpperBound();
+          auto ubs = gridPop.getUpperBound();
+          int gridDims = ubs.size();
+          assert(gridDims >= 1 && gridDims <= 3);
+
+          auto getBlockUnrollFactors = [&](unsigned unrollFactor) {
+            std::vector<uint64_t> divisors;
+            for (unsigned i = 2; unrollFactor != 1; ++i) {
+              while (unrollFactor % i == 0) {
+                divisors.push_back(i);
+                unrollFactor /= i;
+              }
+            }
+            std::vector<uint64_t> unrollFactors;
+            for (unsigned i = 0; i < gridDims; i++)
+              unrollFactors.push_back(1);
+            for (unsigned i = 0; i < divisors.size(); i++)
+              unrollFactors[i % gridDims] *= divisors[i];
+            std::sort(unrollFactors.begin(), unrollFactors.end(),
+                      [](auto a, auto b) { return a > b; });
+            for (unsigned i = 0; i < gridDims; i++)
+              llvm::errs() << unrollFactors[i] << " ";
+            llvm::errs() << "\n";
+            return unrollFactors;
+          };
+          if (coarsenBlocks > 1) {
+            auto blockUnrollFactors = getBlockUnrollFactors(coarsenBlocks);
+            if (polygeist::scfParallelUnrollByFactors(
+                    gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
+                    /* generateEpilogueLoop */ true,
+                    /* coalescingFriendlyIndexing */ false, nullptr)
+                    .failed())
+              wrapper->emitRemark("Failed to coarsen blocks");
+          }
+          blockPop = getDirectlyNestedSingleParallel(
+              gridPop.getBody(), /*allowAllocas*/ true,
+              /*allowIndexComputation*/ true);
+          ubs = blockPop.getUpperBound();
           int blockDims = ubs.size();
           assert(blockDims >= 1 && blockDims <= 3);
-
-          auto getUnrollFactors = [&](unsigned unrollFactor) {
+          auto getThreadUnrollFactors = [&](unsigned unrollFactor) {
             unsigned powsOf2 = std::log2(unrollFactor);
             unsigned initial = std::pow(2, powsOf2 / blockDims);
             unsigned currentFactor = 1;
@@ -1776,25 +1811,13 @@ struct ConvertParallelToGPU1Pass
             return unrollFactors;
           };
 
-          if (coarsenBlocks > 1) {
-            auto blockUnrollFactors = getUnrollFactors(coarsenBlocks);
-            if (polygeist::scfParallelUnrollByFactors(
-                    gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
-                    /* generateEpilogueLoop */ true,
-                    /* coalescingFriendlyIndexing */ false, nullptr)
-                    .failed())
-              wrapper->emitRemark("Failed to coarsen blocks");
-          }
-          blockPop = getDirectlyNestedSingleParallel(
-              gridPop.getBody(), /*allowAllocas*/ true,
-              /*allowIndexComputation*/ true);
           if (coarsenThreads > 1) {
             // TODO We kind of assume that the upper bounds will be divisible by
             // the factors and in that case this will succeed if the upper
             // bounds are dynamic - we need to insert runtime checks and
             // fallback to a non-coarsened kernel, or have an 'if' statement in
             // the unrolled parallel that will do the "epilogue" part
-            auto threadUnrollFactors = getUnrollFactors(coarsenThreads);
+            auto threadUnrollFactors = getThreadUnrollFactors(coarsenThreads);
             if (polygeist::scfParallelUnrollByFactors(
                     blockPop, ArrayRef<uint64_t>(threadUnrollFactors),
                     /* generateEpilogueLoop */ false,
