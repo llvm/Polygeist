@@ -3434,17 +3434,18 @@ bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
 }
 
 // Range is [lb, ub)
-bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
+static bool rangeCheckImpl(Value bval, ValueOrInt lb, ValueOrInt ub,
+                           Cmp lbCheck, Cmp ubCheck) {
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
     if (AffineForOp afFor =
             dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
       return valueCmp(
-                 Cmp::LE,
+                 lbCheck,
                  afFor.getLowerBoundMap().getResults()[baval.getArgNumber()],
                  afFor.getLowerBoundMap().getNumDims(),
                  afFor.getLowerBoundOperands(), lb) &&
              valueCmp(
-                 Cmp::GE,
+                 ubCheck,
                  afFor.getUpperBoundMap().getResults()[baval.getArgNumber()],
                  afFor.getUpperBoundMap().getNumDims(),
                  afFor.getUpperBoundOperands(), ub);
@@ -3453,12 +3454,12 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
     if (AffineParallelOp afFor =
             dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
       for (auto flb : afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
-        if (!valueCmp(Cmp::LE, flb, afFor.getLowerBoundsMap().getNumDims(),
+        if (!valueCmp(lbCheck, flb, afFor.getLowerBoundsMap().getNumDims(),
                       afFor.getLowerBoundsOperands(), lb))
           return false;
 
       for (auto ulb : afFor.getUpperBoundMap(baval.getArgNumber()).getResults())
-        if (!valueCmp(Cmp::GE, ulb, afFor.getUpperBoundsMap().getNumDims(),
+        if (!valueCmp(ubCheck, ulb, afFor.getUpperBoundsMap().getNumDims(),
                       afFor.getUpperBoundsOperands(), ub))
           return false;
       return true;
@@ -3469,7 +3470,7 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
       if (baval.getArgNumber() == 0) {
         auto flb = afFor.getLowerBound();
         auto fub = afFor.getUpperBound();
-        return valueCmp(Cmp::LE, flb, lb) && valueCmp(Cmp::GE, fub, ub);
+        return valueCmp(lbCheck, flb, lb) && valueCmp(ubCheck, fub, ub);
       }
     }
 
@@ -3477,15 +3478,29 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
             dyn_cast<scf::ParallelOp>(baval.getOwner()->getParentOp())) {
       auto flb = afFor.getLowerBound()[baval.getArgNumber()];
       auto fub = afFor.getUpperBound()[baval.getArgNumber()];
-      return valueCmp(Cmp::LE, flb, lb) && valueCmp(Cmp::GE, fub, ub);
+      return valueCmp(lbCheck, flb, lb) && valueCmp(ubCheck, fub, ub);
     }
   }
+  return false;
+}
+bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
+  if (rangeCheckImpl(bval, lb, ub, Cmp::LE, Cmp::GE))
+    return true;
+  IntegerAttr iattr;
+  if (matchPattern(bval, m_Constant(&iattr))) {
+    return lb <= iattr.getValue() && ub > iattr.getValue();
+  }
+  return false;
+}
 
+// Range is [lb, ub)
+bool rangeIs(Value bval, ValueOrInt lb, ValueOrInt ub) {
+  if (rangeCheckImpl(bval, lb, ub, Cmp::EQ, Cmp::EQ))
+    return true;
   IntegerAttr iattr;
   if (matchPattern(bval, m_Constant(&iattr))) {
     return lb == iattr.getValue() && ub == iattr.getValue() + 1;
   }
-
   return false;
 }
 
@@ -5222,6 +5237,15 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           if (!rangeIncludes(bval, 0, val)) {
             LLVM_DEBUG(llvm::dbgs() << " + non in range " << bval << "\n");
             continue;
+          }
+          if (!rangeIs(bval, 0, val)) {
+            LLVM_DEBUG(llvm::dbgs() << " + does not cover whole range " << bval << "\n");
+            return failure();
+          }
+        } else {
+          if (!(pair.value() == 1 && storeIdxs[pair.index()].i_val == 0)) {
+            LLVM_DEBUG(llvm::dbgs() << " + constant index store does not cover whole range " << pair.value() << "\n");
+            return failure();
           }
         }
       }

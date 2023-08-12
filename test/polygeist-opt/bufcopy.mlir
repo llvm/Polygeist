@@ -1,6 +1,7 @@
 // RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
 
 module  {
+  func.func private @print1(i32) -> ()
   func.func private @run() {
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
@@ -112,6 +113,33 @@ module  {
         affine.store %v, %d[%arg4] : memref<?xi32>
     }
     memref.dealloc %tmp : memref<?xi32>
+    return
+  }
+  func.func private @nonfull() {
+    %c1024 = arith.constant 1024 : index
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c512 = arith.constant 512 : index
+    %0 = llvm.mlir.undef : i32
+    %alloc = memref.alloc() : memref<1024xi32>
+    %alloc_0 = memref.alloc() : memref<1024xi32>
+    affine.for %arg0 = 0 to 1024 {
+      %1 = arith.index_cast %arg0 : index to i32
+      %2 = arith.index_cast %1 : i32 to index
+      memref.store %1, %alloc[%2] : memref<1024xi32>
+    }
+    affine.for %arg0 = 0 to 1023 {
+      %1 = arith.index_cast %arg0 : index to i32
+      %2 = arith.index_cast %1 : i32 to index
+      %3 = memref.load %alloc[%2] : memref<1024xi32>
+      memref.store %3, %alloc_0[%2] : memref<1024xi32>
+    }
+    affine.for %arg0 = 0 to 1024 {
+      %1 = arith.index_cast %arg0 : index to i32
+      %4 = arith.index_cast %1 : i32 to index
+      %5 = memref.load %alloc_0[%4] : memref<1024xi32>
+      func.call @print1(%5) : (i32) -> ()
+    }
     return
   }
 }
