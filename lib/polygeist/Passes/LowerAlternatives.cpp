@@ -10,6 +10,7 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <filesystem>
 
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
@@ -41,18 +42,7 @@ struct LowerGPUAlternativesOp
         "gpu_kernel")
       return failure();
 
-    Location loc = gao->getLoc();
-    std::string locStr = [&loc]() {
-      std::string str;
-      llvm::raw_string_ostream stream(str);
-      loc.print(stream);
-      stream.flush();
-      return stream.str();
-    }();
-    locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
-    for (char &c : locStr)
-      if (c == '/')
-        c = '+';
+    auto locStr = gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
 
     auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
 
@@ -164,7 +154,22 @@ struct LowerAlternativesPass
       if (num.count(funcName) == 0)
         num[funcName] = 0;
       std::string id = funcName + "." + std::to_string(num[funcName]++);
-      altOp->setAttr("polygeist.altop.id", StringAttr::get(&getContext(), id));
+
+      Location loc = altOp->getLoc();
+      std::string locStr = [&loc]() {
+        std::string str;
+        llvm::raw_string_ostream stream(str);
+        loc.print(stream);
+        stream.flush();
+        return stream.str();
+      }();
+      locStr += id;
+      static std::string cwd = std::filesystem::current_path().string();
+      locStr = cwd + locStr;
+      for (char &c : locStr)
+        if (c == '/')
+          c = '+';
+      altOp->setAttr("polygeist.altop.id", StringAttr::get(&getContext(), locStr));
     });
 
     if (PolygeistAlternativesMode == PAM_PGO_Opt) {

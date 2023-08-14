@@ -59,6 +59,11 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIROpenMPToLLVM
   )
 
+target_link_libraries(MLIRPolygeistTransforms
+  PRIVATE
+  stdc++fs
+  )
+
 target_compile_definitions(obj.MLIRPolygeistTransforms
   PRIVATE
   POLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
