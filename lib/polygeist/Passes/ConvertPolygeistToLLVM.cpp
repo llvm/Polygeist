@@ -1449,17 +1449,7 @@ struct LowerGPUAlternativesOp
       return failure();
 
     Location loc = gao->getLoc();
-    std::string locStr = [&loc]() {
-      std::string str;
-      llvm::raw_string_ostream stream(str);
-      loc.print(stream);
-      stream.flush();
-      return stream.str();
-    }();
-    locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
-    for (char &c : locStr)
-      if (c == '/')
-        c = '+';
+    std::string locStr = gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
 
     auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
 
