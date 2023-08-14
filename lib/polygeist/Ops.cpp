@@ -5712,9 +5712,10 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
   if (BufferElim) {
     results.insert<BufferElimination<memref::AllocaOp>,
-                   BufferElimination<memref::AllocOp>,
-                   AffineBufferElimination<memref::AllocaOp>,
-                   AffineBufferElimination<memref::AllocOp>>(context);
+                   BufferElimination<memref::AllocOp>
+                   //AffineBufferElimination<memref::AllocaOp>,
+                   //AffineBufferElimination<memref::AllocOp>
+                   >(context);
   }
 
   results.insert<SimplifyDeadAllocV2<memref::AllocaOp>,
