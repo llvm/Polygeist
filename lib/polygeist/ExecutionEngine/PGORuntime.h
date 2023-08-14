@@ -9,7 +9,10 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <vector>
 #include <mutex>
+#include <cstdlib>
+#include <numeric>
 
 extern "C" int32_t mgpurtDeviceSynchronizeErr(void);
 
@@ -26,26 +29,40 @@ public:
     struct timespec start_clock;
   };
 
+  struct Logger {
+    std::map<std::string, std::vector<double>> timings;
+    ~Logger() {
+      PGOState::writeResults();
+    }
+  };
+
   inline static int alternative;
   inline static std::string dirname;
   inline thread_local static std::mutex mutex;
   inline thread_local static std::map<std::string, State *> states;
+  inline static Logger logger;
 
-  std::string kernelId;
+  const char *kernelId_c;
   int totalAlternatives;
 
-  PGOState(const char *kernelId_c, int totalAlternatives)
-      : totalAlternatives(totalAlternatives) {
-    kernelId = kernelId_c;
+  std::string getKernelId() {
+    std::string kernelId = kernelId_c;
     for (char &c : kernelId)
       if (c == '/')
         c = '+';
+    return kernelId;
+  }
+
+  PGOState(const char *kernelId_c, int totalAlternatives)
+      : totalAlternatives(totalAlternatives) {
+    this->kernelId_c = kernelId_c;
   }
   void end() {
     struct timespec end_clock;
     mgpurtDeviceSynchronizeErr();
     clock_gettime(CLOCK_MONOTONIC, &end_clock);
 
+    auto kernelId = getKernelId();
     std::unique_lock<std::mutex> lock(mutex);
     if (states.count(kernelId) == 0) {
       std::cerr << "No kernel with id " << kernelId << "running" << std::endl;
@@ -59,21 +76,16 @@ public:
     double elapsed =
         (tmp_clock.tv_sec + ((double)tmp_clock.tv_nsec) * .000000001);
 
-    // Only write to file if we are profiling a valid alternative
-    if (0 <= alternative && alternative < totalAlternatives) {
-      // TODO error handling
-      std::ofstream ofile;
-      ofile.open(std::string(dirname) + "/" + kernelId,
-                 std::ios::out | std::ios::app);
-      ofile << alternative << " " << elapsed << std::endl;
-      ofile.close();
-    }
+    if (states.count(kernelId) == 0)
+      logger.timings[kernelId] = {};
+    logger.timings[kernelId].push_back(elapsed);
 
     delete state;
     states.erase(states.find(kernelId));
   }
 
   void start() {
+    auto kernelId = getKernelId();
     std::unique_lock<std::mutex> lock(mutex);
     State *state = new State();
     if (states.count(kernelId) == 1) {
@@ -85,6 +97,21 @@ public:
     // Start timing
     mgpurtDeviceSynchronizeErr();
     clock_gettime(CLOCK_MONOTONIC, &state->start_clock);
+  }
+
+  static void writeResults() {
+    // Only write to file if we are profiling a valid alternative
+    for (auto &pair : logger.timings) {
+      auto &kernelId = std::get<0>(pair);
+      auto &timings = std::get<1>(pair);
+      auto elapsed = std::accumulate(timings.begin(), timings.end(), 0.0f);
+      // TODO error handling
+      std::ofstream ofile;
+      ofile.open(std::string(dirname) + "/" + kernelId,
+                 std::ios::out | std::ios::app);
+      ofile << alternative << " " << elapsed << std::endl;
+      ofile.close();
+    }
   }
 
   int getAlternative() {
@@ -102,12 +129,10 @@ public:
         this->dirname = POLYGEIST_PGO_DEFAULT_DATA_DIR;
       }
       std::filesystem::create_directories(dirname);
+
       return 0;
     }();
-    if (0 <= alternative && alternative < totalAlternatives)
-      return alternative;
-    else
-      return 0;
+    return alternative % totalAlternatives;
   }
 
   ~PGOState() {}
