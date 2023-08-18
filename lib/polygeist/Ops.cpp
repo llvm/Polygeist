@@ -90,6 +90,40 @@ void NoopOp::getEffects(
 }
 
 //===----------------------------------------------------------------------===//
+// GetDeviceGlobalOp
+//===----------------------------------------------------------------------===//
+
+void GetDeviceGlobalOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // TODO CHECK is it okay to ::get() a new resource every time?
+  SideEffects::Resource *resource = NoopResource::get();
+  MemoryEffects::Effect *effect =
+      MemoryEffects::Effect::get<MemoryEffects::Write>();
+  effects.emplace_back(effect, resource);
+  effect = MemoryEffects::Effect::get<MemoryEffects::Read>();
+  effects.emplace_back(effect, resource);
+}
+
+LogicalResult
+GetDeviceGlobalOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  // Verify that the result type is same as the type of the referenced
+  // memref.global op.
+  auto global =
+      symbolTable.lookupNearestSymbolFrom<memref::GlobalOp>(*this, getNameAttr());
+  if (!global)
+    return emitOpError("'")
+           << getName() << "' does not reference a valid global memref";
+
+  Type resultType = getResult().getType();
+  if (global.getType() != resultType)
+    return emitOpError("result type ")
+           << resultType << " does not match type " << global.getType()
+           << " of the global memref @" << getName();
+  return success();
+}
+
+
+//===----------------------------------------------------------------------===//
 // GPUErrorOp
 //===----------------------------------------------------------------------===//
 

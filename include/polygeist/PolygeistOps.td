@@ -41,6 +41,16 @@ def NoopOp
   let description = [{}];
 }
 
+def GetDeviceGlobalOp
+    : Polygeist_Op<"get_device_global",
+                   [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+                    DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "";
+  let arguments = (ins FlatSymbolRefAttr:$name);
+  let results = (outs AnyStaticShapeMemRef:$result);
+  let description = [{}];
+}
+
 def CacheLoad
     : Polygeist_Op<"cacheload"> {
 
