@@ -622,6 +622,12 @@ void ParallelLower::runOnOperation() {
       }
     });
 
+    // Tag device side get globals with an attribute so that CSE does not decide
+    // to reuse the host side get global for the device
+    container.walk([&](mlir::memref::GetGlobalOp getGlobalOp) {
+      getGlobalOp->setAttr("polygeist.device", builder.getUnitAttr());
+    });
+
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
       int idx = -1;
       if (bidx.getDimension() == gpu::Dimension::x)
