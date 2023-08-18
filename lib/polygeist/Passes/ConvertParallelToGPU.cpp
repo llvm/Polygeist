@@ -2155,6 +2155,20 @@ struct ConvertParallelToGPU2Pass
   ConvertParallelToGPU2Pass(bool emitGPUKernelLaunchBounds)
       : emitGPUKernelLaunchBounds(emitGPUKernelLaunchBounds) {}
   void runOnOperation() override {
+
+    std::vector<polygeist::GetDeviceGlobalOp> gdgops;
+    getOperation()->walk([&](polygeist::GetDeviceGlobalOp gdgo) {
+      gdgops.push_back(gdgo);
+    });
+    for (auto gdgo : gdgops) {
+      auto builder = OpBuilder(gdgo);
+      auto ggo = builder.create<memref::GetGlobalOp>(
+                          gdgo->getLoc(), gdgo.getType(), gdgo.getNameAttr());
+      gdgo->replaceAllUsesWith(ggo);
+      gdgo->erase();
+
+    }
+
     RewritePatternSet patterns(&getContext());
     if (emitGPUKernelLaunchBounds)
       patterns.insert<AddLaunchBounds>(&getContext());
