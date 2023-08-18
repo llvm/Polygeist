@@ -978,10 +978,7 @@ struct HandleWrapperRootAlloca
     }
     bool allocFound = false;
     for (Operation &op : *wrapperBody) {
-      SmallVector<MemoryEffects::EffectInstance> effects;
-      collectEffects(&op, effects, /*ignoreBarriers*/ false);
-      if (!hasNestedParallel(&op) &&
-          hasEffect<MemoryEffects::Allocate>(effects)) {
+      if (isa<memref::AllocaOp>(&op)) {
         allocFound = true;
         break;
       }
