@@ -1767,7 +1767,7 @@ struct ConvertParallelToGPU1Pass
         StringRef str(str_);
         uint64_t x, y, z;
         str.consumeInteger(10, x);
-        if (arch.size() == 0)
+        if (str.size() == 0)
           return fun(x, dims);
         str.consume_front(",");
         str.consumeInteger(10, y);
