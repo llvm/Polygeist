@@ -1849,26 +1849,38 @@ struct ConvertParallelToGPU1Pass
           const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS =
               {{},
                {
-                 {32},
-                 {16},
+                 {10},
+                 {9},
                  {8},
+                 {7},
+                 {6},
+                 {5},
                  {4},
+                 {3},
                  {2},
                  {1}
                },
                {
-                 {4, 8},
-                 {4, 4},
+                 {2, 5},
+                 {1, 9},
                  {2, 4},
+                 {1, 7},
+                 {2, 3},
+                 {1, 5},
                  {2, 2},
+                 {1, 3},
                  {1, 2},
                  {1, 1}
                },
                {
-                 {2, 4, 4},
-                 {2, 2, 4},
+                 {1, 2, 5},
+                 {1, 1, 9},
                  {2, 2, 2},
+                 {1, 1, 7},
+                 {1, 2, 3},
+                 {1, 1, 5},
                  {1, 2, 2},
+                 {1, 1, 3},
                  {1, 1, 2},
                  {1, 1, 1}
                },
@@ -1900,12 +1912,6 @@ struct ConvertParallelToGPU1Pass
             }
           }
           unsigned firstUnrollFactorId = 0;
-          if (originalThreadNum > 0)
-            while (firstUnrollFactorId < UNROLL_FACTORS[1].size() - 1 &&
-                   originalThreadNum /
-                           UNROLL_FACTORS[1][firstUnrollFactorId][0] <
-                       32)
-              firstUnrollFactorId++;
 
           // If we have already varied the block size in SplitParallelOp, avoid
           // doing that here too.
@@ -1973,8 +1979,7 @@ struct ConvertParallelToGPU1Pass
           // Coarsen blocks with all factors, and coarsen threads only by
           // factors which do not bring the number of threads under 32
           unsigned numAlternatives =
-              UNROLL_FACTORS[gridDims].size() *
-              (UNROLL_FACTORS[blockDims].size() - firstUnrollFactorId);
+              UNROLL_FACTORS[gridDims].size();
           auto alternativesOp =
               builder.create<polygeist::AlternativesOp>(loc, numAlternatives);
           alternativesOp->setAttr("alternatives.type",
@@ -2059,7 +2064,7 @@ struct ConvertParallelToGPU1Pass
               for (unsigned iThread = firstUnrollFactorId;
                    iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
                 auto succeeded =
-                    emitAlternative(unrollFactorOne, iThread).succeeded();
+                    emitAlternative(unrollFactorOne, unrollFactorOne).succeeded();
                 assert(succeeded);
               }
             }
@@ -2070,7 +2075,7 @@ struct ConvertParallelToGPU1Pass
                                          ? 0
                                          : UNROLL_FACTORS[gridDims].size() - 1;
                    iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
-                (void)emitAlternative(iBlock, iThread);
+                (void)emitAlternative(iBlock, unrollFactorOne);
               }
             }
           }
