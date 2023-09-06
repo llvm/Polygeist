@@ -1849,6 +1849,11 @@ struct ConvertParallelToGPU1Pass
           const std::vector<std::vector<std::vector<uint64_t>>> UNROLL_FACTORS =
               {{},
                {
+                 {15},
+                 {14},
+                 {13},
+                 {12},
+                 {11},
                  {10},
                  {9},
                  {8},
@@ -1861,25 +1866,35 @@ struct ConvertParallelToGPU1Pass
                  {1}
                },
                {
-                 {2, 5},
+                 {1, 15},
+                 {1, 14},
+                 {1, 13},
+                 {1, 12},
+                 {1, 11},
+                 {1, 10},
                  {1, 9},
-                 {2, 4},
+                 {1, 8},
                  {1, 7},
-                 {2, 3},
+                 {1, 6},
                  {1, 5},
-                 {2, 2},
+                 {1, 4},
                  {1, 3},
                  {1, 2},
                  {1, 1}
                },
                {
-                 {1, 2, 5},
+                 {1, 1, 15},
+                 {1, 1, 14},
+                 {1, 1, 13},
+                 {1, 1, 12},
+                 {1, 1, 11},
+                 {1, 1, 10},
                  {1, 1, 9},
-                 {2, 2, 2},
+                 {1, 1, 8},
                  {1, 1, 7},
-                 {1, 2, 3},
+                 {1, 1, 6},
                  {1, 1, 5},
-                 {1, 2, 2},
+                 {1, 1, 4},
                  {1, 1, 3},
                  {1, 1, 2},
                  {1, 1, 1}
@@ -2046,9 +2061,9 @@ struct ConvertParallelToGPU1Pass
             }
           };
 
+          unsigned unrollFactorOne = UNROLL_FACTORS[blockDims].size() - 1;
           if (altBlockSize) {
             bool failed = false;
-            unsigned unrollFactorOne = UNROLL_FACTORS[blockDims].size() - 1;
             if (GPUKernelEnableBlockCoarsening) {
               for (unsigned iBlock = 0;
                    iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
@@ -2069,15 +2084,12 @@ struct ConvertParallelToGPU1Pass
               }
             }
           } else {
-            for (unsigned iThread = firstUnrollFactorId;
-                 iThread < UNROLL_FACTORS[blockDims].size(); iThread++) {
               for (unsigned iBlock = GPUKernelEnableBlockCoarsening
                                          ? 0
                                          : UNROLL_FACTORS[gridDims].size() - 1;
                    iBlock < UNROLL_FACTORS[gridDims].size(); iBlock++) {
                 (void)emitAlternative(iBlock, unrollFactorOne);
               }
-            }
           }
 
           wrapper->erase();

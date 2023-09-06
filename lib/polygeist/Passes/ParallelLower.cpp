@@ -367,7 +367,8 @@ void ParallelLower::runOnOperation() {
     SmallVector<CallOp> dimsToInline;
     getOperation()->walk([&](CallOp bidx) {
       if (bidx.getCallee() == "_ZN4dim3C1EOS_" ||
-          bidx.getCallee() == "_ZN4dim3C1Ejjj")
+          bidx.getCallee() == "_ZN4dim3C1Ejjj" ||
+          bidx.getCallee() == "_ZN4dim3C1ERKS_")
         dimsToInline.push_back(bidx);
     });
     for (auto op : dimsToInline)
