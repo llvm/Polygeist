@@ -6,11 +6,11 @@
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Passes/Passes.h"
 
+#include <filesystem>
 #include <fstream>
 #include <limits>
 #include <map>
 #include <numeric>
-#include <filesystem>
 
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
@@ -169,7 +169,8 @@ struct LowerAlternativesPass
       for (char &c : locStr)
         if (c == '/')
           c = '+';
-      altOp->setAttr("polygeist.altop.id", StringAttr::get(&getContext(), locStr));
+      altOp->setAttr("polygeist.altop.id",
+                     StringAttr::get(&getContext(), locStr));
     });
 
     if (PolygeistAlternativesMode == PAM_PGO_Opt) {

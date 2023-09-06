@@ -624,16 +624,19 @@ void ParallelLower::runOnOperation() {
 
     // If we are compiling for GPU
     if (gpuKernelStructureMode != PGSM_Discard) {
-      // Tag device side get globals with an attribute so that CSE does not decide
-      // to reuse the host side get global for the device
+      // Tag device side get globals with an attribute so that CSE does not
+      // decide to reuse the host side get global for the device
       std::vector<mlir::memref::GetGlobalOp> ggops;
       container.walk([&](mlir::memref::GetGlobalOp getGlobalOp) {
         ggops.push_back(getGlobalOp);
       });
       for (auto ggo : ggops) {
         builder.setInsertionPoint(ggo);
-        builder.replaceOp(ggo, builder.create<polygeist::GetDeviceGlobalOp>(
-                              ggo->getLoc(), ggo.getType(), ggo.getNameAttr())->getResults());
+        builder.replaceOp(
+            ggo, builder
+                     .create<polygeist::GetDeviceGlobalOp>(
+                         ggo->getLoc(), ggo.getType(), ggo.getNameAttr())
+                     ->getResults());
       }
     }
 

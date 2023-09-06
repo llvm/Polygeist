@@ -108,8 +108,8 @@ LogicalResult
 GetDeviceGlobalOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   // Verify that the result type is same as the type of the referenced
   // memref.global op.
-  auto global =
-      symbolTable.lookupNearestSymbolFrom<memref::GlobalOp>(*this, getNameAttr());
+  auto global = symbolTable.lookupNearestSymbolFrom<memref::GlobalOp>(
+      *this, getNameAttr());
   if (!global)
     return emitOpError("'")
            << getName() << "' does not reference a valid global memref";
@@ -121,7 +121,6 @@ GetDeviceGlobalOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
            << " of the global memref @" << getName();
   return success();
 }
-
 
 //===----------------------------------------------------------------------===//
 // GPUErrorOp

@@ -4,15 +4,15 @@
 // PGO functions which should know whether the code in the alternatives op is
 // GPU code - we can add an attrib to the alternatives op for that
 
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <vector>
 #include <mutex>
-#include <cstdlib>
 #include <numeric>
+#include <vector>
 
 extern "C" int32_t mgpurtDeviceSynchronizeErr(void);
 
@@ -31,9 +31,7 @@ public:
 
   struct Logger {
     std::map<std::string, std::vector<double>> timings;
-    ~Logger() {
-      PGOState::writeResults();
-    }
+    ~Logger() { PGOState::writeResults(); }
   };
 
   inline static int alternative;

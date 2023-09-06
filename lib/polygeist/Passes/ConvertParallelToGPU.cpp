@@ -1725,7 +1725,8 @@ struct ConvertParallelToGPU1Pass
         });
       };
 
-      auto getBlockUnrollFactors = [&](uint64_t unrollFactor, unsigned gridDims) {
+      auto getBlockUnrollFactors = [&](uint64_t unrollFactor,
+                                       unsigned gridDims) {
         std::vector<uint64_t> divisors;
         for (unsigned i = 2; unrollFactor != 1; ++i) {
           while (unrollFactor % i == 0) {
@@ -1745,7 +1746,8 @@ struct ConvertParallelToGPU1Pass
         llvm::errs() << "\n";
         return unrollFactors;
       };
-      auto getThreadUnrollFactors = [&](unsigned unrollFactor, unsigned blockDims) {
+      auto getThreadUnrollFactors = [&](unsigned unrollFactor,
+                                        unsigned blockDims) {
         unsigned powsOf2 = std::log2(unrollFactor);
         unsigned initial = std::pow(2, powsOf2 / blockDims);
         unsigned currentFactor = 1;
@@ -1802,9 +1804,11 @@ struct ConvertParallelToGPU1Pass
           int gridDims = ubs.size();
           assert(gridDims >= 1 && gridDims <= 3);
 
-          SmallVector<uint64_t, 3> blockUnrollFactors = convertToFactors(coarsenBlocks, gridDims, getBlockUnrollFactors);
+          SmallVector<uint64_t, 3> blockUnrollFactors =
+              convertToFactors(coarsenBlocks, gridDims, getBlockUnrollFactors);
 
-          if (blockUnrollFactors != noCoarsening && isValid(blockUnrollFactors)) {
+          if (blockUnrollFactors != noCoarsening &&
+              isValid(blockUnrollFactors)) {
             if (polygeist::scfParallelUnrollByFactors(
                     gridPop, ArrayRef<uint64_t>(blockUnrollFactors),
                     /* generateEpilogueLoop */ true,
@@ -1819,9 +1823,11 @@ struct ConvertParallelToGPU1Pass
           int blockDims = ubs.size();
           assert(blockDims >= 1 && blockDims <= 3);
 
-          SmallVector<uint64_t, 3> threadUnrollFactors = convertToFactors(coarsenThreads, blockDims, getThreadUnrollFactors);
+          SmallVector<uint64_t, 3> threadUnrollFactors = convertToFactors(
+              coarsenThreads, blockDims, getThreadUnrollFactors);
 
-          if (threadUnrollFactors != noCoarsening && isValid(threadUnrollFactors)) {
+          if (threadUnrollFactors != noCoarsening &&
+              isValid(threadUnrollFactors)) {
             // TODO We kind of assume that the upper bounds will be divisible by
             // the factors and in that case this will succeed if the upper
             // bounds are dynamic - we need to insert runtime checks and
@@ -2169,16 +2175,14 @@ struct ConvertParallelToGPU2Pass
   void runOnOperation() override {
 
     std::vector<polygeist::GetDeviceGlobalOp> gdgops;
-    getOperation()->walk([&](polygeist::GetDeviceGlobalOp gdgo) {
-      gdgops.push_back(gdgo);
-    });
+    getOperation()->walk(
+        [&](polygeist::GetDeviceGlobalOp gdgo) { gdgops.push_back(gdgo); });
     for (auto gdgo : gdgops) {
       auto builder = OpBuilder(gdgo);
       auto ggo = builder.create<memref::GetGlobalOp>(
-                          gdgo->getLoc(), gdgo.getType(), gdgo.getNameAttr());
+          gdgo->getLoc(), gdgo.getType(), gdgo.getNameAttr());
       gdgo->replaceAllUsesWith(ggo);
       gdgo->erase();
-
     }
 
     RewritePatternSet patterns(&getContext());
