@@ -15,13 +15,13 @@ add_mlir_conversion_library(PolymerTransforms
   PolymerTransformsIncGen
 
   LINK_LIBS PUBLIC
-  MLIRAffine
+  MLIRAffineDialect
   MLIRAnalysis
   MLIRPass
   MLIRTransforms
   MLIRTransformUtils
   MLIRIR
-  MLIRFunc
+  MLIRFuncDialect
   MLIRSupport
   MLIRAffineToStandard
   MLIRAffineTransforms

@@ -11,9 +11,9 @@ add_mlir_translation_library(PolymerTargetOpenScop
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRAffine
+  MLIRAffineDialect
   MLIRAffineUtils
-  MLIRTranslation
+  MLIRSupport
 
   PolymerSupport
 )
