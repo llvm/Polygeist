@@ -641,7 +641,7 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
   // multiple symbols involved.
   for (const auto &domain : domains) {
     // TODO: Should deal with local IDs later.
-    assert(domain.getNumLocalIds() == 0);
+    assert(domain.getNumLocalVars() == 0);
 
     for (unsigned int i = 0; i < domain.getNumInequalities(); i++) {
       ArrayRef<int64_t> inEq = domain.getInequality(i);

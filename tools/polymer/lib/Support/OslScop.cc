@@ -200,7 +200,7 @@ void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
   createConstraintRows(cst, inEqs, /*isEq=*/false);
 
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-              cst.getNumCols() + 1, cst.getNumDimVars(), 0, cst.getNumLocalIds(),
+              cst.getNumCols() + 1, cst.getNumDimVars(), 0, cst.getNumLocalVars(),
               cst.getNumSymbolVars(), eqs, inEqs);
 }
 
@@ -238,7 +238,7 @@ void OslScop::addScatteringRelation(int stmtId,
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolVars(); k++)
+    for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars(); k++)
       eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
 
     // Relating the constants (the last column) to the scattering dimensions.
@@ -247,7 +247,7 @@ void OslScop::addScatteringRelation(int stmtId,
 
   // Then put them into the scop as a SCATTERING relation.
   addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
-              numScatEqs, cst.getNumDimVars(), cst.getNumLocalIds(),
+              numScatEqs, cst.getNumDimVars(), cst.getNumLocalVars(),
               cst.getNumSymbolVars(), eqs, inEqs);
 }
 
@@ -282,7 +282,7 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
   addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-              numInputDims, cst.getNumLocalIds(), cst.getNumSymbolVars(), eqs,
+              numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs,
               inEqs);
 }
 
@@ -554,7 +554,7 @@ void OslScop::createConstraintRows(FlatAffineValueConstraints &cst,
                                    SmallVectorImpl<int64_t> &rows, bool isEq) {
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
   unsigned numDimIds = cst.getNumDimVars();
-  unsigned numLocalIds = cst.getNumLocalIds();
+  unsigned numLocalIds = cst.getNumLocalVars();
   unsigned numSymbolIds = cst.getNumSymbolVars();
 
   for (unsigned i = 0; i < numRows; i++) {
