@@ -137,7 +137,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
     if (domain.findVar(arg, &pos))
       continue;
 
-    domain.appendSymbolId(1);
+    domain.appendSymbolVar(1);
     domain.dump();
     domain.setValue(domain.getNumDimAndSymbolVars() - 1, arg);
   }

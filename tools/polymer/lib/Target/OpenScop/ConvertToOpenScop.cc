@@ -281,7 +281,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); ++i) {
       unsigned pos;
       if (!domain->findVar(symValues[i], &pos)) // insert to the back
-        domain->appendSymbolId(symValues[i]);
+        domain->appendSymbolVar(symValues[i]);
       else
         LLVM_DEBUG(dbgs() << "Found " << symValues[i] << '\n');
     }
