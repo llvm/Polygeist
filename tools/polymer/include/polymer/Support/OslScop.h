@@ -6,6 +6,7 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/DenseMap.h"

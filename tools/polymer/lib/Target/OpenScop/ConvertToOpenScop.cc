@@ -179,7 +179,7 @@ void OslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
 
   f.walk([&](mlir::Operation *op) {
-    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
       llvm::StringRef calleeName = caller.getCallee();
       mlir::func::FuncOp callee =
           m.lookupSymbol<mlir::func::FuncOp>(calleeName);
