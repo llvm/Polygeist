@@ -200,8 +200,8 @@ void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
   createConstraintRows(cst, inEqs, /*isEq=*/false);
 
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-              cst.getNumCols() + 1, cst.getNumDimVars(), 0, cst.getNumLocalVars(),
-              cst.getNumSymbolVars(), eqs, inEqs);
+              cst.getNumCols() + 1, cst.getNumDimVars(), 0,
+              cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 void OslScop::addScatteringRelation(int stmtId,
@@ -238,7 +238,8 @@ void OslScop::addScatteringRelation(int stmtId,
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars(); k++)
+    for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars();
+         k++)
       eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
 
     // Relating the constants (the last column) to the scattering dimensions.
@@ -260,8 +261,8 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
 
   // Create a new dim of memref and set its value to its corresponding ID.
   memRefIdMap.try_emplace(memref, memRefIdMap.size() + 1);
-  cst.insertDimId(0, memref);
-  cst.addBound(mlir::FlatAffineConstraints::BoundType::EQ, 0,
+  cst.insertDimVar(0, memref);
+  cst.addBound(mlir::FlatAffineValueConstraints::BoundType::EQ, 0,
                memRefIdMap[memref]);
   // cst.setIdToConstant(0, memRefIdMap[memref]);
 

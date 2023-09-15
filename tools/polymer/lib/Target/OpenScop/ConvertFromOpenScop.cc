@@ -672,7 +672,8 @@ void Importer::initializeSymbol(mlir::Value val) {
       hasInsertionPoint = true;
       b.setInsertionPointToStart(blockToInsert);
     }
-  } else if (mlir::func::FuncOp funOp = dyn_cast<mlir::func::FuncOp>(parentOp)) {
+  } else if (mlir::func::FuncOp funOp =
+                 dyn_cast<mlir::func::FuncOp>(parentOp)) {
     // Insert at the beginning of this function.
     hasInsertionPoint = true;
     b.setInsertionPointToStart(&entryBlock);
