@@ -11,7 +11,7 @@
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -35,7 +35,7 @@ public:
   using EnclosingOpList = SmallVector<Operation *, 8>;
 
   ScopStmtImpl(llvm::StringRef name, mlir::func::CallOp caller,
-               mlir::FuncOp callee)
+               mlir::func::FuncOp callee)
       : name(name), caller(caller), callee(callee) {}
 
   static std::unique_ptr<ScopStmtImpl> get(mlir::Operation *callerOp,
@@ -53,7 +53,7 @@ public:
   /// The caller to the scop.stmt func.
   mlir::func::CallOp caller;
   /// The scop.stmt callee.
-  mlir::FuncOp callee;
+  mlir::func::FuncOp callee;
   /// The domain of the caller.
   FlatAffineValueConstraints domain;
   /// Enclosing for/if operations for the caller.
@@ -66,9 +66,9 @@ public:
 std::unique_ptr<ScopStmtImpl> ScopStmtImpl::get(mlir::Operation *callerOp,
                                                 mlir::Operation *calleeOp) {
   // We assume that the callerOp is of type mlir::func::CallOp, and the calleeOp
-  // is a mlir::FuncOp. If not, these two cast lines will raise error.
+  // is a mlir::func::FuncOp. If not, these two cast lines will raise error.
   mlir::func::CallOp caller = cast<mlir::func::CallOp>(callerOp);
-  mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
+  mlir::func::FuncOp callee = cast<mlir::func::FuncOp>(calleeOp);
   llvm::StringRef name = caller.getCallee();
 
   // Create the stmt instance.
@@ -95,7 +95,7 @@ static void
 promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
                         llvm::DenseMap<mlir::Value, mlir::Value> &symMap) {
   BlockArgument arg = findTopLevelBlockArgument(val);
-  assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
+  assert(isa<mlir::func::FuncOp>(arg.getOwner()->getParentOp()) &&
          "Found top-level argument should be a FuncOp argument.");
   // NOTE: This cannot pass since the found argument may not be of index type,
   // i.e., it will be index cast later.
@@ -185,7 +185,7 @@ void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
       ops.push_back(op);
 }
 
-mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
+mlir::func::FuncOp ScopStmt::getCallee() const { return impl->callee; }
 mlir::func::CallOp ScopStmt::getCaller() const { return impl->caller; }
 
 static mlir::Value findBlockArg(mlir::Value v) {

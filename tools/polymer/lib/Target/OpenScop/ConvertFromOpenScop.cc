@@ -29,17 +29,15 @@ extern "C" {
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Translation.h"
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -446,7 +444,7 @@ private:
   LogicalResult processStmt(clast_assignment *ass);
 
   std::string getSourceFuncName() const;
-  mlir::FuncOp getSourceFuncOp();
+  mlir::func::FuncOp getSourceFuncOp();
 
   LogicalResult getAffineLoopBound(clast_expr *expr,
                                    llvm::SmallVectorImpl<mlir::Value> &operands,
@@ -470,7 +468,7 @@ private:
   /// A helper to create a callee.
   void createCalleeAndCallerArgs(llvm::StringRef calleeName,
                                  llvm::ArrayRef<std::string> args,
-                                 mlir::FuncOp &callee,
+                                 mlir::func::FuncOp &callee,
                                  SmallVectorImpl<mlir::Value> &callerArgs);
 
   /// Number of internal functions created.
@@ -519,15 +517,15 @@ Importer::Importer(MLIRContext *context, ModuleOp module,
   b.setInsertionPointToStart(module.getBody());
 }
 
-mlir::FuncOp Importer::getSourceFuncOp() {
+mlir::func::FuncOp Importer::getSourceFuncOp() {
   std::string sourceFuncName = getSourceFuncName();
   mlir::Operation *sourceFuncOp = module.lookupSymbol(sourceFuncName);
 
   assert(sourceFuncOp != nullptr &&
          "sourceFuncName cannot be found in the module");
-  assert(isa<mlir::FuncOp>(sourceFuncOp) &&
-         "Found sourceFuncOp should be of type mlir::FuncOp.");
-  return cast<mlir::FuncOp>(sourceFuncOp);
+  assert(isa<mlir::func::FuncOp>(sourceFuncOp) &&
+         "Found sourceFuncOp should be of type mlir::func::FuncOp.");
+  return cast<mlir::func::FuncOp>(sourceFuncOp);
 }
 
 /// If there is anything in the comment, we will use it as a function name.
@@ -576,7 +574,7 @@ void Importer::initializeFuncOpInterface() {
   OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   /// First collect the source FuncOp in the original MLIR code.
-  mlir::FuncOp sourceFuncOp = getSourceFuncOp();
+  mlir::func::FuncOp sourceFuncOp = getSourceFuncOp();
 
   // OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
@@ -673,7 +671,7 @@ void Importer::initializeSymbol(mlir::Value val) {
       hasInsertionPoint = true;
       b.setInsertionPointToStart(blockToInsert);
     }
-  } else if (mlir::FuncOp funOp = dyn_cast<mlir::FuncOp>(parentOp)) {
+  } else if (mlir::func::FuncOp funOp = dyn_cast<mlir::func::FuncOp>(parentOp)) {
     // Insert at the beginning of this function.
     hasInsertionPoint = true;
     b.setInsertionPointToStart(&entryBlock);
@@ -769,7 +767,7 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
 
 void Importer::createCalleeAndCallerArgs(
     llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
-    mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs) {
+    mlir::func::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs) {
   // TODO: avoid duplicated callee creation
   // Cache the current insertion point before changing it for the new callee
   // function.
@@ -1306,7 +1304,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   mlir::FunctionType funcTy =
       b.getFunctionType(TypeRange(args.getArrayRef()), llvm::None);
   b.setInsertionPoint(&*getFuncInsertPt());
-  mlir::FuncOp func = b.create<mlir::FuncOp>(
+  mlir::func::FuncOp func = b.create<mlir::func::FuncOp>(
       forOp->getLoc(), std::string("T") + std::to_string(numInternalFunctions),
       funcTy);
   numInternalFunctions++;

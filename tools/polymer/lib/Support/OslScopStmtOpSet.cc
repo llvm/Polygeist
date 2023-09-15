@@ -36,7 +36,7 @@ LogicalResult OslScopStmtOpSet::getEnclosingOps(
   for (auto op : opSet) {
     if (isa<mlir::AffineLoadOp, mlir::AffineStoreOp>(op)) {
       ops.clear();
-      getEnclosingAffineForAndIfOps(*op, &ops);
+      getEnclosingAffineOps(*op, &ops);
       for (auto enclosingOp : ops) {
         if (visited.find(enclosingOp) == visited.end()) {
           visited.insert(enclosingOp);

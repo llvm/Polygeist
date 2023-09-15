@@ -452,7 +452,7 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
     ss << "i" << i << " ";
 
   mlir::func::CallOp caller = stmt.getCaller();
-  mlir::FuncOp callee = stmt.getCallee();
+  mlir::func::FuncOp callee = stmt.getCallee();
   ss << "\n" << callee.getName() << "(";
 
   SmallVector<std::string, 8> ivs;
@@ -488,7 +488,7 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   addGeneric(stmtId + 1, "body", body);
 }
 
-void OslScop::initializeSymbolTable(mlir::FuncOp f,
+void OslScop::initializeSymbolTable(mlir::func::FuncOp f,
                                     FlatAffineValueConstraints *cst) {
   symbolTable.clear();
 

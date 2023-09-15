@@ -13,12 +13,11 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Types.h"
@@ -48,7 +47,7 @@ using DefToUsesMap =
 /// Note that we only care about those values that are on the use-def chain that
 /// ends up with an affine write operation, or one with side effects. We also
 /// ignore all the def-use pairs that are in the same block.
-static void mapDefToUses(mlir::FuncOp f, DefToUsesMap &defToUses) {
+static void mapDefToUses(mlir::func::FuncOp f, DefToUsesMap &defToUses) {
   f.walk([&](mlir::Operation *useOp) {
     // Op that belongs to AffineWriteOpInterface (e.g., affine.store) or has
     // recursive side effects will be treated as .
@@ -178,7 +177,7 @@ static mlir::AffineLoadOp createScratchpadLoadOp(memref::AllocaOp allocaOp,
                                       std::vector<mlir::Value>());
 }
 
-static void demoteRegisterToMemory(mlir::FuncOp f, OpBuilder &b) {
+static void demoteRegisterToMemory(mlir::func::FuncOp f, OpBuilder &b) {
   if (f.getBlocks().size() == 0)
     return;
 
@@ -261,7 +260,7 @@ static IntegerSet getIntegerSetForElse(const IntegerSet &iSet, OpBuilder &b) {
 
 /// Turns affine.if with else block into two affine.if. It works iteratively:
 /// one affine.if op (with else) should be handled at one time.
-static void separateAffineIfBlocks(mlir::FuncOp f, OpBuilder &b) {
+static void separateAffineIfBlocks(mlir::func::FuncOp f, OpBuilder &b) {
   // Get the first affine.if operation that has an else block.
   auto findIfWithElse = [&](auto &f) {
     Operation *opFound = nullptr;
@@ -307,11 +306,11 @@ static void separateAffineIfBlocks(mlir::FuncOp f, OpBuilder &b) {
 namespace {
 
 class RegToMemPass
-    : public mlir::PassWrapper<RegToMemPass, OperationPass<mlir::FuncOp>> {
+    : public mlir::PassWrapper<RegToMemPass, OperationPass<mlir::func::FuncOp>> {
 
 public:
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
+    mlir::func::FuncOp f = getOperation();
     auto builder = OpBuilder(f.getContext());
 
     if (f->hasAttr("scop.ignored"))
@@ -325,7 +324,7 @@ public:
 } // namespace
 
 /// TODO: value analysis
-static void insertRedundantLoad(mlir::FuncOp f, OpBuilder &b) {
+static void insertRedundantLoad(mlir::func::FuncOp f, OpBuilder &b) {
   DominanceInfo dom(f);
 
   SmallVector<mlir::AffineStoreOp, 4> storeOps;
@@ -389,11 +388,11 @@ static void insertRedundantLoad(mlir::FuncOp f, OpBuilder &b) {
 namespace {
 class InsertRedundantLoadPass
     : public mlir::PassWrapper<InsertRedundantLoadPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
 
 public:
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
+    mlir::func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     insertRedundantLoad(f, b);
@@ -406,7 +405,7 @@ namespace {
 using IterArgToMemMap = llvm::MapVector<mlir::Value, mlir::Value>;
 }
 
-static void findReductionLoops(mlir::FuncOp f,
+static void findReductionLoops(mlir::func::FuncOp f,
                                SmallVectorImpl<mlir::AffineForOp> &forOps) {
   f.walk([&](mlir::AffineForOp forOp) {
     if (!forOp.getIterOperands().empty())
@@ -508,7 +507,7 @@ static mlir::AffineForOp cloneAffineForWithoutIterArgs(mlir::AffineForOp forOp,
   return newForOp;
 }
 
-static void demoteLoopReduction(mlir::FuncOp f, mlir::AffineForOp forOp,
+static void demoteLoopReduction(mlir::func::FuncOp f, mlir::AffineForOp forOp,
                                 OpBuilder &b) {
   SmallVector<mlir::Value, 4> initVals{forOp.getIterOperands()};
   mlir::Block *body = forOp.getBody();
@@ -534,7 +533,7 @@ static void demoteLoopReduction(mlir::FuncOp f, mlir::AffineForOp forOp,
   forOp.erase();
 }
 
-static void demoteLoopReduction(mlir::FuncOp f, OpBuilder &b) {
+static void demoteLoopReduction(mlir::func::FuncOp f, OpBuilder &b) {
   SmallVector<mlir::AffineForOp, 4> forOps;
   findReductionLoops(f, forOps);
 
@@ -545,10 +544,10 @@ static void demoteLoopReduction(mlir::FuncOp f, OpBuilder &b) {
 namespace {
 class DemoteLoopReductionPass
     : public mlir::PassWrapper<DemoteLoopReductionPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
 public:
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
+    mlir::func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     demoteLoopReduction(f, b);
@@ -559,7 +558,7 @@ public:
 
 /// ---------------- Array Expansion -------------------
 
-static void findAllScratchpads(mlir::FuncOp f,
+static void findAllScratchpads(mlir::func::FuncOp f,
                                SmallVector<mlir::Value, 4> &spads) {
   // All scratchpads are allocated by AllocaOp.
   f.walk([&](memref::AllocaOp op) {
@@ -730,7 +729,7 @@ static void getLowerOrUpperBound(unsigned int dimId, bool isUpper,
   affMap = mlir::AffineMap::get(0, operands.size(), exprs, b.getContext());
 }
 
-static mlir::Value findInsertionPointAfter(mlir::FuncOp f, mlir::Value spad,
+static mlir::Value findInsertionPointAfter(mlir::func::FuncOp f, mlir::Value spad,
                                            ArrayRef<mlir::Value> candidates) {
   DominanceInfo dom(f);
   for (auto v1 : candidates) {
@@ -755,7 +754,7 @@ static mlir::Value findInsertionPointAfter(mlir::FuncOp f, mlir::Value spad,
 }
 
 static memref::AllocaOp
-createScratchpadAllocaOp(mlir::FuncOp f, mlir::Value spad,
+createScratchpadAllocaOp(mlir::func::FuncOp f, mlir::Value spad,
                          const FlatAffineValueConstraints &domain,
                          OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
@@ -792,7 +791,7 @@ createScratchpadAllocaOp(mlir::FuncOp f, mlir::Value spad,
   return b.create<memref::AllocaOp>(spad.getLoc(), memRefType, memSizes);
 }
 
-static void resetLoadAndStoreOpsToScratchpad(mlir::FuncOp f, mlir::Value spad,
+static void resetLoadAndStoreOpsToScratchpad(mlir::func::FuncOp f, mlir::Value spad,
                                              OpBuilder &b) {
   OpBuilder::InsertionGuard guard(b);
 
@@ -845,7 +844,7 @@ static void resetLoadAndStoreOpsToScratchpad(mlir::FuncOp f, mlir::Value spad,
 
 /// Expand scratchpad based on its deepest/widest loop nest.
 /// TODO: allow expansion to a specific depth.
-static void expandScratchpad(mlir::FuncOp f, mlir::Value spad, OpBuilder &b) {
+static void expandScratchpad(mlir::func::FuncOp f, mlir::Value spad, OpBuilder &b) {
   mlir::SmallVector<FlatAffineValueConstraints, 4> domains;
   getScratchpadIterDomains(spad, domains);
   FlatAffineValueConstraints unionDomain = unionScratchpadIterDomains(domains);
@@ -857,7 +856,7 @@ static void expandScratchpad(mlir::FuncOp f, mlir::Value spad, OpBuilder &b) {
   spad.getDefiningOp()->erase();
 }
 
-static void arrayExpansion(mlir::FuncOp f, OpBuilder &b) {
+static void arrayExpansion(mlir::func::FuncOp f, OpBuilder &b) {
   SmallVector<mlir::Value, 4> spads;
   findAllScratchpads(f, spads);
   for (mlir::Value spad : spads)
@@ -867,10 +866,10 @@ static void arrayExpansion(mlir::FuncOp f, OpBuilder &b) {
 namespace {
 class ArrayExpansionPass
     : public mlir::PassWrapper<ArrayExpansionPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
 public:
   void runOnOperation() override {
-    mlir::FuncOp f = getOperation();
+    mlir::func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     arrayExpansion(f, b);

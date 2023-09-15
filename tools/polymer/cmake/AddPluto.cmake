@@ -2,7 +2,7 @@
 
 include(ExternalProject)
 
-set(PLUTO_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto/include")
+set(PLUTO_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto/install/include")
 set(PLUTO_LIB_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto/lib")
 set(PLUTO_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/pluto")
 set(PLUTO_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/pluto")

@@ -69,7 +69,7 @@ struct PlutoOptPipelineOptions
 
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
-static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
+static mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
                                    std::string dumpClastAfterPluto,
                                    bool parallelize = false, bool debug = false,
                                    int cloogf = -1, int cloogl = -1,
@@ -123,7 +123,7 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   SmallVector<DictionaryAttr> argAttrs;
   f.getAllArgAttrs(argAttrs);
 
-  mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
+  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(createFuncOpFromOpenScop(
       std::move(scop), m, dstTable, rewriter.getContext(), prog,
       dumpClastAfterPlutoStr));
   g.setAllArgAttrs(argAttrs);
@@ -156,17 +156,17 @@ public:
     mlir::ModuleOp m = getOperation();
     mlir::OpBuilder b(m.getContext());
 
-    SmallVector<mlir::FuncOp, 8> funcOps;
-    llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
+    SmallVector<mlir::func::FuncOp, 8> funcOps;
+    llvm::DenseMap<mlir::func::FuncOp, mlir::func::FuncOp> funcMap;
 
-    m.walk([&](mlir::FuncOp f) {
+    m.walk([&](mlir::func::FuncOp f) {
       if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored")) {
         funcOps.push_back(f);
       }
     });
 
-    for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g =
+    for (mlir::func::FuncOp f : funcOps)
+      if (mlir::func::FuncOp g =
               plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug,
                              cloogf, cloogl, diamondTiling)) {
         funcMap[f] = g;
@@ -177,7 +177,7 @@ public:
     // Finally, we delete the definition of the original function, and make the
     // Pluto optimized version have the same name.
     for (const auto &it : funcMap) {
-      mlir::FuncOp from, to;
+      mlir::func::FuncOp from, to;
       std::tie(from, to) = it;
 
       to.setName(std::string(from.getName()));
@@ -191,7 +191,7 @@ public:
 // -------------------------- PlutoParallelizePass ----------------------------
 
 /// Find a single affine.for with scop.parallelizable attr.
-static mlir::AffineForOp findParallelizableLoop(mlir::FuncOp f) {
+static mlir::AffineForOp findParallelizableLoop(mlir::func::FuncOp f) {
   mlir::AffineForOp ret = nullptr;
   f.walk([&ret](mlir::AffineForOp forOp) {
     if (!ret && forOp->hasAttr("scop.parallelizable"))
@@ -253,7 +253,7 @@ static bool isBoundParallelizable(mlir::AffineForOp forOp) {
 
 /// Iteratively replace affine.for with scop.parallelizable with
 /// affine.parallel.
-static void plutoParallelize(mlir::FuncOp f, OpBuilder b) {
+static void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
   mlir::AffineForOp forOp = nullptr;
   while ((forOp = findParallelizableLoop(f)) != nullptr) {
     if (!isBoundParallelizable(forOp))
@@ -268,7 +268,7 @@ namespace {
 /// affine.parallel operation.
 struct PlutoParallelizePass
     : public mlir::PassWrapper<PlutoParallelizePass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
   void runOnOperation() override {
     FuncOp f = getOperation();
     OpBuilder b(f.getContext());
@@ -306,7 +306,7 @@ static void dedupIndexCast(FuncOp f) {
 namespace {
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
   void runOnOperation() override { dedupIndexCast(getOperation()); }
 };
 } // namespace

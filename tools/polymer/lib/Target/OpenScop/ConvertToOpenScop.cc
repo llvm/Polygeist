@@ -26,7 +26,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "mlir/Translation.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
@@ -54,11 +53,12 @@ public:
   OslScopBuilder() {}
 
   /// Build a scop from a common FuncOp.
-  std::unique_ptr<OslScop> build(mlir::FuncOp f);
+  std::unique_ptr<OslScop> build(mlir::func::FuncOp f);
 
 private:
   /// Find all statements that calls a scop.stmt.
-  void buildScopStmtMap(mlir::FuncOp f, OslScop::ScopStmtNames *scopStmtNames,
+  void buildScopStmtMap(mlir::func::FuncOp f,
+                        OslScop::ScopStmtNames *scopStmtNames,
                         OslScop::ScopStmtMap *scopStmtMap) const;
 
   /// Build the scop context. The domain of each scop stmt will be updated, by
@@ -79,7 +79,7 @@ static void sanityCheckDomain(FlatAffineValueConstraints &dom) {
 }
 
 /// Build OslScop from a given FuncOp.
-std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
+std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
 
   /// Context constraints.
   FlatAffineValueConstraints ctx;
@@ -124,7 +124,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
     stmt.getEnclosingOps(enclosingOps);
     // Get the callee.
-    mlir::FuncOp callee = stmt.getCallee();
+    mlir::func::FuncOp callee = stmt.getCallee();
 
     LLVM_DEBUG({
       dbgs() << "Callee:\n";
@@ -173,7 +173,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
 }
 
 /// Find all statements that calls a scop.stmt.
-void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
+void OslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
                                       OslScop::ScopStmtNames *scopStmtNames,
                                       OslScop::ScopStmtMap *scopStmtMap) const {
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
@@ -181,7 +181,8 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
   f.walk([&](mlir::Operation *op) {
     if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
       llvm::StringRef calleeName = caller.getCallee();
-      mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
+      mlir::func::FuncOp callee =
+          m.lookupSymbol<mlir::func::FuncOp>(calleeName);
 
       // If the callee is of scop.stmt, we create a new instance in the map
       if (callee->getAttr(SCOP_STMT_ATTR_NAME)) {
@@ -313,7 +314,8 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
 }
 
 std::unique_ptr<OslScop>
-polymer::createOpenScopFromFuncOp(mlir::FuncOp f, OslSymbolTable &symTable) {
+polymer::createOpenScopFromFuncOp(mlir::func::FuncOp f,
+                                  OslSymbolTable &symTable) {
   return OslScopBuilder().build(f);
 }
 
@@ -380,7 +382,8 @@ private:
 };
 
 LogicalResult ModuleEmitter::emitFuncOp(
-    mlir::FuncOp func, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
+    mlir::func::FuncOp func,
+    llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   OslSymbolTable symTable;
   auto scop = createOpenScopFromFuncOp(func, symTable);
   if (scop)
@@ -393,7 +396,7 @@ void ModuleEmitter::emitMLIRModule(
     ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   // Emit a single OpenScop definition for each function.
   for (auto &op : *module.getBody()) {
-    if (auto func = dyn_cast<mlir::FuncOp>(op)) {
+    if (auto func = dyn_cast<mlir::func::FuncOp>(op)) {
       // Will only look at functions that are not attributed as scop.stmt
       if (func->getAttr(SCOP_STMT_ATTR_NAME))
         continue;

@@ -106,7 +106,7 @@ public:
   osl_generic *getExtension(llvm::StringRef interface) const;
 
   /// Initialize the symbol table.
-  void initializeSymbolTable(mlir::FuncOp f,
+  void initializeSymbolTable(mlir::func::FuncOp f,
                              mlir::FlatAffineValueConstraints *cst);
 
   bool isParameterSymbol(llvm::StringRef name) const;

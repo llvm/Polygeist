@@ -9,8 +9,8 @@
 
 #include <memory>
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "llvm/ADT/SmallVector.h"
-
 namespace mlir {
 class Operation;
 class FlatAffineValueConstraints;
@@ -44,7 +44,7 @@ public:
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                        bool forOnly = false) const;
   /// Get the callee of this scop stmt.
-  mlir::FuncOp getCallee() const;
+  mlir::func::FuncOp getCallee() const;
   /// Get the caller of this scop stmt.
   mlir::func::CallOp getCaller() const;
   /// Get the access AffineValueMap of an op in the callee and the memref in the
