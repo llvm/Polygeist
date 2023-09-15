@@ -658,7 +658,7 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
         if (j == nonZeroDims[0]) // only one nonzero dim is allowed.
           newInEq[j] = inEq[j];
       // Merge symbols
-      for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
+      for (unsigned int j = 0; j < domain.getNumSymbolVars(); j++) {
         mlir::Value symbol = domain.getValue(j + domain.getNumDimVars());
         unsigned int pos = 0;
         assert(unionDomain.findVar(symbol, &pos));
@@ -699,7 +699,7 @@ static void getLowerOrUpperBound(unsigned int dimId, bool isUpper,
 
     mlir::AffineExpr expr = b.getAffineConstantExpr(0);
 
-    for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
+    for (unsigned int j = 0; j < domain.getNumSymbolVars(); j++) {
       mlir::Value symbol = domain.getValue(j + domain.getNumDimVars());
       int numSymbols = symToPos.size();
       if (!symToPos.count(symbol)) {

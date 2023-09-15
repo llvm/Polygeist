@@ -182,7 +182,7 @@ void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
   // createConstraintRows(cst, eqs);
   // createConstraintRows(cst, inEqs, /*isEq=*/false);
 
-  unsigned numCols = 2 + cst.getNumSymbolIds();
+  unsigned numCols = 2 + cst.getNumSymbolVars();
   unsigned numEntries = inEqs.size() + eqs.size();
   assert(numEntries % (numCols - 1) == 0 &&
          "Total number of entries should be divisible by the number of columns "
@@ -191,7 +191,7 @@ void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
   unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
   // Create the context relation.
   addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
-              cst.getNumSymbolIds(), eqs, inEqs);
+              cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
@@ -201,7 +201,7 @@ void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
 
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
               cst.getNumCols() + 1, cst.getNumDimVars(), 0, cst.getNumLocalIds(),
-              cst.getNumSymbolIds(), eqs, inEqs);
+              cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 void OslScop::addScatteringRelation(int stmtId,
@@ -238,7 +238,7 @@ void OslScop::addScatteringRelation(int stmtId,
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolIds(); k++)
+    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolVars(); k++)
       eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
 
     // Relating the constants (the last column) to the scattering dimensions.
@@ -248,7 +248,7 @@ void OslScop::addScatteringRelation(int stmtId,
   // Then put them into the scop as a SCATTERING relation.
   addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
               numScatEqs, cst.getNumDimVars(), cst.getNumLocalIds(),
-              cst.getNumSymbolIds(), eqs, inEqs);
+              cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
@@ -282,7 +282,7 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
   addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-              numInputDims, cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs,
+              numInputDims, cst.getNumLocalIds(), cst.getNumSymbolVars(), eqs,
               inEqs);
 }
 
@@ -555,7 +555,7 @@ void OslScop::createConstraintRows(FlatAffineValueConstraints &cst,
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
   unsigned numDimIds = cst.getNumDimVars();
   unsigned numLocalIds = cst.getNumLocalIds();
-  unsigned numSymbolIds = cst.getNumSymbolIds();
+  unsigned numSymbolIds = cst.getNumSymbolVars();
 
   for (unsigned i = 0; i < numRows; i++) {
     // Get the row based on isEq.

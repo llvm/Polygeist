@@ -278,7 +278,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   for (const auto &it : *scopStmtMap) {
     FlatAffineValueConstraints *domain = it.second.getDomain();
     // For any symbol missing in the domain, add them directly to the end.
-    for (unsigned i = 0; i < ctx.getNumSymbolIds(); ++i) {
+    for (unsigned i = 0; i < ctx.getNumSymbolVars(); ++i) {
       unsigned pos;
       if (!domain->findVar(symValues[i], &pos)) // insert to the back
         domain->appendSymbolVar(symValues[i]);
@@ -288,7 +288,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
 
     // Then do the aligning.
     LLVM_DEBUG(domain->dump());
-    for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+    for (unsigned i = 0; i < ctx.getNumSymbolVars(); i++) {
       mlir::Value sym = symValues[i];
       unsigned pos;
       assert(domain->findVar(sym, &pos));
@@ -299,7 +299,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
         domain->swapVar(posAsCtx, pos);
     }
 
-    // for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+    // for (unsigned i = 0; i < ctx.getNumSymbolVars(); i++) {
     //   mlir::Value sym = symValues[i];
     //   unsigned pos;
     //   // If the symbol can be found in the domain, we put it in the same
