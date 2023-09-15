@@ -40,6 +40,7 @@
 #include <memory>
 
 using namespace mlir;
+using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 
@@ -200,7 +201,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   LLVM_DEBUG(dbgs() << "--- Building SCoP context ...\n");
 
   // First initialize the symbols of the ctx by the order of arg number.
-  // This simply aims to make mergeAndAlignIdsWithOthers work.
+  // This simply aims to make mergeAndAlignVarsWithOthers work.
   SmallVector<Value> symbols;
   for (const auto &it : *scopStmtMap) {
     auto domain = it.second.getDomain();
@@ -248,7 +249,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
         dbgs() << " * " << value << '\n';
     });
 
-    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.mergeAndAlignVarsWithOther(0, &cst);
     ctx.append(cst);
     ctx.removeRedundantConstraints();
 
@@ -295,7 +296,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
       unsigned posAsCtx = i + domain->getNumDimVars();
       LLVM_DEBUG(dbgs() << "Swapping " << posAsCtx << " " << pos << "\n");
       if (pos != posAsCtx)
-        domain->swapId(posAsCtx, pos);
+        domain->swapVar(posAsCtx, pos);
     }
 
     // for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
@@ -305,7 +306,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     //   // position as the ctx.
     //   if (domain->findVar(sym, &pos)) {
     //     if (pos != i + domain->getNumDimVars())
-    //       domain->swapId(i + domain->getNumDimVars(), pos);
+    //       domain->swapVar(i + domain->getNumDimVars(), pos);
     //   } else {
     //     domain->insertSymbolId(i, sym);
     //   }

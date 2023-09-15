@@ -583,7 +583,7 @@ void OslScop::createAccessRelationConstraints(
     mlir::AffineValueMap &vMap, mlir::FlatAffineValueConstraints &cst,
     mlir::FlatAffineValueConstraints &domain) {
   cst.reset();
-  cst.mergeAndAlignIdsWithOther(0, &domain);
+  cst.mergeAndAlignVarsWithOther(0, &domain);
 
   LLVM_DEBUG({
     dbgs() << "Building access relation.\n"

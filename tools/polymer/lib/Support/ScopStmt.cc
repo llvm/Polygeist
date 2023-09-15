@@ -117,7 +117,7 @@ static void reorderSymbolsByOperandId(FlatAffineValueConstraints &cst) {
       auto fst = cst.getValue(i).cast<BlockArgument>();
       auto snd = cst.getValue(j).cast<BlockArgument>();
       if (fst.getArgNumber() > snd.getArgNumber())
-        cst.swapId(i, j);
+        cst.swapVar(i, j);
     }
 }
 
