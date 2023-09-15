@@ -175,8 +175,8 @@ void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
   cst.getValues(0, cst.getNumDimVars(), &dimValues);
   for (mlir::Value dimValue : dimValues)
     cst.projectOut(dimValue);
-  if (cst.getNumDimAndSymbolIds() > 0)
-    cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolIds());
+  if (cst.getNumDimAndSymbolVars() > 0)
+    cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolVars());
 
   SmallVector<int64_t, 8> eqs, inEqs;
   // createConstraintRows(cst, eqs);
@@ -493,11 +493,11 @@ void OslScop::initializeSymbolTable(mlir::func::FuncOp f,
   symbolTable.clear();
 
   unsigned numDimIds = cst->getNumDimVars();
-  unsigned numSymbolIds = cst->getNumDimAndSymbolIds() - numDimIds;
+  unsigned numSymbolIds = cst->getNumDimAndSymbolVars() - numDimIds;
 
   SmallVector<mlir::Value, 8> dimValues, symbolValues;
   cst->getValues(0, numDimIds, &dimValues);
-  cst->getValues(numDimIds, cst->getNumDimAndSymbolIds(), &symbolValues);
+  cst->getValues(numDimIds, cst->getNumDimAndSymbolVars(), &symbolValues);
 
   // Setup the symbol table.
   for (unsigned i = 0; i < numDimIds; i++) {

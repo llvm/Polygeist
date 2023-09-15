@@ -145,7 +145,7 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
   mapping.map(f.getArguments(), call.getOperands());
 
   SmallVector<mlir::Value, 4> mapOperands;
-  cst.getValues(cst.getNumDimVars(), cst.getNumDimAndSymbolIds(), &mapOperands);
+  cst.getValues(cst.getNumDimVars(), cst.getNumDimAndSymbolVars(), &mapOperands);
 
   for (int dim = 0; dim < numDims; dim++) {
     mlir::AffineMap lbMap, ubMap;

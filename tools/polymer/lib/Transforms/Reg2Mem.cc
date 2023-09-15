@@ -623,7 +623,7 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
     maxDepth = std::max(domain.getNumDimVars(), maxDepth);
     // symbols
     domainSymbols.clear();
-    domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolIds(),
+    domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolVars(),
                      &domainSymbols);
     for (mlir::Value sym : domainSymbols)
       unionSymbols.insert(sym);
@@ -760,7 +760,7 @@ createScratchpadAllocaOp(mlir::func::FuncOp f, mlir::Value spad,
   OpBuilder::InsertionGuard guard(b);
 
   SmallVector<mlir::Value, 4> symbols;
-  domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolIds(),
+  domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolVars(),
                    &symbols);
   b.setInsertionPointAfterValue(findInsertionPointAfter(f, spad, symbols));
 

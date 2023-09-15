@@ -205,7 +205,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   for (const auto &it : *scopStmtMap) {
     auto domain = it.second.getDomain();
     SmallVector<Value> syms;
-    domain->getValues(domain->getNumDimVars(), domain->getNumDimAndSymbolIds(),
+    domain->getValues(domain->getNumDimVars(), domain->getNumDimAndSymbolVars(),
                       &syms);
 
     for (Value sym : syms) {
@@ -243,7 +243,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     LLVM_DEBUG({
       dbgs() << "Domain values: \n";
       SmallVector<Value> values;
-      domain->getValues(0, domain->getNumDimAndSymbolIds(), &values);
+      domain->getValues(0, domain->getNumDimAndSymbolVars(), &values);
       for (Value value : values)
         dbgs() << " * " << value << '\n';
     });
@@ -258,7 +258,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     LLVM_DEBUG({
       dbgs() << "Context values: \n";
       SmallVector<Value> values;
-      ctx.getValues(0, ctx.getNumDimAndSymbolIds(), &values);
+      ctx.getValues(0, ctx.getNumDimAndSymbolVars(), &values);
       for (Value value : values)
         dbgs() << " * " << value << '\n';
     });
@@ -271,7 +271,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // that each domain is aligned with them, i.e., every domain has the same
   // parameter columns (Values & order).
   SmallVector<mlir::Value, 8> symValues;
-  ctx.getValues(ctx.getNumDimVars(), ctx.getNumDimAndSymbolIds(), &symValues);
+  ctx.getValues(ctx.getNumDimVars(), ctx.getNumDimAndSymbolVars(), &symValues);
 
   // Add and align domain SYMBOL columns.
   for (const auto &it : *scopStmtMap) {
