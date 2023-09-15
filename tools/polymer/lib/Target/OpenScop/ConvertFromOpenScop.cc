@@ -45,6 +45,7 @@ extern "C" {
 
 using namespace polymer;
 using namespace mlir;
+using namespace mlir::func;
 
 typedef llvm::StringMap<mlir::Operation *> StmtOpMap;
 typedef llvm::StringMap<mlir::Value> NameValueMap;

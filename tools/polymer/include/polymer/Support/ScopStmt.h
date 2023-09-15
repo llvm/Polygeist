@@ -15,8 +15,8 @@ namespace mlir {
 class Operation;
 class FlatAffineValueConstraints;
 class AffineValueMap;
-class FuncOp;
 namespace func {
+class FuncOp;
 class CallOp;
 } // namespace func
 class Value;

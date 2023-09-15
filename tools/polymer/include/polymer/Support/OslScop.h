@@ -30,7 +30,9 @@ class FlatAffineValueConstraints;
 struct LogicalResult;
 class Operation;
 class Value;
+namespace func {
 class FuncOp;
+}
 } // namespace mlir
 
 namespace polymer {
