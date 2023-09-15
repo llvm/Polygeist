@@ -172,7 +172,7 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
 void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
   // Project out the dim IDs in the context with only the symbol IDs left.
   SmallVector<mlir::Value, 8> dimValues;
-  cst.getValues(0, cst.getNumDimIds(), &dimValues);
+  cst.getValues(0, cst.getNumDimVars(), &dimValues);
   for (mlir::Value dimValue : dimValues)
     cst.projectOut(dimValue);
   if (cst.getNumDimAndSymbolIds() > 0)
@@ -200,7 +200,7 @@ void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
   createConstraintRows(cst, inEqs, /*isEq=*/false);
 
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-              cst.getNumCols() + 1, cst.getNumDimIds(), 0, cst.getNumLocalIds(),
+              cst.getNumCols() + 1, cst.getNumDimVars(), 0, cst.getNumLocalIds(),
               cst.getNumSymbolIds(), eqs, inEqs);
 }
 
@@ -232,14 +232,14 @@ void OslScop::addScatteringRelation(int stmtId,
     // Relating the loop IVs to the scattering dimensions. If it's the odd
     // equality, set its scattering dimension to the loop IV; otherwise, it's
     // scattering dimension will be set in the following constant section.
-    for (unsigned k = 0; k < cst.getNumDimIds(); k++)
+    for (unsigned k = 0; k < cst.getNumDimVars(); k++)
       eqs[j * (numScatCols - 1) + k + numScatEqs] =
           (j % 2) ? (k == (j / 2)) : 0;
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
     for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolIds(); k++)
-      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimIds()] = 0;
+      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
 
     // Relating the constants (the last column) to the scattering dimensions.
     eqs[j * (numScatCols - 1) + numScatCols - 2] = (j % 2) ? 0 : scats[j / 2];
@@ -247,7 +247,7 @@ void OslScop::addScatteringRelation(int stmtId,
 
   // Then put them into the scop as a SCATTERING relation.
   addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
-              numScatEqs, cst.getNumDimIds(), cst.getNumLocalIds(),
+              numScatEqs, cst.getNumDimVars(), cst.getNumLocalIds(),
               cst.getNumSymbolIds(), eqs, inEqs);
 }
 
@@ -279,7 +279,7 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   // Then put them into the scop as an ACCESS relation.
   // Number of access indices + 1 for the memref ID.
   unsigned numOutputDims = vMap.getNumResults() + 1;
-  unsigned numInputDims = cst.getNumDimIds() - numOutputDims;
+  unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
   addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
               numInputDims, cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs,
@@ -492,7 +492,7 @@ void OslScop::initializeSymbolTable(mlir::func::FuncOp f,
                                     FlatAffineValueConstraints *cst) {
   symbolTable.clear();
 
-  unsigned numDimIds = cst->getNumDimIds();
+  unsigned numDimIds = cst->getNumDimVars();
   unsigned numSymbolIds = cst->getNumDimAndSymbolIds() - numDimIds;
 
   SmallVector<mlir::Value, 8> dimValues, symbolValues;
@@ -553,7 +553,7 @@ bool OslScop::isConstantSymbol(llvm::StringRef name) const {
 void OslScop::createConstraintRows(FlatAffineValueConstraints &cst,
                                    SmallVectorImpl<int64_t> &rows, bool isEq) {
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
-  unsigned numDimIds = cst.getNumDimIds();
+  unsigned numDimIds = cst.getNumDimVars();
   unsigned numLocalIds = cst.getNumLocalIds();
   unsigned numSymbolIds = cst.getNumSymbolIds();
 

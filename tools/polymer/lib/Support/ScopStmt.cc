@@ -103,7 +103,7 @@ promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
   //        "Found top-level argument should be a valid symbol.");
 
   unsigned int pos;
-  assert(domain.findId(val, &pos) &&
+  assert(domain.findVar(val, &pos) &&
          "Provided value should be in the given domain");
   domain.setValue(pos, arg);
 
@@ -112,7 +112,7 @@ promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
 
 static void reorderSymbolsByOperandId(FlatAffineValueConstraints &cst) {
   // bubble sort
-  for (unsigned i = cst.getNumDimIds(); i < cst.getNumDimAndSymbolIds(); ++i)
+  for (unsigned i = cst.getNumDimVars(); i < cst.getNumDimAndSymbolIds(); ++i)
     for (unsigned j = i + 1; j < cst.getNumDimAndSymbolIds(); ++j) {
       auto fst = cst.getValue(i).cast<BlockArgument>();
       auto snd = cst.getValue(j).cast<BlockArgument>();
@@ -134,7 +134,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
     if (!arg.getType().isIndex())
       continue;
     unsigned pos;
-    if (domain.findId(arg, &pos))
+    if (domain.findVar(arg, &pos))
       continue;
 
     domain.appendSymbolId(1);
@@ -148,7 +148,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // should be a top-level BlockArgument.
   SmallVector<mlir::Value, 8> symValues;
   llvm::DenseMap<mlir::Value, mlir::Value> symMap;
-  domain.getValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+  domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolIds(),
                    &symValues);
   for (mlir::Value val : symValues)
     promoteSymbolToTopLevel(val, domain, symMap);

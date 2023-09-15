@@ -607,7 +607,7 @@ static void getNonZeroDims(ArrayRef<int64_t> coeffs,
                            const FlatAffineValueConstraints &cst,
                            SmallVectorImpl<int64_t> &dims) {
   for (unsigned int i = 0; i < coeffs.size(); i++)
-    if (coeffs[i] != 0 && i < cst.getNumDimIds())
+    if (coeffs[i] != 0 && i < cst.getNumDimVars())
       dims.push_back(i);
 }
 
@@ -620,10 +620,10 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
   // Calculate the max depth and retrive all the symbols.
   for (const auto &domain : domains) {
     // depth
-    maxDepth = std::max(domain.getNumDimIds(), maxDepth);
+    maxDepth = std::max(domain.getNumDimVars(), maxDepth);
     // symbols
     domainSymbols.clear();
-    domain.getValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+    domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolIds(),
                      &domainSymbols);
     for (mlir::Value sym : domainSymbols)
       unionSymbols.insert(sym);
@@ -634,7 +634,7 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
   FlatAffineValueConstraints unionDomain(/*numDims=*/maxDepth,
                                          /*numSymbols=*/unionSymbols.size());
   for (auto symbol : enumerate(unionSymbols))
-    unionDomain.setValue(symbol.index() + unionDomain.getNumDimIds(),
+    unionDomain.setValue(symbol.index() + unionDomain.getNumDimVars(),
                          symbol.value());
 
   // Merge constraints. Only consider inequalities and those with single dim and
@@ -654,15 +654,15 @@ unionScratchpadIterDomains(mlir::ArrayRef<FlatAffineValueConstraints> domains) {
 
       SmallVector<int64_t, 4> newInEq(unionDomain.getNumCols(), 0);
       // Merge dims
-      for (unsigned int j = 0; j < unionDomain.getNumDimIds(); j++)
+      for (unsigned int j = 0; j < unionDomain.getNumDimVars(); j++)
         if (j == nonZeroDims[0]) // only one nonzero dim is allowed.
           newInEq[j] = inEq[j];
       // Merge symbols
       for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
-        mlir::Value symbol = domain.getValue(j + domain.getNumDimIds());
+        mlir::Value symbol = domain.getValue(j + domain.getNumDimVars());
         unsigned int pos = 0;
-        assert(unionDomain.findId(symbol, &pos));
-        newInEq[pos] = inEq[j + domain.getNumDimIds()];
+        assert(unionDomain.findVar(symbol, &pos));
+        newInEq[pos] = inEq[j + domain.getNumDimVars()];
       }
       // Merge constant
       newInEq[unionDomain.getNumCols() - 1] = inEq[domain.getNumCols() - 1];
@@ -700,14 +700,14 @@ static void getLowerOrUpperBound(unsigned int dimId, bool isUpper,
     mlir::AffineExpr expr = b.getAffineConstantExpr(0);
 
     for (unsigned int j = 0; j < domain.getNumSymbolIds(); j++) {
-      mlir::Value symbol = domain.getValue(j + domain.getNumDimIds());
+      mlir::Value symbol = domain.getValue(j + domain.getNumDimVars());
       int numSymbols = symToPos.size();
       if (!symToPos.count(symbol)) {
         symToPos[symbol] = numSymbols;
         operands.push_back(symbol);
       }
 
-      mlir::AffineExpr term = inEq[j + domain.getNumDimIds()] *
+      mlir::AffineExpr term = inEq[j + domain.getNumDimVars()] *
                               b.getAffineSymbolExpr(symToPos[symbol]);
       if (isUpper)
         expr = expr + term;
@@ -760,16 +760,16 @@ createScratchpadAllocaOp(mlir::func::FuncOp f, mlir::Value spad,
   OpBuilder::InsertionGuard guard(b);
 
   SmallVector<mlir::Value, 4> symbols;
-  domain.getValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+  domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolIds(),
                    &symbols);
   b.setInsertionPointAfterValue(findInsertionPointAfter(f, spad, symbols));
 
   mlir::MemRefType memRefType = mlir::MemRefType::get(
-      SmallVector<int64_t, 4>(domain.getNumDimIds(), -1),
+      SmallVector<int64_t, 4>(domain.getNumDimVars(), -1),
       spad.getType().cast<mlir::MemRefType>().getElementType());
 
-  llvm::SmallVector<mlir::Value, 4> memSizes(domain.getNumDimIds());
-  for (unsigned int i = 0; i < domain.getNumDimIds(); i++) {
+  llvm::SmallVector<mlir::Value, 4> memSizes(domain.getNumDimVars());
+  for (unsigned int i = 0; i < domain.getNumDimVars(); i++) {
     mlir::AffineMap lbMap, ubMap;
     llvm::SmallVector<mlir::Value, 4> lbOperands, ubOperands;
 

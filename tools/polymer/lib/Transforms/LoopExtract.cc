@@ -27,6 +27,7 @@
 #define DEBUG_TYPE "loop-extract"
 
 using namespace mlir;
+using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 

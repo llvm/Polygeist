@@ -205,7 +205,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   for (const auto &it : *scopStmtMap) {
     auto domain = it.second.getDomain();
     SmallVector<Value> syms;
-    domain->getValues(domain->getNumDimIds(), domain->getNumDimAndSymbolIds(),
+    domain->getValues(domain->getNumDimVars(), domain->getNumDimAndSymbolIds(),
                       &syms);
 
     for (Value sym : syms) {
@@ -271,7 +271,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // that each domain is aligned with them, i.e., every domain has the same
   // parameter columns (Values & order).
   SmallVector<mlir::Value, 8> symValues;
-  ctx.getValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+  ctx.getValues(ctx.getNumDimVars(), ctx.getNumDimAndSymbolIds(), &symValues);
 
   // Add and align domain SYMBOL columns.
   for (const auto &it : *scopStmtMap) {
@@ -279,7 +279,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     // For any symbol missing in the domain, add them directly to the end.
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); ++i) {
       unsigned pos;
-      if (!domain->findId(symValues[i], &pos)) // insert to the back
+      if (!domain->findVar(symValues[i], &pos)) // insert to the back
         domain->appendSymbolId(symValues[i]);
       else
         LLVM_DEBUG(dbgs() << "Found " << symValues[i] << '\n');
@@ -290,9 +290,9 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
       mlir::Value sym = symValues[i];
       unsigned pos;
-      assert(domain->findId(sym, &pos));
+      assert(domain->findVar(sym, &pos));
 
-      unsigned posAsCtx = i + domain->getNumDimIds();
+      unsigned posAsCtx = i + domain->getNumDimVars();
       LLVM_DEBUG(dbgs() << "Swapping " << posAsCtx << " " << pos << "\n");
       if (pos != posAsCtx)
         domain->swapId(posAsCtx, pos);
@@ -303,9 +303,9 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     //   unsigned pos;
     //   // If the symbol can be found in the domain, we put it in the same
     //   // position as the ctx.
-    //   if (domain->findId(sym, &pos)) {
-    //     if (pos != i + domain->getNumDimIds())
-    //       domain->swapId(i + domain->getNumDimIds(), pos);
+    //   if (domain->findVar(sym, &pos)) {
+    //     if (pos != i + domain->getNumDimVars())
+    //       domain->swapId(i + domain->getNumDimVars(), pos);
     //   } else {
     //     domain->insertSymbolId(i, sym);
     //   }

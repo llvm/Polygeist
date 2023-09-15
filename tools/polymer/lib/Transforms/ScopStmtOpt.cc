@@ -109,7 +109,7 @@ static Operation *apply(mlir::AffineMap affMap, ValueRange operands,
 static void projectAllOutExcept(FlatAffineValueConstraints &cst,
                                 llvm::SetVector<mlir::Value> ids) {
   SmallVector<Value, 4> dims;
-  cst.getValues(0, cst.getNumDimIds(), &dims);
+  cst.getValues(0, cst.getNumDimVars(), &dims);
 
   for (Value dim : dims)
     if (!ids.contains(dim))
@@ -145,7 +145,7 @@ static void getMemRefSize(MutableArrayRef<mlir::AffineForOp> forOps, FuncOp f,
   mapping.map(f.getArguments(), call.getOperands());
 
   SmallVector<mlir::Value, 4> mapOperands;
-  cst.getValues(cst.getNumDimIds(), cst.getNumDimAndSymbolIds(), &mapOperands);
+  cst.getValues(cst.getNumDimVars(), cst.getNumDimAndSymbolIds(), &mapOperands);
 
   for (int dim = 0; dim < numDims; dim++) {
     mlir::AffineMap lbMap, ubMap;
