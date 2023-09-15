@@ -96,6 +96,9 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
 include_directories("${PLUTO_INCLUDE_DIR}")
 message(STATUS "Will build and use Polymer-bundled Pluto")
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OpenScop.cmake")
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
+
 # ------------------------------------------------- This project
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")
 include_directories("${POLYMER_INCLUDE_DIR}")
