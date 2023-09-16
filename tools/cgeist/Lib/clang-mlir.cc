@@ -2335,7 +2335,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
     }
     sub.store(loc, builder, next);
     return ValueCategory(
-        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostInc) ? prev
+        (U->getOpcode() == clang::UnaryOperator::Opcode::UO_PostDec) ? prev
                                                                      : next,
         /*isReference*/ false);
   }
