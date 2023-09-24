@@ -36,26 +36,27 @@ FetchContent_Declare(
   PATCH_COMMAND echo hi # sed -i.bak -e "/#include \"llvm\/Support\/Signals.h\"/i #include <stdint.h>" llvm/lib/Support/Signals.cpp &&
     # sed -i.bak -e "/\\#include <vector>/i #include <limits>" llvm/utils/benchmark/src/benchmark_register.h
 )
-# FetchContent_Declare(
-#   pluto
-#   GIT_REPOSITORY https://github.com/kumasento/pluto
-#   GIT_TAG 5603283fb3e74fb33c380bb52874972b440d51a2
-#   PREFIX pluto
-#   # SOURCE_DIR ${PLUTO_SOURCE_DIR}
-#   # CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env bash ${PLUTO_CONFIGURE_COMMAND}
-#   # INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/pluto
-#   BUILD_COMMAND make -j LDFLAGS="-Wl,--copy-dt-needed-entries"
-#   INSTALL_COMMAND make install
-#   BUILD_IN_SOURCE 1
-#   BUILD_BYPRODUCTS
-#    "${PLUTO_LIB_DIR}/libpluto.so"
-#    "${PLUTO_LIB_DIR}/libisl.so"
-#    "${PLUTO_LIB_DIR}/libosl.so"
-#    "${PLUTO_LIB_DIR}/libcloog-isl.so"
-#    "${PLUTO_LIB_DIR}/libpiplib_dp.so"
-#    "${PLUTO_LIB_DIR}/libpolylib64.so"
-#    "${PLUTO_LIB_DIR}/libcandl.so"
-# )
+
+FetchContent_Declare(
+  pluto
+  GIT_REPOSITORY https://github.com/kumasento/pluto
+  GIT_TAG 5603283fb3e74fb33c380bb52874972b440d51a2
+  # PREFIX pluto
+  # SOURCE_DIR ${PLUTO_SOURCE_DIR}
+  # CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env bash ${PLUTO_CONFIGURE_COMMAND}
+  # INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/pluto
+  # BUILD_COMMAND make -j LDFLAGS="-Wl,--copy-dt-needed-entries"
+  # INSTALL_COMMAND make install
+  # BUILD_IN_SOURCE 1
+  # BUILD_BYPRODUCTS
+  #  "${PLUTO_LIB_DIR}/libpluto.so"
+  #  "${PLUTO_LIB_DIR}/libisl.so"
+  #  "${PLUTO_LIB_DIR}/libosl.so"
+  #  "${PLUTO_LIB_DIR}/libcloog-isl.so"
+  #  "${PLUTO_LIB_DIR}/libpiplib_dp.so"
+  #  "${PLUTO_LIB_DIR}/libpolylib64.so"
+  #  "${PLUTO_LIB_DIR}/libcandl.so"
+)
 
 # if(NOT llvm10_POPULATED)
 #   message("Package 'pet' not found, so we're building it")
@@ -64,63 +65,39 @@ FetchContent_Declare(
   set(ENV${CC} ${CMAKE_C_COMPILER})
   set(ENV{CXX} ${CMAKE_CXX_COMPILER})
 
-  execute_process(
-    # OUTPUT_QUIET
-    COMMAND sed -i.bak -e "/\#include \"llvm\\/Support\\/Signals.h\"/i \#include <stdint.h>" ${llvm10_SOURCE_DIR}/llvm/lib/Support/Signals.cpp && sed -i.bak -e "/\#include <vector>/i \#include <limits>" ${llvm10_SOURCE_DIR}/llvm/utils/benchmark/src/benchmark_register.h
-    WORKING_DIRECTORY ${llvm10_BINARY_DIR}
-  )
+  # execute_process(
+  #   # OUTPUT_QUIET
+  #   COMMAND sed -i.bak -e "/\#include \"llvm\\/Support\\/Signals.h\"/i \#include <stdint.h>" ${llvm10_SOURCE_DIR}/llvm/lib/Support/Signals.cpp && sed -i.bak -e "/\#include <vector>/i \#include <limits>" ${llvm10_SOURCE_DIR}/llvm/utils/benchmark/src/benchmark_register.h
+  #   WORKING_DIRECTORY ${llvm10_BINARY_DIR}
+  # )
 
-  execute_process(
-    # OUTPUT_QUIET
-    COMMAND cmake -DCMAKE_INSTALL_PREFIX=${llvm10_BINARY_DIR}/llvm10-install -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 ${llvm10_SOURCE_DIR}/llvm
-    WORKING_DIRECTORY ${llvm10_BINARY_DIR}
-  )
+  # execute_process(
+  #   # OUTPUT_QUIET
+  #   COMMAND cmake -DCMAKE_INSTALL_PREFIX=${llvm10_BINARY_DIR}/llvm10-install -DLLVM_ENABLE_PROJECTS=clang -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 ${llvm10_SOURCE_DIR}/llvm
+  #   WORKING_DIRECTORY ${llvm10_BINARY_DIR}
+  # )
 
-  execute_process(
-    # OUTPUT_QUIET
-    COMMAND make
-    WORKING_DIRECTORY ${llvm10_BINARY_DIR}
-  )
+  # execute_process(
+  #   # OUTPUT_QUIET
+  #   COMMAND make
+  #   WORKING_DIRECTORY ${llvm10_BINARY_DIR}
+  # )
 #### llvm10 built ####
+  FetchContent_Populate(pluto)
   execute_process(
     # OUTPUT_QUIET
     COMMAND ./autogen.sh
-    WORKING_DIRECTORY ${llvm10_BINARY_DIR}
+    WORKING_DIRECTORY ${pluto_SOURCE_DIR}
   )
   execute_process(
     # OUTPUT_QUIET
-    COMMAND ./configure --prefix=${CMAKE_CURRENT_BINARY_DIR}/pluto/install --with-clang-prefix=${PLUTO_LLVM_PREFIX}/llvm10-install
-    WORKING_DIRECTORY ${llvm10_BINARY_DIR}
+    COMMAND ./configure --prefix=${CMAKE_CURRENT_BINARY_DIR}/pluto/install --with-clang-prefix=${llvm10_BINARY_DIR}
+    WORKING_DIRECTORY ${pluto_SOURCE_DIR}
   )
 
   # set(ENV{PKG_CONFIG_PATH} ${llvm10_BUILD_DIR})
   # pkg_search_module(PET REQUIRED IMPORTED_TARGET llvm)
 # endif()
-
-ExternalProject_Add(
-  pluto
-  GIT_REPOSITORY https://github.com/kumasento/pluto
-  GIT_TAG 5603283fb3e74fb33c380bb52874972b440d51a2
-  PREFIX pluto
-  # SOURCE_DIR ${PLUTO_SOURCE_DIR}
-  # CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env bash ${PLUTO_CONFIGURE_COMMAND}
-  CONFIGURE_COMMAND ./autogen.sh &&
-    ./configure --prefix=${CMAKE_CURRENT_BINARY_DIR}/pluto/install --with-clang-prefix=${PLUTO_LLVM_PREFIX}/llvm10-install
-  INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/pluto
-  BUILD_COMMAND make -j LDFLAGS="-Wl,--copy-dt-needed-entries"
-  INSTALL_COMMAND make install
-  BUILD_IN_SOURCE 1
-  BUILD_BYPRODUCTS
-   "${PLUTO_LIB_DIR}/libpluto.so"
-   "${PLUTO_LIB_DIR}/libisl.so"
-   "${PLUTO_LIB_DIR}/libosl.so"
-   "${PLUTO_LIB_DIR}/libcloog-isl.so"
-   "${PLUTO_LIB_DIR}/libpiplib_dp.so"
-   "${PLUTO_LIB_DIR}/libpolylib64.so"
-   "${PLUTO_LIB_DIR}/libcandl.so"
-)
-
-add_dependencies(pluto llvm10)
 
 add_library(libpluto SHARED IMPORTED)
 set_target_properties(libpluto PROPERTIES IMPORTED_LOCATION "${PLUTO_LIB_DIR}/libpluto.so")
