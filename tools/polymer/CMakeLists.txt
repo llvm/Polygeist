@@ -118,7 +118,7 @@ add_subdirectory(tools)
 add_subdirectory(test)
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
-  install(DIRECTORY include/polymer 
+  install(DIRECTORY include/polymer
     DESTINATION include
     FILES_MATCHING
     PATTERN "*.h"
