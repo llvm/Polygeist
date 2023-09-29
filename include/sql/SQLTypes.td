@@ -28,4 +28,14 @@ def SQLExprType : SQL_Type<"Expr", "expr"> {
   // let assemblyFormat = "`<` $value `>`";
 }
 
+
+def SQLBoolType : SQL_Type<"Bool", "bool"> {
+  let summary = "SQL boolean type";
+  let description = "Custom attr or value type in sql dialect";
+
+  // placeholder params 
+  // let parameters = (ins StringRefParameter<"the custom value">:$value);
+  // let assemblyFormat = "`<` $value `>`";
+}
+
 #endif // SQL_TYPES

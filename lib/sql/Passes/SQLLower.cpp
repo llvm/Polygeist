@@ -151,6 +151,108 @@ struct GetValueOpLowering : public OpRewritePattern<sql::GetValueOp> {
   }
 };
 
+
+struct ConstantStringOpLowering : public OpRewritePattern<sql::SQLConstantStringOp> {
+    using OpRewritePattern<sql::SQLConstantStringOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(sql::SQLConstantStringOp op,
+                                PatternRewriter &rewriter) const final {
+    auto module = op->getParentOfType<ModuleOp>();
+
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(module);
+
+    auto expr = (op.getInput() + "\0").str();
+    auto name = "str" + std::to_string((long long int)(Operation *)op);
+    auto MT = MemRefType::get({expr.size()}, rewriter.getI8Type());
+    auto getglob = rewriter.create<memref::GetGlobalOp>(op.getLoc(), MT, name);
+    
+    rewriter.setInsertionPointToStart(module.getBody());
+    auto res = rewriter.create<memref::GlobalOp>(op.getLoc(), rewriter.getStringAttr(name),
+                          mlir::StringAttr(), mlir::TypeAttr::get(MT), rewriter.getStringAttr(expr), mlir::UnitAttr(), /*alignment*/nullptr);
+    rewriter.replaceOpWithNewOp<memref::CastOp>(op, MemRefType::get({-1}, rewriter.getI8Type()), getglob.getResult());
+    return success();
+  }
+};
+
+// struct StringConcatOpLowering : public OpRewritePattern<sql::SQLStringConcatOp> {
+//     using OpRewritePattern<sql::SQLToStringOp>::OpRewritePattern;
+
+//     LogicalResult matchAndRewrite(sql::SQLStringConcatOp op,
+//                                 PatternRewriter &rewriter) const final {
+//     auto module = op->getParentOfType<ModuleOp>();
+
+//     SymbolTableCollection symbolTable;
+//     symbolTable.getSymbolTable(module);
+    
+//     return success();
+//   }
+// };
+
+
+struct ToStringOpLowering : public OpRewritePattern<sql::SQLToStringOp> {
+    using OpRewritePattern<sql::SQLToStringOp>::OpRewritePattern;
+
+    LogicalResult matchAndRewrite(sql::SQLToStringOp op,
+                                PatternRewriter &rewriter) const final {
+    auto module = op->getParentOfType<ModuleOp>();
+
+    SymbolTableCollection symbolTable;
+    symbolTable.getSymbolTable(module);
+
+    // 2) convert the args to valid args to postgres_getresult abi
+    Value expr = op.getExpr();
+    auto definingOp = expr.getDefiningOp();
+    if (auto selectOp = dyn_cast<sql::SelectOp>(definingOp)){
+        Value current = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), "SELECT ");
+        bool prevColumn = false;
+        for (auto v : selectOp.getColumns()) {
+            Value columns = rewriter.create<sql::SQLToStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), v);
+            Value args[] = { current, columns };
+            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()),args);
+            if (prevColumn) {
+            Value args[] = { current, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), ", ") };
+            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()),args);
+            }
+            prevColumn = true;
+        }
+        auto tableOp = selectOp.getTable().getDefiningOp<sql::TableOp>();
+        if (!tableOp || !tableOp.getExpr().empty()) {
+            Value args[] = { current, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), "FROM ") };
+            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()),args);
+            Value args2[] = { current, rewriter.create<sql::SQLToStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), selectOp.getTable()) };
+            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()),args2);
+        }
+        rewriter.replaceOp(op, current);
+    } else if (auto tabOp = dyn_cast<sql::TableOp>(definingOp)) {
+        Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), tabOp.getExpr());
+        rewriter.replaceOp(op, res);
+    } else if (auto colOp = dyn_cast<sql::ColumnOp>(definingOp)) {
+        Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), colOp.getExpr());
+        rewriter.replaceOp(op, res);
+    } else if (auto intOp = dyn_cast<sql::IntOp>(definingOp)){
+        Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), intOp.getExpr());
+        rewriter.replaceOp(op, res);
+    } else {
+        assert(0 && "unknown type to convert to string");
+    }
+    
+    return success();
+  }
+};
+
 struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
   using OpRewritePattern<sql::ExecuteOp>::OpRewritePattern;
 
@@ -175,17 +277,16 @@ struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
                         executefn.getFunctionType().getInput(0), conn);
 
     Value command = op.getCommand(); 
-    command = rewriter.create<arith::IndexCastOp>(op.getLoc(),
-                                              rewriter.getI8Type(), command);
-    command = rewriter.create<LLVM::IntToPtrOp>(
-        op.getLoc(), LLVM::LLVMPointerType::get(rewriter.getI8Type()), command);
-    StringRef strname = command.getDefiningOp<LLVM::AddressOfOp>().getGlobalName();
-    Attribute strattr = dyn_cast_or_null<LLVM::GlobalOp>(
-            symbolTable.lookupSymbolIn(module, rewriter.getStringAttr(strname))).getValueAttr();
-    auto str = strattr.cast<StringAttr>().getValue();
-    llvm::errs() << str << "\n";
-    command = rewriter.create<polygeist::Pointer2MemrefOp>(op.getLoc(), 
-                        executefn.getFunctionType().getInput(1), command);
+    // auto name = "str" + std::to_string((long long int)(Operation *)command.getDefiningOp());
+    command = rewriter.create<sql::SQLToStringOp>(op.getLoc(),
+                                              MemRefType::get({-1}, rewriter.getI8Type()), command);
+    // auto type = MemRefType::get({-1}, rewriter.getI8Type());
+
+    
+    // auto globalOp = rewriter.create<LLVM::GlobalOp>(
+    //     op.getLoc(), type, /* isConstant */ true, LLVM::Linkage::Internal, name,
+    //     mlir::Attribute(),
+    //     /* alignment */ 0, /* addrSpace */ 0);
 
 
     // 3) call and replace
@@ -262,6 +363,14 @@ void SQLLower::runOnOperation() {
   patterns.insert<NumResultsOpLowering>(&getContext());
   patterns.insert<GetValueOpLowering>(&getContext());
   patterns.insert<ExecuteOpLowering>(&getContext());
+  patterns.insert<ToStringOpLowering>(&getContext());
+  patterns.insert<ConstantStringOpLowering>(&getContext());
+
+
+  for (auto *dialect : getContext().getLoadedDialects())
+  dialect->getCanonicalizationPatterns(patterns);
+  for (RegisteredOperationName op : getContext().getRegisteredOperations())
+  op.getCanonicalizationPatterns(patterns, &getContext());
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),

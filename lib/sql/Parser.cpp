@@ -40,7 +40,6 @@ public:
         return ty;
     }
     Value getValue() const {
-        int type_value = static_cast<int>(ty);
         // llvm::errs() << "ty: " << type_value << "\n";
         // llvm::errs() << "value: " << value << "\n";
         // llvm::errs() << "attr: " << attr << "\n";
@@ -57,7 +56,8 @@ public:
 enum class ParseMode {
     None,
     Column,
-    Table
+    Table,
+    Bool, 
 };
 
 
@@ -80,11 +80,6 @@ public:
     
     SQLParser(Location loc, OpBuilder &builder, std::string sql, int i) : loc(loc), builder(builder),
         sql(sql), i(i) {
-            // llvm::errs() << "last three " << sql.substr(sql.size()-6, sql.size()) << "\n"; 
-            // if (!sql.substr(sql.size()-2, sql.size()).compare("\\00")){
-            //     llvm::errs() << "triggers trim" << "\n"; 
-            //     sql = sql.substr(0, sql.size()-1);
-            // }
         }
 
     std::string peek() {
@@ -179,52 +174,59 @@ public:
             Value table = nullptr;
             while (true) {
                 peekStr = peek();
-                // if (hasColumns) { 
-                if (peekStr == "FROM") {
-                    pop();
-                    table = parseNext(ParseMode::Table).getValue();
-                    hasColumns = false;
+                if (hasColumns) { 
+                    if (peekStr == "FROM") {
+                        pop();
+                        table = parseNext(ParseMode::Table).getValue();
+                        hasColumns = false;
+                        break;
+                    }
+                    ParseValue col = parseNext(ParseMode::Column);
+                    if (col.getType() == ParseType::Nothing) {
+                        hasColumns = false; 
+                        break;
+                    } else {
+                        columns.push_back(col.getValue());
+                    }
+                    if (peekStr == ",") pop();
+                } else if (peekStr == "WHERE") {
+                    pop(); 
+                    hasWhere = true; 
+                } else { 
                     break;
+                    // assert(0 && " additional clauses like limit/etc not yet handled");
                 }
-                ParseValue col = parseNext(ParseMode::Column);
-                if (col.getType() == ParseType::Nothing) {
-                    hasColumns = false; 
-                    break;
-                } else {
-                    columns.push_back(col.getValue());
-                }
-                if (peekStr == ",") pop();
-                // } else if (peekStr == "WHERE") {
-                //     pop(); 
-                //     hasWhere = true; 
-                // } else if (hasWhere){ 
-                //     // do something here
-                //     break;
-                // } else { 
-                //     break;
-                //     // assert(0 && " additional clauses like limit/etc not yet handled");
-                // }
             }
-            if (table)
-                return ParseValue(builder.create<sql::SelectOp>(loc, ExprType::get(builder.getContext()), columns, table).getResult());
-            else
-                return ParseValue(builder.create<sql::SelectOp>(loc, ExprType::get(builder.getContext()), columns).getResult());
+            if (!table)
+                table = builder.create<sql::TableOp>(loc, ExprType::get(builder.getContext()), builder.getStringAttr("")).getResult();
+            return ParseValue(builder.create<sql::SelectOp>(loc, ExprType::get(builder.getContext()), columns, table).getResult());
         } else if (is_number(&peekStr)){
             pop();
             return ParseValue(builder.create<IntOp>(loc, ExprType::get(builder.getContext()), builder.getStringAttr(peekStr)).getResult());
         } else if (mode == ParseMode::Column) {
             // do we need this?? 
-            // if (peekStr == "*") {
-            //     pop();
-                
-            //     return ParseValue(builder.create<ColumnOp>(loc, ExprType::get(builder.getContext()), );
-            // }
+            if (peekStr == "*") {
+                pop();
+                return ParseValue(builder.create<AllColumnsOp>(loc, ExprType::get(builder.getContext()), builder.getStringAttr(peekStr)).getResult());
+            }
             pop();
             return ParseValue(builder.create<ColumnOp>(loc, ExprType::get(builder.getContext()),  builder.getStringAttr(peekStr)).getResult());
         } else if (mode == ParseMode::Table) {
             pop();
-            return ParseValue(builder.create<TableOp>(loc,ExprType::get(builder.getContext()) ,  builder.getStringAttr(peekStr)).getResult());
-        }
+            return ParseValue(builder.create<TableOp>(loc,ExprType::get(builder.getContext()), builder.getStringAttr(peekStr)).getResult());
+        } else if (mode == ParseMode::Bool) {
+            // col = peekStr;
+            pop();
+           
+        } else if (peekStr == "(") {
+            pop();
+            ParseValue res = parseNext(ParseMode::None);
+            assert(peek() == ")");
+            pop();
+            return res;
+        } else if (peekStr == ")") {
+            return ParseValue();
+        } 
         llvm::errs() << " Unknown token to parse: " << peekStr << "\n";
         llvm_unreachable("Unknown token to parse");
     }
@@ -232,7 +234,7 @@ public:
 };
 
 std::vector<std::string> SQLParser::reservedWords = {
-    "(", ")", ">=", "<=", "!=", ",", "=", ">", "<", "SELECT", "INSERT INTO", "VALUES", "UPDATE", "DELETE FROM", "WHERE", "FROM", "SET", "AS"
+    "(", ")", ">=", "<=", "!=", ",", "=", ">", "<", "SELECT", "DISTINCT", "INSERT INTO", "VALUES", "UPDATE", "DELETE FROM", "WHERE", "FROM", "SET", "AS"
 };
 
 

@@ -38,6 +38,56 @@ def ColumnOp : SQL_Op<"column", [Pure]> {
   let hasCanonicalizer = 0;
 } 
 
+def AllColumnsOp : SQL_Op<"all_columns", [Pure]> {
+  let summary = "all columns op";
+
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+} 
+
+def WhereOp: SQL_Op<"where", [Pure]> {
+  let summary = "where op";
+
+  let arguments = (ins SQLBoolType:$expr);
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+} 
+
+def CalcBoolOp: SQL_Op<"calc_bool", [Pure]> {
+  let summary = "calc_bool op";
+
+  let arguments = (ins StrAttr:$expr);
+  let results = (outs SQLBoolType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
+def AndOp: SQL_Op<"and", [Pure]> {
+  let summary = "and op";
+
+  let arguments = (ins Variadic<SQLBoolType>:$expr);
+  let results = (outs SQLBoolType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
+def OrOp: SQL_Op<"or", [Pure]> {
+  let summary = "or op";
+
+  let arguments = (ins Variadic<SQLBoolType>:$expr);
+  let results = (outs SQLBoolType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
 def TableOp : SQL_Op<"table", [Pure]> {
   let summary = "table";
 
@@ -48,20 +98,38 @@ def TableOp : SQL_Op<"table", [Pure]> {
   let hasCanonicalizer = 0;
 } 
 
-def EmptyTableOp : SQL_Op<"empty_table", [Pure]> {
-  let summary = "empty_table";
-  // i need to specify the size of a Variadic? 
-  let arguments = (ins StrAttr:$expr);
-  let results = (outs SQLExprType:$result);
+
+def SQLConstantStringOp : SQL_Op<"str_constant", [Pure]> {
+  let summary = "str_constant";
+
+  let arguments = (ins StrAttr:$input);
+  let results = (outs AnyType:$result);
 
   let hasFolder = 0;
   let hasCanonicalizer = 0;
-} 
+}
 
-// def VectorNotEmpty : AttrConstraint<CPred<"$_self.size() > 0">,
-//                                      "VectorNotEmpty">; 
+def SQLToStringOp : SQL_Op<"to_string", [Pure]> {
+  let summary = "to_string";
 
-                                    
+  let arguments = (ins SQLExprType:$expr);
+  let results = (outs AnyType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}    
+
+
+def SQLStringConcatOp : SQL_Op<"string_concat", [Pure]> {
+  let summary = "string_concat";
+
+  let arguments = (ins Variadic<AnyType>:$expr);
+  let results = (outs AnyType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 1;
+}                       
+
 def SelectOp : SQL_Op<"select", [Pure]> {
   let summary = "select";
   // i need to specify the size of a Variadic? 

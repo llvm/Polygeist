@@ -213,3 +213,26 @@ void UnparsedOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                             MLIRContext *context) {
   results.insert<UnparsedOpInnerCast<polygeist::Pointer2MemrefOp> >(context);
 }
+
+
+class SQLStringConcatOpCanonicalization final : public OpRewritePattern<SQLStringConcatOp> {
+public:
+  using OpRewritePattern<SQLStringConcatOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(SQLStringConcatOp op,
+                                PatternRewriter &rewriter) const override {
+
+    auto input1 = op->getOperand(0).getDefiningOp<SQLConstantStringOp>();
+    auto input2 = op->getOperand(1).getDefiningOp<SQLConstantStringOp>();
+
+    if (!input1 || !input2) return failure();
+  
+    rewriter.replaceOpWithNewOp<SQLConstantStringOp>(op, op.getType(), (input1.getInput() + input2.getInput()).str());
+    return success();
+  }
+};
+
+void SQLStringConcatOp::getCanonicalizationPatterns(RewritePatternSet &results,
+                                            MLIRContext *context) {
+  results.insert<SQLStringConcatOpCanonicalization>(context);
+}
