@@ -618,6 +618,7 @@ int main(int argc, char **argv) {
   int unrollSize = 32;
   bool LinkOMP = FOpenMP;
   pm.enableVerifier(EarlyVerifier);
+
   mlir::OpPassManager &optPM = pm.nest<mlir::func::FuncOp>();
   GreedyRewriteConfig canonicalizerConfig;
   canonicalizerConfig.maxIterations = CanonicalizeIterations;
@@ -633,6 +634,7 @@ int main(int argc, char **argv) {
     optPM.addPass(polygeist::createMem2RegPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::createLoopRestructurePass());
+    optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     optPM.addPass(polygeist::replaceAffineCFGPass());
     optPM.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
     if (ScalarReplacement)
@@ -866,6 +868,8 @@ int main(int argc, char **argv) {
 
 #if POLYGEIST_ENABLE_GPU
     if (EmitGPU) {
+      mlir::PassManager pm(&context);
+      enablePrinting(pm);
       pm.addPass(mlir::createCSEPass());
       if (CudaLower)
         pm.addPass(polygeist::createConvertParallelToGPUPass1(
@@ -886,12 +890,51 @@ int main(int argc, char **argv) {
 
       addLICM(pm);
 
+      pm.addPass(mlir::createCSEPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+
       if (mlir::failed(pm.run(module.get()))) {
         module->dump();
         return 12;
       }
     }
 #endif
+
+    {
+      mlir::PassManager pm(&context);
+      enablePrinting(pm);
+      mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
+      gpuPM.addPass(polygeist::createFixGPUFuncPass());
+      pm.addPass(mlir::createCanonicalizerPass(canonicalizerConfig, {}, {}));
+      pm.addPass(polygeist::createLowerAlternativesPass());
+      pm.addPass(polygeist::createCollectKernelStatisticsPass());
+      if (mlir::failed(pm.run(module.get()))) {
+        module->dump();
+        return 12;
+      }
+    }
+
+    // Prune unused gpu module funcs
+    module.get()->walk([&](gpu::GPUModuleOp gpum) {
+      bool changed;
+      do {
+        changed = false;
+        std::vector<Operation *> unused;
+        gpum->walk([&](Operation *op) {
+          if (isa<gpu::GPUFuncOp>(op) || isa<func::FuncOp>(op) ||
+              isa<LLVM::LLVMFuncOp>(op)) {
+            auto symbolUses = SymbolTable::getSymbolUses(op, module.get());
+            if (symbolUses && symbolUses->empty()) {
+              unused.push_back(op);
+            }
+          }
+        });
+        for (auto op : unused) {
+          changed = true;
+          op->erase();
+        }
+      } while (changed);
+    });
 
     if (EmitLLVM || !EmitAssembly || EmitOpenMPIR || EmitLLVMDialect) {
       mlir::PassManager pm2(&context);

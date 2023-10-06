@@ -25,6 +25,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "polygeist/Ops.h"
@@ -100,6 +101,9 @@ struct ConvertCudaRTtoHipRT
     : public ConvertCudaRTtoHipRTBase<ConvertCudaRTtoHipRT> {
   void runOnOperation() override;
 };
+struct FixGPUFunc : public FixGPUFuncBase<FixGPUFunc> {
+  void runOnOperation() override;
+};
 
 } // end anonymous namespace
 
@@ -121,6 +125,9 @@ createParallelLowerPass(bool wrapParallelOps,
                         PolygeistGPUStructureMode gpuKernelStructureMode) {
   return std::make_unique<ParallelLower>(wrapParallelOps,
                                          gpuKernelStructureMode);
+}
+std::unique_ptr<Pass> createFixGPUFuncPass() {
+  return std::make_unique<FixGPUFunc>();
 }
 } // namespace polygeist
 } // namespace mlir
@@ -615,6 +622,24 @@ void ParallelLower::runOnOperation() {
       }
     });
 
+    // If we are compiling for GPU
+    if (gpuKernelStructureMode != PGSM_Discard) {
+      // Tag device side get globals with an attribute so that CSE does not
+      // decide to reuse the host side get global for the device
+      std::vector<mlir::memref::GetGlobalOp> ggops;
+      container.walk([&](mlir::memref::GetGlobalOp getGlobalOp) {
+        ggops.push_back(getGlobalOp);
+      });
+      for (auto ggo : ggops) {
+        builder.setInsertionPoint(ggo);
+        builder.replaceOp(
+            ggo, builder
+                     .create<polygeist::GetDeviceGlobalOp>(
+                         ggo->getLoc(), ggo.getType(), ggo.getNameAttr())
+                     ->getResults());
+      }
+    }
+
     container.walk([&](mlir::gpu::ThreadIdOp bidx) {
       int idx = -1;
       if (bidx.getDimension() == gpu::Dimension::x)
@@ -694,6 +719,74 @@ void ParallelLower::runOnOperation() {
     GreedyRewriteConfig config;
     (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
   }
+}
+
+void FixGPUFunc::runOnOperation() {
+
+  SymbolTableCollection symbolTable;
+  symbolTable.getSymbolTable(getOperation());
+
+  std::function<void(CallOp)> callInliner = [&](CallOp caller) {
+    // Build the inliner interface.
+    AlwaysInlinerInterface interface(&getContext());
+
+    auto callable = caller.getCallableForCallee();
+    CallableOpInterface callableOp;
+    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+      auto *symbolOp =
+          symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
+      callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
+    } else {
+      return;
+    }
+    Region *targetRegion = callableOp.getCallableRegion();
+    if (!targetRegion)
+      return;
+    if (targetRegion->empty())
+      return;
+    if (inlineCall(interface, caller, callableOp, targetRegion,
+                   /*shouldCloneInlinedRegion=*/true)
+            .succeeded()) {
+      caller.erase();
+    }
+  };
+  gpu::GPUModuleOp gpum = getOperation();
+  auto getDirectlyNestedCallOp = [&](Operation *func) -> func::CallOp {
+    if (func->getNumRegions() != 1)
+      return nullptr;
+    auto &reg = func->getRegion(0);
+    auto &blocks = reg.getBlocks();
+    if (blocks.size() != 1)
+      return nullptr;
+    auto block = &blocks.front();
+    if (auto callOp = dyn_cast<func::CallOp>(block->front())) {
+      if (!callOp->getNextNode()->hasTrait<OpTrait::IsTerminator>())
+        return nullptr;
+      return callOp;
+    } else {
+      return nullptr;
+    }
+  };
+  gpum->walk([&](gpu::GPUFuncOp gpuFuncOp) {
+    auto callOp = getDirectlyNestedCallOp(gpuFuncOp);
+    if (!callOp)
+      return;
+    Operation *funcOp;
+    if (SymbolRefAttr symRef =
+            callOp.getCallableForCallee().dyn_cast<SymbolRefAttr>()) {
+      auto *symbolOp =
+          symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
+      funcOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
+    } else {
+      return;
+    }
+    auto callOp2 = getDirectlyNestedCallOp(funcOp);
+
+    if (callOp2)
+      callInliner(callOp2);
+
+    callInliner(callOp);
+  });
 }
 
 static void replaceCallWithSuccess(Operation *call, OpBuilder &bz) {

@@ -37,6 +37,7 @@ std::unique_ptr<Pass> createParallelLowerPass(
 std::unique_ptr<Pass> createConvertCudaRTtoCPUPass();
 std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
 std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass();
+std::unique_ptr<Pass> createFixGPUFuncPass();
 std::unique_ptr<Pass> createSCFParallelLoopUnrollPass(int unrollFactor = 2);
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
@@ -49,6 +50,8 @@ createConvertParallelToGPUPass1(std::string arch = "sm_60");
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
 std::unique_ptr<Pass> createMergeGPUModulesPass();
+std::unique_ptr<Pass> createLowerAlternativesPass();
+std::unique_ptr<Pass> createCollectKernelStatisticsPass();
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(
     StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
     std::string ptxasPath, std::string libDevicePath, bool outputIntermediate);

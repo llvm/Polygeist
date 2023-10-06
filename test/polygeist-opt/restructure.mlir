@@ -20,7 +20,7 @@ func.func @kernel_gemm(%arg0: i64) -> i1 {
 // CHECK:   func.func @kernel_gemm(%[[arg0:.+]]: i64) -> i1 {
 // CHECK-NEXT:     %[[c0_i64:.+]] = arith.constant 0 : i64
 // CHECK-NEXT:     %[[c1_i64:.+]] = arith.constant 1 : i64
-// CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.undef : i1
+// CHECK-NEXT:     %[[V0:.+]] = "polygeist.undef"() : () -> i1
 // CHECK-NEXT:     %[[V1:.+]]:2 = scf.while (%[[arg1:.+]] = %[[c0_i64]], %[[arg2:.+]] = %[[V0]]) : (i64, i1) -> (i64, i1) {
 // CHECK-NEXT:       %[[V2:.+]] = arith.cmpi slt, %[[arg1]], %[[c0_i64]] : i64
 // CHECK-NEXT:       %[[V3:.+]] = arith.cmpi sle, %[[arg1]], %[[arg0]] : i64

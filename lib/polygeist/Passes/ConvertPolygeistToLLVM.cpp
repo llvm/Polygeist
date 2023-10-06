@@ -114,17 +114,21 @@ static void emitCudaError(const llvm::Twine &expr, const char *buffer,
 using namespace mlir;
 using namespace polygeist;
 
-static llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode(
-    "polygeist-alternatives-mode", llvm::cl::init(PAM_Static),
-    llvm::cl::desc("Polygeist alternatives op mode"),
-    llvm::cl::values(
-        clEnumValN(PAM_Static, "static", "Pick at compile time"),
-        clEnumValN(PAM_PGO_Profile, "pgo_prof",
-                   "Profile Guided Optimization - profiling mode"),
-        clEnumValN(PAM_PGO_Opt, "pgo_opt",
-                   "Profile Guided Optimization - optimization mode")));
+extern llvm::cl::opt<PolygeistAlternativesMode> PolygeistAlternativesMode;
 
 mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module);
+
+struct UndefLowering : public ConvertOpToLLVMPattern<UndefOp> {
+  using ConvertOpToLLVMPattern<UndefOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(UndefOp uop, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto newTy = typeConverter->convertType(uop.getResult().getType());
+    rewriter.replaceOpWithNewOp<LLVM::UndefOp>(uop, newTy);
+    return success();
+  }
+};
 
 /// Conversion pattern that transforms a subview op into:
 ///   1. An `llvm.mlir.undef` operation to create a memref descriptor
@@ -400,6 +404,7 @@ void populatePolygeistToLLVMConversionPatterns(LLVMTypeConverter &converter,
   // clang-format off
   patterns.add<TypeSizeOpLowering>(converter);
   patterns.add<TypeAlignOpLowering>(converter);
+  patterns.add<UndefLowering>(converter);
   patterns.add<SubIndexOpLowering>(converter);
   patterns.add<Memref2PointerOpLowering>(converter);
   patterns.add<Pointer2MemrefOpLowering>(converter);
@@ -1444,17 +1449,10 @@ struct LowerGPUAlternativesOp
       return failure();
 
     Location loc = gao->getLoc();
-    std::string locStr = [&loc]() {
-      std::string str;
-      llvm::raw_string_ostream stream(str);
-      loc.print(stream);
-      stream.flush();
-      return stream.str();
-    }();
-    locStr += gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
-    for (char &c : locStr)
-      if (c == '/')
-        c = '+';
+    std::string locStr =
+        gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+
+    auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
 
     // TODO each region in the alternatives op should containt only a single
     // block - write a verifier for that
@@ -1467,10 +1465,12 @@ struct LowerGPUAlternativesOp
     auto printInfos = [&](auto &strm, std::vector<kernelInfoTy> infos) {
       int i = 0;
       for (auto tup : infos) {
-        strm << "polygeistKernelInfo: " << locStr << "," << i++ << ",";
+        strm << "polygeistKernelInfo: " << locStr << "," << i << "," << descs[i]
+             << ",";
         auto _tup = pop_front(tup);
         print(strm, _tup);
         strm << "\n";
+        i++;
       }
     };
 
@@ -1833,8 +1833,8 @@ struct LowerGPUAlternativesOp
       std::vector<double> avgs;
       for (int i = 0; i < numAlternatives; i++) {
         if (timings[i].size() == 0) {
-          llvm::errs() << "No data for alternative " << i << " of " << locStr
-                       << "\n";
+          llvm::errs() << "No data for alternative " << i << "," << descs[i]
+                       << " of " << locStr << "\n";
           assert(0);
           avgs.push_back(std::numeric_limits<double>::infinity());
         } else {
@@ -1843,13 +1843,14 @@ struct LowerGPUAlternativesOp
           avgs.push_back(
               std::accumulate(timings[i].begin(), timings[i].end(), 0.0f) /
               timings[i].size());
-          llvm::errs() << "Alternative " << i << " is " << avgs[i] << "\n";
+          llvm::errs() << "Alternative " << i << "," << descs[i] << " is "
+                       << avgs[i] << "\n";
         }
       }
 
       int bestAlt = std::distance(avgs.begin(),
                                   std::min_element(avgs.begin(), avgs.end()));
-      llvm::errs() << "Picking " << bestAlt << "\n";
+      llvm::errs() << "Picking " << bestAlt << "," << descs[bestAlt] << "\n";
 
       auto block = &*gao->getRegions()[bestAlt].begin();
 
@@ -2151,6 +2152,9 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       for (Operation &op : kernelModule->getRegion(0).front()) {
         if (LLVM::LLVMFuncOp f = dyn_cast<LLVM::LLVMFuncOp>(op)) {
           if (!f->getAttr("gpu.kernel"))
+            continue;
+          auto symbolUses = SymbolTable::getSymbolUses(&op, moduleOp);
+          if (symbolUses && symbolUses->empty())
             continue;
           auto kernelName = generateKernelNameConstant(
               launchOp.getKernelModuleName().getValue(), f.getName(), loc,
@@ -2766,27 +2770,6 @@ struct ConvertPolygeistToLLVMPass
     converter.addConversion([&](async::TokenType type) { return type; });
 
     {
-      // TODO I am assuming this will walk in the same order every time, might
-      // not be the case
-      std::map<std::string, int> num;
-      m->walk([&](polygeist::AlternativesOp altOp) {
-        std::string funcName;
-        if (auto funcOp = altOp->getParentOfType<LLVM::LLVMFuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".llvm";
-        } else if (auto funcOp = altOp->getParentOfType<func::FuncOp>()) {
-          funcName = funcOp.getName();
-          funcName += ".func";
-        } else {
-          assert(0 && "How?");
-        }
-        if (num.count(funcName) == 0)
-          num[funcName] = 0;
-        std::string id = funcName + "." + std::to_string(num[funcName]++);
-        altOp->setAttr("polygeist.altop.id",
-                       StringAttr::get(&getContext(), id));
-      });
-
       // This op must be lowered before converting to LLVM but it still needs
       // information about LLVM types thus it needs the converter
       RewritePatternSet patterns(&getContext());

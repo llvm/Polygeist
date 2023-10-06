@@ -18,6 +18,18 @@ include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
 
+def UndefOp
+    : Polygeist_Op<"undef", [Pure]> {
+  let summary = "More flexible undef op";
+  let skipDefaultBuilders = 1;
+  let results = (outs AnyType:$result);
+  let builders = [
+    OpBuilder<(ins "Type":$type), [{
+      $_state.types.push_back(type);
+    }]>];
+  let hasCanonicalizer = true;
+}
+
 def NoopOp
     : Polygeist_Op<"noop",
                    [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
@@ -26,6 +38,16 @@ def NoopOp
   let skipDefaultBuilders = 1;
   let builders = [
       OpBuilder<(ins "ValueRange":$indices)>];
+  let description = [{}];
+}
+
+def GetDeviceGlobalOp
+    : Polygeist_Op<"get_device_global",
+                   [DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+                    DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+  let summary = "";
+  let arguments = (ins FlatSymbolRefAttr:$name);
+  let results = (outs AnyStaticShapeMemRef:$result);
   let description = [{}];
 }
 

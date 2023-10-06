@@ -112,8 +112,13 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
           return failure();
         ubs[0] = rewriter.create<DivUIOp>(
             loop.getLoc(),
-            rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
-                                    loop.getLowerBound()),
+            rewriter.create<AddIOp>(
+                loop.getLoc(),
+                rewriter.create<SubIOp>(
+                    loop.getLoc(), loop.getStep(),
+                    rewriter.create<ConstantIndexOp>(loop.getLoc(), 1)),
+                rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
+                                        loop.getLowerBound())),
             loop.getStep());
         lbs[0] = rewriter.create<ConstantIndexOp>(loop.getLoc(), 0);
         rewrittenStep = true;

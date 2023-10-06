@@ -18,6 +18,8 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   SerializeToCubin.cpp
   SerializeToHsaco.cpp
   ParallelLoopUnroll.cpp
+  LowerAlternatives.cpp
+  CollectKernelStatistics.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
@@ -55,6 +57,11 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRFuncToLLVM
   MLIRArithToLLVM
   MLIROpenMPToLLVM
+  )
+
+target_link_libraries(MLIRPolygeistTransforms
+  PRIVATE
+  stdc++fs
   )
 
 target_compile_definitions(obj.MLIRPolygeistTransforms

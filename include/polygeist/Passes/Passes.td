@@ -23,11 +23,29 @@ def SCFParallelLoopUnroll : Pass<"scf-parallel-loop-unroll"> {
   ];
 }
 
+def CollectKernelStatistics : Pass<"collect-kernel-statistics", "mlir::ModuleOp"> {
+  let summary = "Lower cudart functions to cpu versions";
+  let dependentDialects = [];
+  let constructor = "mlir::polygeist::createCollectKernelStatisticsPass()";
+}
+
+def LowerAlternatives : Pass<"lower-alternatives", "mlir::ModuleOp"> {
+  let summary = "Lower alternatives if in opt mode";
+  let dependentDialects = [];
+  let constructor = "mlir::polygeist::createLowerAlternativesPass()";
+}
+
 def ConvertCudaRTtoCPU : Pass<"convert-cudart-to-cpu", "mlir::ModuleOp"> {
   let summary = "Lower cudart functions to cpu versions";
   let dependentDialects =
       ["memref::MemRefDialect", "func::FuncDialect", "LLVM::LLVMDialect"];
   let constructor = "mlir::polygeist::createConvertCudaRTtoCPUPass()";
+}
+
+def FixGPUFunc : Pass<"fix-gpu-func", "mlir::gpu::GPUModuleOp"> {
+  let summary = "Fix nested calls to gpu functions we generate in the frontend";
+  let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "gpu::GPUDialect"];
+  let constructor = "mlir::polygeist::createFixGPUFuncPass()";
 }
 
 def ConvertCudaRTtoGPU : Pass<"convert-cudart-to-gpu", "mlir::ModuleOp"> {
