@@ -12,7 +12,7 @@ int fir (int d_i[1000], int idx[1000] ) {
 	return tmp;
 }
 
-// CHECK:   func @fir(%[[arg0:.+]]: memref<?xi32>, %[[arg1:.+]]: memref<?xi32>) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @fir(%[[arg0:.+]]: memref<?xi32>, %[[arg1:.+]]: memref<?xi32>) -> i32  
 // CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG:     %[[c1000:.+]] = arith.constant 1000 : index

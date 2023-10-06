@@ -18,7 +18,7 @@ int foo(char t) {
 }
 
 // TODO the select should be canonicalized better
-// CHECK:   func @foo(%[[arg0:.+]]: i8) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @foo(%[[arg0:.+]]: i8) -> i32  
 // CHECK-DAG:     %[[cm1:.+]] = arith.constant -1 : i32
 // CHECK-DAG:     %[[c30_i32:.+]] = arith.constant 30 : i32
 // CHECK-DAG:     %[[false:.+]] = arith.constant false

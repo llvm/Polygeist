@@ -14,6 +14,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -54,8 +55,8 @@ Operation *mlirclang::replaceFuncByOperation(
     return buildLinalgOp(opName, b, input, output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.
-  OperationState opState(b.getUnknownLoc(), opName, input,
-                         f.getCallableResults(), {});
+  OperationState opState(b.getUnknownLoc(), opName, input, f.getResultTypes(),
+                         {});
   return b.create(opState);
 }
 

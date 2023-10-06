@@ -14,11 +14,8 @@ int ld(int* x, int i) {
 // CHECK-NEXT:     return %1 : i32
 // CHECK-NEXT:   }
 
-// LLVM: define i32 @ld(i32* %0, i32 %1)
-// LLVM-NEXT:   %3 = sext i32 %1 to i64
-// LLVM-NEXT:   %4 = getelementptr i32, i32* %0, i64 %3,
-// LLVM-NEXT:   %5 = atomicrmw add i32* %4, i32 0 acq_rel, align 4
-// LLVM-NEXT:   ret i32 %5, !dbg !10
-// LLVM-NEXT: }
-
-
+// LLVM: define i32 @ld(ptr %0, i32 %1)
+// LLVM:         %[[VAL_0:[A-Za-z0-9_]*]] = sext i32 %1 to i64
+// LLVM:         %[[VAL_2:[A-Za-z0-9_]*]] = getelementptr i32, ptr %0, i64 %[[VAL_0]]
+// LLVM:         %[[VAL_4:[A-Za-z0-9_]*]] = atomicrmw add ptr %[[VAL_2]], i32 0 acq_rel, align 4
+// LLVM:         ret i32 %[[VAL_4]]

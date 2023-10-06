@@ -11,9 +11,10 @@ struct Meta* create() {
     return (struct Meta*)malloc(sizeof(struct Meta));
 }
 
-// CHECK:   func @create() -> memref<?x!llvm.struct<(memref<?xf32>, i8)>> attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.typeSize"() {source = !llvm.struct<(memref<?xf32>, i8)>} : () -> index
-// CHECK-NEXT:     %[[V1:.+]] = arith.divui %[[V0]], %[[V0]] : index
-// CHECK-NEXT:     %[[V2:.+]] = memref.alloc(%[[V1]]) : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
-// CHECK-NEXT:     return %[[V2]] : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
-// CHECK-NEXT:   }
+
+// CHECK-LABEL:   func.func @create() -> memref<?x!llvm.struct<(memref<?xf32>, i8)>>
+// CHECK:           %[[VAL_0:[A-Za-z0-9_]*]] = "polygeist.typeSize"() <{source = !llvm.struct<(memref<?xf32>, i8)>}> : () -> index
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.divui %[[VAL_0]], %[[VAL_0]] : index
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = memref.alloc(%[[VAL_1]]) : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
+// CHECK:           return %[[VAL_2]] : memref<?x!llvm.struct<(memref<?xf32>, i8)>>
+// CHECK:         }

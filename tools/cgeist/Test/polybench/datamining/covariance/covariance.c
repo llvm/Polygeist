@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 }
 
 // CHECK: #map = affine_map<(d0) -> (d0)>
-// CHECK: func @kernel_covariance(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>) {
+// CHECK: func @kernel_covariance(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>) 
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %cst_0 = constant 1.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index

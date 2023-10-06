@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --lower-affine --canonicalize --scf-parallel-loop-unroll="unrollFactor=3" --cse %s | FileCheck %s
+// RUN: polygeist-opt --lower-affine --canonicalize-polygeist --scf-parallel-loop-unroll="unrollFactor=3" --cse %s | FileCheck %s
 
 module {
   func.func private @use0(%arg0: index)

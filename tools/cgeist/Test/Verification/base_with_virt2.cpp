@@ -33,16 +33,22 @@ struct _Alloc_hider : M
 void a() {
     mbasic_stringbuf a;
 }
+// CHECK-LABEL:   func.func @_Z1av()
+// CHECK:           return
+// CHECK:         }
 
-// CHECK:   func.func @_Z1av() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK: func.func @_ZN16mbasic_stringbufC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(ptr<ptr<func<i32 (...)>>>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK: func.func @_ZN15basic_streambufC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(ptr<ptr<func<i32 (...)>>>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN12_Alloc_hiderC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(i8)>, memref<?xi8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_ZN16mbasic_stringbufC1Ev(
+// CHECK-SAME:                                         %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(ptr)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>)
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN15basic_streambufC1Ev(
+// CHECK-SAME:                                        %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(ptr)>>)
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN12_Alloc_hiderC1Ev(
+// CHECK-SAME:                                     %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(i8)>, memref<?xi8>)>>)
+// CHECK:           return
+// CHECK:         }
+

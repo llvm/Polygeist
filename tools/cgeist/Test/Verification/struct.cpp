@@ -16,10 +16,11 @@ float func(struct OperandInfo* op) {
 }
 }
 
-// CHECK:   func.func @func(%[[arg0:.+]]: memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> f32 
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> !llvm.ptr<!llvm.struct<(i8, memref<?xi8>, i8)>>
-// CHECK-NEXT:     %[[V1:.+]] = llvm.getelementptr %[[V0]][0, 1] : (!llvm.ptr<!llvm.struct<(i8, memref<?xi8>, i8)>>) -> !llvm.ptr<memref<?xi8>>
-// CHECK-NEXT:     %[[V2:.+]] = llvm.load %[[V1]] : !llvm.ptr<memref<?xi8>>
-// CHECK-NEXT:     %[[V3:.+]] = call @_Z5hloadPKv(%[[V2]]) : (memref<?xi8>) -> f32
-// CHECK-NEXT:     return %[[V3]] : f32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @func(
+// CHECK-SAME:                    %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> f32
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(i8, memref<?xi8>, i8)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_1]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i8, memref<?xi8>, i8)>
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> memref<?xi8>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = call @_Z5hloadPKv(%[[VAL_3]]) : (memref<?xi8>) -> f32
+// CHECK:           return %[[VAL_4]] : f32
+// CHECK:         }

@@ -17,24 +17,31 @@ int create() {
   return p2.a;
 }
 
-// CHECK:   func @byval(%[[arg0:.+]]: memref<?x2xi32>, %[[arg1:.+]]: i32, %[[arg2:.+]]: memref<?x2xi32>)
-// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x2xi32>
-// CHECK-NEXT:     affine.store %[[V0]], %[[arg2]][0, 0] : memref<?x2xi32>
-// CHECK-NEXT:     %[[V1:.+]] = affine.load %[[arg0]][0, 1] : memref<?x2xi32>
-// CHECK-NEXT:     affine.store %[[V1]], %[[arg2]][0, 1] : memref<?x2xi32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @create() -> i32
-// CHECK-DAG:     %[[c2_i32:.+]] = arith.constant 2 : i32
-// CHECK-DAG:     %[[c1_i32:.+]] = arith.constant 1 : i32
-// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %[[c0_i32]], %[[V1]][0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %[[c1_i32]], %[[V1]][0, 1] : memref<1x2xi32>
-// CHECK-NEXT:     %[[V2:.+]] = memref.cast %[[V1]] : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     %[[V3:.+]] = memref.cast %[[V0]] : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     call @byval0(%[[V2]], %[[c2_i32]], %[[V3]]) : (memref<?x2xi32>, i32, memref<?x2xi32>) -> ()
-// CHECK-NEXT:     %[[V4:.+]] = affine.load %[[V0]][0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     return %[[V4]] : i32
-// CHECK-NEXT:   }
+
+
+// CHECK-LABEL:   func.func @byval(
+// CHECK-SAME:                     %[[VAL_0:[a-zA-Z0-9]*]]: memref<?x2xi32>,
+// CHECK-SAME:                     %[[VAL_1:[A-Za-z0-9_]*]]: i32,
+// CHECK-SAME:                     %[[VAL_2:[A-Za-z0-9_]*]]: memref<?x2xi32>)
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 0] : memref<?x2xi32>
+// CHECK:           affine.store %[[VAL_3]], %[[VAL_2]][0, 0] : memref<?x2xi32>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 1] : memref<?x2xi32>
+// CHECK:           affine.store %[[VAL_4]], %[[VAL_2]][0, 1] : memref<?x2xi32>
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @create() -> i32
+// CHECK-DAG:           %[[VAL_0:[A-Za-z0-9_]*]] = arith.constant 2 : i32
+// CHECK-DAG:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 1 : i32
+// CHECK-DAG:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 0 : i32
+// CHECK-DAG:           %[[VAL_3:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x2xi32>
+// CHECK-DAG:           %[[VAL_4:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x2xi32>
+// CHECK-DAG:           %[[VAL_5:[A-Za-z0-9_]*]] = memref.cast %[[VAL_4]] : memref<1x2xi32> to memref<?x2xi32>
+// CHECK-DAG:           affine.store %[[VAL_2]], %[[VAL_4]][0, 0] : memref<1x2xi32>
+// CHECK-DAG:           affine.store %[[VAL_1]], %[[VAL_4]][0, 1] : memref<1x2xi32>
+// CHECK-DAG:           %[[VAL_6:[A-Za-z0-9_]*]] = memref.cast %[[VAL_3]] : memref<1x2xi32> to memref<?x2xi32>
+// CHECK:           call @byval0(%[[VAL_5]], %[[VAL_0]], %[[VAL_6]]) : (memref<?x2xi32>, i32, memref<?x2xi32>) -> ()
+// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = affine.load %[[VAL_3]][0, 0] : memref<1x2xi32>
+// CHECK:           return %[[VAL_7]] : i32
+// CHECK:         }
+

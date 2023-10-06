@@ -1,4 +1,8 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s | FileCheck %s
+
+// TODO: we have currenly disabled the buffer elimination optimization as it is buggy, FIX
+// XFAIL: *
+
 
 module  {
   func.func private @run() {

@@ -161,12 +161,12 @@ bool MLIRScanner::isTrivialAffineLoop(clang::ForStmt *fors,
 void MLIRScanner::buildAffineLoopImpl(
     clang::ForStmt *fors, mlir::Location loc, mlir::Value lb, mlir::Value ub,
     const mlirclang::AffineLoopDescriptor &descr) {
-  auto affineOp = builder.create<AffineForOp>(
+  auto affineOp = builder.create<affine::AffineForOp>(
       loc, lb, builder.getSymbolIdentityMap(), ub,
       builder.getSymbolIdentityMap(), descr.getStep(),
-      /*iterArgs=*/llvm::None);
+      /*iterArgs=*/std::nullopt);
 
-  auto &reg = affineOp.getLoopBody();
+  auto &reg = affineOp.getRegion();
 
   auto val = (mlir::Value)affineOp.getInductionVar();
 
@@ -196,7 +196,7 @@ void MLIRScanner::buildAffineLoopImpl(
   Visit(fors->getBody());
 
   builder.setInsertionPointToEnd(&reg.front());
-  builder.create<AffineYieldOp>(loc);
+  builder.create<affine::AffineYieldOp>(loc);
 
   // TODO: set the value of the iteration value to the final bound at the
   // end of the loop.
@@ -257,7 +257,7 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
             cond);
       }
       if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-        auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+        auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
         cond = builder.create<mlir::LLVM::ICmpOp>(
             loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
       }
@@ -343,7 +343,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
     }
@@ -732,7 +732,7 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
     }
@@ -795,7 +795,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
     if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-      auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+      auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
     }
@@ -843,7 +843,7 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
         loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
   }
   if (auto LT = cond.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
-    auto nullptr_llvm = builder.create<mlir::LLVM::NullOp>(loc, LT);
+    auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
     cond = builder.create<mlir::LLVM::ICmpOp>(
         loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
   }

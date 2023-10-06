@@ -28,25 +28,32 @@ void a() {
     mbasic_stringbuf a;
 }
 
-// CHECK:   func.func @_Z1av() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = memref.cast %[[V0]] : memref<1x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>> to memref<?x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>
-// CHECK-NEXT: call @_ZN16mbasic_stringbufC1Ev(%[[V1]]) : (memref<?x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK: func.func @_ZN16mbasic_stringbufC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) -> !llvm.ptr<!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[V0]]) : (!llvm.ptr<!llvm.struct<(struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) -> memref<?x!llvm.struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
-// CHECK-NEXT:     call @_ZN1AC1Ev(%[[V1]]) : (memref<?x!llvm.struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> ()
-// CHECK-NEXT: return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN1AC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c3_i32:.+]] = arith.constant 3 : i32
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> !llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>
-// CHECK-NEXT:     %[[V1:.+]] = llvm.getelementptr %[[V0]][0, 1] : (!llvm.ptr<struct<packed (ptr<ptr<func<i32 (...)>>>, i32, array<4 x i8>)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %[[c3_i32]], %[[V1]] : !llvm.ptr<i32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN12_Alloc_hiderC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(i8)>, memref<?xi8>)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z1av()
+// CHECK:           %[[VAL_0:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = memref.cast %[[VAL_0]] : memref<1x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>> to memref<?x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>
+// CHECK:           call @_ZN16mbasic_stringbufC1Ev(%[[VAL_1]]) : (memref<?x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) -> ()
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN16mbasic_stringbufC1Ev(
+// CHECK-SAME:                                         %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>)
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(struct<packed (ptr, i32, array<4 x i8>)>, !llvm.struct<(struct<(i8)>, memref<?xi8>)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_1]]) : (!llvm.ptr) -> memref<?x!llvm.struct<packed (ptr, i32, array<4 x i8>)>>
+// CHECK:           call @_ZN1AC1Ev(%[[VAL_2]]) : (memref<?x!llvm.struct<packed (ptr, i32, array<4 x i8>)>>) -> ()
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN1AC1Ev(
+// CHECK-SAME:                         %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<packed (ptr, i32, array<4 x i8>)>>)
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 3 : i32
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<packed (ptr, i32, array<4 x i8>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<packed (ptr, i32, array<4 x i8>)>
+// CHECK:           llvm.store %[[VAL_1]], %[[VAL_3]] : i32, !llvm.ptr
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN12_Alloc_hiderC1Ev(
+// CHECK-SAME:                                     %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(i8)>, memref<?xi8>)>>)
+// CHECK:           return
+// CHECK:         }
+

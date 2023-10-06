@@ -13,7 +13,7 @@ void run(cudaStream_t stream1, int *array, int n) {
     square<<< 10, 20, 0, stream1>>> (array, n) ;
 }
 
-// CHECK:   func.func @_Z3runP10cudaStreamPii(%[[arg0:.+]]: memref<?x!llvm.struct<()>>, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @_Z3runP10cudaStreamPii(%[[arg0:.+]]: memref<?x!llvm.struct<()>>, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: i32)  
 // CHECK-DAG:     %[[c10:.+]] = arith.constant 10 : index
 // CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG:     %[[c20:.+]] = arith.constant 20 : index

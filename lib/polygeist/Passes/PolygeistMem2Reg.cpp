@@ -1,4 +1,4 @@
-//===- Mem2Reg.cpp - MemRef DataFlow Optimization pass ------ -*-===//
+//===- PolygeistMem2Reg.cpp - MemRef DataFlow Optimization pass ------ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -201,7 +201,7 @@ namespace {
 // currently only eliminates the stores only if no other loads/uses (other
 // than dealloc) remain.
 //
-struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
+struct PolygeistMem2Reg : public PolygeistMem2RegBase<PolygeistMem2Reg> {
   void runOnOperation() override;
 
   // return if changed
@@ -215,8 +215,8 @@ struct Mem2Reg : public Mem2RegBase<Mem2Reg> {
 
 /// Creates a pass to perform optimizations relying on memref dataflow such as
 /// store to load forwarding, elimination of dead stores, and dead allocs.
-std::unique_ptr<Pass> mlir::polygeist::createMem2RegPass() {
-  return std::make_unique<Mem2Reg>();
+std::unique_ptr<Pass> mlir::polygeist::createPolygeistMem2RegPass() {
+  return std::make_unique<PolygeistMem2Reg>();
 }
 
 Match matchesIndices(mlir::OperandRange ops, const std::vector<Offset> &idx) {
@@ -281,7 +281,7 @@ public:
   ValueOrPlaceholder *get(Value val);
   ValueOrPlaceholder *get(Block *val);
   ValueOrPlaceholder *get(scf::IfOp val, ValueOrPlaceholder *ifVal);
-  ValueOrPlaceholder *get(AffineIfOp val, ValueOrPlaceholder *ifVal);
+  ValueOrPlaceholder *get(affine::AffineIfOp val, ValueOrPlaceholder *ifVal);
   ValueOrPlaceholder *get(scf::ExecuteRegionOp val);
 
   void replaceValue(Value orig, Value post);
@@ -327,7 +327,7 @@ public:
     if (ifLastVal)
       metaMap.opOperands[ifOp] = ifLastVal;
   }
-  ValueOrPlaceholder(AffineIfOp ifOp, ReplaceableUse ifLastVal,
+  ValueOrPlaceholder(affine::AffineIfOp ifOp, ReplaceableUse ifLastVal,
                      ReplacementHandler &metaMap)
       : metaMap(metaMap), overwritten(false), val(nullptr),
         valueAtStart(nullptr), exOp(nullptr), ifOp(ifOp) {
@@ -374,7 +374,7 @@ public:
         }
         return true;
       } else {
-        auto aifOp = cast<AffineIfOp>(ifOp);
+        auto aifOp = cast<affine::AffineIfOp>(ifOp);
         auto thenFind = metaMap.valueAtEndOfBlock.find(getThenBlock(aifOp));
         assert(thenFind != metaMap.valueAtEndOfBlock.end());
         assert(thenFind->second);
@@ -545,8 +545,8 @@ public:
   Value materializeIf(bool full = true) {
     if (auto sop = dyn_cast<scf::IfOp>(ifOp))
       return materializeIf<scf::IfOp, scf::YieldOp>(sop, full);
-    return materializeIf<AffineIfOp, AffineYieldOp>(cast<AffineIfOp>(ifOp),
-                                                    full);
+    return materializeIf<affine::AffineIfOp, affine::AffineYieldOp>(
+        cast<affine::AffineIfOp>(ifOp), full);
   }
 
   template <typename IfType, typename YieldType>
@@ -707,7 +707,7 @@ ValueOrPlaceholder *ReplacementHandler::get(scf::IfOp val,
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
   return PH;
 }
-ValueOrPlaceholder *ReplacementHandler::get(AffineIfOp val,
+ValueOrPlaceholder *ReplacementHandler::get(affine::AffineIfOp val,
                                             ValueOrPlaceholder *ifVal) {
   ValueOrPlaceholder *PH;
   allocs.emplace_back(PH = new ValueOrPlaceholder(val, ifVal, *this));
@@ -1072,7 +1072,7 @@ const std::set<std::string> &getNonCapturingFunctions();
 std::set<std::string> NoWriteFunctions = {"exit", "__errno_location"};
 // This is a straightforward implementation not optimized for speed. Optimize
 // if needed.
-bool Mem2Reg::forwardStoreToLoad(
+bool PolygeistMem2Reg::forwardStoreToLoad(
     mlir::Value AI, std::vector<Offset> idx,
     SmallVectorImpl<Operation *> &loadOpsToErase,
     DenseMap<Operation *, SmallVector<Operation *>> &capturedAliasing) {
@@ -1165,7 +1165,7 @@ bool Mem2Reg::forwardStoreToLoad(
         }
         continue;
       }
-      if (auto loadOp = dyn_cast<AffineLoadOp>(user)) {
+      if (auto loadOp = dyn_cast<affine::AffineLoadOp>(user)) {
         if (!modified &&
             matchesIndices(loadOp.getAffineMapAttr().getValue(),
                            loadOp.getMapOperands(), idx) == Match::Exact) {
@@ -1210,7 +1210,7 @@ bool Mem2Reg::forwardStoreToLoad(
         continue;
       }
 
-      if (auto storeOp = dyn_cast<AffineStoreOp>(user)) {
+      if (auto storeOp = dyn_cast<affine::AffineStoreOp>(user)) {
         if (storeOp.getValue() == val) {
           captured = true;
         } else if (!modified) {
@@ -1473,7 +1473,7 @@ bool Mem2Reg::forwardStoreToLoad(
                 lastVal = metaMap.get(ifOp, lastVal);
               }
               continue;
-            } else if (auto ifOp = dyn_cast<mlir::AffineIfOp>(a)) {
+            } else if (auto ifOp = dyn_cast<mlir::affine::AffineIfOp>(a)) {
               handleBlock(*ifOp.getThenRegion().begin(), lastVal);
               if (ifOp.getElseRegion().getBlocks().size()) {
                 handleBlock(*ifOp.getElseRegion().begin(), lastVal);
@@ -1501,7 +1501,7 @@ bool Mem2Reg::forwardStoreToLoad(
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValue());
             }
-          } else if (auto storeOp = dyn_cast<AffineStoreOp>(a)) {
+          } else if (auto storeOp = dyn_cast<affine::AffineStoreOp>(a)) {
             if (allStoreOps.count(storeOp)) {
               lastVal = metaMap.get(storeOp.getValueToStore());
             }
@@ -1811,11 +1811,11 @@ bool isPromotable(mlir::Value AI) {
         continue;
       } else if (auto SO = dyn_cast<LLVM::StoreOp>(U)) {
         continue;
-      } else if (auto LO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto LO = dyn_cast<affine::AffineLoadOp>(U)) {
         continue;
       } else if (auto SO = dyn_cast<memref::StoreOp>(U)) {
         continue;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         continue;
       } else if (isa<memref::DeallocOp>(U)) {
         continue;
@@ -1857,7 +1857,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineLoadOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineLoadOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -1877,7 +1877,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
           vec.emplace_back(idx);
         }
         lastStored[vec]++;
-      } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
         std::vector<Offset> vec;
         auto map = SO.getAffineMapAttr().getValue();
         for (auto idx : map.getResults()) {
@@ -1899,7 +1899,7 @@ std::vector<std::vector<Offset>> getLastStored(mlir::Value AI) {
   return todo;
 }
 
-void Mem2Reg::runOnOperation() {
+void PolygeistMem2Reg::runOnOperation() {
   auto *f = getOperation();
 
   // Variable indicating that a memref has had a load removed
@@ -1999,7 +1999,7 @@ void Mem2Reg::runOnOperation() {
               break;
             }
             toErase.push_back(U);
-          } else if (auto SO = dyn_cast<AffineStoreOp>(U)) {
+          } else if (auto SO = dyn_cast<affine::AffineStoreOp>(U)) {
             if (SO.getValue() == val) {
               error = true;
               break;

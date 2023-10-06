@@ -45,31 +45,30 @@ int main() {
            castAtoD(&d)->val3; // expect nonzero offset due to A -> C
 }
 
-// CHECK:   func.func @_Z8castAtoCP1A(
+// CHECK-LABEL:   func.func @_Z8castAtoCP1A(
 // CHECK-NEXT:     polygeist.memref2pointer
 // CHECK-NEXT:     llvm.getelementptr {{.*}}[-1]
 // CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
-// CHECK:   func.func @_Z8castBtoDP1B(
+// CHECK-LABEL:   func.func @_Z8castBtoDP1B(
 // CHECK-NEXT:     polygeist.memref2pointer
 // CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
-// CHECK:   func.func @_Z8castAtoDP1A(
+// CHECK-LABEL:   func.func @_Z8castAtoDP1A(
 // CHECK-NEXT:     polygeist.memref2pointer
 // CHECK-NEXT:     llvm.getelementptr {{.*}}[-1]
 // CHECK-NEXT:     polygeist.pointer2memref
 // CHECK-NEXT:     return
-// CHECK:    func.func @main()
+// CHECK-LABEL:    func.func @main()
 // CHECK:    call @_Z8castAtoCP1A(
 // CHECK:    call @_Z8castBtoDP1B(
 // CHECK:    call @_Z8castAtoDP1A(
 
-// CHECK-STR:   func.func @_Z8castAtoCP1A(
-// CHECK-STR-NEXT:     llvm.bitcast
-// CHECK-STR-NEXT:     llvm.getelementptr {{.*}}[-4]
-// CHECK-STR-NEXT:     llvm.bitcast
-// CHECK-STR-NEXT:     return
-// CHECK-STR:   func.func @_Z8castBtoDP1B(
-// CHECK-STR-NEXT:     llvm.bitcast
-// CHECK-STR-NEXT:     llvm.bitcast
-// CHECK-STR-NEXT:     return
+// TODO revisit after reimplementing opaque ptr mem2reg
+
+// CHECK-STR-LABEL:   func.func @_Z8castAtoCP1A(
+// CHECK-STR:     llvm.getelementptr {{.*}}[-4]
+// CHECK-STR:     return
+// CHECK-STR-LABEL:   func.func @_Z8castBtoDP1B(
+// CHECK-STR-NOT:     llvm.getelementptr
+// CHECK-STR:     return

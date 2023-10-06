@@ -14,17 +14,18 @@ void kernel_correlation(int start, int end) {
   }
 }
 
-// CHECK: #map = affine_map<()[s0] -> (s0 + 1)>
-// CHECK: kernel_correlation
-// CHECK-DAG:     %[[Cm1:.+]] = arith.constant -1 : index
-// CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %{{.*}} : i32 to index
-// CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %{{.*}} : i32 to index
-// CHECK-NEXT:     affine.for %[[arg2:.+]] = %[[V1]] to #map()[%[[V0]]] {
-// CHECK-NEXT:       %[[V2:.+]] = arith.subi %[[arg2]], %[[V1]] : index
-// CHECK-NEXT:       %[[V3:.+]] = arith.muli %[[V2]], %[[Cm1]] : index
-// CHECK-NEXT:       %[[V4:.+]] = arith.addi %[[V0]], %[[V3]] : index
-// CHECK-NEXT:       %[[V5:.+]] = arith.index_cast %[[V4]] : index to i32
-// CHECK-NEXT:       call @use(%[[V5]]) : (i32) -> ()
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @kernel_correlation(
+// CHECK-SAME:                                  %[[VAL_0:[A-Za-z0-9_]*]]: i32,
+// CHECK-SAME:                                  %[[VAL_1:[A-Za-z0-9_]*]]: i32)  
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_1]] : i32 to index
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_0]] : i32 to index
+// CHECK:           affine.for %[[VAL_4:[A-Za-z0-9_]*]] = %[[VAL_3]] to #map(){{\[}}%[[VAL_2]]] {
+// CHECK:             %[[VAL_5:[A-Za-z0-9_]*]] = arith.subi %[[VAL_4]], %[[VAL_3]] : index
+// CHECK:             %[[VAL_6:[A-Za-z0-9_]*]] = arith.subi %[[VAL_2]], %[[VAL_5]] : index
+// CHECK:             %[[VAL_7:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_6]] : index to i32
+// CHECK:             func.call @use(%[[VAL_7]]) : (i32) -> ()
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
+// CHECK:         func.func private @use(i32) 
+

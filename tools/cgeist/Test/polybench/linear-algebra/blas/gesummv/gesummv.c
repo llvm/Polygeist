@@ -161,7 +161,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: func @kernel_gesummv(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) {
+// CHECK: func @kernel_gesummv(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<1300x1300xf64>, %arg4: memref<1300x1300xf64>, %arg5: memref<1300xf64>, %arg6: memref<1300xf64>, %arg7: memref<1300xf64>) 
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  affine.for %arg8 = 0 to %0 {

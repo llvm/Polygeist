@@ -14,26 +14,31 @@ void kern() {
     Meta m;
 }
 
-// CHECK:   func.func @_Z4kernv() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>
-// CHECK-NEXT:     %[[V1:.+]] = memref.cast %[[V0]] : memref<1x!llvm.struct<(array<25 x struct<(i32)>>, f64)>> to memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>
-// CHECK-NEXT:     call @_ZN4MetaC1Ev(%[[V1]]) : (memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN4MetaC1Ev(%[[arg0:.+]]: memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-DAG:     %[[c25:.+]] = arith.constant 25 : index
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>) -> !llvm.ptr<struct<(array<25 x struct<(i32)>>, f64)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[V0]]) : (!llvm.ptr<struct<(array<25 x struct<(i32)>>, f64)>>) -> memref<25x1xi32>
-// CHECK-NEXT:     scf.for %[[arg1:.+]] = %[[c0]] to %[[c25]] step %[[c1]] {
-// CHECK-NEXT:       %[[V2:.+]] = "polygeist.subindex"(%[[V1]], %[[arg1]]) : (memref<25x1xi32>, index) -> memref<?x1xi32>
-// CHECK-NEXT:       func.call @_ZN11AIntDividerC1Ev(%[[V2:.+]]) : (memref<?x1xi32>) -> ()
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN11AIntDividerC1Ev(%[[arg0:.+]]: memref<?x1xi32>) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c3_i32:.+]] = arith.constant 3 : i32
-// CHECK-NEXT:     affine.store %[[c3_i32]], %[[arg0]][0, 0] : memref<?x1xi32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z4kernv()  
+// CHECK:           %[[VAL_0:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = memref.cast %[[VAL_0]] : memref<1x!llvm.struct<(array<25 x struct<(i32)>>, f64)>> to memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>
+// CHECK:           call @_ZN4MetaC1Ev(%[[VAL_1]]) : (memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>) -> ()
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN4MetaC1Ev(
+// CHECK-SAME:                            %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>)  
+// CHECK-DAG:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 0 : index
+// CHECK-DAG:           %[[VAL_3:[A-Za-z0-9_]*]] = arith.constant 25 : index
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(array<25 x struct<(i32)>>, f64)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_4]]) : (!llvm.ptr) -> memref<25x1xi32>
+// CHECK:           scf.for %[[VAL_6:[A-Za-z0-9_]*]] = %[[VAL_2]] to %[[VAL_3]] step %[[VAL_1]] {
+// CHECK:             %[[VAL_7:[A-Za-z0-9_]*]] = "polygeist.subindex"(%[[VAL_5]], %[[VAL_6]]) : (memref<25x1xi32>, index) -> memref<?x1xi32>
+// CHECK:             func.call @_ZN11AIntDividerC1Ev(%[[VAL_7]]) : (memref<?x1xi32>) -> ()
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN11AIntDividerC1Ev(
+// CHECK-SAME:                                    %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x1xi32>)  
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 3 : i32
+// CHECK:           affine.store %[[VAL_1]], %[[VAL_0]][0, 0] : memref<?x1xi32>
+// CHECK:           return
+// CHECK:         }
+

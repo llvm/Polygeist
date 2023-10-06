@@ -5,8 +5,8 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -28,13 +28,13 @@ struct PropagateInLoopBody : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp forOp,
                                 PatternRewriter &rewriter) const final {
-    if (!forOp.hasIterOperands())
+    if (!forOp.getInits().size())
       return failure();
 
     Block &block = forOp.getRegion().front();
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
     bool matched = false;
-    for (auto it : llvm::zip(forOp.getIterOperands(), forOp.getRegionIterArgs(),
+    for (auto it : llvm::zip(forOp.getInits(), forOp.getRegionIterArgs(),
                              yieldOp.getOperands())) {
       Value iterOperand = std::get<0>(it);
       Value regionArg = std::get<1>(it);
@@ -99,7 +99,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
 
   LogicalResult matchAndRewrite(scf::ForOp forOp,
                                 PatternRewriter &rewriter) const final {
-    if (!forOp.hasIterOperands())
+    if (!forOp.getInits().size())
       return failure();
 
     Block &block = forOp.getRegion().front();
@@ -116,8 +116,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
     if (condArg.getOwner()->getParentOp() != forOp)
       return failure();
     // which starts as true
-    if (!matchPattern(forOp.getIterOperands()[condArg.getArgNumber() - 1],
-                      m_One()))
+    if (!matchPattern(forOp.getInits()[condArg.getArgNumber() - 1], m_One()))
       return failure();
     // and is false unless coming from inside the if
     auto forYieldOp = cast<scf::YieldOp>(block.getTerminator());
@@ -135,7 +134,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
     bool changed = false;
     for (auto it :
          llvm::zip(forOp.getRegionIterArgs(), forYieldOp.getOperands(),
-                   forOp.getResults(), forOp.getIterOperands())) {
+                   forOp.getResults(), forOp.getInits())) {
       auto regionArg = std::get<0>(it);
       Value forYieldOperand = std::get<1>(it);
       Value res = std::get<2>(it);
@@ -288,7 +287,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
     Block &block = forOp.getRegion().front();
     auto yieldOp = cast<scf::YieldOp>(block.getTerminator());
 
-    for (auto it : llvm::zip(forOp.getIterOperands(),   // iter from outside
+    for (auto it : llvm::zip(forOp.getInits(),          // iter from outside
                              forOp.getRegionIterArgs(), // iter inside region
                              forOp.getResults(),        // op results
                              yieldOp.getOperands()      // iter yield
@@ -403,7 +402,7 @@ struct ForOpInductionReplacement : public OpRewritePattern<scf::ForOp> {
 };
 
 /// Remove unused iterator operands.
-// TODO: BlockAndValueMapping for indvar.
+// TODO: IRMapping for indvar.
 struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
   using OpRewritePattern<ForOp>::OpRewritePattern;
 
@@ -427,7 +426,7 @@ struct RemoveUnusedArgs : public OpRewritePattern<ForOp> {
     }
 
     // no work to do.
-    if (usedOperands.size() == op.getIterOperands().size())
+    if (usedOperands.size() == op.getInits().size())
       return failure();
 
     auto newForOp =
@@ -953,7 +952,7 @@ struct MoveWhileToFor : public OpRewritePattern<WhileOp> {
     for (auto oldYieldArg : oldYield.getResults())
       yieldOperands.push_back(oldYieldArg);
 
-    BlockAndValueMapping outmap;
+    IRMapping outmap;
     outmap.map(loop.getBefore().getArguments(), yieldOperands);
     for (auto arg : condOp.getArgs())
       yieldOperands.push_back(outmap.lookupOrDefault(arg));
@@ -1018,7 +1017,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       SmallVector<BlockArgument, 2> origAfterArgs(
           loop.getAfterArguments().begin(), loop.getAfterArguments().end());
 
-      BlockAndValueMapping preMap;
+      IRMapping preMap;
       for (auto tup : llvm::zip(origBeforeArgs, loop.getInits()))
         preMap.map(std::get<0>(tup), std::get<1>(tup));
       for (auto &op : loop.getBefore().front()) {
@@ -1069,7 +1068,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       newBeforeYieldArgs.push_back(trueInd);
 
       {
-        BlockAndValueMapping postMap;
+        IRMapping postMap;
         postMap.map(helper.indVar, trueInd);
         auto newCmp = cast<CmpIOp>(rewriter.clone(*helper.cmpIOp, postMap));
         rewriter.create<ConditionOp>(condOp.getLoc(), newCmp,
@@ -1101,7 +1100,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
       rewriter.mergeBlocks(post, guard.thenBlock());
 
       {
-        BlockAndValueMapping postMap;
+        IRMapping postMap;
         for (auto tup : llvm::zip(origBeforeArgs, oldYield.getOperands())) {
           postMap.map(std::get<0>(tup), std::get<1>(tup));
         }
@@ -1126,7 +1125,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
 
       rewriter.setInsertionPointToEnd(&nop.getAfter().front());
       SmallVector<Value> postAfter(guard.getResults());
-      BlockAndValueMapping postMap;
+      IRMapping postMap;
       postMap.map(helper.indVar, trueInd);
       postMap.map(postElseYields[helper.afterArgIdx], trueInd);
       assert(helper.addIOp.getLhs() == postElseYields[helper.afterArgIdx] ||
@@ -2178,7 +2177,7 @@ struct WhileShiftToInduction : public OpRewritePattern<WhileOp> {
     auto newWhile = rewriter.create<WhileOp>(loop.getLoc(), postTys, newInits);
     rewriter.createBlock(&newWhile.getBefore());
 
-    BlockAndValueMapping map;
+    IRMapping map;
     Value newIndVar;
     for (auto a : loop.getBefore().front().getArguments()) {
       auto arg = newWhile.getBefore().addArgument(

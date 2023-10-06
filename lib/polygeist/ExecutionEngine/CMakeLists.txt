@@ -15,7 +15,7 @@ if(POLYGEIST_ENABLE_CUDA)
     )
 
   set(bc_flags -c -emit-llvm -std=c++17 -fvisibility=hidden
-    -O3 -nocudalib -Xclang -no-opaque-pointers
+    -O3 -nocudalib
     )
 
   set(cuda_includes
@@ -81,7 +81,6 @@ if(POLYGEIST_ENABLE_ROCM)
     -O3
     #-nocudalib
     -D__HIP_PLATFORM_AMD__
-    -Xclang -no-opaque-pointers
     -I${ROCM_PATH}/include
     -DPOLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
     -DPOLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"

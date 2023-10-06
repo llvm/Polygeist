@@ -16,7 +16,7 @@ include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
-include "mlir/Dialect/LLVMIR/LLVMOpsInterfaces.td"
+include "mlir/Dialect/LLVMIR/LLVMInterfaces.td"
 
 def UndefOp
     : Polygeist_Op<"undef", [Pure]> {
@@ -197,6 +197,21 @@ def Memref2PointerOp : Polygeist_Op<"memref2pointer", [
   }];
 }
 
+def MemrefCastOp : Polygeist_Op<"memref_cast", [
+  ViewLikeOpInterface, Pure
+]> {
+  let summary = "Cast memrefs like c/c++ pointers";
+
+  let arguments = (ins AnyMemRef : $source);
+  let results = (outs AnyMemRef : $result);
+
+  //let hasFolder = 1;
+  //let hasCanonicalizer = 1;
+  let extraClassDeclaration = [{
+    ::mlir::Value getViewSource() { return getSource(); }
+  }];
+}
+
 def Pointer2MemrefOp : Polygeist_Op<"pointer2memref", [
   ViewLikeOpInterface, Pure
 ]> {
@@ -218,7 +233,7 @@ def GetFuncOp : Polygeist_Op<"get_func",
   let summary = "get the pointer pointing to a function";
   let arguments = (ins FlatSymbolRefAttr:$name);
   let results = (outs LLVM_AnyPointer : $result);
-  let assemblyFormat = "$name `:` type($result) attr-dict";
+  // let assemblyFormat = "$name `:` type($result) attr-dict";
   let hasCanonicalizer = 1;
 }
 

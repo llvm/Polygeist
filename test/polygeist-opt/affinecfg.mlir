@@ -105,11 +105,11 @@ module {
 // -----
 
 module {
-  llvm.func @atoi(!llvm.ptr<i8>) -> i32
-func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
+  llvm.func @atoi(!llvm.ptr) -> i32
+func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
   %c2_i32 = arith.constant 2 : i32
   %c16_i32 = arith.constant 16 : i32
-    %58 = llvm.call @atoi(%arg1) : (!llvm.ptr<i8>) -> i32
+    %58 = llvm.call @atoi(%arg1) : (!llvm.ptr) -> i32
   %40 = arith.divsi %58, %c16_i32 : i32
   affine.for %arg2 = 1 to 10 {
       %62 = arith.index_cast %arg2 : index to i32
@@ -123,10 +123,10 @@ func.func @_Z7runTestiPPc(%arg0: i32, %39: memref<?xi32>, %arg1: !llvm.ptr<i8>) 
 }
 }
 
-// CHECK:   func.func @_Z7runTestiPPc(%[[arg0:.+]]: i32, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: !llvm.ptr<i8>) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @_Z7runTestiPPc(%[[arg0:.+]]: i32, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:     %[[c2_i32:.+]] = arith.constant 2 : i32
 // CHECK-NEXT:     %[[c16_i32:.+]] = arith.constant 16 : i32
-// CHECK-NEXT:     %[[V0:.+]] = llvm.call @atoi(%[[arg2]]) : (!llvm.ptr<i8>) -> i32
+// CHECK-NEXT:     %[[V0:.+]] = llvm.call @atoi(%[[arg2]]) : (!llvm.ptr) -> i32
 // CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %[[V0]] : i32 to index
 // CHECK-NEXT:     %[[V2:.+]] = arith.divsi %[[V0]], %[[c16_i32]] : i32
 // CHECK-NEXT:     %[[V3:.+]] = arith.index_cast %[[V2]] : i32 to index

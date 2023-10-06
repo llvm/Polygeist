@@ -6,8 +6,8 @@
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -56,7 +56,7 @@
 
 #include <mutex>
 
-#define DEBUG_TYPE "serialize-to-hsaco"
+#define DEBUG_TYPE "polygeist-serialize-to-hsaco"
 
 using namespace mlir;
 
@@ -71,7 +71,7 @@ public:
                        std::string rocmPath = "/opt/rocm",
                        bool outputIntermediate = false);
 
-  StringRef getArgument() const override { return "gpu-to-hsaco"; }
+  StringRef getArgument() const override { return "polygeist-gpu-to-hsaco"; }
   StringRef getDescription() const override {
     return "Lower GPU kernel function to HSACO binary annotations";
   }
@@ -86,7 +86,7 @@ private:
   void getDependentDialects(DialectRegistry &registry) const override;
 
   // Loads LLVM bitcode libraries
-  Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
+  std::optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
   loadLibraries(SmallVectorImpl<char> &path,
                 SmallVectorImpl<StringRef> &libraries,
                 llvm::LLVMContext &context);
@@ -203,7 +203,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
 
   tmpModule->getRegion(0).front().erase();
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   gpum->getRegion(0).cloneInto(&tmpModule->getRegion(0), mapping);
 
   std::unique_ptr<llvm::Module> llvmModule =
@@ -323,7 +323,7 @@ SerializeToHsacoPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
   if (needOckl)
     libraries.push_back("ockl.bc");
 
-  Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>> mbModules;
+  std::optional<SmallVector<std::unique_ptr<llvm::Module>, 3>> mbModules;
   std::string theRocmPath = rocmPath;
   llvm::SmallString<32> bitcodePath(theRocmPath);
   llvm::sys::path::append(bitcodePath, "amdgcn", "bitcode");
@@ -499,7 +499,7 @@ SerializeToHsacoPass::serializeISA(const std::string &isa) {
   return createHsaco(*isaBinary);
 }
 
-Optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
+std::optional<SmallVector<std::unique_ptr<llvm::Module>, 3>>
 SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
                                     SmallVectorImpl<StringRef> &libraries,
                                     llvm::LLVMContext &context) {
@@ -509,7 +509,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
   if (!llvm::sys::fs::is_directory(path)) {
     getOperation().emitRemark() << "Bitcode path: " << path
                                 << " does not exist or is not a directory\n";
-    return llvm::None;
+    return {};
   }
 
   for (const StringRef file : libraries) {
@@ -522,7 +522,7 @@ SerializeToHsacoPass::loadLibraries(SmallVectorImpl<char> &path,
     if (!library) {
       getOperation().emitError() << "Failed to load library " << file
                                  << " from " << path << error.getMessage();
-      return llvm::None;
+      return {};
     }
     // Some ROCM builds don't strip this like they should
     if (auto *openclVersion = library->getNamedMetadata("opencl.ocl.version"))

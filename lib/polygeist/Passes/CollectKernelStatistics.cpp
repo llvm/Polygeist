@@ -84,7 +84,7 @@ static double estimateTripCount(Block *block, unsigned threadNum) {
   // TODO use memoization
 }
 
-typedef llvm::Optional<int64_t> StrideTy;
+typedef std::optional<int64_t> StrideTy;
 std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
                                        mlir::MemRefType mt,
                                        ArrayRef<int64_t> dims) {

@@ -9,12 +9,15 @@ float fp32_from_bits(uint32_t w) {
     return fp32.as_value;
 }
 
-// CHECK:   func @fp32_from_bits(%[[arg0:.+]]: i32) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x!llvm.struct<(i32)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[V0]]) : (memref<1x!llvm.struct<(i32)>>) -> !llvm.ptr<struct<(i32)>>
-// CHECK-NEXT:     %[[V2:.+]] = llvm.getelementptr %[[V1]][0, 0] : (!llvm.ptr<struct<(i32)>>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     llvm.store %[[arg0]], %[[V2]] : !llvm.ptr<i32>
-// CHECK-NEXT:     %[[V3:.+]] = llvm.bitcast %[[V2]] : !llvm.ptr<i32> to !llvm.ptr<f32>
-// CHECK-NEXT:     %[[V4:.+]] = llvm.load %[[V3]] : !llvm.ptr<f32>
-// CHECK-NEXT:     return %[[V4]] : f32
-// CHECK-NEXT:   }
+
+
+// CHECK-LABEL:   func.func @fp32_from_bits(
+// CHECK-SAME:                              %[[VAL_0:[A-Za-z0-9_]*]]: i32) -> f32
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(i32)>>
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<1x!llvm.struct<(i32)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_2]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32)>
+// CHECK:           llvm.store %[[VAL_0]], %[[VAL_3]] : i32, !llvm.ptr
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> f32
+// CHECK:           return %[[VAL_4]] : f32
+// CHECK:         }
+

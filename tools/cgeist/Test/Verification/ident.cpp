@@ -35,42 +35,54 @@ void lt_kernel_cuda(MTensorIterator& iter) {
 }
 }
 
-// CHECK:   func @lt_kernel_cuda(%[[arg0:.+]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %[[c0_i8:.+]] = arith.constant 0 : i8
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:     %[[V1:.+]] = memref.cast %[[V0]] : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>> to memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:     %[[V2:.+]] = call @_ZNK15MTensorIterator11input_dtypeEv(%[[arg0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
-// CHECK-NEXT:     %[[V3:.+]] = arith.cmpi ne, %[[V2]], %[[c0_i8]] : i8
-// CHECK-NEXT:     scf.if %[[V3]] {
-// CHECK-NEXT:     affine.store %[[arg0]], %[[V0]][0, 0] : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:       func.call @_ZZ14lt_kernel_cudaENK3$_0clEv(%[[V1:.+]]) : (memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>) -> ()
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZNK15MTensorIterator11input_dtypeEv(%[[arg0:.+]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[V0]]) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> memref<?x1xmemref<?x2xi8>>
-// CHECK-NEXT:     %[[V2:.+]] = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%[[V1]], %[[c0_i32]]) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
-// CHECK-NEXT:     %[[V3:.+]] = affine.load %[[V2]][0, 1] : memref<?x2xi8>
-// CHECK-NEXT:     return %[[V3]] : i8
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func private @_ZZ14lt_kernel_cudaENK3$_0clEv(%[[arg0:.+]]: memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>) attributes {llvm.linkage = #llvm.linkage<internal>} {
-// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
-// CHECK-NEXT:     %[[V1:.+]] = call @_ZNK15MTensorIterator6deviceEv(%[[V0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @_ZNK12MSmallVectorI12MOperandInfoEixEi(%[[arg0:.+]]: memref<?x1xmemref<?x2xi8>>, %[[arg1:.+]]: i32) -> memref<?x2xi8> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x1xmemref<?x2xi8>>
-// CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %[[arg1]] : i32 to index
-// CHECK-NEXT:     %[[V2:.+]] = "polygeist.subindex"(%[[V0]], %[[V1]]) : (memref<?x2xi8>, index) -> memref<?x2xi8>
-// CHECK-NEXT:     return %[[V2]] : memref<?x2xi8>
-// CHECK-NEXT:   }
-// CHECK:   func @_ZNK15MTensorIterator6deviceEv(%[[arg0:.+]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> !llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[V0]]) : (!llvm.ptr<!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> memref<?x1xmemref<?x2xi8>>
-// CHECK-NEXT:     %[[V2:.+]] = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%[[V1]], %[[c0_i32]]) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
-// CHECK-NEXT:     %[[V3:.+]] = affine.load %[[V2]][0, 0] : memref<?x2xi8>
-// CHECK-NEXT:     return %[[V3]] : i8
-// CHECK-NEXT:   }
+
+// CHECK-LABEL:   func.func @lt_kernel_cuda(
+// CHECK-SAME:                              %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>)
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 0 : i8
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = memref.cast %[[VAL_2]] : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>> to memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = call @_ZNK15MTensorIterator11input_dtypeEv(%[[VAL_0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = arith.cmpi ne, %[[VAL_4]], %[[VAL_1]] : i8
+// CHECK:           scf.if %[[VAL_5]] {
+// CHECK:             affine.store %[[VAL_0]], %[[VAL_2]][0, 0] : memref<1x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK:             func.call @_ZZ14lt_kernel_cudaENK3$_0clEv(%[[VAL_3]]) : (memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>) -> ()
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZNK15MTensorIterator11input_dtypeEv(
+// CHECK-SAME:                                                    %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_2]]) : (!llvm.ptr) -> memref<?x1xmemref<?x2xi8>>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%[[VAL_3]], %[[VAL_1]]) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = affine.load %[[VAL_4]][0, 1] : memref<?x2xi8>
+// CHECK:           return %[[VAL_5]] : i8
+// CHECK:         }
+
+// CHECK-LABEL:   func.func private @_ZZ14lt_kernel_cudaENK3$_0clEv(
+// CHECK-SAME:                                                      %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>)
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 0] : memref<?x1xmemref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>>
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = call @_ZNK15MTensorIterator6deviceEv(%[[VAL_1]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZNK12MSmallVectorI12MOperandInfoEixEi(
+// CHECK-SAME:                                                      %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x1xmemref<?x2xi8>>,
+// CHECK-SAME:                                                      %[[VAL_1:[A-Za-z0-9_]*]]: i32) -> memref<?x2xi8>
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 0] : memref<?x1xmemref<?x2xi8>>
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_1]] : i32 to index
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.subindex"(%[[VAL_2]], %[[VAL_3]]) : (memref<?x2xi8>, index) -> memref<?x2xi8>
+// CHECK:           return %[[VAL_4]] : memref<?x2xi8>
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZNK15MTensorIterator6deviceEv(
+// CHECK-SAME:                                              %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> i8
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(!llvm.struct<(memref<?x2xi8>)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_2]]) : (!llvm.ptr) -> memref<?x1xmemref<?x2xi8>>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = call @_ZNK12MSmallVectorI12MOperandInfoEixEi(%[[VAL_3]], %[[VAL_1]]) : (memref<?x1xmemref<?x2xi8>>, i32) -> memref<?x2xi8>
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = affine.load %[[VAL_4]][0, 0] : memref<?x2xi8>
+// CHECK:           return %[[VAL_5]] : i8
+// CHECK:         }
+

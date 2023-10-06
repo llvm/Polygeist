@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s --allow-unregistered-dialect | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s --allow-unregistered-dialect | FileCheck %s
 
 module {
   func.func @multi(%arg0: i32, %arg1: memref<?xmemref<?xi8>>, %arg2: index, %arg3: index) -> (i32, i32) {

@@ -21,8 +21,8 @@
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/ExecutionEngine/OptUtils.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/NVVM/NVVMToLLVMIRTranslation.h"
@@ -52,7 +52,7 @@
 // TODO use this library if possible, crashes for some reason
 #include <nvPTXCompiler.h>
 
-#define DEBUG_TYPE "serialize-to-cubin"
+#define DEBUG_TYPE "polygeist-serialize-to-cubin"
 
 using namespace mlir;
 
@@ -99,7 +99,7 @@ public:
                        std::string libDevicePath = "",
                        bool outputIntermediate = false);
 
-  StringRef getArgument() const override { return "gpu-to-cubin"; }
+  StringRef getArgument() const override { return "gpu-to-cubin-polygeist"; }
   StringRef getDescription() const override {
     return "Lower GPU kernel function to CUBIN binary annotations";
   }
@@ -176,7 +176,7 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       translateDataLayout(llvm::DataLayout(DL), tmpModule->getContext()));
 
   tmpModule->getRegion(0).front().erase();
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   gpum->getRegion(0).cloneInto(&tmpModule->getRegion(0), mapping);
 
   std::unique_ptr<llvm::Module> llvmModule =
@@ -283,7 +283,7 @@ SerializeToCubinPass::optimizeLlvm(llvm::Module &llvmModule,
            << "Invalid serizalize to gpu blob optimization level"
            << llvmOptLevel << "\n";
 
-  targetMachine.setOptLevel(static_cast<llvm::CodeGenOpt::Level>(llvmOptLevel));
+  targetMachine.setOptLevel(static_cast<llvm::CodeGenOptLevel>(llvmOptLevel));
 
   auto transformer =
       makeOptimizingTransformer(llvmOptLevel, /*sizeLevel=*/0, &targetMachine);
@@ -379,7 +379,7 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
 
   size_t cubinSize = membuf->getBufferSize();
   auto result = std::make_unique<std::vector<char>>(cubinSize);
-  memcpy(&(*result)[0], membuf->getBufferStart(), cubinSize);
+  memcpy(result->data(), membuf->getBufferStart(), cubinSize);
 
   return result;
 }

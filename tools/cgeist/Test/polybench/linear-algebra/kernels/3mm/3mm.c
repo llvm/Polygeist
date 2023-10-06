@@ -183,7 +183,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:   func @kernel_3mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: memref<800x900xf64>, %arg6: memref<800x1000xf64>, %arg7: memref<1000x900xf64>, %arg8: memref<900x1100xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<1200x1100xf64>, %arg11: memref<800x1100xf64>) {
+// CHECK:   func @kernel_3mm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: i32, %arg4: i32, %arg5: memref<800x900xf64>, %arg6: memref<800x1000xf64>, %arg7: memref<1000x900xf64>, %arg8: memref<900x1100xf64>, %arg9: memref<900x1200xf64>, %arg10: memref<1200x1100xf64>, %arg11: memref<800x1100xf64>) 
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  %1 = index_cast %arg1 : i32 to index

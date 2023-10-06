@@ -186,7 +186,7 @@ int main(int argc, char** argv)
 
 // CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
 
-// CHECK:    func @kernel_fdtd_2d(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<1000x1200xf64>, %arg4: memref<1000x1200xf64>, %arg5: memref<1000x1200xf64>, %arg6: memref<500xf64>) {
+// CHECK:    func @kernel_fdtd_2d(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<1000x1200xf64>, %arg4: memref<1000x1200xf64>, %arg5: memref<1000x1200xf64>, %arg6: memref<500xf64>) 
 // CHECK-NEXT:    %cst = constant 5.000000e-01 : f64
 // CHECK-NEXT:    %cst_0 = constant 0.69999999999999996 : f64
 // CHECK-NEXT:    %0 = index_cast %arg1 : i32 to index

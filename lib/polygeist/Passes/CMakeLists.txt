@@ -1,9 +1,11 @@
 add_mlir_dialect_library(MLIRPolygeistTransforms
+  ConvertToOpaquePtr.cpp
   AffineCFG.cpp
   AffineReduction.cpp
   CanonicalizeFor.cpp
   LoopRestructure.cpp
-  Mem2Reg.cpp
+  PolygeistMem2Reg.cpp
+  PolygeistCanonicalize.cpp
   ParallelLoopDistribute.cpp
   ParallelLICM.cpp
   OpenMPOpt.cpp
@@ -35,7 +37,6 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRAffineUtils
   MLIRFuncDialect
   MLIRFuncTransforms
-  MLIRGPUOps
   MLIRGPUToGPURuntimeTransforms
   MLIRGPUTransforms
   MLIRGPUToNVVMTransforms

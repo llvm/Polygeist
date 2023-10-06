@@ -7,7 +7,7 @@ int min(int a, int b) {
     return b;
 }
 
-// CHECK:   func @min(%[[arg0:.+]]: i32, %[[arg1:.+]]: i32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @min(%[[arg0:.+]]: i32, %[[arg1:.+]]: i32) -> i32  
 // CHECK-NEXT:     %[[V0:.+]] = llvm.mlir.undef : i32
 // CHECK-NEXT:     %[[V1:.+]] = arith.cmpi slt, %[[arg0]], %[[arg1]] : i32
 // CHECK-NEXT:     %[[V2:.+]] = arith.cmpi sge, %[[arg0]], %[[arg1]] : i32

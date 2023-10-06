@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" --canonicalize-polygeist --split-input-file %s | FileCheck %s
 
 module {
   func.func private @use(%arg : i1)

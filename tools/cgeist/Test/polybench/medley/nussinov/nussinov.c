@@ -178,7 +178,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:    llvm.func @fprintf(!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", (ptr<struct<"struct._IO_marker">>, ptr<struct<"struct._IO_FILE">>, i32, array<4 x i8>)>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, ...) -> !llvm.i32
 // CHECK-NEXT:    llvm.mlir.global internal constant @str0("\00")
 // CHECK-NEXT:    llvm.func @strcmp(!llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
-// CHECK-NEXT:    func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
+// CHECK-NEXT:    func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 
 // CHECK-NEXT:      %c2500_i32 = constant 2500 : i32
 // CHECK-NEXT:      %c42_i32 = constant 42 : i32
 // CHECK-NEXT:      %true = constant true
@@ -207,7 +207,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:      }
 // CHECK-NEXT:      return %c0_i32 : i32
 // CHECK-NEXT:    }
-// CHECK-NEXT:    func @init_array(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) {
+// CHECK-NEXT:    func @init_array(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) 
 // CHECK-NEXT:      %c0_i32 = constant 0 : i32
 // CHECK-NEXT:      %c4_i32 = constant 4 : i32
 // CHECK-NEXT:      %c1_i32 = constant 1 : i32
@@ -240,7 +240,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:      %13 = addi %6, %c1_i32 : i32
 // CHECK-NEXT:      br ^bb3(%13 : i32)
 // CHECK-NEXT:    }
-// CHECK-NEXT:    func @kernel_nussinov(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) {
+// CHECK-NEXT:    func @kernel_nussinov(%arg0: i32, %arg1: memref<2500xi8>, %arg2: memref<2500x2500xi32>) 
 // CHECK-NEXT:      %c0_i32 = constant 0 : i32
 // CHECK-NEXT:      %c1_i32 = constant 1 : i32
 // CHECK-NEXT:      %c3_i32 = constant 3 : i32
@@ -340,7 +340,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:      }
 // CHECK-NEXT:      return
 // CHECK-NEXT:    }
-// CHECK-NEXT:    func @print_array(%arg0: i32, %arg1: memref<2500x2500xi32>) {
+// CHECK-NEXT:    func @print_array(%arg0: i32, %arg1: memref<2500x2500xi32>) 
 // CHECK-NEXT:      %c0_i32 = constant 0 : i32
 // CHECK-NEXT:      %c20_i32 = constant 20 : i32
 // CHECK-NEXT:      %c1_i32 = constant 1 : i32

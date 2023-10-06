@@ -42,7 +42,7 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
       auto dstShape = dstTy.getShape();
 
       if (srcShape.size() == dstShape.size() && !srcShape.empty() &&
-          srcShape[0] == -1 &&
+          srcShape[0] == ShapedType::kDynamic &&
           std::equal(std::next(srcShape.begin()), srcShape.end(),
                      std::next(dstShape.begin()))) {
         b.setInsertionPointAfterValue(callerArg);
@@ -149,7 +149,7 @@ ValueCategory MLIRScanner::CallHelper(
         assert(shape.size() == 2);
 
         auto pshape = shape[0];
-        if (pshape == -1)
+        if (pshape == ShapedType::kDynamic)
           shape[0] = 1;
 
         OpBuilder abuilder(builder.getContext());
@@ -211,12 +211,14 @@ ValueCategory MLIRScanner::CallHelper(
 
     if (inputOperands.size() == 0)
       inputOperands.append(args);
-
-    return ValueCategory(mlirclang::replaceFuncByOperation(
-                             tocall, LTInfo.SymbolTable[tocall.getName()],
-                             builder, inputOperands, outputOperands)
-                             ->getResult(0),
-                         /*isReference=*/false);
+    auto replaced = mlirclang::replaceFuncByOperation(
+        tocall, LTInfo.SymbolTable[tocall.getName()], builder, inputOperands,
+        outputOperands);
+    if (replaced->getNumResults() == 0)
+      return ValueCategory();
+    else
+      return ValueCategory(replaced->getResult(0),
+                           /*isReference=*/false);
   }
 
   bool isArrayReturn = false;
@@ -233,7 +235,7 @@ ValueCategory MLIRScanner::CallHelper(
     assert(shape.size() == 2);
 
     auto pshape = shape[0];
-    if (pshape == -1)
+    if (pshape == ShapedType::kDynamic)
       shape[0] = 1;
 
     OpBuilder abuilder(builder.getContext());
@@ -382,8 +384,11 @@ mlir::Value MLIRScanner::getLLVM(Expr *E, bool isRef) {
     assert(sub.isReference);
     mlir::Value val = sub.val;
     if (auto mt = val.getType().dyn_cast<MemRefType>()) {
-      val = builder.create<polygeist::Memref2PointerOp>(
-          loc, LLVM::LLVMPointerType::get(mt.getElementType()), val);
+      val =
+          builder.create<polygeist::Memref2PointerOp>(loc, getOpaquePtr(), val);
+    } else if (auto pt = val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+      if (!pt.isOpaque())
+        val = builder.create<LLVM::BitcastOp>(loc, getOpaquePtr(), val);
     }
     return val;
   }
@@ -427,7 +432,7 @@ mlir::Value MLIRScanner::getLLVM(Expr *E, bool isRef) {
       abuilder.setInsertionPointToStart(allocationScope);
       auto one = abuilder.create<ConstantIntOp>(loc, 1, 64);
       auto alloc = abuilder.create<mlir::LLVM::AllocaOp>(
-          loc, LLVM::LLVMPointerType::get(sub.val.getType()), one, 0);
+          loc, LLVM::LLVMPointerType::get(builder.getContext()), one, 0);
       ValueCategory(alloc, /*isRef*/ true)
           .store(loc, builder, sub, /*isArray*/ isArray);
       sub = ValueCategory(alloc, /*isRef*/ true);
@@ -437,9 +442,10 @@ mlir::Value MLIRScanner::getLLVM(Expr *E, bool isRef) {
     ct = Glob.CGM.getContext().getLValueReferenceType(E->getType());
   }
   if (auto mt = val.getType().dyn_cast<MemRefType>()) {
-    auto nt = Glob.typeTranslator.translateType(anonymize(getLLVMType(ct)))
-                  .cast<LLVM::LLVMPointerType>();
-    val = builder.create<polygeist::Memref2PointerOp>(loc, nt, val);
+    val = builder.create<polygeist::Memref2PointerOp>(loc, getOpaquePtr(), val);
+  } else if (auto pt = val.getType().dyn_cast<LLVM::LLVMPointerType>()) {
+    if (!pt.isOpaque())
+      val = builder.create<LLVM::BitcastOp>(loc, getOpaquePtr(), val);
   }
   return val;
 }
@@ -508,8 +514,8 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     if (toDelete.getType().isa<mlir::MemRefType>()) {
       builder.create<mlir::memref::DeallocOp>(loc, toDelete);
     } else {
-      mlir::Value args[1] = {builder.create<LLVM::BitcastOp>(
-          loc, LLVM::LLVMPointerType::get(builder.getI8Type()), toDelete)};
+      mlir::Value args[1] = {
+          builder.create<LLVM::BitcastOp>(loc, getOpaquePtr(), toDelete)};
       builder.create<mlir::LLVM::CallOp>(loc, Glob.GetOrCreateFreeFunction(),
                                          args);
     }
@@ -668,7 +674,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               /*isReference*/ false);
         else
           return ValueCategory(
-              builder.create<LLVM::AtomicRMWOp>(loc, a1.getType(), lop, a0, a1,
+              builder.create<LLVM::AtomicRMWOp>(loc, lop, a0, a1,
                                                 LLVM::AtomicOrdering::acq_rel),
               /*isReference*/ false);
       }
@@ -1149,34 +1155,32 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "memmove" ||
            sr->getDecl()->getName() == "__builtin_memmove")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
+        std::vector<mlir::Value> args = {getLLVM(expr->getArg(0)),
+                                         getLLVM(expr->getArg(1)),
+                                         getLLVM(expr->getArg(2))};
         builder.create<LLVM::MemmoveOp>(loc, args[0], args[1], args[2],
-                                        args[3]);
+                                        /*isVolatile*/ false);
         return ValueCategory(args[0], /*isReference*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "memset" ||
            sr->getDecl()->getName() == "__builtin_memset")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
+        std::vector<mlir::Value> args = {getLLVM(expr->getArg(0)),
+                                         getLLVM(expr->getArg(1)),
+                                         getLLVM(expr->getArg(2))};
 
         args[1] = builder.create<TruncIOp>(loc, builder.getI8Type(), args[1]);
-        builder.create<LLVM::MemsetOp>(loc, args[0], args[1], args[2], args[3]);
+        builder.create<LLVM::MemsetOp>(loc, args[0], args[1], args[2],
+                                       /*isVolatile*/ false);
         return ValueCategory(args[0], /*isReference*/ false);
       }
       if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "memcpy" ||
            sr->getDecl()->getName() == "__builtin_memcpy")) {
-        std::vector<mlir::Value> args = {
-            getLLVM(expr->getArg(0)), getLLVM(expr->getArg(1)),
-            getLLVM(expr->getArg(2)), /*isVolatile*/
-            builder.create<ConstantIntOp>(loc, false, 1)};
-        builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2], args[3]);
+        std::vector<mlir::Value> args = {getLLVM(expr->getArg(0)),
+                                         getLLVM(expr->getArg(1)),
+                                         getLLVM(expr->getArg(2))};
+        builder.create<LLVM::MemcpyOp>(loc, args[0], args[1], args[2], false);
         return ValueCategory(args[0], /*isReference*/ false);
       }
       // TODO this only sets a preference so it is not needed but if possible
@@ -1271,7 +1275,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                 // assert(!dstArray);
                 if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
                   auto shape = std::vector<int64_t>(mt.getShape());
-                  shape[0] = -1;
+                  shape[0] = ShapedType::kDynamic;
                   auto mt0 = mlir::MemRefType::get(shape, mt.getElementType(),
                                                    MemRefLayoutAttrInterface(),
                                                    mt.getMemorySpace());
@@ -1301,7 +1305,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                                QualType(elem, 0)))
                               .cast<MemRefType>();
                 auto shape = std::vector<int64_t>(mt.getShape());
-                assert(shape.size() > 0 && shape.back() != -1);
+                assert(shape.size() > 0 && shape.back() != ShapedType::kDynamic);
                 auto affineOp = builder.create<scf::ForOp>(
                     loc, getConstantIndex(0), getConstantIndex(shape.back()),
                     getConstantIndex(1));
@@ -1314,7 +1318,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                            QualType(elem, 0)))
                           .cast<MemRefType>();
                   auto sshape = std::vector<int64_t>(smt.getShape());
-                  assert(sshape.size() > 0 && sshape.back() != -1);
+                  assert(sshape.size() > 0 && sshape.back() != ShapedType::kDynamic);
                   assert(sshape.back() == shape.back());
                   srcargs.push_back(affineOp.getInductionVar());
                 } else {
@@ -1331,7 +1335,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
                                            QualType(selem, 0)))
                           .cast<MemRefType>();
                   auto sshape = std::vector<int64_t>(smt.getShape());
-                  assert(sshape.size() > 0 && sshape.back() != -1);
+                  assert(sshape.size() > 0 && sshape.back() != ShapedType::kDynamic);
                   auto affineOp = builder.create<scf::ForOp>(
                       loc, getConstantIndex(0), getConstantIndex(sshape.back()),
                       getConstantIndex(1));

@@ -6,8 +6,8 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -18,6 +18,7 @@
 using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
+using namespace affine;
 
 namespace {
 struct RaiseSCFToAffine : public SCFRaiseToAffineBase<RaiseSCFToAffine> {
@@ -32,7 +33,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
   bool isAffine(scf::ForOp loop) const {
     // return true;
     // enforce step to be a ConstantIndexOp (maybe too restrictive).
-    return isValidSymbol(loop.getStep());
+    return affine::isValidSymbol(loop.getStep());
   }
 
   int64_t getStep(mlir::Value value) const {
@@ -124,25 +125,25 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
         rewrittenStep = true;
       }
 
-      auto *scope = getAffineScope(loop)->getParentOp();
+      auto *scope = affine::getAffineScope(loop)->getParentOp();
       DominanceInfo DI(scope);
 
       AffineMap lbMap = getMultiSymbolIdentity(builder, lbs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbs, DI);
-        canonicalizeMapAndOperands(&lbMap, &lbs);
+        affine::canonicalizeMapAndOperands(&lbMap, &lbs);
         lbMap = removeDuplicateExprs(lbMap);
       }
       AffineMap ubMap = getMultiSymbolIdentity(builder, ubs.size());
       {
         fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubs, DI);
-        canonicalizeMapAndOperands(&ubMap, &ubs);
+        affine::canonicalizeMapAndOperands(&ubMap, &ubs);
         ubMap = removeDuplicateExprs(ubMap);
       }
 
-      AffineForOp affineLoop = rewriter.create<AffineForOp>(
+      affine::AffineForOp affineLoop = rewriter.create<affine::AffineForOp>(
           loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
-          loop.getIterOperands());
+          loop.getInits());
 
       auto mergedYieldOp =
           cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
@@ -171,8 +172,8 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
                            &affineLoop.getRegion().front(), vals);
 
       rewriter.setInsertionPoint(mergedYieldOp);
-      rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
-                                     mergedYieldOp.getOperands());
+      rewriter.create<affine::AffineYieldOp>(mergedYieldOp.getLoc(),
+                                             mergedYieldOp.getOperands());
       rewriter.eraseOp(mergedYieldOp);
 
       rewriter.replaceOp(loop, affineLoop.getResults());
@@ -187,21 +188,21 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
   using OpRewritePattern<scf::ParallelOp>::OpRewritePattern;
 
   void canonicalizeLoopBounds(PatternRewriter &rewriter,
-                              AffineParallelOp forOp) const {
+                              affine::AffineParallelOp forOp) const {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundsOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundsOperands());
 
     auto lbMap = forOp.getLowerBoundsMap();
     auto ubMap = forOp.getUpperBoundsMap();
 
-    auto *scope = getAffineScope(forOp)->getParentOp();
+    auto *scope = affine::getAffineScope(forOp)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
-    canonicalizeMapAndOperands(&lbMap, &lbOperands);
+    affine::canonicalizeMapAndOperands(&lbMap, &lbOperands);
 
     fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
-    canonicalizeMapAndOperands(&ubMap, &ubOperands);
+    affine::canonicalizeMapAndOperands(&ubMap, &ubOperands);
 
     forOp.setLowerBounds(lbOperands, lbMap);
     forOp.setUpperBounds(ubOperands, ubMap);
@@ -235,10 +236,11 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
       bounds.push_back(AffineMap::get(
           /*dimCount=*/0, /*symbolCount=*/loop.getLowerBound().size(),
           builder.getAffineSymbolExpr(i)));
-    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-        loop.getLoc(), loop.getResultTypes(), reductions, bounds,
-        loop.getLowerBound(), bounds, loop.getUpperBound(),
-        steps); //, loop.getInitVals());
+    affine::AffineParallelOp affineLoop =
+        rewriter.create<affine::AffineParallelOp>(
+            loop.getLoc(), loop.getResultTypes(), reductions, bounds,
+            loop.getLowerBound(), bounds, loop.getUpperBound(),
+            steps); //, loop.getInitVals());
 
     canonicalizeLoopBounds(rewriter, affineLoop);
 
@@ -262,8 +264,8 @@ struct ParallelOpRaising : public OpRewritePattern<scf::ParallelOp> {
                          &affineLoop.getRegion().front(), vals);
 
     rewriter.setInsertionPoint(mergedYieldOp);
-    rewriter.create<AffineYieldOp>(mergedYieldOp.getLoc(),
-                                   mergedYieldOp.getOperands());
+    rewriter.create<affine::AffineYieldOp>(mergedYieldOp.getLoc(),
+                                           mergedYieldOp.getOperands());
     rewriter.eraseOp(mergedYieldOp);
 
     rewriter.replaceOp(loop, affineLoop.getResults());

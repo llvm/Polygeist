@@ -201,7 +201,7 @@ int main(int argc, char** argv)
 }
 
 
-// CHECK:   func @kernel_gemver(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) {
+// CHECK:   func @kernel_gemver(%arg0: i32, %arg1: f64, %arg2: f64, %arg3: memref<2000x2000xf64>, %arg4: memref<2000xf64>, %arg5: memref<2000xf64>, %arg6: memref<2000xf64>, %arg7: memref<2000xf64>, %arg8: memref<2000xf64>, %arg9: memref<2000xf64>, %arg10: memref<2000xf64>, %arg11: memref<2000xf64>) 
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  affine.for %arg12 = 0 to %0 {
 // CHECK-NEXT:    %1 = affine.load %arg4[%arg12] : memref<2000xf64>

@@ -200,7 +200,7 @@ int main(int argc, char** argv)
 
 // CHECK: #map0 = affine_map<(d0) -> (d0)>
 // CHECK-NEXT: #map1 = affine_map<(d0)[s0] -> (-d0 + s0)>
-// CHECK:   func @kernel_ludcmp(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) {
+// CHECK:   func @kernel_ludcmp(%arg0: i32, %arg1: memref<2000x2000xf64>, %arg2: memref<2000xf64>, %arg3: memref<2000xf64>, %arg4: memref<2000xf64>) 
 // CHECK-NEXT:      %c0 = constant 0 : index
 // CHECK-NEXT:      %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:      %1 = alloca() : memref<1xf64>

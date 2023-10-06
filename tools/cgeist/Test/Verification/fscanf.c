@@ -19,35 +19,34 @@ int* alloc() {
 	return h_graph_nodes;
 }
 
-// CHECK:  llvm.mlir.global internal constant @str1("%d\0A\00") 
-// CHECK-NEXT:  llvm.mlir.global internal constant @str0("%d\00") 
-// CHECK-NEXT:  llvm.func @__isoc99_scanf(!llvm.ptr<i8>, ...) -> i32
-// CHECK-NEXT:  func @alloc() -> memref<?xi32>
-// CHECK-DAG:    %[[c0:.+]] = arith.constant 0 : index
-// CHECK-DAG:    %[[c1:.+]] = arith.constant 1 : index
-// CHECK-DAG:    %[[c4:.+]] = arith.constant 4 : index
-// CHECK-DAG:    %[[c4_i64:.+]] = arith.constant 4 : i6
-// CHECK-DAG:    %[[ud:.+]] = llvm.mlir.undef : i32
-// CHECK-NEXT:    %[[alloca:.+]] = memref.alloca() : memref<1xi32>
-// CHECK-NEXT:    affine.store %[[ud]], %[[alloca]][0] : memref<1xi32>
-// CHECK-NEXT:    %[[V1:.+]] = llvm.mlir.addressof @str0 : !llvm.ptr<array<3 x i8>>
-// CHECK-NEXT:    %[[V2:.+]] = llvm.getelementptr %[[V1]][0, 0] : (!llvm.ptr<array<3 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    %[[S0:.+]] = "polygeist.memref2pointer"(%[[alloca]]) : (memref<1xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %[[V3:.+]] = llvm.call @__isoc99_scanf(%[[V2]], %[[S0]]) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
-// CHECK-NEXT:    %[[V4:.+]] = affine.load %[[alloca]][0] : memref<1xi32>
-// CHECK-NEXT:    %[[V5:.+]] = arith.extsi %[[V4]] : i32 to i64
-// CHECK-NEXT:    %[[V6:.+]] = arith.muli %[[V5]], %[[c4_i64]] : i64
-// CHECK-NEXT:    %[[V7:.+]] = arith.index_cast %[[V6]] : i64 to index
-// CHECK-NEXT:    %[[V8:.+]] = arith.divui %[[V7]], %[[c4]] : index
-// CHECK-NEXT:    %[[i8:.+]] = memref.alloc(%[[V8]]) : memref<?xi32>
-// CHECK-NEXT:    %[[n:.+]] = arith.index_cast %[[V4]] : i32 to index
-// CHECK-NEXT:    %[[i9:.+]] = llvm.mlir.addressof @str1 : !llvm.ptr<array<4 x i8>>
-// CHECK-NEXT:    %[[i10:.+]] = llvm.getelementptr %[[i9]][0, 0] : (!llvm.ptr<array<4 x i8>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:    %[[V12:.+]] = "polygeist.memref2pointer"(%[[i8]]) : (memref<?xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:    scf.for %[[arg0:.+]] = %[[c0]] to %[[n]] step %[[c1]] {
-// CHECK-NEXT:      %[[i14:.+]] = arith.index_cast %[[arg0]] : index to i64
-// CHECK-NEXT:      %[[i15:.+]] = llvm.getelementptr %[[V12]][%[[i14]]] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:      %[[i13:.+]] = llvm.call @__isoc99_scanf(%[[i10]], %[[i15]]) : (!llvm.ptr<i8>, !llvm.ptr<i32>) -> i32
-// CHECK-NEXT:    }
-// CHECK-NEXT:    return %[[i8]] : memref<?xi32>
-// CHECK-NEXT:  }
+// CHECK-LABEL:   func.func @alloc() -> memref<?xi32>
+// CHECK:           %[[VAL_0:[A-Za-z0-9_]*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 4 : i64
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = arith.constant 4 : index
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = llvm.mlir.undef : i32
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = memref.alloca() : memref<1xi32>
+// CHECK:           affine.store %[[VAL_4]], %[[VAL_5]][0] : memref<1xi32>
+// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = llvm.mlir.addressof @str0 : !llvm.ptr
+// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_6]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<3 x i8>
+// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_5]]) : (memref<1xi32>) -> !llvm.ptr
+// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = llvm.call @__isoc99_scanf(%[[VAL_7]], %[[VAL_8]]) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = affine.load %[[VAL_5]][0] : memref<1xi32>
+// CHECK:           %[[VAL_11:[A-Za-z0-9_]*]] = arith.extsi %[[VAL_10]] : i32 to i64
+// CHECK:           %[[VAL_12:[A-Za-z0-9_]*]] = arith.muli %[[VAL_11]], %[[VAL_2]] : i64
+// CHECK:           %[[VAL_13:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_12]] : i64 to index
+// CHECK:           %[[VAL_14:[A-Za-z0-9_]*]] = arith.divui %[[VAL_13]], %[[VAL_3]] : index
+// CHECK:           %[[VAL_15:[A-Za-z0-9_]*]] = memref.alloc(%[[VAL_14]]) : memref<?xi32>
+// CHECK:           %[[VAL_16:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_10]] : i32 to index
+// CHECK:           %[[VAL_17:[A-Za-z0-9_]*]] = llvm.mlir.addressof @str1 : !llvm.ptr
+// CHECK:           %[[VAL_18:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_17]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<4 x i8>
+// CHECK:           %[[VAL_19:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_15]]) : (memref<?xi32>) -> !llvm.ptr
+// CHECK:           scf.for %[[VAL_20:[A-Za-z0-9_]*]] = %[[VAL_0]] to %[[VAL_16]] step %[[VAL_1]] {
+// CHECK:             %[[VAL_21:[A-Za-z0-9_]*]] = arith.muli %[[VAL_20]], %[[VAL_3]] : index
+// CHECK:             %[[VAL_22:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_21]] : index to i64
+// CHECK:             %[[VAL_23:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_19]]{{\[}}%[[VAL_22]]] : (!llvm.ptr, i64) -> !llvm.ptr, i8
+// CHECK:             %[[VAL_24:[A-Za-z0-9_]*]] = llvm.call @__isoc99_scanf(%[[VAL_18]], %[[VAL_23]]) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK:           }
+// CHECK:           return %[[VAL_15]] : memref<?xi32>
+// CHECK:         }
+

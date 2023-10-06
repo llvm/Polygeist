@@ -5,9 +5,8 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
@@ -22,6 +21,7 @@
 using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
+using namespace mlir::affine;
 
 bool isReadOnly(Operation *op);
 
@@ -53,7 +53,7 @@ bool isValidSymbolInt(Operation *defOp, bool recur) {
           return true;
       }
     }
-    if (auto ifOp = dyn_cast<AffineIfOp>(defOp)) {
+    if (auto ifOp = dyn_cast<affine::AffineIfOp>(defOp)) {
       if (llvm::all_of(ifOp.getOperands(),
                        [&](Value o) { return isValidSymbolInt(o, recur); }))
         if (llvm::all_of(
@@ -71,13 +71,13 @@ bool isValidSymbolInt(Operation *defOp, bool recur) {
 // isValidSymbol, even if not index
 bool isValidSymbolInt(Value value, bool recur) {
   // Check that the value is a top level value.
-  if (isTopLevelValue(value))
+  if (affine::isTopLevelValue(value))
     return true;
 
   if (auto *defOp = value.getDefiningOp()) {
     if (isValidSymbolInt(defOp, recur))
       return true;
-    return isValidSymbol(value, getAffineScope(defOp));
+    return affine::isValidSymbol(value, affine::getAffineScope(defOp));
   }
 
   return false;
@@ -117,11 +117,12 @@ static bool isAffineForArg(Value val) {
   if (!val.isa<BlockArgument>())
     return false;
   Operation *parentOp = val.cast<BlockArgument>().getOwner()->getParentOp();
-  return (isa_and_nonnull<AffineForOp, AffineParallelOp>(parentOp));
+  return (
+      isa_and_nonnull<affine::AffineForOp, affine::AffineParallelOp>(parentOp));
 }
 
 static bool legalCondition(Value en, bool dim = false) {
-  if (en.getDefiningOp<AffineApplyOp>())
+  if (en.getDefiningOp<affine::AffineApplyOp>())
     return true;
 
   if (!dim && !isValidSymbolInt(en, /*recur*/ false)) {
@@ -144,7 +145,8 @@ static bool legalCondition(Value en, bool dim = false) {
   //}
   if (!dim)
     if (auto BA = en.dyn_cast<BlockArgument>()) {
-      if (isa<AffineForOp, AffineParallelOp>(BA.getOwner()->getParentOp()))
+      if (isa<affine::AffineForOp, affine::AffineParallelOp>(
+              BA.getOwner()->getParentOp()))
         return true;
     }
   return false;
@@ -152,11 +154,11 @@ static bool legalCondition(Value en, bool dim = false) {
 
 /// The AffineNormalizer composes AffineApplyOp recursively. Its purpose is to
 /// keep a correspondence between the mathematical `map` and the `operands` of
-/// a given AffineApplyOp. This correspondence is maintained by iterating over
-/// the operands and forming an `auxiliaryMap` that can be composed
-/// mathematically with `map`. To keep this correspondence in cases where
-/// symbols are produced by affine.apply operations, we perform a local rewrite
-/// of symbols as dims.
+/// a given affine::AffineApplyOp. This correspondence is maintained by
+/// iterating over the operands and forming an `auxiliaryMap` that can be
+/// composed mathematically with `map`. To keep this correspondence in cases
+/// where symbols are produced by affine.apply operations, we perform a local
+/// rewrite of symbols as dims.
 ///
 /// Rationale for locally rewriting symbols as dims:
 /// ================================================
@@ -170,10 +172,10 @@ static bool legalCondition(Value en, bool dim = false) {
 /// As a consequence mathematical composition of AffineMap always concatenates
 /// symbols.
 ///
-/// When AffineMaps are used in AffineApplyOp however, they may specify
+/// When AffineMaps are used in affine::AffineApplyOp however, they may specify
 /// composition via symbols, which is ambiguous mathematically. This corner case
-/// is handled by locally rewriting such symbols that come from AffineApplyOp
-/// into dims and composing through dims.
+/// is handled by locally rewriting such symbols that come from
+/// affine::AffineApplyOp into dims and composing through dims.
 /// TODO: Composition via symbols comes at a significant code
 /// complexity. Alternatively we should investigate whether we want to
 /// explicitly disallow symbols coming from affine.apply and instead force the
@@ -287,7 +289,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     return expr;
   };
 
-  // 2. Compose AffineApplyOps and dispatch dims or symbols.
+  // 2. Compose affine::AffineApplyOps and dispatch dims or symbols.
   for (unsigned i = 0, e = operands.size(); i < e; ++i) {
     auto t = operands[i];
     auto decast = t;
@@ -493,11 +495,11 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
         symReplacements.push_back(renumberOneDim(t));
       else
         dimReplacements.push_back(renumberOneDim(t));
-    } else if (t.getDefiningOp<AffineApplyOp>()) {
-      auto affineApply = t.getDefiningOp<AffineApplyOp>();
+    } else if (t.getDefiningOp<affine::AffineApplyOp>()) {
+      auto affineApply = t.getDefiningOp<affine::AffineApplyOp>();
       // a. Compose affine.apply operations.
       LLVM_DEBUG(affineApply->print(
-          llvm::dbgs() << "\nCompose AffineApplyOp recursively: "));
+          llvm::dbgs() << "\nCompose affine::AffineApplyOp recursively: "));
       AffineMap affineApplyMap = affineApply.getAffineMap();
       SmallVector<Value, 8> affineApplyOperands(
           affineApply.getOperands().begin(), affineApply.getOperands().end());
@@ -585,7 +587,7 @@ static void composeAffineMapAndOperands(AffineMap *map,
   AffineApplyNormalizer normalizer(*map, *operands, rewriter, DI);
   auto normalizedMap = normalizer.getAffineMap();
   auto normalizedOperands = normalizer.getOperands();
-  canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
+  affine::canonicalizeMapAndOperands(&normalizedMap, &normalizedOperands);
   *map = normalizedMap;
   *operands = normalizedOperands;
   assert(*map);
@@ -612,7 +614,7 @@ bool need(IntegerSet *map, SmallVectorImpl<Value> *operands) {
 void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
                                        SmallVectorImpl<Value> *operands,
                                        DominanceInfo &DI) {
-  BlockAndValueMapping indexMap;
+  IRMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
     auto idx0 = op.getDefiningOp<IndexCastOp>();
@@ -627,7 +629,7 @@ void fully2ComposeAffineMapAndOperands(PatternRewriter &builder, AffineMap *map,
     }
 
     for (auto idx : attempt) {
-      if (isValidSymbol(idx)) {
+      if (affine::isValidSymbol(idx)) {
         indexMap.map(idx.getIn(), idx);
         break;
       }
@@ -665,7 +667,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
                                         IntegerSet *set,
                                         SmallVectorImpl<Value> *operands,
                                         DominanceInfo &DI) {
-  BlockAndValueMapping indexMap;
+  IRMapping indexMap;
   for (auto op : *operands) {
     SmallVector<IndexCastOp> attempt;
     auto idx0 = op.getDefiningOp<IndexCastOp>();
@@ -680,7 +682,7 @@ void fully2ComposeIntegerSetAndOperands(PatternRewriter &builder,
     }
 
     for (auto idx : attempt) {
-      if (isValidSymbol(idx)) {
+      if (affine::isValidSymbol(idx)) {
         indexMap.map(idx.getIn(), idx);
         break;
       }
@@ -889,27 +891,29 @@ struct SimplfyIntegerCastMath : public OpRewritePattern<IndexCastOp> {
 };
 */
 
-struct CanonicalizeAffineApply : public OpRewritePattern<AffineApplyOp> {
-  using OpRewritePattern<AffineApplyOp>::OpRewritePattern;
+struct CanonicalizeAffineApply
+    : public OpRewritePattern<affine::AffineApplyOp> {
+  using OpRewritePattern<affine::AffineApplyOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineApplyOp affineOp,
+  LogicalResult matchAndRewrite(affine::AffineApplyOp affineOp,
                                 PatternRewriter &rewriter) const override {
 
     SmallVector<Value, 4> mapOperands(affineOp.getMapOperands());
     auto map = affineOp.getMap();
     auto prevMap = map;
 
-    auto *scope = getAffineScope(affineOp)->getParentOp();
+    auto *scope = affine::getAffineScope(affineOp)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeAffineMapAndOperands(rewriter, &map, &mapOperands, DI);
-    canonicalizeMapAndOperands(&map, &mapOperands);
+    affine::canonicalizeMapAndOperands(&map, &mapOperands);
     map = removeDuplicateExprs(map);
 
     if (map == prevMap)
       return failure();
 
-    rewriter.replaceOpWithNewOp<AffineApplyOp>(affineOp, map, mapOperands);
+    rewriter.replaceOpWithNewOp<affine::AffineApplyOp>(affineOp, map,
+                                                       mapOperands);
     return success();
   }
 };
@@ -940,20 +944,20 @@ struct CanonicalizeIndexCast : public OpRewritePattern<IndexCastOp> {
 };
 
 /*
-struct CanonicalizeAffineIf : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
-  LogicalResult matchAndRewrite(AffineIfOp affineOp,
+struct CanonicalizeAffineIf : public OpRewritePattern<affine::AffineIfOp> {
+  using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(affine::AffineIfOp affineOp,
                                 PatternRewriter &rewriter) const override {
     SmallVector<Value, 4> mapOperands(affineOp.mapOperands());
     auto map = affineOp.map();
     auto prevMap = map;
     fully2ComposeAffineMapAndOperands(&map, &mapOperands);
-    canonicalizeMapAndOperands(&map, &mapOperands);
+    affine::canonicalizeMapAndOperands(&map, &mapOperands);
     map = removeDuplicateExprs(map);
     if (map == prevMap)
       return failure();
-    rewriter.replaceOpWithNewOp<AffineApplyOp>(affineOp, map, mapOperands);
-    return success();
+    rewriter.replaceOpWithNewOp<affine::AffineApplyOp>(affineOp, map,
+mapOperands); return success();
   }
 };
 */
@@ -1018,11 +1022,11 @@ bool isValidIndex(Value val) {
     assert(parentOp);
     if (isa<FunctionOpInterface>(parentOp))
       return true;
-    if (auto af = dyn_cast<AffineForOp>(parentOp))
+    if (auto af = dyn_cast<affine::AffineForOp>(parentOp))
       return af.getInductionVar() == ba;
 
     // TODO ensure not a reduced var
-    if (isa<AffineParallelOp>(parentOp))
+    if (isa<affine::AffineParallelOp>(parentOp))
       return true;
 
     if (isa<FunctionOpInterface>(parentOp))
@@ -1204,9 +1208,8 @@ static void replaceStore(memref::StoreOp store,
 
   PatternRewriter builder(store);
   Location loc = store.getLoc();
-  builder.create<AffineStoreOp>(loc, store.getValueToStore(), store.getMemRef(),
-                                newIndexes);
-  store.erase();
+  builder.create<affine::AffineStoreOp>(loc, store.getValueToStore(),
+store.getMemRef(), newIndexes); store.erase();
 }
 
 static void replaceLoad(memref::LoadOp load,
@@ -1221,8 +1224,8 @@ static void replaceLoad(memref::LoadOp load,
   }
   assert(rank == newIndexes.size() && "rank must equal new indexes size");
 
-  AffineLoadOp affineLoad =
-      builder.create<AffineLoadOp>(loc, load.getMemRef(), newIndexes);
+  affine::AffineLoadOp affineLoad =
+      builder.create<affine::AffineLoadOp>(loc, load.getMemRef(), newIndexes);
   load.getResult().replaceAllUsesWith(affineLoad.getResult());
   load.erase();
 }
@@ -1253,15 +1256,15 @@ struct MoveLoadToAffine : public OpRewritePattern<memref::LoadOp> {
       // load->getParentOfType<FuncOp>().dump();
       llvm::errs() << " load: " << load << "\n";
     }
-    auto *scope = getAffineScope(load)->getParentOp();
+    auto *scope = affine::getAffineScope(load)->getParentOp();
     DominanceInfo DI(scope);
     assert(map.getNumInputs() == operands.size());
     fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
     assert(map.getNumInputs() == operands.size());
-    canonicalizeMapAndOperands(&map, &operands);
+    affine::canonicalizeMapAndOperands(&map, &operands);
     assert(map.getNumInputs() == operands.size());
 
-    AffineLoadOp affineLoad = rewriter.create<AffineLoadOp>(
+    affine::AffineLoadOp affineLoad = rewriter.create<affine::AffineLoadOp>(
         load.getLoc(), load.getMemRef(), map, operands);
     load.getResult().replaceAllUsesWith(affineLoad.getResult());
     rewriter.eraseOp(load);
@@ -1290,14 +1293,15 @@ struct MoveStoreToAffine : public OpRewritePattern<memref::StoreOp> {
                               rewriter.getContext());
     SmallVector<Value, 4> operands = store.getIndices();
 
-    auto *scope = getAffineScope(store)->getParentOp();
+    auto *scope = affine::getAffineScope(store)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
-    canonicalizeMapAndOperands(&map, &operands);
+    affine::canonicalizeMapAndOperands(&map, &operands);
 
-    rewriter.create<AffineStoreOp>(store.getLoc(), store.getValueToStore(),
-                                   store.getMemRef(), map, operands);
+    rewriter.create<affine::AffineStoreOp>(store.getLoc(),
+                                           store.getValueToStore(),
+                                           store.getMemRef(), map, operands);
     rewriter.eraseOp(store);
     return success();
   }
@@ -1329,13 +1333,13 @@ template <typename T> struct AffineFixup : public OpRewritePattern<T> {
     auto prevMap = map;
     auto prevOperands = operands;
 
-    auto *scope = getAffineScope(op)->getParentOp();
+    auto *scope = affine::getAffineScope(op)->getParentOp();
     DominanceInfo DI(scope);
 
     assert(map.getNumInputs() == operands.size());
     fully2ComposeAffineMapAndOperands(rewriter, &map, &operands, DI);
     assert(map.getNumInputs() == operands.size());
-    canonicalizeMapAndOperands(&map, &operands);
+    affine::canonicalizeMapAndOperands(&map, &operands);
     assert(map.getNumInputs() == operands.size());
 
     if (map == prevMap && !areChanged(operands, prevOperands))
@@ -1349,41 +1353,41 @@ template <typename T> struct AffineFixup : public OpRewritePattern<T> {
 // Specialize the template to account for the different build signatures for
 // affine load, store, and apply ops.
 template <>
-void AffineFixup<AffineLoadOp>::replaceAffineOp(
-    PatternRewriter &rewriter, AffineLoadOp load, AffineMap map,
+void AffineFixup<affine::AffineLoadOp>::replaceAffineOp(
+    PatternRewriter &rewriter, affine::AffineLoadOp load, AffineMap map,
     ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<AffineLoadOp>(load, load.getMemRef(), map,
-                                            mapOperands);
+  rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(load, load.getMemRef(), map,
+                                                    mapOperands);
 }
 template <>
-void AffineFixup<AffinePrefetchOp>::replaceAffineOp(
-    PatternRewriter &rewriter, AffinePrefetchOp prefetch, AffineMap map,
+void AffineFixup<affine::AffinePrefetchOp>::replaceAffineOp(
+    PatternRewriter &rewriter, affine::AffinePrefetchOp prefetch, AffineMap map,
     ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<AffinePrefetchOp>(
+  rewriter.replaceOpWithNewOp<affine::AffinePrefetchOp>(
       prefetch, prefetch.getMemref(), map, mapOperands,
       prefetch.getLocalityHint(), prefetch.getIsWrite(),
       prefetch.getIsDataCache());
 }
 template <>
-void AffineFixup<AffineStoreOp>::replaceAffineOp(
-    PatternRewriter &rewriter, AffineStoreOp store, AffineMap map,
+void AffineFixup<affine::AffineStoreOp>::replaceAffineOp(
+    PatternRewriter &rewriter, affine::AffineStoreOp store, AffineMap map,
     ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<AffineStoreOp>(
+  rewriter.replaceOpWithNewOp<affine::AffineStoreOp>(
       store, store.getValueToStore(), store.getMemRef(), map, mapOperands);
 }
 template <>
-void AffineFixup<AffineVectorLoadOp>::replaceAffineOp(
-    PatternRewriter &rewriter, AffineVectorLoadOp vectorload, AffineMap map,
-    ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<AffineVectorLoadOp>(
+void AffineFixup<affine::AffineVectorLoadOp>::replaceAffineOp(
+    PatternRewriter &rewriter, affine::AffineVectorLoadOp vectorload,
+    AffineMap map, ArrayRef<Value> mapOperands) const {
+  rewriter.replaceOpWithNewOp<affine::AffineVectorLoadOp>(
       vectorload, vectorload.getVectorType(), vectorload.getMemRef(), map,
       mapOperands);
 }
 template <>
-void AffineFixup<AffineVectorStoreOp>::replaceAffineOp(
-    PatternRewriter &rewriter, AffineVectorStoreOp vectorstore, AffineMap map,
-    ArrayRef<Value> mapOperands) const {
-  rewriter.replaceOpWithNewOp<AffineVectorStoreOp>(
+void AffineFixup<affine::AffineVectorStoreOp>::replaceAffineOp(
+    PatternRewriter &rewriter, affine::AffineVectorStoreOp vectorstore,
+    AffineMap map, ArrayRef<Value> mapOperands) const {
+  rewriter.replaceOpWithNewOp<affine::AffineVectorStoreOp>(
       vectorstore, vectorstore.getValueToStore(), vectorstore.getMemRef(), map,
       mapOperands);
 }
@@ -1396,10 +1400,10 @@ void AffineFixup<AffineOpTy>::replaceAffineOp(
   rewriter.replaceOpWithNewOp<AffineOpTy>(op, map, mapOperands);
 }
 
-struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
-  using OpRewritePattern<AffineForOp>::OpRewritePattern;
+struct CanonicalieForBounds : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineForOp forOp,
+  LogicalResult matchAndRewrite(affine::AffineForOp forOp,
                                 PatternRewriter &rewriter) const override {
     SmallVector<Value, 4> lbOperands(forOp.getLowerBoundOperands());
     SmallVector<Value, 4> ubOperands(forOp.getUpperBoundOperands());
@@ -1414,15 +1418,15 @@ struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
     // llvm::errs() << "*********\n";
     // ubMap.dump();
 
-    auto *scope = getAffineScope(forOp)->getParentOp();
+    auto *scope = affine::getAffineScope(forOp)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeAffineMapAndOperands(rewriter, &lbMap, &lbOperands, DI);
-    canonicalizeMapAndOperands(&lbMap, &lbOperands);
+    affine::canonicalizeMapAndOperands(&lbMap, &lbOperands);
     lbMap = removeDuplicateExprs(lbMap);
 
     fully2ComposeAffineMapAndOperands(rewriter, &ubMap, &ubOperands, DI);
-    canonicalizeMapAndOperands(&ubMap, &ubOperands);
+    affine::canonicalizeMapAndOperands(&ubMap, &ubOperands);
     ubMap = removeDuplicateExprs(ubMap);
 
     // ubMap.dump();
@@ -1448,10 +1452,10 @@ struct CanonicalieForBounds : public OpRewritePattern<AffineForOp> {
   }
 };
 
-struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+struct CanonicalizIfBounds : public OpRewritePattern<affine::AffineIfOp> {
+  using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineIfOp op,
+  LogicalResult matchAndRewrite(affine::AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<Value, 4> operands(op.getOperands());
     SmallVector<Value, 4> origOperands(operands);
@@ -1462,11 +1466,11 @@ struct CanonicalizIfBounds : public OpRewritePattern<AffineIfOp> {
     // llvm::errs() << "*********\n";
     // ubMap.dump();
 
-    auto *scope = getAffineScope(op)->getParentOp();
+    auto *scope = affine::getAffineScope(op)->getParentOp();
     DominanceInfo DI(scope);
 
     fully2ComposeIntegerSetAndOperands(rewriter, &map, &operands, DI);
-    canonicalizeSetAndOperands(&map, &operands);
+    affine::canonicalizeSetAndOperands(&map, &operands);
 
     // map(s).
     if (map == prevMap && !areChanged(operands, origOperands))
@@ -1483,8 +1487,8 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
 
   LogicalResult matchAndRewrite(scf::IfOp ifOp,
                                 PatternRewriter &rewriter) const override {
-    if (!ifOp->getParentOfType<AffineForOp>() &&
-        !ifOp->getParentOfType<AffineParallelOp>())
+    if (!ifOp->getParentOfType<affine::AffineForOp>() &&
+        !ifOp->getParentOfType<affine::AffineParallelOp>())
       return failure();
 
     std::vector<mlir::Type> types;
@@ -1514,26 +1518,26 @@ struct MoveIfToAffine : public OpRewritePattern<scf::IfOp> {
       return failure();
     }
 
-    auto *scope = getAffineScope(ifOp)->getParentOp();
+    auto *scope = affine::getAffineScope(ifOp)->getParentOp();
     DominanceInfo DI(scope);
 
     auto iset =
         IntegerSet::get(/*dim*/ 0, /*symbol*/ 2 * exprs.size(), exprs, eqflags);
     fully2ComposeIntegerSetAndOperands(rewriter, &iset, &applies, DI);
-    canonicalizeSetAndOperands(&iset, &applies);
-    AffineIfOp affineIfOp =
-        rewriter.create<AffineIfOp>(ifOp.getLoc(), types, iset, applies,
-                                    /*elseBlock=*/true);
+    affine::canonicalizeSetAndOperands(&iset, &applies);
+    affine::AffineIfOp affineIfOp =
+        rewriter.create<affine::AffineIfOp>(ifOp.getLoc(), types, iset, applies,
+                                            /*elseBlock=*/true);
 
     rewriter.setInsertionPoint(ifOp.thenYield());
-    rewriter.replaceOpWithNewOp<AffineYieldOp>(ifOp.thenYield(),
-                                               ifOp.thenYield().getOperands());
+    rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(
+        ifOp.thenYield(), ifOp.thenYield().getOperands());
 
     rewriter.eraseBlock(affineIfOp.getThenBlock());
     rewriter.eraseBlock(affineIfOp.getElseBlock());
     if (ifOp.getElseRegion().getBlocks().size()) {
       rewriter.setInsertionPoint(ifOp.elseYield());
-      rewriter.replaceOpWithNewOp<AffineYieldOp>(
+      rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(
           ifOp.elseYield(), ifOp.elseYield().getOperands());
     }
 
@@ -1553,10 +1557,10 @@ void AffineCFGPass::runOnOperation() {
   mlir::RewritePatternSet rpl(getOperation()->getContext());
   rpl.add</*SimplfyIntegerCastMath, */ CanonicalizeAffineApply,
           CanonicalizeIndexCast,
-          /* IndexCastMovement,*/ AffineFixup<AffineLoadOp>,
-          AffineFixup<AffineStoreOp>, CanonicalizIfBounds, MoveStoreToAffine,
-          MoveIfToAffine, MoveLoadToAffine, CanonicalieForBounds>(
-      getOperation()->getContext());
+          /* IndexCastMovement,*/ AffineFixup<affine::AffineLoadOp>,
+          AffineFixup<affine::AffineStoreOp>, CanonicalizIfBounds,
+          MoveStoreToAffine, MoveIfToAffine, MoveLoadToAffine,
+          CanonicalieForBounds>(getOperation()->getContext());
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(rpl), config);
 }

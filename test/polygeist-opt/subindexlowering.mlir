@@ -35,47 +35,60 @@ module {
   }
 }
 
-// CHECK:  llvm.func @f1(%arg0: !llvm.ptr<i32>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.getelementptr %arg0[%arg1] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %1 = llvm.bitcast %0 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %1 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f2(%arg0: !llvm.ptr<i32>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.getelementptr %arg0[%arg1] : (!llvm.ptr<i32>, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %1 = llvm.bitcast %0 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %1 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f3(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<array<4 x i32>> {
-// CHECK-NEXT:    %0 = llvm.getelementptr %arg0[%arg1] : (!llvm.ptr<array<4 x i32>>, i64) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:    %1 = llvm.bitcast %0 : !llvm.ptr<array<4 x i32>> to !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:    llvm.return %1 : !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f4(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<array<4 x i32>> {
-// CHECK-NEXT:    %0 = llvm.getelementptr %arg0[%arg1] : (!llvm.ptr<array<4 x i32>>, i64) -> !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:    %1 = llvm.bitcast %0 : !llvm.ptr<array<4 x i32>> to !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:    llvm.return %1 : !llvm.ptr<array<4 x i32>>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f5(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[%arg1, %0] : (!llvm.ptr<array<4 x i32>>, i64, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %2 = llvm.bitcast %1 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %2 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f6(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[%arg1, %0] : (!llvm.ptr<array<4 x i32>>, i64, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %2 = llvm.bitcast %1 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %2 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f7(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[%arg1, %0] : (!llvm.ptr<array<4 x i32>>, i64, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %2 = llvm.bitcast %1 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %2 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
-// CHECK:  llvm.func @f8(%arg0: !llvm.ptr<array<4 x i32>>, %arg1: i64) -> !llvm.ptr<i32> {
-// CHECK-NEXT:    %0 = llvm.mlir.constant(0 : i64) : i64
-// CHECK-NEXT:    %1 = llvm.getelementptr %arg0[%arg1, %0] : (!llvm.ptr<array<4 x i32>>, i64, i64) -> !llvm.ptr<i32>
-// CHECK-NEXT:    %2 = llvm.bitcast %1 : !llvm.ptr<i32> to !llvm.ptr<i32>
-// CHECK-NEXT:    llvm.return %2 : !llvm.ptr<i32>
-// CHECK-NEXT:  }
+// CHECK-LABEL:   llvm.func @f1(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f2(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i32
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f3(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f4(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f5(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f6(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f7(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+// CHECK-LABEL:   llvm.func @f8(
+// CHECK-SAME:                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr,
+// CHECK-SAME:                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.getelementptr %[[VAL_0]]{{\[}}%[[VAL_1]], 0] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.array<4 x i32>
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+

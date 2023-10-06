@@ -98,7 +98,7 @@ struct LowerGPUAlternativesOp
       auto block = &*gao->getRegions()[bestAlt].begin();
 
       rewriter.eraseOp(block->getTerminator());
-      rewriter.mergeBlockBefore(block, gao);
+      rewriter.inlineBlockBefore(block, gao);
       rewriter.eraseOp(gao);
 
       return success();
@@ -129,7 +129,7 @@ struct LowerAlternativesPass
 
         block->getTerminator()->erase();
         OpBuilder builder(aop);
-        BlockAndValueMapping mapping;
+        IRMapping mapping;
         for (auto &op : *block) {
           builder.clone(op, mapping);
         }

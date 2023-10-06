@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s --allow-unregistered-dialect | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s --allow-unregistered-dialect | FileCheck %s
 
 module {
   func.func private @print1(f32)

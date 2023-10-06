@@ -7,9 +7,9 @@ module {
   }
 }
 
-// CHECK:  llvm.func @insert_into_leaf(%arg0: !llvm.ptr<array<1 x i32>>) -> !llvm.ptr<i8> {
+// CHECK:  llvm.func @insert_into_leaf(%arg0: !llvm.ptr) -> !llvm.ptr {
 // CHECK=NEXT:    %0 = llvm.mlir.constant(0 : index) : i64
 // CHECK=NEXT:    %1 = llvm.mlir.constant(0 : i64) : i64
-// CHECK=NEXT:    %2 = llvm.getelementptr %arg0[%0, %1] : (!llvm.ptr<array<1 x i32>>, i64, i64) -> !llvm.ptr<i32>
-// CHECK=NEXT:    %3 = llvm.bitcast %2 : !llvm.ptr<i32> to !llvm.ptr<i8>
-// CHECK=NEXT:    llvm.return %3 : !llvm.ptr<i8>
+// CHECK=NEXT:    %2 = llvm.getelementptr %arg0[%0, %1] : (!llvm.ptr, i64, i64) -> !llvm.ptr
+// CHECK=NEXT:    %3 = llvm.bitcast %2 : !llvm.ptr to !llvm.ptr
+// CHECK=NEXT:    llvm.return %3 : !llvm.ptr

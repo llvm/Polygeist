@@ -10,7 +10,7 @@ int foo() {
     return sum(sz);
 }
 
-// CHECK:   func @_Z3foov() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @_Z3foov() -> i32  
 // CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
 // CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
 // CHECK-DAG:     %[[c14:.+]] = arith.constant 14 : index
