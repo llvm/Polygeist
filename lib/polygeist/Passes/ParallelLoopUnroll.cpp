@@ -56,7 +56,7 @@ static LogicalResult generateUnrolledInterleavedLoop(
   BlockAndValueMapping barrierBlockArgMap;
   for (unsigned j = 0; j < srcBlock->getNumArguments(); j++)
     barrierBlockArgMap.map(srcBlock->getArgument(j), dstBlock->getArgument(j));
-  SmallVector<BlockAndValueMapping, 4> operandMap;
+  SmallVector<BlockAndValueMapping, 32> operandMap;
   for (unsigned i = 0; i < unrollFactor; i++) {
     operandMap.emplace_back(BlockAndValueMapping());
     for (unsigned j = 0; j < srcBlock->getNumArguments(); j++)
@@ -106,34 +106,55 @@ static LogicalResult generateUnrolledInterleavedLoop(
   };
   std::function<LogicalResult(Block *, Block *)> interleaveBlock =
       [&](Block *srcBlock, Block *dstBlock) {
+        auto insertInterleavedYield = [&](Block *srcBlock, Block *dstBlock) {
+          auto srcYieldOp = cast<scf::YieldOp>(srcBlock->getTerminator());
+          SmallVector<Value> dstYieldArgs;
+          for (auto yieldOperand : srcYieldOp.getOperands())
+            for (unsigned i = 0; i < unrollFactor; i++)
+              dstYieldArgs.push_back(
+                  operandMap[i].lookupOrDefault(yieldOperand));
+          OpBuilder::atBlockEnd(dstBlock).create<scf::YieldOp>(
+              srcYieldOp.getLoc(), dstYieldArgs);
+        };
         auto interleaveOp = [&](Operation *op) {
           // An operation can be recursively interleaved if its control flow is
           // the same across the threads
           if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-            if (!(llvm::all_of(SmallVector<Value, 3>({forOp.getUpperBound(),
-                                                      forOp.getLowerBound(),
-                                                      forOp.getStep()}),
-                               threadIndependent) ||
+            // Operands include bounds, step and iter arg initial vals
+            if (!(llvm::all_of(forOp.getOperands(), threadIndependent) ||
                   nestedBarrierSyncsOverArg(op, srcIV)))
               return failure();
-            if (forOp.getNumIterOperands() != 0)
-              // TODO I think we should be able to do this?
-              return failure();
-            auto dstForOp = cast<scf::ForOp>(builder.cloneWithoutRegions(
-                *forOp.getOperation(), operandMap[0]));
-            dstForOp.getRegion().push_back(new Block());
-            for (auto a : forOp.getBody()->getArguments()) {
-              auto b =
-                  dstForOp.getBody()->addArgument(a.getType(), op->getLoc());
+            SmallVector<Value> dstIterOperands;
+            for (auto iterOperand : forOp.getIterOperands())
               for (unsigned i = 0; i < unrollFactor; i++)
+                dstIterOperands.push_back(
+                    operandMap[i].lookupOrDefault(iterOperand));
+            auto dstForOp = builder.create<scf::ForOp>(
+                forOp.getLoc(),
+                operandMap[0].lookupOrDefault(forOp.getLowerBound()),
+                operandMap[0].lookupOrDefault(forOp.getUpperBound()),
+                operandMap[0].lookupOrDefault(forOp.getStep()),
+                dstIterOperands);
+            if (forOp.getNumResults() == 0)
+              dstForOp.getBody()->getTerminator()->erase();
+            Value srcIndVar = forOp.getInductionVar();
+            auto dstIndVar = dstForOp.getInductionVar();
+            for (unsigned i = 0; i < unrollFactor; i++)
+              operandMap[i].map(srcIndVar, dstIndVar);
+            for (unsigned j = 0; j < forOp.getNumRegionIterArgs(); j++) {
+              auto a = forOp.getRegionIterArg(j);
+              for (unsigned i = 0; i < unrollFactor; i++) {
+                auto dstI = i + j * unrollFactor;
+                auto b = dstForOp.getRegionIterArg(dstI);
                 operandMap[i].map(a, b);
+                operandMap[i].map(forOp.getResult(j), dstForOp.getResult(dstI));
+              }
             }
             OpBuilder::InsertionGuard _(builder);
             builder.setInsertionPointToStart(dstForOp.getBody());
-            builder.clone(*forOp.getBody()->getTerminator());
-            builder.setInsertionPointToStart(dstForOp.getBody());
             if (interleaveBlock(forOp.getBody(), dstForOp.getBody())
                     .succeeded()) {
+              insertInterleavedYield(forOp.getBody(), dstForOp.getBody());
               return success();
             } else {
               dstForOp->erase();
@@ -144,15 +165,23 @@ static LogicalResult generateUnrolledInterleavedLoop(
                   nestedBarrierSyncsOverArg(op, srcIV)))
               return failure();
             auto hasElse = !ifOp.getElseRegion().empty();
-            auto dstIfOp = cast<scf::IfOp>(builder.cloneWithoutRegions(
-                *ifOp.getOperation(), operandMap[0]));
-            dstIfOp.getThenRegion().push_back(new Block());
-            OpBuilder::atBlockBegin(dstIfOp.getBody(0))
-                .clone(*ifOp.getBody(0)->getTerminator());
-            if (hasElse) {
-              dstIfOp.getElseRegion().push_back(new Block());
-              OpBuilder::atBlockBegin(dstIfOp.getBody(1))
-                  .clone(*ifOp.getBody(1)->getTerminator());
+            SmallVector<Type> dstResultTypes;
+            for (auto result : ifOp.getResults())
+              for (unsigned i = 0; i < unrollFactor; i++)
+                dstResultTypes.push_back(result.getType());
+            auto dstIfOp = builder.create<scf::IfOp>(
+                ifOp.getLoc(), dstResultTypes,
+                operandMap[0].lookupOrDefault(ifOp.getCondition()), hasElse);
+            for (unsigned j = 0; j < ifOp.getNumResults(); j++) {
+              for (unsigned i = 0; i < unrollFactor; i++) {
+                auto dstI = i + j * unrollFactor;
+                operandMap[i].map(ifOp.getResult(j), dstIfOp.getResult(dstI));
+              }
+            }
+            if (ifOp.getNumResults() == 0) {
+              dstIfOp.getBody(0)->getTerminator()->erase();
+              if (hasElse)
+                dstIfOp.getBody(1)->getTerminator()->erase();
             }
             OpBuilder::InsertionGuard _(builder);
             builder.setInsertionPointToStart(dstIfOp.getBody(0));
@@ -164,6 +193,9 @@ static LogicalResult generateUnrolledInterleavedLoop(
                 !hasElse || interleaveBlock(ifOp.getBody(1), dstIfOp.getBody(1))
                                 .succeeded();
             if (resThen && resElse) {
+              insertInterleavedYield(ifOp.getBody(0), dstIfOp.getBody(0));
+              if (hasElse)
+                insertInterleavedYield(ifOp.getBody(1), dstIfOp.getBody(1));
               return success();
             } else {
               dstIfOp->erase();
@@ -193,10 +225,10 @@ static LogicalResult generateUnrolledInterleavedLoop(
               }
               OpBuilder::InsertionGuard _(builder);
               builder.setInsertionPointToStart(dstPop.getBody());
-              builder.clone(*pop.getBody()->getTerminator());
-              builder.setInsertionPointToStart(dstPop.getBody());
               if (interleaveBlock(pop.getBody(), dstPop.getBody())
                       .succeeded()) {
+                OpBuilder::atBlockEnd(dstPop.getBody())
+                    .clone(*pop.getBody()->getTerminator());
                 return success();
               } else {
                 dstPop->erase();
@@ -270,7 +302,7 @@ static Value ceilDivPositive(OpBuilder &builder, Location loc, Value dividend,
 /// Unrolls 'pop' by 'unrollFactor', returns success if the loop is unrolled.
 LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     scf::ParallelOp &pop, uint64_t unrollFactor, unsigned dim,
-    bool generateEpilogueLoop,
+    bool generateEpilogueLoop, bool coalescingFriendlyIndexing,
     function_ref<void(unsigned, Operation *, OpBuilder)> annotateFn) {
   assert(unrollFactor > 0 && "expected positive unroll factor");
   assert(dim >= 0 && dim < pop.getUpperBound().size());
@@ -344,11 +376,12 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   ub[dim] = upperBoundUnrolled;
   auto dstPop = builder.create<scf::ParallelOp>(
       pop->getLoc(), pop.getLowerBound(), ub, pop.getStep());
+  scf::ParallelOp epiloguePop = nullptr;
 
   if (generateEpilogueLoop && (!remUnrolledCst || *remUnrolledCst != 0)) {
     auto mainLoopTrips =
         builder.create<arith::MulIOp>(loc, upperBoundUnrolled, unrollFactorCst);
-    auto epiloguePop = cast<scf::ParallelOp>(builder.clone(*pop));
+    epiloguePop = cast<scf::ParallelOp>(builder.clone(*pop));
     // TODO more robust way to set the upper bound
     epiloguePop->setOperand(pop.getUpperBound().size() + dim, remUnrolled);
     OpBuilder::InsertionGuard _(builder);
@@ -364,15 +397,26 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
   auto res = generateUnrolledInterleavedLoop(
       pop.getBody(), dstPop.getBody(), dim, unrollFactor,
       [&](unsigned i, Value iv, OpBuilder b) {
-        // iv' = iv * unrollFactor + i
-        auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorCst);
-        return b.create<arith::AddIOp>(
-            loc, base, b.create<arith::ConstantIndexOp>(loc, i));
+        if (coalescingFriendlyIndexing) {
+          // upperBoundUnrolled = upperBound / unrollFactor;
+          // iv(i) = iv + upperBoundUnrolled * i
+          auto base =
+              b.create<arith::MulIOp>(loc, upperBoundUnrolled,
+                                      b.create<arith::ConstantIndexOp>(loc, i));
+          return b.create<arith::AddIOp>(loc, base, iv);
+        } else {
+          // iv(i) = iv * unrollFactor + i
+          auto base = b.create<arith::MulIOp>(loc, iv, unrollFactorCst);
+          return b.create<arith::AddIOp>(
+              loc, base, b.create<arith::ConstantIndexOp>(loc, i));
+        }
       });
   if (res.succeeded()) {
     pop->erase();
     pop = dstPop;
   } else {
+    if (epiloguePop)
+      epiloguePop->erase();
     dstPop->erase();
   }
   return res;
@@ -392,7 +436,8 @@ struct SCFParallelLoopUnroll
         pops.push_back(pop);
     });
     for (auto pop : pops) {
-      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, true, nullptr)
+      (void)scfParallelUnrollByFactor(pop, unrollFactor, 0, true, false,
+                                      nullptr)
           .succeeded();
     }
   }

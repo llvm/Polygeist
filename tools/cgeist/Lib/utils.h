@@ -9,6 +9,7 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
+#include "mlir/IR/Builders.h"
 #include "llvm/ADT/ArrayRef.h"
 
 namespace mlir {
@@ -44,6 +45,8 @@ replaceFuncByOperation(mlir::func::FuncOp f, llvm::StringRef opName,
                        mlir::OpBuilder &b,
                        llvm::SmallVectorImpl<mlir::Value> &input,
                        llvm::SmallVectorImpl<mlir::Value> &output);
+mlir::Value castInteger(mlir::OpBuilder &, mlir::Location &, mlir::Value,
+                        mlir::Type);
 } // namespace mlirclang
 
 #endif

@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --convert-polygeist-to-llvm --polygeist-alternatives-mode=pgo_prof %s | FileCheck %s
+// RUN: polygeist-opt --lower-alternatives --convert-polygeist-to-llvm --polygeist-alternatives-mode=pgo_prof %s | FileCheck %s
 
 module {
   func.func private @wow0()
@@ -11,7 +11,7 @@ module {
     }, {
       func.call @wow1() : () -> ()
       "polygeist.polygeist_yield"() : () -> ()
-    }) {alternatives.type = "gpu_kernel"} : () -> ()
+    }) {alternatives.descs = ["", ""], alternatives.type = "gpu_kernel"} : () -> ()
 
     return
   }

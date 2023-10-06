@@ -48,7 +48,7 @@ module {
 // CHECK:                 "polygeist.polygeist_yield"() : () -> ()
 // CHECK:               }) : () -> index
 // CHECK:               "polygeist.polygeist_yield"() : () -> ()
-// CHECK:             }) {alternatives.type = "gpu_kernel"} : () -> ()
+// CHECK:             })
 // CHECK:           }
 // CHECK:           return
 // CHECK:         }
