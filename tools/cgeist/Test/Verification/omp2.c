@@ -10,7 +10,7 @@ void square2(double** x, int sstart, int send, int sinc, int tstart, int tend, i
 }
 
 
-// CHECK:   func @square2(%[[arg0:.+]]: memref<?xmemref<?xf64>>, %[[arg1:.+]]: i32, %[[arg2:.+]]: i32, %[[arg3:.+]]: i32, %[[arg4:.+]]: i32, %[[arg5:.+]]: i32, %[[arg6:.+]]: i32) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @square2(%[[arg0:.+]]: memref<?xmemref<?xf64>>, %[[arg1:.+]]: i32, %[[arg2:.+]]: i32, %[[arg3:.+]]: i32, %[[arg4:.+]]: i32, %[[arg5:.+]]: i32, %[[arg6:.+]]: i32)  
 // CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
 // CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg1]] : i32 to index
 // CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %[[arg4]] : i32 to index

@@ -7,7 +7,7 @@ float* zmem(int n) {
     return out;
 }
 
-// CHECK:   func @zmem(%[[arg0:.+]]: i32) -> memref<?xf32> attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @zmem(%[[arg0:.+]]: i32) -> memref<?xf32>  
 // CHECK-DAG:     %[[c4:.+]] = arith.constant 4 : index
 // CHECK-DAG:     %[[cst:.+]] = arith.constant 0.000000e+00 : f32
 // CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index

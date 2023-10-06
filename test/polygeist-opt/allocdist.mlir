@@ -31,44 +31,41 @@ module {
   }
 }
 
-// CHECK:   func.func @main() {
-// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-NEXT:     %[[c5:.+]] = arith.constant 5 : index
-// CHECK-NEXT:     memref.alloca_scope {
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca(%[[c5]]) : memref<?xf32>
-// CHECK-NEXT:     %[[V1:.+]] = memref.alloca(%[[c5]]) : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     %[[V2:.+]] = memref.alloca(%[[c5]]) : memref<?xf32>
-// CHECK-NEXT:     %[[V3:.+]] = memref.alloca(%[[c5]]) : memref<?xmemref<?xi32>>
-// CHECK-NEXT:     %[[V4:.+]] = memref.alloca(%[[c5]]) : memref<?x2xi32>
-// CHECK-NEXT:     %[[V5:.+]] = memref.alloca(%[[c5]]) : memref<?xi32>
-// CHECK-NEXT:     %[[V6:.+]] = memref.alloca(%[[c5]]) : memref<?x1xi32>
-// CHECK-NEXT:     scf.parallel (%[[arg0:.+]]) = (%[[c0]]) to (%[[c5]]) step (%[[c1]]) {
-// CHECK-NEXT:       %[[V7:.+]] = "polygeist.subindex"(%[[V4]], %[[arg0]]) : (memref<?x2xi32>, index) -> memref<2xi32>
-// CHECK-NEXT:       %[[V8:.+]] = memref.cast %[[V7]] : memref<2xi32> to memref<?xi32>
-// CHECK-NEXT:       memref.store %[[V8]], %[[V3]][%[[arg0]]] : memref<?xmemref<?xi32>>
-// CHECK-NEXT:       %[[V9:.+]] = memref.alloca() : memref<f32>
-// CHECK-NEXT:       %[[V10:.+]] = memref.load %[[V9]][] : memref<f32>
-// CHECK-NEXT:       memref.store %[[V10]], %[[V2]][%[[arg0]]] : memref<?xf32>
-// CHECK-NEXT:       %[[V11:.+]] = "polygeist.subindex"(%[[V5]], %[[arg0]]) : (memref<?xi32>, index) -> memref<i32>
-// CHECK-NEXT:       func.call @capture(%[[V11]]) : (memref<i32>) -> ()
-// CHECK-NEXT:       %[[V12:.+]] = "polygeist.subindex"(%[[V6]], %[[arg0]]) : (memref<?x1xi32>, index) -> memref<1xi32>
-// CHECK-NEXT:       %[[V13:.+]] = memref.cast %[[V12]] : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:       memref.store %[[V13]], %[[V1]][%[[arg0]]] : memref<?xmemref<?xi32>>
-// CHECK-NEXT:       %[[V14:.+]] = memref.alloca() : memref<1xf32>
-// CHECK-NEXT:       %[[V15:.+]] = memref.load %[[V14]][%[[c0]]] : memref<1xf32>
-// CHECK-NEXT:       memref.store %[[V15]], %[[V0]][%[[arg0]]] : memref<?xf32>
-// CHECK-NEXT:       scf.yield
-// CHECK-NEXT:     }
-// CHECK-NEXT:     scf.parallel (%[[arg0:.+]]) = (%[[c0]]) to (%[[c5]]) step (%[[c1]]) {
-// CHECK-DAG:       %[[i7:.+]] = memref.load %[[V1]][%[[arg0]]] : memref<?xmemref<?xi32>>
-// CHECK-DAG:       %[[i8:.+]] = memref.load %[[i7]][%[[c0]]] : memref<?xi32>
-// CHECK-DAG:       %[[i9:.+]] = memref.load %[[V3]][%[[arg0]]] : memref<?xmemref<?xi32>>
-// CHECK-DAG:       %[[i10:.+]] = memref.load %[[V2]][%[[arg0]]] : memref<?xf32>
-// CHECK-DAG:       %[[i11:.+]] = memref.load %[[V0]][%[[arg0]]] : memref<?xf32>
-// CHECK-DAG:       func.call @use(%[[i9]], %[[i10]], %[[i8]], %[[i11]]) : (memref<?xi32>, f32, i32, f32) -> ()
-// CHECK-NEXT:       scf.yield
-// CHECK-NEXT:     }
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @main() {
+// CHECK:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 5 : index
+// CHECK:           memref.alloca_scope  {
+// CHECK:             %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?xf32>
+// CHECK:             %[[VAL_4:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?xf32>
+// CHECK:             %[[VAL_5:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?xmemref<?xi32>>
+// CHECK:             %[[VAL_6:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?x2xi32>
+// CHECK:             %[[VAL_7:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?xi32>
+// CHECK:             %[[VAL_8:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca(%[[VAL_2]]) : memref<?x1xi32>
+// CHECK:             scf.parallel (%[[VAL_9:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]) = (%[[VAL_0]]) to (%[[VAL_2]]) step (%[[VAL_1]]) {
+// CHECK:               %[[VAL_10:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = "polygeist.subindex"(%[[VAL_6]], %[[VAL_9]]) : (memref<?x2xi32>, index) -> memref<2xi32>
+// CHECK:               %[[VAL_11:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.cast %[[VAL_10]] : memref<2xi32> to memref<?xi32>
+// CHECK:               memref.store %[[VAL_11]], %[[VAL_5]]{{\[}}%[[VAL_9]]] : memref<?xmemref<?xi32>>
+// CHECK:               %[[VAL_12:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca() : memref<f32>
+// CHECK:               %[[VAL_13:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_12]][] : memref<f32>
+// CHECK:               memref.store %[[VAL_13]], %[[VAL_4]]{{\[}}%[[VAL_9]]] : memref<?xf32>
+// CHECK:               %[[VAL_14:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = "polygeist.subindex"(%[[VAL_7]], %[[VAL_9]]) : (memref<?xi32>, index) -> memref<i32>
+// CHECK:               func.call @capture(%[[VAL_14]]) : (memref<i32>) -> ()
+// CHECK:               %[[VAL_15:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca() : memref<1xf32>
+// CHECK:               %[[VAL_16:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_15]]{{\[}}%[[VAL_0]]] : memref<1xf32>
+// CHECK:               memref.store %[[VAL_16]], %[[VAL_3]]{{\[}}%[[VAL_9]]] : memref<?xf32>
+// CHECK:               scf.yield
+// CHECK:             }
+// CHECK:             scf.parallel (%[[VAL_17:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]) = (%[[VAL_0]]) to (%[[VAL_2]]) step (%[[VAL_1]]) {
+// CHECK:               %[[VAL_18:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_17]]] : memref<?xmemref<?xi32>>
+// CHECK:               %[[VAL_19:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_4]]{{\[}}%[[VAL_17]]] : memref<?xf32>
+// CHECK:               %[[VAL_20:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_3]]{{\[}}%[[VAL_17]]] : memref<?xf32>
+// CHECK:               %[[VAL_21:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = "polygeist.subindex"(%[[VAL_8]], %[[VAL_17]]) : (memref<?x1xi32>, index) -> memref<1xi32>
+// CHECK:               %[[VAL_22:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_21]]{{\[}}%[[VAL_0]]] : memref<1xi32>
+// CHECK:               func.call @use(%[[VAL_18]], %[[VAL_19]], %[[VAL_22]], %[[VAL_20]]) : (memref<?xi32>, f32, i32, f32) -> ()
+// CHECK:               scf.yield
+// CHECK:             }
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
+

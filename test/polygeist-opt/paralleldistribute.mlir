@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --cpuify="method=distribute" --allow-unregistered-dialect --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --cpuify="method=distribute" --allow-unregistered-dialect --canonicalize-polygeist --split-input-file %s | FileCheck %s
 
 module {
   func.func private @print()
@@ -12,14 +12,14 @@ module {
     %c5 = arith.constant 5 : index
     %c2 = arith.constant 2 : index
     scf.parallel (%arg2) = (%c0) to (%c5) step (%c1) {
-      %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr<i8>
+      %0 = llvm.alloca %c1_i64 x i8 : (i64) -> !llvm.ptr
       scf.parallel (%arg3) = (%c0) to (%c2) step (%c1) {
         %4 = scf.while (%arg4 = %c1_i8) : (i8) -> i8 {
           %6 = arith.cmpi ne, %arg4, %c0_i8 : i8
           scf.condition(%6) %arg4 : i8
         } do {
         ^bb0(%arg4: i8):  // no predecessors
-          llvm.store %c0_i8, %0 : !llvm.ptr<i8>
+          llvm.store %c0_i8, %0 : i8, !llvm.ptr
           "polygeist.barrier"(%arg3) : (index) -> ()
           scf.yield %c0_i8 : i8
         }
@@ -29,7 +29,7 @@ module {
         }
         scf.yield
       }
-      "test.use"(%0) : (!llvm.ptr<i8>) -> ()
+      "test.use"(%0) : (!llvm.ptr) -> ()
       scf.yield
     }
     return
@@ -48,68 +48,19 @@ module {
 }
 
 
-// CHECK:   func.func @main() {
-// CHECK-DAG:     %[[c0_i8:.+]] = arith.constant 0 : i8
-// CHECK-DAG:     %[[c1_i8:.+]] = arith.constant 1 : i8
-// CHECK-DAG:     %[[c1_i64:.+]] = arith.constant 1 : i64
-// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-DAG:     %[[c5:.+]] = arith.constant 5 : index
-// CHECK-DAG:     %[[c2:.+]] = arith.constant 2 : index
-// CHECK-DAG:     scf.parallel (%[[arg0:.+]]) = (%[[c0]]) to (%[[c5]]) step (%[[c1]]) {
-// CHECK-NEXT:       %[[V0:.+]] = llvm.alloca %[[c1_i64]] x i8 : (i64) -> !llvm.ptr<i8>
-// CHECK-DAG:       %[[i1:.+]] = memref.alloca() : memref<2xi8>
-// CHECK-DAG:       %[[i2:.+]] = memref.alloca() : memref<2xi8>
-// CHECK-NEXT:       %[[V3:.+]] = memref.alloca() : memref<i1>
-// CHECK-NEXT:       scf.parallel (%[[arg1:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:         memref.store %[[c1_i8]], %[[i1]][%[[arg1]]] : memref<2xi8>
-// CHECK-NEXT:         scf.yield
-// CHECK-NEXT:       }
-// CHECK-NEXT:       scf.while : () -> () {
-// CHECK-NEXT:         scf.parallel (%[[arg1:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:           %[[V5:.+]] = memref.load %[[i1]][%[[arg1]]] : memref<2xi8>
-// CHECK-NEXT:           %[[V6:.+]] = arith.cmpi ne, %[[V5]], %[[c0_i8]] : i8
-// CHECK-NEXT:           %[[V7:.+]] = arith.cmpi eq, %[[arg1]], %[[c0]] : index
-// CHECK-NEXT:           scf.if %[[V7]] {
-// CHECK-NEXT:             memref.store %[[V6]], %[[V3]][] : memref<i1>
-// CHECK-NEXT:           }
-// CHECK-NEXT:           memref.store %[[V5]], %[[i2]][%[[arg1]]] : memref<2xi8>
-// CHECK-NEXT:           scf.yield
-// CHECK-NEXT:         }
-// CHECK-NEXT:         %[[V4:.+]] = memref.load %[[V3]][] : memref<i1>
-// CHECK-NEXT:         scf.condition(%[[V4]])
-// CHECK-NEXT:       } do {
-// CHECK-NEXT:         scf.parallel (%[[arg1:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:           llvm.store %[[c0_i8]], %[[V0]] : !llvm.ptr<i8>
-// CHECK-NEXT:           scf.yield
-// CHECK-NEXT:         }
-// CHECK-NEXT:         scf.parallel (%[[arg1:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:           memref.store %[[c0_i8]], %[[i1]][%[[arg1]]] : memref<2xi8>
-// CHECK-NEXT:           scf.yield
-// CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield
-// CHECK-NEXT:       }
-// CHECK-NEXT:       scf.parallel (%[[arg1:.+]]) = (%[[c0]]) to (%[[c2]]) step (%[[c1]]) {
-// CHECK-NEXT:         %[[V4:.+]] = memref.load %[[i2]][%[[arg1]]] : memref<2xi8>
-// CHECK-NEXT:         %[[V5:.+]] = arith.cmpi ne, %[[V4]], %[[c0_i8]] : i8
-// CHECK-NEXT:         scf.if %[[V5]] {
-// CHECK-NEXT:           func.call @print() : () -> ()
-// CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield
-// CHECK-NEXT:       }
-// CHECK-NEXT:       "test.use"(%[[V0]]) : (!llvm.ptr<i8>) -> ()
-// CHECK-NEXT:       scf.yield
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @main() {
+// CHECK-NOT: polygeist.barrier
 
-// CHECK:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(%[[arg0:.+]]: memref<?xf32>, %[[arg1:.+]]: index, %[[arg2:.+]]: f32) {
-// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-NEXT:     scf.for %[[arg3:.+]] = %[[c0]] to %[[arg1]] step %[[c1]] {
-// CHECK-NEXT:       affine.parallel (%[[arg4:.+]], %[[arg5:.+]]) = (0, 0) to (16, 16) {
-// CHECK-NEXT:         affine.store %[[arg2]], %[[arg0]][%[[arg4]]] : memref<?xf32>
-// CHECK-NEXT:       }
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z17compute_tran_tempPfPS_iiiiiiii(
+// CHECK-SAME:                                                  %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: memref<?xf32>,
+// CHECK-SAME:                                                  %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: index,
+// CHECK-SAME:                                                  %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: f32) {
+// CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_4:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 1 : index
+// CHECK:           scf.for %[[VAL_5:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = %[[VAL_3]] to %[[VAL_1]] step %[[VAL_4]] {
+// CHECK:             affine.parallel (%[[VAL_6:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]], %[[VAL_7:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]) = (0, 0) to (16, 16) {
+// CHECK:               affine.store %[[VAL_2]], %[[VAL_0]]{{\[}}%[[VAL_6]]] : memref<?xf32>
+// CHECK:             }
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }

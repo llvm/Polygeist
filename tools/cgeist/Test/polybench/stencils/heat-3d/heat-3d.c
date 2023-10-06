@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 
 // CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
 
-// CHECK:   func private @kernel_heat_3d(%arg0: i32, %arg1: i32, %arg2: memref<120x120x120xf64>, %arg3: memref<120x120x120xf64>) {
+// CHECK:   func private @kernel_heat_3d(%arg0: i32, %arg1: i32, %arg2: memref<120x120x120xf64>, %arg3: memref<120x120x120xf64>) 
 // CHECK-NEXT:    %cst = constant 1.250000e-01 : f64
 // CHECK-NEXT:    %cst_0 = constant 2.000000e+00 : f64
 // CHECK-NEXT:    %0 = index_cast %arg1 : i32 to index

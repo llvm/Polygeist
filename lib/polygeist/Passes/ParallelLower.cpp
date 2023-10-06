@@ -148,14 +148,12 @@ struct AlwaysInlinerInterface : public InlinerInterface {
   }
 
   /// All operations within standard ops can be inlined.
-  bool isLegalToInline(Region *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+  bool isLegalToInline(Region *, Region *, bool, IRMapping &) const final {
     return true;
   }
 
   /// All operations within standard ops can be inlined.
-  bool isLegalToInline(Operation *, Region *, bool,
-                       BlockAndValueMapping &) const final {
+  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
     return true;
   }
 
@@ -234,7 +232,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
   auto *ctx = module->getContext();
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMVoidType::get(ctx),
-      ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getI8Type())),
+      ArrayRef<mlir::Type>(LLVM::LLVMPointerType::get(builder.getContext())),
       false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
@@ -577,8 +575,8 @@ void ParallelLower::runOnOperation() {
     launchArgs.push_back(launchOp.getBlockSizeX());
     launchArgs.push_back(launchOp.getBlockSizeY());
     launchArgs.push_back(launchOp.getBlockSizeZ());
-    builder.mergeBlockBefore(&launchOp.getRegion().front(), mergeLoc,
-                             launchArgs);
+    builder.inlineBlockBefore(&launchOp.getRegion().front(), mergeLoc,
+                              launchArgs);
 
     auto container = threadr;
 
@@ -685,12 +683,12 @@ void ParallelLower::runOnOperation() {
       builder.replaceOp(bidx, val);
     });
 
-    container.walk([&](AffineStoreOp storeOp) {
+    container.walk([&](affine::AffineStoreOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
@@ -698,12 +696,12 @@ void ParallelLower::runOnOperation() {
                                                   storeOp.getMemref(), indices);
     });
 
-    container.walk([&](AffineLoadOp storeOp) {
+    container.walk([&](affine::AffineLoadOp storeOp) {
       builder.setInsertionPoint(storeOp);
       auto map = storeOp.getAffineMap();
       std::vector<Value> indices;
       for (size_t i = 0; i < map.getNumResults(); i++) {
-        auto apply = builder.create<AffineApplyOp>(
+        auto apply = builder.create<affine::AffineApplyOp>(
             storeOp.getLoc(), map.getSliceMap(i, 1), storeOp.getMapOperands());
         indices.push_back(apply->getResult(0));
       }
@@ -978,10 +976,10 @@ static void setCallee(func::CallOp call, StringRef symName) {
   call.setCallee(symName);
 }
 static void setCallee(LLVM::CallOp call, StringRef symName) {
-  call.setCallee(llvm::Optional<StringRef>(symName));
+  call.setCallee(symName);
 }
 template <typename CallOpTy, typename FuncOpTy>
-void replaceCallOp(ModuleOp m, CallOpTy call, StringRef callee) {
+void replaceCallOp(ModuleOp m, CallOpTy call, llvm::StringRef callee) {
   auto loc = call->getLoc();
   OpBuilder moduleBuilder = OpBuilder::atBlockEnd(m.getBody());
   OpBuilder callBuilder(call);
@@ -1028,8 +1026,8 @@ void ConvertCudaRTtoHipRT::runOnOperation() {
 }
 
 void ConvertCudaRTtoGPU::runOnOperation() {
-  std::function<void(Operation * call, StringRef callee)> replaceWithOp =
-      [&](Operation *call, StringRef callee) {
+  std::function<void(Operation * call, llvm::StringRef callee)> replaceWithOp =
+      [&](Operation *call, llvm::StringRef callee) {
         auto loc = call->getLoc();
         OpBuilder bz(call);
 

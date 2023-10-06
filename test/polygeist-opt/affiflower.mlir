@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s | FileCheck %s
 
 #set0 = affine_set<(d0, d1) : (d0 + d1 * 512 == 0)>
 
@@ -23,11 +23,15 @@ module {
 
 }
 
-// CHECK: #set = affine_set<()[s0] : (s0 - 1 >= 0)>
-// CHECK:   func.func @f(%arg0: index, %arg1: memref<?xf64>) {
-// CHECK-NEXT:     %[[cst:.+]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:     affine.if #set()[%arg0] {
-// CHECK-NEXT:       affine.store %cst, %arg1[0] : memref<?xf64>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK: #[[$ATTR_0:.+]] = affine_set<()[s0] : (s0 * 512 - 1 >= 0)>
+
+// CHECK-LABEL:   func.func @f(
+// CHECK-SAME:                 %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: index,
+// CHECK-SAME:                 %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: memref<?xf64>) {
+// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.constant 0.000000e+00 : f64
+// CHECK:           affine.if #[[$ATTR_0]](){{\[}}%[[VAL_0]]] {
+// CHECK:             affine.store %[[VAL_2]], %[[VAL_1]][0] : memref<?xf64>
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
+

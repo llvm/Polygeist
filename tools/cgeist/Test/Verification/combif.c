@@ -23,7 +23,7 @@ int solver(	float** y,
 	return 0;
 } 
 
-// CHECK:   func @solver(%[[arg0:.+]]: memref<?xmemref<?xf32>>, %[[arg1:.+]]: i32, %[[arg2:.+]]: f32, %[[arg3:.+]]: f32) -> i32 attributes {llvm.linkage = #llvm.linkage<external>}
+// CHECK:   func @solver(%[[arg0:.+]]: memref<?xmemref<?xf32>>, %[[arg1:.+]]: i32, %[[arg2:.+]]: f32, %[[arg3:.+]]: f32) -> i32 
 // CHECK-NEXT:     %[[false:.+]] = arith.constant false
 // CHECK-NEXT:     %[[cst:.+]] = arith.constant 0.000000e+00 : f32
 // CHECK-NEXT:     %[[c1_i32:.+]] = arith.constant 1 : i32

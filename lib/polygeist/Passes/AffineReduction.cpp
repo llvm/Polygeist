@@ -10,6 +10,7 @@
 
 using namespace mlir;
 using namespace polygeist;
+using namespace mlir::affine;
 
 namespace {
 struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
@@ -19,27 +20,29 @@ struct AffineReductionPass : public AffineReductionBase<AffineReductionPass> {
 
 namespace {
 
-struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
-  using OpRewritePattern<AffineForOp>::OpRewritePattern;
+struct AffineForReductionIter : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
 
-  bool isInCurrentAffineFor(Operation *op, AffineForOp forOp) const {
+  bool isInCurrentAffineFor(Operation *op, affine::AffineForOp forOp) const {
     auto *parentOp = op->getParentOp();
-    auto maybeParentFor = dyn_cast_or_null<AffineForOp>(parentOp);
+    auto maybeParentFor = dyn_cast_or_null<affine::AffineForOp>(parentOp);
     if (maybeParentFor && maybeParentFor == forOp)
       return true;
     return false;
   }
 
-  bool areInSameAffineFor(AffineLoadOp load, AffineStoreOp store,
-                          AffineForOp forOp) const {
+  bool areInSameAffineFor(affine::AffineLoadOp load,
+                          affine::AffineStoreOp store,
+                          affine::AffineForOp forOp) const {
     return isInCurrentAffineFor(load.getOperation(), forOp) &&
            isInCurrentAffineFor(store.getOperation(), forOp);
   }
 
   template <typename T>
-  bool haveSameIndices(AffineLoadOp load, T storeOrLoad) const {
-    static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
-                  "applies to only AffineLoadOp or AffineStoreOp");
+  bool haveSameIndices(affine::AffineLoadOp load, T storeOrLoad) const {
+    static_assert(
+        llvm::is_one_of<T, affine::AffineLoadOp, affine::AffineStoreOp>::value,
+        "applies to only affine::AffineLoadOp or affine::AffineStoreOp");
     SmallVector<Value, 4> loadIndices(load.getIndices());
     SmallVector<Value, 4> storeOrLoadIndices = storeOrLoad.getIndices();
     if (loadIndices.size() != storeOrLoadIndices.size())
@@ -48,9 +51,11 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
                       storeOrLoadIndices.begin());
   }
 
-  template <typename T> bool areCompatible(AffineLoadOp load, T store) const {
-    static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value,
-                  "applies to only AffineLoadOp or AffineStoreOp");
+  template <typename T>
+  bool areCompatible(affine::AffineLoadOp load, T store) const {
+    static_assert(
+        llvm::is_one_of<T, affine::AffineLoadOp, affine::AffineStoreOp>::value,
+        "applies to only affine::AffineLoadOp or affine::AffineStoreOp");
     if (load.getMemRef() != store.getMemRef()) {
       return false;
     }
@@ -82,41 +87,41 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
   bool hasParentOp(Operation *a, Operation *b) const {
     Operation *currOp = a;
     while (Operation *parentOp = currOp->getParentOp()) {
-      if (isa<mlir::AffineForOp>(parentOp) && parentOp == b)
+      if (isa<mlir::affine::AffineForOp>(parentOp) && parentOp == b)
         return true;
       currOp = parentOp;
     }
     return false;
   }
 
-  LogicalResult matchAndRewrite(AffineForOp forOp,
+  LogicalResult matchAndRewrite(affine::AffineForOp forOp,
                                 PatternRewriter &rewriter) const override {
 
     Block *block = forOp.getBody();
     SmallVector<std::pair<Operation *, Operation *>, 0> candidateOpsInFor;
     SmallVector<SmallVector<Operation *>> loadsInFor;
     block->walk([&](Operation *operation) {
-      if (auto load = dyn_cast<AffineLoadOp>(operation)) {
+      if (auto load = dyn_cast<affine::AffineLoadOp>(operation)) {
         SmallVector<Value, 4> indices(load.getIndices());
         // skip load if all dimensions are not reduced.
         if (!hasAllDimsReduced(indices, forOp.getInductionVar()))
           return WalkResult::advance();
         // locate possible compatible stores.
         Value memref = load.getMemRef();
-        SmallVector<AffineStoreOp> candidateStores;
+        SmallVector<affine::AffineStoreOp> candidateStores;
         SmallVector<Operation *> otherStores;
         SmallVector<Operation *> otherLoads;
         for (auto *user : memref.getUsers()) {
-          if (auto store = dyn_cast<AffineStoreOp>(user)) {
+          if (auto store = dyn_cast<affine::AffineStoreOp>(user)) {
             if (areInSameAffineFor(load, store, forOp) &&
-                areCompatible<AffineStoreOp>(load, store)) {
+                areCompatible<affine::AffineStoreOp>(load, store)) {
               candidateStores.push_back(store);
-            } else if (areCompatible<AffineStoreOp>(load, store) &&
+            } else if (areCompatible<affine::AffineStoreOp>(load, store) &&
                        hasParentOp(store.getOperation(), forOp.getOperation()))
               otherStores.push_back(store);
           }
-          if (auto otherLoad = dyn_cast<AffineLoadOp>(user)) {
-            if (areCompatible<AffineLoadOp>(load, otherLoad) &&
+          if (auto otherLoad = dyn_cast<affine::AffineLoadOp>(user)) {
+            if (areCompatible<affine::AffineLoadOp>(load, otherLoad) &&
                 load != otherLoad &&
                 hasParentOp(otherLoad.getOperation(), forOp.getOperation()))
               otherLoads.push_back(otherLoad);
@@ -167,7 +172,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     }
 
     // create the for.
-    AffineForOp newForOp = rewriter.create<AffineForOp>(
+    affine::AffineForOp newForOp = rewriter.create<affine::AffineForOp>(
         forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
         forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
         forOp.getStep(), newIterArgs);
@@ -192,7 +197,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
            "unexpected argument size mismatch");
     rewriter.mergeBlocks(oldBlock, newBlock, newBlockTransferArgs);
 
-    auto cloneFilteredTerminator = [&](AffineYieldOp mergedTerminator) {
+    auto cloneFilteredTerminator = [&](affine::AffineYieldOp mergedTerminator) {
       SmallVector<Value, 4> newOperands;
       llvm::append_range(newOperands, mergedTerminator.getOperands());
       // store operands are now returned.
@@ -200,10 +205,10 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
         newOperands.push_back(std::get<1>(pair)->getOperand(0));
         // rewriter.eraseOp(std::get<1>(pair));
       }
-      mergedTerminator.operandsMutable().assign(newOperands);
+      mergedTerminator.getOperandsMutable().assign(newOperands);
     };
 
-    auto mergedYieldOp = cast<AffineYieldOp>(newBlock->getTerminator());
+    auto mergedYieldOp = cast<affine::AffineYieldOp>(newBlock->getTerminator());
     cloneFilteredTerminator(mergedYieldOp);
 
     // prepare for new yielded value for 'replaceOp'.
@@ -223,7 +228,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
     DominanceInfo DT;
     PostDominanceInfo PDT;
     for (auto pair : candidateOpsInFor) {
-      auto store = cast<AffineStoreOp>(std::get<1>(pair));
+      auto store = cast<affine::AffineStoreOp>(std::get<1>(pair));
 
       auto loads = loadsInFor[i];
       for (auto *load : loads) {
@@ -239,7 +244,7 @@ struct AffineForReductionIter : public OpRewritePattern<AffineForOp> {
       }
 
       rewriter.setInsertionPointAfter(newForOp);
-      rewriter.create<AffineStoreOp>(
+      rewriter.create<affine::AffineStoreOp>(
           newForOp.getLoc(),
           newForOp.getResults()[forOp.getResults().size() + i],
           store.getMemRef(), store.getAffineMap(), store.getIndices());

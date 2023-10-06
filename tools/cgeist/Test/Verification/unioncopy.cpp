@@ -19,48 +19,52 @@ void meta() {
 	use(alpha_scalar.v.d);
 }
 
-// CHECK:   func.func @_Z4metav() attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-DAG:     %[[cst:.+]] = arith.constant 3.000000e+00 : f64
-// CHECK-DAG:     %[[cst_0:.+]] = arith.constant 1.000000e+00 : f64
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = memref.cast %[[V0]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V2:.+]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V3:.+]] = memref.cast %[[V2]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V4:.+]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V5:.+]] = memref.cast %[[V4]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%[[V5]], %[[cst_0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, f64) -> ()
-// CHECK-NEXT:     call @_ZN8MyScalarC1Ed(%[[V3]], %[[cst]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, f64) -> ()
-// CHECK-NEXT:     %[[V6:.+]] = affine.load %[[V2]][0] : memref<1x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     affine.store %[[V6]], %[[V0]][0] : memref<1x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V7:.+]] = call @_ZN8MyScalaraSEOS_(%[[V5]], %[[V1]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, memref<?x!llvm.struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V8:.+]] = "polygeist.memref2pointer"(%[[V4]]) : (memref<1x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V9:.+]] = llvm.getelementptr %[[V8]][0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %[[V10:.+]] = llvm.getelementptr %[[V9]][0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     %[[V11:.+]] = llvm.load %[[V10]] : !llvm.ptr<f64>
-// CHECK-NEXT:     call @_Z3used(%[[V11]]) : (f64) -> ()
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN8MyScalarC1Ed(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(f64)>)>>, %[[arg1:.+]]: f64) attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = llvm.getelementptr %[[V0]][0, 0] : (!llvm.ptr<struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(f64)>>
-// CHECK-NEXT:     %[[V2:.+]] = llvm.getelementptr %[[V1]][0, 0] : (!llvm.ptr<struct<(f64)>>) -> !llvm.ptr<f64>
-// CHECK-NEXT:     llvm.store %[[arg1]], %[[V2]] : !llvm.ptr<f64>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func.func @_ZN8MyScalaraSEOS_(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(f64)>)>>, %[[arg1:.+]]: memref<?x!llvm.struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(struct<(f64)>)>> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.pointer2memref"(%[[V0]]) : (!llvm.ptr<struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(f64)>>
-// CHECK-NEXT:     %[[V2:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr<struct<(struct<(f64)>)>>
-// CHECK-NEXT:     %[[V3:.+]] = "polygeist.pointer2memref"(%[[V2]]) : (!llvm.ptr<struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(f64)>>
-// CHECK-NEXT:     %[[V4:.+]] = call @_ZN1SaSEOS_(%[[V1]], %[[V3]]) : (memref<?x!llvm.struct<(f64)>>, memref<?x!llvm.struct<(f64)>>) -> memref<?x!llvm.struct<(f64)>>
-// CHECK-NEXT:     return %[[arg0]] : memref<?x!llvm.struct<(struct<(f64)>)>>
-// CHECK-NEXT:   }
-// CHECK-NEXT:     func.func private @_Z3used(f64) attributes {llvm.linkage = #llvm.linkage<external>}
-// CHECK:   func.func @_ZN1SaSEOS_(%[[arg0:.+]]: memref<?x!llvm.struct<(f64)>>, %[[arg1:.+]]: memref<?x!llvm.struct<(f64)>>) -> memref<?x!llvm.struct<(f64)>> attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
-// CHECK-DAG:     %[[c8_i64:.+]] = arith.constant 8 : i64
-// CHECK-DAG:     %[[false:.+]] = arith.constant false
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     "llvm.intr.memcpy"(%[[V0]], %[[V1]], %[[c8_i64]], %[[false]]) : (!llvm.ptr<i8>, !llvm.ptr<i8>, i64, i1) -> ()
-// CHECK-NEXT:     return %[[arg0]] : memref<?x!llvm.struct<(f64)>>
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @_Z4metav()
+// CHECK:           %[[VAL_0:[A-Za-z0-9_]*]] = arith.constant 3.000000e+00 : f64
+// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = arith.constant 1.000000e+00 : f64
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = memref.cast %[[VAL_2]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = memref.cast %[[VAL_4]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = memref.cast %[[VAL_6]] : memref<1x!llvm.struct<(struct<(f64)>)>> to memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           call @_ZN8MyScalarC1Ed(%[[VAL_7]], %[[VAL_1]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, f64) -> ()
+// CHECK:           call @_ZN8MyScalarC1Ed(%[[VAL_5]], %[[VAL_0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, f64) -> ()
+// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = affine.load %[[VAL_4]][0] : memref<1x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           affine.store %[[VAL_8]], %[[VAL_2]][0] : memref<1x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = call @_ZN8MyScalaraSEOS_(%[[VAL_7]], %[[VAL_3]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>, memref<?x!llvm.struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_6]]) : (memref<1x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_11:[A-Za-z0-9_]*]] = llvm.load %[[VAL_10]] : !llvm.ptr -> f64
+// CHECK:           call @_Z3used(%[[VAL_11]]) : (f64) -> ()
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN8MyScalarC1Ed(
+// CHECK-SAME:                                %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(f64)>)>>,
+// CHECK-SAME:                                %[[VAL_1:[A-Za-z0-9_]*]]: f64)
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_1]], %[[VAL_2]] : f64, !llvm.ptr
+// CHECK:           return
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN8MyScalaraSEOS_(
+// CHECK-SAME:                                  %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(f64)>)>>,
+// CHECK-SAME:                                  %[[VAL_1:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(struct<(f64)>)>>) -> memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_2]]) : (!llvm.ptr) -> memref<?x!llvm.struct<(f64)>>
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?x!llvm.struct<(struct<(f64)>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_4]]) : (!llvm.ptr) -> memref<?x!llvm.struct<(f64)>>
+// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = call @_ZN1SaSEOS_(%[[VAL_3]], %[[VAL_5]]) : (memref<?x!llvm.struct<(f64)>>, memref<?x!llvm.struct<(f64)>>) -> memref<?x!llvm.struct<(f64)>>
+// CHECK:           return %[[VAL_0]] : memref<?x!llvm.struct<(struct<(f64)>)>>
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @_ZN1SaSEOS_(
+// CHECK-SAME:                           %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(f64)>>,
+// CHECK-SAME:                           %[[VAL_1:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(f64)>>) -> memref<?x!llvm.struct<(f64)>>
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 8 : i64
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?x!llvm.struct<(f64)>>) -> !llvm.ptr
+// CHECK:           "llvm.intr.memcpy"(%[[VAL_3]], %[[VAL_4]], %[[VAL_2]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
+// CHECK:           return %[[VAL_0]] : memref<?x!llvm.struct<(f64)>>
+// CHECK:         }
+

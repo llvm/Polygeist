@@ -13,7 +13,7 @@ struct S {
 void f(){
   auto res = S::bar();
 }
-// CHECK: func.func @_Z10inlineFuncj(%arg0: i32) -> i64 attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK: func.func @_Z10inlineFuncj(%arg0: i32) -> i64  
 // CHECK-NEXT:   %0 = call @_Z3fooj(%arg0) : (i32) -> i64
 // CHECK-NEXT:   return %0 : i64
 // CHECK-NEXT: }

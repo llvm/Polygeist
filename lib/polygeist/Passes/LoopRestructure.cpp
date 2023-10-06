@@ -19,14 +19,15 @@
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
+#include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 #include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/Analysis/LoopInfo.h"
-#include "llvm/Analysis/LoopInfoImpl.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/Support/GenericDomTreeConstruction.h"
-
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/GenericDomTreeConstruction.h"
+#include "llvm/Support/GenericLoopInfo.h"
+#include "llvm/Support/GenericLoopInfoImpl.h"
+
 #define DEBUG_TYPE "LoopRestructure"
 
 using namespace mlir;
@@ -665,7 +666,7 @@ void LoopRestructure::runOnRegion(DominanceInfo &domInfo, Region &region) {
         SmallVector<Value> results;
         llvm::append_range(results, terminator->getOperands());
         terminator->erase();
-        B.mergeBlockBefore(block, exec);
+        B.inlineBlockBefore(block, exec);
         exec.replaceAllUsesWith(results);
         exec.erase();
       }

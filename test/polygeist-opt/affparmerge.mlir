@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s | FileCheck %s
 
 module {
   func.func @f(%636: index,  %603: memref<?xf64>) {

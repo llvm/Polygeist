@@ -57,10 +57,10 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
     if (auto p2m = toStore.getDefiningOp<polygeist::Pointer2MemrefOp>()) {
       if (pt.getElementType() == p2m.getSource().getType())
         toStore = p2m.getSource();
-      else if (auto nt = p2m.getSource().getDefiningOp<LLVM::NullOp>()) {
+      else if (auto nt = p2m.getSource().getDefiningOp<LLVM::ZeroOp>()) {
         if (pt.getElementType().isa<LLVM::LLVMPointerType>())
           toStore =
-              builder.create<LLVM::NullOp>(nt.getLoc(), pt.getElementType());
+              builder.create<LLVM::ZeroOp>(nt.getLoc(), pt.getElementType());
       }
     }
     if (toStore.getType() != pt.getElementType()) {
@@ -92,7 +92,7 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
                         .getElementType()
                         .dyn_cast<mlir::MemRefType>()) {
         assert(MT.getShape().size() == 1);
-        assert(MT.getShape()[0] == -1);
+        assert(MT.getShape()[0] == ShapedType::kDynamic);
         assert(MT.getElementType() == PT.getElementType());
         toStore = builder.create<polygeist::Pointer2MemrefOp>(loc, MT, toStore);
       }

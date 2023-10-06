@@ -145,7 +145,7 @@ int main(int argc, char** argv)
 }
 
 // CHECK: #map = affine_map<(d0) -> (d0 + 1)>
-// CHECK:  func @kernel_syrk(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>) {
+// CHECK:  func @kernel_syrk(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: f64, %arg4: memref<1200x1200xf64>, %arg5: memref<1200x1000xf64>) 
 // CHECK-NEXT:    %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:    %1 = index_cast %arg1 : i32 to index
 // CHECK-NEXT:    affine.for %arg6 = 0 to %0 {

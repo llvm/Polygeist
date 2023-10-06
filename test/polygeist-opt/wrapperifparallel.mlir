@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --lower-affine --canonicalize --convert-parallel-to-gpu1 --canonicalize %s | FileCheck %s
+// RUN: polygeist-opt --lower-affine --canonicalize-polygeist --convert-parallel-to-gpu1 --canonicalize-polygeist %s | FileCheck %s
 
 // TODO we need versions that need gpu cache to split wrapper (from particlefilter), lud or sradv1 had an alloca in wrapper case
 

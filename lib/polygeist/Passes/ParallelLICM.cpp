@@ -7,8 +7,8 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -186,7 +186,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
       bool conflict = false;
       // If the parent operation is not guaranteed to execute its (single-block)
       // region once, walk the block.
-      if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(b))
+      if (!isa<scf::IfOp, affine::AffineIfOp, memref::AllocaScopeOp>(b))
         b->walk([&](Operation *in) {
           if (conflict)
             return WalkResult::interrupt();
@@ -246,8 +246,8 @@ bool below(Value bval, int64_t val) {
     return false;
 
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
-    if (AffineForOp afFor =
-            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineForOp afFor =
+            dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       for (auto ub : afFor.getUpperBoundMap().getResults()) {
         if (!below(ub, afFor.getUpperBoundMap().getNumDims(),
                    afFor.getUpperBoundOperands(), val + 1))
@@ -255,8 +255,8 @@ bool below(Value bval, int64_t val) {
       }
       return true;
     }
-    if (AffineParallelOp afFor =
-            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineParallelOp afFor = dyn_cast<affine::AffineParallelOp>(
+            baval.getOwner()->getParentOp())) {
       for (auto ub :
            afFor.getUpperBoundMap(baval.getArgNumber()).getResults()) {
         if (!below(ub, afFor.getUpperBoundsMap().getNumDims(),
@@ -306,13 +306,14 @@ bool below(AffineExpr expr, size_t numDim, ValueRange operands, int64_t val) {
   return false;
 }
 
+namespace mlir::polygeist {
 bool isSpeculatable(Operation *op) {
   if (auto memInterface = dyn_cast<MemoryEffectOpInterface>(op)) {
     // If the op has no side-effects, it is speculatable.
     if (memInterface.hasNoEffect())
       return true;
 
-    if (auto load = dyn_cast<AffineLoadOp>(op)) {
+    if (auto load = dyn_cast<affine::AffineLoadOp>(op)) {
       Value ptr = load.getMemref();
       if (ptr.getDefiningOp<memref::AllocOp>() ||
           ptr.getDefiningOp<memref::AllocaOp>()) {
@@ -354,10 +355,11 @@ bool isSpeculatable(Operation *op) {
   // Recurse into the regions and ensure that all nested ops can also be moved.
   for (Region &region : op->getRegions())
     for (Operation &op : region.getOps())
-      if (!isSpeculatable(&op))
+      if (!polygeist::isSpeculatable(&op))
         return false;
   return true;
 }
+} // namespace mlir::polygeist
 
 void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 
@@ -375,7 +377,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -387,7 +389,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, polygeist::isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = nullptr;
     for (auto pair : llvm::zip(looplike.getLowerBound(),
@@ -420,7 +422,7 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
 }
 
 // TODO affine parallel licm
-void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
+void moveParallelLoopInvariantCode(affine::AffineParallelOp looplike) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -435,7 +437,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet)) {
             opsToMove.push_back(&op);
             willBeMovedSet.insert(&op);
@@ -447,7 +449,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, polygeist::isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
@@ -508,7 +510,7 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
         /*symbols*/ looplike.getLowerBoundsMap().getNumSymbols() +
             looplike.getUpperBoundsMap().getNumSymbols(),
         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(
+    auto ifOp = b.create<affine::AffineIfOp>(
         looplike.getLoc(), looplike.getResultTypes(), iset, values,
         /*hasElse*/ !looplike.getResultTypes().empty());
     if (!ifOp.getThenBlock()->empty())
@@ -517,11 +519,12 @@ void moveParallelLoopInvariantCode(AffineParallelOp looplike) {
     looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
-    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.getElseBlock());
       // TODO affine parallel initial value for reductions.
-      // B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+      // B.create<affine::AffineYieldOp>(looplike.getLoc(),
+      // looplike.getInits());
     }
   }
   for (auto op : opsToMove)
@@ -544,7 +547,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator())
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -557,7 +560,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, polygeist::isSpeculatable)) {
     OpBuilder b(looplike);
     Value cond = b.create<arith::CmpIOp>(looplike.getLoc(), CmpIPredicate::slt,
                                          looplike.getLowerBound(),
@@ -574,7 +577,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
     B.create<scf::YieldOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.elseBlock());
-      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getIterOperands());
+      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getInits());
     }
   }
   for (auto op : opsToMove)
@@ -582,7 +585,7 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
   LLVM_DEBUG(looplike.print(llvm::dbgs() << "\n\nModified loop:\n"));
 }
 
-void moveSerialLoopInvariantCode(AffineForOp looplike) {
+void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
 
   // We use two collections here as we need to preserve the order for insertion
   // and this is easiest.
@@ -597,7 +600,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
     for (Region &region : metaop->getRegions())
       for (Block &block : region)
         for (Operation &op : block.without_terminator()) {
-          if ((!checkSpeculative || isSpeculatable(&op)) &&
+          if ((!checkSpeculative || polygeist::isSpeculatable(&op)) &&
               canBeParallelHoisted(&op, looplike, willBeMovedSet,
                                    /*checkAfter*/ true)) {
             opsToMove.push_back(&op);
@@ -611,7 +614,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
 
   // For all instructions that we found to be invariant, move outside of the
   // loop.
-  if (!llvm::all_of(opsToMove, isSpeculatable)) {
+  if (!llvm::all_of(opsToMove, polygeist::isSpeculatable)) {
     OpBuilder b(looplike);
 
     // TODO properly fill exprs and eqflags
@@ -671,7 +674,7 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
         /*symbols*/ looplike.getLowerBoundMap().getNumSymbols() +
             looplike.getUpperBoundMap().getNumSymbols(),
         exprs, eqflags);
-    auto ifOp = b.create<AffineIfOp>(
+    auto ifOp = b.create<affine::AffineIfOp>(
         looplike.getLoc(), looplike.getResultTypes(), iset, values,
         /*hasElse*/ !looplike.getResultTypes().empty());
     if (!ifOp.getThenBlock()->empty())
@@ -680,10 +683,10 @@ void moveSerialLoopInvariantCode(AffineForOp looplike) {
     looplike->moveBefore(ifOp.getThenBlock(), ifOp.getThenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.getThenBlock(), ifOp.getThenBlock()->end());
-    B.create<AffineYieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.getElseBlock());
-      B.create<AffineYieldOp>(looplike.getLoc(), looplike.getIterOperands());
+      B.create<affine::AffineYieldOp>(looplike.getLoc(), looplike.getInits());
     }
   }
   for (auto op : opsToMove)
@@ -697,11 +700,13 @@ void ParallelLICM::runOnOperation() {
     moveLoopInvariantCode(loopLike);
     if (auto par = dyn_cast<scf::ParallelOp>((Operation *)loopLike)) {
       moveParallelLoopInvariantCode(par);
-    } else if (auto par = dyn_cast<AffineParallelOp>((Operation *)loopLike)) {
+    } else if (auto par =
+                   dyn_cast<affine::AffineParallelOp>((Operation *)loopLike)) {
       moveParallelLoopInvariantCode(par);
     } else if (auto par = dyn_cast<scf::ForOp>((Operation *)loopLike)) {
       moveSerialLoopInvariantCode(par);
-    } else if (auto par = dyn_cast<AffineForOp>((Operation *)loopLike)) {
+    } else if (auto par =
+                   dyn_cast<affine::AffineForOp>((Operation *)loopLike)) {
       moveSerialLoopInvariantCode(par);
     }
   });

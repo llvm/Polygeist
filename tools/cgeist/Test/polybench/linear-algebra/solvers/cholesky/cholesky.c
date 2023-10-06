@@ -153,7 +153,7 @@ int main(int argc, char** argv)
 }
 
 // CHECK: #map = affine_map<(d0) -> (d0)>
-// CHECK:  func @kernel_cholesky(%arg0: i32, %arg1: memref<2000x2000xf64>) {
+// CHECK:  func @kernel_cholesky(%arg0: i32, %arg1: memref<2000x2000xf64>) 
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  affine.for %arg2 = 0 to %0 {
 // CHECK-NEXT:    affine.for %arg3 = 0 to #map(%arg2) {

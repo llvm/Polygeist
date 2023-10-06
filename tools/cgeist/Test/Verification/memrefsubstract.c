@@ -13,22 +13,28 @@ struct latLong *bar(struct latLong *a, int b) {
   return a - b;
 }
 
-// CHECK:  func.func @foo(%[[arg0:.+]]: memref<?x2xi32>, %[[arg1:.+]]: memref<?x2xi32>) -> i32
-// CHECK-NEXT:    %[[c8_i64:.+]] = arith.constant 8 : i64
-// CHECK-DAG:    %[[i0:.*]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
-// CHECK-DAG:    %[[i1:.*]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
-// CHECK-DAG:    %[[i2:.*]] = llvm.ptrtoint %[[i0]] : !llvm.ptr<array<2 x i32>> to i64
-// CHECK-DAG:    %[[i3:.*]] = llvm.ptrtoint %[[i1]] : !llvm.ptr<array<2 x i32>> to i64
-// CHECK-NEXT:    %[[V4:.+]] = arith.subi %[[i2]], %[[i3]] : i64
-// CHECK-NEXT:    %[[V5:.+]] = arith.divsi %[[V4]], %[[c8_i64]] : i64
-// CHECK-NEXT:    %[[V6:.+]] = arith.trunci %[[V5]] : i64 to i32
-// CHECK-NEXT:    return %[[V6]] : i32
-// CHECK-NEXT:  }
-// CHECK:  func.func @bar(%[[arg0:.+]]: memref<?x2xi32>, %[[arg1:.+]]: i32) -> memref<?x2xi32>
-// CHECK-NEXT:    %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:    %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x2xi32>) -> !llvm.ptr<array<2 x i32>>
-// CHECK-NEXT:    %[[V1:.+]] = arith.subi %[[c0_i32]], %[[arg1]] : i32
-// CHECK-NEXT:    %[[V2:.+]] = llvm.getelementptr %[[V0]][%[[V1]]] : (!llvm.ptr<array<2 x i32>>, i32) -> !llvm.ptr<array<2 x i32>>
-// CHECK-NEXT:    %[[V3:.+]] = "polygeist.pointer2memref"(%[[V2]]) : (!llvm.ptr<array<2 x i32>>) -> memref<?x2xi32>
-// CHECK-NEXT:    return %[[V3]] : memref<?x2xi32>
-// CHECK-NEXT:  }
+// CHECK-LABEL:   func.func @foo(
+// CHECK-SAME:                   %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x2xi32>,
+// CHECK-SAME:                   %[[VAL_1:[A-Za-z0-9_]*]]: memref<?x2xi32>) -> i32  
+// CHECK-DAG:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 8 : i64
+// CHECK-DAG:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x2xi32>) -> !llvm.ptr
+// CHECK-DAG:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?x2xi32>) -> !llvm.ptr
+// CHECK-DAG:           %[[VAL_5:[A-Za-z0-9_]*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
+// CHECK-DAG:           %[[VAL_6:[A-Za-z0-9_]*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr to i64
+// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = arith.subi %[[VAL_5]], %[[VAL_6]] : i64
+// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = arith.divsi %[[VAL_7]], %[[VAL_2]] : i64
+// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = arith.trunci %[[VAL_8]] : i64 to i32
+// CHECK:           return %[[VAL_9]] : i32
+// CHECK:         }
+
+// CHECK-LABEL:   func.func @bar(
+// CHECK-SAME:                   %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x2xi32>,
+// CHECK-SAME:                   %[[VAL_1:[A-Za-z0-9_]*]]: i32) -> memref<?x2xi32>  
+// CHECK-DAG:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 0 : i32
+// CHECK-DAG:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x2xi32>) -> !llvm.ptr
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = arith.subi %[[VAL_2]], %[[VAL_1]] : i32
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_3]]{{\[}}%[[VAL_4]]] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.array<2 x i32>
+// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_5]]) : (!llvm.ptr) -> memref<?x2xi32>
+// CHECK:           return %[[VAL_6]] : memref<?x2xi32>
+// CHECK:         }
+

@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --allow-unregistered-dialect --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --allow-unregistered-dialect --split-input-file %s | FileCheck %s
 
 #set0 = affine_set<(d0) : (-d0 == 0)>
 #set1 = affine_set<(d0) : (d0 == 0)>

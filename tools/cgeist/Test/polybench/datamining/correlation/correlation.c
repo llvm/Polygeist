@@ -196,7 +196,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:   llvm.func @fprintf(!llvm.ptr<struct<"struct._IO_FILE", (i32, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<i8>, ptr<struct<"struct._IO_marker", opaque>>, ptr<struct<"struct._IO_FILE">>, i32, i32, i64, i16, i8, array<1 x i8>, ptr<i8>, i64, ptr<struct<"struct._IO_codecvt", opaque>>, ptr<struct<"struct._IO_wide_data", opaque>>, ptr<struct<"struct._IO_FILE">>, ptr<i8>, i64, i32, array<20 x i8>)>>, !llvm.ptr<i8>, ...) -> !llvm.i32
 // CHECK-NEXT:   llvm.mlir.global internal constant @str0("\00")
 // CHECK-NEXT:   llvm.func @strcmp(!llvm.ptr<i8>, !llvm.ptr<i8>) -> !llvm.i32
-// CHECK-NEXT:   func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 {
+// CHECK-NEXT:   func @main(%arg0: i32, %arg1: !llvm.ptr<ptr<i8>>) -> i32 
 // CHECK-NEXT:     %c0 = constant 0 : index
 // CHECK-NEXT:     %c1400_i32 = constant 1400 : i32
 // CHECK-NEXT:     %c1200_i32 = constant 1200 : i32
@@ -232,7 +232,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return %c0_i32 : i32
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func private @init_array(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<1400x1200xf64>) {
+// CHECK-NEXT:   func private @init_array(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<1400x1200xf64>) 
 // CHECK-NEXT:     %c0 = constant 0 : index
 // CHECK-NEXT:     %c1400_i32 = constant 1400 : i32
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
@@ -265,7 +265,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     %14 = addi %1, %c1_i32 : i32
 // CHECK-NEXT:     br ^bb1(%14 : i32)
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func private @kernel_correlation(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) {
+// CHECK-NEXT:   func private @kernel_correlation(%arg0: i32, %arg1: i32, %arg2: f64, %arg3: memref<1400x1200xf64>, %arg4: memref<1200x1200xf64>, %arg5: memref<1200xf64>, %arg6: memref<1200xf64>) 
 // CHECK-NEXT:     %cst = constant 1.000000e-01 : f64
 // CHECK-NEXT:     %c1 = constant 1 : index
 // CHECK-NEXT:     %cst_0 = constant 0.000000e+00 : f64
@@ -342,7 +342,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:     store %cst_1, %arg4[%2, %2] : memref<1200x1200xf64>
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
-// CHECK-NEXT:   func private @print_array(%arg0: i32, %arg1: memref<1200x1200xf64>) {
+// CHECK-NEXT:   func private @print_array(%arg0: i32, %arg1: memref<1200x1200xf64>) 
 // CHECK-NEXT:     %c0_i32 = constant 0 : i32
 // CHECK-NEXT:     %c20_i32 = constant 20 : i32
 // CHECK-NEXT:     %c1_i32 = constant 1 : i32

@@ -13,7 +13,7 @@ unsigned int test() {
 	return shift;
 }
 
-// CHECK:   func @test() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func @test() -> i32  
 // CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
 // CHECK-DAG:     %[[c1_i32:.+]] = arith.constant 1 : i32
 // CHECK-NEXT:     %[[V0:.+]] = scf.while (%[[arg0:.+]] = %[[c0_i32]]) : (i32) -> i32 {

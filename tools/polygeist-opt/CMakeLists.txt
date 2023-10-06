@@ -6,6 +6,7 @@ set(LIBS
         MLIROptLib
 		MLIRPolygeist
 		MLIRPolygeistTransforms
+		MLIRFuncAllExtensions
         )
 add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 

@@ -16,15 +16,14 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Utils/Utils.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
-#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -53,12 +52,12 @@ static LogicalResult generateUnrolledInterleavedLoop(
   BlockArgument srcIV = srcBlock->getArgument(dim);
   BlockArgument dstIV = dstBlock->getArgument(dim);
 
-  BlockAndValueMapping barrierBlockArgMap;
+  IRMapping barrierBlockArgMap;
   for (unsigned j = 0; j < srcBlock->getNumArguments(); j++)
     barrierBlockArgMap.map(srcBlock->getArgument(j), dstBlock->getArgument(j));
-  SmallVector<BlockAndValueMapping, 32> operandMap;
+  SmallVector<IRMapping, 32> operandMap;
   for (unsigned i = 0; i < unrollFactor; i++) {
-    operandMap.emplace_back(BlockAndValueMapping());
+    operandMap.emplace_back(IRMapping());
     for (unsigned j = 0; j < srcBlock->getNumArguments(); j++)
       operandMap[i].map(srcBlock->getArgument(j), dstBlock->getArgument(j));
     // If the induction variable is used, create a remapping to the value for
@@ -125,7 +124,7 @@ static LogicalResult generateUnrolledInterleavedLoop(
                   nestedBarrierSyncsOverArg(op, srcIV)))
               return failure();
             SmallVector<Value> dstIterOperands;
-            for (auto iterOperand : forOp.getIterOperands())
+            for (auto iterOperand : forOp.getInits())
               for (unsigned i = 0; i < unrollFactor; i++)
                 dstIterOperands.push_back(
                     operandMap[i].lookupOrDefault(iterOperand));
@@ -267,11 +266,11 @@ static LogicalResult generateUnrolledInterleavedLoop(
 static bool isNormalized(scf::ParallelOp op) {
   auto isZero = [](Value v) {
     APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isNullValue();
+    return matchPattern(v, m_ConstantInt(&value)) && value.isZero();
   };
   auto isOne = [](Value v) {
     APInt value;
-    return matchPattern(v, m_ConstantInt(&value)) && value.isOneValue();
+    return matchPattern(v, m_ConstantInt(&value)) && value.isOne();
   };
   return llvm::all_of(op.getLowerBound(), isZero) &&
          llvm::all_of(op.getStep(), isOne);
@@ -324,7 +323,7 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
       builder.create<arith::ConstantIndexOp>(loc, unrollFactor);
   Value upperBoundUnrolled = nullptr;
   Value remUnrolled = nullptr;
-  llvm::Optional<int64_t> remUnrolledCst = {};
+  std::optional<int64_t> remUnrolledCst = {};
 
   auto lbCstOp =
       pop.getLowerBound()[dim].getDefiningOp<arith::ConstantIndexOp>();

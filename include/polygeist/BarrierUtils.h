@@ -51,15 +51,14 @@ allocateTemporaryBuffer(mlir::OpBuilder &rewriter, mlir::Value value,
                         mlir::ValueRange iterationCounts, bool alloca = true,
                         mlir::DataLayout *DLI = nullptr) {
   using namespace mlir;
-  SmallVector<int64_t> bufferSize(iterationCounts.size(),
-                                  ShapedType::kDynamicSize);
+  SmallVector<int64_t> bufferSize(iterationCounts.size(), ShapedType::kDynamic);
   mlir::Type ty = value.getType();
   if (alloca)
     if (auto allocaOp = value.getDefiningOp<memref::AllocaOp>()) {
       auto mt = allocaOp.getType();
       bool hasDynamicSize = false;
       for (auto s : mt.getShape()) {
-        if (s == ShapedType::kDynamicSize) {
+        if (s == ShapedType::kDynamic) {
           hasDynamicSize = true;
           break;
         }
@@ -84,10 +83,12 @@ mlir::Value allocateTemporaryBuffer<mlir::LLVM::AllocaOp>(
   auto sz = val.getArraySize();
   assert(DLI);
   for (auto iter : iterationCounts) {
-    sz =
-        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
-                                       rewriter.create<arith::IndexCastOp>(
-                                           value.getLoc(), sz.getType(), iter));
+    sz = cast<TypedValue<IntegerType>>(
+        rewriter
+            .create<arith::MulIOp>(value.getLoc(), sz,
+                                   rewriter.create<arith::IndexCastOp>(
+                                       value.getLoc(), sz.getType(), iter))
+            .getResult());
   }
   return rewriter.create<LLVM::AllocaOp>(value.getLoc(), val.getType(), sz);
 }
@@ -100,18 +101,24 @@ mlir::Value allocateTemporaryBuffer<mlir::LLVM::CallOp>(
   auto val = value.getDefiningOp<LLVM::AllocaOp>();
   auto sz = val.getArraySize();
   assert(DLI);
-  sz = rewriter.create<arith::MulIOp>(
-      value.getLoc(), sz,
-      rewriter.create<arith::ConstantIntOp>(
-          value.getLoc(),
-          DLI->getTypeSize(
-              val.getType().cast<LLVM::LLVMPointerType>().getElementType()),
-          sz.getType().cast<IntegerType>().getWidth()));
+  sz = cast<TypedValue<IntegerType>>(
+      rewriter
+          .create<arith::MulIOp>(
+              value.getLoc(), sz,
+              rewriter.create<arith::ConstantIntOp>(
+                  value.getLoc(),
+                  DLI->getTypeSize(val.getType()
+                                       .cast<LLVM::LLVMPointerType>()
+                                       .getElementType()),
+                  sz.getType().cast<IntegerType>().getWidth()))
+          .getResult());
   for (auto iter : iterationCounts) {
-    sz =
-        rewriter.create<arith::MulIOp>(value.getLoc(), sz,
-                                       rewriter.create<arith::IndexCastOp>(
-                                           value.getLoc(), sz.getType(), iter));
+    sz = cast<TypedValue<IntegerType>>(
+        rewriter
+            .create<arith::MulIOp>(value.getLoc(), sz,
+                                   rewriter.create<arith::IndexCastOp>(
+                                       value.getLoc(), sz.getType(), iter))
+            .getResult());
   }
   auto m = val->getParentOfType<ModuleOp>();
   return callMalloc(rewriter, m, value.getLoc(), sz);

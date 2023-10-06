@@ -8,7 +8,7 @@ void what() {
   }
 }
 
-// CHECK:   func.func @what() attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK:   func.func @what()  
 // CHECK-DAG:     %[[true:.+]] = arith.constant true
 // CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
 // CHECK-NEXT:     scf.while (%[[arg0:.+]] = %[[true]]) : (i1) -> () {

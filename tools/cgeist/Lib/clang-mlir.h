@@ -100,6 +100,11 @@ struct MLIRASTConsumer : public ASTConsumer {
 
   ~MLIRASTConsumer() {}
 
+  mlir::Type getVoidMemRefTy() const {
+    return MemRefType::get({ShapedType::kDynamic},
+                           mlir::OpBuilder(module->getContext()).getI8Type());
+  }
+
   mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD,
                                              bool getDeviceStub = false);
 
@@ -165,6 +170,10 @@ private:
     auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
     vec.push_back(rs);
     return rs;
+  }
+
+  LLVM::LLVMPointerType getOpaquePtr() {
+    return LLVM::LLVMPointerType::get(builder.getContext());
   }
 
   mlir::Location getMLIRLocation(clang::SourceLocation loc);

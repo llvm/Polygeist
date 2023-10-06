@@ -142,7 +142,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:   func @kernel_doitgen(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) {
+// CHECK:   func @kernel_doitgen(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: memref<150x140x160xf64>, %arg4: memref<160x160xf64>, %arg5: memref<160xf64>) 
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index
 // CHECK-NEXT:  %1 = index_cast %arg1 : i32 to index

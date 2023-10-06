@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s | FileCheck %s
 module {
   func.func @foo(%arg0: i1) -> i32 {
     %c512_i32 = arith.constant 512 : i32

@@ -159,7 +159,7 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK:   func @kernel_bicg(%arg0: i32, %arg1: i32, %arg2: memref<2100x1900xf64>, %arg3: memref<1900xf64>, %arg4: memref<2100xf64>, %arg5: memref<1900xf64>, %arg6: memref<2100xf64>) {
+// CHECK:   func @kernel_bicg(%arg0: i32, %arg1: i32, %arg2: memref<2100x1900xf64>, %arg3: memref<1900xf64>, %arg4: memref<2100xf64>, %arg5: memref<1900xf64>, %arg6: memref<2100xf64>) 
 // CHECK-NEXT:  %c0_i32 = constant 0 : i32
 // CHECK-NEXT:  %cst = constant 0.000000e+00 : f64
 // CHECK-NEXT:  %0 = index_cast %arg0 : i32 to index

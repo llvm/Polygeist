@@ -185,7 +185,7 @@ int main(int argc, char** argv)
 // CHECK: #map0 = affine_map<()[s0] -> (s0 + 1)>
 // CHECK: #map1 = affine_map<()[s0] -> (s0 - 1)>
 
-// CHECK:    func private @kernel_adi(%arg0: i32, %arg1: i32, %arg2: memref<1000x1000xf64>, %arg3: memref<1000x1000xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) {
+// CHECK:    func private @kernel_adi(%arg0: i32, %arg1: i32, %arg2: memref<1000x1000xf64>, %arg3: memref<1000x1000xf64>, %arg4: memref<1000x1000xf64>, %arg5: memref<1000x1000xf64>) 
 // CHECK-NEXT:     %cst = constant 1.000000e+00 : f64
 // CHECK-NEXT:     %cst_0 = constant 2.000000e+00 : f64
 // CHECK-NEXT:     %cst_1 = constant 0.000000e+00 : f64

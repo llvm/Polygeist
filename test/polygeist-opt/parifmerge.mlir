@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --canonicalize-polygeist --split-input-file %s | FileCheck %s
 
 #set = affine_set<(d0) : (-d0 + 31 >= 0)>
 #set1 = affine_set<(d0)[s0] : (-d0 + s0 -1 >= 0)>

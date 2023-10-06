@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 }
 
 // CHECK: #map = affine_map<(d0) -> (d0)>
-// CHECK:  func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) {
+// CHECK:  func @kernel_durbin(%arg0: i32, %arg1: memref<2000xf64>, %arg2: memref<2000xf64>) 
 // CHECK-NEXT:      %c0 = constant 0 : index
 // CHECK-NEXT:      %cst = constant 1.000000e+00 : f64
 // CHECK-NEXT:      %c1_i32 = constant 1 : i32

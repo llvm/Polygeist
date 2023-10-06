@@ -9,16 +9,22 @@ int* metafree(void* x, void (*foo)(int), void (*bar)(), int* g(int*), int* h) {
     return g(h);
 }
 
-// CHECK:   func.func @metafree(%[[arg0:.+]]: memref<?xi8>, %[[arg1:.+]]: memref<?x!llvm.func<void (i32)>>, %[[arg2:.+]]: memref<?x!llvm.func<void (...)>>, %arg3: memref<?x!llvm.func<memref<?xi32> (memref<?xi32>)>>, %arg4: memref<?xi32>) -> memref<?xi32>
-// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg1]]) : (memref<?x!llvm.func<void (i32)>>) -> !llvm.ptr<func<void (i32)>>
-// CHECK-NEXT:     llvm.call %[[V0]](%[[c0_i32]]) : (i32) -> ()
-// CHECK-NEXT:     %[[V1:.+]] = "polygeist.memref2pointer"(%[[arg2]]) : (memref<?x!llvm.func<void (...)>>) -> !llvm.ptr<func<void (...)>>
-// CHECK-NEXT:     llvm.call %[[V1]]() : () -> ()
-// CHECK-NEXT:     memref.dealloc %[[arg0]] : memref<?xi8>
-// CHECK-NEXT:     %[[fn:.+]] = "polygeist.memref2pointer"(%arg3) : (memref<?x!llvm.func<memref<?xi32> (memref<?xi32>)>>) -> !llvm.ptr<func<ptr<i32> (ptr<i32>)>>
-// CHECK-NEXT:     %[[inp:.+]] = "polygeist.memref2pointer"(%arg4) : (memref<?xi32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %[[cal:.+]] = llvm.call %[[fn]](%[[inp]]) : (!llvm.ptr<i32>) -> !llvm.ptr<i32>
-// CHECK-NEXT:     %[[res:.+]] = "polygeist.pointer2memref"(%[[cal]]) : (!llvm.ptr<i32>) -> memref<?xi32>
-// CHECK-NEXT:     return %[[res]] : memref<?xi32>
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @metafree(
+// CHECK-SAME:                        %[[VAL_0:[A-Za-z0-9_]*]]: memref<?xi8>,
+// CHECK-SAME:                        %[[VAL_1:[A-Za-z0-9_]*]]: memref<?x!llvm.func<void (i32)>>,
+// CHECK-SAME:                        %[[VAL_2:[A-Za-z0-9_]*]]: memref<?x!llvm.func<void (...)>>,
+// CHECK-SAME:                        %[[VAL_3:[A-Za-z0-9_]*]]: memref<?x!llvm.func<memref<?xi32> (memref<?xi32>)>>,
+// CHECK-SAME:                        %[[VAL_4:[A-Za-z0-9_]*]]: memref<?xi32>) -> memref<?xi32>
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = arith.constant 0 : i32
+// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?x!llvm.func<void (i32)>>) -> !llvm.ptr
+// CHECK:           llvm.call %[[VAL_6]](%[[VAL_5]]) : !llvm.ptr, (i32) -> ()
+// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_2]]) : (memref<?x!llvm.func<void (...)>>) -> !llvm.ptr
+// CHECK:           llvm.call %[[VAL_7]]() : !llvm.ptr, () -> ()
+// CHECK:           memref.dealloc %[[VAL_0]] : memref<?xi8>
+// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_3]]) : (memref<?x!llvm.func<memref<?xi32> (memref<?xi32>)>>) -> !llvm.ptr
+// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_4]]) : (memref<?xi32>) -> !llvm.ptr
+// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = llvm.call %[[VAL_8]](%[[VAL_9]]) : !llvm.ptr, (!llvm.ptr) -> !llvm.ptr
+// CHECK:           %[[VAL_11:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_10]]) : (!llvm.ptr) -> memref<?xi32>
+// CHECK:           return %[[VAL_11]] : memref<?xi32>
+// CHECK:         }
+

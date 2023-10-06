@@ -25,13 +25,14 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
-#include "mlir/Transforms/SideEffectUtils.h"
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Support/Debug.h"
+
+#include <set>
 
 #define DEBUG_TYPE "polygeist"
 
@@ -161,7 +162,7 @@ public:
     }
     auto block = &*aop->getRegions()[0].begin();
     rewriter.eraseOp(block->getTerminator());
-    rewriter.mergeBlockBefore(block, aop);
+    rewriter.inlineBlockBefore(block, aop);
     rewriter.eraseOp(aop);
     return success();
   }
@@ -202,7 +203,7 @@ public:
     std::vector<Attribute> configs;
     unsigned curRegion = 0;
     for (; curRegion < innerAop->getNumRegions(); curRegion++) {
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       auto block = &*newAop->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
       for (auto &op : *innerAop->getBlock()) {
@@ -229,7 +230,7 @@ public:
       }
       auto block = &*newAop->getRegion(curRegion).begin();
       rewriter.setInsertionPointToStart(block);
-      BlockAndValueMapping mapping;
+      IRMapping mapping;
       for (auto &op : srcRegion.getOps())
         if (!isa<PolygeistYieldOp>(&op))
           rewriter.clone(op, mapping);
@@ -440,7 +441,7 @@ bool getEffectsBefore(Operation *op,
 
   bool conservative = false;
 
-  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+  if (isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp()))
     return true;
 
   // As we didn't hit another barrier, we must check the predecessors of this
@@ -450,7 +451,8 @@ bool getEffectsBefore(Operation *op,
 
   // If the parent operation is not guaranteed to execute its (single-block)
   // region once, walk the block.
-  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+  if (!isa<scf::IfOp, affine::AffineIfOp, memref::AllocaScopeOp>(
+          op->getParentOp()))
     op->getParentOp()->walk([&](Operation *in) {
       if (conservative)
         return WalkResult::interrupt();
@@ -480,7 +482,7 @@ bool getEffectsAfter(Operation *op,
 
   bool conservative = false;
 
-  if (isa<scf::ParallelOp, AffineParallelOp>(op->getParentOp()))
+  if (isa<scf::ParallelOp, affine::AffineParallelOp>(op->getParentOp()))
     return true;
 
   // As we didn't hit another barrier, we must check the predecessors of this
@@ -490,7 +492,8 @@ bool getEffectsAfter(Operation *op,
 
   // If the parent operation is not guaranteed to execute its (single-block)
   // region once, walk the block.
-  if (!isa<scf::IfOp, AffineIfOp, memref::AllocaScopeOp>(op->getParentOp()))
+  if (!isa<scf::IfOp, affine::AffineIfOp, memref::AllocaScopeOp>(
+          op->getParentOp()))
     op->getParentOp()->walk([&](Operation *in) {
       if (conservative)
         return WalkResult::interrupt();
@@ -592,7 +595,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     if (!BarrierOpt)
       return failure();
-    if (isa<scf::IfOp, AffineIfOp>(barrier->getParentOp())) {
+    if (isa<scf::IfOp, affine::AffineIfOp>(barrier->getParentOp())) {
 
       bool below = true;
       for (Operation *it = barrier->getNextNode(); it != nullptr;
@@ -670,15 +673,15 @@ bool isCaptured(Value v, Operation *potentialUser = nullptr,
     for (auto u : v.getUsers()) {
       if (seenuse && u == potentialUser)
         *seenuse = true;
-      if (isa<memref::LoadOp, LLVM::LoadOp, AffineLoadOp, polygeist::CacheLoad>(
-              u))
+      if (isa<memref::LoadOp, LLVM::LoadOp, affine::AffineLoadOp,
+              polygeist::CacheLoad>(u))
         continue;
       if (auto s = dyn_cast<memref::StoreOp>(u)) {
         if (s.getValue() == v)
           return true;
         continue;
       }
-      if (auto s = dyn_cast<AffineStoreOp>(u)) {
+      if (auto s = dyn_cast<affine::AffineStoreOp>(u)) {
         if (s.getValue() == v)
           return true;
         continue;
@@ -1148,7 +1151,8 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
               subindex.getSource(), indices);
           changed = true;
         }
-      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+      } else if (auto storeOp =
+                     dyn_cast<affine::AffineStoreOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
               subindex.getSource()
@@ -1161,7 +1165,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
             auto map = storeOp.getAffineMap();
             indices.push_back(subindex.getIndex());
             for (size_t i = 0; i < map.getNumResults(); i++) {
-              auto apply = rewriter.create<AffineApplyOp>(
+              auto apply = rewriter.create<affine::AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
@@ -1177,7 +1181,8 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
             changed = true;
           }
         }
-      } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+      } else if (auto storeOp =
+                     dyn_cast<affine::AffineLoadOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
               subindex.getSource()
@@ -1190,7 +1195,7 @@ struct SimplifySubIndexUsers : public OpRewritePattern<SubIndexOp> {
             auto map = storeOp.getAffineMap();
             indices.push_back(subindex.getIndex());
             for (size_t i = 0; i < map.getNumResults(); i++) {
-              auto apply = rewriter.create<AffineApplyOp>(
+              auto apply = rewriter.create<affine::AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
@@ -1226,19 +1231,16 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
     bool changed = false;
     int64_t offs = -1;
     for (auto tup :
-         llvm::zip(subindex.static_offsets(), subindex.static_sizes(),
-                   subindex.static_strides())) {
-      auto sz = std::get<1>(tup).dyn_cast<IntegerAttr>().getValue();
+         llvm::zip(subindex.getStaticOffsets(), subindex.getStaticSizes(),
+                   subindex.getStaticStrides())) {
+      auto sz = std::get<1>(tup);
 
-      auto stride = std::get<2>(tup).dyn_cast<IntegerAttr>().getValue();
+      auto stride = std::get<2>(tup);
       if (stride != 1)
         return failure();
 
       if (offs == -1) {
-        offs = std::get<0>(tup)
-                   .dyn_cast<IntegerAttr>()
-                   .getValue()
-                   .getLimitedValue();
+        offs = std::get<0>(tup);
         if (sz != 1)
           return failure();
       }
@@ -1334,7 +1336,8 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
               storeOp, storeOp.getValue(), subindex.getSource(), indices);
           changed = true;
         }
-      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+      } else if (auto storeOp =
+                     dyn_cast<affine::AffineStoreOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
               subindex.getSource()
@@ -1347,7 +1350,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             auto map = storeOp.getAffineMap();
             indices.push_back(off);
             for (size_t i = 0; i < map.getNumResults(); i++) {
-              auto apply = rewriter.create<AffineApplyOp>(
+              auto apply = rewriter.create<affine::AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
@@ -1363,7 +1366,8 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             changed = true;
           }
         }
-      } else if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+      } else if (auto storeOp =
+                     dyn_cast<affine::AffineLoadOp>(use.getOwner())) {
         if (storeOp.getMemref() == subindex) {
           if (subindex.getType().cast<MemRefType>().getShape().size() + 1 ==
               subindex.getSource()
@@ -1376,7 +1380,7 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
             auto map = storeOp.getAffineMap();
             indices.push_back(off);
             for (size_t i = 0; i < map.getNumResults(); i++) {
-              auto apply = rewriter.create<AffineApplyOp>(
+              auto apply = rewriter.create<affine::AffineApplyOp>(
                   storeOp.getLoc(), map.getSliceMap(i, 1),
                   storeOp.getMapOperands());
               indices.push_back(apply->getResult(0));
@@ -1491,11 +1495,13 @@ template <>
 MutableOperandRange LoadSelect<memref::LoadOp>::ptrMutable(memref::LoadOp op) {
   return op.getMemrefMutable();
 }
-template <> Value LoadSelect<AffineLoadOp>::ptr(AffineLoadOp op) {
+template <>
+Value LoadSelect<affine::AffineLoadOp>::ptr(affine::AffineLoadOp op) {
   return op.getMemref();
 }
 template <>
-MutableOperandRange LoadSelect<AffineLoadOp>::ptrMutable(AffineLoadOp op) {
+MutableOperandRange
+LoadSelect<affine::AffineLoadOp>::ptrMutable(affine::AffineLoadOp op) {
   return op.getMemrefMutable();
 }
 template <> Value LoadSelect<LLVM::LoadOp>::ptr(LLVM::LoadOp op) {
@@ -1511,7 +1517,8 @@ void SubIndexOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<CastOfSubIndex, SubIndex2, SubToCast, SimplifySubViewUsers,
                  SimplifySubIndexUsers, SelectOfCast, SelectOfSubIndex,
                  RedundantDynSubIndex, LoadSelect<memref::LoadOp>,
-                 LoadSelect<AffineLoadOp>, LoadSelect<LLVM::LoadOp>>(context);
+                 LoadSelect<affine::AffineLoadOp>, LoadSelect<LLVM::LoadOp>>(
+      context);
   // Disabled: SubToSubView
 }
 
@@ -1530,7 +1537,7 @@ public:
     auto omt = op.getType().cast<MemRefType>();
     if (smt.getShape().size() != omt.getShape().size())
       return failure();
-    for (int i = 1; i < smt.getShape().size(); i++) {
+    for (unsigned i = 1; i < smt.getShape().size(); i++) {
       if (smt.getShape()[i] != omt.getShape()[i])
         return failure();
     }
@@ -1562,8 +1569,14 @@ public:
     auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
     auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
     if (PET != MET) {
-      auto ps = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
+      Value ps;
+      if (PET)
+        // non-opaque pointer
+        ps = rewriter.create<polygeist::TypeSizeOp>(
+            op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
+      else
+        // opaque pointer
+        ps = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
       auto ms = rewriter.create<polygeist::TypeSizeOp>(
           op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
       idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
@@ -1571,11 +1584,20 @@ public:
     }
     idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
                                                  rewriter.getI64Type(), idx[0]);
-    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        op, op.getType(),
-        rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                          src.getSource()),
-        idx);
+    if (PET)
+      // non-opaque pointer
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+          op, op.getType(),
+          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
+                                            src.getSource()),
+          idx);
+    else
+      // opaque pointer
+      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+          op, op.getType(), rewriter.getI8Type(),
+          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
+                                            src.getSource()),
+          idx);
     return success();
   }
 };
@@ -1671,14 +1693,14 @@ public:
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
-    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    rewriter.setInsertionPointToStart(&forOp.getRegion().getBlocks().front());
     idxs.push_back(forOp.getInductionVar());
 
     for (auto bound : bounds) {
       auto forOp = rewriter.create<scf::ForOp>(
           op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound),
           c1);
-      rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+      rewriter.setInsertionPointToStart(&forOp.getRegion().getBlocks().front());
       idxs.push_back(forOp.getInductionVar());
     }
 
@@ -1783,14 +1805,14 @@ public:
             rewriter.create<arith::ConstantIndexOp>(op.getLoc(), width)),
         c1);
 
-    rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+    rewriter.setInsertionPointToStart(&forOp.getRegion().getBlocks().front());
     idxs.push_back(forOp.getInductionVar());
 
     for (auto bound : bounds) {
       auto forOp = rewriter.create<scf::ForOp>(
           op.getLoc(), c0, rewriter.create<ConstantIndexOp>(op.getLoc(), bound),
           c1);
-      rewriter.setInsertionPointToStart(&forOp.getLoopBody().front());
+      rewriter.setInsertionPointToStart(&forOp.getRegion().getBlocks().front());
       idxs.push_back(forOp.getInductionVar());
     }
 
@@ -1801,7 +1823,7 @@ public:
   }
 };
 
-OpFoldResult Memref2PointerOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Memref2PointerOp::fold(FoldAdaptor adaptor) {
   if (auto subindex = getSource().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.getIndex().getDefiningOp<ConstantIndexOp>()) {
       if (cop.getValue() == 0) {
@@ -1928,18 +1950,11 @@ public:
     }
 
     for (size_t i = 1; i < mt.getShape().size(); i++)
-      if (mt.getShape()[i] == ShapedType::kDynamicSize)
+      if (mt.getShape()[i] == ShapedType::kDynamic)
         return failure();
 
     Value val = src.getSource();
-    if (val.getType().cast<LLVM::LLVMPointerType>().getElementType() !=
-        mt.getElementType())
-      val = rewriter.create<LLVM::BitcastOp>(
-          op.getLoc(),
-          LLVM::LLVMPointerType::get(
-              mt.getElementType(),
-              val.getType().cast<LLVM::LLVMPointerType>().getAddressSpace()),
-          val);
+    assert(val.getType().cast<LLVM::LLVMPointerType>().isOpaque());
 
     Value idx = nullptr;
     auto shape = mt.getShape();
@@ -1961,7 +1976,8 @@ public:
 
     if (idx) {
       Value idxs[] = {idx};
-      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(), val, idxs);
+      val = rewriter.create<LLVM::GEPOp>(op.getLoc(), val.getType(),
+                                         mt.getElementType(), val, idxs);
     }
     rewrite(op, val, rewriter);
     return success();
@@ -1993,32 +2009,32 @@ void MetaPointer2Memref<memref::StoreOp>::rewrite(
 }
 
 template <>
-Value MetaPointer2Memref<AffineLoadOp>::computeIndex(
-    AffineLoadOp op, size_t i, PatternRewriter &rewriter) const {
+Value MetaPointer2Memref<affine::AffineLoadOp>::computeIndex(
+    affine::AffineLoadOp op, size_t i, PatternRewriter &rewriter) const {
   auto map = op.getAffineMap();
-  auto apply = rewriter.create<AffineApplyOp>(
+  auto apply = rewriter.create<affine::AffineApplyOp>(
       op.getLoc(), map.getSliceMap(i, 1), op.getMapOperands());
   return apply->getResult(0);
 }
 
 template <>
-void MetaPointer2Memref<AffineLoadOp>::rewrite(
-    AffineLoadOp op, Value ptr, PatternRewriter &rewriter) const {
+void MetaPointer2Memref<affine::AffineLoadOp>::rewrite(
+    affine::AffineLoadOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::LoadOp>(op, op.getType(), ptr);
 }
 
 template <>
-Value MetaPointer2Memref<AffineStoreOp>::computeIndex(
-    AffineStoreOp op, size_t i, PatternRewriter &rewriter) const {
+Value MetaPointer2Memref<affine::AffineStoreOp>::computeIndex(
+    affine::AffineStoreOp op, size_t i, PatternRewriter &rewriter) const {
   auto map = op.getAffineMap();
-  auto apply = rewriter.create<AffineApplyOp>(
+  auto apply = rewriter.create<affine::AffineApplyOp>(
       op.getLoc(), map.getSliceMap(i, 1), op.getMapOperands());
   return apply->getResult(0);
 }
 
 template <>
-void MetaPointer2Memref<AffineStoreOp>::rewrite(
-    AffineStoreOp op, Value ptr, PatternRewriter &rewriter) const {
+void MetaPointer2Memref<affine::AffineStoreOp>::rewrite(
+    affine::AffineStoreOp op, Value ptr, PatternRewriter &rewriter) const {
   rewriter.replaceOpWithNewOp<LLVM::StoreOp>(op, op.getValue(), ptr);
 }
 
@@ -2143,7 +2159,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
 
       {
         SmallVector<Value> elseVals = otherYield.getOperands();
-        BlockAndValueMapping elseMapping;
+        IRMapping elseMapping;
         elseMapping.map(prevIf.getResults(), otherYield.getOperands());
         SmallVector<Value> nextElseVals;
         for (auto v : nextIf.elseYield().getOperands())
@@ -2238,7 +2254,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
     // If this is used in an affine if/for/parallel op, do not move it, as it
     // may no longer be a legal symbol
     for (OpOperand &use : prevOp->getUses()) {
-      if (isa<AffineForOp, AffineIfOp, AffineParallelOp>(use.getOwner()))
+      if (isa<affine::AffineForOp, affine::AffineIfOp,
+              affine::AffineParallelOp>(use.getOwner()))
         return failure();
     }
 
@@ -2248,24 +2265,25 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
                                : &nextIf.elseBlock()->front());
     for (OpOperand &use : llvm::make_early_inc_range(prevOp->getUses())) {
       rewriter.setInsertionPoint(use.getOwner());
-      if (auto storeOp = dyn_cast<AffineLoadOp>(use.getOwner())) {
+      if (auto storeOp = dyn_cast<affine::AffineLoadOp>(use.getOwner())) {
         std::vector<Value> indices;
         auto map = storeOp.getAffineMap();
         for (size_t i = 0; i < map.getNumResults(); i++) {
-          auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(),
-                                                      map.getSliceMap(i, 1),
-                                                      storeOp.getMapOperands());
+          auto apply = rewriter.create<affine::AffineApplyOp>(
+              storeOp.getLoc(), map.getSliceMap(i, 1),
+              storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
         rewriter.replaceOpWithNewOp<memref::LoadOp>(
             storeOp, storeOp.getMemref(), indices);
-      } else if (auto storeOp = dyn_cast<AffineStoreOp>(use.getOwner())) {
+      } else if (auto storeOp =
+                     dyn_cast<affine::AffineStoreOp>(use.getOwner())) {
         std::vector<Value> indices;
         auto map = storeOp.getAffineMap();
         for (size_t i = 0; i < map.getNumResults(); i++) {
-          auto apply = rewriter.create<AffineApplyOp>(storeOp.getLoc(),
-                                                      map.getSliceMap(i, 1),
-                                                      storeOp.getMapOperands());
+          auto apply = rewriter.create<affine::AffineApplyOp>(
+              storeOp.getLoc(), map.getSliceMap(i, 1),
+              storeOp.getMapOperands());
           indices.push_back(apply->getResult(0));
         }
         rewriter.replaceOpWithNewOp<memref::StoreOp>(
@@ -2324,14 +2342,15 @@ struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
 
 void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
-  results.insert<
-      Pointer2MemrefCast, Pointer2Memref2PointerCast,
-      MetaPointer2Memref<memref::LoadOp>, MetaPointer2Memref<memref::StoreOp>,
-      MetaPointer2Memref<AffineLoadOp>, MetaPointer2Memref<AffineStoreOp>,
-      MoveIntoIfs, MoveOutOfIfs, IfAndLazy>(context);
+  results.insert<Pointer2MemrefCast, Pointer2Memref2PointerCast,
+                 MetaPointer2Memref<memref::LoadOp>,
+                 MetaPointer2Memref<memref::StoreOp>,
+                 MetaPointer2Memref<affine::AffineLoadOp>,
+                 MetaPointer2Memref<affine::AffineStoreOp>, MoveIntoIfs,
+                 MoveOutOfIfs, IfAndLazy>(context);
 }
 
-OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult Pointer2MemrefOp::fold(FoldAdaptor adaptor) {
   /// Simplify pointer2memref(cast(x)) to pointer2memref(x)
   if (auto mc = getSource().getDefiningOp<LLVM::BitcastOp>()) {
     getSourceMutable().assign(mc.getArg());
@@ -2365,7 +2384,7 @@ OpFoldResult Pointer2MemrefOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult SubIndexOp::fold(FoldAdaptor adaptor) {
   if (getResult().getType() == getSource().getType()) {
     if (matchPattern(getIndex(), m_Zero()))
       return getSource();
@@ -2381,7 +2400,7 @@ OpFoldResult SubIndexOp::fold(ArrayRef<Attribute> operands) {
   return nullptr;
 }
 
-OpFoldResult TypeSizeOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeSizeOp::fold(FoldAdaptor adaptor) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
@@ -2411,7 +2430,7 @@ void TypeSizeOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<TypeSizeCanonicalize>(context);
 }
 
-OpFoldResult TypeAlignOp::fold(ArrayRef<Attribute> operands) {
+OpFoldResult TypeAlignOp::fold(FoldAdaptor adaptor) {
   Type T = getSourceAttr().getValue();
   if (T.isa<IntegerType, FloatType>() || LLVM::isCompatibleType(T)) {
     DataLayout DLI(((Operation *)*this)->getParentOfType<ModuleOp>());
@@ -2714,7 +2733,7 @@ struct AlwaysAllocaScopeHoister : public OpRewritePattern<T> {
     if (toHoist.empty())
       return failure();
     rewriter.setInsertionPoint(lastParentWithoutScope);
-    BlockAndValueMapping map;
+    IRMapping map;
     for (auto *op : toHoist) {
       auto *cloned = rewriter.clone(*op, map);
       rewriter.replaceOp(op, cloned->getResults());
@@ -2779,7 +2798,7 @@ struct AggressiveAllocaScopeInliner
     Block *block = &op.getRegion().front();
     Operation *terminator = block->getTerminator();
     ValueRange results = terminator->getOperands();
-    rewriter.mergeBlockBefore(block, op);
+    rewriter.inlineBlockBefore(block, op);
     rewriter.replaceOp(op, results);
     rewriter.eraseOp(terminator);
     return success();
@@ -2793,7 +2812,7 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
                                 PatternRewriter &rewriter) const override {
     bool changed = false;
     for (auto tup : llvm::zip(forOp.getResults(), forOp.getRegionIterArgs(),
-                              forOp.getIterOperands())) {
+                              forOp.getInits())) {
       if (!std::get<0>(tup).use_empty() || std::get<1>(tup).use_empty()) {
         continue;
       }
@@ -2817,12 +2836,12 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
               continue;
             }
           }
-          if (auto yop = dyn_cast<AffineYieldOp>(back.getOwner())) {
-            if (auto ifOp = dyn_cast<AffineIfOp>(yop->getParentOp())) {
+          if (auto yop = dyn_cast<affine::AffineYieldOp>(back.getOwner())) {
+            if (auto ifOp = dyn_cast<affine::AffineIfOp>(yop->getParentOp())) {
               vals.push_back(ifOp.getResult(back.getOperandNumber()));
               continue;
             }
-            if (auto op = dyn_cast<AffineForOp>(yop->getParentOp())) {
+            if (auto op = dyn_cast<affine::AffineForOp>(yop->getParentOp())) {
               vals.push_back(op.getResult(back.getOperandNumber()));
               vals.push_back(op.getRegionIterArgs()[back.getOperandNumber()]);
               continue;
@@ -2888,7 +2907,7 @@ struct RankReduction : public OpRewritePattern<T> {
         }
         continue;
       }
-      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+      if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
         SmallVector<Value> indices;
         auto map = load.getAffineMapAttr().getValue();
         for (AffineExpr op : map.getResults()) {
@@ -2930,7 +2949,7 @@ struct RankReduction : public OpRewritePattern<T> {
         continue;
       }
 
-      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+      if (auto store = dyn_cast<affine::AffineStoreOp>(u)) {
         if (store.getValue() == op)
           return failure();
         SmallVector<Value> indices;
@@ -2979,13 +2998,13 @@ struct RankReduction : public OpRewritePattern<T> {
                                                      newOp, ArrayRef<Value>());
         continue;
       }
-      if (auto load = dyn_cast<AffineLoadOp>(u)) {
-        rewriter.replaceOpWithNewOp<AffineLoadOp>(
+      if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(
             load, newOp, AffineMap::get(load.getContext()), ArrayRef<Value>());
         continue;
       }
-      if (auto store = dyn_cast<AffineStoreOp>(u)) {
-        rewriter.replaceOpWithNewOp<AffineStoreOp>(
+      if (auto store = dyn_cast<affine::AffineStoreOp>(u)) {
+        rewriter.replaceOpWithNewOp<affine::AffineStoreOp>(
             store, store.getValue(), newOp, AffineMap::get(store.getContext()),
             ArrayRef<Value>());
         continue;
@@ -3028,7 +3047,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         }
         continue;
       }
-      if (auto load = dyn_cast<AffineLoadOp>(u)) {
+      if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
         SmallVector<Value> indices;
         auto map = load.getAffineMapAttr().getValue();
         if (!set) {
@@ -3055,7 +3074,7 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
           return failure();
         continue;
       }
-      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+      if (auto store = dyn_cast<affine::AffineStoreOp>(u)) {
         if (store.getValue() == op)
           return failure();
         continue;
@@ -3078,8 +3097,8 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
                                                     ArrayRef<Value>());
         continue;
       }
-      if (auto load = dyn_cast<AffineLoadOp>(u)) {
-        rewriter.replaceOpWithNewOp<AffineLoadOp>(
+      if (auto load = dyn_cast<affine::AffineLoadOp>(u)) {
+        rewriter.replaceOpWithNewOp<affine::AffineLoadOp>(
             load, newOp, AffineMap::get(op.getContext()), ArrayRef<Value>());
         continue;
       }
@@ -3103,11 +3122,11 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         rewriter.create<memref::StoreOp>(loc, val, newOp, ArrayRef<Value>());
         continue;
       }
-      if (auto store = dyn_cast<AffineStoreOp>(u)) {
+      if (auto store = dyn_cast<affine::AffineStoreOp>(u)) {
         Value cond = nullptr;
         auto map = store.getAffineMapAttr().getValue();
         for (auto pair : llvm::enumerate(v)) {
-          auto apply = rewriter.create<AffineApplyOp>(
+          auto apply = rewriter.create<affine::AffineApplyOp>(
               store.getLoc(), map.getSliceMap(pair.index(), 1),
               store.getMapOperands());
           auto val = rewriter.create<arith::CmpIOp>(
@@ -3124,9 +3143,9 @@ struct ConstantRankReduction : public OpRewritePattern<memref::AllocaOp> {
         auto ifOp = rewriter.replaceOpWithNewOp<scf::IfOp>(
             store, TypeRange(), cond, /*hasElse*/ false);
         rewriter.setInsertionPointToStart(ifOp.thenBlock());
-        rewriter.create<AffineStoreOp>(loc, val, newOp,
-                                       AffineMap::get(op.getContext()),
-                                       ArrayRef<Value>());
+        rewriter.create<affine::AffineStoreOp>(loc, val, newOp,
+                                               AffineMap::get(op.getContext()),
+                                               ArrayRef<Value>());
         continue;
       }
     }
@@ -3157,8 +3176,8 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
   }
 
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
-    if (AffineForOp afFor =
-            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineForOp afFor =
+            dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       auto for_lb = afFor.getLowerBoundMap().getResults()[baval.getArgNumber()];
       auto for_ub = afFor.getUpperBoundMap().getResults()[baval.getArgNumber()];
       switch (cmp) {
@@ -3202,8 +3221,8 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
       }
       }
     }
-    if (AffineParallelOp afFor =
-            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineParallelOp afFor = dyn_cast<affine::AffineParallelOp>(
+            baval.getOwner()->getParentOp())) {
       switch (cmp) {
       // \forall i \in [max(LB...), min(UB...)) == k   => all(LB == k) and
       // all(UB == k+1)
@@ -3469,8 +3488,8 @@ bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
 // Range is [lb, ub)
 bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
   if (auto baval = bval.dyn_cast<BlockArgument>()) {
-    if (AffineForOp afFor =
-            dyn_cast<AffineForOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineForOp afFor =
+            dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       return valueCmp(
                  Cmp::LE,
                  afFor.getLowerBoundMap().getResults()[baval.getArgNumber()],
@@ -3483,8 +3502,8 @@ bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
                  afFor.getUpperBoundOperands(), ub);
     }
     //  \forall i in [max(LB...),  min(UB)...] is a superset of [lb, ub)
-    if (AffineParallelOp afFor =
-            dyn_cast<AffineParallelOp>(baval.getOwner()->getParentOp())) {
+    if (affine::AffineParallelOp afFor = dyn_cast<affine::AffineParallelOp>(
+            baval.getOwner()->getParentOp())) {
       for (auto flb : afFor.getLowerBoundMap(baval.getArgNumber()).getResults())
         if (!valueCmp(Cmp::LE, flb, afFor.getLowerBoundsMap().getNumDims(),
                       afFor.getLowerBoundsOperands(), lb))
@@ -3537,16 +3556,16 @@ bool rangeIncludes(AffineExpr expr, size_t numDims, ValueRange operands,
   return false;
 }
 
-struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
+  using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineIfOp op,
+  LogicalResult matchAndRewrite(affine::AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
     if (op.getNumResults() != 0)
       return failure();
     if (op.hasElse())
       return failure();
-    auto par = dyn_cast<AffineParallelOp>(op->getParentOp());
+    auto par = dyn_cast<affine::AffineParallelOp>(op->getParentOp());
     if (!par)
       return failure();
 
@@ -3683,7 +3702,7 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
     else
       rewriter.setInsertionPoint(par);
 
-    BlockAndValueMapping map;
+    IRMapping map;
     auto c0 = rewriter.create<ConstantIndexOp>(op.getLoc(), 0);
     for (auto i : par.getIVs()) {
       map.map(i, c0);
@@ -3692,8 +3711,8 @@ struct AffineIfSinking : public OpRewritePattern<AffineIfOp> {
           val = c0;
     }
 
-    auto newIf = rewriter.create<AffineIfOp>(op.getLoc(), TypeRange(), iset,
-                                             newVals, /*hasElse*/ false);
+    auto newIf = rewriter.create<affine::AffineIfOp>(
+        op.getLoc(), TypeRange(), iset, newVals, /*hasElse*/ false);
     rewriter.eraseBlock(newIf.getThenBlock());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
                                 newIf.getThenRegion().begin());
@@ -3718,15 +3737,15 @@ static void replaceOpWithRegion(PatternRewriter &rewriter, Operation *op,
   Block *block = &region.front();
   Operation *terminator = block->getTerminator();
   ValueRange results = terminator->getOperands();
-  rewriter.mergeBlockBefore(block, op, blockArgs);
+  rewriter.inlineBlockBefore(block, op, blockArgs);
   rewriter.replaceOp(op, results);
   rewriter.eraseOp(terminator);
 }
 
-struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+struct AffineIfSimplification : public OpRewritePattern<affine::AffineIfOp> {
+  using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineIfOp op,
+  LogicalResult matchAndRewrite(affine::AffineIfOp op,
                                 PatternRewriter &rewriter) const override {
     SmallVector<AffineExpr> todo;
     SmallVector<bool> eqFlags;
@@ -3760,8 +3779,8 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         }
 
         bool canRemove = false;
-        for (auto paren = op->getParentOfType<AffineIfOp>(); paren;
-             paren = paren->getParentOfType<AffineIfOp>()) {
+        for (auto paren = op->getParentOfType<affine::AffineIfOp>(); paren;
+             paren = paren->getParentOfType<affine::AffineIfOp>()) {
           for (auto cst2 : paren.getIntegerSet().getConstraints()) {
             if (paren.getElseRegion().isAncestor(op->getParentRegion()))
               continue;
@@ -3784,8 +3803,9 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         //// expr -1 >= 0    => expr > 0
         if (!op.getIntegerSet().isEq(cst.index())) {
           auto expr = cst.value() + 1;
-          for (auto paren = op->getParentOfType<AffineParallelOp>(); paren;
-               paren = paren->getParentOfType<AffineParallelOp>()) {
+          for (auto paren = op->getParentOfType<affine::AffineParallelOp>();
+               paren;
+               paren = paren->getParentOfType<affine::AffineParallelOp>()) {
             if (canRemove)
               break;
             for (auto tup : llvm::enumerate(paren.getSteps())) {
@@ -3866,9 +3886,9 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
         IntegerSet::get(op.getIntegerSet().getNumDims(),
                         op.getIntegerSet().getNumSymbols(), todo, eqFlags);
 
-    auto newIf =
-        rewriter.create<AffineIfOp>(op.getLoc(), op.getResultTypes(), iset,
-                                    op.getOperands(), /*hasElse*/ true);
+    auto newIf = rewriter.create<affine::AffineIfOp>(
+        op.getLoc(), op.getResultTypes(), iset, op.getOperands(),
+        /*hasElse*/ true);
     rewriter.eraseBlock(newIf.getThenBlock());
     rewriter.eraseBlock(newIf.getElseBlock());
     rewriter.inlineRegionBefore(op.getThenRegion(), newIf.getThenRegion(),
@@ -3880,16 +3900,16 @@ struct AffineIfSimplification : public OpRewritePattern<AffineIfOp> {
   }
 };
 
-struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
-  using OpRewritePattern<AffineIfOp>::OpRewritePattern;
+struct CombineAffineIfs : public OpRewritePattern<affine::AffineIfOp> {
+  using OpRewritePattern<affine::AffineIfOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineIfOp nextIf,
+  LogicalResult matchAndRewrite(affine::AffineIfOp nextIf,
                                 PatternRewriter &rewriter) const override {
     Block *parent = nextIf->getBlock();
     if (nextIf == &parent->front())
       return failure();
 
-    auto prevIf = dyn_cast<AffineIfOp>(nextIf->getPrevNode());
+    auto prevIf = dyn_cast<affine::AffineIfOp>(nextIf->getPrevNode());
     if (!prevIf)
       return failure();
 
@@ -3916,15 +3936,15 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
     SmallVector<Value> prevElseYielded;
     if (!prevIf.getElseRegion().empty())
       prevElseYielded =
-          cast<AffineYieldOp>(prevIf.getElseBlock()->getTerminator())
+          cast<affine::AffineYieldOp>(prevIf.getElseBlock()->getTerminator())
               .getOperands();
     // Replace all uses of return values of op within nextIf with the
     // corresponding yields
-    for (auto it :
-         llvm::zip(prevIf.getResults(),
-                   cast<AffineYieldOp>(prevIf.getThenBlock()->getTerminator())
-                       .getOperands(),
-                   prevElseYielded))
+    for (auto it : llvm::zip(
+             prevIf.getResults(),
+             cast<affine::AffineYieldOp>(prevIf.getThenBlock()->getTerminator())
+                 .getOperands(),
+             prevElseYielded))
       for (OpOperand &use :
            llvm::make_early_inc_range(std::get<0>(it).getUses())) {
         if (nextThen && nextThen->getParent()->isAncestor(
@@ -3943,7 +3963,7 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
     SmallVector<Type> mergedTypes(prevIf.getResultTypes());
     llvm::append_range(mergedTypes, nextIf.getResultTypes());
 
-    AffineIfOp combinedIf = rewriter.create<AffineIfOp>(
+    affine::AffineIfOp combinedIf = rewriter.create<affine::AffineIfOp>(
         nextIf.getLoc(), mergedTypes, prevIf.getIntegerSet(),
         prevIf.getOperands(), /*hasElse=*/true);
     rewriter.eraseBlock(&combinedIf.getThenRegion().back());
@@ -3954,15 +3974,16 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
                                 combinedIf.getThenRegion().begin());
 
     if (nextThen) {
-      AffineYieldOp thenYield =
-          cast<AffineYieldOp>(combinedIf.getThenBlock()->getTerminator());
-      AffineYieldOp thenYield2 = cast<AffineYieldOp>(nextThen->getTerminator());
+      affine::AffineYieldOp thenYield = cast<affine::AffineYieldOp>(
+          combinedIf.getThenBlock()->getTerminator());
+      affine::AffineYieldOp thenYield2 =
+          cast<affine::AffineYieldOp>(nextThen->getTerminator());
       rewriter.mergeBlocks(nextThen, combinedIf.getThenBlock());
       rewriter.setInsertionPointToEnd(combinedIf.getThenBlock());
 
       SmallVector<Value> mergedYields(thenYield.getOperands());
       llvm::append_range(mergedYields, thenYield2.getOperands());
-      rewriter.create<AffineYieldOp>(thenYield2.getLoc(), mergedYields);
+      rewriter.create<affine::AffineYieldOp>(thenYield2.getLoc(), mergedYields);
       rewriter.eraseOp(thenYield);
       rewriter.eraseOp(thenYield2);
     }
@@ -3977,10 +3998,10 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
                                     combinedIf.getElseRegion(),
                                     combinedIf.getElseRegion().begin());
       } else {
-        AffineYieldOp elseYield =
-            cast<AffineYieldOp>(combinedIf.getElseBlock()->getTerminator());
-        AffineYieldOp elseYield2 =
-            cast<AffineYieldOp>(nextElse->getTerminator());
+        affine::AffineYieldOp elseYield = cast<affine::AffineYieldOp>(
+            combinedIf.getElseBlock()->getTerminator());
+        affine::AffineYieldOp elseYield2 =
+            cast<affine::AffineYieldOp>(nextElse->getTerminator());
         rewriter.mergeBlocks(nextElse, combinedIf.getElseBlock());
 
         rewriter.setInsertionPointToEnd(combinedIf.getElseBlock());
@@ -3988,7 +4009,8 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
         SmallVector<Value> mergedElseYields(elseYield.getOperands());
         llvm::append_range(mergedElseYields, elseYield2.getOperands());
 
-        rewriter.create<AffineYieldOp>(elseYield2.getLoc(), mergedElseYields);
+        rewriter.create<affine::AffineYieldOp>(elseYield2.getLoc(),
+                                               mergedElseYields);
         rewriter.eraseOp(elseYield);
         rewriter.eraseOp(elseYield2);
       }
@@ -4009,16 +4031,16 @@ struct CombineAffineIfs : public OpRewritePattern<AffineIfOp> {
 };
 
 struct MergeNestedAffineParallelLoops
-    : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+    : public OpRewritePattern<affine::AffineParallelOp> {
+  using OpRewritePattern<affine::AffineParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp op,
+  LogicalResult matchAndRewrite(affine::AffineParallelOp op,
                                 PatternRewriter &rewriter) const override {
-    Block &outerBody = op.getLoopBody().front();
+    Block &outerBody = op.getRegion().getBlocks().front();
     if (!llvm::hasSingleElement(outerBody.without_terminator()))
       return failure();
 
-    auto innerOp = dyn_cast<AffineParallelOp>(outerBody.front());
+    auto innerOp = dyn_cast<affine::AffineParallelOp>(outerBody.front());
     if (!innerOp)
       return failure();
 
@@ -4113,23 +4135,24 @@ struct MergeNestedAffineParallelLoops
     for (auto U : innerOp.getSteps())
       steps.push_back(U);
 
-    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-        op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
-        AffineMapAttr::get(
-            AffineMap::get(op.getLowerBoundsMap().getNumDims() +
-                               innerOp.getLowerBoundsMap().getNumDims(),
-                           op.getLowerBoundsMap().getNumSymbols() +
-                               innerOp.getLowerBoundsMap().getNumSymbols(),
-                           lbounds, op.getContext())),
-        rewriter.getI32TensorAttr(lboundGroup),
-        AffineMapAttr::get(
-            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
-                               innerOp.getUpperBoundsMap().getNumDims(),
-                           op.getUpperBoundsMap().getNumSymbols() +
-                               innerOp.getUpperBoundsMap().getNumSymbols(),
-                           ubounds, op.getContext())),
-        rewriter.getI32TensorAttr(uboundGroup), rewriter.getI64ArrayAttr(steps),
-        operands);
+    affine::AffineParallelOp affineLoop =
+        rewriter.create<affine::AffineParallelOp>(
+            op.getLoc(), newTypes, rewriter.getArrayAttr(reductions),
+            AffineMapAttr::get(
+                AffineMap::get(op.getLowerBoundsMap().getNumDims() +
+                                   innerOp.getLowerBoundsMap().getNumDims(),
+                               op.getLowerBoundsMap().getNumSymbols() +
+                                   innerOp.getLowerBoundsMap().getNumSymbols(),
+                               lbounds, op.getContext())),
+            rewriter.getI32TensorAttr(lboundGroup),
+            AffineMapAttr::get(
+                AffineMap::get(op.getUpperBoundsMap().getNumDims() +
+                                   innerOp.getUpperBoundsMap().getNumDims(),
+                               op.getUpperBoundsMap().getNumSymbols() +
+                                   innerOp.getUpperBoundsMap().getNumSymbols(),
+                               ubounds, op.getContext())),
+            rewriter.getI32TensorAttr(uboundGroup),
+            rewriter.getI64ArrayAttr(steps), operands);
 
     rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                 affineLoop.getRegion().begin());
@@ -4140,32 +4163,32 @@ struct MergeNestedAffineParallelLoops
       post.push_back(
           affineLoop.getBody()->addArgument(v.getType(), v.getLoc()));
     }
-    rewriter.mergeBlockBefore(innerOp.getBody(), yld, post);
+    rewriter.inlineBlockBefore(innerOp.getBody(), yld, post);
     return success();
   }
 };
 
 struct PrepMergeNestedAffineParallelLoops
-    : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+    : public OpRewritePattern<affine::AffineParallelOp> {
+  using OpRewritePattern<affine::AffineParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp oop,
+  LogicalResult matchAndRewrite(affine::AffineParallelOp oop,
                                 PatternRewriter &rewriter) const override {
-    Block &outerBody = oop.getLoopBody().front();
-    AffineParallelOp innerOp = nullptr;
+    Block &outerBody = oop.getRegion().getBlocks().front();
+    affine::AffineParallelOp innerOp = nullptr;
     SmallVector<Operation *> toMove;
     for (auto &op : outerBody) {
-      if (auto innerOp2 = dyn_cast<AffineParallelOp>(&op)) {
+      if (auto innerOp2 = dyn_cast<affine::AffineParallelOp>(&op)) {
         if (innerOp)
           return failure();
-        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+        if (!isa<affine::AffineYieldOp>(innerOp2->getNextNode())) {
           return failure();
         }
         innerOp = innerOp2;
         continue;
       }
       if (isMemoryEffectFree(&op)) {
-        if (!isa<AffineYieldOp>(&op))
+        if (!isa<affine::AffineYieldOp>(&op))
           toMove.push_back(&op);
         continue;
       }
@@ -4177,7 +4200,7 @@ struct PrepMergeNestedAffineParallelLoops
       return failure();
     }
 
-    BlockAndValueMapping map;
+    IRMapping map;
     rewriter.setInsertionPointToStart(innerOp.getBody());
     for (auto o : toMove) {
       rewriter.replaceOp(o, rewriter.clone(*o)->getResults());
@@ -4186,19 +4209,20 @@ struct PrepMergeNestedAffineParallelLoops
   }
 };
 
-struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+struct MergeNestedAffineParallelIf
+    : public OpRewritePattern<affine::AffineParallelOp> {
+  using OpRewritePattern<affine::AffineParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp op,
+  LogicalResult matchAndRewrite(affine::AffineParallelOp op,
                                 PatternRewriter &rewriter) const override {
-    Block &outerBody = op.getLoopBody().front();
+    Block &outerBody = op.getRegion().getBlocks().front();
 
-    AffineIfOp innerOp = nullptr;
+    affine::AffineIfOp innerOp = nullptr;
     for (auto &op : outerBody) {
-      if (auto innerOp2 = dyn_cast<AffineIfOp>(&op)) {
+      if (auto innerOp2 = dyn_cast<affine::AffineIfOp>(&op)) {
         if (innerOp)
           return failure();
-        if (!isa<AffineYieldOp>(innerOp2->getNextNode())) {
+        if (!isa<affine::AffineYieldOp>(innerOp2->getNextNode())) {
           return failure();
         }
         innerOp = innerOp2;
@@ -4410,19 +4434,22 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
 
     ArrayRef<Attribute> reductions;
 
-    AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-        op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-        AffineMapAttr::get(AffineMap::get(
-            op.getLowerBoundsMap().getNumDims(),
-            op.getLowerBoundsMap().getNumSymbols(), lbounds, op.getContext())),
-        rewriter.getI32TensorAttr(lboundGroup),
-        AffineMapAttr::get(
-            AffineMap::get(op.getUpperBoundsMap().getNumDims() +
-                               innerOp.getIntegerSet().getNumDims(),
-                           op.getUpperBoundsMap().getNumSymbols() +
-                               innerOp.getIntegerSet().getNumSymbols(),
-                           ubounds, op.getContext())),
-        rewriter.getI32TensorAttr(uboundGroup), op.getStepsAttr(), operands);
+    affine::AffineParallelOp affineLoop =
+        rewriter.create<affine::AffineParallelOp>(
+            op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
+            AffineMapAttr::get(
+                AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+                               op.getLowerBoundsMap().getNumSymbols(), lbounds,
+                               op.getContext())),
+            rewriter.getI32TensorAttr(lboundGroup),
+            AffineMapAttr::get(
+                AffineMap::get(op.getUpperBoundsMap().getNumDims() +
+                                   innerOp.getIntegerSet().getNumDims(),
+                               op.getUpperBoundsMap().getNumSymbols() +
+                                   innerOp.getIntegerSet().getNumSymbols(),
+                               ubounds, op.getContext())),
+            rewriter.getI32TensorAttr(uboundGroup), op.getStepsAttr(),
+            operands);
 
     rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                 affineLoop.getRegion().begin());
@@ -4430,13 +4457,14 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
     rewriter.setInsertionPoint(innerOp);
 
     if (remaining.empty()) {
-      auto yld = cast<AffineYieldOp>(innerOp.getThenBlock()->getTerminator());
+      auto yld =
+          cast<affine::AffineYieldOp>(innerOp.getThenBlock()->getTerminator());
       SmallVector<Value> toRet(yld.getOperands());
       rewriter.eraseOp(yld);
-      rewriter.mergeBlockBefore(innerOp.getThenBlock(), innerOp);
+      rewriter.inlineBlockBefore(innerOp.getThenBlock(), innerOp);
       rewriter.replaceOp(innerOp, toRet);
     } else {
-      AffineIfOp newIf = rewriter.create<AffineIfOp>(
+      affine::AffineIfOp newIf = rewriter.create<affine::AffineIfOp>(
           innerOp.getLoc(), innerOp.getResultTypes(),
           IntegerSet::get(innerOp.getIntegerSet().getNumDims(),
                           innerOp.getIntegerSet().getNumSymbols(), remaining,
@@ -4459,10 +4487,11 @@ struct MergeNestedAffineParallelIf : public OpRewritePattern<AffineParallelOp> {
   }
 };
 
-struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+struct MergeParallelInductions
+    : public OpRewritePattern<affine::AffineParallelOp> {
+  using OpRewritePattern<affine::AffineParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp op,
+  LogicalResult matchAndRewrite(affine::AffineParallelOp op,
                                 PatternRewriter &rewriter) const override {
     // Reductions are not supported yet.
     if (!op.getReductions().empty())
@@ -4575,19 +4604,19 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
       for (auto U : iv.getUsers()) {
         SmallVector<AffineExpr> exprs;
         ValueRange operands;
-        if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+        if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
           for (auto E : AL.getAffineMap().getResults())
             exprs.push_back(E);
           operands = AL.getMapOperands();
           affineMapUsers_t.push_back(U);
-        } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+        } else if (auto AS = dyn_cast<affine::AffineStoreOp>(U)) {
           if (AS.getValue() == iv)
             legal = false;
           for (auto E : AS.getAffineMap().getResults())
             exprs.push_back(E);
           operands = AS.getMapOperands();
           affineMapUsers_t.push_back(U);
-        } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+        } else if (auto AI = dyn_cast<affine::AffineIfOp>(U)) {
           for (auto E : AI.getIntegerSet().getConstraints())
             exprs.push_back(E);
           operands = AI.getOperands();
@@ -4631,17 +4660,17 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
       SmallVector<AffineExpr> exprs;
       ValueRange operands;
       size_t numDim;
-      if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+      if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
         for (auto E : AL.getAffineMap().getResults())
           exprs.push_back(E);
         operands = AL.getMapOperands();
         numDim = AL.getAffineMap().getNumDims();
-      } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+      } else if (auto AS = dyn_cast<affine::AffineStoreOp>(U)) {
         for (auto E : AS.getAffineMap().getResults())
           exprs.push_back(E);
         operands = AS.getMapOperands();
         numDim = AS.getAffineMap().getNumDims();
-      } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+      } else if (auto AI = dyn_cast<affine::AffineIfOp>(U)) {
         for (auto E : AI.getIntegerSet().getConstraints())
           exprs.push_back(E);
         operands = AI.getOperands();
@@ -4681,15 +4710,15 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
                 break;
               SmallVector<AffineExpr> exprs;
               ValueRange operands;
-              if (auto AL = dyn_cast<AffineLoadOp>(U)) {
+              if (auto AL = dyn_cast<affine::AffineLoadOp>(U)) {
                 for (auto E : AL.getAffineMap().getResults())
                   exprs.push_back(E);
                 operands = AL.getMapOperands();
-              } else if (auto AS = dyn_cast<AffineStoreOp>(U)) {
+              } else if (auto AS = dyn_cast<affine::AffineStoreOp>(U)) {
                 for (auto E : AS.getAffineMap().getResults())
                   exprs.push_back(E);
                 operands = AS.getMapOperands();
-              } else if (auto AI = dyn_cast<AffineIfOp>(U)) {
+              } else if (auto AI = dyn_cast<affine::AffineIfOp>(U)) {
                 for (auto E : AI.getIntegerSet().getConstraints())
                   exprs.push_back(E);
                 operands = AI.getOperands();
@@ -4767,15 +4796,16 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
             ubounds[off1] = ubounds[off1] * ubounds[off2];
             ubounds[off2] = getAffineConstantExpr(1, op.getContext());
 
-            AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-                op.getLoc(), op.getResultTypes(), op.getReductionsAttr(),
-                op.getLowerBoundsMapAttr(), op.getLowerBoundsGroupsAttr(),
-                AffineMapAttr::get(
-                    AffineMap::get(op.getUpperBoundsMap().getNumDims(),
-                                   op.getUpperBoundsMap().getNumSymbols(),
-                                   ubounds, op.getContext())),
-                op.getUpperBoundsGroupsAttr(), op.getStepsAttr(),
-                op.getOperands());
+            affine::AffineParallelOp affineLoop =
+                rewriter.create<affine::AffineParallelOp>(
+                    op.getLoc(), op.getResultTypes(), op.getReductionsAttr(),
+                    op.getLowerBoundsMapAttr(), op.getLowerBoundsGroupsAttr(),
+                    AffineMapAttr::get(
+                        AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                                       op.getUpperBoundsMap().getNumSymbols(),
+                                       ubounds, op.getContext())),
+                    op.getUpperBoundsGroupsAttr(), op.getStepsAttr(),
+                    op.getOperands());
 
             rewriter.inlineRegionBefore(op.getRegion(), affineLoop.getRegion(),
                                         affineLoop.getRegion().begin());
@@ -4789,10 +4819,10 @@ struct MergeParallelInductions : public OpRewritePattern<AffineParallelOp> {
 };
 
 struct RemoveAffineParallelSingleIter
-    : public OpRewritePattern<AffineParallelOp> {
-  using OpRewritePattern<AffineParallelOp>::OpRewritePattern;
+    : public OpRewritePattern<affine::AffineParallelOp> {
+  using OpRewritePattern<affine::AffineParallelOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(AffineParallelOp op,
+  LogicalResult matchAndRewrite(affine::AffineParallelOp op,
                                 PatternRewriter &rewriter) const override {
 
     // Reductions are not supported yet.
@@ -4872,26 +4902,28 @@ struct RemoveAffineParallelSingleIter
     if (steps.size() == 0) {
       delete Tmp;
 
-      auto yld = cast<AffineYieldOp>(op.getBody()->getTerminator());
+      auto yld = cast<affine::AffineYieldOp>(op.getBody()->getTerminator());
       SmallVector<Value> toRet(yld.getOperands());
       rewriter.eraseOp(yld);
-      rewriter.mergeBlockBefore(op.getBody(), op, replacements);
+      rewriter.inlineBlockBefore(op.getBody(), op, replacements);
       rewriter.replaceOp(op, toRet);
     } else {
 
-      AffineParallelOp affineLoop = rewriter.create<AffineParallelOp>(
-          op.getLoc(), op.getResultTypes(), rewriter.getArrayAttr(reductions),
-          AffineMapAttr::get(
-              AffineMap::get(op.getLowerBoundsMap().getNumDims(),
-                             op.getLowerBoundsMap().getNumSymbols(), lbounds,
-                             op.getContext())),
-          rewriter.getI32TensorAttr(lboundGroup),
-          AffineMapAttr::get(
-              AffineMap::get(op.getUpperBoundsMap().getNumDims(),
-                             op.getUpperBoundsMap().getNumSymbols(), ubounds,
-                             op.getContext())),
-          rewriter.getI32TensorAttr(uboundGroup),
-          rewriter.getI64ArrayAttr(steps), op.getOperands());
+      affine::AffineParallelOp affineLoop =
+          rewriter.create<affine::AffineParallelOp>(
+              op.getLoc(), op.getResultTypes(),
+              rewriter.getArrayAttr(reductions),
+              AffineMapAttr::get(
+                  AffineMap::get(op.getLowerBoundsMap().getNumDims(),
+                                 op.getLowerBoundsMap().getNumSymbols(),
+                                 lbounds, op.getContext())),
+              rewriter.getI32TensorAttr(lboundGroup),
+              AffineMapAttr::get(
+                  AffineMap::get(op.getUpperBoundsMap().getNumDims(),
+                                 op.getUpperBoundsMap().getNumSymbols(),
+                                 ubounds, op.getContext())),
+              rewriter.getI32TensorAttr(uboundGroup),
+              rewriter.getI64ArrayAttr(steps), op.getOperands());
 
       affineLoop.getRegion().getBlocks().push_back(Tmp);
       if (rewriter.getListener())
@@ -4908,7 +4940,7 @@ struct RemoveAffineParallelSingleIter
 template <typename T> struct BufferElimination : public OpRewritePattern<T> {
   using OpRewritePattern<T>::OpRewritePattern;
 
-  static bool legalFor(T op, AffineForOp afFor) {
+  static bool legalFor(T op, affine::AffineForOp afFor) {
     auto S = op.getType().getShape();
     if (S.size() != 1)
       return false;
@@ -4944,7 +4976,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
       return failure();
 
     for (auto U : op->getResult(0).getUsers()) {
-      if (auto load = dyn_cast<AffineLoadOp>(U)) {
+      if (auto load = dyn_cast<affine::AffineLoadOp>(U)) {
         AffineMap map = load.getAffineMapAttr().getValue();
         if (map.getNumResults() != 1)
           continue;
@@ -4956,8 +4988,8 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
         if (!val)
           continue;
 
-        AffineForOp copyOutOfBuffer =
-            dyn_cast<AffineForOp>(val.getOwner()->getParentOp());
+        affine::AffineForOp copyOutOfBuffer =
+            dyn_cast<affine::AffineForOp>(val.getOwner()->getParentOp());
         if (!copyOutOfBuffer)
           continue;
         if (copyOutOfBuffer.getNumResults())
@@ -4971,7 +5003,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
         if (!llvm::hasNItems(*copyOutOfBuffer.getBody(), 3))
           continue;
 
-        auto store = dyn_cast<AffineStoreOp>(load->getNextNode());
+        auto store = dyn_cast<affine::AffineStoreOp>(load->getNextNode());
         if (!store)
           continue;
 
@@ -4994,7 +5026,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
           continue;
 
         for (auto U2 : otherBuf.getUsers()) {
-          if (auto load = dyn_cast<AffineLoadOp>(U2)) {
+          if (auto load = dyn_cast<affine::AffineLoadOp>(U2)) {
             AffineMap map = load.getAffineMapAttr().getValue();
             if (map.getNumResults() != 1)
               continue;
@@ -5006,8 +5038,8 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
             if (!val)
               continue;
 
-            AffineForOp copyIntoBuffer =
-                dyn_cast<AffineForOp>(val.getOwner()->getParentOp());
+            affine::AffineForOp copyIntoBuffer =
+                dyn_cast<affine::AffineForOp>(val.getOwner()->getParentOp());
             if (!copyIntoBuffer)
               continue;
             if (copyIntoBuffer.getNumResults())
@@ -5018,7 +5050,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
             if (!llvm::hasNItems(*copyIntoBuffer.getBody(), 3))
               continue;
 
-            auto store = dyn_cast<AffineStoreOp>(load->getNextNode());
+            auto store = dyn_cast<affine::AffineStoreOp>(load->getNextNode());
             if (!store)
               continue;
 
@@ -5122,7 +5154,7 @@ template <typename T> struct SimplifyDeadAllocV2 : public OpRewritePattern<T> {
     if (llvm::any_of(alloc->getUsers(), [&](Operation *op) {
           if (auto storeOp = dyn_cast<memref::StoreOp>(op))
             return storeOp.getValue() == alloc;
-          if (auto storeOp = dyn_cast<AffineStoreOp>(op))
+          if (auto storeOp = dyn_cast<affine::AffineStoreOp>(op))
             return storeOp.getValue() == alloc;
           if (auto storeOp = dyn_cast<LLVM::StoreOp>(op))
             return storeOp.getValue() == alloc;
@@ -5150,7 +5182,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
     SmallVector<Operation *> loads;
     for (auto U : op->getResult(0).getUsers()) {
 
-      if (auto store2 = dyn_cast<AffineStoreOp>(U)) {
+      if (auto store2 = dyn_cast<affine::AffineStoreOp>(U)) {
         if (store2.getValue() == op->getResult(0)) {
           LLVM_DEBUG(llvm::dbgs() << " + stored the ptr " << *U << "\n");
           return failure();
@@ -5168,7 +5200,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         continue;
       }
 
-      if (auto load = dyn_cast<AffineLoadOp>(U)) {
+      if (auto load = dyn_cast<affine::AffineLoadOp>(U)) {
         loads.push_back(load);
         continue;
       }
@@ -5195,7 +5227,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
       Value storeVal = nullptr;
       SmallVector<ValueOrInt> storeIdxs;
-      if (auto store2 = dyn_cast<AffineStoreOp>(store)) {
+      if (auto store2 = dyn_cast<affine::AffineStoreOp>(store)) {
         bool legal = true;
         for (AffineExpr ores : store2.getAffineMap().getResults()) {
           ValueOrInt V((Value) nullptr);
@@ -5269,7 +5301,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           auto idx = idxp.value();
           auto i = idxp.index();
           if (!idx.isValue) {
-            if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
+            if (auto ald = dyn_cast<affine::AffineLoadOp>(ld)) {
               if (auto ac = ald.getAffineMap()
                                 .getResult(i)
                                 .dyn_cast<AffineConstantExpr>()) {
@@ -5324,7 +5356,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
           if (BA.getArgNumber() != 0)
             return failure();
-        } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
+        } else if (auto fOp = dyn_cast<affine::AffineForOp>(parent)) {
           if (BA.getArgNumber() != 0)
             return failure();
         } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
@@ -5333,7 +5365,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           for (auto iv : fOp.getInductionVars())
             if (!rangeIncludes(iv, 0, 1))
               return failure();
-        } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+        } else if (auto fOp = dyn_cast<affine::AffineParallelOp>(parent)) {
           if (BA.getArgNumber() >= fOp.getIVs().size())
             return failure();
           for (auto iv : fOp.getIVs())
@@ -5367,14 +5399,14 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           if (auto fOp = dyn_cast<scf::ForOp>(cur)) {
             if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
               return failure();
-          } else if (auto fOp = dyn_cast<AffineForOp>(cur)) {
+          } else if (auto fOp = dyn_cast<affine::AffineForOp>(cur)) {
             if (!rangeIncludes(fOp.getInductionVar(), 0, 1))
               return failure();
           } else if (auto fOp = dyn_cast<scf::ParallelOp>(cur)) {
             for (auto iv : fOp.getInductionVars())
               if (!rangeIncludes(iv, 0, 1))
                 return failure();
-          } else if (auto fOp = dyn_cast<AffineParallelOp>(cur)) {
+          } else if (auto fOp = dyn_cast<affine::AffineParallelOp>(cur)) {
             for (auto iv : fOp.getIVs())
               if (!rangeIncludes(iv, 0, 1))
                 return failure();
@@ -5396,7 +5428,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         auto V = VI.v_val;
         auto BA = V.dyn_cast<BlockArgument>();
         Operation *c = BA.getOwner()->getParentOp();
-        if (isa<AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
+        if (isa<affine::AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
           Operation *tmp = store;
           bool found = false;
           while (true) {
@@ -5451,13 +5483,14 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
                 } else if (auto fOp = dyn_cast<scf::ForOp>(parent)) {
                   if (BA.getArgNumber() != 0)
                     return false;
-                } else if (auto fOp = dyn_cast<AffineForOp>(parent)) {
+                } else if (auto fOp = dyn_cast<affine::AffineForOp>(parent)) {
                   if (BA.getArgNumber() != 0)
                     return false;
                 } else if (auto fOp = dyn_cast<scf::ParallelOp>(parent)) {
                   if (BA.getArgNumber() >= fOp.getInductionVars().size())
                     return false;
-                } else if (auto fOp = dyn_cast<AffineParallelOp>(parent)) {
+                } else if (auto fOp =
+                               dyn_cast<affine::AffineParallelOp>(parent)) {
                   if (BA.getArgNumber() >= fOp.getIVs().size())
                     return false;
                 } else {
@@ -5474,7 +5507,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
 
                 if (vop->getRegions().size()) {
                   if (!isa<scf::IfOp, scf::ExecuteRegionOp,
-                           memref::AllocaScopeOp, AffineIfOp>(vop))
+                           memref::AllocaScopeOp, affine::AffineIfOp>(vop))
                     return false;
                 }
 
@@ -5542,7 +5575,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         bool legal = true;
         std::function<void(Operation *)> checkOverwritingOp =
             [&](Operation *ist) {
-              if (auto AS = dyn_cast<AffineStoreOp>(ist)) {
+              if (auto AS = dyn_cast<affine::AffineStoreOp>(ist)) {
                 if (AS.getMemRef() == op->getResult(0)) {
                   for (auto pair :
                        llvm::enumerate(AS.getAffineMap().getResults())) {
@@ -5640,11 +5673,11 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
             rewriter.setInsertionPoint(ld);
             Value repval = storeVal;
             if (toRedo.size()) {
-              BlockAndValueMapping map;
-              if (auto ald = dyn_cast<AffineLoadOp>(ld)) {
+              IRMapping map;
+              if (auto ald = dyn_cast<affine::AffineLoadOp>(ld)) {
                 for (size_t i = 0; i < storeIdxs.size(); ++i) {
                   if (storeIdxs[i].isValue) {
-                    auto apply = rewriter.create<AffineApplyOp>(
+                    auto apply = rewriter.create<affine::AffineApplyOp>(
                         ald.getLoc(),
                         ald.getAffineMapAttr().getValue().getSliceMap(i, 1),
                         ald.getMapOperands());
@@ -5714,7 +5747,7 @@ void TypeAlignOp::getCanonicalizationPatterns(RewritePatternSet &results,
       UndefCmpProp<LLVM::UndefOp>, UndefCmpProp<polygeist::UndefOp>,
       AlwaysAllocaScopeHoister<memref::AllocaScopeOp>,
       AlwaysAllocaScopeHoister<scf::ForOp>,
-      AlwaysAllocaScopeHoister<AffineForOp>, ConstantRankReduction,
+      AlwaysAllocaScopeHoister<affine::AffineForOp>, ConstantRankReduction,
       AffineIfSinking, AffineIfSimplification, CombineAffineIfs,
       MergeNestedAffineParallelLoops, PrepMergeNestedAffineParallelLoops,
       MergeNestedAffineParallelIf, RemoveAffineParallelSingleIter>(context);
@@ -5745,10 +5778,8 @@ LogicalResult fixupGetFunc(LLVM::CallOp op, OpBuilder &rewriter,
 
   Value pval = op.getOperand(0);
 
-  auto FT = pval.getType()
-                .cast<LLVM::LLVMPointerType>()
-                .getElementType()
-                .cast<LLVM::LLVMFunctionType>();
+  auto FT = op.getCalleeFunctionType();
+
   if (FT.isVarArg())
     return failure();
 
@@ -5763,24 +5794,33 @@ LogicalResult fixupGetFunc(LLVM::CallOp op, OpBuilder &rewriter,
       break;
   }
 
+  auto gfn = pval.getDefiningOp<GetFuncOp>();
+  if (!gfn)
+    return failure();
+
   LLVM::LLVMFunctionType FT2;
-  if (auto MT = pval.getType().dyn_cast<MemRefType>())
-    FT2 = MT.getElementType().cast<LLVM::LLVMFunctionType>();
-  else
-    FT2 = pval.getType()
-              .cast<LLVM::LLVMPointerType>()
-              .getElementType()
-              .cast<LLVM::LLVMFunctionType>();
+  if (auto fn =
+          gfn->getParentOfType<ModuleOp>().lookupSymbol(gfn.getNameAttr())) {
+    if (auto funcOp = dyn_cast<LLVM::LLVMFuncOp>(fn))
+      FT2 = funcOp.getFunctionType();
+    else if (auto funcOp = dyn_cast<func::FuncOp>(fn))
+      FT2 = LLVM::LLVMFunctionType::get(
+          rewriter.getContext(),
+          op.getResultTypes().empty()
+              ? LLVM::LLVMVoidType::get(rewriter.getContext())
+              : funcOp.getResultTypes().front(),
+          funcOp.getArgumentTypes(), /*isVarArg=*/false);
+    else
+      return failure();
+  } else {
+    return failure();
+  }
 
   if (FT2.getParams().size() != FT.getParams().size())
     return failure();
 
-  auto gfn = pval.getDefiningOp<GetFuncOp>();
-  if (!gfn)
-    return failure();
-  SmallVector<Value> args(op.getOperands());
-  args.erase(args.begin());
-  for (int i = 0; i < args.size(); i++) {
+  SmallVector<Value> args(op.getArgOperands());
+  for (unsigned i = 0; i < args.size(); i++) {
     if (FT2.getParams()[i] != args[i].getType()) {
       if (!FT2.getParams()[i].isa<MemRefType>() ||
           !args[i].getType().isa<LLVM::LLVMPointerType>())

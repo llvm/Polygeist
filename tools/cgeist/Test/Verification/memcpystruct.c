@@ -9,17 +9,19 @@ void copy(struct N* dst, void* src) {
     __builtin_memcpy(dst, src, sizeof(struct N));
 }
 
-// CHECK:   func @copy(%[[arg0:.+]]: memref<?x2xi32>, %[[arg1:.+]]: memref<?xi8>)
-// CHECK-DAG:     %[[c8:.+]] = arith.constant 8 : index
-// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-DAG:     %[[V0:.+]] = "polygeist.memref2pointer"(%[[arg0]]) : (memref<?x2xi32>) -> !llvm.ptr<i8>
-// CHECK-NEXT:     scf.for %[[arg2:.+]] = %[[c0]] to %[[c8]] step %[[c1]] {
-// CHECK-NEXT:       %[[V1:.+]] = memref.load %[[arg1]][%[[arg2]]] : memref<?xi8>
-// CHECK-NEXT:       %[[V2:.+]] = arith.index_cast %[[arg2]] : index to i32
-// CHECK-NEXT:       %[[V3:.+]] = llvm.getelementptr %[[V0]][%[[V2]]] : (!llvm.ptr<i8>, i32) -> !llvm.ptr<i8>
-// CHECK-NEXT:       llvm.store %[[V1]], %[[V3]] : !llvm.ptr<i8>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @copy(
+// CHECK-SAME:                    %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x2xi32>,
+// CHECK-SAME:                    %[[VAL_1:[A-Za-z0-9_]*]]: memref<?xi8>)
+// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = arith.constant 8 : index
+// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = arith.constant 1 : index
+// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = arith.constant 0 : index
+// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x2xi32>) -> !llvm.ptr
+// CHECK:           scf.for %[[VAL_6:[A-Za-z0-9_]*]] = %[[VAL_4]] to %[[VAL_2]] step %[[VAL_3]] {
+// CHECK:             %[[VAL_7:[A-Za-z0-9_]*]] = memref.load %[[VAL_1]]{{\[}}%[[VAL_6]]] : memref<?xi8>
+// CHECK:             %[[VAL_8:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_6]] : index to i32
+// CHECK:             %[[VAL_9:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_5]]{{\[}}%[[VAL_8]]] : (!llvm.ptr, i32) -> !llvm.ptr, i8
+// CHECK:             llvm.store %[[VAL_7]], %[[VAL_9]] : i8, !llvm.ptr
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
 

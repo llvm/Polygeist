@@ -6,8 +6,8 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -32,7 +32,7 @@ struct ParSerialize : public OpRewritePattern<scf::ParallelOp> {
   LogicalResult matchAndRewrite(scf::ParallelOp nextParallel,
                                 PatternRewriter &rewriter) const override {
     if (!(nextParallel->getParentOfType<scf::ParallelOp>() ||
-          nextParallel->getParentOfType<AffineParallelOp>()))
+          nextParallel->getParentOfType<affine::AffineParallelOp>()))
       return failure();
 
     SmallVector<Value> inds;

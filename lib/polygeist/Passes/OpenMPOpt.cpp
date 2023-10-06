@@ -6,8 +6,8 @@
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Ops.h"
@@ -212,8 +212,8 @@ struct ParallelForInterchange : public OpRewritePattern<omp::ParallelOp> {
                                     prevFor.getUpperBound(), prevFor.getStep());
     auto *yield = nextParallel.getRegion().front().getTerminator();
     newFor.getRegion().takeBody(prevFor.getRegion());
-    rewriter.mergeBlockBefore(&nextParallel.getRegion().front(),
-                              newFor.getBody()->getTerminator());
+    rewriter.inlineBlockBefore(&nextParallel.getRegion().front(),
+                               newFor.getBody()->getTerminator());
     rewriter.setInsertionPoint(newFor.getBody()->getTerminator());
     rewriter.create<omp::BarrierOp>(nextParallel.getLoc());
 
