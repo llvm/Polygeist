@@ -5,6 +5,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Tools/ParseUtilities.h"
+#include "polygeist/Tools/MergeHostDeviceGPUModules.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -78,9 +79,12 @@ static LogicalResult polygeistMergeGPUModulesMain(int argc, char **argv,
   if (!deviceOpRef)
     return failure();
 
-  polygeist::mergeDeviceIntoHost(hostOpRef.get(), deviceOpRef.get());
+  if (polygeist::mergeDeviceIntoHost(cast<ModuleOp>(hostOpRef.get()),
+                                     cast<ModuleOp>(deviceOpRef.get()))
+          .failed())
+    return failure();
 
-  OwningOpRef<Operation *> op = opRef.get()->clone();
+  OwningOpRef<Operation *> op = hostOpRef.get()->clone();
 
   op.get()->print(output->os());
   output->keep();
@@ -93,7 +97,9 @@ static LogicalResult polygeistMergeGPUModulesMain(int argc, char **argv,
 int main(int argc, char **argv) {
   DialectRegistry registry;
   registerAllDialects(registry);
+  // TODO put this in a register function for the mergeDeviceIntoHost func
   MLIRContext context(registry);
+  context.loadDialect<mlir::gpu::GPUDialect>();
 
   return failed(
       mlir::polygeist::polygeistMergeGPUModulesMain(argc, argv, context));
