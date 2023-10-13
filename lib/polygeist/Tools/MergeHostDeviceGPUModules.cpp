@@ -41,6 +41,7 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
     for (auto use : *launchFuncUses) {
       if (auto callOp = dyn_cast<LLVM::CallOp>(use.getUser())) {
         auto loc = callOp->getLoc();
+        OpBuilder builder(callOp);
         StringRef callee =
             cast<LLVM::AddressOfOp>(
                 callOp.getCalleeOperands().front().getDefiningOp())
@@ -58,18 +59,32 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
         SymbolRefAttr gpuFuncSymbol = SymbolRefAttr::get(
             StringAttr::get(ctx, gpuModuleName),
             {SymbolRefAttr::get(StringAttr::get(ctx, deviceSymbol.str()))});
-        OpBuilder builder(callOp);
+        auto deviceFunc = dyn_cast_or_null<LLVM::LLVMFuncOp>(
+            hostModule.lookupSymbol(gpuFuncSymbol));
+        if (!deviceFunc)
+          return failure();
+        deviceFunc->setAttr("gpu.kernel", builder.getUnitAttr());
         Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
         llvm::SmallVector<Value> args = {one};
-        Value dynShMemSize = callOp.getArgOperands()[6];
+        auto shMemSize = builder.create<LLVM::TruncOp>(
+            loc, builder.getI32Type(), callOp.getArgOperands()[7]);
         builder.create<gpu::LaunchFuncOp>(
-            loc, gpuFuncSymbol, gpu::KernelDim3({one, one, one}),
-            gpu::KernelDim3({one, one, one}), dynShMemSize,
+            loc, gpuFuncSymbol,
+            gpu::KernelDim3({callOp.getArgOperands()[1],
+                             callOp.getArgOperands()[2],
+                             callOp.getArgOperands()[3]}),
+            gpu::KernelDim3({callOp.getArgOperands()[4],
+                             callOp.getArgOperands()[5],
+                             callOp.getArgOperands()[6]}),
+            shMemSize,
+            // TODO need stream
             ValueRange(args)); // , /*asyncObject=*/nullptr); //,
         // /*asyncDependencies=*/{});
         callOp->erase();
       }
     }
-
-    return success();
   }
+  if (launchFuncs.size())
+    hostModule->setAttr("gpu.container_module", OpBuilder(ctx).getUnitAttr());
+  return success();
+}
