@@ -200,7 +200,7 @@ static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
 static cl::opt<std::string> cfunction("function",
                                       cl::desc("<Specify function>"),
-                                      cl::init("main"), cl::cat(toolOptions));
+                                      cl::init("*"), cl::cat(toolOptions));
 
 static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
