@@ -35,14 +35,14 @@ void fixup(Module &M) {
     auto GridDimX = Builder.CreateTrunc(GridDim1, Builder.getInt32Ty());
     auto GridDimY = Builder.CreateLShr(
         GridDim1, ConstantInt::get(Builder.getInt64Ty(), 32));
-    GridDimY = Builder.CreateTrunc(GridDim1, Builder.getInt32Ty());
+    GridDimY = Builder.CreateTrunc(GridDimY, Builder.getInt32Ty());
     auto GridDimZ = GridDim2;
     auto BlockDim1 = CI->getArgOperand(3);
     auto BlockDim2 = CI->getArgOperand(4);
     auto BlockDimX = Builder.CreateTrunc(BlockDim1, Builder.getInt32Ty());
     auto BlockDimY = Builder.CreateLShr(
         BlockDim1, ConstantInt::get(Builder.getInt64Ty(), 32));
-    BlockDimY = Builder.CreateTrunc(BlockDim1, Builder.getInt32Ty());
+    BlockDimY = Builder.CreateTrunc(BlockDimY, Builder.getInt32Ty());
     auto BlockDimZ = BlockDim2;
     auto SharedMemSize = CI->getArgOperand(6);
     auto StreamPtr = CI->getArgOperand(7);
