@@ -64,10 +64,12 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
         if (!deviceFunc)
           return failure();
         deviceFunc->setAttr("gpu.kernel", builder.getUnitAttr());
-        Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
-        llvm::SmallVector<Value> args = {one};
         auto shMemSize = builder.create<LLVM::TruncOp>(
             loc, builder.getI32Type(), callOp.getArgOperands()[7]);
+        // TODO stream is arg 8
+        llvm::SmallVector<Value> args;
+        for (unsigned i = 9; i < callOp.getArgOperands().size(); i++)
+          args.push_back(callOp.getArgOperands()[i]);
         builder.create<gpu::LaunchFuncOp>(
             loc, gpuFuncSymbol,
             gpu::KernelDim3({callOp.getArgOperands()[1],
