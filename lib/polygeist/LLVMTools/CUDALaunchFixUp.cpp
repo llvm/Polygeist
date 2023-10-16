@@ -11,6 +11,8 @@
 
 using namespace llvm;
 
+// TODO Force inline all kernel stubs and delete their bodies
+//
 namespace {
 
 constexpr char cudaLaunchSymbolName[] = "cudaLaunchKernel";

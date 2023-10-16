@@ -64,6 +64,7 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
         if (!deviceFunc)
           return failure();
         deviceFunc->setAttr("gpu.kernel", builder.getUnitAttr());
+        // deviceFunc->setAttr("nvvm.kernel", builder.getUnitAttr());
         auto shMemSize = builder.create<LLVM::TruncOp>(
             loc, builder.getI32Type(), callOp.getArgOperands()[7]);
         // TODO stream is arg 8
@@ -72,12 +73,20 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
           args.push_back(callOp.getArgOperands()[i]);
         builder.create<gpu::LaunchFuncOp>(
             loc, gpuFuncSymbol,
-            gpu::KernelDim3({callOp.getArgOperands()[1],
-                             callOp.getArgOperands()[2],
-                             callOp.getArgOperands()[3]}),
-            gpu::KernelDim3({callOp.getArgOperands()[4],
-                             callOp.getArgOperands()[5],
-                             callOp.getArgOperands()[6]}),
+            gpu::KernelDim3(
+                {builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[1]),
+                 builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[2]),
+                 builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[3])}),
+            gpu::KernelDim3(
+                {builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[4]),
+                 builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[5]),
+                 builder.create<LLVM::SExtOp>(loc, builder.getI64Type(),
+                                              callOp.getArgOperands()[6])}),
             shMemSize,
             // TODO need stream
             ValueRange(args)); // , /*asyncObject=*/nullptr); //,
