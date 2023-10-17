@@ -1,3 +1,4 @@
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
@@ -100,6 +101,7 @@ int main(int argc, char **argv) {
   // TODO put this in a register function for the mergeDeviceIntoHost func
   MLIRContext context(registry);
   context.loadDialect<mlir::gpu::GPUDialect>();
+  context.loadDialect<mlir::NVVM::NVVMDialect>();
 
   return failed(
       mlir::polygeist::polygeistMergeGPUModulesMain(argc, argv, context));

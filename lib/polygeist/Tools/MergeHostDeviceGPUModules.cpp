@@ -1,6 +1,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/IR/SymbolTable.h"
 #include "llvm/ADT/SmallVector.h"
 #include <cstring>
@@ -32,6 +33,12 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
   auto gpuModule = moduleBuilder.create<gpu::GPUModuleOp>(
       deviceModule->getLoc(), gpuModuleName);
   gpuModule.getRegion().takeBody(deviceModule.getRegion());
+  // TODO get these target attrs from somewhere
+  auto target = moduleBuilder.getAttr<NVVM::NVVMTargetAttr>(
+      /*optLevel=*/2, /*triple=*/"nvptx64-nvidia-cuda", "sm_80", "+ptx60",
+      /*flags=*/nullptr,
+      /*linkLibs=*/nullptr);
+  gpuModule.setTargetsAttr(moduleBuilder.getArrayAttr({target}));
 
   auto gpuModuleBuilder = OpBuilder::atBlockEnd(gpuModule.getBody());
   gpuModuleBuilder.create<gpu::ModuleEndOp>(gpuModule->getLoc());
@@ -54,17 +61,22 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
 
         // LLVM::LLVMFuncOp gpuFuncOp =
         // cast<LLVM::LLVMFuncOp>(deviceModule.lookupSymbol(callee));
-        Twine deviceSymbol =
-            "_Z" + std::to_string(symbolLength - strlen(stubPrefix)) + callee;
+        std::string deviceSymbol;
+        if (symbolLength)
+          deviceSymbol = "_Z" +
+                         std::to_string(symbolLength - strlen(stubPrefix)) +
+                         callee.str();
+        else
+          deviceSymbol = callee;
         SymbolRefAttr gpuFuncSymbol = SymbolRefAttr::get(
             StringAttr::get(ctx, gpuModuleName),
-            {SymbolRefAttr::get(StringAttr::get(ctx, deviceSymbol.str()))});
+            {SymbolRefAttr::get(StringAttr::get(ctx, deviceSymbol.c_str()))});
         auto deviceFunc = dyn_cast_or_null<LLVM::LLVMFuncOp>(
             hostModule.lookupSymbol(gpuFuncSymbol));
         if (!deviceFunc)
-          return failure();
+          return deviceFunc.emitError();
         deviceFunc->setAttr("gpu.kernel", builder.getUnitAttr());
-        // deviceFunc->setAttr("nvvm.kernel", builder.getUnitAttr());
+        deviceFunc->setAttr("nvvm.kernel", builder.getUnitAttr());
         auto shMemSize = builder.create<LLVM::TruncOp>(
             loc, builder.getI32Type(), callOp.getArgOperands()[7]);
         // TODO stream is arg 8
@@ -89,8 +101,7 @@ LogicalResult mlir::polygeist::mergeDeviceIntoHost(ModuleOp hostModule,
                                               callOp.getArgOperands()[6])}),
             shMemSize,
             // TODO need stream
-            ValueRange(args)); // , /*asyncObject=*/nullptr); //,
-        // /*asyncDependencies=*/{});
+            ValueRange(args));
         callOp->erase();
       }
     }
