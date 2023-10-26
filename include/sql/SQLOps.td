@@ -38,16 +38,6 @@ def ColumnOp : SQL_Op<"column", [Pure]> {
   let hasCanonicalizer = 0;
 } 
 
-def AllColumnsOp : SQL_Op<"all_columns", [Pure]> {
-  let summary = "all columns op";
-
-  let arguments = (ins StrAttr:$expr);
-  let results = (outs SQLExprType:$result);
-
-  let hasFolder = 0;
-  let hasCanonicalizer = 0;
-} 
-
 def WhereOp: SQL_Op<"where", [Pure]> {
   let summary = "where op";
 
@@ -130,15 +120,38 @@ def SQLStringConcatOp : SQL_Op<"string_concat", [Pure]> {
   let hasCanonicalizer = 1;
 }                       
 
+def ConstantBoolOp : SQL_Op <"constant_bool", [Pure]> {
+  let summary = "constant_bool";
+  let results = (outs SQLBoolType:$result);
+  
+}
+
+
 def SelectOp : SQL_Op<"select", [Pure]> {
   let summary = "select";
   // i need to specify the size of a Variadic? 
-  let arguments = (ins Variadic<SQLExprType>:$columns, SQLExprType:$table);
+  let arguments = (ins Variadic<SQLExprType>:$columns,
+                    SQLExprType:$table,
+                    // SQLBoolType:$where,
+                    BoolAttr:$selectAll
+                    IntAttr:$limit); 
+                    // attribute limit<int> if >= 0 then its the real thing, otherwise its infinity
+  let results = (outs SQLExprType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
+def AllColumnsOp : SQL_Op<"all_columns", [Pure]> {
+  let summary = "all_columns";
   let results = (outs SQLExprType:$result);
 
   let hasFolder = 0;
   let hasCanonicalizer = 0;
 } 
+
+
+
 
 def UnparsedOp : SQL_Op<"unparsed", [Pure]> {
   let summary = "unparsed sql op";

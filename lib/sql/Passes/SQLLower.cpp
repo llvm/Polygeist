@@ -161,16 +161,26 @@ struct ConstantStringOpLowering : public OpRewritePattern<sql::SQLConstantString
 
     SymbolTableCollection symbolTable;
     symbolTable.getSymbolTable(module);
-
-    auto expr = (op.getInput() + "\0").str();
+    for (auto u: op.getResult().getUsers()){
+        if (isa<sql::SQLStringConcatOp>(u)) return failure();
+    }
+    auto expr = op.getInput().str();  
     auto name = "str" + std::to_string((long long int)(Operation *)op);
-    auto MT = MemRefType::get({expr.size()}, rewriter.getI8Type());
+    auto MT = MemRefType::get({expr.size() + 1}, rewriter.getI8Type());
+    // auto type = MemRefType::get(mt.getShape(), mt.getElementType(), {});
     auto getglob = rewriter.create<memref::GetGlobalOp>(op.getLoc(), MT, name);
+
+    SmallVector<char, 1> data(expr.begin(), expr.end());
+    data.push_back('\0');
+    auto attr = DenseElementsAttr::get<char>(
+            RankedTensorType::get(MT.getShape(), MT.getElementType()), data);
     
-    rewriter.setInsertionPointToStart(module.getBody());
-    auto res = rewriter.create<memref::GlobalOp>(op.getLoc(), rewriter.getStringAttr(name),
-                          mlir::StringAttr(), mlir::TypeAttr::get(MT), rewriter.getStringAttr(expr), mlir::UnitAttr(), /*alignment*/nullptr);
+    auto loc = op.getLoc();
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, MemRefType::get({-1}, rewriter.getI8Type()), getglob.getResult());
+    rewriter.setInsertionPointToStart(module.getBody());
+    auto res = rewriter.create<memref::GlobalOp>(loc, rewriter.getStringAttr(name),
+                          mlir::StringAttr(), mlir::TypeAttr::get(MT), attr, rewriter.getUnitAttr(), /*alignment*/nullptr);
+
     return success();
   }
 };
@@ -207,22 +217,27 @@ struct ToStringOpLowering : public OpRewritePattern<sql::SQLToStringOp> {
         Value current = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
                         MemRefType::get({-1}, rewriter.getI8Type()), "SELECT ");
         bool prevColumn = false;
-        for (auto v : selectOp.getColumns()) {
-            Value columns = rewriter.create<sql::SQLToStringOp>(op.getLoc(), 
-                            MemRefType::get({-1}, rewriter.getI8Type()), v);
-            Value args[] = { current, columns };
-            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
-                            MemRefType::get({-1}, rewriter.getI8Type()),args);
+        auto columns = selectOp.getColumns();
+        for (mlir::Value v : columns) {
             if (prevColumn) {
-            Value args[] = { current, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
-                        MemRefType::get({-1}, rewriter.getI8Type()), ", ") };
-            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
-                            MemRefType::get({-1}, rewriter.getI8Type()),args);
+                Value args[] = { current, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), ", ") };
+                current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                                MemRefType::get({-1}, rewriter.getI8Type()),args);
             }
+            Value col = rewriter.create<sql::SQLToStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), v);
+            Value args[] = { col, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), " ")};
+            col = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(),
+                            MemRefType::get({-1}, rewriter.getI8Type()), args);
+            Value args2[] = { current, col };
+            current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), args2);
             prevColumn = true;
         }
         auto tableOp = selectOp.getTable().getDefiningOp<sql::TableOp>();
-        if (!tableOp || !tableOp.getExpr().empty()) {
+        if (tableOp) {
             Value args[] = { current, rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
                         MemRefType::get({-1}, rewriter.getI8Type()), "FROM ") };
             current = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
@@ -233,6 +248,16 @@ struct ToStringOpLowering : public OpRewritePattern<sql::SQLToStringOp> {
                             MemRefType::get({-1}, rewriter.getI8Type()),args2);
         }
         rewriter.replaceOp(op, current);
+    } else if (auto selectAllOp = dyn_cast<sql::SelectAllOp>(definingOp)){
+        auto table = rewriter.create<sql::SQLToStringOp>(op.getLoc(), 
+                            MemRefType::get({-1}, rewriter.getI8Type()), selectAllOp.getTable());
+        Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()), "SELECT * FROM ");
+        Value args[] = { res, table };
+        res = rewriter.create<sql::SQLStringConcatOp>(op.getLoc(), 
+                        MemRefType::get({-1}, rewriter.getI8Type()),args);
+        
+        rewriter.replaceOp(op, res);
     } else if (auto tabOp = dyn_cast<sql::TableOp>(definingOp)) {
         Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
                         MemRefType::get({-1}, rewriter.getI8Type()), tabOp.getExpr());
@@ -244,6 +269,7 @@ struct ToStringOpLowering : public OpRewritePattern<sql::SQLToStringOp> {
     } else if (auto intOp = dyn_cast<sql::IntOp>(definingOp)){
         Value res = rewriter.create<sql::SQLConstantStringOp>(op.getLoc(), 
                         MemRefType::get({-1}, rewriter.getI8Type()), intOp.getExpr());
+        llvm::errs() << "intOp: " << intOp.getExpr() << "\n";
         rewriter.replaceOp(op, res);
     } else {
         assert(0 && "unknown type to convert to string");
@@ -280,6 +306,8 @@ struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
     // auto name = "str" + std::to_string((long long int)(Operation *)command.getDefiningOp());
     command = rewriter.create<sql::SQLToStringOp>(op.getLoc(),
                                               MemRefType::get({-1}, rewriter.getI8Type()), command);
+    llvm::errs() << "command: " << command << "\n";
+    llvm::errs() << "command type: " << command.getType() << "\n";
     // auto type = MemRefType::get({-1}, rewriter.getI8Type());
 
     
@@ -295,6 +323,12 @@ struct ExecuteOpLowering : public OpRewritePattern<sql::ExecuteOp> {
     Value res =
         rewriter.create<mlir::func::CallOp>(op.getLoc(), executefn, args)
             ->getResult(0);
+    res = rewriter.create<polygeist::Memref2PointerOp>(op.getLoc(), 
+                        LLVM::LLVMPointerType::get(rewriter.getI8Type()), res);
+    res = rewriter.create<LLVM::PtrToIntOp>(
+        op.getLoc(), rewriter.getI64Type(), res);
+    res = rewriter.create<arith::IndexCastOp>(op.getLoc(),
+                                              op.getType(), res);
 
     rewriter.replaceOp(op, res);
 

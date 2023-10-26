@@ -106,7 +106,7 @@ public:
             return {"", 0};
         }
         for (std::string rWord : reservedWords) {
-            auto token = sql.substr(i, std::min(sql.size(), i + rWord.size()));
+            auto token = sql.substr(i, std::min(sql.size()-i, rWord.size()));
             std::transform(token.begin(), token.end(), token.begin(), ::toupper);
             if (token == rWord) {
                 return {token, static_cast<int>(token.size())};
@@ -148,12 +148,14 @@ public:
     }
 
 
-
     // Parse the next command, if any
     ParseValue parseNext(ParseMode mode) {
+        // for (unsigned int j = i; j < sql.size(); j++) {
+        //     auto peekStr = peek(); 
+        //     pop(); 
+        //     llvm::errs() << "peekStrTest: " << i << " " << peekStr << "\n";
+        // }
         if (i >= sql.size()) {
-            llvm::errs() << "here i:" << i << "\n";
-            llvm::errs() << "here size:" << sql.size() << "\n";
             return ParseValue();
         }
         auto peekStr = peek();
@@ -171,6 +173,8 @@ public:
             llvm::SmallVector<Value> columns;
             bool hasColumns = true;
             bool hasWhere = false; 
+            bool selectAll = false; 
+            int limit = -1;
             Value table = nullptr;
             while (true) {
                 peekStr = peek();
@@ -178,8 +182,19 @@ public:
                     if (peekStr == "FROM") {
                         pop();
                         table = parseNext(ParseMode::Table).getValue();
+                        llvm::errs() << "table: " << table << "\n";
                         hasColumns = false;
                         break;
+                    }
+                    if (peekStr == "*") {
+                        pop();
+                        selectAll = true; 
+                        continue;
+                    }
+                    if (peekStr == ",") {
+                        pop();
+                        llvm::errs() << "comma\n";
+                        continue;
                     }
                     ParseValue col = parseNext(ParseMode::Column);
                     if (col.getType() == ParseType::Nothing) {
@@ -188,18 +203,34 @@ public:
                     } else {
                         columns.push_back(col.getValue());
                     }
-                    if (peekStr == ",") pop();
+                    
                 } else if (peekStr == "WHERE") {
                     pop(); 
                     hasWhere = true; 
+                } else if (peekStr == "LIMIT"){
+                    pop(); 
+                    peekStr = peek();
+                    if (peekStr == "ALL"){
+                        pop();
+                    } else if (is_number(&peekStr)){
+                        pop();
+                        limit = std::stoi(peekStr);
+                    }
                 } else { 
-                    break;
-                    // assert(0 && " additional clauses like limit/etc not yet handled");
+                    // break;
+                    assert(0 && " additional clauses like where/etc not yet handled");
                 }
             }
-            if (!table)
+            if (!table){
+                llvm::errs() << " table is null: " << table << "\n";
                 table = builder.create<sql::TableOp>(loc, ExprType::get(builder.getContext()), builder.getStringAttr("")).getResult();
-            return ParseValue(builder.create<sql::SelectOp>(loc, ExprType::get(builder.getContext()), columns, table).getResult());
+            }
+            // if (selectAll){
+            //     assert(table && "table cannot be null");
+            //     return ParseValue(builder.create<sql::SelectAllOp>(loc, ExprType::get(builder.getContext()), table).getResult());
+            // } else {
+            return ParseValue(builder.create<sql::SelectOp>(loc, ExprType::get(builder.getContext()), columns, table, selectALl, limit).getResult());
+            // }
         } else if (is_number(&peekStr)){
             pop();
             return ParseValue(builder.create<IntOp>(loc, ExprType::get(builder.getContext()), builder.getStringAttr(peekStr)).getResult());
@@ -234,7 +265,7 @@ public:
 };
 
 std::vector<std::string> SQLParser::reservedWords = {
-    "(", ")", ">=", "<=", "!=", ",", "=", ">", "<", "SELECT", "DISTINCT", "INSERT INTO", "VALUES", "UPDATE", "DELETE FROM", "WHERE", "FROM", "SET", "AS"
+    "(", ")", ">=", "<=", "!=", ",", "=", ">", "<", ",", "SELECT", "DISTINCT", "INSERT INTO", "VALUES", "UPDATE", "DELETE FROM", "WHERE", "FROM", "SET", "AS"
 };
 
 
