@@ -247,8 +247,10 @@ struct ConvertToOpaquePtrPass
         }
         for (auto ty : st.getBody()) {
           StringRef fieldKey = "";
-          if (auto fieldST = ty.dyn_cast<LLVM::LLVMStructType>())
-            fieldKey = fieldST.getName();
+          if (auto fieldST = ty.dyn_cast<LLVM::LLVMStructType>()) {
+            if (fieldST.isIdentified())
+              fieldKey = fieldST.getName();
+          }
           if (typeCache.find(fieldKey) != typeCache.end()) {
             bodyTypes.push_back(typeCache[fieldKey]);
           } else {
