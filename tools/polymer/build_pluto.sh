@@ -7,7 +7,12 @@ echo Starting pluto build script with args "$@"
 
 # We assume build dir is absolute
 ROOT_DIR="$1"
+
 echo BUILDING PLUTO IN DIR "$ROOT_DIR"
+
+if test -d "$ROOT_DIR"; then
+    exit
+fi
 
 mkdir -p "$ROOT_DIR"
 
@@ -75,4 +80,4 @@ git submodule update --init --recursive
 
 ./autogen.sh
 ./configure --prefix="$PLUTO_INSTALL_DIR" --with-clang-prefix="$PLUTO_LLVM_INSTALL_DIR"
-make -j
+make -j install
