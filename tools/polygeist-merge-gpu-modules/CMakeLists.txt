@@ -27,3 +27,5 @@ target_link_libraries(polygeist-merge-gpu-modules PRIVATE ${LIBS})
 llvm_update_compile_flags(polygeist-merge-gpu-modules)
 
 mlir_check_all_link_libraries(polygeist-merge-gpu-modules)
+
+add_subdirectory(Test)

@@ -15,7 +15,7 @@ list(APPEND MLIR_CLANG_TEST_DEPS
   mlir-translate
   polygeist-merge-gpu-modules
   clang
-  clang++
+  #clang++
   )
 
 add_lit_testsuite(check-polygeist-merge-gpu-modules "Running the gpu module merge tests"
