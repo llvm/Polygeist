@@ -91,7 +91,11 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
 
-# Configure and build PLUTO to ${CMAKE_BUILD_DIR}/pluto
+# build pluto
+execute_process(
+  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build_pluto.sh" "${POLYGEIST_PLUTO_DIR}"
+)
+# configure the cmake variables for pluto
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
 include_directories("${PLUTO_INCLUDE_DIR}")
 message(STATUS "Will build and use Polymer-bundled Pluto")

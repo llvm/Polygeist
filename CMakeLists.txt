@@ -5,6 +5,10 @@ include(CheckCXXSourceCompiles)
 set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA frontend and backend")
 set(POLYGEIST_ENABLE_ROCM 0 CACHE BOOL "Enable ROCM backend")
 
+set(POLYGEIST_ENABLE_POLYMER 0 CACHE BOOL "Enable Polymer")
+
+set(POLYGEIST_PLUTO_DIR "${CMAKE_BUILD_DIR}" CACHE STRING "Pluto build root directory")
+
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)
   set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)

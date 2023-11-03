@@ -1,3 +1,6 @@
 add_subdirectory(polygeist-opt)
 add_subdirectory(cgeist)
-add_subdirectory(polymer)
+
+if(POLYGEIST_ENABLE_POLYMER)
+  add_subdirectory(polymer)
+endif()
