@@ -3,8 +3,6 @@
 set -e
 set -x
 
-echo Starting pluto build script with args "$@"
-
 # We assume build dir is absolute
 ROOT_DIR="$1"
 
@@ -48,21 +46,6 @@ cmake --build . -j --target install
 PLUTO_PREFIX="$ROOT_DIR/pluto"
 PLUTO_SRC_DIR="$PLUTO_PREFIX/pluto"
 PLUTO_INSTALL_DIR="$PLUTO_PREFIX/install"
-#
-#
-# OPENSCOP_PREFIX="$PLUTO_SRC_DIR"
-# mkdir -p "$OPENSCOP_PREFIX"
-# cd "$OPENSCOP_PREFIX"
-#
-# OPENSCOP_SRC_DIR="$OPENSCOP_PREFIX/openscop"
-# git clone https://github.com/periscop/openscop.git "$OPENSCOP_SRC_DIR" || true
-# cd "$OPENSCOP_SRC_DIR"
-# git checkout 37805d8fef38c2d1b8aa8f5c26b40f79100322e7
-#
-# OPENSCOP_INSTALL_DIR="$OPENSCOP_PREFIX/install"
-#
-# "./autogen.sh" && "./configure" --prefix="$OPENSCOP_INSTALL_DIR"
-# make install -j
 
 
 ### PLUTO STUFF ###
