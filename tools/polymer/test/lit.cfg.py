@@ -30,7 +30,7 @@ config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = os.path.join(config.polymer_obj_root, 'test')
 
 # Tweak the PATH to include the tools dir.
-llvm_config.with_environment('PATH', config.llvm_tools_dir, append_path=True)
+llvm_config.with_environment('PATH', config.polymer_tools_dir, append_path=True)
 
 # Propagate some variables from the host environment.
 llvm_config.with_system_environment(
@@ -44,7 +44,7 @@ llvm_config.use_default_substitutions()
 # to search to ensure that we get the tools just built and not some random
 # tools that might happen to be in the user's PATH.
 
-tool_dirs = [config.polymer_tools_dir, config.llvm_tools_dir]
+tool_dirs = [config.polymer_tools_dir]
 tools = [
     'polymer-opt',
     'polymer-translate'

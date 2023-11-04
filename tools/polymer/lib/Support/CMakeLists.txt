@@ -17,7 +17,7 @@ add_mlir_library(PolymerSupport
   MLIRAffineAnalysis
 
   # libosl
-  # libcloog
+  libcloog
   # libisl
   libplutoisl
   libplutoosl

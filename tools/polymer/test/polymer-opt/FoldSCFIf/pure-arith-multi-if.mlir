@@ -1,6 +1,6 @@
 // RUN: polymer-opt %s -fold-scf-if | FileCheck %s
 
-func @foo(%a: f32, %b: f32, %c: i1, %d: i1) -> f32 {
+func.func @foo(%a: f32, %b: f32, %c: i1, %d: i1) -> f32 {
   %0 = scf.if %c -> f32 {
     %0 = scf.if %d -> f32 {
       scf.yield %a : f32
@@ -16,7 +16,7 @@ func @foo(%a: f32, %b: f32, %c: i1, %d: i1) -> f32 {
   return %0 : f32
 }
 
-// CHECK: func @foo(%[[a:.*]]: f32, %[[b:.*]]: f32, %[[c:.*]]: i1, %[[d:.*]]: i1) -> f32 
+// CHECK: func.func @foo(%[[a:.*]]: f32, %[[b:.*]]: f32, %[[c:.*]]: i1, %[[d:.*]]: i1) -> f32 
 // CHECK-NEXT:   %[[v0:.*]] = arith.select %[[d]], %[[a]], %[[b]] : f32
 // CHECK-NEXT:   %[[v1:.*]] = arith.addf %[[v0]], %[[b]] : f32
 // CHECK-NEXT:   %[[v2:.*]] = arith.mulf %[[a]], %[[b]] : f32

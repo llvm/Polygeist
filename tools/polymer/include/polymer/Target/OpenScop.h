@@ -12,6 +12,7 @@
 
 #include "pluto/internal/pluto.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringMap.h"
@@ -20,7 +21,9 @@ namespace mlir {
 template <typename OpTy> class OwningOpRef;
 class MLIRContext;
 class ModuleOp;
+namespace func {
 class FuncOp;
+}
 struct LogicalResult;
 class Operation;
 class Value;
@@ -31,7 +34,7 @@ namespace polymer {
 class OslScop;
 class OslSymbolTable;
 
-std::unique_ptr<OslScop> createOpenScopFromFuncOp(mlir::FuncOp funcOp,
+std::unique_ptr<OslScop> createOpenScopFromFuncOp(mlir::func::FuncOp funcOp,
                                                   OslSymbolTable &symTable);
 
 /// Create a function (FuncOp) from the given OpenScop object in the given

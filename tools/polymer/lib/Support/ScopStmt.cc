@@ -11,11 +11,11 @@
 #include "mlir/Dialect/Affine/Analysis/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Support/LogicalResult.h"
@@ -35,7 +35,7 @@ public:
   using EnclosingOpList = SmallVector<Operation *, 8>;
 
   ScopStmtImpl(llvm::StringRef name, mlir::func::CallOp caller,
-               mlir::FuncOp callee)
+               mlir::func::FuncOp callee)
       : name(name), caller(caller), callee(callee) {}
 
   static std::unique_ptr<ScopStmtImpl> get(mlir::Operation *callerOp,
@@ -45,7 +45,7 @@ public:
   /// caller, and find and insert all enclosing for/if ops to enclosingOps.
   void initializeDomainAndEnclosingOps();
 
-  void getArgsValueMapping(BlockAndValueMapping &argMap);
+  void getArgsValueMapping(IRMapping &argMap);
 
   /// Name of the callee, as well as the scop.stmt. It will also be the
   /// symbol in the OpenScop representation.
@@ -53,9 +53,9 @@ public:
   /// The caller to the scop.stmt func.
   mlir::func::CallOp caller;
   /// The scop.stmt callee.
-  mlir::FuncOp callee;
+  mlir::func::FuncOp callee;
   /// The domain of the caller.
-  FlatAffineValueConstraints domain;
+  affine::FlatAffineValueConstraints domain;
   /// Enclosing for/if operations for the caller.
   EnclosingOpList enclosingOps;
 };
@@ -66,9 +66,9 @@ public:
 std::unique_ptr<ScopStmtImpl> ScopStmtImpl::get(mlir::Operation *callerOp,
                                                 mlir::Operation *calleeOp) {
   // We assume that the callerOp is of type mlir::func::CallOp, and the calleeOp
-  // is a mlir::FuncOp. If not, these two cast lines will raise error.
+  // is a mlir::func::FuncOp. If not, these two cast lines will raise error.
   mlir::func::CallOp caller = cast<mlir::func::CallOp>(callerOp);
-  mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
+  mlir::func::FuncOp callee = cast<mlir::func::FuncOp>(calleeOp);
   llvm::StringRef name = caller.getCallee();
 
   // Create the stmt instance.
@@ -92,10 +92,11 @@ static BlockArgument findTopLevelBlockArgument(mlir::Value val) {
 }
 
 static void
-promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
+promoteSymbolToTopLevel(mlir::Value val,
+                        affine::FlatAffineValueConstraints &domain,
                         llvm::DenseMap<mlir::Value, mlir::Value> &symMap) {
   BlockArgument arg = findTopLevelBlockArgument(val);
-  assert(isa<mlir::FuncOp>(arg.getOwner()->getParentOp()) &&
+  assert(isa<mlir::func::FuncOp>(arg.getOwner()->getParentOp()) &&
          "Found top-level argument should be a FuncOp argument.");
   // NOTE: This cannot pass since the found argument may not be of index type,
   // i.e., it will be index cast later.
@@ -103,43 +104,44 @@ promoteSymbolToTopLevel(mlir::Value val, FlatAffineValueConstraints &domain,
   //        "Found top-level argument should be a valid symbol.");
 
   unsigned int pos;
-  assert(domain.findId(val, &pos) &&
-         "Provided value should be in the given domain");
+  auto res = domain.findVar(val, &pos);
+  assert(res && "Provided value should be in the given domain");
   domain.setValue(pos, arg);
 
   symMap[val] = arg;
 }
 
-static void reorderSymbolsByOperandId(FlatAffineValueConstraints &cst) {
+static void reorderSymbolsByOperandId(affine::FlatAffineValueConstraints &cst) {
   // bubble sort
-  for (unsigned i = cst.getNumDimIds(); i < cst.getNumDimAndSymbolIds(); ++i)
-    for (unsigned j = i + 1; j < cst.getNumDimAndSymbolIds(); ++j) {
+  for (unsigned i = cst.getNumDimVars(); i < cst.getNumDimAndSymbolVars(); ++i)
+    for (unsigned j = i + 1; j < cst.getNumDimAndSymbolVars(); ++j) {
       auto fst = cst.getValue(i).cast<BlockArgument>();
       auto snd = cst.getValue(j).cast<BlockArgument>();
       if (fst.getArgNumber() > snd.getArgNumber())
-        cst.swapId(i, j);
+        cst.swapVar(i, j);
     }
 }
 
 void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // Extract the affine for/if ops enclosing the caller and insert them into the
   // enclosingOps list.
-  getEnclosingAffineForAndIfOps(*caller, &enclosingOps);
+  affine::getEnclosingAffineOps(*caller, &enclosingOps);
 
   // The domain constraints can then be collected from the enclosing ops.
-  assert(succeeded(getIndexSet(enclosingOps, &domain)));
+  auto res = succeeded(getIndexSet(enclosingOps, &domain));
+  assert(res);
 
   // Add additional indices that are in the top level block arguments.
   for (Value arg : caller->getOperands()) {
     if (!arg.getType().isIndex())
       continue;
     unsigned pos;
-    if (domain.findId(arg, &pos))
+    if (domain.findVar(arg, &pos))
       continue;
 
-    domain.appendSymbolId(1);
+    domain.appendSymbolVar(1);
     domain.dump();
-    domain.setValue(domain.getNumDimAndSymbolIds() - 1, arg);
+    domain.setValue(domain.getNumDimAndSymbolVars() - 1, arg);
   }
 
   // Symbol values, which could be a BlockArgument, or the result of DimOp or
@@ -148,7 +150,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   // should be a top-level BlockArgument.
   SmallVector<mlir::Value, 8> symValues;
   llvm::DenseMap<mlir::Value, mlir::Value> symMap;
-  domain.getValues(domain.getNumDimIds(), domain.getNumDimAndSymbolIds(),
+  domain.getValues(domain.getNumDimVars(), domain.getNumDimAndSymbolVars(),
                    &symValues);
   for (mlir::Value val : symValues)
     promoteSymbolToTopLevel(val, domain, symMap);
@@ -157,7 +159,7 @@ void ScopStmtImpl::initializeDomainAndEnclosingOps() {
   reorderSymbolsByOperandId(domain);
 }
 
-void ScopStmtImpl::getArgsValueMapping(BlockAndValueMapping &argMap) {
+void ScopStmtImpl::getArgsValueMapping(IRMapping &argMap) {
   auto callerArgs = caller.getArgOperands();
   auto calleeArgs = callee.getArguments();
   unsigned numArgs = callerArgs.size();
@@ -174,18 +176,18 @@ ScopStmt::~ScopStmt() = default;
 ScopStmt::ScopStmt(ScopStmt &&) = default;
 ScopStmt &ScopStmt::operator=(ScopStmt &&) = default;
 
-FlatAffineValueConstraints *ScopStmt::getDomain() const {
+affine::FlatAffineValueConstraints *ScopStmt::getDomain() const {
   return &(impl->domain);
 }
 
 void ScopStmt::getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                                bool forOnly) const {
   for (mlir::Operation *op : impl->enclosingOps)
-    if (!forOnly || isa<mlir::AffineForOp>(op))
+    if (!forOnly || isa<mlir::affine::AffineForOp>(op))
       ops.push_back(op);
 }
 
-mlir::FuncOp ScopStmt::getCallee() const { return impl->callee; }
+mlir::func::FuncOp ScopStmt::getCallee() const { return impl->callee; }
 mlir::func::CallOp ScopStmt::getCaller() const { return impl->caller; }
 
 static mlir::Value findBlockArg(mlir::Value v) {
@@ -207,18 +209,19 @@ static mlir::Value findBlockArg(mlir::Value v) {
 }
 
 void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
-                                     mlir::AffineValueMap *vMap,
+                                     mlir::affine::AffineValueMap *vMap,
                                      mlir::Value *memref) const {
   // Map from callee arguments to caller's. impl holds the callee and caller
   // instances.
-  BlockAndValueMapping argMap;
+  IRMapping argMap;
   impl->getArgsValueMapping(argMap);
 
   // TODO: assert op is in the callee.
-  MemRefAccess access(op);
+  affine::MemRefAccess access(op);
 
-  // Collect the access AffineValueMap that binds to operands in the callee.
-  AffineValueMap aMap;
+  // Collect the access affine::AffineValueMap that binds to operands in the
+  // callee.
+  affine::AffineValueMap aMap;
   access.getAccessMap(&aMap);
 
   // Replace its operands by what the caller uses.
@@ -233,7 +236,7 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
     operands.push_back(origArg);
   }
 
-  // Set the access AffineValueMap.
+  // Set the access affine::AffineValueMap.
   vMap->reset(aMap.getAffineMap(), operands);
   // Set the memref.
   *memref = argMap.lookup(access.memref);

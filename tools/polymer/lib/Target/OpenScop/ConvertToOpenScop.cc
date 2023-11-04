@@ -21,12 +21,12 @@
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "mlir/Translation.h"
+#include "mlir/Tools/mlir-translate/Translation.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SetVector.h"
@@ -41,6 +41,7 @@
 #include <memory>
 
 using namespace mlir;
+using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 
@@ -54,24 +55,25 @@ public:
   OslScopBuilder() {}
 
   /// Build a scop from a common FuncOp.
-  std::unique_ptr<OslScop> build(mlir::FuncOp f);
+  std::unique_ptr<OslScop> build(mlir::func::FuncOp f);
 
 private:
   /// Find all statements that calls a scop.stmt.
-  void buildScopStmtMap(mlir::FuncOp f, OslScop::ScopStmtNames *scopStmtNames,
+  void buildScopStmtMap(mlir::func::FuncOp f,
+                        OslScop::ScopStmtNames *scopStmtNames,
                         OslScop::ScopStmtMap *scopStmtMap) const;
 
   /// Build the scop context. The domain of each scop stmt will be updated, by
   /// merging and aligning its IDs with the context as well.
   void buildScopContext(OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
-                        FlatAffineValueConstraints &ctx) const;
+                        affine::FlatAffineValueConstraints &ctx) const;
 };
 
 } // namespace
 
 /// Sometimes the domain generated might be malformed. It is always better to
 /// inform this at an early stage.
-static void sanityCheckDomain(FlatAffineValueConstraints &dom) {
+static void sanityCheckDomain(affine::FlatAffineValueConstraints &dom) {
   if (dom.isEmpty()) {
     llvm::errs() << "A domain is found to be empty!";
     dom.dump();
@@ -79,10 +81,10 @@ static void sanityCheckDomain(FlatAffineValueConstraints &dom) {
 }
 
 /// Build OslScop from a given FuncOp.
-std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
+std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
 
   /// Context constraints.
-  FlatAffineValueConstraints ctx;
+  affine::FlatAffineValueConstraints ctx;
 
   // Initialize a new Scop per FuncOp. The osl_scop object within it will be
   // created. It doesn't contain any fields, and this may incur some problems,
@@ -112,7 +114,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     });
 
     // Collet the domain
-    FlatAffineValueConstraints domain = *stmt.getDomain();
+    affine::FlatAffineValueConstraints domain = *stmt.getDomain();
     sanityCheckDomain(domain);
 
     LLVM_DEBUG({
@@ -124,7 +126,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     llvm::SmallVector<mlir::Operation *, 8> enclosingOps;
     stmt.getEnclosingOps(enclosingOps);
     // Get the callee.
-    mlir::FuncOp callee = stmt.getCallee();
+    mlir::func::FuncOp callee = stmt.getCallee();
 
     LLVM_DEBUG({
       dbgs() << "Callee:\n";
@@ -136,11 +138,12 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     scop->addDomainRelation(stmtId, domain);
     scop->addScatteringRelation(stmtId, domain, enclosingOps);
     callee.walk([&](mlir::Operation *op) {
-      if (isa<mlir::AffineReadOpInterface, mlir::AffineWriteOpInterface>(op)) {
+      if (isa<mlir::affine::AffineReadOpInterface>(op) ||
+          isa<mlir::affine::AffineWriteOpInterface>(op)) {
         LLVM_DEBUG(dbgs() << "Creating access relation for: " << *op << '\n');
 
-        bool isRead = isa<mlir::AffineReadOpInterface>(op);
-        AffineValueMap vMap;
+        bool isRead = isa<mlir::affine::AffineReadOpInterface>(op);
+        affine::AffineValueMap vMap;
         mlir::Value memref;
 
         stmt.getAccessMapAndMemRef(op, &vMap, &memref);
@@ -161,27 +164,30 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::FuncOp f) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
     scop->addBodyExtension(stmtId, stmt);
   }
-  assert(scop->validate() && "The scop object created cannot be validated.");
+  auto res = scop->validate();
+  assert(res && "The scop object created cannot be validated.");
 
   // Additionally, setup the name of the function in the comment.
   std::string funcName(f.getName());
   scop->addExtensionGeneric("comment", funcName);
 
-  assert(scop->validate() && "The scop object created cannot be validated.");
+  res = scop->validate();
+  assert(res && "The scop object created cannot be validated.");
 
   return scop;
 }
 
 /// Find all statements that calls a scop.stmt.
-void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
+void OslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
                                       OslScop::ScopStmtNames *scopStmtNames,
                                       OslScop::ScopStmtMap *scopStmtMap) const {
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
 
   f.walk([&](mlir::Operation *op) {
-    if (mlir::CallOp caller = dyn_cast<mlir::CallOp>(op)) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
       llvm::StringRef calleeName = caller.getCallee();
-      mlir::FuncOp callee = m.lookupSymbol<mlir::FuncOp>(calleeName);
+      mlir::func::FuncOp callee =
+          m.lookupSymbol<mlir::func::FuncOp>(calleeName);
 
       // If the callee is of scop.stmt, we create a new instance in the map
       if (callee->getAttr(SCOP_STMT_ATTR_NAME)) {
@@ -193,18 +199,18 @@ void OslScopBuilder::buildScopStmtMap(mlir::FuncOp f,
   });
 }
 
-void OslScopBuilder::buildScopContext(OslScop *scop,
-                                      OslScop::ScopStmtMap *scopStmtMap,
-                                      FlatAffineValueConstraints &ctx) const {
+void OslScopBuilder::buildScopContext(
+    OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
+    affine::FlatAffineValueConstraints &ctx) const {
   LLVM_DEBUG(dbgs() << "--- Building SCoP context ...\n");
 
   // First initialize the symbols of the ctx by the order of arg number.
-  // This simply aims to make mergeAndAlignIdsWithOthers work.
+  // This simply aims to make mergeAndAlignVarsWithOthers work.
   SmallVector<Value> symbols;
   for (const auto &it : *scopStmtMap) {
     auto domain = it.second.getDomain();
     SmallVector<Value> syms;
-    domain->getValues(domain->getNumDimIds(), domain->getNumDimAndSymbolIds(),
+    domain->getValues(domain->getNumDimVars(), domain->getNumDimAndSymbolVars(),
                       &syms);
 
     for (Value sym : syms) {
@@ -217,11 +223,13 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
           break;
         ++it;
       }
-      if (*it != sym)
+      if (it == symbols.end() || *it != sym)
         symbols.insert(it, sym);
     }
   }
-  ctx.reset(/*numDims=*/0, /*numSymbols=*/symbols.size());
+
+  ctx = affine::FlatAffineValueConstraints(/*numDims=*/0,
+                                           /*numSymbols=*/symbols.size());
   ctx.setValues(0, symbols.size(), symbols);
 
   // Union with the domains of all Scop statements. We first merge and align the
@@ -230,8 +238,8 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // mess up with the original domain at this point. Trivial redundant
   // constraints will be removed.
   for (const auto &it : *scopStmtMap) {
-    FlatAffineValueConstraints *domain = it.second.getDomain();
-    FlatAffineValueConstraints cst(*domain);
+    affine::FlatAffineValueConstraints *domain = it.second.getDomain();
+    affine::FlatAffineValueConstraints cst(*domain);
 
     LLVM_DEBUG(dbgs() << "Statement:\n");
     LLVM_DEBUG(it.second.getCaller().dump());
@@ -242,12 +250,12 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     LLVM_DEBUG({
       dbgs() << "Domain values: \n";
       SmallVector<Value> values;
-      domain->getValues(0, domain->getNumDimAndSymbolIds(), &values);
+      domain->getValues(0, domain->getNumDimAndSymbolVars(), &values);
       for (Value value : values)
         dbgs() << " * " << value << '\n';
     });
 
-    ctx.mergeAndAlignIdsWithOther(0, &cst);
+    ctx.mergeAndAlignVarsWithOther(0, &cst);
     ctx.append(cst);
     ctx.removeRedundantConstraints();
 
@@ -257,7 +265,7 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
     LLVM_DEBUG({
       dbgs() << "Context values: \n";
       SmallVector<Value> values;
-      ctx.getValues(0, ctx.getNumDimAndSymbolIds(), &values);
+      ctx.getValues(0, ctx.getNumDimAndSymbolVars(), &values);
       for (Value value : values)
         dbgs() << " * " << value << '\n';
     });
@@ -270,41 +278,41 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
   // that each domain is aligned with them, i.e., every domain has the same
   // parameter columns (Values & order).
   SmallVector<mlir::Value, 8> symValues;
-  ctx.getValues(ctx.getNumDimIds(), ctx.getNumDimAndSymbolIds(), &symValues);
+  ctx.getValues(ctx.getNumDimVars(), ctx.getNumDimAndSymbolVars(), &symValues);
 
   // Add and align domain SYMBOL columns.
   for (const auto &it : *scopStmtMap) {
-    FlatAffineValueConstraints *domain = it.second.getDomain();
+    affine::FlatAffineValueConstraints *domain = it.second.getDomain();
     // For any symbol missing in the domain, add them directly to the end.
-    for (unsigned i = 0; i < ctx.getNumSymbolIds(); ++i) {
+    for (unsigned i = 0; i < ctx.getNumSymbolVars(); ++i) {
       unsigned pos;
-      if (!domain->findId(symValues[i], &pos)) // insert to the back
-        domain->appendSymbolId(symValues[i]);
+      if (!domain->findVar(symValues[i], &pos)) // insert to the back
+        domain->appendSymbolVar(symValues[i]);
       else
         LLVM_DEBUG(dbgs() << "Found " << symValues[i] << '\n');
     }
 
     // Then do the aligning.
     LLVM_DEBUG(domain->dump());
-    for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+    for (unsigned i = 0; i < ctx.getNumSymbolVars(); i++) {
       mlir::Value sym = symValues[i];
       unsigned pos;
-      assert(domain->findId(sym, &pos));
+      domain->findVar(sym, &pos);
 
-      unsigned posAsCtx = i + domain->getNumDimIds();
+      unsigned posAsCtx = i + domain->getNumDimVars();
       LLVM_DEBUG(dbgs() << "Swapping " << posAsCtx << " " << pos << "\n");
       if (pos != posAsCtx)
-        domain->swapId(posAsCtx, pos);
+        domain->swapVar(posAsCtx, pos);
     }
 
-    // for (unsigned i = 0; i < ctx.getNumSymbolIds(); i++) {
+    // for (unsigned i = 0; i < ctx.getNumSymbolVars(); i++) {
     //   mlir::Value sym = symValues[i];
     //   unsigned pos;
     //   // If the symbol can be found in the domain, we put it in the same
     //   // position as the ctx.
-    //   if (domain->findId(sym, &pos)) {
-    //     if (pos != i + domain->getNumDimIds())
-    //       domain->swapId(i + domain->getNumDimIds(), pos);
+    //   if (domain->findVar(sym, &pos)) {
+    //     if (pos != i + domain->getNumDimVars())
+    //       domain->swapVar(i + domain->getNumDimVars(), pos);
     //   } else {
     //     domain->insertSymbolId(i, sym);
     //   }
@@ -313,7 +321,8 @@ void OslScopBuilder::buildScopContext(OslScop *scop,
 }
 
 std::unique_ptr<OslScop>
-polymer::createOpenScopFromFuncOp(mlir::FuncOp f, OslSymbolTable &symTable) {
+polymer::createOpenScopFromFuncOp(mlir::func::FuncOp f,
+                                  OslSymbolTable &symTable) {
   return OslScopBuilder().build(f);
 }
 
@@ -380,7 +389,8 @@ private:
 };
 
 LogicalResult ModuleEmitter::emitFuncOp(
-    mlir::FuncOp func, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
+    mlir::func::FuncOp func,
+    llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   OslSymbolTable symTable;
   auto scop = createOpenScopFromFuncOp(func, symTable);
   if (scop)
@@ -393,7 +403,7 @@ void ModuleEmitter::emitMLIRModule(
     ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   // Emit a single OpenScop definition for each function.
   for (auto &op : *module.getBody()) {
-    if (auto func = dyn_cast<mlir::FuncOp>(op)) {
+    if (auto func = dyn_cast<mlir::func::FuncOp>(op)) {
       // Will only look at functions that are not attributed as scop.stmt
       if (func->getAttr(SCOP_STMT_ATTR_NAME))
         continue;
@@ -430,5 +440,6 @@ static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
 }
 
 void polymer::registerToOpenScopTranslation() {
-  static TranslateFromMLIRRegistration toOpenScop("export-scop", emitOpenScop);
+  static TranslateFromMLIRRegistration toOpenScop("export-scop", "Export SCOP",
+                                                  emitOpenScop);
 }

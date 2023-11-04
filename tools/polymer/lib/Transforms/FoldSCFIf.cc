@@ -10,11 +10,12 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Passes.h"
 #include "mlir/Dialect/Affine/Utils.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
-#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
@@ -36,13 +37,13 @@ static bool hasSingleStore(Block *block) {
   llvm::SetVector<Value> memrefs;
 
   for (Operation &op : block->getOperations()) {
-    if (isa<mlir::AffineStoreOp, memref::StoreOp>(op)) {
+    if (isa<mlir::affine::AffineStoreOp, memref::StoreOp>(op)) {
       Value memref = op.getOperand(1);
       if (memrefs.count(memref))
         return false;
 
       // The indices should be defined above the current block.
-      if (auto storeOp = dyn_cast<mlir::AffineStoreOp>(op)) {
+      if (auto storeOp = dyn_cast<mlir::affine::AffineStoreOp>(op)) {
         if (any_of(storeOp.getMapOperands(), [&](Value operand) {
               return operand.getParentBlock() == block;
             }))
@@ -60,10 +61,10 @@ static bool hasSingleStore(Block *block) {
   return true;
 }
 
-namespace {
-struct MatchIfElsePass : PassWrapper<MatchIfElsePass, OperationPass<FuncOp>> {
+struct MatchIfElsePass
+    : PassWrapper<MatchIfElsePass, OperationPass<func::FuncOp>> {
   void runOnOperation() override {
-    FuncOp f = getOperation();
+    func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     // If there is no store in the target block for a specific memref stored in
@@ -72,29 +73,29 @@ struct MatchIfElsePass : PassWrapper<MatchIfElsePass, OperationPass<FuncOp>> {
       llvm::SetVector<Value> memrefs;
 
       for (Operation &op : target->getOperations())
-        if (isa<memref::StoreOp, mlir::AffineStoreOp>(op))
+        if (isa<memref::StoreOp, mlir::affine::AffineStoreOp>(op))
           memrefs.insert(op.getOperand(1));
 
       b.setInsertionPoint(target->getTerminator());
       for (Operation &op : source->getOperations()) {
-        if (!isa<mlir::AffineStoreOp, memref::StoreOp>(op))
+        if (!isa<mlir::affine::AffineStoreOp, memref::StoreOp>(op))
           continue;
         Value memref = op.getOperand(1);
         if (memrefs.count(memref)) // has been stored to
           continue;
 
-        if (auto storeOp = dyn_cast<AffineStoreOp>(op)) {
-          Value value = b.create<AffineLoadOp>(loc, storeOp.getMemRef(),
-                                               storeOp.getAffineMap(),
-                                               storeOp.getMapOperands());
-          b.create<AffineStoreOp>(loc, value, storeOp.getMemRef(),
-                                  storeOp.getAffineMap(),
-                                  storeOp.getMapOperands());
+        if (auto storeOp = dyn_cast<affine::AffineStoreOp>(op)) {
+          Value value = b.create<affine::AffineLoadOp>(
+              loc, storeOp.getMemRef(), storeOp.getAffineMap(),
+              storeOp.getMapOperands());
+          b.create<affine::AffineStoreOp>(loc, value, storeOp.getMemRef(),
+                                          storeOp.getAffineMap(),
+                                          storeOp.getMapOperands());
         } else if (auto storeOp = dyn_cast<memref::StoreOp>(op)) {
           Value value = b.create<memref::LoadOp>(loc, storeOp.getMemRef(),
                                                  storeOp.getIndices());
           b.create<memref::StoreOp>(loc, value, storeOp.getMemRef(),
-                                    storeOp.indices());
+                                    storeOp.getIndices());
         }
       }
     };
@@ -130,7 +131,6 @@ struct MatchIfElsePass : PassWrapper<MatchIfElsePass, OperationPass<FuncOp>> {
     LLVM_DEBUG(dbgs() << "After store matched:\n" << f << "\n\n");
   }
 };
-} // namespace
 
 /// ---------------------- LiftStoreOps ------------------------------
 
@@ -144,7 +144,7 @@ static bool hasMatchingStores(ArrayRef<Block *> blocks) {
     llvm::SetVector<Value> memrefs;
 
     for (Operation &op : block->getOperations())
-      if (isa<memref::StoreOp, mlir::AffineStoreOp>(op)) {
+      if (isa<memref::StoreOp, mlir::affine::AffineStoreOp>(op)) {
         Value memref = op.getOperand(1);
         assert(!memrefs.count(memref) &&
                "Should only apply on blocks that contain single store to each "
@@ -174,7 +174,7 @@ static void getMemRefStoreInfo(Block *block,
                                MapVector<Value, MemRefStoreInfo> &storeInfo) {
   unsigned ord = 0;
   for (Operation &op : block->getOperations())
-    if (isa<memref::StoreOp, mlir::AffineStoreOp>(op)) {
+    if (isa<memref::StoreOp, mlir::affine::AffineStoreOp>(op)) {
       MemRefStoreInfo info;
       info.index = ord++;
       info.type = op.getOperand(0).getType();
@@ -182,14 +182,15 @@ static void getMemRefStoreInfo(Block *block,
 
       if (auto storeOp = dyn_cast<memref::StoreOp>(op))
         info.operands = storeOp.getIndices();
-      else if (auto storeOp = dyn_cast<mlir::AffineStoreOp>(op))
+      else if (auto storeOp = dyn_cast<mlir::affine::AffineStoreOp>(op))
         info.operands = storeOp.getMapOperands();
 
       storeInfo[op.getOperand(1)] = info;
     }
 }
 
-static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
+static LogicalResult liftStoreOps(scf::IfOp ifOp, func::FuncOp f,
+                                  OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
   if (!hasMatchingStores({ifOp.thenBlock(), ifOp.elseBlock()}))
@@ -216,7 +217,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
                                           /*withElseRegion=*/true);
 
   auto cloneBlock = [&](Block *target, Block *source) {
-    BlockAndValueMapping vmap;
+    IRMapping vmap;
 
     scf::YieldOp yieldOp = cast<scf::YieldOp>(source->getTerminator());
     unsigned numExistingResults = yieldOp.getNumOperands();
@@ -226,7 +227,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
     b.setInsertionPointToStart(target);
 
     for (Operation &op : source->getOperations()) {
-      if (isa<memref::StoreOp, mlir::AffineStoreOp>(op)) {
+      if (isa<memref::StoreOp, mlir::affine::AffineStoreOp>(op)) {
         Value memref = op.getOperand(1);
         Value toStore = op.getOperand(0);
         results[storeInfo[memref].index + numExistingResults] =
@@ -252,8 +253,8 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
     MemRefStoreInfo info;
     std::tie(memref, info) = p;
 
-    if (auto storeOp = dyn_cast<mlir::AffineStoreOp>(info.source))
-      b.create<mlir::AffineStoreOp>(
+    if (auto storeOp = dyn_cast<mlir::affine::AffineStoreOp>(info.source))
+      b.create<mlir::affine::AffineStoreOp>(
           loc, newIfOp.getResult(ifOp.getNumResults() + info.index), memref,
           storeOp.getAffineMap(), info.operands);
     else if (auto storeOp = dyn_cast<memref::StoreOp>(info.source))
@@ -267,7 +268,7 @@ static LogicalResult liftStoreOps(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   return success();
 }
 
-static bool processLiftStoreOps(FuncOp f, OpBuilder &b) {
+static bool processLiftStoreOps(func::FuncOp f, OpBuilder &b) {
   bool changed = false;
 
   f.walk([&](scf::IfOp ifOp) {
@@ -283,10 +284,9 @@ static bool processLiftStoreOps(FuncOp f, OpBuilder &b) {
   return changed;
 }
 
-namespace {
-struct LiftStoreOps : PassWrapper<LiftStoreOps, OperationPass<FuncOp>> {
+struct LiftStoreOps : PassWrapper<LiftStoreOps, OperationPass<func::FuncOp>> {
   void runOnOperation() override {
-    FuncOp f = getOperation();
+    func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     // For each scf.if, see if it has single store for each memref on each
@@ -297,11 +297,10 @@ struct LiftStoreOps : PassWrapper<LiftStoreOps, OperationPass<FuncOp>> {
     LLVM_DEBUG(dbgs() << "After LiftStoreOps: " << f << "\n\n");
   }
 };
-} // namespace
 
 /// ---------------------- FoldSCFIf ----------------------------------
 
-static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
+static bool foldSCFIf(scf::IfOp ifOp, func::FuncOp f, OpBuilder &b) {
   Location loc = ifOp.getLoc();
 
   LLVM_DEBUG(dbgs() << "Working on ifOp: " << ifOp << "\n\n");
@@ -316,7 +315,7 @@ static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
   SmallVector<Value> thenResults, elseResults;
 
   auto cloneAfter = [&](Block *block, SmallVectorImpl<Value> &results) {
-    BlockAndValueMapping vmap;
+    IRMapping vmap;
     for (Operation &op : block->getOperations()) {
       if (auto yieldOp = dyn_cast<scf::YieldOp>(op))
         for (Value result : yieldOp.getOperands())
@@ -346,7 +345,7 @@ static bool foldSCFIf(scf::IfOp ifOp, FuncOp f, OpBuilder &b) {
 }
 
 /// Return true if anything changed.
-static bool process(FuncOp f, OpBuilder &b) {
+static bool process(func::FuncOp f, OpBuilder &b) {
   bool changed = false;
 
   f.walk([&](scf::IfOp ifOp) {
@@ -361,10 +360,9 @@ static bool process(FuncOp f, OpBuilder &b) {
   return changed;
 }
 
-namespace {
-struct FoldSCFIfPass : PassWrapper<FoldSCFIfPass, OperationPass<FuncOp>> {
+struct FoldSCFIfPass : PassWrapper<FoldSCFIfPass, OperationPass<func::FuncOp>> {
   void runOnOperation() override {
-    FuncOp f = getOperation();
+    func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     if (f->hasAttr("scop.ignored"))
@@ -373,14 +371,13 @@ struct FoldSCFIfPass : PassWrapper<FoldSCFIfPass, OperationPass<FuncOp>> {
       ;
   }
 };
-} // namespace
 
 void polymer::registerFoldSCFIfPass() {
-  PassPipelineRegistration<>("fold-scf-if", "Fold scf.if into select.",
-                             [](OpPassManager &pm) {
-                               pm.addPass(std::make_unique<MatchIfElsePass>());
-                               pm.addPass(std::make_unique<LiftStoreOps>());
-                               pm.addPass(createAffineScalarReplacementPass());
-                               pm.addPass(std::make_unique<FoldSCFIfPass>());
-                             });
+  PassPipelineRegistration<>(
+      "fold-scf-if", "Fold scf.if into select.", [](OpPassManager &pm) {
+        pm.addPass(std::make_unique<MatchIfElsePass>());
+        pm.addPass(std::make_unique<LiftStoreOps>());
+        pm.addPass(affine::createAffineScalarReplacementPass());
+        pm.addPass(std::make_unique<FoldSCFIfPass>());
+      });
 }

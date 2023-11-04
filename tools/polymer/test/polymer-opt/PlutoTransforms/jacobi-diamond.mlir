@@ -2,7 +2,7 @@
 
 #map = affine_map<()[s0] -> (s0 - 1)>
 
-func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
+func.func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
   %cst = arith.constant 3.333330e-01 : f32
   %0 = affine.load %arg2[symbol(%arg1) + 1] : memref<120xf32>
   %1 = affine.load %arg2[symbol(%arg1) - 1] : memref<120xf32>
@@ -14,26 +14,26 @@ func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) a
   return
 }
 
-func private @S1(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
+func.func private @S1(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
   %0 = affine.load %arg2[symbol(%arg1)] : memref<120xf32>
   affine.store %0, %arg0[symbol(%arg1)] : memref<120xf32>
   return
 }
 
-func @jacobi(%A: memref<120xf32>, %B: memref<120xf32>) {
+func.func @jacobi(%A: memref<120xf32>, %B: memref<120xf32>) {
   %cst = arith.constant 0.333333 : f32
   affine.for %i = 0 to 40 {
     affine.for %j = 1 to 119 {
-      call @S0(%B, %j, %A): (memref<120xf32>, index, memref<120xf32>) -> ()
+      func.call @S0(%B, %j, %A): (memref<120xf32>, index, memref<120xf32>) -> ()
     }
     affine.for %j = 1 to 119 {
-      call @S1(%A, %j, %B): (memref<120xf32>, index, memref<120xf32>) -> ()
+      func.call @S1(%A, %j, %B): (memref<120xf32>, index, memref<120xf32>) -> ()
     }
   }
   return
 }
 
-// CHECK-LABEL: func @jacobi
+// CHECK-LABEL: func.func @jacobi
 // CHECK: affine.for %[[I:.*]] = -4 to 3 
 // CHECK:   affine.for %[[J:.*]] = max #{{.*}}(%[[I]]) to min #{{.*}}(%[[I]]) 
 // CHECK:     affine.if #{{.*}}(%[[I]], %[[J]])

@@ -2,7 +2,7 @@
 
 // This is a general test case that covers many different aspects for checking.
 
-func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
+func.func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
 
@@ -29,7 +29,7 @@ func @load_store_dep(%A: memref<?xf32>, %B: memref<?x?xf32>) {
   return 
 }
 
-// CHECK:       func @load_store_dep(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
+// CHECK:       func.func @load_store_dep(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>) {
 // CHECK-NEXT:   %[[MEM0:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   %[[MEM1:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK-NEXT:   %[[C0:.*]] = arith.constant 0 : index

@@ -9,14 +9,16 @@
 
 #include <memory>
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "llvm/ADT/SmallVector.h"
-
 namespace mlir {
 class Operation;
+namespace affine {
 class FlatAffineValueConstraints;
 class AffineValueMap;
-class FuncOp;
+} // namespace affine
 namespace func {
+class FuncOp;
 class CallOp;
 } // namespace func
 class Value;
@@ -38,18 +40,19 @@ public:
   ScopStmt &operator=(ScopStmt &&);
   ScopStmt &operator=(const ScopStmt &&) = delete;
 
-  mlir::FlatAffineValueConstraints *getDomain() const;
+  mlir::affine::FlatAffineValueConstraints *getDomain() const;
 
   /// Get a copy of the enclosing operations.
   void getEnclosingOps(llvm::SmallVectorImpl<mlir::Operation *> &ops,
                        bool forOnly = false) const;
   /// Get the callee of this scop stmt.
-  mlir::FuncOp getCallee() const;
+  mlir::func::FuncOp getCallee() const;
   /// Get the caller of this scop stmt.
   mlir::func::CallOp getCaller() const;
-  /// Get the access AffineValueMap of an op in the callee and the memref in the
-  /// caller scope that this op is using.
-  void getAccessMapAndMemRef(mlir::Operation *op, mlir::AffineValueMap *vMap,
+  /// Get the access affine::AffineValueMap of an op in the callee and the
+  /// memref in the caller scope that this op is using.
+  void getAccessMapAndMemRef(mlir::Operation *op,
+                             mlir::affine::AffineValueMap *vMap,
                              mlir::Value *memref) const;
 
 private:

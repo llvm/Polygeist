@@ -10,9 +10,9 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
@@ -27,6 +27,7 @@
 #define DEBUG_TYPE "loop-annotate"
 
 using namespace mlir;
+using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 
@@ -36,16 +37,16 @@ static void annotatePointLoops(ValueRange operands, OpBuilder &b) {
   for (mlir::Value operand : operands) {
     // If a loop IV is directly passed into the statement call.
     if (BlockArgument arg = operand.dyn_cast<BlockArgument>()) {
-      mlir::AffineForOp forOp =
-          dyn_cast<mlir::AffineForOp>(arg.getOwner()->getParentOp());
+      mlir::affine::AffineForOp forOp =
+          dyn_cast<mlir::affine::AffineForOp>(arg.getOwner()->getParentOp());
       if (forOp) {
         // An affine.for that has its indunction var used by a scop.stmt
         // caller is a point loop.
         forOp->setAttr("scop.point_loop", b.getUnitAttr());
       }
     } else {
-      mlir::AffineApplyOp applyOp =
-          operand.getDefiningOp<mlir::AffineApplyOp>();
+      mlir::affine::AffineApplyOp applyOp =
+          operand.getDefiningOp<mlir::affine::AffineApplyOp>();
       if (applyOp) {
         // Mark the parents of its operands, if a loop IVs, as point loops.
         annotatePointLoops(applyOp.getOperands(), b);
@@ -75,7 +76,6 @@ static void annotatePointLoops(FuncOp f, OpBuilder &b) {
     annotatePointLoops(caller.getOperands(), b);
 }
 
-namespace {
 struct AnnotatePointLoopsPass
     : public mlir::PassWrapper<AnnotatePointLoopsPass, OperationPass<FuncOp>> {
   void runOnOperation() override {
@@ -85,7 +85,6 @@ struct AnnotatePointLoopsPass
     annotatePointLoops(f, b);
   }
 };
-} // namespace
 
 void polymer::registerLoopAnnotatePasses() {
   // PassRegistration<AnnotatePointLoopsPass>();

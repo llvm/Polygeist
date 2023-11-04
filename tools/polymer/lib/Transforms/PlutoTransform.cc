@@ -22,8 +22,8 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
@@ -39,7 +39,6 @@ using namespace polymer;
 
 #define DEBUG_TYPE "pluto-opt"
 
-namespace {
 struct PlutoOptPipelineOptions
     : public mlir::PassPipelineOptions<PlutoOptPipelineOptions> {
   Option<std::string> dumpClastAfterPluto{
@@ -65,15 +64,13 @@ struct PlutoOptPipelineOptions
                              cl::init(false)};
 };
 
-} // namespace
-
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
-static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
-                                   std::string dumpClastAfterPluto,
-                                   bool parallelize = false, bool debug = false,
-                                   int cloogf = -1, int cloogl = -1,
-                                   bool diamondTiling = false) {
+static mlir::func::FuncOp
+plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
+               std::string dumpClastAfterPluto, bool parallelize = false,
+               bool debug = false, int cloogf = -1, int cloogl = -1,
+               bool diamondTiling = false) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 
@@ -123,7 +120,7 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   SmallVector<DictionaryAttr> argAttrs;
   f.getAllArgAttrs(argAttrs);
 
-  mlir::FuncOp g = cast<mlir::FuncOp>(createFuncOpFromOpenScop(
+  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(createFuncOpFromOpenScop(
       std::move(scop), m, dstTable, rewriter.getContext(), prog,
       dumpClastAfterPlutoStr));
   g.setAllArgAttrs(argAttrs);
@@ -132,7 +129,6 @@ static mlir::FuncOp plutoTransform(mlir::FuncOp f, OpBuilder &rewriter,
   return g;
 }
 
-namespace {
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
                                OperationPass<mlir::ModuleOp>> {
@@ -156,17 +152,17 @@ public:
     mlir::ModuleOp m = getOperation();
     mlir::OpBuilder b(m.getContext());
 
-    SmallVector<mlir::FuncOp, 8> funcOps;
-    llvm::DenseMap<mlir::FuncOp, mlir::FuncOp> funcMap;
+    SmallVector<mlir::func::FuncOp, 8> funcOps;
+    llvm::DenseMap<mlir::func::FuncOp, mlir::func::FuncOp> funcMap;
 
-    m.walk([&](mlir::FuncOp f) {
+    m.walk([&](mlir::func::FuncOp f) {
       if (!f->getAttr("scop.stmt") && !f->hasAttr("scop.ignored")) {
         funcOps.push_back(f);
       }
     });
 
-    for (mlir::FuncOp f : funcOps)
-      if (mlir::FuncOp g =
+    for (mlir::func::FuncOp f : funcOps)
+      if (mlir::func::FuncOp g =
               plutoTransform(f, b, dumpClastAfterPluto, parallelize, debug,
                              cloogf, cloogl, diamondTiling)) {
         funcMap[f] = g;
@@ -177,7 +173,7 @@ public:
     // Finally, we delete the definition of the original function, and make the
     // Pluto optimized version have the same name.
     for (const auto &it : funcMap) {
-      mlir::FuncOp from, to;
+      mlir::func::FuncOp from, to;
       std::tie(from, to) = it;
 
       to.setName(std::string(from.getName()));
@@ -186,14 +182,12 @@ public:
   }
 };
 
-} // namespace
-
 // -------------------------- PlutoParallelizePass ----------------------------
 
 /// Find a single affine.for with scop.parallelizable attr.
-static mlir::AffineForOp findParallelizableLoop(mlir::FuncOp f) {
-  mlir::AffineForOp ret = nullptr;
-  f.walk([&ret](mlir::AffineForOp forOp) {
+static mlir::affine::AffineForOp findParallelizableLoop(mlir::func::FuncOp f) {
+  mlir::affine::AffineForOp ret = nullptr;
+  f.walk([&ret](mlir::affine::AffineForOp forOp) {
     if (!ret && forOp->hasAttr("scop.parallelizable"))
       ret = forOp;
   });
@@ -206,7 +200,7 @@ static mlir::AffineForOp findParallelizableLoop(mlir::FuncOp f) {
 ///
 /// 1. It is not necessary to check whether the parentOp of a parallelizable
 /// affine.for has the AffineScop trait.
-static void plutoParallelize(mlir::AffineForOp forOp, OpBuilder b) {
+static void plutoParallelize(mlir::affine::AffineForOp forOp, OpBuilder b) {
   assert(forOp->hasAttr("scop.parallelizable"));
 
   OpBuilder::InsertionGuard guard(b);
@@ -222,11 +216,12 @@ static void plutoParallelize(mlir::AffineForOp forOp, OpBuilder b) {
   ValueRange upperBoundOperands = forOp.getUpperBoundOperands();
 
   // Creating empty 1-D affine.parallel op.
-  mlir::AffineParallelOp newPloop = b.create<mlir::AffineParallelOp>(
-      loc, llvm::None, llvm::None, lowerBoundMap, lowerBoundOperands,
-      upperBoundMap, upperBoundOperands, 1);
+  mlir::affine::AffineParallelOp newPloop =
+      b.create<mlir::affine::AffineParallelOp>(
+          loc, TypeRange(), ArrayRef<arith::AtomicRMWKind>(), lowerBoundMap,
+          lowerBoundOperands, upperBoundMap, upperBoundOperands, 1);
   // Steal the body of the old affine for op and erase it.
-  newPloop.region().takeBody(forOp.region());
+  newPloop.getRegion().takeBody(forOp.getRegion());
 
   for (auto user : forOp->getUsers()) {
     user->dump();
@@ -237,24 +232,25 @@ static void plutoParallelize(mlir::AffineForOp forOp, OpBuilder b) {
 /// Need to check whether the bounds of the for loop are using top-level values
 /// as operands. If not, then the loop cannot be directly turned into
 /// affine.parallel.
-static bool isBoundParallelizable(mlir::AffineForOp forOp, bool isUpper) {
+static bool isBoundParallelizable(mlir::affine::AffineForOp forOp,
+                                  bool isUpper) {
   llvm::SmallVector<mlir::Value, 4> mapOperands =
       isUpper ? forOp.getUpperBoundOperands() : forOp.getLowerBoundOperands();
 
   for (mlir::Value operand : mapOperands)
-    if (!isTopLevelValue(operand))
+    if (!affine::isTopLevelValue(operand))
       return false;
   return true;
 }
-static bool isBoundParallelizable(mlir::AffineForOp forOp) {
+static bool isBoundParallelizable(mlir::affine::AffineForOp forOp) {
   return isBoundParallelizable(forOp, true) &&
          isBoundParallelizable(forOp, false);
 }
 
 /// Iteratively replace affine.for with scop.parallelizable with
 /// affine.parallel.
-static void plutoParallelize(mlir::FuncOp f, OpBuilder b) {
-  mlir::AffineForOp forOp = nullptr;
+static void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
+  mlir::affine::AffineForOp forOp = nullptr;
   while ((forOp = findParallelizableLoop(f)) != nullptr) {
     if (!isBoundParallelizable(forOp))
       llvm_unreachable(
@@ -263,22 +259,20 @@ static void plutoParallelize(mlir::FuncOp f, OpBuilder b) {
   }
 }
 
-namespace {
 /// Turn affine.for marked as scop.parallelizable by Pluto into actual
 /// affine.parallel operation.
 struct PlutoParallelizePass
     : public mlir::PassWrapper<PlutoParallelizePass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
   void runOnOperation() override {
-    FuncOp f = getOperation();
+    func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
     plutoParallelize(f, b);
   }
 };
-} // namespace
 
-static void dedupIndexCast(FuncOp f) {
+static void dedupIndexCast(func::FuncOp f) {
   if (f.getBlocks().empty())
     return;
 
@@ -303,13 +297,11 @@ static void dedupIndexCast(FuncOp f) {
     op->erase();
 }
 
-namespace {
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,
-                               OperationPass<mlir::FuncOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
   void runOnOperation() override { dedupIndexCast(getOperation()); }
 };
-} // namespace
 
 void polymer::registerPlutoTransformPass() {
   PassPipelineRegistration<PlutoOptPipelineOptions>(

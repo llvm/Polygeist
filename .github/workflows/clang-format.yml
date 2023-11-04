@@ -16,6 +16,6 @@ jobs:
           fetch-depth: 1
     - uses: DoozyX/clang-format-lint-action@v0.11
       with:
-        exclude: './tools/cgeist/Test ./test'
+        exclude: './tools/cgeist/Test ./test ./tools/polymer/example'
         clangFormatVersion: 11
         style: llvm

@@ -10,15 +10,15 @@
 #include "mlir/Analysis/SliceAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
+#include "mlir/Dialect/Affine/IR/AffineMemoryOpInterfaces.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
@@ -44,10 +44,10 @@ using CalleeToCallersMap =
 
 /// Discover the operations that have memory write effects.
 /// TODO: support CallOp.
-static void discoverMemWriteOps(mlir::FuncOp f,
+static void discoverMemWriteOps(mlir::func::FuncOp f,
                                 SmallVectorImpl<Operation *> &ops) {
   f.getOperation()->walk([&](Operation *op) {
-    if (isa<mlir::AffineWriteOpInterface>(op))
+    if (isa<mlir::affine::AffineWriteOpInterface>(op))
       ops.push_back(op);
   });
 }
@@ -57,7 +57,7 @@ static mlir::Value
 insertScratchpadForInterprocUses(mlir::Operation *defOp,
                                  mlir::Operation *defInCalleeOp,
                                  CalleeToCallersMap &calleeToCallers,
-                                 mlir::FuncOp topLevelFun, OpBuilder &b) {
+                                 mlir::func::FuncOp topLevelFun, OpBuilder &b) {
   assert(defOp->getNumResults() == 1);
   assert(topLevelFun.getBlocks().size() != 0);
 
@@ -77,23 +77,23 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
   // Give the callee an additional argument
   mlir::Operation *calleeOp = defInCalleeOp;
   while (calleeOp != nullptr) {
-    if (isa<mlir::FuncOp>(calleeOp))
+    if (isa<mlir::func::FuncOp>(calleeOp))
       break;
     calleeOp = calleeOp->getParentOp();
   }
 
-  mlir::FuncOp callee = cast<mlir::FuncOp>(calleeOp);
+  mlir::func::FuncOp callee = cast<mlir::func::FuncOp>(calleeOp);
   mlir::Block &calleeEntryBlock = *callee.getBlocks().begin();
   mlir::BlockArgument scratchpad =
       calleeEntryBlock.addArgument(memrefType, b.getUnknownLoc());
-  callee.setType(b.getFunctionType(
-      TypeRange(calleeEntryBlock.getArgumentTypes()), llvm::None));
+  callee.setType(
+      b.getFunctionType(TypeRange(calleeEntryBlock.getArgumentTypes()), {}));
 
   // Store within the callee for the used value.
   b.setInsertionPointAfter(defInCalleeOp);
-  b.create<mlir::AffineStoreOp>(allocaOp->getLoc(), defInCalleeOp->getResult(0),
-                                scratchpad, b.getConstantAffineMap(0),
-                                std::vector<mlir::Value>());
+  b.create<mlir::affine::AffineStoreOp>(
+      allocaOp->getLoc(), defInCalleeOp->getResult(0), scratchpad,
+      b.getConstantAffineMap(0), std::vector<mlir::Value>());
 
   // llvm::errs() << "Updated callee interface:\n";
   // callee.dump();
@@ -124,9 +124,9 @@ insertScratchpadForInterprocUses(mlir::Operation *defOp,
 }
 
 static Value getMemRef(Operation *op) {
-  if (isa<mlir::AffineLoadOp, memref::LoadOp>(op))
+  if (isa<mlir::affine::AffineLoadOp, memref::LoadOp>(op))
     return op->getOperand(0);
-  if (isa<mlir::AffineStoreOp, memref::StoreOp>(op))
+  if (isa<mlir::affine::AffineStoreOp, memref::StoreOp>(op))
     return op->getOperand(1);
 
   return nullptr;
@@ -136,7 +136,7 @@ static Value getMemRef(Operation *op) {
 /// is later updated by a store op that dominates the current op. We should use
 /// a proper RAW checker for this purpose.
 static bool isUpdatedByDominatingStore(Operation *op, Operation *domOp,
-                                       mlir::FuncOp f) {
+                                       mlir::func::FuncOp f) {
 
   LLVM_DEBUG(dbgs() << " -- Checking if " << (*op)
                     << " is updated by a store that dominates:\n"
@@ -155,7 +155,7 @@ static bool isUpdatedByDominatingStore(Operation *op, Operation *domOp,
     if (Value memref = getMemRef(currOp))
       for (Operation *userOp : memref.getUsers())
         // Both affine.store and memref.store should be counted.
-        if (isa<mlir::AffineStoreOp, memref::StoreOp>(userOp))
+        if (isa<mlir::affine::AffineStoreOp, memref::StoreOp>(userOp))
           if (memref == getMemRef(userOp) && userOp != domOp &&
               dom.dominates(userOp, domOp)) {
             LLVM_DEBUG(dbgs()
@@ -189,7 +189,7 @@ static void getScopStmtOps(Operation *writeOp,
                            llvm::SetVector<mlir::Value> &args,
                            OpToCalleeMap &opToCallee,
                            CalleeToCallersMap &calleeToCallers,
-                           mlir::FuncOp topLevelFun, OpBuilder &b) {
+                           mlir::func::FuncOp topLevelFun, OpBuilder &b) {
   SmallVector<Operation *, 8> worklist;
   worklist.push_back(writeOp);
   ops.insert(writeOp);
@@ -215,7 +215,7 @@ static void getScopStmtOps(Operation *writeOp,
       args.insert(scratchpad);
 
       b.setInsertionPointAfter(op);
-      mlir::Operation *loadOp = b.create<mlir::AffineLoadOp>(
+      mlir::Operation *loadOp = b.create<mlir::affine::AffineLoadOp>(
           op->getLoc(), scratchpad, b.getConstantAffineMap(0),
           std::vector<mlir::Value>());
 
@@ -233,16 +233,16 @@ static void getScopStmtOps(Operation *writeOp,
     // these allocation op, i.e., memref, will be treated as input arguments to
     // the new statement function.
     // Also, we should leave the dim SSA value in the original scope. Otherwise,
-    // if we consume it in the callee, the AffineValueMap built for the accesses
-    // that use this dim cannot relate it with the global context.
+    // if we consume it in the callee, the affine::AffineValueMap built for the
+    // accesses that use this dim cannot relate it with the global context.
     if (isa<memref::AllocaOp, memref::AllocOp, memref::DimOp,
-            mlir::AffineApplyOp>(op) ||
+            mlir::affine::AffineApplyOp>(op) ||
         (isa<mlir::arith::IndexCastOp>(op) &&
          op->getOperand(0).isa<BlockArgument>() &&
-         isa<FuncOp>(op->getOperand(0)
-                         .cast<BlockArgument>()
-                         .getOwner()
-                         ->getParentOp()))) {
+         isa<func::FuncOp>(op->getOperand(0)
+                               .cast<BlockArgument>()
+                               .getOwner()
+                               ->getParentOp()))) {
       LLVM_DEBUG(dbgs() << " -> Hits a terminating operator.\n\n");
       for (mlir::Value result : op->getResults())
         args.insert(result);
@@ -286,11 +286,10 @@ static void getCalleeName(unsigned calleeId, CalleeName &calleeName,
 /// contents will be ops, and its type depends on the given list of args. This
 /// callee function has a single block in it, and it has no returned value. The
 /// callee will be inserted at the end of the whole module.
-static mlir::FuncOp createCallee(StringRef calleeName,
-                                 const llvm::SetVector<Operation *> &ops,
-                                 const llvm::SetVector<mlir::Value> &args,
-                                 mlir::ModuleOp m, Operation *writeOp,
-                                 OpToCalleeMap &opToCallee, OpBuilder &b) {
+static mlir::func::FuncOp
+createCallee(StringRef calleeName, const llvm::SetVector<Operation *> &ops,
+             const llvm::SetVector<mlir::Value> &args, mlir::ModuleOp m,
+             Operation *writeOp, OpToCalleeMap &opToCallee, OpBuilder &b) {
   assert(ops.contains(writeOp) && "writeOp should be a member in ops.");
 
   // unsigned numArgs = args.size();
@@ -299,15 +298,15 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   // Get a list of types of all function arguments, and use it to create the
   // function type.
   TypeRange argTypes = ValueRange(args.getArrayRef()).getTypes();
-  mlir::FunctionType calleeType = b.getFunctionType(argTypes, llvm::None);
+  mlir::FunctionType calleeType = b.getFunctionType(argTypes, {});
 
   // Insert the new callee before the end of the module body.
   OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(m.getBody(), std::prev(m.getBody()->end()));
 
   // Create the callee. Its loc is determined by the writeOp.
-  mlir::FuncOp callee =
-      b.create<mlir::FuncOp>(writeOp->getLoc(), calleeName, calleeType);
+  mlir::func::FuncOp callee =
+      b.create<mlir::func::FuncOp>(writeOp->getLoc(), calleeName, calleeType);
   mlir::Block *entryBlock = callee.addEntryBlock();
   b.setInsertionPointToStart(entryBlock);
   // Terminator
@@ -317,7 +316,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
   // Create the mapping from the args to the newly created BlockArguments, to
   // replace the uses of the values in the original function to the newly
   // declared entryBlock's input.
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   mapping.map(args, entryBlock->getArguments());
   // for (auto arg : args) {
   //   arg.dump();
@@ -366,7 +365,7 @@ static mlir::FuncOp createCallee(StringRef calleeName,
 
 /// Create a caller to the callee right after the writeOp, which will be removed
 /// later.
-static mlir::func::CallOp createCaller(mlir::FuncOp callee,
+static mlir::func::CallOp createCaller(mlir::func::FuncOp callee,
                                        const llvm::SetVector<mlir::Value> &args,
                                        Operation *writeOp, OpBuilder &b) {
   // llvm::errs() << "Create caller for: " << callee.getName() << "\n";
@@ -395,7 +394,7 @@ static void removeExtractedOps(llvm::SetVector<Operation *> &opsToRemove) {
 
 /// The main function that extracts scop statements as functions. Returns the
 /// number of callees extracted from this function.
-static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
+static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
                                 OpBuilder &b) {
   // First discover those write ops that will be the "terminator" of each scop
   // statement in the given function.
@@ -432,7 +431,7 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
     getCalleeName(i + numCallees, calleeName);
 
     // Create the callee.
-    mlir::FuncOp callee =
+    mlir::func::FuncOp callee =
         createCallee(calleeName, ops, args, m, writeOp, opToCallee, b);
     // Create the caller.
     mlir::func::CallOp caller = createCaller(callee, args, writeOp, b);
@@ -455,19 +454,19 @@ static unsigned extractScopStmt(mlir::FuncOp f, unsigned numCallees,
 
 /// Given a value, if any of its uses is a StoreOp, we try to replace other uses
 /// by a load from that store.
-static void replaceUsesByStored(mlir::FuncOp f, OpBuilder &b) {
-  SmallVector<mlir::AffineStoreOp, 8> storeOps;
+static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
+  SmallVector<mlir::affine::AffineStoreOp, 8> storeOps;
 
   f.walk([&](Operation *op) {
     for (OpResult val : op->getResults()) {
       SmallVector<Operation *, 8> userOps;
-      SmallVector<mlir::AffineStoreOp, 8> currStoreOps;
+      SmallVector<mlir::affine::AffineStoreOp, 8> currStoreOps;
 
-      // Find all the users and AffineStoreOp in them.
+      // Find all the users and affine::AffineStoreOp in them.
       for (Operation *userOp : val.getUsers()) {
         userOps.push_back(userOp);
-        if (mlir::AffineStoreOp storeOp =
-                dyn_cast<mlir::AffineStoreOp>(userOp)) {
+        if (mlir::affine::AffineStoreOp storeOp =
+                dyn_cast<mlir::affine::AffineStoreOp>(userOp)) {
           currStoreOps.push_back(storeOp);
         }
       }
@@ -478,17 +477,17 @@ static void replaceUsesByStored(mlir::FuncOp f, OpBuilder &b) {
     }
   });
 
-  for (mlir::AffineStoreOp storeOp : storeOps) {
+  for (mlir::affine::AffineStoreOp storeOp : storeOps) {
     Value val = storeOp.getValueToStore();
     SmallVector<Operation *, 8> userOps(val.getUsers());
     // We insert a new load immediately after the store.
     OpBuilder::InsertionGuard guard(b);
     b.setInsertionPointAfter(storeOp);
 
-    MemRefAccess access(storeOp);
-    mlir::AffineLoadOp loadOp =
-        b.create<mlir::AffineLoadOp>(storeOp.getLoc(), storeOp.getMemRef(),
-                                     storeOp.getAffineMap(), access.indices);
+    affine::MemRefAccess access(storeOp);
+    mlir::affine::AffineLoadOp loadOp = b.create<mlir::affine::AffineLoadOp>(
+        storeOp.getLoc(), storeOp.getMemRef(), storeOp.getAffineMap(),
+        access.indices);
 
     LLVM_DEBUG(dbgs() << " + Created load : \n\t" << loadOp
                       << "\n   immediately after the store: \n\t" << storeOp
@@ -507,8 +506,6 @@ static void replaceUsesByStored(mlir::FuncOp f, OpBuilder &b) {
   }
 }
 
-namespace {
-
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,
                                OperationPass<mlir::ModuleOp>> {
@@ -516,23 +513,24 @@ class ExtractScopStmtPass
     mlir::ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
-    SmallVector<mlir::FuncOp, 4> funcs;
-    m.walk([&](mlir::FuncOp f) {
+    SmallVector<mlir::func::FuncOp, 4> funcs;
+    m.walk([&](mlir::func::FuncOp f) {
       if (f->hasAttr("scop.ignored"))
         return;
       funcs.push_back(f);
     });
 
     unsigned numCallees = 0;
-    for (mlir::FuncOp f : funcs) {
+    for (mlir::func::FuncOp f : funcs) {
       replaceUsesByStored(f, b);
 
       numCallees += extractScopStmt(f, numCallees, b);
     }
   }
+  void getDependentDialects(::mlir::DialectRegistry &registry) const override {
+    registry.insert<memref::MemRefDialect>();
+  }
 };
-
-} // namespace
 
 void polymer::registerExtractScopStmtPass() {
   PassPipelineRegistration<>(
