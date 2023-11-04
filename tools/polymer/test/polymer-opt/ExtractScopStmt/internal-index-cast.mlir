@@ -1,6 +1,6 @@
 // RUN: polymer-opt %s -extract-scop-stmt | FileCheck %s
 
-func @foo(%A: memref<1024xi32>, %B: memref<1024x16xi32>) {
+func.func @foo(%A: memref<1024xi32>, %B: memref<1024x16xi32>) {
   %c4_i32 = arith.constant 4 : i32
   %c15_i32 = arith.constant 15 : i32
 
@@ -19,7 +19,7 @@ func @foo(%A: memref<1024xi32>, %B: memref<1024x16xi32>) {
   return
 }
 
-// CHECK: func private @S0
+// CHECK: func.func private @S0
 // CHECK: %{{.*}} = affine.load
 // CHECK-NEXT: %{{.*}} = arith.shrsi
 // CHECK-NEXT: %{{.*}} = arith.index_cast
@@ -28,7 +28,7 @@ func @foo(%A: memref<1024xi32>, %B: memref<1024x16xi32>) {
 // CHECK-NEXT: %{{.*}} = memref.load
 // CHECK-NEXT: affine.store
 
-// CHECK: func @foo(%[[ARG0:.*]]: memref<1024xi32>, %[[ARG1:.*]]: memref<1024x16xi32>)
+// CHECK: func.func @foo(%[[ARG0:.*]]: memref<1024xi32>, %[[ARG1:.*]]: memref<1024x16xi32>)
 // CHECK-NEXT: affine.for %[[I:.*]] = 1 to 5
 // CHECK-NEXT: affine.for %[[J:.*]] = 0 to 16
-// CHECK-NEXT: call @S0(%[[ARG0]], %[[J]], %[[ARG1]])
+// CHECK-NEXT: func.call @S0(%[[ARG0]], %[[J]], %[[ARG1]])

@@ -25,7 +25,7 @@ func @matmul() {
 // CHECK-NEXT:   affine.for %[[ARG3:.*]] = 0 to 64 {
 // CHECK-NEXT:     affine.for %[[ARG4:.*]] = 0 to 64 {
 // CHECK-NEXT:       affine.for %[[ARG5:.*]] = 0 to 64 {
-// CHECK-NEXT:         call @S0(%[[ARG0]], %[[ARG1]], %[[ARG2]], %[[ARG0]], %[[ARG3]], %[[ARG4]], %[[ARG5]]) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index) -> ()
+// CHECK-NEXT:         func.call @S0(%[[ARG0]], %[[ARG1]], %[[ARG2]], %[[ARG0]], %[[ARG3]], %[[ARG4]], %[[ARG5]]) : (memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, index, index, index) -> ()
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }

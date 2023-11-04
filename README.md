@@ -50,11 +50,23 @@ ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
 
-To enable compilation to cuda add `-DPOLYGEIST_ENABLE_CUDA=1`
+For faster compilation we recommend using `-DPOLYGEIST_USE_LINKER=lld`.
+
+    1. GPU backends
+
+To enable the CUDA backend add `-DPOLYGEIST_ENABLE_CUDA=1`
 
 To enable the ROCM backend add `-DPOLYGEIST_ENABLE_ROCM=1`
 
-For faster compilation we recommend using `-DPOLYGEIST_USE_LINKER=lld`.
+    2. Polymer
+
+To enable polymer, add `-DPOLYGEIST_ENABLE_POLYMER=1`
+
+This will cause the cmake invokation to pull and build the dependencies for polymer. To specify a custom directory for the dependencies, specify `-DPOLYMER_DEP_DIR=<absolute-dir>`. The dependencies will be build using the `tools/polymer/build_polymer_deps.sh`.
+
+To run the polymer tests, use `ninja check-polymer`.
+
+
 
 #### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
 

@@ -2,7 +2,7 @@
 
 #map = affine_map<()[s0] -> (s0 - 1)>
 
-func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
+func.func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
   %cst = arith.constant 3.333330e-01 : f32
   %0 = affine.load %arg2[symbol(%arg1) + 1] : memref<120xf32>
   %1 = affine.load %arg2[symbol(%arg1) - 1] : memref<120xf32>
@@ -14,7 +14,7 @@ func private @S0(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) a
   return
 }
 
-func private @S1(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
+func.func private @S1(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) attributes {scop.stmt} {
   %cst = arith.constant 3.333330e-01 : f32
   %0 = affine.load %arg2[symbol(%arg1) + 1] : memref<120xf32>
   %1 = affine.load %arg2[symbol(%arg1) - 1] : memref<120xf32>
@@ -26,14 +26,14 @@ func private @S1(%arg0: memref<120xf32>, %arg1: index, %arg2: memref<120xf32>) a
   return
 }
 
-func @jacobi(%A: memref<120xf32>, %B: memref<120xf32>) {
+func.func @jacobi(%A: memref<120xf32>, %B: memref<120xf32>) {
   %cst = arith.constant 0.333333 : f32
   affine.for %i = 0 to 40 {
     affine.for %j = 1 to 119 {
-      call @S0(%B, %j, %A): (memref<120xf32>, index, memref<120xf32>) -> ()
+      func.call @S0(%B, %j, %A): (memref<120xf32>, index, memref<120xf32>) -> ()
     }
     affine.for %j = 1 to 119 {
-      call @S1(%A, %j, %B): (memref<120xf32>, index, memref<120xf32>) -> ()
+      func.call @S1(%A, %j, %B): (memref<120xf32>, index, memref<120xf32>) -> ()
     }
   }
   return
@@ -51,7 +51,7 @@ func @jacobi(%A: memref<120xf32>, %B: memref<120xf32>) {
 // CHECK-DAG: #[[SET1:.*]] = affine_set<(d0, d1) : (d0 - (d1 + 44) ceildiv 16 >= 0)>
 // CHECK-DAG: #[[SET2:.*]] = affine_set<(d0, d1) : (d0 == 0, -d1 + 1 >= 0)>
 
-// CHECK-LABEL: func @jacobi
+// CHECK-LABEL: func.func @jacobi
 // CHECK: affine.for %[[I:.*]] = 0 to 2
 // CHECK: affine.for %[[J:.*]] = #[[MAP0]](%[[I]]) to min #[[MAP1]](%[[I]])
 // CHECK: affine.for %[[K:.*]] = max #[[MAP2]](%[[I]], %[[J]]) to min #[[MAP3]](%[[I]], %[[J]])

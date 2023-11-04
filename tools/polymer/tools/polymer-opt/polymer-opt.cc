@@ -16,18 +16,18 @@
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Passes.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/SCF/SCF.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/MlirOptMain.h"
+#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
@@ -43,11 +43,11 @@ int main(int argc, char *argv[]) {
 
   // Register MLIR stuff
   registry.insert<mlir::func::FuncDialect>();
-  registry.insert<mlir::AffineDialect>();
+  registry.insert<mlir::affine::AffineDialect>();
   registry.insert<mlir::scf::SCFDialect>();
   registry.insert<mlir::memref::MemRefDialect>();
   registry.insert<mlir::math::MathDialect>();
-  registry.insert<mlir::arith::ArithmeticDialect>();
+  registry.insert<mlir::arith::ArithDialect>();
   registry.insert<mlir::LLVM::LLVMDialect>();
 
 // Register the standard passes we want.
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
   registerCanonicalizerPass();
   registerCSEPass();
   registerInlinerPass();
-  registerAffineScalarReplacementPass();
+  affine::registerAffineScalarReplacementPass();
   // Register polymer specific passes.
   registerPlutoTransformPass();
   registerRegToMemPass();
@@ -73,6 +73,5 @@ int main(int argc, char *argv[]) {
   // Register printer command line options.
   registerAsmPrinterCLOptions();
 
-  return failed(MlirOptMain(argc, argv, "Polymer optimizer driver", registry,
-                            /*preloadDialectsInContext=*/true));
+  return failed(MlirOptMain(argc, argv, "Polymer optimizer driver", registry));
 }

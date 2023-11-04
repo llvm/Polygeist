@@ -1,6 +1,6 @@
 // RUN: polymer-opt %s -demote-loop-reduction -reg2mem -split-input-file | FileCheck %s
 
-func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
+func.func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
   %c0 = arith.constant 0 : index
   %N = memref.dim %A, %c0 : memref<?xf32>
 
@@ -19,7 +19,7 @@ func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
   return %ans : f32
 }
 
-// CHECK:      func @reduce_with_iter_args(%[[ARG0:.*]]: memref<?xf32>) -> f32 {
+// CHECK:      func.func @reduce_with_iter_args(%[[ARG0:.*]]: memref<?xf32>) -> f32 {
 // CHECK-NEXT:   %[[CST0:.*]] = arith.constant 0 : index
 // CHECK-NEXT:   %[[VAL0:.*]] = memref.dim %[[ARG0]], %[[CST0]] : memref<?xf32>
 // CHECK-NEXT:   %[[CST1:.*]] = arith.constant 0.000000e+00 : f32
@@ -45,7 +45,7 @@ func @reduce_with_iter_args(%A: memref<?xf32>) -> (f32) {
 
 // -----
 
-func @nested(%A: memref<?xf32>, %B: memref<?x?xf32>, %out: memref<1xf32>) {
+func.func @nested(%A: memref<?xf32>, %B: memref<?x?xf32>, %out: memref<1xf32>) {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 0 : index
   %N = memref.dim %A, %c0 : memref<?xf32>
@@ -73,7 +73,7 @@ func @nested(%A: memref<?xf32>, %B: memref<?x?xf32>, %out: memref<1xf32>) {
   return
 }
 
-// CHECK: func @nested(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<1xf32>) {
+// CHECK: func.func @nested(%[[ARG0:.*]]: memref<?xf32>, %[[ARG1:.*]]: memref<?x?xf32>, %[[ARG2:.*]]: memref<1xf32>) {
 // CHECK:   %[[MEM0:.*]] = memref.alloca() {scop.scratchpad} : memref<1xf32>
 // CHECK:   affine.store %{{.*}}, %[[MEM0]][0] : memref<1xf32>
 // CHECK:   affine.for %{{.*}} = 0 to %{{.*}} {

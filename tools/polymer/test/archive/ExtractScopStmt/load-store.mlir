@@ -17,7 +17,7 @@ func @load_store(%A: memref<?xf32>, %B: memref<?xf32>) {
 // CHECK-NEXT:   %[[C0:.*]] = constant 0 : index
 // CHECK-NEXT:   %[[DIM0:.*]] = dim %[[ARG0]], %[[C0]] : memref<?xf32>
 // CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to %[[DIM0]] {
-// CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG2]], %[[ARG0]]) : (memref<?xf32>, index, memref<?xf32>) -> ()
+// CHECK-NEXT:     func.call @S0(%[[ARG1]], %[[ARG2]], %[[ARG0]]) : (memref<?xf32>, index, memref<?xf32>) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
@@ -57,8 +57,8 @@ func @load_multi_stores(%A: memref<?xf32>, %B: memref<?x?xf32>, %C: memref<?x?xf
 // CHECK-NEXT:   %[[DIM1:.*]] = dim %[[ARG1]], %[[CST1]] : memref<?x?xf32>
 // CHECK-NEXT:   affine.for %[[I:.*]] = 0 to %[[DIM0]] {
 // CHECK-NEXT:     affine.for %[[J:.*]] = 0 to %[[DIM1]] {
-// CHECK-NEXT:       call @S0(%[[ARG1]], %[[I]], %[[J]], %[[ARG0]]) : (memref<?x?xf32>, index, index, memref<?xf32>) -> ()
-// CHECK-NEXT:       call @S1(%[[ARG2]], %[[I]], %[[J]], %[[ARG0]]) : (memref<?x?xf32>, index, index, memref<?xf32>) -> ()
+// CHECK-NEXT:       func.call @S0(%[[ARG1]], %[[I]], %[[J]], %[[ARG0]]) : (memref<?x?xf32>, index, index, memref<?xf32>) -> ()
+// CHECK-NEXT:       func.call @S1(%[[ARG2]], %[[I]], %[[J]], %[[ARG0]]) : (memref<?x?xf32>, index, index, memref<?xf32>) -> ()
 // CHECK-NEXT:     }
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
@@ -133,7 +133,7 @@ func @alloc_and_alloca() {
 // CHECK-NEXT:   %[[VAL0]] = alloc() : memref<32xf32>
 // CHECK-NEXT:   %[[VAL1]] = alloca() : memref<32xf32>
 // CHECK-NEXT:   affine.for %[[ARG0:.*]] = 0 to 32 {
-// CHECK-NEXT:     call @S0(%[[ARG0]], %[[VAL1]], %[[VAL0]]) : (index, memref<32xf32>, memref<32xf32>) -> ()
+// CHECK-NEXT:     func.call @S0(%[[ARG0]], %[[VAL1]], %[[VAL0]]) : (index, memref<32xf32>, memref<32xf32>) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
@@ -170,8 +170,8 @@ func @write_const(%A: memref<?xf32>) {
 }
 
 // CHECK: func @write_const(%[[ARG0:.*]]: memref<?xf32>) {
-// CHECK-NEXT:   call @S0(%[[ARG0]]) : (memref<?xf32>) -> ()
-// CHECK-NEXT:   call @S1(%[[ARG0]]) : (memref<?xf32>) -> ()
+// CHECK-NEXT:   func.call @S0(%[[ARG0]]) : (memref<?xf32>) -> ()
+// CHECK-NEXT:   func.call @S1(%[[ARG0]]) : (memref<?xf32>) -> ()
 // CHECK-NEXT:   return
 // CHECK-NEXT: }
 // CHECK: func @S0(%[[ARG0:.*]]: memref<?xf32>) attributes {scop.stmt} {
@@ -189,7 +189,7 @@ func @write_const(%A: memref<?xf32>) {
 
 // -----
 
-// AffineApplyOp result used in both loop bounds and load/store addresses
+// affine::AffineApplyOp result used in both loop bounds and load/store addresses
 // should be treated differently.
 
 #map0 = affine_map<(d0)[s0] -> (-d0 + s0 - 1)>

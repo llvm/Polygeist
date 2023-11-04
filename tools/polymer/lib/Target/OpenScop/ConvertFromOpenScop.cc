@@ -29,17 +29,16 @@ extern "C" {
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/LoopUtils.h"
 #include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dominance.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Translation.h"
+#include "mlir/Tools/mlir-translate/Translation.h"
 
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -47,6 +46,7 @@ extern "C" {
 
 using namespace polymer;
 using namespace mlir;
+using namespace mlir::func;
 
 typedef llvm::StringMap<mlir::Operation *> StmtOpMap;
 typedef llvm::StringMap<mlir::Value> NameValueMap;
@@ -446,7 +446,7 @@ private:
   LogicalResult processStmt(clast_assignment *ass);
 
   std::string getSourceFuncName() const;
-  mlir::FuncOp getSourceFuncOp();
+  mlir::func::FuncOp getSourceFuncOp();
 
   LogicalResult getAffineLoopBound(clast_expr *expr,
                                    llvm::SmallVectorImpl<mlir::Value> &operands,
@@ -470,7 +470,7 @@ private:
   /// A helper to create a callee.
   void createCalleeAndCallerArgs(llvm::StringRef calleeName,
                                  llvm::ArrayRef<std::string> args,
-                                 mlir::FuncOp &callee,
+                                 mlir::func::FuncOp &callee,
                                  SmallVectorImpl<mlir::Value> &callerArgs);
 
   /// Number of internal functions created.
@@ -519,15 +519,15 @@ Importer::Importer(MLIRContext *context, ModuleOp module,
   b.setInsertionPointToStart(module.getBody());
 }
 
-mlir::FuncOp Importer::getSourceFuncOp() {
+mlir::func::FuncOp Importer::getSourceFuncOp() {
   std::string sourceFuncName = getSourceFuncName();
   mlir::Operation *sourceFuncOp = module.lookupSymbol(sourceFuncName);
 
   assert(sourceFuncOp != nullptr &&
          "sourceFuncName cannot be found in the module");
-  assert(isa<mlir::FuncOp>(sourceFuncOp) &&
-         "Found sourceFuncOp should be of type mlir::FuncOp.");
-  return cast<mlir::FuncOp>(sourceFuncOp);
+  assert(isa<mlir::func::FuncOp>(sourceFuncOp) &&
+         "Found sourceFuncOp should be of type mlir::func::FuncOp.");
+  return cast<mlir::func::FuncOp>(sourceFuncOp);
 }
 
 /// If there is anything in the comment, we will use it as a function name.
@@ -576,7 +576,7 @@ void Importer::initializeFuncOpInterface() {
   OslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   /// First collect the source FuncOp in the original MLIR code.
-  mlir::FuncOp sourceFuncOp = getSourceFuncOp();
+  mlir::func::FuncOp sourceFuncOp = getSourceFuncOp();
 
   // OpBuilder::InsertionGuard guard(b);
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
@@ -590,8 +590,8 @@ void Importer::initializeFuncOpInterface() {
     funcName = std::string(formatv("{0}_opt", sourceFuncName));
   }
   // Create the function interface.
-  func =
-      b.create<FuncOp>(sourceFuncOp.getLoc(), funcName, sourceFuncOp.getType());
+  func = b.create<FuncOp>(sourceFuncOp.getLoc(), funcName,
+                          sourceFuncOp.getFunctionType());
 
   // Initialize the symbol table for these entryBlock arguments
   auto &entryBlock = *func.addEntryBlock();
@@ -659,7 +659,8 @@ void Importer::initializeSymbol(mlir::Value val) {
 
   // First we examine the AST structure.
   mlir::Operation *parentOp = defOp->getParentOp();
-  if (mlir::AffineForOp forOp = dyn_cast<mlir::AffineForOp>(parentOp)) {
+  if (mlir::affine::AffineForOp forOp =
+          dyn_cast<mlir::affine::AffineForOp>(parentOp)) {
     mlir::Value srcIV = forOp.getInductionVar();
     std::string ivName = oslValueTable->lookup(srcIV);
     mlir::Value dstIV = symbolTable[ivName];
@@ -673,7 +674,8 @@ void Importer::initializeSymbol(mlir::Value val) {
       hasInsertionPoint = true;
       b.setInsertionPointToStart(blockToInsert);
     }
-  } else if (mlir::FuncOp funOp = dyn_cast<mlir::FuncOp>(parentOp)) {
+  } else if (mlir::func::FuncOp funOp =
+                 dyn_cast<mlir::func::FuncOp>(parentOp)) {
     // Insert at the beginning of this function.
     hasInsertionPoint = true;
     b.setInsertionPointToStart(&entryBlock);
@@ -711,7 +713,7 @@ void Importer::initializeSymbol(mlir::Value val) {
   if (!hasInsertionPoint)
     return;
 
-  BlockAndValueMapping vMap;
+  IRMapping vMap;
   for (unsigned i = 0; i < newOperands.size(); i++)
     vMap.map(defOp->getOperand(i), newOperands[i]);
 
@@ -769,7 +771,7 @@ Importer::parseUserStmtBody(llvm::StringRef body, std::string &calleeName,
 
 void Importer::createCalleeAndCallerArgs(
     llvm::StringRef calleeName, llvm::ArrayRef<std::string> args,
-    mlir::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs) {
+    mlir::func::FuncOp &callee, SmallVectorImpl<mlir::Value> &callerArgs) {
   // TODO: avoid duplicated callee creation
   // Cache the current insertion point before changing it for the new callee
   // function.
@@ -795,7 +797,7 @@ void Importer::createCalleeAndCallerArgs(
     }
   }
 
-  auto calleeType = b.getFunctionType(calleeArgTypes, llvm::None);
+  auto calleeType = b.getFunctionType(calleeArgTypes, {});
   // TODO: should we set insertion point for the callee before the main
   // function?
   b.setInsertionPoint(module.getBody(), getFuncInsertPt());
@@ -865,7 +867,8 @@ void Importer::getAffineExprForLoopIterator(
 
   AffineExprBuilder builder(context, symTable, &symbolTable, scop, options);
   SmallVector<AffineExpr, 1> affExprs;
-  assert(succeeded(builder.process(substAss->RHS, affExprs)));
+  auto res = succeeded(builder.process(substAss->RHS, affExprs));
+  assert(res);
 
   // Insert dim operands.
   for (llvm::StringRef dimName : builder.dimNames.keys()) {
@@ -914,8 +917,8 @@ void Importer::getInductionVars(clast_user_stmt *userStmt, osl_body_p body,
             b.getIntegerAttr(b.getIndexType(),
                              substMap.getSingleConstantResult()));
       else
-        op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
-                                           substOperands);
+        op = b.create<mlir::affine::AffineApplyOp>(b.getUnknownLoc(), substMap,
+                                                   substOperands);
 
       inductionVars.push_back(op->getResult(0));
     } else {
@@ -953,7 +956,9 @@ LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
   OslScop::ValueTable *valueTable = scop->getValueTable();
 
   osl_statement_p stmt;
-  assert(succeeded(scop->getStatement(userStmt->statement->number - 1, &stmt)));
+  auto res =
+      succeeded(scop->getStatement(userStmt->statement->number - 1, &stmt));
+  assert(res);
 
   osl_body_p body = osl_statement_get_body(stmt);
   assert(body != NULL && "The body of the statement should not be NULL.");
@@ -1104,8 +1109,10 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
       }
     }
 
-    assert(succeeded(builder.process(lhs, lhsExprs)));
-    assert(succeeded(builder.process(eq.RHS, rhsExprs)));
+    auto res = succeeded(builder.process(lhs, lhsExprs));
+    assert(res);
+    res = succeeded(builder.process(eq.RHS, rhsExprs));
+    assert(res);
 
     for (AffineExpr rhsExpr : rhsExprs) {
       AffineExpr eqExpr;
@@ -1137,12 +1144,13 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
   IntegerSet iset = IntegerSet::get(builder.dimNames.size(),
                                     builder.symbolNames.size(), conds, eqFlags);
 
-  mlir::AffineIfOp ifOp =
-      b.create<mlir::AffineIfOp>(b.getUnknownLoc(), iset, operands, false);
+  mlir::affine::AffineIfOp ifOp = b.create<mlir::affine::AffineIfOp>(
+      b.getUnknownLoc(), iset, operands, false);
 
   Block *entryBlock = ifOp.getThenBlock();
   b.setInsertionPointToStart(entryBlock);
-  assert(processStmtList(guardStmt->then).succeeded());
+  auto res = processStmtList(guardStmt->then).succeeded();
+  assert(res);
   b.setInsertionPointAfter(ifOp);
 
   return success();
@@ -1218,10 +1226,10 @@ Importer::getAffineLoopBound(clast_expr *expr,
   return success();
 }
 
-/// Generate the AffineForOp from a clast_for statement. First we create
+/// Generate the affine::AffineForOp from a clast_for statement. First we create
 /// AffineMaps for the lower and upper bounds. Then we decide the step if
-/// there is any. And finally, we create the AffineForOp instance and generate
-/// its body.
+/// there is any. And finally, we create the affine::AffineForOp instance and
+/// generate its body.
 LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Get loop bounds.
   AffineMap lbMap, ubMap;
@@ -1252,11 +1260,11 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   }
 
   // Create the for operation.
-  mlir::AffineForOp forOp = b.create<mlir::AffineForOp>(
+  mlir::affine::AffineForOp forOp = b.create<mlir::affine::AffineForOp>(
       UnknownLoc::get(context), lbOperands, lbMap, ubOperands, ubMap, stride);
 
   // Update the loop IV mapping.
-  auto &entryBlock = *forOp.getLoopBody().getBlocks().begin();
+  auto &entryBlock = *forOp.getBody();
   // TODO: confirm is there a case that forOp has multiple operands.
   assert(entryBlock.getNumArguments() == 1 &&
          "affine.for should only have one block argument (iv).");
@@ -1271,8 +1279,10 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
 
   // Create the loop body
   b.setInsertionPointToStart(&entryBlock);
-  entryBlock.walk([&](mlir::AffineYieldOp op) { b.setInsertionPoint(op); });
-  assert(processStmtList(forStmt->body).succeeded());
+  entryBlock.walk(
+      [&](mlir::affine::AffineYieldOp op) { b.setInsertionPoint(op); });
+  auto res = processStmtList(forStmt->body).succeeded();
+  assert(res);
   b.setInsertionPointAfter(forOp);
 
   // Restore the symbol value.
@@ -1286,8 +1296,8 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
   // Finally, we will move this affine.for op into a FuncOp if it uses values
   // defined by affine.min/max as loop bound operands.
   auto isMinMaxDefined = [](mlir::Value operand) {
-    return isa_and_nonnull<mlir::AffineMaxOp, mlir::AffineMinOp>(
-        operand.getDefiningOp());
+    return isa_and_nonnull<mlir::affine::AffineMaxOp,
+                           mlir::affine::AffineMinOp>(operand.getDefiningOp());
   };
 
   if (std::none_of(lbOperands.begin(), lbOperands.end(), isMinMaxDefined) &&
@@ -1304,18 +1314,18 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
 
   // Create the function body
   mlir::FunctionType funcTy =
-      b.getFunctionType(TypeRange(args.getArrayRef()), llvm::None);
+      b.getFunctionType(TypeRange(args.getArrayRef()), {});
   b.setInsertionPoint(&*getFuncInsertPt());
-  mlir::FuncOp func = b.create<mlir::FuncOp>(
+  mlir::func::FuncOp func = b.create<mlir::func::FuncOp>(
       forOp->getLoc(), std::string("T") + std::to_string(numInternalFunctions),
       funcTy);
   numInternalFunctions++;
   Block *newEntry = func.addEntryBlock();
-  BlockAndValueMapping vMap;
+  IRMapping vMap;
   vMap.map(args, func.getArguments());
   b.setInsertionPointToStart(newEntry);
   b.clone(*forOp.getOperation(), vMap);
-  b.create<mlir::func::ReturnOp>(func.getLoc(), llvm::None);
+  b.create<mlir::func::ReturnOp>(func.getLoc());
 
   // Create function call.
   b.setInsertionPointAfter(forOp);
@@ -1349,19 +1359,19 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
         b.getUnknownLoc(), b.getIndexType(),
         b.getIntegerAttr(b.getIndexType(), substMap.getSingleConstantResult()));
   } else if (substMap.getNumResults() == 1) {
-    op = b.create<mlir::AffineApplyOp>(b.getUnknownLoc(), substMap,
-                                       substOperands);
+    op = b.create<mlir::affine::AffineApplyOp>(b.getUnknownLoc(), substMap,
+                                               substOperands);
   } else {
     assert(ass->RHS->type == clast_expr_red);
     clast_reduction *red = reinterpret_cast<clast_reduction *>(ass->RHS);
 
     assert(red->type != clast_red_sum);
     if (red->type == clast_red_max)
-      op = b.create<mlir::AffineMaxOp>(b.getUnknownLoc(), substMap,
-                                       substOperands);
+      op = b.create<mlir::affine::AffineMaxOp>(b.getUnknownLoc(), substMap,
+                                               substOperands);
     else
-      op = b.create<mlir::AffineMinOp>(b.getUnknownLoc(), substMap,
-                                       substOperands);
+      op = b.create<mlir::affine::AffineMinOp>(b.getUnknownLoc(), substMap,
+                                               substOperands);
   }
 
   assert(op->getNumResults() == 1);
@@ -1541,7 +1551,7 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
 OwningOpRef<ModuleOp>
 polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
                                    MLIRContext *context) {
-  context->loadDialect<AffineDialect>();
+  context->loadDialect<affine::AffineDialect>();
   OwningOpRef<ModuleOp> module(ModuleOp::create(
       FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
@@ -1566,7 +1576,8 @@ namespace polymer {
 
 void registerFromOpenScopTranslation() {
   TranslateToMLIRRegistration fromLLVM(
-      "import-scop", [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
+      "import-scop", "Import SCOP",
+      [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
         return ::translateOpenScopToModule(sourceMgr, context);
       });
 }

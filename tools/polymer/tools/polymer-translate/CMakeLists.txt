@@ -2,14 +2,19 @@ set(LLVM_LINK_COMPONENTS
   Support
 )
 
+#get_property(translation_libs GLOBAL PROPERTY MLIR_TRANSLATION_LIBS)
+
 add_llvm_tool(polymer-translate
   polymer-translate.cc
 )
 llvm_update_compile_flags(polymer-translate)
 target_link_libraries(polymer-translate
   PRIVATE
-  MLIRFunc
-  MLIRLLVMIR
+
+  PolymerTargetOpenScop
+
+  MLIRFuncDialect
+  MLIRLLVMDialect
   MLIRAffineAnalysis
   MLIRAnalysis
   MLIRDialect
@@ -20,6 +25,6 @@ target_link_libraries(polymer-translate
   MLIRTransformUtils
   MLIRSupport
   MLIRIR
-
-  PolymerTargetOpenScop
+  MLIRTranslateLib
+  MLIRToLLVMIRTranslationRegistration
   )

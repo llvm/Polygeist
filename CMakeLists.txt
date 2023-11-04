@@ -1,9 +1,21 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.13.4)
 
 include(CheckCXXSourceCompiles)
 
 set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA frontend and backend")
 set(POLYGEIST_ENABLE_ROCM 0 CACHE BOOL "Enable ROCM backend")
+
+set(POLYGEIST_ENABLE_POLYMER 0 CACHE BOOL "Enable Polymer")
+
+set(POLYMER_DEP_DIR "" CACHE STRING "Pluto build root directory")
+
+if ("${POLYMER_DEP_DIR}" STREQUAL "")
+    set(POLYGEIST_PLUTO_DIR ${CMAKE_CURRENT_BINARY_DIR})
+else()
+    set(POLYGEIST_PLUTO_DIR ${POLYMER_DEP_DIR})
+endif()
+  
+message(STATUS "polygeist_pluto_dir '${POLYGEIST_PLUTO_DIR}'")
 
 if(POLICY CMP0068)
   cmake_policy(SET CMP0068 NEW)

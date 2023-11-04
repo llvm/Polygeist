@@ -1,5 +1,5 @@
 // RUN: polymer-opt %s -fold-scf-if | FileCheck %s
-func @foo(%a: f32, %b: f32, %c: i1) {
+func.func @foo(%a: f32, %b: f32, %c: i1) {
   scf.if %c {
     %0 = arith.addf %a, %b : f32
   } else {
@@ -9,7 +9,7 @@ func @foo(%a: f32, %b: f32, %c: i1) {
   return
 }
 
-// CHECK: func @foo
+// CHECK: func.func @foo
 // CHECK-NEXT: arith.addf
 // CHECK-NEXT: arith.mulf
 // CHECK-NEXT: return

@@ -169,20 +169,20 @@ void OslScop::addRelation(int target, int type, int numRows, int numCols,
   }
 }
 
-void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
+void OslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   // Project out the dim IDs in the context with only the symbol IDs left.
   SmallVector<mlir::Value, 8> dimValues;
-  cst.getValues(0, cst.getNumDimIds(), &dimValues);
+  cst.getValues(0, cst.getNumDimVars(), &dimValues);
   for (mlir::Value dimValue : dimValues)
     cst.projectOut(dimValue);
-  if (cst.getNumDimAndSymbolIds() > 0)
-    cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolIds());
+  if (cst.getNumDimAndSymbolVars() > 0)
+    cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolVars());
 
   SmallVector<int64_t, 8> eqs, inEqs;
   // createConstraintRows(cst, eqs);
   // createConstraintRows(cst, inEqs, /*isEq=*/false);
 
-  unsigned numCols = 2 + cst.getNumSymbolIds();
+  unsigned numCols = 2 + cst.getNumSymbolVars();
   unsigned numEntries = inEqs.size() + eqs.size();
   assert(numEntries % (numCols - 1) == 0 &&
          "Total number of entries should be divisible by the number of columns "
@@ -191,22 +191,23 @@ void OslScop::addContextRelation(FlatAffineValueConstraints cst) {
   unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
   // Create the context relation.
   addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
-              cst.getNumSymbolIds(), eqs, inEqs);
+              cst.getNumSymbolVars(), eqs, inEqs);
 }
 
-void OslScop::addDomainRelation(int stmtId, FlatAffineValueConstraints &cst) {
+void OslScop::addDomainRelation(int stmtId,
+                                affine::FlatAffineValueConstraints &cst) {
   SmallVector<int64_t, 8> eqs, inEqs;
   createConstraintRows(cst, eqs);
   createConstraintRows(cst, inEqs, /*isEq=*/false);
 
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-              cst.getNumCols() + 1, cst.getNumDimIds(), 0, cst.getNumLocalIds(),
-              cst.getNumSymbolIds(), eqs, inEqs);
+              cst.getNumCols() + 1, cst.getNumDimVars(), 0,
+              cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs, inEqs);
 }
 
-void OslScop::addScatteringRelation(int stmtId,
-                                    mlir::FlatAffineValueConstraints &cst,
-                                    llvm::ArrayRef<mlir::Operation *> ops) {
+void OslScop::addScatteringRelation(
+    int stmtId, mlir::affine::FlatAffineValueConstraints &cst,
+    llvm::ArrayRef<mlir::Operation *> ops) {
   // First insert the enclosing ops into the scat tree.
   SmallVector<unsigned, 8> scats;
   scatTreeRoot->insertScopStmt(ops, scats);
@@ -232,14 +233,15 @@ void OslScop::addScatteringRelation(int stmtId,
     // Relating the loop IVs to the scattering dimensions. If it's the odd
     // equality, set its scattering dimension to the loop IV; otherwise, it's
     // scattering dimension will be set in the following constant section.
-    for (unsigned k = 0; k < cst.getNumDimIds(); k++)
+    for (unsigned k = 0; k < cst.getNumDimVars(); k++)
       eqs[j * (numScatCols - 1) + k + numScatEqs] =
           (j % 2) ? (k == (j / 2)) : 0;
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalIds() + cst.getNumSymbolIds(); k++)
-      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimIds()] = 0;
+    for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars();
+         k++)
+      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
 
     // Relating the constants (the last column) to the scattering dimensions.
     eqs[j * (numScatCols - 1) + numScatCols - 2] = (j % 2) ? 0 : scats[j / 2];
@@ -247,22 +249,21 @@ void OslScop::addScatteringRelation(int stmtId,
 
   // Then put them into the scop as a SCATTERING relation.
   addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
-              numScatEqs, cst.getNumDimIds(), cst.getNumLocalIds(),
-              cst.getNumSymbolIds(), eqs, inEqs);
+              numScatEqs, cst.getNumDimVars(), cst.getNumLocalVars(),
+              cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                                AffineValueMap &vMap,
-                                FlatAffineValueConstraints &domain) {
-  FlatAffineValueConstraints cst;
+                                affine::AffineValueMap &vMap,
+                                affine::FlatAffineValueConstraints &domain) {
+  affine::FlatAffineValueConstraints cst;
   // Insert the address dims and put constraints in it.
   createAccessRelationConstraints(vMap, cst, domain);
 
   // Create a new dim of memref and set its value to its corresponding ID.
   memRefIdMap.try_emplace(memref, memRefIdMap.size() + 1);
-  cst.insertDimId(0, memref);
-  cst.addBound(mlir::FlatAffineConstraints::BoundType::EQ, 0,
-               memRefIdMap[memref]);
+  cst.insertDimVar(0, memref);
+  cst.addBound(mlir::presburger::BoundType::EQ, 0, memRefIdMap[memref]);
   // cst.setIdToConstant(0, memRefIdMap[memref]);
 
   SmallVector<int64_t, 8> eqs, inEqs;
@@ -279,10 +280,10 @@ void OslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   // Then put them into the scop as an ACCESS relation.
   // Number of access indices + 1 for the memref ID.
   unsigned numOutputDims = vMap.getNumResults() + 1;
-  unsigned numInputDims = cst.getNumDimIds() - numOutputDims;
+  unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
   addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
               cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-              numInputDims, cst.getNumLocalIds(), cst.getNumSymbolIds(), eqs,
+              numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs,
               inEqs);
 }
 
@@ -443,7 +444,8 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
 
   llvm::DenseMap<mlir::Value, unsigned> ivToId;
   for (unsigned i = 0; i < numIVs; i++) {
-    mlir::AffineForOp forOp = cast<mlir::AffineForOp>(forOps[i]);
+    mlir::affine::AffineForOp forOp =
+        cast<mlir::affine::AffineForOp>(forOps[i]);
     // forOp.dump();
     ivToId[forOp.getInductionVar()] = i;
   }
@@ -452,7 +454,7 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
     ss << "i" << i << " ";
 
   mlir::func::CallOp caller = stmt.getCaller();
-  mlir::FuncOp callee = stmt.getCallee();
+  mlir::func::FuncOp callee = stmt.getCallee();
   ss << "\n" << callee.getName() << "(";
 
   SmallVector<std::string, 8> ivs;
@@ -488,16 +490,16 @@ void OslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
   addGeneric(stmtId + 1, "body", body);
 }
 
-void OslScop::initializeSymbolTable(mlir::FuncOp f,
-                                    FlatAffineValueConstraints *cst) {
+void OslScop::initializeSymbolTable(mlir::func::FuncOp f,
+                                    affine::FlatAffineValueConstraints *cst) {
   symbolTable.clear();
 
-  unsigned numDimIds = cst->getNumDimIds();
-  unsigned numSymbolIds = cst->getNumDimAndSymbolIds() - numDimIds;
+  unsigned numDimIds = cst->getNumDimVars();
+  unsigned numSymbolIds = cst->getNumDimAndSymbolVars() - numDimIds;
 
   SmallVector<mlir::Value, 8> dimValues, symbolValues;
   cst->getValues(0, numDimIds, &dimValues);
-  cst->getValues(numDimIds, cst->getNumDimAndSymbolIds(), &symbolValues);
+  cst->getValues(numDimIds, cst->getNumDimAndSymbolVars(), &symbolValues);
 
   // Setup the symbol table.
   for (unsigned i = 0; i < numDimIds; i++) {
@@ -550,12 +552,12 @@ bool OslScop::isConstantSymbol(llvm::StringRef name) const {
   return name.startswith("C");
 }
 
-void OslScop::createConstraintRows(FlatAffineValueConstraints &cst,
+void OslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
                                    SmallVectorImpl<int64_t> &rows, bool isEq) {
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
-  unsigned numDimIds = cst.getNumDimIds();
-  unsigned numLocalIds = cst.getNumLocalIds();
-  unsigned numSymbolIds = cst.getNumSymbolIds();
+  unsigned numDimIds = cst.getNumDimVars();
+  unsigned numLocalIds = cst.getNumLocalVars();
+  unsigned numSymbolIds = cst.getNumSymbolVars();
 
   for (unsigned i = 0; i < numRows; i++) {
     // Get the row based on isEq.
@@ -567,23 +569,26 @@ void OslScop::createConstraintRows(FlatAffineValueConstraints &cst,
 
     // Dims stay at the same positions.
     for (unsigned j = 0; j < numDimIds; j++)
-      rows[i * numCols + j] = row[j];
+      rows[i * numCols + j] = (int64_t)row[j];
     // Output local ids before symbols.
     for (unsigned j = 0; j < numLocalIds; j++)
-      rows[i * numCols + j + numDimIds] = row[j + numDimIds + numSymbolIds];
+      rows[i * numCols + j + numDimIds] =
+          (int64_t)row[j + numDimIds + numSymbolIds];
     // Output symbols in the end.
     for (unsigned j = 0; j < numSymbolIds; j++)
-      rows[i * numCols + j + numDimIds + numLocalIds] = row[j + numDimIds];
+      rows[i * numCols + j + numDimIds + numLocalIds] =
+          (int64_t)row[j + numDimIds];
     // Finally outputs the constant.
-    rows[i * numCols + numCols - 1] = row[numCols - 1];
+    rows[i * numCols + numCols - 1] = (int64_t)row[numCols - 1];
   }
 }
 
 void OslScop::createAccessRelationConstraints(
-    mlir::AffineValueMap &vMap, mlir::FlatAffineValueConstraints &cst,
-    mlir::FlatAffineValueConstraints &domain) {
-  cst.reset();
-  cst.mergeAndAlignIdsWithOther(0, &domain);
+    mlir::affine::AffineValueMap &vMap,
+    mlir::affine::FlatAffineValueConstraints &cst,
+    mlir::affine::FlatAffineValueConstraints &domain) {
+  cst = mlir::affine::FlatAffineValueConstraints();
+  cst.mergeAndAlignVarsWithOther(0, &domain);
 
   LLVM_DEBUG({
     dbgs() << "Building access relation.\n"
@@ -592,7 +597,7 @@ void OslScop::createAccessRelationConstraints(
   });
 
   SmallVector<mlir::Value, 8> idValues;
-  domain.getAllValues(&idValues);
+  domain.getValues(0, domain.getNumDimAndSymbolVars(), &idValues);
   llvm::SetVector<mlir::Value> idValueSet;
   for (auto val : idValues)
     idValueSet.insert(val);
@@ -605,7 +610,8 @@ void OslScop::createAccessRelationConstraints(
 
   // The results of the affine value map, which are the access addresses, will
   // be placed to the leftmost of all columns.
-  assert(cst.composeMap(&vMap).succeeded());
+  auto ret = cst.composeMap(&vMap).succeeded();
+  assert(ret);
 }
 
 OslScop::SymbolTable *OslScop::getSymbolTable() { return &symbolTable; }

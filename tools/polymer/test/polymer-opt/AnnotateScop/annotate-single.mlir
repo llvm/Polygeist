@@ -1,12 +1,12 @@
 // RUN: polymer-opt %s -annotate-scop="functions=foo" | FileCheck %s
 
-func @foo() {
+func.func @foo() {
   return
 } 
  
-func @bar() {
+func.func @bar() {
   return
 } 
 
-// CHECK: func @foo() {
-// CHECK: func @bar() attributes {scop.ignored} {
+// CHECK: func.func @foo() {
+// CHECK: func.func @bar() attributes {scop.ignored} {

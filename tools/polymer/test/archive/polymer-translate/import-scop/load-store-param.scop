@@ -83,7 +83,7 @@ c0 i0 c2
 
 // CHECK:      func @main(%[[ARG0:.*]]: index, %[[ARG1:.*]]: memref<?xf32>) {
 // CHECK-NEXT:   affine.for %[[ARG2:.*]] = 0 to %[[ARG0]] {
-// CHECK-NEXT:     call @S0(%[[ARG1]], %[[ARG1]], %[[ARG2]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
+// CHECK-NEXT:     func.call @S0(%[[ARG1]], %[[ARG1]], %[[ARG2]]) : (memref<?xf32>, memref<?xf32>, index) -> ()
 // CHECK-NEXT:   }
 // CHECK-NEXT:   return
 // CHECK-NEXT: }

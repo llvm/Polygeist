@@ -68,7 +68,7 @@ void insertStatement(ScatTreeNodeImpl *root, ArrayRef<Operation *> enclosingOps,
     Operation *op = enclosingOps[i];
     // We only handle for op here.
     // TODO: is it necessary to deal with if?
-    if (auto forOp = dyn_cast<AffineForOp>(op)) {
+    if (auto forOp = dyn_cast<affine::AffineForOp>(op)) {
       SmallVector<mlir::Value, 4> indices;
       extractForInductionVars(forOp, &indices);
 

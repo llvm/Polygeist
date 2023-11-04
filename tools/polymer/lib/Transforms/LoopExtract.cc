@@ -10,9 +10,9 @@
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Affine/Utils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
@@ -27,20 +27,21 @@
 #define DEBUG_TYPE "loop-extract"
 
 using namespace mlir;
+using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 
 /// Check if the provided function has point loops in it.
 static bool hasPointLoops(FuncOp f) {
   bool hasPointLoop = false;
-  f.walk([&](mlir::AffineForOp forOp) {
+  f.walk([&](mlir::affine::AffineForOp forOp) {
     if (!hasPointLoop)
       hasPointLoop = forOp->hasAttr("scop.point_loop");
   });
   return hasPointLoop;
 }
 
-static bool isPointLoop(mlir::AffineForOp forOp) {
+static bool isPointLoop(mlir::affine::AffineForOp forOp) {
   return forOp->hasAttr("scop.point_loop");
 }
 
@@ -67,7 +68,7 @@ static void getArgs(Operation *parentOp, llvm::SetVector<Value> &args) {
   });
 }
 
-static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
+static FuncOp createCallee(mlir::affine::AffineForOp forOp, int id, FuncOp f,
                            OpBuilder &b) {
   ModuleOp m = f->getParentOfType<ModuleOp>();
   OpBuilder::InsertionGuard guard(b);
@@ -77,7 +78,7 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
   // globally.
   std::string calleeName =
       f.getName().str() + std::string("__PE") + std::to_string(id);
-  FunctionType calleeType = b.getFunctionType(llvm::None, llvm::None);
+  FunctionType calleeType = b.getFunctionType({}, {});
   FuncOp callee = b.create<FuncOp>(forOp.getLoc(), calleeName, calleeType);
   callee.setVisibility(SymbolTable::Visibility::Private);
 
@@ -89,10 +90,10 @@ static FuncOp createCallee(mlir::AffineForOp forOp, int id, FuncOp f,
   llvm::SetVector<Value> args;
   getArgs(forOp, args);
 
-  BlockAndValueMapping mapping;
+  IRMapping mapping;
   for (Value arg : args)
     mapping.map(arg, entry->addArgument(arg.getType(), arg.getLoc()));
-  callee.setType(b.getFunctionType(entry->getArgumentTypes(), llvm::None));
+  callee.setType(b.getFunctionType(entry->getArgumentTypes(), {}));
 
   b.clone(*forOp.getOperation(), mapping);
 
@@ -115,8 +116,8 @@ static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
   llvm::SetVector<Operation *> extracted;
 
   for (Operation *caller : callers) {
-    SmallVector<mlir::AffineForOp, 4> forOps;
-    getLoopIVs(*caller, &forOps);
+    SmallVector<mlir::affine::AffineForOp, 4> forOps;
+    affine::getAffineForIVs(*caller, &forOps);
 
     int pointBandStart = forOps.size();
     while (pointBandStart > 0 && isPointLoop(forOps[pointBandStart - 1])) {
@@ -127,7 +128,7 @@ static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
     if (static_cast<size_t>(pointBandStart) == forOps.size())
       continue;
 
-    mlir::AffineForOp pointBandStartLoop = forOps[pointBandStart];
+    mlir::affine::AffineForOp pointBandStartLoop = forOps[pointBandStart];
 
     // Already visited.
     if (extracted.contains(pointBandStartLoop))
@@ -141,7 +142,6 @@ static int extractPointLoops(FuncOp f, int startId, OpBuilder &b) {
   return startId;
 }
 
-namespace {
 struct ExtractPointLoopsPass
     : public mlir::PassWrapper<ExtractPointLoopsPass, OperationPass<ModuleOp>> {
   void runOnOperation() override {
@@ -159,7 +159,6 @@ struct ExtractPointLoopsPass
       startId += extractPointLoops(f, startId, b);
   }
 };
-} // namespace
 
 void polymer::registerLoopExtractPasses() {
   // PassRegistration<ExtractPointLoopsPass>();
