@@ -1,4 +1,4 @@
-baseURL = "https://polygeist.mit.edu/"
+baseURL = "https://polygeist.llvm.org/"
 languageCode = "en-us"
 title = "Polygeist"
 theme = "mlir"
