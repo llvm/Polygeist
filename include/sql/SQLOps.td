@@ -14,6 +14,7 @@ include "SQLDialect.td"
 include "SQLTypes.td"
 
 
+
 class SQL_Op<string mnemonic, list<Trait> traits = []>
     : Op<SQL_Dialect, mnemonic, traits>; 
 
@@ -61,7 +62,7 @@ def CalcBoolOp: SQL_Op<"calc_bool", [Pure]> {
 def AndOp: SQL_Op<"and", [Pure]> {
   let summary = "and op";
 
-  let arguments = (ins Variadic<SQLBoolType>:$expr);
+  let arguments = (ins SQLBoolType:$left, SQLBoolType:$right);
   let results = (outs SQLBoolType:$result);
 
   let hasFolder = 0;
@@ -71,7 +72,7 @@ def AndOp: SQL_Op<"and", [Pure]> {
 def OrOp: SQL_Op<"or", [Pure]> {
   let summary = "or op";
 
-  let arguments = (ins Variadic<SQLBoolType>:$expr);
+  let arguments = (ins SQLBoolType:$left, SQLBoolType:$right);
   let results = (outs SQLBoolType:$result);
 
   let hasFolder = 0;
@@ -110,6 +111,17 @@ def SQLToStringOp : SQL_Op<"to_string", [Pure]> {
 }    
 
 
+def SQLBoolToStringOp : SQL_Op<"bool_to_string", [Pure]> {
+  let summary = "bool_to_string";
+
+  let arguments = (ins SQLBoolType:$expr);
+  let results = (outs AnyType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}    
+
+
 def SQLStringConcatOp : SQL_Op<"string_concat", [Pure]> {
   let summary = "string_concat";
 
@@ -123,7 +135,6 @@ def SQLStringConcatOp : SQL_Op<"string_concat", [Pure]> {
 def ConstantBoolOp : SQL_Op <"constant_bool", [Pure]> {
   let summary = "constant_bool";
   let results = (outs SQLBoolType:$result);
-  
 }
 
 
@@ -132,9 +143,8 @@ def SelectOp : SQL_Op<"select", [Pure]> {
   // i need to specify the size of a Variadic? 
   let arguments = (ins Variadic<SQLExprType>:$columns,
                     SQLExprType:$table,
-                    // SQLBoolType:$where,
-                    BoolAttr:$selectAll
-                    IntAttr:$limit); 
+                    SQLExprType:$where,
+                    SI64Attr:$limit); 
                     // attribute limit<int> if >= 0 then its the real thing, otherwise its infinity
   let results = (outs SQLExprType:$result);
 
