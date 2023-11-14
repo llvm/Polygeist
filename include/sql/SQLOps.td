@@ -49,11 +49,34 @@ def WhereOp: SQL_Op<"where", [Pure]> {
   let hasCanonicalizer = 0;
 } 
 
+def BoolArithOp: SQL_Op<"bool_arith", [Pure]> {
+  let summary = "bool_arith op";
+
+  let arguments = (ins SQLBoolType:$left, SQLBoolType:$right, StrAttr:$op);
+  let results = (outs SQLBoolType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
 def CalcBoolOp: SQL_Op<"calc_bool", [Pure]> {
   let summary = "calc_bool op";
 
   let arguments = (ins StrAttr:$expr);
   let results = (outs SQLBoolType:$result);
+
+  let hasFolder = 0;
+  let hasCanonicalizer = 0;
+}
+
+
+
+
+def ArithOp: SQL_Op<"arith", [Pure]> {
+  let summary = "arith op";
+
+  let arguments = (ins SQLExprType:$left, SQLExprType:$right, StrAttr:$op);
+  let results = (outs SQLExprType:$result);
 
   let hasFolder = 0;
   let hasCanonicalizer = 0;

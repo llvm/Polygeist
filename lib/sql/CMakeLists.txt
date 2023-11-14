@@ -3,6 +3,7 @@ Types.cpp
 Dialect.cpp
 Ops.cpp
 Parser.cpp
+NewParser.cpp
 
 
 ADDITIONAL_HEADER_DIRS
@@ -13,7 +14,7 @@ MLIRSQLOpsIncGen
 # MLIRSQLTypesIncGen
 
 LINK_LIBS PUBLIC
-MLIRIR
+MLIRIR sqlparse_lib
 )
 
 add_subdirectory(Passes)

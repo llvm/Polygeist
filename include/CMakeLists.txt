@@ -1,2 +1,4 @@
 add_subdirectory(polygeist)
-add_subdirectory(sql)
+if (ENABLE_SQL)
+  add_subdirectory(sql)
+endif()
