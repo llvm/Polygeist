@@ -69,8 +69,8 @@ struct LowerGPUAlternativesOp
         if (alt >= 0 && alt < numAlternatives) {
           timings[alt].push_back(time);
         } else {
-          llvm::errs() << "Invalid alternative data";
-          assert(0);
+          llvm::errs() << "Invalid alternative data for " << alt
+                       << ", ignoring\n";
         }
       }
       std::vector<double> avgs;
