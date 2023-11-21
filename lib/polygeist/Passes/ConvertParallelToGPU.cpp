@@ -79,9 +79,34 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike);
 
 namespace {
 
-static void shrinkAlternativesOpImpl(polygeist::AlternativesOp alternativesOp,
-                                     unsigned size, OpBuilder &builder) {
+static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
+                                 unsigned size, PatternRewriter &rewriter) {
   // New AOP with the exact number of regions needed
+  mlir::OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(alternativesOp);
+  auto newAop = rewriter.create<polygeist::AlternativesOp>(
+      alternativesOp->getLoc(), size);
+  newAop->setAttr("alternatives.type",
+                  alternativesOp->getAttr("alternatives.type"));
+  assert(newAop->getNumRegions() > 0);
+
+  auto oldDescs =
+      alternativesOp->getAttrOfType<ArrayAttr>("alternatives.descs");
+
+  std::vector<Attribute> descs;
+  for (unsigned i = 0; i < newAop->getNumRegions(); i++) {
+    auto &region = alternativesOp->getRegion(i);
+    auto &newRegion = newAop->getRegion(i);
+    rewriter.inlineRegionBefore(region, newRegion, newRegion.begin());
+    descs.push_back(oldDescs[i]);
+  }
+  newAop->setAttr("alternatives.descs", rewriter.getArrayAttr(descs));
+  rewriter.eraseOp(alternativesOp);
+}
+static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
+                                 unsigned size, OpBuilder &builder) {
+  // New AOP with the exact number of regions needed
+  mlir::OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPoint(alternativesOp);
   auto newAop =
       builder.create<polygeist::AlternativesOp>(alternativesOp->getLoc(), size);
@@ -99,15 +124,6 @@ static void shrinkAlternativesOpImpl(polygeist::AlternativesOp alternativesOp,
     descs.push_back(oldDescs[i]);
   }
   newAop->setAttr("alternatives.descs", builder.getArrayAttr(descs));
-}
-static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
-                                 unsigned size, PatternRewriter &rewriter) {
-  shrinkAlternativesOpImpl(alternativesOp, size, rewriter);
-  rewriter.eraseOp(alternativesOp);
-}
-static void shrinkAlternativesOp(polygeist::AlternativesOp alternativesOp,
-                                 unsigned size, OpBuilder &builder) {
-  shrinkAlternativesOpImpl(alternativesOp, size, builder);
   alternativesOp->erase();
 }
 
