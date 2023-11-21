@@ -42,7 +42,8 @@ struct LowerGPUAlternativesOp
         "gpu_kernel")
       return failure();
 
-    auto locStr = gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+    auto locStr =
+        gao->getAttrOfType<StringAttr>("polygeist.altop.id").getValue().str();
 
     auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
 

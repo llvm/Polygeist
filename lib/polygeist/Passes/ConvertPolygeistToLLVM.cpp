@@ -1450,7 +1450,7 @@ struct LowerGPUAlternativesOp
 
     Location loc = gao->getLoc();
     std::string locStr =
-        gao->getAttrOfType<StringAttr>("polygeist.altop.id").data();
+        gao->getAttrOfType<StringAttr>("polygeist.altop.id").getValue().str();
 
     auto descs = gao->getAttrOfType<ArrayAttr>("alternatives.descs");
 
@@ -1550,7 +1550,8 @@ struct LowerGPUAlternativesOp
           CUfunction cuFunction;
           RETURN_ON_CUDA_ERROR(cuModuleLoadData(&cuModule, blob));
           RETURN_ON_CUDA_ERROR(cuModuleGetFunction(
-              &cuFunction, cuModule, launchOp.getKernelName().data()));
+              &cuFunction, cuModule,
+              launchOp.getKernelName().getValue().str().c_str()));
 
           int maxThreadsPerBlock, sharedMemSize, constMemSize,
               /* stack frame size */ localMemSize, numRegs;
@@ -1643,7 +1644,8 @@ struct LowerGPUAlternativesOp
           hipFunction_t hipFunction;
           RETURN_ON_HIP_ERROR(hipModuleLoadData(&hipModule, blob));
           RETURN_ON_HIP_ERROR(hipModuleGetFunction(
-              &hipFunction, hipModule, launchOp.getKernelName().data()));
+              &hipFunction, hipModule,
+              launchOp.getKernelName().getValue().str().c_str()));
 
           int maxThreadsPerBlock, sharedMemSize, constMemSize,
               /* stack frame size */ localMemSize, numRegs;
