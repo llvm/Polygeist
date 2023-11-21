@@ -275,8 +275,8 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
     PatternRewriter::InsertionGuard B(rewriter);
     rewriter.setInsertionPoint(front);
     auto cloned = rewriter.clone(*op);
-    rewriter.replaceOp(op, cloned->getResults());
     replaceOp(op, cloned);
+    rewriter.replaceOp(op, cloned->getResults());
     return cloned->getResult(0);
   };
   auto renumberOneSymbol = [&](Value v) {
