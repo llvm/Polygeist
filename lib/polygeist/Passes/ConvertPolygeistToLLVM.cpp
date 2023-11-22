@@ -1769,9 +1769,13 @@ struct LowerGPUAlternativesOp
     } else if (PolygeistAlternativesMode == PAM_PGO_Profile) {
       rewriter.setInsertionPoint(gao);
       static int num = 0;
+      // Append `\0` to follow C style string given that
+      // LLVM::createGlobalString() won't handle this directly for us.
+      SmallString<16> nullTermLocStr(locStr.begin(), locStr.end());
+      nullTermLocStr.push_back('\0');
       auto kernelId = LLVM::createGlobalString(
           loc, rewriter, std::string("kernelId.") + std::to_string(num++),
-          locStr, LLVM::Linkage::Internal);
+          nullTermLocStr, LLVM::Linkage::Internal);
       auto totalAlternatives = rewriter.create<LLVM::ConstantOp>(
           loc, llvmInt32Type, gao->getNumRegions());
       auto alternative =
