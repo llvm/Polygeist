@@ -131,7 +131,7 @@ __mgpurtUnregisterFatBinary(void **fatCubinHandle) {
   return __hipUnregisterFatBinary(fatCubinHandle);
 }
 
-#if POLYGEIST_ENABLE_CUDA
+#ifndef DISABLE_CUDA_TO_ROCM
 
 #pragma push_macro("__forceinline__")
 #define __VECTOR_TYPES_H__

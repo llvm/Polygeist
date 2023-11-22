@@ -69,6 +69,12 @@ if(POLYGEIST_ENABLE_ROCM)
   list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} "${ROCM_PATH}/hip")
   find_package(hip REQUIRED)
 
+  if (DEFINED CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
+    set(cuda_includes
+      -I${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+    )
+  endif()
+
   # Bitcode lib wrapper
   find_program(CLANG_TOOL clang PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
