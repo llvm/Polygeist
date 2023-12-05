@@ -537,24 +537,8 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
   IfScope scope(*this);
 
   auto loc = getMLIRLocation(par->getBeginLoc());
-  auto affineOp = builder.create<omp::ParallelOp>(loc);
-
-  auto oldpoint = builder.getInsertionPoint();
-  auto *oldblock = builder.getInsertionBlock();
-
-  affineOp.getRegion().push_back(new Block());
-  builder.setInsertionPointToStart(&affineOp.getRegion().front());
-
-  auto executeRegion =
-      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
-  executeRegion.getRegion().push_back(new Block());
-  builder.create<omp::TerminatorOp>(loc);
-  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
-
-  auto *oldScope = allocationScope;
-  allocationScope = &executeRegion.getRegion().back();
-
   std::map<VarDecl *, ValueCategory> prevInduction;
+  Value numThreads;
   for (auto *f : par->clauses()) {
     switch (f->getClauseKind()) {
     case llvm::omp::OMPC_private:
@@ -582,11 +566,38 @@ MLIRScanner::VisitOMPParallelDirective(clang::OMPParallelDirective *par) {
         params[name].store(loc, builder, prevInduction[name], isArray);
       }
       break;
+    case llvm::omp::OMPC_num_threads: {
+      auto *numThreadsClause = cast<OMPNumThreadsClause>(f);
+      numThreadsClause->getNumThreads();
+      numThreads =
+          Visit(numThreadsClause->getNumThreads()).getValue(loc, builder);
+      break;
+    }
     default:
       llvm::errs() << "may not handle omp clause " << (int)f->getClauseKind()
                    << "\n";
     }
   }
+  auto affineOp = builder.create<omp::ParallelOp>(
+      loc, /*if_expr_var*/ Value{}, numThreads, /*allocate_vars*/ ValueRange{},
+      /*allocators_vars*/ ValueRange{}, /*reduction_vars*/ ValueRange{},
+      /*reductions*/ ArrayAttr{},
+      /*proc_bind_val*/ omp::ClauseProcBindKindAttr{});
+
+  auto oldpoint = builder.getInsertionPoint();
+  auto *oldblock = builder.getInsertionBlock();
+
+  affineOp.getRegion().push_back(new Block());
+  builder.setInsertionPointToStart(&affineOp.getRegion().front());
+
+  auto executeRegion =
+      builder.create<scf::ExecuteRegionOp>(loc, ArrayRef<mlir::Type>());
+  executeRegion.getRegion().push_back(new Block());
+  builder.create<omp::TerminatorOp>(loc);
+  builder.setInsertionPointToStart(&executeRegion.getRegion().back());
+
+  auto *oldScope = allocationScope;
+  allocationScope = &executeRegion.getRegion().back();
 
   Visit(cast<CapturedStmt>(par->getAssociatedStmt())
             ->getCapturedDecl()
