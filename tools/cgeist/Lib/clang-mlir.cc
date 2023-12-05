@@ -4432,7 +4432,25 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     return ValueCategory(res, /*isReference*/ false);
   }
-
+    //===- test code snippet--------------------------------------------*- C-*-===//
+    //Run ./cgeist -S -function="complex_test" complex.c
+    // #include<complex.h>
+    // _Complex double complex_test(void){
+    // _Complex double z=1.0;
+    // return z;
+    //}
+    //===----------------------------------------------------------------------===//
+  case clang::CastKind::CK_FloatingRealToComplex:{
+    auto sub = Visit(E->getSubExpr());
+    auto complex = sub.val;
+    auto real = sub.getValue(loc,builder);
+    mlir::FloatType fty;
+    fty = complex.getType().dyn_cast<mlir::FloatType>();
+    auto zero = builder.create<ConstantFloatOp>(
+        loc, APFloat(fty.getFloatSemantics(),"0"),fty
+        );
+    return createComplexFloat(loc,real,zero,E->getType());
+  }
   default:
     if (EmittingFunctionDecl)
       EmittingFunctionDecl->dump();
