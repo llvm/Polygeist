@@ -77,4 +77,3 @@ ninja check-polygeist-opt && ninja check-cgeist
 
 `ninja check-polygeist-opt` runs the tests in `Polygeist/test/polygeist-opt`
 `ninja check-cgeist` runs the tests in `Polygeist/tools/cgeist/Test`
-### 1. It's just a test
