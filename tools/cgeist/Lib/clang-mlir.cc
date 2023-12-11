@@ -4448,7 +4448,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(convertedType)) {
       fty = ST.getBody()[0].cast<FloatType>();
     } else {
-      assert(0 && "unexpected complex type\n");
+      assert(0 && "unexpected complex type");
     }
     auto zero = builder.create<ConstantFloatOp>(
         loc, APFloat(fty.getFloatSemantics(), "0"), fty);
