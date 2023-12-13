@@ -4432,6 +4432,28 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     return ValueCategory(res, /*isReference*/ false);
   }
+  case clang::CastKind::CK_FloatingRealToComplex: {
+    auto sub = Visit(E->getSubExpr());
+    auto complex = sub.val;
+    auto convertedType = getMLIRType(E->getType());
+    auto real = sub.getValue(loc, builder);
+    mlir::FloatType fty;
+    if (auto mt = convertedType.dyn_cast<MemRefType>()) {
+      auto elty = mt.getElementType();
+      if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(elty)) {
+        fty = ST.getBody()[0].cast<FloatType>();
+      } else {
+        fty = elty.cast<FloatType>();
+      }
+    } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(convertedType)) {
+      fty = ST.getBody()[0].cast<FloatType>();
+    } else {
+      assert(0 && "unexpected complex type");
+    }
+    auto zero = builder.create<ConstantFloatOp>(
+        loc, APFloat(fty.getFloatSemantics(), "0"), fty);
+    return createComplexFloat(loc, real, zero, E->getType());
+  }
 
   default:
     if (EmittingFunctionDecl)
