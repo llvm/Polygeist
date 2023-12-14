@@ -1,3 +1,11 @@
+# Retargeting and Respecializing GPU Workloads for Performance Portability: Code Repository
+
+This repository contains the source code for the compiler Polygeist.
+
+For the benchmarks used for evaluation, see https://github.com/ivanradanov/rodinia/tree/cgo24
+
+Our combined artifact can be found at https://zenodo.org/records/10202370 with DOI `10.5281/zenodo.10202369`.
+
 ## Build instructions
 
 ### Requirements 
