@@ -77,3 +77,38 @@ ninja check-polygeist-opt && ninja check-cgeist
 
 `ninja check-polygeist-opt` runs the tests in `Polygeist/test/polygeist-opt`
 `ninja check-cgeist` runs the tests in `Polygeist/tools/cgeist/Test`
+
+## Citing Polygeist
+
+If you use Polygeist, please consider citing the relevant publications:
+
+``` bibtex
+@inproceedings{polygeistPACT,
+  title = {Polygeist: Raising C to Polyhedral MLIR},
+  author = {Moses, William S. and Chelini, Lorenzo and Zhao, Ruizhe and Zinenko, Oleksandr},
+  booktitle = {Proceedings of the ACM International Conference on Parallel Architectures and Compilation Techniques},
+  numpages = {12},
+  location = {Virtual Event},
+  series = {PACT '21},
+  publisher = {Association for Computing Machinery},
+  year = {2021},
+  address = {New York, NY, USA},
+  keywords = {Polygeist, MLIR, Polyhedral, LLVM, Compiler, C++, Pluto, Polly, OpenScop, Parallel, OpenMP, Affine, Raising, Transformation, Splitting, Automatic-Parallelization, Reduction, Polybench},
+}
+@inproceedings{10.1145/3572848.3577475,
+  author = {Moses, William S. and Ivanov, Ivan R. and Domke, Jens and Endo, Toshio and Doerfert, Johannes and Zinenko, Oleksandr},
+  title = {High-Performance GPU-to-CPU Transpilation and Optimization via High-Level Parallel Constructs},
+  year = {2023},
+  isbn = {9798400700156},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3572848.3577475},
+  doi = {10.1145/3572848.3577475},
+  booktitle = {Proceedings of the 28th ACM SIGPLAN Annual Symposium on Principles and Practice of Parallel Programming},
+  pages = {119–134},
+  numpages = {16},
+  keywords = {MLIR, polygeist, CUDA, barrier synchronization},
+  location = {Montreal, QC, Canada},
+  series = {PPoPP '23}
+}
+```
