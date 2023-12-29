@@ -1824,7 +1824,7 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
                           /*isReference*/ false),
             true);
       }
-            if (sr->getDecl()->getIdentifier() &&
+      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "expf" ||
            sr->getDecl()->getName() == "exp")) {
         std::vector<mlir::Value> args;
