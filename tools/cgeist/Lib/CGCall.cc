@@ -541,6 +541,22 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
         ValueCategory(builder.create<arith::ConstantIntOp>(loc, 0, resultType),
                       /*isRef*/ false));
   }
+case Builtin::BIsqrt:
+  case Builtin::BIsqrtf:
+  case Builtin::BIsqrtl:
+  case Builtin::BI__builtin_sqrt:
+  case Builtin::BI__builtin_sqrtf:
+  case Builtin::BI__builtin_sqrtf16:
+  case Builtin::BI__builtin_sqrtl:
+  case Builtin::BI__builtin_sqrtf128:
+  case Builtin::BI__builtin_elementwise_sqrt: {
+    auto v = Visit(expr->getArg(0));
+    assert(!v.isReference);
+    Value res = builder.create<math::SqrtOp>(loc, v.val);
+    auto postTy = getMLIRType(expr->getType());
+    return success(
+        ValueCategory(res, /*isRef*/ false));
+  }
   case Builtin::BI__builtin_clzs:
   case Builtin::BI__builtin_clz:
   case Builtin::BI__builtin_clzl:
