@@ -1825,18 +1825,6 @@ MLIRScanner::EmitBuiltinOps(clang::CallExpr *expr) {
             true);
       }
       if (sr->getDecl()->getIdentifier() &&
-          (sr->getDecl()->getName() == "sqrtf" ||
-           sr->getDecl()->getName() == "sqrt")) {
-        std::vector<mlir::Value> args;
-        for (auto a : expr->arguments()) {
-          args.push_back(Visit(a).getValue(loc, builder));
-        }
-        return make_pair(
-            ValueCategory(builder.create<mlir::math::SqrtOp>(loc, args[0]),
-                          /*isReference*/ false),
-            true);
-      }
-      if (sr->getDecl()->getIdentifier() &&
           (sr->getDecl()->getName() == "expf" ||
            sr->getDecl()->getName() == "exp")) {
         std::vector<mlir::Value> args;
