@@ -6136,6 +6136,10 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> filenames,
         Act.EndSourceFile();
       }
     }
+
+    if (Clang->getDiagnostics().hasErrorOccurred()) {
+      return false;
+    }
   }
   return true;
 }

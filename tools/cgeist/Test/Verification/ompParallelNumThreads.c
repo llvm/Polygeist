@@ -1,5 +1,6 @@
 // RUN: cgeist %s --function=* -fopenmp -S | FileCheck %s
-#include <omp.h>
+
+int omp_get_thread_num();
 
 void test_parallel_num_threads(double* x, int sinc) {
     // CHECK: %[[c32:.+]] = arith.constant 32 : i32
