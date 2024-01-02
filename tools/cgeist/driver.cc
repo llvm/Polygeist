@@ -573,7 +573,6 @@ int main(int argc, char **argv) {
   llvm::DataLayout gpuDL("");
   if (!parseMLIR(argv[0], files, cfunction, includeDirs, defines, module,
                  triple, DL, gpuTriple, gpuDL)) {
-    llvm::errs() << "parseMLIR failed\n";
     return 1;
   }
 

@@ -1,3 +1,4 @@
-// RUN: not cgeist %s --function=* -S
+// RUN: cgeist %s --function=* -S
+// XFAIL: *
 
 int main() {
