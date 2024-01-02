@@ -1,4 +1,4 @@
-// RUN: cgeist %s -S --function=main -memref-fullrank -O0 | FileCheck %s
+// RUN: cgeist %s -S %stdinclude --function=main -memref-fullrank -O0 | FileCheck %s
 
 #include <stdio.h>
 
