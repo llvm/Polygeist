@@ -40,6 +40,9 @@ include_directories("${OSL_INCLUDE_DIR}")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
 include_directories("${CLOOG_INCLUDE_DIR}")
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ISL.cmake")
+include_directories("${ISL_INCLUDE_DIR}")
+
 
 # ------------------------------------------------- This project
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")

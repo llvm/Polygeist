@@ -109,3 +109,22 @@ if ! test -f "$CLOOG_PREFIX/.DONE"; then
     make install -j
     touch "$CLOOG_PREFIX/.DONE"
 fi
+
+ISL_PREFIX="$ROOT_DIR/isl"
+ISL_SRC_DIR="$ISL_PREFIX/isl"
+ISL_INSTALL_DIR="$ISL_PREFIX/install"
+if ! test -f "$ISL_PREFIX/.DONE"; then
+    mkdir -p "$ISL_PREFIX"
+    cd "$ISL_PREFIX"
+
+
+    git clone git://repo.or.cz/isl.git "$ISL_SRC_DIR" || true
+    cd "$ISL_SRC_DIR"
+    git checkout 2dd3f0f5f1f37360d008a4fb3d4f531e18f0620d
+
+    "./autogen.sh"
+    "./configure" --prefix="$ISL_INSTALL_DIR"
+
+    make install -j
+    touch "$ISL_PREFIX/.DONE"
+fi
