@@ -60,10 +60,17 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIROpenMPToLLVM
   )
 
-target_link_libraries(MLIRPolygeistTransforms
-  PRIVATE
-  stdc++fs
-  )
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+    target_link_libraries(MLIRPolygeistTransforms PUBLIC stdc++fs)
+  endif()
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7)
+    target_link_libraries(MLIRPolygeistTransforms PUBLIC c++experimental)
+  elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+    target_link_libraries(MLIRPolygeistTransforms PUBLIC c++fs)
+  endif()
+endif()
 
 target_compile_definitions(obj.MLIRPolygeistTransforms
   PRIVATE

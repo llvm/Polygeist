@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s %stdinclude --function=* -S | FileCheck %s
 
 #include <stdlib.h>
     struct band {
