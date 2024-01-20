@@ -8,8 +8,8 @@
 
 #include "polygeist/Dialect.h"
 #include "mlir/IR/DialectImplementation.h"
-#include "polygeist/Ops.h"
 #include "mlir/Transforms/InliningUtils.h"
+#include "polygeist/Ops.h"
 
 using namespace mlir;
 using namespace mlir::polygeist;
