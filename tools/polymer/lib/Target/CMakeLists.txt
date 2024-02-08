@@ -17,3 +17,23 @@ add_mlir_translation_library(PolymerTargetOpenScop
 
   PolymerSupport
 )
+
+add_mlir_translation_library(PolymerTargetISL
+  ISL/ConvertFromISL.cc
+  ISL/ConvertToISL.cc
+
+  ADDITIONAL_HEADER_DIRS
+  ${POLYMER_MAIN_INCLUDE_DIR}/polymer/Target/ISL
+
+  LINK_COMPONENTS
+  Core
+  TransformUtils
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  MLIRAffineDialect
+  MLIRAffineUtils
+  MLIRSupport
+
+  PolymerSupport
+)
