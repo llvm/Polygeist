@@ -4,6 +4,7 @@
 // This file implements the command-line tool that converts between
 //
 //===----------------------------------------------------------------------===//
+#include "polymer/Target/ISL.h"
 #include "polymer/Target/OpenScop.h"
 
 #include "llvm/Support/CommandLine.h"
@@ -57,6 +58,8 @@ int main(int argc, char *argv[]) {
   // Register translation.
   registerToOpenScopTranslation();
   registerFromOpenScopTranslation();
+  registerToIslTranslation();
+  registerFromIslTranslation();
 
   // Add flags for all the registered translations.
   llvm::cl::opt<const Translation *, false, TranslationParser>

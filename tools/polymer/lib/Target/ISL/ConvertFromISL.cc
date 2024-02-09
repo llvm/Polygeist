@@ -19,6 +19,7 @@ extern "C" {
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Support/Utils.h"
+#include "polymer/Target/ISL.h"
 #include "polymer/Target/OpenScop.h"
 
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
@@ -1487,9 +1488,10 @@ static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
     markParallel(root, prog, cloogOptions);
 }
 
-mlir::Operation *polymer::createFuncOpFromOpenScop(
-    std::unique_ptr<OslScop> scop, ModuleOp module, OslSymbolTable &symTable,
-    MLIRContext *context, PlutoProg *prog, const char *dumpClastAfterPluto) {
+mlir::Operation *
+polymer::createFuncOpFromIsl(std::unique_ptr<OslScop> scop, ModuleOp module,
+                             OslSymbolTable &symTable, MLIRContext *context,
+                             PlutoProg *prog, const char *dumpClastAfterPluto) {
   // TODO: turn these C struct into C++ classes.
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
@@ -1549,36 +1551,35 @@ mlir::Operation *polymer::createFuncOpFromOpenScop(
 }
 
 OwningOpRef<ModuleOp>
-polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
-                                   MLIRContext *context) {
+polymer::translateIslToModule(std::unique_ptr<OslScop> scop,
+                              MLIRContext *context) {
   context->loadDialect<affine::AffineDialect>();
   OwningOpRef<ModuleOp> module(ModuleOp::create(
       FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
   OslSymbolTable symTable;
-  if (!createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
-                                context))
+  if (!createFuncOpFromIsl(std::move(scop), module.get(), symTable, context))
     return {};
 
   return module;
 }
 
-static OwningOpRef<ModuleOp>
-translateOpenScopToModule(llvm::SourceMgr &sourceMgr, MLIRContext *context) {
+static OwningOpRef<ModuleOp> translateIslToModule(llvm::SourceMgr &sourceMgr,
+                                                  MLIRContext *context) {
   llvm::SMDiagnostic err;
   std::unique_ptr<OslScop> scop =
       readOpenScop(*sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID()));
 
-  return translateOpenScopToModule(std::move(scop), context);
+  return translateIslToModule(std::move(scop), context);
 }
 
 namespace polymer {
 
-void registerFromOpenScopTranslation() {
+void registerFromIslTranslation() {
   TranslateToMLIRRegistration fromLLVM(
-      "import-scop", "Import SCOP",
+      "import-isl", "Import ISL",
       [](llvm::SourceMgr &sourceMgr, MLIRContext *context) {
-        return ::translateOpenScopToModule(sourceMgr, context);
+        return ::translateIslToModule(sourceMgr, context);
       });
 }
 

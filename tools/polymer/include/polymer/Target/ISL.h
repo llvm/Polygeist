@@ -5,8 +5,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POLYMER_TARGET_OPENSCOP_H
-#define POLYMER_TARGET_OPENSCOP_H
+#ifndef POLYMER_TARGET_ISL_H
+#define POLYMER_TARGET_ISL_H
 
 #include <memory>
 
