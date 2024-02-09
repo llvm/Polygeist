@@ -9,7 +9,7 @@
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Support/ScopStmt.h"
-#include "polymer/Target/OpenScop.h"
+#include "polymer/Target/ISL.h"
 #include "polymer/Transforms/ExtractScopStmt.h"
 
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
@@ -45,7 +45,7 @@ using namespace mlir::func;
 using namespace llvm;
 using namespace polymer;
 
-#define DEBUG_TYPE "oslscop"
+#define DEBUG_TYPE "islscop"
 
 namespace {
 
@@ -321,8 +321,7 @@ void OslScopBuilder::buildScopContext(
 }
 
 std::unique_ptr<OslScop>
-polymer::createOpenScopFromFuncOp(mlir::func::FuncOp f,
-                                  OslSymbolTable &symTable) {
+polymer::createIslFromFuncOp(mlir::func::FuncOp f, OslSymbolTable &symTable) {
   return OslScopBuilder().build(f);
 }
 
@@ -392,7 +391,7 @@ LogicalResult ModuleEmitter::emitFuncOp(
     mlir::func::FuncOp func,
     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   OslSymbolTable symTable;
-  auto scop = createOpenScopFromFuncOp(func, symTable);
+  auto scop = createIslFromFuncOp(func, symTable);
   if (scop)
     scops.push_back(std::move(scop));
   return success();
@@ -417,7 +416,7 @@ void ModuleEmitter::emitMLIRModule(
 } // namespace
 
 /// TODO: should decouple emitter and openscop builder.
-mlir::LogicalResult polymer::translateModuleToOpenScop(
+mlir::LogicalResult polymer::translateModuleToIsl(
     mlir::ModuleOp module,
     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops,
     llvm::raw_ostream &os) {
@@ -430,7 +429,7 @@ mlir::LogicalResult polymer::translateModuleToOpenScop(
 static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
   llvm::SmallVector<std::unique_ptr<OslScop>, 8> scops;
 
-  if (failed(translateModuleToOpenScop(module, scops, os)))
+  if (failed(translateModuleToIsl(module, scops, os)))
     return failure();
 
   for (auto &scop : scops)
@@ -439,7 +438,7 @@ static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
   return success();
 }
 
-void polymer::registerToOpenScopTranslation() {
-  static TranslateFromMLIRRegistration toOpenScop("export-scop", "Export SCOP",
+void polymer::registerToIslTranslation() {
+  static TranslateFromMLIRRegistration toOpenScop("export-isl", "Export ISL",
                                                   emitOpenScop);
 }

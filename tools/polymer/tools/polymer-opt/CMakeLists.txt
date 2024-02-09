@@ -11,6 +11,7 @@ target_link_libraries(polymer-opt
 
   PolymerTransforms
   PolymerTargetOpenScop
+  PolymerTargetISL
 
   MLIRFuncDialect
   MLIRLLVMDialect

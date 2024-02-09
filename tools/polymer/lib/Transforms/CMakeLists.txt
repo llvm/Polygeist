@@ -29,4 +29,5 @@ add_mlir_conversion_library(PolymerTransforms
 
   PolymerSupport
   PolymerTargetOpenScop
+  PolymerTargetISL
 )
