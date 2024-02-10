@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+
+# ----------------------------- GLOBALS ---------------------------------------
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+TMPDIR="${DIR}/tmp"
+POLYBENCH_DIR="${DIR}/../"
+UTILITIES_DIR="${POLYBENCH_DIR}/utilities"
+POLYBENCH_SRC_FILE="${UTILITIES_DIR}/polybench.c"
+
+# Submodules
+BUILD_DIR="${DIR}/../../../build"
+LLVM_DIR="${HOME}/mlir-gpu"
+PLUTO_DIR="${DIR}/../../../pluto"
+
+# Compilation options.
+# -fno-vectorize -fno-slp-vectorize -fno-tree-vectorize -fno-unroll-loops
+CLANG_FLAGS=(-I "${LLVM_DIR}/clang/lib/Headers")
+POLYBENCH_FLAGS=(-I "${UTILITIES_DIR}" -I "${LLVM_DIR}/build/lib/clang/13.0.0/include/" -D POLYBENCH_NO_FLUSH_CACHE )
+LDFLAGS=(-L"${LLVM_DIR}/build/lib" -lm)
+
+# ----------------------------- Setup ENV -------------------------------------
+export PATH="${PATH}:${PLUTO_DIR}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+export PATH="${BUILD_DIR}/bin:${PATH}"
+
+export C_INCLUDE_PATH="${LLVM_DIR}/build/projects/openmp/runtime/src"
+export LD_LIBRARY_PATH="${LLVM_DIR}/build/lib:${BUILD_DIR}/pluto/lib:${LD_LIBRARY_PATH:-""}"
+
+# -----------------------------  Compile  -------------------------------------
+
+# Get the label for split-ids.
+function get_label() {
+  local split_ids=("$@")
+  local label
+  if [ "${#split_ids[@]}" -eq 0 ]; then
+    label="nosplit"
+  else
+    label="split-$( IFS="-"; echo "${split_ids[*]}" )"
+  fi
+  echo "${label}"
+}
+
+function compile_mlir() {
+  local src_file="$1"
+  local dst_file="${src_file%.c}.mlir"
+  local polybench_flags=("${POLYBENCH_FLAGS[@]}")
+  local mode="$2"
+
+  if [ "${mode}" = "debug" ]; then
+    polybench_flags+=( -D MINI_DATASET -D POLYBENCH_DUMP_ARRAYS )
+  else
+    polybench_flags+=( -D EXTRALARGE_DATASET -D POLYBENCH_TIME )
+  fi
+
+  mlir-clang "${src_file}" "${CLANG_FLAGS[@]}" "${polybench_flags[@]}" 2>&1 | tee "${dst_file}" &>/dev/null
+}
+
+function annotate_splittable() {
+  local src_file="$1"
+  local dst_file="${src_file%.mlir}.splittable.mlir"
+
+  polymer-opt -annotate-splittable "${src_file}" 2>&1 | tee "${dst_file}" &>/dev/null
+}
+
+function polymer_opt() {
+  local all_args=("$@")
+  local src_file="$1"
+  local mode="${2:-"seq"}"
+  local split_ids=("${all_args[@]:2}")
+  local label="$(get_label "${split_ids[@]}")"
+  local dst_file="${src_file%.splittable.mlir}.${label}.polymer.${mode}.mlir"
+
+  local polymer_options=()
+  for id in "${split_ids[@]}"; do
+    polymer_options+=(-scop-stmt-split="to-split=${id}")
+  done
+  if (( ${#split_ids[@]} )); then
+    polymer_options+=(-unify-scratchpad)
+  fi
+
+  polymer_options+=("-canonicalize" "-reg2mem" "-insert-redundant-load" "-extract-scop-stmt")
+  if [ "${mode}" = "seq" ]; then
+    polymer_options+=(-pluto-opt -inline)
+  else
+    polymer_options+=(-pluto-opt="parallelize=1" -inline)
+  fi
+  polymer_options+=(-canonicalize)
+
+  polymer-opt "${polymer_options[@]}" "${src_file}" 2>/dev/null | tee "${dst_file}" &>/dev/null
+}
+
+function compile() {
+  local src_file="$1"
+  local mode="${2:-"seq"}"
+  local llvm_file="${src_file%.mlir}.ll"
+  local dst_file="${src_file%.mlir}.exe"
+  local clang_flags=("${CLANG_FLAGS[@]}")
+  clang_flags+=( -D POLYBENCH_TIME )
+
+  if [ "${mode}" = "seq" ]; then
+    mlir-opt -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm "${src_file}" |\
+      mlir-translate -mlir-to-llvmir > "${llvm_file}"
+  else
+    mlir-opt -mem2reg -detect-reduction -mem2reg -canonicalize -affine-parallelize -lower-affine -convert-scf-to-openmp -convert-scf-to-std -convert-openmp-to-llvm \
+      "${src_file}" | mlir-translate -mlir-to-llvmir > "${llvm_file}"
+    clang_flags+=(-fopenmp)
+  fi
+
+  clang "${llvm_file}" "${POLYBENCH_SRC_FILE}" -O3 -march=native "${clang_flags[@]}" -o "${dst_file}" "${LDFLAGS[@]}"
+
+}
+
+# Execute the given executable and return the overall run time.
+# The execution process will be wrapped in taskset.
+function run() {
+  local exe_file="$1"
+  local num_runs=$2
+  local aff="${3:-"1-8"}"
+  local i=0
+
+  result_str="$(basename "${exe_file%.exe}")"
+  until [ $i -ge "${num_runs}" ]; do
+    result_str="${result_str},$(taskset -c "${aff}" numactl -i all "${exe_file}")"
+    ((i=i+1))
+  done
+
+  echo "${result_str}"
+}
+
+# Update build if necessary
+function try_rebuild() {
+  cd "${PWD}/../../../build" && cmake --build . --target all >/dev/null 2>&1  && cd - &>/dev/null
+}
+
+ALL_ARGS=("$@")
+TARGET="${1}/${1}.c"
+SPLIT_IDS=("${ALL_ARGS[@]:1}")
+
+LABEL="$(get_label "${SPLIT_IDS[@]}")"
+
+echo ""
+echo "    TARGET: ${TARGET}"
+echo "    SPLIT_IDS: ${SPLIT_IDS[@]}"
+echo ""
+
+try_rebuild
+
+# sanity check
+echo ">>> Sanity check ..."
+compile_mlir "${TARGET}" "debug"
+annotate_splittable "${TARGET%.c}.mlir"
+polymer_opt "${TARGET%.c}.splittable.mlir" "seq" "${SPLIT_IDS[@]}"
+compile "${TARGET%.c}.mlir"
+compile "${TARGET%.c}.${LABEL}.polymer.seq.mlir"
+
+"${TARGET%.c}.exe" > "${TARGET%.c}.out" 2>&1
+"${TARGET%.c}.${LABEL}.polymer.seq.exe"> "${TARGET%.c}.${LABEL}.polymer.out" 2>&1 
+
+diff "${TARGET%.c}.out" "${TARGET%.c}.${LABEL}.polymer.out" >/dev/null 2>&1 || echo "Sanity check ERROR!"
+
+# Performance
+echo ">>> Evaluate performance ..."
+compile_mlir "${TARGET}" "perf"
+annotate_splittable "${TARGET%.c}.mlir"
+polymer_opt "${TARGET%.c}.splittable.mlir" "seq" "${SPLIT_IDS[@]}"
+compile "${TARGET%.c}.mlir"
+compile "${TARGET%.c}.${LABEL}.polymer.seq.mlir"
+
+# run "${TARGET%.c}.exe" 5
+run "${TARGET%.c}.${LABEL}.polymer.seq.exe" 5
+
+echo ">>> Evaluate paralllel performance ..."
+
+compile_mlir "${TARGET}" "perf"
+annotate_splittable "${TARGET%.c}.mlir"
+polymer_opt "${TARGET%.c}.splittable.mlir" "par" "${SPLIT_IDS[@]}"
+compile "${TARGET%.c}.mlir" "par"
+compile "${TARGET%.c}.${LABEL}.polymer.par.mlir" "par"
+
+run "${TARGET%.c}.${LABEL}.polymer.par.exe" 5 "1-8"

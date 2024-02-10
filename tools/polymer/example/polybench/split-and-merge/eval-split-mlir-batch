@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+./eval-split-mlir 2mm
+./eval-split-mlir 2mm 0 2
+./eval-split-mlir 3mm
+./eval-split-mlir 3mm 0 1 2 
+./eval-split-mlir correlation 
+./eval-split-mlir correlation 8
+./eval-split-mlir covariance 
+./eval-split-mlir covariance 0
+./eval-split-mlir gramschmidt
+./eval-split-mlir gramschmidt 0

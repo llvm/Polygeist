@@ -1,0 +1,106 @@
+#!/bin/sh
+# Simply a compilation command.
+
+TARGET=""
+OPT_LEVEL="0"
+
+while getopts ":hO:f:" opt; do 
+  case "${opt}" in 
+    h ) 
+      echo ""
+      echo "    Compile MLIR code into LLVM-IR through Polymer."
+      echo ""
+      echo "Usage: "
+      echo "    -h                  Display this help message"
+      echo "    -O 0                Emit LLVM-IR without Polymer (default)"
+      echo "    -O 1                Emit LLVM-IR with Polymer"
+      echo "    -f <file>           Input C code file"
+      echo ""
+      exit 0
+      ;;
+    f )
+      TARGET="${OPTARG}"
+      ;;
+    O )
+      OPT_LEVEL="${OPTARG}"
+      ;;
+    \? )
+      echo "Invalid Option: -$OPTARG" 1>&2
+      exit 1
+      ;;
+  esac
+done
+shift $((OPTIND -1))
+
+# -------------------- Global variables ---------------------------------------
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+UTILS_DIR="${DIR}/utilities"
+TMP_DIR="${DIR}/tmp"
+PLUTO_DIR="${DIR}/../../pluto"
+LLVM_DIR="${DIR}/../../llvm"
+POLYMER_DIR="${DIR}/../../"
+
+# -------------------- Environment variables ----------------------------------
+
+export PATH="${PATH}:${PLUTO_DIR}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+export PATH="${POLYMER_DIR}/build/bin:${PATH}"
+
+# -------------------- Functions ----------------------------------------------
+
+# Compile an MLIR code into LLVM-IR with (or without) Polymer optimization.
+#
+# Args:
+#    SRC_FILE             File to be compiled
+#
+# Globals:
+#    OPT_LEVEL            0 (no Polymer) or 1 (with Polymer)
+#
+# Outputs:
+#    DST_FILE             Path to the Polymer-compiled code
+#
+function compile()
+{
+  local SRC_FILE="$1"
+  local SRC_DIR="$(dirname "${SRC_FILE}")"
+
+  local __RESULT_DST_FILE="$2"
+  local POLYMER_SRC_FILE="${SRC_FILE%.mlir}.polymer.mlir"
+  local POLYMER_LLVM_IR_FILE="${SRC_FILE%.mlir}.ll"
+
+  local OPT_OPTIONS=""
+  if [ "${OPT_LEVEL}" = "1" ]; then
+    OPT_OPTIONS="-reg2mem -extract-scop-stmt -pluto-opt"
+  fi
+
+  # Generate Polymer optimized MLIR code.
+  polymer-opt ${OPT_OPTIONS} -canonicalize "${SRC_FILE}" 2>/dev/null > "${POLYMER_SRC_FILE}"
+
+  # Compile Polymer generated MLIR code.
+  mlir-opt -lower-affine -convert-scf-to-std -cse -canonicalize -convert-std-to-llvm "${POLYMER_SRC_FILE}" |\
+    mlir-translate -mlir-to-llvmir > "${POLYMER_LLVM_IR_FILE}"
+
+  # Assign the returned value.
+  eval $__RESULT_DST_FILE="${POLYMER_LLVM_IR_FILE}"
+
+  rm "${POLYMER_SRC_FILE}"
+}
+
+function main() {
+  if [ -f "${TARGET}" ]; then 
+    compile "${TARGET}" OUTPUT
+  elif [ -d "${TARGET}" ]; then
+    WORK_DIR="${TMP_DIR}/$(basename ${TARGET}).O${OPT_LEVEL}"
+    rm -r "${WORK_DIR}"
+    mkdir -p "${WORK_DIR}"
+
+    cp "${TARGET}"/* "${WORK_DIR}"
+
+    for f in "${WORK_DIR}"/*; do
+      compile "${f}" OUTPUT
+    done
+  fi
+}
+
+main
