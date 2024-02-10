@@ -1,0 +1,127 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Build and Test
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on: [push, pull_request]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+
+  build-polymer:
+    name: Build Polymer
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Get dependences
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential libtool autoconf pkg-config flex bison libgmp-dev clang-9 libclang-9-dev texinfo ninja-build
+
+      - name: Update the LLVM/Clang version to 9
+        run: |
+          sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-9 100
+          sudo update-alternatives --install /usr/bin/FileCheck FileCheck /usr/bin/FileCheck-9 100
+
+      # Clone the Polymer repo and its submodules. 
+      - name: Get Polymer
+        uses: actions/checkout@v2
+        with:
+          path: "polymer"
+          submodules: "true"
+
+      # Get the latest Polygeist on its main branch.
+      - name: Get Polygeist
+        uses: actions/checkout@v2
+        with:
+          repository: "wsmoses/Polygeist"
+          ref: "6ba6b7b8ac07c9d60994eb46b46682a9f76ea34e"
+          path: "polygeist"
+          submodules: "true"
+
+      # Extract the LLVM submodule hash for use in the cache key.
+      - name: Get LLVM Hash
+        id: get-llvm-hash
+        run: cd polygeist/llvm-project && echo "::set-output name=hash::$(git rev-parse HEAD)"
+        shell: bash
+
+      # Print out clang version
+      - name: Get clang version
+        id: get-clang-version
+        run: clang --version
+        shell: bash
+
+      # Try to fetch LLVM from the cache.
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with:
+          path: polygeist/llvm-project
+          key: ${{ runner.os }}-llvm-install-${{ steps.get-llvm-hash.outputs.hash }}
+
+      # Build LLVM if we didn't hit in the cache.
+      - name: Rebuild and Install LLVM
+        if: steps.cache-llvm.outputs.cache-hit != 'true'
+        run: |
+          mkdir polygeist/llvm-project/build
+          mkdir polygeist/llvm-project/install
+          cd polygeist/llvm-project/build
+          cmake ../llvm \
+            -DLLVM_BUILD_EXAMPLES=OFF \
+            -DLLVM_TARGETS_TO_BUILD="host" \
+            -DCMAKE_INSTALL_PREFIX=../install \
+            -DLLVM_ENABLE_PROJECTS="llvm;mlir;clang" \
+            -DLLVM_OPTIMIZED_TABLEGEN=ON \
+            -DLLVM_ENABLE_OCAMLDOC=OFF \
+            -DLLVM_ENABLE_BINDINGS=OFF \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -G Ninja
+          cmake --build . --target install
+
+      # Run MLIR tests 
+      - name: Test MLIR
+        run: |
+          cd polygeist/llvm-project/build
+          cmake --build . --target check-mlir
+          # Clean up the test directory to avoid caching
+          rm -rf ./test 
+
+      # --------------------- Build for Polymer
+
+      - name: Download submodules in Pluto
+        run: |
+          cd polymer
+          git submodule init
+          git submodule update --recursive --init
+
+      # - name: Link Polymer into Polygeist
+      #   run: |
+      #     cd llvm/mlir/tools/
+      #     rm -rf polymer
+      #     ln -s "${GITHUB_WORKSPACE}/polymer" ./polymer
+      #     ls -al polymer
+
+      - name: Build and Test Polymer (Assert)
+        run: |
+          mkdir polymer/build
+          cd polymer/build
+          cmake -G Ninja \
+            .. \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_USE_LINKER=lld \
+            -DMLIR_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/mlir" \
+            -DLLVM_DIR="${PWD}/../../polygeist/llvm-project/build/lib/cmake/llvm" \
+            -DLLVM_EXTERNAL_LIT="${PWD}/../../polygeist/llvm-project/build/bin/llvm-lit" \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DCMAKE_BUILD_TYPE=DEBUG
+          LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/pluto/lib" cmake --build . --target check-polymer
+
+      # - name: Run Polybench Tests
+      #  run: |
+      #     cd polymer/example/polybench
+      #    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PWD}/tools/mlir/tools/polymer/pluto/lib" ./sanity-check-data EXTRALARGE 
+
+

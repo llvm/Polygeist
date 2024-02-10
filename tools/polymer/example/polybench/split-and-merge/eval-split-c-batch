@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+for d in */; do
+  dir="$(basename "${d}")"
+  cd ${dir}
+  for mode in "origin" "split"; do
+    SRC_FILE="${dir}.${mode}.c"
+    LOG_FILE="${dir}.pluto.${mode}.seq.log"
+    $HOME/polymer/pluto/polycc --noparallel --nounrolljam --noprevector ${SRC_FILE} &> "$(basename "${LOG_FILE}")"
+
+    LOG_FILE="${dir}.pluto.${mode}.par.log"
+    $HOME/polymer/pluto/polycc --parallel --nounrolljam --noprevector ${SRC_FILE} &> "$(basename "${LOG_FILE}")"
+  done
+  cd -
+
+done

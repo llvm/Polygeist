@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+
+function perf_count() {
+  local cmd="$1"
+  local perf_result
+  perf_result="$(perf stat -e cycles,instructions,branches,branch-misses,cache-references,cache-misses,bus-cycles,L1-dcache-loads,L1-dcache-load-misses,L1-dcache-stores,dTLB-loads,dTLB-load-misses,LLC-loads,LLC-load-misses,LLC-stores,cycle_activity.stalls_mem_any,mem_load_retired.fb_hit,mem_load_retired.l1_hit,mem_load_retired.l1_miss,mem_load_retired.l2_hit,mem_load_retired.l2_miss,mem_load_retired.l3_hit,mem_load_retired.l3_miss,mem_load_retired.local_pmm,fp_arith_inst_retired.128b_packed_double,fp_arith_inst_retired.128b_packed_single,fp_arith_inst_retired.256b_packed_double,fp_arith_inst_retired.256b_packed_single,fp_arith_inst_retired.512b_packed_double,fp_arith_inst_retired.512b_packed_single,fp_arith_inst_retired.scalar_double,fp_arith_inst_retired.scalar_single taskset -c 1-8 numactl -a "${cmd}")"
+
+  echo "${perf_result}"
+}
+
+DIR="$1"
+export LD_LIBRARY_PATH=$HOME/mlir-gpu/build/lib:$LD_LIBRARY_PATH
+
+for mode in "par" "seq" ; do
+  perf_count "${DIR}/2mm/2mm.nosplit.polymer.${mode}.exe"
+  perf_count "${DIR}/2mm/2mm.heuristic.polymer.${mode}.exe"
+  perf_count "${DIR}/3mm/3mm.nosplit.polymer.${mode}.exe"
+  perf_count "${DIR}/3mm/3mm.heuristic.polymer.${mode}.exe"
+  perf_count "${DIR}/correlation/correlation.nosplit.polymer.${mode}.exe"
+  perf_count "${DIR}/correlation/correlation.heuristic.polymer.${mode}.exe"
+  perf_count "${DIR}/covariance/covariance.nosplit.polymer.${mode}.exe"
+  perf_count "${DIR}/covariance/covariance.heuristic.polymer.${mode}.exe"
+  perf_count "${DIR}/trmm/trmm.nosplit.polymer.${mode}.exe"
+  perf_count "${DIR}/trmm/trmm.heuristic.polymer.${mode}.exe"
+done

@@ -1,4 +1,4 @@
-name: llvm_project_build
+name: Polygeist build and test
 
 on:
   push:
@@ -8,14 +8,17 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.build }} ${{ matrix.os }} ${{ matrix.compiler }}
+    name: Build ${{ matrix.os }} ${{ matrix.compiler }} polymer=${{ matrix.polymer }} pluto ${{ matrix.pluto-build }} mlir ${{ matrix.mlir-build }} polygeist ${{ matrix.polygeist-build }}
     runs-on: ${{ matrix.os }}
 
     strategy:
       fail-fast: false
       matrix:
-        build: ["Release"] #, "Debug"] # "RelWithDebInfo"
-        os: [ubuntu-latest]
+        pluto-build: ["Release"] # Only Release supported currently
+        mlir-build: ["Release"] #, "Debug"] # "RelWithDebInfo"
+        polygeist-build: ["Release", "Debug"] #, "Debug"] # "RelWithDebInfo"
+        polymer: ["0", "1"]
+        os: [ubuntu-22.04]
         compiler: [gcc, clang]
         cxxcompiler: [g++, clang++]
         exclude:
@@ -32,29 +35,53 @@ jobs:
         path: src
         submodules: 'recursive'
 
+    - name: add dependencies
+      run: sudo apt-get install -y llvm-15-tools ninja-build libbison-dev libtool libgmp-dev #libflex-dev cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
+
+    - name: Cache Pluto
+      id: cache-pluto
+      uses: actions/cache@v3
+      with:
+        path: pluto-build
+        key: ${{ matrix.pluto-build }}-${{ matrix.os }}-pluto-${{ matrix.polymer }}
+
+    - name: Pluto build
+      if: steps.cache-pluto.outputs.cache-hit != 'true' && matrix.polymer == '1'
+      run: |
+        mkdir -p pluto-build
+        PATH="/usr/lib/llvm-15/bin/:$PATH" src/tools/polymer/build_polymer_deps.sh $(pwd)/pluto-build
+        sleep 1s
+    - uses: actions/cache/save@v3
+      if: steps.cache-pluto.outputs.cache-hit != 'true'
+      with:
+        path: pluto-build
+        key: ${{ matrix.pluto-build }}-${{ matrix.os }}-pluto-${{ matrix.polymer }}
+
     - name: Read LLVM commit
       id: getversion
-      run: echo "::set-output name=version::$(cat src/.git/modules/llvm-project/HEAD)"
+      run: echo "version=$(cat src/.git/modules/llvm-project/HEAD)" >> $GITHUB_OUTPUT
 
     - name: Cache MLIR
       id: cache-mlir
       uses: actions/cache@v3
       with:
         path: mlir-build
-        key: ${{ matrix.build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}
-
-    - name: add dependencies
-      run: sudo apt-get install -y ninja-build #cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
+        key: ${{ matrix.mlir-build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}
 
     - name: MLIR build
       if: steps.cache-mlir.outputs.cache-hit != 'true'
       run: |
         mkdir mlir-build
         cd mlir-build
-        CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir;openmp" -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
+        CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" -DCMAKE_BUILD_TYPE=${{ matrix.mlir-build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
         #cymbld & disown
-        sleep 10
+        sleep 1
         CYMBL=OFF ninja
+    - uses: actions/cache/save@v3
+      if: steps.cache-mlir.outputs.cache-hit != 'true'
+      with:
+        path: mlir-build
+        key: ${{ matrix.mlir-build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}
 
     - name: mkdir
       run: mkdir build
@@ -62,9 +89,18 @@ jobs:
       run: |
         cd build
         ls ../mlir-build/lib/cmake/clang
-        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}}
+        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.polygeist-build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}} -DPOLYGEIST_ENABLE_POLYMER=${{ matrix.polymer }} -DPOLYMER_DEP_DIR=$(pwd)/../pluto-build/
+
     - name: test cgeist
       run: |
         cd build
+        ninja -j1
         ninja check-polygeist-opt
         ninja check-cgeist
+
+    - name: test polymer
+      if: matrix.polymer == '1'
+      run: |
+        cd build
+        ninja
+        PATH="`pwd`/../mlir-build/bin:$PATH" LLVM_SYMBOLIZER_PATH="`pwd`/../mlir-build/bin/llvm-symbolizer" ninja check-polymer

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+# -------- A uniform script for compilation/evaluation/benchmark ------------
+#
+# Usage:
+# 
+# - Compilation
+#
+#   ./flow compile polymer <C source file> <polymer options>
+#   ./flow compile pluto <C source file> <pluto options>
+#
+#
+#
+
+set -o errexit
+set -o pipefail
+set -o nounset

@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# Sanity check for split on SMALL dataset.
+
+# Usage:
+# check-split SMALL
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd)"
+BIN_DIR="${DIR}/../../build/bin"
+TMP_DIR="${DIR}/tmp"
+UTILITIES_DIR="${DIR}/utilities"
+
+LLVM_DIR="${DIR}/../../llvm"
+export PATH="${BIN_DIR}:${PATH}"
+export PATH="${LLVM_DIR}/build/bin:${PATH}"
+
+function annotate_splittable() {
+  local SRC_FILE="$1"
+  local TARGET_DIR="$2"
+  local DST_FILE="${TARGET_DIR}/$(basename "${SRC_FILE}")"
+
+  polymer-opt "${SRC_FILE}" -annotate-splittable | tee "${DST_FILE}" &>/dev/null
+
+  local NUM_SPLITTABLE="$(grep "scop.splittable" "${DST_FILE}" | wc -l)"
+  echo "${NUM_SPLITTABLE}"
+}
+
+function split() {
+  local SRC_FILE="$1"
+  local TARGET_DIR="$2"
+  local SPLIT_ID="$3"
+  local DST_FILE="${TARGET_DIR}/$(basename "${SRC_FILE}")"
+  DST_FILE="${DST_FILE%.mlir}-s${SPLIT_ID}.mlir"
+  local PLUTO_FILE="${DST_FILE%.mlir}.polymer.mlir"
+  local __DST_FILE="$4"
+  local __PLUTO_FILE="$5"
+
+  polymer-opt "${SRC_FILE}" -reg2mem -scop-stmt-split="to-split=${SPLIT_ID}" > "${DST_FILE}"
+  polymer-opt "${DST_FILE}" -extract-scop-stmt -pluto-opt -canonicalize 2>/dev/null | polymer-opt | tee "${PLUTO_FILE}" >/dev/null
+
+  status=$?
+  if [ $status -eq 0 ]; then
+    echo "$(basename ${DST_FILE}): OK"
+    eval $__DST_FILE="${DST_FILE}"
+    eval $__PLUTO_FILE="${PLUTO_FILE}"
+  else 
+    echo "$(basename ${DST_FILE}): FAILED"
+    eval $__DST_FILE=""
+    eval $__PLUTO_FILE=""
+  fi
+}
+
+execute()
+{
+    local MLIR_FILE="$1"
+    local OUT_FILE="$2"
+
+    # Run the compiled MLIR code by lli.
+    mlir-opt "${MLIR_FILE}" -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm |\
+    mlir-translate -mlir-to-llvmir |\
+    opt -O3 -march=native |\
+    lli 2>&1 | tee "${OUT_FILE}" &>/dev/null
+}
+
+compare_result()
+{
+  local SRC_FILE="$1"
+  local DST_FILE="$2"
+  local OUT_DIR=$(dirname "${DST_FILE}")
+
+  local SRC_BASE=$(basename "${SRC_FILE}")
+  local DST_BASE=$(basename "${DST_FILE}")
+
+  execute "${SRC_FILE}" "${OUT_DIR}/${SRC_BASE}.out"
+  execute "${DST_FILE}" "${OUT_DIR}/${DST_BASE}.out"
+
+  diff "${OUT_DIR}/${SRC_BASE}.out" "${OUT_DIR}/${DST_BASE}.out" 2>&1 >/dev/null
+
+  local DIFF_RETVAL=$?
+  return "${DIFF_RETVAL}"
+}
+
+
+SRC_FILES="$(find "$1" -type f -name "*.mlir" -print0 | sort -z | tr '\0' ' ')"
+echo "Source files to check: ${SRC_FILES}"
+
+WORK_DIR="${TMP_DIR}/check-split.$(date "+%Y%m%d-%H%M%S")"
+WORK_LOG="${TMP_DIR}/check-split.$(date "+%Y%m%d-%H%M%S").log"
+mkdir -p "${WORK_DIR}"
+
+
+for f in ${SRC_FILES}; do
+  num_splits=$(annotate_splittable "$f" "${WORK_DIR}")
+  END=$(expr ${num_splits} - 1)
+
+  basename="$(basename "${f}")"
+  subdir="${basename%.mlir}"
+  curdir="${WORK_DIR}/${subdir}"
+  mkdir -p "$curdir"
+
+  for i in $(seq 0 $END); do 
+    split "${WORK_DIR}/${basename}" "${curdir}" "$i" dst_file pluto_file
+
+    if [ ! -z "$dst_file" ]; then
+      compare_result "$f" "$dst_file"
+      status=$?
+      if [ $status -eq 0 ]; then
+        echo "Origin: OK"
+      else 
+        echo "Origin: FAILED"
+        exit 1
+      fi
+
+      compare_result "$f" "$pluto_file"
+      status=$?
+      if [ $status -eq 0 ]; then
+        echo "Pluto: OK"
+      else 
+        echo "Pluto: FAILED"
+        exit 1
+      fi
+    else
+      echo "Cannot split for $f"
+      exit 1
+    fi
+  done
+done

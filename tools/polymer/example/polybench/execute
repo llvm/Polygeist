@@ -1,0 +1,27 @@
+#!/bin/sh
+
+SRC_FILE="$1"
+DST_FILE="$2"
+
+LLVM_BINDIR="${PWD}/../../llvm/build/bin"
+
+execute()
+{
+    local MLIR_FILE="$1"
+    local OUT_FILE="$2"
+
+    # Run the compiled MLIR code by lli.
+    "${LLVM_BINDIR}/mlir-opt" "${MLIR_FILE}" -lower-affine -convert-scf-to-std -canonicalize -convert-std-to-llvm |\
+    "${LLVM_BINDIR}/mlir-translate" -mlir-to-llvmir |\
+    "${LLVM_BINDIR}/opt" -O3 -march=native |\
+    "${LLVM_BINDIR}/lli" 2>&1 | tee "${OUT_FILE}" >/dev/null
+}
+
+execute "${SRC_FILE}" "src.out"
+
+if [ ! -z "${DST_FILE} " ]; then
+    execute "${DST_FILE}" "dst.out"
+    vimdiff "src.out" "dst.out"
+fi
+
+rm "src.out" "dst.out"
