@@ -124,7 +124,7 @@ If you use Polygeist, please consider citing the relevant publications:
   series = {PPoPP '23}
 }
 @inproceedings{10444828,
-author = {I. R. Ivanov and O. Zinenko and J. Domke and T. Endo and W. S. Moses},
+author = {Ivanov, Ivan R. and Zinenko, Oleksandr and Domke, Jens and Endo, Toshio and Moses, William S.},
 booktitle = {2024 IEEE/ACM International Symposium on Code Generation and Optimization (CGO)},
 title = {Retargeting and Respecializing GPU Workloads for Performance Portability},
 year = {2024},
