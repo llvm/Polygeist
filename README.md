@@ -123,4 +123,18 @@ If you use Polygeist, please consider citing the relevant publications:
   location = {Montreal, QC, Canada},
   series = {PPoPP '23}
 }
+@inproceedings{10444828,
+author = {I. R. Ivanov and O. Zinenko and J. Domke and T. Endo and W. S. Moses},
+booktitle = {2024 IEEE/ACM International Symposium on Code Generation and Optimization (CGO)},
+title = {Retargeting and Respecializing GPU Workloads for Performance Portability},
+year = {2024},
+volume = {},
+issn = {},
+pages = {119-132},
+doi = {10.1109/CGO57630.2024.10444828},
+url = {https://doi.ieeecomputersociety.org/10.1109/CGO57630.2024.10444828},
+publisher = {IEEE Computer Society},
+address = {Los Alamitos, CA, USA},
+month = {mar}
+}
 ```
