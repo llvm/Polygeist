@@ -33,6 +33,10 @@
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
+#include "sql/SQLDialect.h"
+#include "sql/SQLOps.h"
+#include "sql/Passes/Passes.h"
+
 using namespace mlir;
 
 class MemRefInsider
@@ -62,8 +66,10 @@ int main(int argc, char **argv) {
   registry.insert<mlir::polygeist::PolygeistDialect>();
   registry.insert<DLTIDialect>();
 
+  registry.insert<mlir::sql::SQLDialect>();
   mlir::registerpolygeistPasses();
   mlir::func::registerInlinerExtension(registry);
+  mlir::registersqlPasses();
 
   // Register the standard passes we want.
   mlir::registerCSEPass();

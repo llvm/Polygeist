@@ -59,7 +59,6 @@ target_compile_definitions(cgeist PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")
 target_link_libraries(cgeist PRIVATE
   MLIRSCFTransforms
   MLIRPolygeist
-
   MLIRSupport
   MLIRIR
   MLIRAnalysis
@@ -108,5 +107,11 @@ target_link_libraries(cgeist PRIVATE
   clangLex
   clangSerialization
 )
+
+if (ENABLE_SQL)
+  target_link_libraries(cgeist PRIVATE MLIRSQLTransforms MLIRSQL)
+endif()
+
 add_dependencies(cgeist MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
+add_dependencies(cgeist MLIRSQLOpsIncGen MLIRSQLPassIncGen)
 add_subdirectory(Test)
