@@ -1,7 +1,7 @@
 ## Build instructions
 
 ### Requirements 
-- Working C and C++ toolchains(compiler, linker)
+- Working C and C++ toolchains(compiler, linker, specailly a compiled Clang toolchain except you have a machine with 32GB or more memory)
 - cmake
 - make or ninja
 
@@ -26,6 +26,10 @@ cmake -G Ninja ../llvm \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
+# Use Clang toolchain may save memory and faster
+# -DCMAKE_C_COMPILER=clang
+# -DCMAKE_CXX_COMPILER=clang++
+# -DLLVM_USE_LINKER=lld
 ninja
 ninja check-mlir
 ```
@@ -46,6 +50,10 @@ cmake -G Ninja .. \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
+# Use Clang toolchain may save memory and faster
+# -DCMAKE_C_COMPILER=clang
+# -DCMAKE_CXX_COMPILER=clang++
+# -DLLVM_USE_LINKER=lld
 ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
@@ -83,6 +91,10 @@ cmake -G Ninja ../llvm-project/llvm \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=DEBUG
+# Use Clang toolchain may save memory and faster
+# -DCMAKE_C_COMPILER=clang
+# -DCMAKE_CXX_COMPILER=clang++
+# -DLLVM_USE_LINKER=lld
 ninja
 ninja check-polygeist-opt && ninja check-cgeist
 ```
