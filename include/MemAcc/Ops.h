@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POLYGEISTOPS_H
-#define POLYGEISTOPS_H
+#ifndef MEMACCOPS_H
+#define MEMACCOPS_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -30,3 +30,5 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
+
+#endif

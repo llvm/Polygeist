@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BFV_BFVDIALECT_H
-#define BFV_BFVDIALECT_H
+#ifndef MEM_ACC_DIALECT_H
+#define MEM_ACC_DIALECT_H
 
 #include "mlir/IR/Dialect.h"
 
-#include "MAA/MemAccOpsDialect.h.inc"
+#include "MemAcc/MemAccOpsDialect.h.inc"
 
-#endif // BFV_BFVDIALECT_H
+#endif // MEM_ACC_DIALECT_H

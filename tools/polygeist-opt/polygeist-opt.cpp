@@ -31,6 +31,7 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "polygeist/Dialect.h"
+#include "MemAcc/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
 using namespace mlir;
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::math::MathDialect>();
   registry.insert<mlir::cf::ControlFlowDialect>();
   registry.insert<mlir::polygeist::PolygeistDialect>();
+  registry.insert<mlir::MemAcc::MemAccDialect>();
   registry.insert<DLTIDialect>();
 
   mlir::registerpolygeistPasses();
