@@ -7,11 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "MemAcc/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
 #include "MemAcc/Ops.h"
+#include "mlir/IR/DialectImplementation.h"
 
 using namespace mlir;
 using namespace mlir::MemAcc;
+
+#include "MemAcc/MemAccOpsDialect.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // MemAcc dialect.
@@ -24,4 +26,4 @@ void MemAccDialect::initialize() {
       >();
 }
 
-#include "MemAcc/MemAccOpsDialect.cpp.inc"
+

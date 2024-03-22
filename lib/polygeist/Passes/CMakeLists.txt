@@ -29,6 +29,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
 
   DEPENDS
   MLIRPolygeistOpsIncGen
+  MLIRMemAccOpsIncGen
   MLIRPolygeistPassIncGen
 
   LINK_LIBS PUBLIC
@@ -49,6 +50,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRNVVMDialect
   MLIRPass
   MLIRPolygeist
+  MLIRMemAcc
   MLIRSideEffectInterfaces
   MLIRSCFToControlFlow
   MLIRTargetLLVMIRImport

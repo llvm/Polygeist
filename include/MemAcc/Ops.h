@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MEMACCOPS_H
-#define MEMACCOPS_H
+#ifndef MEM_ACC_OPSZ_H
+#define MEM_ACC_OPSZ_H
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
@@ -30,5 +30,4 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "llvm/Support/CommandLine.h"
-
 #endif
