@@ -50,24 +50,6 @@ static void postProcessDeepestLoads(){
 
 }
 
-static void updateIndirectUseChain(Operation *curr, SmallVector<Operation *, 16>& indirectUseChain) {
-  if (loadOpToIndirectUses.count(curr) == 0){
-    return;
-  }
-  for (auto o : loadOpToIndirectUses[curr]){
-        indirectUseChain.push_back(o);
-        updateIndirectUseChain(o, indirectUseChain);
-    }
-}
-
-static SmallVector<Operation *, 16> getIndirectLoadUsers(Operation *op) {
-  SmallVector<Operation *, 16> indirectUseChain;
-  Operation* curr = op;
-  updateIndirectUseChain(curr, indirectUseChain);
-  
-  return indirectUseChain;
-}
-
 // Utility function to create a MemAcc::YieldOp
 static void createMemAccYieldOp(PatternRewriter &rewriter, mlir::Location loc) {
 
@@ -120,24 +102,10 @@ struct StoreOpToGenericStoreOpPattern : public OpRewritePattern<StoreOp> {
 struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
   using OpRewritePattern<LoadOp>::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(LoadOp loadOp, PatternRewriter &rewriter) const override {
-    // Check if the loadOp is contained within an affine.for operation
-    if (!loadOp->getParentOfType<AffineForOp>()) {
-      return failure();
-    }
-    if (loadOp->getParentOfType<GenericLoadOp>()) {
-      return failure();
-    }
-
-    // only consider the deepest loads
-    if (deepestLoads.count(loadOp) == 0){
-      return failure();
-    }
+  SmallVector<Type, 4> getGenericLoadOpResultTypes(Operation* loadOp) const{
     SmallVector<Type, 4> resultTypes;
-    SmallVector<Value, 4> resultVals;
-    auto indirectLoadUseChain = loadOpToIndirectChain[loadOp];
+    auto& indirectLoadUseChain = loadOpToIndirectChain[loadOp];
     loadOpToIndirectUses[loadOp].insert(loadOp);
-    PRINT("Indirect Chain:");
     for (int i = indirectLoadUseChain.size() - 1; i >= 0; i--){
       auto I = indirectLoadUseChain[i];
       PRINT(*I);
@@ -150,26 +118,11 @@ struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
         }
       }
     }
-    PRINT("\n");
-    // Count the number of loads in the indirectLoadUseChain for indirection level
-    uint64_t indirectionLevel = 0;
-     // Prepare the result types based on the loads that have external users
-    for (Operation* op : indirectLoadUseChain) {
-      if (isa<memref::LoadOp>(op) || isa<affine::AffineLoadOp>(op)) {
-        indirectionLevel++;
-      }
-    }
-    auto indirectionAttr = IntegerAttr::get(IntegerType::get(rewriter.getContext(), 64), indirectionLevel-1);
+    return resultTypes;
+  }
 
-    Location loc = loadOp.getLoc();
-    // Prepare to create a new MemAcc::GenericLoadOp
-    // SmallVector<Type, 4> resultTypes;
-    // Keep track of original loads and their replacements to update external users
-
-    
-
-    // Start creating the GenericLoadOp
-    auto genericLoadOp = rewriter.create<MemAcc::GenericLoadOp>(loc, resultTypes, indirectionAttr);
+  SmallVector<Value, 4> populateGenericLoadOp(llvm::SmallVector<Operation*, 16>& indirectLoadUseChain, PatternRewriter &rewriter, MemAcc::GenericLoadOp genericLoadOp) const{
+    SmallVector<Value, 4> resultVals;
     auto &region = genericLoadOp.getBody();
 
     // Create a block inside the GenericLoadOp's region
@@ -194,16 +147,19 @@ struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
         resultVals.push_back(I.getResult(0));
       }
     }
+    return resultVals;
+  }
 
-    auto yieldOp = rewriter.create<MemAcc::YieldOp>(loc, resultTypes, resultVals);
 
+  void updateExternelUses( MemAcc::GenericLoadOp genericLoadOp) const{
     // Update uses of inner-block values
+    auto block = &genericLoadOp.getBody().getBlocks().front();
     int idx = 0;
     for (auto& I : *block) {
       bool hasExternalUses = false;
         for (auto U : I.getUsers()) {
           if (block != U->getBlock()){
-            for (auto operandIndex = 0; operandIndex < U->getNumOperands(); ++operandIndex) {
+            for (unsigned int operandIndex = 0; operandIndex < U->getNumOperands(); ++operandIndex) {
               if (U->getOperand(operandIndex) == I.getResult(0)) {
                 // Update the operand with a new value
                 U->setOperand(operandIndex, genericLoadOp->getResult(idx));
@@ -217,7 +173,49 @@ struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
           idx++;
         }
       }
+  }
+
+  LogicalResult matchAndRewrite(LoadOp loadOp, PatternRewriter &rewriter) const override {
+    // Check if the loadOp is contained within an affine.for operation
+    if (!loadOp->getParentOfType<AffineForOp>()) {
+      return failure();
+    }
+    if (loadOp->getParentOfType<GenericLoadOp>()) {
+      return failure();
+    }
+
+    // only consider the deepest loads
+    if (deepestLoads.count(loadOp) == 0){
+      return failure();
+    }
+    SmallVector<Value, 4> resultVals;
+    auto& indirectLoadUseChain = loadOpToIndirectChain[loadOp];
+
+    // get result types of generic load op
+    auto resultTypes = getGenericLoadOpResultTypes(loadOp);
+    // Count the number of loads in the indirectLoadUseChain for indirection level
+    uint64_t indirectionLevel = 0;
+     // Calculate the indirection level based on the number of loads in the indirectLoadUseChain
+    for (Operation* op : indirectLoadUseChain) {
+      if (isa<memref::LoadOp>(op) || isa<affine::AffineLoadOp>(op)) {
+        indirectionLevel++;
+      }
+    }
+    auto indirectionAttr = IntegerAttr::get(IntegerType::get(rewriter.getContext(), 64), indirectionLevel-1);
+
+    Location loc = loadOp.getLoc();
+
+
+    // Start creating the GenericLoadOp
+    auto genericLoadOp = rewriter.create<MemAcc::GenericLoadOp>(loc, resultTypes, indirectionAttr);
     
+    // Populate the GenericLoadOp with the operations from the indirectLoadUseChain
+    resultVals = populateGenericLoadOp(indirectLoadUseChain, rewriter, genericLoadOp);
+
+    rewriter.create<MemAcc::YieldOp>(loc, resultTypes, resultVals);
+
+    // Update uses of inner-block values
+    updateExternelUses(genericLoadOp);
 
     return success();
   }
