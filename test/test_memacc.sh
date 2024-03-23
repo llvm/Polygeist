@@ -1,0 +1,1 @@
+polygeist-opt test.mlir --memory-access-generation --mlir-disable-threading 

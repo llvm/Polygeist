@@ -15,6 +15,7 @@ include "mlir/Dialect/MemRef/IR/MemRefBase.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/BuiltinAttributes.td"  // This includes the definition for IntegerAttr and others
 
 def MemAcc_GenericStoreOp : MemAcc_Op<"generic_store"> {
   let summary = "Defines a generic memory access pattern.";
@@ -43,6 +44,42 @@ def MemAcc_GenericStoreOp : MemAcc_Op<"generic_store"> {
     `region` $body attr-dict `:` functional-type(operands, results)
   }];
 }
+
+def MemAcc_GenericLoadOp : MemAcc_Op<"generic_load"> {
+  let summary = "Defines a generic memory access pattern.";
+  let description = [{
+    The `MemAcc.generic_load` operation encapsulates any arbitrary memory 
+    access pattern, including stride, indirect, and other patterns. It takes 
+    a region of code as input, which should conclude with a memref load 
+    operation to signify the end of the memory access pattern. The type of 
+    the last load operation in the region determines the result type of the 
+    `MemAcc.generic_load` operation. Additionally, it supports an attribute 
+    `indirection-level` to specify the level of indirection used in the 
+    memory access pattern.
+
+    Example:
+
+    ```mlir
+    %result = memacc.generic_load indirection-level = 2 {
+      %loaded_value = memref.load %addr[%offset] : memref<...>
+      memacc.yield %loaded_value : type_of(<...>)
+    } : type_of(<...>)
+    ```
+  }];
+
+  let regions = (region AnyRegion:$body);
+  let arguments = (ins OptionalAttr<I64Attr>:$indirectionLevel);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = [{
+    `region` $body `indirection_level` `=` $indirectionLevel attr-dict `:` functional-type(operands, results)
+  }];
+
+    // Correct way to add an optional integer attribute
+
+  // let attributes = (ins Optional<I64Attr>:$indirectionLevel);
+}
+
 
 //===----------------------------------------------------------------------===//
 // MemAcc_YieldOp
