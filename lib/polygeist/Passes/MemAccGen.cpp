@@ -136,16 +136,15 @@ struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
     SmallVector<Type, 4> resultTypes;
     SmallVector<Value, 4> resultVals;
     auto indirectLoadUseChain = loadOpToIndirectChain[loadOp];
+    loadOpToIndirectUses[loadOp].insert(loadOp);
     PRINT("Indirect Chain:");
     for (int i = indirectLoadUseChain.size() - 1; i >= 0; i--){
       auto I = indirectLoadUseChain[i];
       PRINT(*I);
-      bool hasExternalUses = false;
       for (auto U : I->getUsers()) {
         PRINT("User: " << *U);
         if (loadOpToIndirectUses[loadOp].count(U) == 0){
           PRINT("External User: " << *U);
-          hasExternalUses = true;
           resultTypes.push_back(I->getResult(0).getType());
           break;
         }
@@ -269,15 +268,22 @@ void MemAccGenPass::runOnOperation() {
 
   analyzeLoadOps(getOperation(), deepestLoads);
 
-  for (auto& o : loadOpToIndirectUses){
-    llvm::errs() << "Load: " << *o.first << "\n";
-    for (auto i : o.second){
-      llvm::errs() << "Indirect Use: " << *i << "\n";
-    }
-  }
+  // for (auto& o : loadOpToIndirectUses){
+  //   llvm::errs() << "Load: " << *o.first << "\n";
+  //   for (auto i : o.second){
+  //     llvm::errs() << "Indirect Use: " << *i << "\n";
+  //   }
+  // }
 
   for (auto o : deepestLoads){
     llvm::errs() << "Deepest Load: " << *o << "\n";
+  }
+
+  for (auto& o : loadOpToIndirectChain){
+    llvm::errs() << "Load: " << *o.first << "\n";
+    for (auto i : o.second){
+      llvm::errs() << "Indirect Chain: " << *i << "\n";
+    }
   }
   // context->loadDialect<mlir::MemAcc::MemAccDialect>();
   mlir::RewritePatternSet patterns(context);
