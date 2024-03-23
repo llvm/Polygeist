@@ -1,22 +1,13 @@
 
-// void uselessinstr1s(){
-//     int a = 888; 
-//     int b = 999;
-//     int c = a + b;
-//     static float d[100];
-//     d[5] = c;
-// }
 
 
-// void gather(double *a, double *b, int *idx, int n, const int C) {
-//     for (int i = 0; i < n; i++) {
-//         uselessinstr1s();
-//         // printf("a[%d](%lf) += %d * b[idx[%d](%d)](%lf) =", i, a[i], C, i, idx[i], b[idx[i]]);
-//         a[i] += C * b[idx[i + C] * C];
-//         // printf(" %lf\n", a[i]);
-//         uselessinstr1s();
-//     }
-// }
+void gather(double *a, double *b, int *idx, int n, const int C) {
+    for (int i = 0; i < n; i++) {
+        // printf("a[%d](%lf) += %d * b[idx[%d](%d)](%lf) =", i, a[i], C, i, idx[i], b[idx[i]]);
+        a[i] += C * b[idx[i] * C];
+        // printf(" %lf\n", a[i]);
+    }
+}
 
 void scatter(double *a, double *b, int *idx, int*idx2, int n, const int C) {
     for (int i = 0; i < n; i++) {

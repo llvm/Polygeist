@@ -133,14 +133,92 @@ struct LoadOpToGenericLoadOpPattern : public OpRewritePattern<LoadOp> {
     if (deepestLoads.count(loadOp) == 0){
       return failure();
     }
-
+    SmallVector<Type, 4> resultTypes;
+    SmallVector<Value, 4> resultVals;
     auto indirectLoadUseChain = loadOpToIndirectChain[loadOp];
     PRINT("Indirect Chain:");
-    for (auto i : indirectLoadUseChain){
-      PRINT(*i);
+    for (int i = indirectLoadUseChain.size() - 1; i >= 0; i--){
+      auto I = indirectLoadUseChain[i];
+      PRINT(*I);
+      bool hasExternalUses = false;
+      for (auto U : I->getUsers()) {
+        PRINT("User: " << *U);
+        if (loadOpToIndirectUses[loadOp].count(U) == 0){
+          PRINT("External User: " << *U);
+          hasExternalUses = true;
+          resultTypes.push_back(I->getResult(0).getType());
+          break;
+        }
+      }
     }
     PRINT("\n");
+    // Count the number of loads in the indirectLoadUseChain for indirection level
+    uint64_t indirectionLevel = 0;
+     // Prepare the result types based on the loads that have external users
+    for (Operation* op : indirectLoadUseChain) {
+      if (isa<memref::LoadOp>(op) || isa<affine::AffineLoadOp>(op)) {
+        indirectionLevel++;
+      }
+    }
+    auto indirectionAttr = IntegerAttr::get(IntegerType::get(rewriter.getContext(), 64), indirectionLevel-1);
+
     Location loc = loadOp.getLoc();
+    // Prepare to create a new MemAcc::GenericLoadOp
+    // SmallVector<Type, 4> resultTypes;
+    // Keep track of original loads and their replacements to update external users
+
+    
+
+    // Start creating the GenericLoadOp
+    auto genericLoadOp = rewriter.create<MemAcc::GenericLoadOp>(loc, resultTypes, indirectionAttr);
+    auto &region = genericLoadOp.getBody();
+
+    // Create a block inside the GenericLoadOp's region
+    auto *block = rewriter.createBlock(&region);
+
+    // Move the operations from the indirectLoadUseChain into the block
+    for (int i = indirectLoadUseChain.size() - 1; i >= 0; i--) {
+      auto clonedOp = rewriter.clone(*indirectLoadUseChain[i]);
+      indirectLoadUseChain[i]->getResult(0).replaceAllUsesWith(clonedOp->getResult(0));
+      rewriter.eraseOp(indirectLoadUseChain[i]);
+    }
+    
+    for (auto& I : *block) {
+      bool hasExternalUses = false;
+      for (auto U : I.getUsers()) {
+        if (block != U->getBlock()) {
+          hasExternalUses = true;
+          break;
+        }
+      }
+      if (hasExternalUses) {
+        resultVals.push_back(I.getResult(0));
+      }
+    }
+
+    auto yieldOp = rewriter.create<MemAcc::YieldOp>(loc, resultTypes, resultVals);
+
+    // Update uses of inner-block values
+    int idx = 0;
+    for (auto& I : *block) {
+      bool hasExternalUses = false;
+        for (auto U : I.getUsers()) {
+          if (block != U->getBlock()){
+            for (auto operandIndex = 0; operandIndex < U->getNumOperands(); ++operandIndex) {
+              if (U->getOperand(operandIndex) == I.getResult(0)) {
+                // Update the operand with a new value
+                U->setOperand(operandIndex, genericLoadOp->getResult(idx));
+                hasExternalUses = true;
+                break; // Break after updating the operand
+              }
+            } // for
+          } // if
+        }
+        if (hasExternalUses) {
+          idx++;
+        }
+      }
+    
 
     return success();
   }
@@ -172,6 +250,7 @@ void analyzeLoadOps(Operation *op, llvm::SmallPtrSet<Operation *, 16> &deepestLo
   op->walk([&](Operation *currentOp) {
     if (isa<memref::LoadOp>(currentOp) || isa<affine::AffineLoadOp>(currentOp)) {
       visited.clear();
+      loadOpToIndirectChain[currentOp].push_back(currentOp);
       // Check all users of the load operation to see if it indirectly contributes to another load
       for (auto operand : currentOp->getOperands()) {
         markIndirectLoadUsers(operand.getDefiningOp(), visited, currentOp);
@@ -185,6 +264,7 @@ void analyzeLoadOps(Operation *op, llvm::SmallPtrSet<Operation *, 16> &deepestLo
 void MemAccGenPass::runOnOperation() {
   deepestLoads.clear();
   loadOpToIndirectUses.clear();
+  loadOpToIndirectChain.clear();
   mlir::MLIRContext* context = getOperation()->getContext();
 
   analyzeLoadOps(getOperation(), deepestLoads);

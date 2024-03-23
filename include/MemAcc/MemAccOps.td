@@ -69,7 +69,7 @@ def MemAcc_GenericLoadOp : MemAcc_Op<"generic_load"> {
 
   let regions = (region AnyRegion:$body);
   let arguments = (ins OptionalAttr<I64Attr>:$indirectionLevel);
-  let results = (outs AnyType:$result);
+  let results = (outs Variadic<AnyType>:$result);
 
   let assemblyFormat = [{
     `region` $body `indirection_level` `=` $indirectionLevel attr-dict `:` functional-type(operands, results)
