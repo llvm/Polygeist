@@ -1,6 +1,7 @@
 #ifndef POLYGEIST_DIALECT_POLYGEIST_PASSES_H
 #define POLYGEIST_DIALECT_POLYGEIST_PASSES_H
 
+#include "MemAcc/Dialect.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
@@ -28,6 +29,7 @@ std::unique_ptr<Pass> createLoopRestructurePass();
 std::unique_ptr<Pass> createInnerSerializationPass();
 std::unique_ptr<Pass> createSerializationPass();
 std::unique_ptr<Pass> replaceAffineCFGPass();
+std::unique_ptr<Pass> createMemAccGenPass();
 std::unique_ptr<Pass> createOpenMPOptPass();
 std::unique_ptr<Pass> createCanonicalizeForPass();
 std::unique_ptr<Pass> createRaiseSCFToAffinePass();

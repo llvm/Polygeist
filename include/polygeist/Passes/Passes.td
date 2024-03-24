@@ -9,6 +9,14 @@ def AffineCFG : Pass<"affine-cfg"> {
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";
 }
 
+def MemAccGen : Pass<"memory-access-generation"> {
+  let summary = "convert memory accesses from affine.for to memacc";
+  let constructor = "mlir::polygeist::createMemAccGenPass()";
+  let dependentDialects = [
+    "MemAcc::MemAccDialect",
+  ];
+}
+
 def PolygeistMem2Reg : Pass<"polygeist-mem2reg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::createPolygeistMem2RegPass()";
