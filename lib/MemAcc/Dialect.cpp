@@ -25,5 +25,3 @@ void MemAccDialect::initialize() {
 #include "MemAcc/MemAccOps.cpp.inc"
       >();
 }
-
-

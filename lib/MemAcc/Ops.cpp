@@ -1,46 +1,60 @@
 #include "MemAcc/Ops.h"
-
-// using namespace mlir;
+#include "mlir/IR/TypeUtilities.h"
+using namespace mlir;
 // using namespace MemAcc;
 #include "MemAcc/Dialect.h"
 
 #define GET_OP_CLASSES
 #include "MemAcc/MemAccOps.cpp.inc"
 
-#define DEBUG_TYPE  "memacc"
+#define DEBUG_TYPE "memacc"
 
-// void mlir::MemAcc::GenericStoreOp::print(OpAsmPrinter &p) {
-//     // Example: Printing the operation name with no operands or attributes
-//     // and assuming the region is printed automatically.
-//     p.printGenericOp(getOperation());
-// }
+template <typename... Types> using type_list = std::tuple<Types...> *;
 
-// ParseResult mlir::MemAcc::GenericStoreOp::parse(OpAsmParser &parser, OperationState &result) {
-//     // Example: Assuming the operation takes no operands and no attributes
-//     // and resides within a single region that is parsed automatically.
-//     return parser.parseRegion(*result.addRegion());
-// }
+/// Returns a non-null type only if the provided type is one of the allowed
+/// types or one of the allowed shaped types of the allowed types. Returns the
+/// element type if a valid shaped type is provided.
+template <typename... ShapedTypes, typename... ElementTypes>
+static Type getUnderlyingType(Type type, type_list<ShapedTypes...>,
+                              type_list<ElementTypes...>) {
+  if (llvm::isa<ShapedType>(type) && !llvm::isa<ShapedTypes...>(type))
+    return {};
 
-// LogicalResult mlir::MemAcc::GenericStoreOp::verifyInvariantsImpl() {
-//     // Example: No custom verification logic, return success
-//     return success();
-// }
+  auto underlyingType = getElementTypeOrSelf(type);
+  if (!llvm::isa<ElementTypes...>(underlyingType))
+    return {};
 
-// void mlir::MemAcc::GenericStoreOp::build(OpBuilder &builder, OperationState &state /*, add parameters as needed */) {
-//     // Example: Setup the operation with a region if your operation requires one
-//     Region *bodyRegion = state.addRegion();
-    
-//     // If your operation does not require additional attributes or operands,
-//     // you may not need to do anything else here. However, if it does,
-//     // you should add them to the state before it's used to create the operation.
-//     // For example, to add an operand:
-//     // state.addOperands(inputOperand);
+  return underlyingType;
+}
 
-//     // If your operation has attributes, add them as well:
-//     // state.addAttribute("myAttr", builder.getSomeAttributeType(value));
+/// Get allowed underlying types for vectors, tensors, and memrefs.
+template <typename... ElementTypes>
+static Type getTypeIfLikeOrMemRef(Type type) {
+  return getUnderlyingType(type,
+                           type_list<VectorType, TensorType, MemRefType>(),
+                           type_list<ElementTypes...>());
+}
 
-//     // To initialize the body region with a block, uncomment the following lines:
-//     // auto *block = new Block();
-//     // bodyRegion->push_back(block);
-//     // You may also want to add operations to the block here or setup its arguments.
-// }
+static bool areValidCastInputsAndOutputs(TypeRange inputs, TypeRange outputs) {
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  return succeeded(verifyCompatibleShapes(inputs.front(), outputs.front()));
+}
+
+static bool areIndexCastCompatible(TypeRange inputs, TypeRange outputs) {
+  if (!areValidCastInputsAndOutputs(inputs, outputs))
+    return false;
+
+  auto srcType = getTypeIfLikeOrMemRef<IntegerType, IndexType>(inputs.front());
+  auto dstType = getTypeIfLikeOrMemRef<IntegerType, IndexType>(outputs.front());
+  if (!srcType || !dstType)
+    return false;
+
+  return (srcType.isIndex() && dstType.isSignlessInteger()) ||
+         (srcType.isSignlessInteger() && dstType.isIndex());
+}
+
+bool MemAcc::IndexCastOp::areCastCompatible(TypeRange inputs,
+                                            TypeRange outputs) {
+  return areIndexCastCompatible(inputs, outputs);
+}

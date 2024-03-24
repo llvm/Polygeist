@@ -1,13 +1,13 @@
 #ifndef POLYGEIST_DIALECT_POLYGEIST_PASSES_H
 #define POLYGEIST_DIALECT_POLYGEIST_PASSES_H
 
+#include "MemAcc/Dialect.h"
 #include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/OpenMP/OpenMPDialect.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Dialect.h"
-#include "MemAcc/Dialect.h"
 #include <memory>
 
 enum PolygeistAlternativesMode { PAM_Static, PAM_PGO_Profile, PAM_PGO_Opt };
