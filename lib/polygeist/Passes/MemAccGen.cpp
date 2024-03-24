@@ -10,7 +10,11 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/Debug.h"
 
-#define PRINT(x) llvm::errs() << x << "\n"
+#ifdef DEBUG
+  #define PRINT(x) llvm::errs() << x << "\n"
+#else
+  #define PRINT(x)
+#endif
 
 // Use LLVM's data structures for convenience and performance
 #include "llvm/ADT/DenseMap.h"
@@ -321,23 +325,6 @@ void MemAccGenPass::runOnOperation() {
 
   analyzeLoadOps(getOperation(), deepestLoads);
 
-  // for (auto& o : loadOpToIndirectUses){
-  //   llvm::errs() << "Load: " << *o.first << "\n";
-  //   for (auto i : o.second){
-  //     llvm::errs() << "Indirect Use: " << *i << "\n";
-  //   }
-  // }
-
-  for (auto o : deepestLoads) {
-    llvm::errs() << "Deepest Load: " << *o << "\n";
-  }
-
-  for (auto &o : loadOpToIndirectChain) {
-    llvm::errs() << "Load: " << *o.first << "\n";
-    for (auto i : o.second) {
-      llvm::errs() << "Indirect Chain: " << *i << "\n";
-    }
-  }
   // context->loadDialect<mlir::MemAcc::MemAccDialect>();
   mlir::RewritePatternSet patterns(context);
   patterns.add<StoreOpConversionPattern<memref::StoreOp>>(context);
