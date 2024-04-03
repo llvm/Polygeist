@@ -190,10 +190,9 @@ struct GEPConversion : public OpConversionPattern<LLVM::GEPOp> {
     Operation *rewritten;
     TypeAttr elty = nullptr;
     if (!op->getAttr(kElemTypeAttrName))
-      elty = TypeAttr::get(
-          getTypeConverter()->convertType(
-            dyn_cast<LLVM::LLVMPointerType>(
-              op.getOperand(0).getType()).getElementType()));
+      elty = TypeAttr::get(getTypeConverter()->convertType(
+          dyn_cast<LLVM::LLVMPointerType>(op.getOperand(0).getType())
+              .getElementType()));
     if (convertPtrsToOpaque(op, rewritten, elty, adaptor.getOperands(),
                             rewriter, getTypeConverter())
             .failed())

@@ -87,9 +87,8 @@ void ValueCategory::store(mlir::Location loc, mlir::OpBuilder &builder,
   if (auto mt = dyn_cast<MemRefType>(val.getType())) {
     assert(mt.getShape().size() == 1 && "must have size 1");
     if (auto PT = dyn_cast<mlir::LLVM::LLVMPointerType>(toStore.getType())) {
-      if (auto MT = dyn_cast<mlir::MemRefType>(val.getType()
-                        .cast<MemRefType>()
-                        .getElementType())) {
+      if (auto MT = dyn_cast<mlir::MemRefType>(
+              val.getType().cast<MemRefType>().getElementType())) {
         assert(MT.getShape().size() == 1);
         assert(MT.getShape()[0] == ShapedType::kDynamic);
         assert(MT.getElementType() == PT.getElementType());

@@ -4984,7 +4984,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
         if (!opd)
           continue;
         auto val = dyn_cast<BlockArgument>(
-          ((Value)load.getMapOperands()[opd.getPosition()]));
+            ((Value)load.getMapOperands()[opd.getPosition()]));
         if (!val)
           continue;
 
@@ -5034,7 +5034,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
             if (!opd)
               continue;
             auto val = dyn_cast<BlockArgument>(
-              ((Value)load.getMapOperands()[opd.getPosition()]));
+                ((Value)load.getMapOperands()[opd.getPosition()]));
             if (!val)
               continue;
 
@@ -5302,7 +5302,9 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           auto i = idxp.index();
           if (!idx.isValue) {
             if (auto ald = dyn_cast<affine::AffineLoadOp>(ld)) {
-              if (auto ac = ald.getAffineMap().getResult(i).dyn_cast<AffineConstantExpr>()) {
+              if (auto ac = ald.getAffineMap()
+                                .getResult(i)
+                                .dyn_cast<AffineConstantExpr>()) {
                 if (idx == ac.getValue())
                   continue;
               }
