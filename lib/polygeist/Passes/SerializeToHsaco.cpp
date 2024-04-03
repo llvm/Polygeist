@@ -132,7 +132,7 @@ SerializeToHsacoPass::optimizeLlvm(llvm::Module &llvmModule,
            << "Invalid serizalize to gpu blob optimization level"
            << llvmOptLevel << "\n";
 
-  targetMachine.setOptLevel(static_cast<llvm::CodeGenOpt::Level>(llvmOptLevel));
+  targetMachine.setOptLevel(static_cast<llvm::CodeGenOptLevel>(llvmOptLevel));
 
   auto transformer =
       makeOptimizingTransformer(llvmOptLevel, /*sizeLevel=*/0, &targetMachine);
