@@ -39,7 +39,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
       return failure();
 
     // Its condition comes directly from iterargs.
-    auto condition = conditional.getCondition().dyn_cast<BlockArgument>();
+    auto condition = dyn_cast<BlockArgument>(conditional.getCondition());
     if (!condition || condition.getOwner()->getParentOp() != forOp)
       return failure();
     unsigned iterArgPos = condition.getArgNumber() - 1;
@@ -47,7 +47,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
     // The condition is initially <value> and remains false once changed to
     // false. Moveover, values don't change after the condition is set to false.
     auto yield = cast<scf::YieldOp>(body->back());
-    auto yieldedCondition = yield.getOperand(iterArgPos).dyn_cast<OpResult>();
+    auto yieldedCondition = dyn_cast<OpResult>(yield.getOperand(iterArgPos));
     if (yieldedCondition.getOwner() != conditional)
       return failure();
 
@@ -61,7 +61,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
     Block *forEnd = &forOp.getRegion().back();
     auto forYield = cast<scf::YieldOp>(forEnd->getTerminator());
     for (auto op : llvm::enumerate(forYield->getOperands())) {
-      auto opp = op.value().dyn_cast<OpResult>();
+      auto opp = dyn_cast<OpResult>(op.value());
       if (!opp) {
         return failure();
       }
@@ -69,7 +69,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
         return failure();
 
       auto BA =
-          elseYield.getOperand(opp.getResultNumber()).dyn_cast<BlockArgument>();
+          dyn_cast<BlockArgument>(elseYield.getOperand(opp.getResultNumber()));
       if (!BA) {
         if (iterArgPos == op.index())
           if (matchPattern(elseYield.getOperand(opp.getResultNumber()),
@@ -88,7 +88,7 @@ struct ForBreakLoweringPattern : public OpRewritePattern<ForOp> {
 
     SmallVector<Value> continueArgs;
     for (auto op : forYield->getOperands()) {
-      if (auto opp = op.dyn_cast<OpResult>()) {
+      if (auto opp = dyn_cast<OpResult>(op)) {
         if (opp.getOwner() == conditional) {
           continueArgs.push_back(
               conditional.thenYield()->getOperand(opp.getResultNumber()));

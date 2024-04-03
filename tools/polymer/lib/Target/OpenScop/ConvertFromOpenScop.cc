@@ -641,7 +641,7 @@ void Importer::initializeSymbol(mlir::Value val) {
 
   /// Symbols that are the block arguments won't be taken care of at this stage.
   /// initializeFuncOpInterface() should already have done that.
-  if (mlir::BlockArgument arg = val.dyn_cast<mlir::BlockArgument>())
+  if (mlir::BlockArgument arg = dyn_cast<mlir::BlockArgument>(val))
     return;
 
   // This defOp should be cloned to the target function, while its operands

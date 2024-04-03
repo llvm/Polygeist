@@ -110,7 +110,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
 
     auto condition = outerIfOp.getCondition();
     //  and that the outermost if's condition is an iter arg of the for
-    auto condArg = condition.dyn_cast<BlockArgument>();
+    auto condArg = dyn_cast<BlockArgument>(condition);
     if (!condArg)
       return failure();
     if (condArg.getOwner()->getParentOp() != forOp)
@@ -121,7 +121,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
     // and is false unless coming from inside the if
     auto forYieldOp = cast<scf::YieldOp>(block.getTerminator());
     auto opres =
-        forYieldOp.getOperand(condArg.getArgNumber() - 1).dyn_cast<OpResult>();
+        dyn_cast<OpResult>(forYieldOp.getOperand(condArg.getArgNumber() - 1));
     if (!opres)
       return failure();
     if (opres.getOwner() != outerIfOp)
@@ -143,7 +143,7 @@ struct ForBreakAddUpgrade : public OpRewritePattern<scf::ForOp> {
       if (opres.getResultNumber() == regionArg.getArgNumber() - 1)
         continue;
 
-      auto opres2 = forYieldOperand.dyn_cast<OpResult>();
+      auto opres2 = dyn_cast<OpResult>(forYieldOperand);
       if (!opres2)
         continue;
       if (opres2.getOwner() != outerIfOp)
@@ -627,13 +627,13 @@ yop2.results()[idx]);
 */
 
 bool isTopLevelArgValue(Value value, Region *region) {
-  if (auto arg = value.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(value))
     return arg.getParentRegion() == region;
   return false;
 }
 
 bool isBlockArg(Value value) {
-  if (auto arg = value.dyn_cast<BlockArgument>())
+  if (auto arg = dyn_cast<BlockArgument>(value))
     return true;
   return false;
 }
@@ -642,7 +642,7 @@ bool dominateWhile(Value value, WhileOp loop) {
   if (Operation *op = value.getDefiningOp()) {
     DominanceInfo dom(loop);
     return dom.properlyDominates(op, loop);
-  } else if (auto arg = value.dyn_cast<BlockArgument>()) {
+  } else if (auto arg = dyn_cast<BlockArgument>(value)) {
     return arg.getOwner()->getParentOp()->isProperAncestor(loop);
   } else {
     assert("????");
@@ -682,11 +682,11 @@ struct WhileToForHelper {
     negativeStep = false;
 
     auto condOp = loop.getConditionOp();
-    indVar = cmpIOp.getLhs().dyn_cast<BlockArgument>();
+    indVar = dyn_cast<BlockArgument>(cmpIOp.getLhs());
     Type extType = nullptr;
     // todo handle ext
     if (auto ext = cmpIOp.getLhs().getDefiningOp<ExtSIOp>()) {
-      indVar = ext.getIn().dyn_cast<BlockArgument>();
+      indVar = dyn_cast<BlockArgument>(ext.getIn());
       extType = ext.getType();
     }
     // Condition is not the same as an induction variable
@@ -1004,7 +1004,7 @@ struct MoveWhileAndDown : public OpRewritePattern<WhileOp> {
 
       Value extraCmp = andIOp->getOperand(1 - i);
       Value lookThrough = nullptr;
-      if (auto BA = extraCmp.dyn_cast<BlockArgument>()) {
+      if (auto BA = dyn_cast<BlockArgument>(extraCmp)) {
         lookThrough = oldYield.getOperand(BA.getArgNumber());
       }
       if (!helper.computeLegality(/*sizeCheck*/ false, lookThrough)) {
@@ -1341,7 +1341,7 @@ struct MoveWhileDown2 : public OpRewritePattern<WhileOp> {
           //    yield   i:pair<2>
           // }
           if (!std::get<0>(pair).use_empty()) {
-            if (auto blockArg = elseYielded.dyn_cast<BlockArgument>())
+            if (auto blockArg = dyn_cast<BlockArgument>(elseYielded))
               if (blockArg.getOwner() == &op.getBefore().front()) {
                 if (afterYield.getResults()[blockArg.getArgNumber()] ==
                         std::get<2>(pair) &&
@@ -1580,7 +1580,7 @@ struct WhileCmpOffset : public OpRewritePattern<WhileOp> {
         if (addI.getOperand(1).getDefiningOp() &&
             !op.getBefore().isAncestor(
                 addI.getOperand(1).getDefiningOp()->getParentRegion()))
-          if (auto blockArg = addI.getOperand(0).dyn_cast<BlockArgument>()) {
+          if (auto blockArg = dyn_cast<BlockArgument>(addI.getOperand(0))) {
             if (blockArg.getOwner() == &op.getBefore().front()) {
               auto rng = llvm::make_early_inc_range(blockArg.getUses());
 
@@ -1859,7 +1859,7 @@ struct WhileLICM : public OpRewritePattern<WhileOp> {
     auto isDefinedOutsideOfBody = [&](Value value) {
       auto *definingOp = value.getDefiningOp();
       if (!definingOp) {
-        if (auto ba = value.dyn_cast<BlockArgument>())
+        if (auto ba = dyn_cast<BlockArgument>(value))
           definingOp = ba.getOwner()->getParentOp();
         assert(definingOp);
       }
@@ -2125,7 +2125,7 @@ struct WhileShiftToInduction : public OpRewritePattern<WhileOp> {
     if (!matchPattern(cmpIOp.getRhs(), m_Zero()))
       return failure();
 
-    auto indVar = cmpIOp.getLhs().dyn_cast<BlockArgument>();
+    auto indVar = dyn_cast<BlockArgument>(cmpIOp.getLhs());
     if (!indVar)
       return failure();
 
@@ -2144,7 +2144,7 @@ struct WhileShiftToInduction : public OpRewritePattern<WhileOp> {
     if (!matchPattern(shiftOp.getRhs(), m_One()))
       return failure();
 
-    auto prevIndVar = shiftOp.getLhs().dyn_cast<BlockArgument>();
+    auto prevIndVar = dyn_cast<BlockArgument>(shiftOp.getLhs());
     if (!prevIndVar)
       return failure();
 

@@ -34,7 +34,7 @@ static bool canBeParallelHoisted(Operation *op, Operation *scope,
   // Helper to check whether an operation is loop invariant wrt. SSA properties.
   LLVM_DEBUG(llvm::dbgs() << "Checking for parallel hoist: " << *op << "\n");
   auto definedOutside = [&](Value value) {
-    if (auto BA = value.dyn_cast<BlockArgument>())
+    if (auto BA = dyn_cast<BlockArgument>(value))
       if (willBeMoved.count(BA.getOwner()->getParentOp()))
         return true;
     auto *definingOp = value.getDefiningOp();
@@ -245,7 +245,7 @@ bool below(Value bval, int64_t val) {
   if (val == -1)
     return false;
 
-  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+  if (auto baval = dyn_cast<BlockArgument>(bval)) {
     if (affine::AffineForOp afFor =
             dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       for (auto ub : afFor.getUpperBoundMap().getResults()) {
