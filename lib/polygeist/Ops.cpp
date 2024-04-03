@@ -1631,9 +1631,9 @@ public:
     Type elTy = dstTy.getElementType();
 
     size_t width = 1;
-    if (auto IT = elTy.dyn_cast<IntegerType>())
+    if (auto IT = llvm::dyn_cast<IntegerType>(elTy))
       width = IT.getWidth() / 8;
-    else if (auto FT = elTy.dyn_cast<FloatType>())
+    else if (auto FT = llvm::dyn_cast<FloatType>(elTy))
       width = FT.getWidth() / 8;
     else {
       // TODO extend to llvm compatible type
@@ -1734,9 +1734,9 @@ public:
       return failure();
 
     size_t width = 1;
-    if (auto IT = elTy.dyn_cast<IntegerType>())
+    if (auto IT = llvm::dyn_cast<IntegerType>(elTy))
       width = IT.getWidth() / 8;
-    else if (auto FT = elTy.dyn_cast<FloatType>())
+    else if (auto FT = llvm::dyn_cast<FloatType>(elTy))
       width = FT.getWidth() / 8;
     else {
       // TODO extend to llvm compatible type
@@ -1787,7 +1787,7 @@ public:
     SmallVector<Value> idxs;
     Value val;
 
-    if (auto IT = elTy.dyn_cast<IntegerType>())
+    if (auto IT = llvm::dyn_cast<IntegerType>(elTy))
       val =
           rewriter.create<arith::ConstantIntOp>(op.getLoc(), 0, IT.getWidth());
     else {
@@ -2479,7 +2479,7 @@ public:
 
   LogicalResult matchAndRewrite(arith::SelectOp op,
                                 PatternRewriter &rewriter) const override {
-    auto ty = op.getType().dyn_cast<IntegerType>();
+    auto ty = llvm::dyn_cast<IntegerType>(op.getType());
     if (!ty)
       return failure();
     IntegerAttr lhs, rhs;
@@ -2589,10 +2589,10 @@ public:
                 v.getDefiningOp<LLVM::UndefOp>() ||
                 v.getDefiningOp<polygeist::UndefOp>();
       if (auto extOp = v.getDefiningOp<ExtUIOp>())
-        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+        if (auto it = llvm::dyn_cast<IntegerType>(extOp.getIn().getType()))
           change |= it.getWidth() == 1;
       if (auto extOp = v.getDefiningOp<ExtSIOp>())
-        if (auto it = extOp.getIn().getType().dyn_cast<IntegerType>())
+        if (auto it = llvm::dyn_cast<IntegerType>(extOp.getIn().getType()))
           change |= it.getWidth() == 1;
     }
     if (!change) {
@@ -3175,7 +3175,7 @@ bool valueCmp(Cmp cmp, Value bval, ValueOrInt val) {
     }
   }
 
-  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+  if (auto baval = llvm::dyn_cast<BlockArgument>(bval)) {
     if (affine::AffineForOp afFor =
             dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       auto for_lb = afFor.getLowerBoundMap().getResults()[baval.getArgNumber()];
@@ -3487,7 +3487,7 @@ bool valueCmp(Cmp cmp, AffineExpr expr, size_t numDim, ValueRange operands,
 
 // Range is [lb, ub)
 bool rangeIncludes(Value bval, ValueOrInt lb, ValueOrInt ub) {
-  if (auto baval = bval.dyn_cast<BlockArgument>()) {
+  if (auto baval = llvm::dyn_cast<BlockArgument>(bval)) {
     if (affine::AffineForOp afFor =
             dyn_cast<affine::AffineForOp>(baval.getOwner()->getParentOp())) {
       return valueCmp(
@@ -3621,7 +3621,7 @@ struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
       if (!opd) {
         return failure();
       }
-      auto ival = op.getOperands()[opd.getPosition()].dyn_cast<BlockArgument>();
+      auto ival = llvm::dyn_cast<BlockArgument>(op.getOperands()[opd.getPosition()]);
       if (!ival) {
         return failure();
       }
@@ -3663,7 +3663,7 @@ struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
       if (!par.getRegion().isAncestor(v.getParentRegion()) ||
           op.getThenRegion().isAncestor(v.getParentRegion()))
         return;
-      if (auto ba = v.dyn_cast<BlockArgument>()) {
+      if (auto ba = llvm::dyn_cast<BlockArgument>(v)) {
         if (ba.getOwner()->getParentOp() == par) {
           return;
         }
@@ -4285,7 +4285,7 @@ struct MergeNestedAffineParallelIf
             continue;
           }
           if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
-            auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+            auto ival = llvm::dyn_cast<BlockArgument>(operands[dim.getPosition()]);
             if (!ival || ival.getOwner()->getParentOp() != op) {
               rhs = rhs + dim;
               if (failure)
@@ -4315,7 +4315,7 @@ struct MergeNestedAffineParallelIf
 
               if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
                 auto ival =
-                    operands[dim.getPosition()].dyn_cast<BlockArgument>();
+                    llvm::dyn_cast<BlockArgument>(operands[dim.getPosition()]);
                 if (!ival || ival.getOwner()->getParentOp() != op) {
                   rhs = rhs + bop;
                   // While legal, this may run before parallel merging
@@ -4511,7 +4511,7 @@ struct MergeParallelInductions
           continue;
         }
         if (auto dim = cur.dyn_cast<AffineDimExpr>()) {
-          auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+          auto ival = llvm::dyn_cast<BlockArgument>(operands[dim.getPosition()]);
           if (!ival || ival.getOwner()->getParentOp() != op) {
             rhs = rhs + dim;
             continue;
@@ -4538,7 +4538,7 @@ struct MergeParallelInductions
             }
 
             if (auto dim = bop.getLHS().dyn_cast<AffineDimExpr>()) {
-              auto ival = operands[dim.getPosition()].dyn_cast<BlockArgument>();
+              auto ival = llvm::dyn_cast<BlockArgument>(operands[dim.getPosition()]);
               if (!ival || ival.getOwner()->getParentOp() != op) {
                 rhs = rhs + bop;
                 continue;
@@ -4983,8 +4983,8 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
         auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
         if (!opd)
           continue;
-        auto val = ((Value)load.getMapOperands()[opd.getPosition()])
-                       .dyn_cast<BlockArgument>();
+        auto val = llvm::dyn_cast<BlockArgument>(
+          ((Value)load.getMapOperands()[opd.getPosition()]));
         if (!val)
           continue;
 
@@ -5033,8 +5033,8 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
             auto opd = map.getResults()[0].dyn_cast<AffineDimExpr>();
             if (!opd)
               continue;
-            auto val = ((Value)load.getMapOperands()[opd.getPosition()])
-                           .dyn_cast<BlockArgument>();
+            auto val = llvm::dyn_cast<BlockArgument>(
+              ((Value)load.getMapOperands()[opd.getPosition()]));
             if (!val)
               continue;
 
@@ -5279,7 +5279,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         }
         if (storeIdxs[pair.index()].isValue) {
           Value auval = storeIdxs[pair.index()].v_val;
-          BlockArgument bval = auval.dyn_cast<BlockArgument>();
+          BlockArgument bval = llvm::dyn_cast<BlockArgument>(auval);
           if (!bval) {
             LLVM_DEBUG(llvm::dbgs() << " + non bval expr " << bval << "\n");
             continue;
@@ -5302,9 +5302,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
           auto i = idxp.index();
           if (!idx.isValue) {
             if (auto ald = dyn_cast<affine::AffineLoadOp>(ld)) {
-              if (auto ac = ald.getAffineMap()
-                                .getResult(i)
-                                .dyn_cast<AffineConstantExpr>()) {
+              if (auto ac = ald.getAffineMap().getResult(i).dyn_cast<AffineConstantExpr>()) {
                 if (idx == ac.getValue())
                   continue;
               }
@@ -5339,7 +5337,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         if (!VI.isValue)
           continue;
         auto V = VI.v_val;
-        auto BA = V.dyn_cast<BlockArgument>();
+        auto BA = llvm::dyn_cast<BlockArgument>(V);
         if (!BA) {
           LLVM_DEBUG(llvm::dbgs() << " + non map oper " << V << "\n");
           return failure();
@@ -5426,7 +5424,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
         if (!VI.isValue)
           continue;
         auto V = VI.v_val;
-        auto BA = V.dyn_cast<BlockArgument>();
+        auto BA = llvm::dyn_cast<BlockArgument>(V);
         Operation *c = BA.getOwner()->getParentOp();
         if (isa<affine::AffineParallelOp>(c) || isa<scf::ParallelOp>(c)) {
           Operation *tmp = store;
@@ -5468,7 +5466,7 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
               if (storeIdxSet.count(V))
                 continue;
 
-              if (auto BA = V.dyn_cast<BlockArgument>()) {
+              if (auto BA = llvm::dyn_cast<BlockArgument>(V)) {
                 Operation *parent = BA.getOwner()->getParentOp();
 
                 if (auto sop = storeVal.getDefiningOp())
@@ -5518,10 +5516,10 @@ struct AffineBufferElimination : public OpRewritePattern<T> {
                     if (!isa<MemoryEffects::Read>(res.getEffect()))
                       return false;
                     unsigned addr = 0;
-                    if (auto MT = v.getType().dyn_cast<MemRefType>())
+                    if (auto MT = llvm::dyn_cast<MemRefType>(v.getType()))
                       addr = MT.getMemorySpaceAsInt();
                     else if (auto LT =
-                                 v.getType().dyn_cast<LLVM::LLVMPointerType>())
+                                 llvm::dyn_cast<LLVM::LLVMPointerType>(v.getType()))
                       addr = LT.getAddressSpace();
                     else
                       return false;

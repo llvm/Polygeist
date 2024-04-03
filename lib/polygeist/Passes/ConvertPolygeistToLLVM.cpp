@@ -308,7 +308,7 @@ struct Pointer2MemrefOpLowering
     // MemRefDescriptor sourceMemRef(operands.front());
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
-    if (auto PT = convertedType.dyn_cast<LLVM::LLVMPointerType>()) {
+    if (auto PT = llvm::dyn_cast<LLVM::LLVMPointerType>(convertedType)) {
       rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(op, PT, adaptor.getSource());
       return success();
     }
@@ -551,7 +551,7 @@ struct LLVMOpLowering : public ConversionPattern {
 
     bool typeAttrsConverted = true;
     for (auto &attr : op->getAttrs())
-      if (auto tyAttr = attr.getValue().dyn_cast<TypeAttr>())
+      if (auto tyAttr = llvm::dyn_cast<TypeAttr>(attr.getValue()))
         if (converter->convertType(tyAttr.getValue()) != tyAttr.getValue())
           typeAttrsConverted = false;
 
@@ -565,7 +565,7 @@ struct LLVMOpLowering : public ConversionPattern {
     SmallVector<NamedAttribute> convertedAttrs;
     for (auto &attr : op->getAttrs()) {
       NamedAttribute convertedAttr = attr;
-      if (auto tyAttr = attr.getValue().dyn_cast<TypeAttr>()) {
+      if (auto tyAttr = llvm::dyn_cast<TypeAttr>(attr.getValue())) {
         Type convertedTy = converter->convertType(tyAttr.getValue());
         if (!convertedTy)
           return failure();
@@ -857,7 +857,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           rewriter.create<LLVM::AddressOfOp>(execute.getLoc(), func)));
       for (auto dep : execute.getDependencies()) {
         auto src = dep.getDefiningOp<polygeist::StreamToTokenOp>().getSource();
-        if (auto MT = src.getType().dyn_cast<MemRefType>())
+        if (auto MT = llvm::dyn_cast<MemRefType>(src.getType()))
           src = rewriter.create<polygeist::Memref2PointerOp>(
               dep.getDefiningOp()->getLoc(),
               LLVM::LLVMPointerType::get(rewriter.getContext(),
@@ -1531,7 +1531,7 @@ struct LowerGPUAlternativesOp
                      isa<LLVM::FDivOp>(op) || isa<LLVM::FSubOp>(op) ||
                      isa<LLVM::FRemOp>(op)) {
             int width =
-                op->getOperand(0).getType().dyn_cast<FloatType>().getWidth();
+                llvm::dyn_cast<FloatType>(op->getOperand(0).getType()).getWidth();
             // TODO these are pretty random atm
             if (width == 16) {
               floatOps++;
@@ -2256,7 +2256,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           auto bitcast =
               ctorBuilder.create<LLVM::BitcastOp>(loc, llvmPointerType, aoo);
           auto globalTy =
-              aoo.getType().dyn_cast<LLVM::LLVMPointerType>().getElementType();
+              llvm::dyn_cast<LLVM::LLVMPointerType>(aoo.getType()).getElementType();
           // TODO This should actually be the GPUModuleOp's data layout I
           // believe, there were problems with assigning the data layout to the
           // gpumodule because MLIR didnt like the nested data layout, and
@@ -2394,7 +2394,7 @@ public:
          llvm::enumerate(gpuFuncOp.getWorkgroupAttributions())) {
       Value attribution = en.value();
 
-      auto type = attribution.getType().dyn_cast<MemRefType>();
+      auto type = llvm::dyn_cast<MemRefType>(attribution.getType());
       assert(type && type.hasStaticShape() && "unexpected type in attribution");
 
       uint64_t numElements = type.getNumElements();
@@ -2892,7 +2892,7 @@ struct ConvertPolygeistToLLVMPass
       auto areAllTypesConverted = [&](Operation *op) -> std::optional<bool> {
         // Check if TyepAttrs got converted
         for (auto &attr : op->getAttrs())
-          if (auto tyAttr = attr.getValue().dyn_cast<TypeAttr>())
+          if (auto tyAttr = llvm::dyn_cast<TypeAttr>(attr.getValue()))
             if (converter.convertType(tyAttr.getValue()) != tyAttr.getValue())
               return std::nullopt;
 

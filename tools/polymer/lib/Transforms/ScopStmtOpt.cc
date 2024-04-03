@@ -370,7 +370,7 @@ struct RewriteScratchpadTypePass
       // All the operands that are unranked memrefs.
       SmallVector<Value> unranked;
       for (auto operand : caller.getArgOperands())
-        if (MemRefType type = operand.getType().dyn_cast<MemRefType>())
+        if (MemRefType type = llvm::dyn_cast<MemRefType>(operand.getType()))
           if (!type.hasStaticShape())
             unranked.push_back(operand);
       if (unranked.empty())

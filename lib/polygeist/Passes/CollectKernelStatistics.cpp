@@ -197,7 +197,7 @@ std::array<StrideTy, 3> estimateStride(mlir::OperandRange indices,
       } else {
         return UNKNOWN;
       }
-    } else if (auto ba = v.dyn_cast<BlockArgument>()) {
+    } else if (auto ba = llvm::dyn_cast<BlockArgument>(v)) {
       return 0;
       if (isa<gpu::GPUFuncOp>(ba.getOwner()->getParentOp())) {
         return 0;
@@ -339,7 +339,7 @@ static void generateAlternativeKernelDescs(mlir::ModuleOp m) {
               isa<arith::SubFOp>(&op) || isa<arith::AddFOp>(&op) ||
               isa<arith::RemFOp>(&op) || false) {
             int width =
-                op.getOperand(0).getType().dyn_cast<FloatType>().getWidth();
+                llvm::dyn_cast<FloatType>(op.getOperand(0).getType()).getWidth();
             addTo(floatOps, width, blockTrips);
           } else if (isa<arith::MulIOp>(&op) || isa<arith::DivUIOp>(&op) ||
                      isa<arith::DivSIOp>(&op) || isa<arith::SubIOp>(&op) ||

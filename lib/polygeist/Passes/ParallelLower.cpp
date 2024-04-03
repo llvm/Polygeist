@@ -258,7 +258,7 @@ void ParallelLower::runOnOperation() {
 
     auto callable = caller.getCallableForCallee();
     CallableOpInterface callableOp;
-    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+    if (SymbolRefAttr symRef = llvm::dyn_cast<SymbolRefAttr>(callable)) {
       if (!symRef.isa<FlatSymbolRefAttr>())
         return;
       auto *symbolOp =
@@ -312,7 +312,7 @@ void ParallelLower::runOnOperation() {
 
     auto callable = caller.getCallableForCallee();
     CallableOpInterface callableOp;
-    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+    if (SymbolRefAttr symRef = llvm::dyn_cast<SymbolRefAttr>(callable)) {
       if (!symRef.isa<FlatSymbolRefAttr>())
         return;
       auto *symbolOp =
@@ -730,7 +730,7 @@ void FixGPUFunc::runOnOperation() {
 
     auto callable = caller.getCallableForCallee();
     CallableOpInterface callableOp;
-    if (SymbolRefAttr symRef = callable.dyn_cast<SymbolRefAttr>()) {
+    if (SymbolRefAttr symRef = llvm::dyn_cast<SymbolRefAttr>(callable)) {
       auto *symbolOp =
           symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
       callableOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
@@ -771,7 +771,7 @@ void FixGPUFunc::runOnOperation() {
       return;
     Operation *funcOp;
     if (SymbolRefAttr symRef =
-            callOp.getCallableForCallee().dyn_cast<SymbolRefAttr>()) {
+            llvm::dyn_cast<SymbolRefAttr>(callOp.getCallableForCallee())) {
       auto *symbolOp =
           symbolTable.lookupNearestSymbolFrom(getOperation(), symRef);
       funcOp = dyn_cast_or_null<CallableOpInterface>(symbolOp);
@@ -806,7 +806,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
           auto dst = call->getOperand(0);
-          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
+          if (auto mt = llvm::dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -814,7 +814,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
                 dst);
           }
           auto src = call->getOperand(1);
-          if (auto mt = src.getType().dyn_cast<MemRefType>()) {
+          if (auto mt = llvm::dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -831,7 +831,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
           auto dst = call->getOperand(0);
-          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
+          if (auto mt = llvm::dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -839,7 +839,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
                 dst);
           }
           auto src = call->getOperand(1);
-          if (auto mt = src.getType().dyn_cast<MemRefType>()) {
+          if (auto mt = llvm::dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),
@@ -859,7 +859,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           OpBuilder bz(call);
           auto falsev = bz.create<ConstantIntOp>(call->getLoc(), false, 1);
           auto dst = call->getOperand(0);
-          if (auto mt = dst.getType().dyn_cast<MemRefType>()) {
+          if (auto mt = llvm::dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
                 LLVM::LLVMPointerType::get(mt.getElementType(),

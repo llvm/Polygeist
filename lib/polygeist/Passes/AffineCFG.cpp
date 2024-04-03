@@ -144,7 +144,7 @@ static bool legalCondition(Value en, bool dim = false) {
   //	if (!outer || legalCondition(IC.getOperand(), false)) return true;
   //}
   if (!dim)
-    if (auto BA = en.dyn_cast<BlockArgument>()) {
+    if (auto BA = llvm::dyn_cast<BlockArgument>(en)) {
       if (isa<affine::AffineForOp, affine::AffineParallelOp>(
               BA.getOwner()->getParentOp()))
         return true;
@@ -730,7 +730,7 @@ static void setLocationAfter(PatternRewriter &b, mlir::Value val) {
     it++;
     b.setInsertionPoint(val.getDefiningOp()->getBlock(), it);
   }
-  if (auto bop = val.dyn_cast<mlir::BlockArgument>())
+  if (auto bop = llvm::dyn_cast<mlir::BlockArgument>(val))
     b.setInsertionPoint(bop.getOwner(), bop.getOwner()->begin());
 }
 
@@ -745,7 +745,7 @@ struct IndexCastMovement : public OpRewritePattern<IndexCastOp> {
     }
 
     mlir::Value val = op.getOperand();
-    if (auto bop = val.dyn_cast<mlir::BlockArgument>()) {
+    if (auto bop = llvm::dyn_cast<mlir::BlockArgument>(val)) {
       if (op.getOperation()->getBlock() != bop.getOwner()) {
         op.getOperation()->moveBefore(bop.getOwner(), bop.getOwner()->begin());
         return success();
@@ -1010,7 +1010,7 @@ bool isValidIndex(Value val) {
   if (val.getDefiningOp<ConstantIntOp>())
     return true;
 
-  if (auto ba = val.dyn_cast<BlockArgument>()) {
+  if (auto ba = llvm::dyn_cast<BlockArgument>(val)) {
     auto *owner = ba.getOwner();
     assert(owner);
 

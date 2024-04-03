@@ -210,7 +210,7 @@ static void demoteRegisterToMemory(mlir::func::FuncOp f, OpBuilder &b) {
 
     // Create the alloca op for the scratchpad.
     memref::AllocaOp allocaOp = createScratchpadAllocaOp(
-        val.dyn_cast<mlir::OpResult>(), b, &entryBlock);
+        llvm::dyn_cast<mlir::OpResult>(val), b, &entryBlock);
 
     // Create the store op that stores val into the scratchpad for future uses.
     createScratchpadStoreOp(val, allocaOp, b);

@@ -281,7 +281,7 @@ static void dedupIndexCast(func::FuncOp f) {
   SmallVector<Operation *> toErase;
   for (auto &op : entry) {
     if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
-      auto arg = indexCast.getOperand().dyn_cast<BlockArgument>();
+      auto arg = llvm::dyn_cast<BlockArgument>(indexCast.getOperand());
       if (argToCast.count(arg)) {
         LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
                           << '\n');
