@@ -249,14 +249,14 @@ ValueCategory MLIRScanner::VisitForStmt(clang::ForStmt *fors) {
     if (auto *s = fors->getCond()) {
       auto condRes = Visit(s);
       auto cond = condRes.getValue(loc, builder);
-      if (auto mt = llvm::dyn_cast<mlir::MemRefType>(cond.getType())) {
+      if (auto mt = dyn_cast<mlir::MemRefType>(cond.getType())) {
         cond = builder.create<polygeist::Memref2PointerOp>(
             loc,
             LLVM::LLVMPointerType::get(mt.getElementType(),
                                        mt.getMemorySpaceAsInt()),
             cond);
       }
-      if (auto LT = llvm::dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
+      if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
         auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
         cond = builder.create<mlir::LLVM::ICmpOp>(
             loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
@@ -342,7 +342,7 @@ ValueCategory MLIRScanner::VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors) {
   if (auto *s = fors->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = llvm::dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
+    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
       auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
@@ -742,7 +742,7 @@ ValueCategory MLIRScanner::VisitDoStmt(clang::DoStmt *fors) {
   if (auto *s = fors->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = llvm::dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
+    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
       auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
@@ -805,7 +805,7 @@ ValueCategory MLIRScanner::VisitWhileStmt(clang::WhileStmt *stmt) {
   if (auto *s = stmt->getCond()) {
     auto condRes = Visit(s);
     auto cond = condRes.getValue(loc, builder);
-    if (auto LT = llvm::dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
+    if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
       auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
       cond = builder.create<mlir::LLVM::ICmpOp>(
           loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
@@ -849,11 +849,11 @@ ValueCategory MLIRScanner::VisitIfStmt(clang::IfStmt *stmt) {
 
   auto oldpoint = builder.getInsertionPoint();
   auto *oldblock = builder.getInsertionBlock();
-  if (auto LT = llvm::dyn_cast<MemRefType>(cond.getType())) {
+  if (auto LT = dyn_cast<MemRefType>(cond.getType())) {
     cond = builder.create<polygeist::Memref2PointerOp>(
         loc, LLVM::LLVMPointerType::get(builder.getI8Type()), cond);
   }
-  if (auto LT = llvm::dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
+  if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(cond.getType())) {
     auto nullptr_llvm = builder.create<mlir::LLVM::ZeroOp>(loc, LT);
     cond = builder.create<mlir::LLVM::ICmpOp>(
         loc, mlir::LLVM::ICmpPredicate::ne, cond, nullptr_llvm);
@@ -1164,7 +1164,7 @@ ValueCategory MLIRScanner::VisitReturnStmt(clang::ReturnStmt *stmt) {
       }
 
       auto postTy = returnVal.getType().cast<MemRefType>().getElementType();
-      if (auto prevTy = llvm::dyn_cast<mlir::IntegerType>(val.getType())) {
+      if (auto prevTy = dyn_cast<mlir::IntegerType>(val.getType())) {
         auto ipostTy = postTy.cast<mlir::IntegerType>();
         if (prevTy != ipostTy) {
           val = builder.create<arith::TruncIOp>(loc, ipostTy, val);

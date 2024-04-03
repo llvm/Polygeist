@@ -93,7 +93,7 @@ static LogicalResult generateUnrolledInterleavedLoop(
         .wasInterrupted();
   };
   auto threadIndependent = [&](Value v) -> bool {
-    if (auto BA = llvm::dyn_cast<BlockArgument>(v)) {
+    if (auto BA = dyn_cast<BlockArgument>(v)) {
       if (BA == srcIV)
         return false;
       return BA.getOwner()->getParentOp()->isAncestor(srcBlock->getParentOp());

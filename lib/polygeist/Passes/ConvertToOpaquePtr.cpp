@@ -192,7 +192,7 @@ struct GEPConversion : public OpConversionPattern<LLVM::GEPOp> {
     if (!op->getAttr(kElemTypeAttrName))
       elty = TypeAttr::get(
           getTypeConverter()->convertType(
-            llvm::dyn_cast<LLVM::LLVMPointerType>(
+            dyn_cast<LLVM::LLVMPointerType>(
               op.getOperand(0).getType()).getElementType()));
     if (convertPtrsToOpaque(op, rewritten, elty, adaptor.getOperands(),
                             rewriter, getTypeConverter())
@@ -224,14 +224,14 @@ struct ConvertToOpaquePtrPass
     std::map<StringRef, LLVM::LLVMStructType> typeCache;
     TypeConverter converter;
     converter.addConversion([&](Type ty) -> Type {
-      if (auto pt = llvm::dyn_cast<LLVM::LLVMPointerType>(ty)) {
+      if (auto pt = dyn_cast<LLVM::LLVMPointerType>(ty)) {
         return LLVM::LLVMPointerType::get(pt.getContext(),
                                           pt.getAddressSpace());
-      } else if (auto mt = llvm::dyn_cast<MemRefType>(ty)) {
+      } else if (auto mt = dyn_cast<MemRefType>(ty)) {
         return MemRefType::get(mt.getShape(),
                                converter.convertType(mt.getElementType()),
                                mt.getLayout(), mt.getMemorySpace());
-      } else if (auto st = llvm::dyn_cast<LLVM::LLVMStructType>(ty)) {
+      } else if (auto st = dyn_cast<LLVM::LLVMStructType>(ty)) {
         StringRef key = "";
         if (st.isIdentified()) {
           key = st.getName();
@@ -246,7 +246,7 @@ struct ConvertToOpaquePtrPass
         }
         for (auto ty : st.getBody()) {
           StringRef fieldKey = "";
-          if (auto fieldST = llvm::dyn_cast<LLVM::LLVMStructType>(ty)) {
+          if (auto fieldST = dyn_cast<LLVM::LLVMStructType>(ty)) {
             if (fieldST.isIdentified())
               fieldKey = fieldST.getName();
           }
@@ -264,7 +264,7 @@ struct ConvertToOpaquePtrPass
           return LLVM::LLVMStructType::getLiteral(&getContext(), bodyTypes,
                                                   st.isPacked());
         }
-      } else if (auto at = llvm::dyn_cast<LLVM::LLVMArrayType>(ty)) {
+      } else if (auto at = dyn_cast<LLVM::LLVMArrayType>(ty)) {
         return LLVM::LLVMArrayType::get(
             converter.convertType(at.getElementType()), at.getNumElements());
       } else {

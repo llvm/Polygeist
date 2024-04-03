@@ -45,8 +45,8 @@ using namespace polygeist;
 enum class Match { Exact, Maybe, None };
 
 bool operator<(Value lhs, Value rhs) {
-  if (auto lhsBA = llvm::dyn_cast<BlockArgument>(lhs)) {
-    if (auto rhsBA = llvm::dyn_cast<BlockArgument>(rhs)) {
+  if (auto lhsBA = dyn_cast<BlockArgument>(lhs)) {
+    if (auto rhsBA = dyn_cast<BlockArgument>(rhs)) {
       if (lhsBA.getOwner() != rhsBA.getOwner())
         return lhsBA.getOwner() < rhsBA.getOwner();
       else
@@ -56,7 +56,7 @@ bool operator<(Value lhs, Value rhs) {
     }
   }
   auto lhsOR = lhs.cast<OpResult>();
-  if (auto rhsBA = llvm::dyn_cast<BlockArgument>(rhs)) {
+  if (auto rhsBA = dyn_cast<BlockArgument>(rhs)) {
     return false;
   } else {
     auto rhsOR = rhs.cast<OpResult>();
@@ -502,7 +502,7 @@ public:
           !exOp->isAncestor(values[0].getDefiningOp())) {
         return values[0];
       }
-      if (auto ba = llvm::dyn_cast<BlockArgument>(values[0]))
+      if (auto ba = dyn_cast<BlockArgument>(values[0]))
         if (!exOp->isAncestor(ba.getOwner()->getParentOp())) {
           return values[0];
         }
@@ -1083,7 +1083,7 @@ bool PolygeistMem2Reg::forwardStoreToLoad(
   std::set<mlir::Operation *> allStoreOps;
 
   Type elType;
-  if (auto MT = llvm::dyn_cast<MemRefType>(AI.getType()))
+  if (auto MT = dyn_cast<MemRefType>(AI.getType()))
     elType = MT.getElementType();
   else
     elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
@@ -1101,11 +1101,11 @@ bool PolygeistMem2Reg::forwardStoreToLoad(
   while (list.size()) {
     auto pair = list.front();
     auto val = pair.first;
-    if (auto MT = llvm::dyn_cast<MemRefType>(val.getType())) {
-      if (auto ia = llvm::dyn_cast_or_null<IntegerAttr>(MT.getMemorySpace()))
+    if (auto MT = dyn_cast<MemRefType>(val.getType())) {
+      if (auto ia = dyn_cast_or_null<IntegerAttr>(MT.getMemorySpace()))
         SharedMemAddr = ia.getValue() == 5;
     } else {
-      auto PT = llvm::dyn_cast<LLVM::LLVMPointerType>(val.getType());
+      auto PT = dyn_cast<LLVM::LLVMPointerType>(val.getType());
       SharedMemAddr = PT.getAddressSpace() == 5;
     }
     auto modified = pair.second;
@@ -1707,7 +1707,7 @@ bool PolygeistMem2Reg::forwardStoreToLoad(
 
     Value maybeblockArg =
         valueAtStartOfBlock.find(block)->second->materialize(false);
-    auto blockArg = llvm::dyn_cast<BlockArgument>(maybeblockArg);
+    auto blockArg = dyn_cast<BlockArgument>(maybeblockArg);
     assert(blockArg && blockArg.getOwner() == block);
 
     SetVector<Block *> prepred(block->getPredecessors().begin(),

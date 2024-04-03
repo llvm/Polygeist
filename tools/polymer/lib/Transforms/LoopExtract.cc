@@ -58,7 +58,7 @@ static void getArgs(Operation *parentOp, llvm::SetVector<Value> &args) {
       if (Operation *defOp = operand.getDefiningOp()) {
         if (!internalOps.contains(defOp))
           args.insert(operand);
-      } else if (BlockArgument bArg = llvm::dyn_cast<BlockArgument>(operand)) {
+      } else if (BlockArgument bArg = dyn_cast<BlockArgument>(operand)) {
         if (!internalOps.contains(bArg.getOwner()->getParentOp()))
           args.insert(operand);
       } else {
