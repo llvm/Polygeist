@@ -1102,7 +1102,7 @@ bool PolygeistMem2Reg::forwardStoreToLoad(
     auto pair = list.front();
     auto val = pair.first;
     if (auto MT = llvm::dyn_cast<MemRefType>(val.getType())) {
-      if (auto ia = MT.getMemorySpace().dyn_cast_or_null<IntegerAttr>())
+      if (auto ia = llvm::dyn_cast_or_null<IntegerAttr>(MT.getMemorySpace()))
         SharedMemAddr = ia.getValue() == 5;
     } else {
       auto PT = llvm::dyn_cast<LLVM::LLVMPointerType>(val.getType());

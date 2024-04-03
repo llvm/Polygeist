@@ -34,7 +34,7 @@ static mlir::Value castCallerMemRefArg(mlir::Value callerArg,
   mlir::OpBuilder::InsertionGuard guard(b);
   mlir::Type callerArgType = callerArg.getType();
 
-  if (MemRefType dstTy = calleeArgType.dyn_cast_or_null<MemRefType>()) {
+  if (MemRefType dstTy = llvm::dyn_cast_or_null<MemRefType>(calleeArgType)) {
     MemRefType srcTy = llvm::dyn_cast<MemRefType>(callerArgType);
     if (srcTy && dstTy.getElementType() == srcTy.getElementType() &&
         dstTy.getMemorySpace() == srcTy.getMemorySpace()) {

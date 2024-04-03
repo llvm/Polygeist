@@ -985,9 +985,9 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     Location loc = allocaOp.getLoc();
     MemRefType originalType = allocaOp.getType();
-    auto convertedType = getTypeConverter()
-                             ->convertType(originalType)
-                             .dyn_cast_or_null<LLVM::LLVMPointerType>();
+    auto convertedType =
+      llvm::dyn_cast_or_null<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(originalType));
     auto elTy = convertMemrefElementTypeForLLVMPointer(
         originalType, *this->getTypeConverter());
     if (!convertedType || !elTy)
@@ -1015,9 +1015,10 @@ public:
     auto module = allocOp->getParentOfType<ModuleOp>();
     Location loc = allocOp.getLoc();
     MemRefType originalType = allocOp.getType();
-    auto convertedType = getTypeConverter()
-                             ->convertType(originalType)
-                             .dyn_cast_or_null<LLVM::LLVMPointerType>();
+    auto convertedType =
+      llvm::dyn_cast_or_null<LLVM::LLVMPointerType>(
+        getTypeConverter()->convertType(originalType));
+
     if (!convertedType)
       return rewriter.notifyMatchFailure(loc, "unsupported memref type");
     if (adaptor.getAlignment() && adaptor.getAlignment().value() != 0)
@@ -1197,9 +1198,9 @@ protected:
     Location loc = op.getLoc();
     MemRefType originalType = op.getMemRefType();
     auto convertedType =
+      llvm::dyn_cast_or_null<LLVM::LLVMPointerType>(
         this->getTypeConverter()
-            ->convertType(originalType)
-            .template dyn_cast_or_null<LLVM::LLVMPointerType>();
+            ->convertType(originalType));
     if (!convertedType) {
       (void)rewriter.notifyMatchFailure(loc, "unsupported memref type");
       return nullptr;
