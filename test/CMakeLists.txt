@@ -7,7 +7,7 @@ configure_lit_site_cfg(
 
 add_lit_testsuite(check-polygeist-opt "Verify Polygeist passes perform correctly"
     ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS polygeist-opt
+    DEPENDS polygeist-opt FileCheck not
     ARGS -v
 )
 
