@@ -906,10 +906,7 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::createCSEPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
-    }
-#endif
 
-    {
       mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
       gpuPM.addPass(polygeist::createFixGPUFuncPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
@@ -917,6 +914,7 @@ int main(int argc, char **argv) {
       pm.addPass(polygeist::createLowerAlternativesPass());
       pm.addPass(polygeist::createCollectKernelStatisticsPass());
     }
+#endif
 
     if (mlir::failed(pm.run(module.get()))) {
       module->dump();
