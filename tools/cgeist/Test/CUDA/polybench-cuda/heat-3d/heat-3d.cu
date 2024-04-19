@@ -1,3 +1,6 @@
+// clang-format off
+// RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 10 10 10
+// clang-format on
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

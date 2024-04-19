@@ -1,3 +1,6 @@
+// clang-format off
+// RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 10 10
+// clang-format on
 /**
  * syrk.c: This file is part of the PolyBench/C 3.2 test suite.
  *

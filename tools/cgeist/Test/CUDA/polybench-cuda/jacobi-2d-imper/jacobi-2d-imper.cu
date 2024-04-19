@@ -1,3 +1,6 @@
+// clang-format off
+// RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 10 5
+// clang-format on
 /**
  * jacobi-2d-imper.c: This file is part of the PolyBench/C 3.2 test suite.
  *

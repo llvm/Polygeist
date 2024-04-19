@@ -1,3 +1,6 @@
+// clang-format off
+// RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 5 10 10
+// clang-format on
 /**
  * fdtd-2d.c: This file is part of the PolyBench 3.0 test suite.
  *
