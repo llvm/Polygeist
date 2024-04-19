@@ -239,7 +239,7 @@ struct AffineForReductionIter : public OpRewritePattern<affine::AffineForOp> {
           load->getResult(0).replaceAllUsesWith(store.getOperand(0));
         } else {
 
-          assert(0 && "illegal behavior");
+          llvm_unreachable("illegal behavior");
         }
       }
 

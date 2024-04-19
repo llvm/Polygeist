@@ -261,7 +261,7 @@ SerializeToCubinPass::translateToLLVMIR(llvm::LLVMContext &llvmContext) {
       else if (II->getArgOperand(0)->getType()->isDoubleTy())
         fname = "__nv_powi";
       else
-        assert(0 && "unhandled float type in powi call");
+        llvm_unreachable("unhandled float type in powi call");
       auto *CI = llvm::CallInst::Create(
           II->getFunctionType(), llvmModule->getFunction(fname),
           llvm::ArrayRef<llvm::Value *>(

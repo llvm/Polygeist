@@ -336,7 +336,7 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     int64_t ubCst = ubCstOp.value();
     int64_t stepCst = stepCstOp.value();
     if (!(lbCst == 0 && ubCst >= 0 && stepCst == 1)) {
-      assert(0 && "expected positive loop bounds and step");
+      llvm_unreachable("expected positive loop bounds and step");
       return failure();
     }
     int64_t upperBoundRem = mlir::mod(ubCst, unrollFactor);
@@ -355,7 +355,7 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
     int64_t lbCst = lbCstOp.value();
     int64_t stepCst = stepCstOp.value();
     if (!(lbCst == 0 && stepCst == 1)) {
-      assert(0 && "expected positive loop bounds and step");
+      llvm_unreachable("expected positive loop bounds and step");
       return failure();
     }
     // auto lowerBound = pop.getLowerBound()[dim];

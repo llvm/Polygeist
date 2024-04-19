@@ -152,7 +152,7 @@ ValueCategory MLIRScanner::getComplexPartRef(mlir::Location loc,
             val, vec),
         /*isReference*/ true);
   } else {
-    assert(0 && "unexpected complex type");
+    llvm_unreachable("unexpected complex type");
   }
 }
 
@@ -575,7 +575,7 @@ mlir::Value MLIRScanner::createAllocOp(mlir::Type t, VarDecl *name,
   // NamedAttribute attrs[] = {NamedAttribute("name", name)};
   if (name) {
     // if (name->getName() == "i")
-    //  assert(0 && " not i");
+    //  llvm_unreachable(" not i");
     if (params.find(name) != params.end()) {
       name->dump();
     }
@@ -709,7 +709,7 @@ MLIRScanner::VisitImaginaryLiteral(clang::ImaginaryLiteral *expr) {
   } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(convertedType)) {
     fty = ST.getBody()[0].cast<FloatType>();
   } else {
-    assert(0 && "unexpected complex type\n");
+    llvm_unreachable("unexpected complex type\n");
   }
 
   auto zero = builder.create<ConstantFloatOp>(
@@ -764,7 +764,7 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl) {
   }
   decl->dump();
   llvm::errs() << " mty: " << Mty << "\n";
-  assert(0 && "bad");
+  llvm_unreachable("bad");
 }
 
 /// Construct corresponding MLIR operations to initialize the given value by a
@@ -821,11 +821,13 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
             num = AT.getBody().size();
           } else {
             toInit.getType().dump();
-            assert(0 && "TODO get number of values in array filler expression");
+            llvm_unreachable(
+                "TODO get number of values in array filler expression");
           }
         } else {
           toInit.getType().dump();
-          assert(0 && "TODO get number of values in array filler expression");
+          llvm_unreachable(
+              "TODO get number of values in array filler expression");
         }
       } else {
         num = initListExpr->getNumInits();
@@ -871,7 +873,7 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value toInit,
           else if (auto AT = dyn_cast<LLVM::LLVMArrayType>(ET))
             nextType = AT.getElementType();
           else
-            assert(0 && "unknown inner type");
+            llvm_unreachable("unknown inner type");
 
           mlir::Value idxs[] = {
               builder.create<ConstantIntOp>(loc, 0, 32),
@@ -975,7 +977,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
         inite = ValueCategory(visit.getValue(varLoc, builder), /*isRef*/ false);
         if (!inite.val) {
           init->dump();
-          assert(0 && inite.val);
+          llvm_unreachable("?");
         }
         subType = inite.val.getType();
       }
@@ -1072,7 +1074,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     } else if (auto CE = dyn_cast<CXXConstructExpr>(init)) {
       VisitConstructCommon(CE, decl, memtype, op);
     } else
-      assert(0 && "unknown init list");
+      llvm_unreachable("unknown init list");
   }
   if (block)
     builder.setInsertionPoint(block, iter);
@@ -2111,7 +2113,7 @@ mlir::Value MLIRScanner::getConstantIndex(int x) {
 }
 
 ValueCategory MLIRScanner::VisitMSPropertyRefExpr(MSPropertyRefExpr *expr) {
-  assert(0 && "unhandled ms propertyref");
+  llvm_unreachable("unhandled ms propertyref");
   // TODO obviously fake
   return nullptr;
 }
@@ -2337,7 +2339,7 @@ ValueCategory MLIRScanner::VisitUnaryOperator(clang::UnaryOperator *U) {
   }
   default: {
     U->dump();
-    assert(0 && "unhandled opcode");
+    llvm_unreachable("unhandled opcode");
   }
   }
 }
@@ -2365,7 +2367,7 @@ MLIRScanner::VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Uop) {
   }
   default:
     Uop->dump();
-    assert(0 && "unhandled VisitUnaryExprOrTypeTraitExpr");
+    llvm_unreachable("unhandled VisitUnaryExprOrTypeTraitExpr");
   }
 }
 
@@ -2829,7 +2831,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Mul: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex mult");
+      llvm_unreachable("Unhandled complex mult");
     }
     auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2844,7 +2846,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Div: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex div");
+      llvm_unreachable("Unhandled complex div");
     }
     auto lhs_v = lhs.getValue(loc, builder);
     if (lhs_v.getType().isa<mlir::FloatType>()) {
@@ -2933,7 +2935,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_Sub: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex sub");
+      llvm_unreachable("Unhandled complex sub");
     }
     auto lhs_v = lhs.getValue(loc, builder);
     auto rhs_v = rhs.getValue(loc, builder);
@@ -3091,7 +3093,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_SubAssign: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex sub");
+      llvm_unreachable("Unhandled complex sub");
     }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
@@ -3123,7 +3125,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_MulAssign: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex mult");
+      llvm_unreachable("Unhandled complex mult");
     }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
@@ -3155,7 +3157,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   case clang::BinaryOperator::Opcode::BO_DivAssign: {
     if (isa<clang::ComplexType>(BO->getType())) {
-      assert(0 && "Unhandled complex div");
+      llvm_unreachable("Unhandled complex div");
     }
     assert(lhs.isReference);
     auto prev = lhs.getValue(loc, builder);
@@ -3261,7 +3263,7 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 
   default: {
     BO->dump();
-    assert(0 && "unhandled opcode");
+    llvm_unreachable("unhandled opcode");
   }
   }
 }
@@ -3468,7 +3470,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
   E->dump();
   E->getDecl()->dump();
   llvm::errs() << "couldn't find " << name << "\n";
-  assert(0 && "couldnt find value");
+  llvm_unreachable("couldnt find value");
   return nullptr;
 }
 
@@ -3496,7 +3498,7 @@ ValueCategory MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *E) {
   llvm::errs() << *C << "\n";
   auto ty = getMLIRType(E->getType());
   llvm::errs() << ty << "\n";
-  assert(0 && "unhandled typeid");
+  llvm_unreachable("unhandled typeid");
 }
 
 ValueCategory
@@ -3794,7 +3796,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
   }
   case clang::CastKind::CK_Dynamic: {
     E->dump();
-    assert(0 && "dynamic cast not handled yet\n");
+    llvm_unreachable("dynamic cast not handled yet\n");
   }
   case clang::CastKind::CK_UncheckedDerivedToBase:
   case clang::CastKind::CK_DerivedToBase: {
@@ -3907,7 +3909,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       }
       bool badShape = ut.getShape().size() != mt.getShape().size();
       if (!badShape)
-        for (int i = 1; i < ut.getShape().size(); i++) {
+        for (size_t i = 1; i < ut.getShape().size(); i++) {
           if (ut.getShape()[i] != mt.getShape()[i]) {
             badShape = true;
             break;
@@ -3928,7 +3930,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       E->dump();
       E->getType()->dump();
       llvm::errs() << " scalar: " << scalar << " mlirty: " << mlirty << "\n";
-      assert(0 && "illegal type for cast");
+      llvm_unreachable("illegal type for cast");
       llvm_unreachable("illegal type for cast");
     }
   }
@@ -4048,7 +4050,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       }
       bool badShape = ut.getShape().size() != mt.getShape().size();
       if (!badShape)
-        for (int i = 1; i < ut.getShape().size(); i++) {
+        for (size_t i = 1; i < ut.getShape().size(); i++) {
           if (ut.getShape()[i] != mt.getShape()[i]) {
             badShape = true;
             break;
@@ -4069,7 +4071,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
       E->dump();
       E->getType()->dump();
       llvm::errs() << " scalar: " << scalar << " mlirty: " << mlirty << "\n";
-      assert(0 && "illegal type for cast");
+      llvm_unreachable("illegal type for cast");
       llvm_unreachable("illegal type for cast");
     }
   }
@@ -4265,14 +4267,14 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(postTy)) {
       postScalarTy = ST.getBody()[0].cast<mlir::FloatType>();
     } else {
-      assert(0 && "unexpected complex type\n");
+      llvm_unreachable("unexpected complex type\n");
     }
     if (auto mt = dyn_cast<MemRefType>(prevTy)) {
       prevScalarTy = mt.getElementType().cast<mlir::FloatType>();
     } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(prevTy)) {
       prevScalarTy = ST.getBody()[0].cast<mlir::FloatType>();
     } else {
-      assert(0 && "unexpected complex type\n");
+      llvm_unreachable("unexpected complex type\n");
     }
     auto castScalar = [&](mlir::Value complex, int fnum) -> mlir::Value {
       mlir::Value scalar = getComplexPart(loc, complex, fnum);
@@ -4338,7 +4340,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     function.dump();
     llvm::errs() << "scalar: " << scalar << "\n";
     E->dump();
-    assert(0 && "unhandled ptrtobool cast");
+    llvm_unreachable("unhandled ptrtobool cast");
   }
   case clang::CastKind::CK_PointerToIntegral: {
     auto scalar = Visit(E->getSubExpr()).getValue(loc, builder);
@@ -4354,7 +4356,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     function.dump();
     llvm::errs() << "scalar: " << scalar << "\n";
     E->dump();
-    assert(0 && "unhandled ptrtoint cast");
+    llvm_unreachable("unhandled ptrtoint cast");
   }
   case clang::CastKind::CK_IntegralToBoolean: {
     auto res = Visit(E->getSubExpr()).getValue(loc, builder);
@@ -4436,7 +4438,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     } else if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(convertedType)) {
       fty = ST.getBody()[0].cast<FloatType>();
     } else {
-      assert(0 && "unexpected complex type");
+      llvm_unreachable("unexpected complex type");
     }
     auto zero = builder.create<ConstantFloatOp>(
         loc, APFloat(fty.getFloatSemantics(), "0"), fty);
@@ -4447,7 +4449,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     if (EmittingFunctionDecl)
       EmittingFunctionDecl->dump();
     E->dump();
-    assert(0 && "unhandled cast");
+    llvm_unreachable("unhandled cast");
   }
 }
 
@@ -5827,7 +5829,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
     }
   }
   qt->dump();
-  assert(0 && "unhandled type");
+  llvm_unreachable("unhandled type");
 }
 
 llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {

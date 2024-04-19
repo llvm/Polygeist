@@ -589,7 +589,7 @@ void ParallelLower::runOnOperation() {
       else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
-        assert(0 && "illegal dimension");
+        llvm_unreachable("illegal dimension");
       builder.replaceOp(bidx,
                         ValueRange((mlir::Value)blockB->getArgument(idx)));
     });
@@ -647,7 +647,7 @@ void ParallelLower::runOnOperation() {
       else if (bidx.getDimension() == gpu::Dimension::z)
         idx = 2;
       else
-        assert(0 && "illegal dimension");
+        llvm_unreachable("illegal dimension");
       builder.replaceOp(bidx, ValueRange(threadB->getArgument(idx)));
     });
 
@@ -666,7 +666,7 @@ void ParallelLower::runOnOperation() {
       else if (bidx.getDimension() == gpu::Dimension::z)
         val = launchOp.getGridSizeZ();
       else
-        assert(0 && "illegal dimension");
+        llvm_unreachable("illegal dimension");
       builder.replaceOp(bidx, val);
     });
 
@@ -679,7 +679,7 @@ void ParallelLower::runOnOperation() {
       else if (bidx.getDimension() == gpu::Dimension::z)
         val = launchOp.getBlockSizeZ();
       else
-        assert(0 && "illegal dimension");
+        llvm_unreachable("illegal dimension");
       builder.replaceOp(bidx, val);
     });
 
