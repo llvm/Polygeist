@@ -4,8 +4,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Pass/Pass.h"
+
 namespace polymer {
 
 void registerRegToMemPass();
-
+std::unique_ptr<mlir::Pass> createRegToMemPass();
 }

@@ -72,6 +72,10 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include <fstream>
 
+#if POLYGEIST_ENABLE_POLYMER
+#include "polymer/Transforms/Reg2Mem.h"
+#endif
+
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
@@ -84,6 +88,9 @@ using namespace llvm;
 #define POLYGEIST_ENABLE_GPU (POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM)
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
+
+static cl::opt<bool> RunPolymer("run-polymer", cl::init(false),
+                                cl::desc("Use polymer to optimize"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -870,6 +877,11 @@ int main(int argc, char **argv) {
       }
     }
     pm.addPass(mlir::createSymbolDCEPass());
+
+#if POLYGEIST_ENABLE_POLYMER
+    if (RunPolymer)
+      pm.addPass(polymer::createRegToMemPass());
+#endif
 
     if (EmitGPU || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
         EmitLLVMDialect) {

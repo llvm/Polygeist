@@ -920,3 +920,7 @@ void polymer::registerRegToMemPass() {
         pm.addPass(mlir::createCanonicalizerPass());
       });
 }
+
+std::unique_ptr<Pass> polymer::createRegToMemPass() {
+  return std::make_unique<RegToMemPass>();
+}
