@@ -540,3 +540,7 @@ void polymer::registerExtractScopStmtPass() {
         pm.addPass(createCanonicalizerPass());
       });
 }
+
+std::unique_ptr<Pass> polymer::createExtractScopStmtPass() {
+  return std::make_unique<ExtractScopStmtPass>();
+}

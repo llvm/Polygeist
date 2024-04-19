@@ -73,6 +73,8 @@
 #include <fstream>
 
 #if POLYGEIST_ENABLE_POLYMER
+#include "polymer/Transforms/ExtractScopStmt.h"
+#include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 #endif
 
@@ -89,8 +91,9 @@ using namespace llvm;
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
-static cl::opt<bool> RunPolymer("run-polymer", cl::init(false),
-                                cl::desc("Use polymer to optimize"));
+static cl::opt<std::string>
+    PolymerPlutoOpt("polymer-pluto-opt", cl::init(""),
+                    cl::desc("Use polymer to optimize"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -879,8 +882,18 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createSymbolDCEPass());
 
 #if POLYGEIST_ENABLE_POLYMER
-    if (RunPolymer)
-      pm.addPass(polymer::createRegToMemPass());
+    if (PolymerPlutoOpt.getNumOccurrences() > 0) {
+      mlir::OpPassManager &plutoPM = pm.nest<polygeist::GPUWrapperOp>();
+      plutoPM.addPass(polymer::createRegToMemPass());
+      plutoPM.addPass(polymer::createExtractScopStmtPass());
+      // TODO check if there are polymer canonicalization patterns that we are
+      // missing
+      plutoPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+          canonicalizerConfig, {}, {}));
+      auto plutoOpts =
+          polymer::PlutoOptPipelineOptions::createFromString(PolymerPlutoOpt);
+      polymer::addPlutoOpt(plutoPM, *plutoOpts);
+    }
 #endif
 
     if (EmitGPU || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||

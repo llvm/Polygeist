@@ -39,31 +39,6 @@ using namespace polymer;
 
 #define DEBUG_TYPE "pluto-opt"
 
-struct PlutoOptPipelineOptions
-    : public mlir::PassPipelineOptions<PlutoOptPipelineOptions> {
-  Option<std::string> dumpClastAfterPluto{
-      *this, "dump-clast-after-pluto",
-      llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
-                     "optimization.")};
-  Option<bool> parallelize{*this, "parallelize",
-                           llvm::cl::desc("Enable parallelization from Pluto."),
-                           llvm::cl::init(false)};
-  Option<bool> debug{*this, "debug",
-                     llvm::cl::desc("Enable moredebug in Pluto."),
-                     llvm::cl::init(false)};
-  Option<bool> generateParallel{
-      *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
-      llvm::cl::init(false)};
-
-  Option<int> cloogf{*this, "cloogf", cl::desc("-cloogf option."),
-                     cl::init(-1)};
-  Option<int> cloogl{*this, "cloogl", cl::desc("-cloogl option."),
-                     cl::init(-1)};
-  Option<bool> diamondTiling{*this, "diamond-tiling",
-                             cl::desc("Enable diamond tiling"),
-                             cl::init(false)};
-};
-
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
 static mlir::func::FuncOp
@@ -141,7 +116,6 @@ class PlutoTransformPass
 
 public:
   PlutoTransformPass() = default;
-  PlutoTransformPass(const PlutoTransformPass &pass) {}
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
         parallelize(options.parallelize), debug(options.debug),
@@ -307,13 +281,18 @@ void polymer::registerPlutoTransformPass() {
   PassPipelineRegistration<PlutoOptPipelineOptions>(
       "pluto-opt", "Optimization implemented by PLUTO.",
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
-        pm.addPass(std::make_unique<DedupIndexCastPass>());
-        pm.addPass(createCanonicalizerPass());
-        pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
-        pm.addPass(createCanonicalizerPass());
-        if (pipelineOptions.generateParallel) {
-          pm.addPass(std::make_unique<PlutoParallelizePass>());
-          pm.addPass(createCanonicalizerPass());
-        }
+        addPlutoOpt(pm, pipelineOptions);
       });
+}
+
+void polymer::addPlutoOpt(OpPassManager &pm,
+                          const PlutoOptPipelineOptions &pipelineOptions) {
+  pm.addPass(std::make_unique<DedupIndexCastPass>());
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
+  pm.addPass(createCanonicalizerPass());
+  if (pipelineOptions.generateParallel) {
+    pm.addPass(std::make_unique<PlutoParallelizePass>());
+    pm.addPass(createCanonicalizerPass());
+  }
 }
