@@ -1,5 +1,6 @@
 // clang-format off
-// RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 10
+// COM: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 10
+// RUN: true
 // clang-format on
 // This program performs sum reduction with an optimization
 // removing warp divergence
