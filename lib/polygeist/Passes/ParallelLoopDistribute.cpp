@@ -286,7 +286,7 @@ static void minCutCache(polygeist::BarrierOp barrier,
       for (auto N : pair.second) {
         if (parent.find(N) == parent.end()) {
           assert(pair.first.type == Node::OP && N.type == Node::VAL);
-          assert(pair.first.O == N.V.dyn_cast<OpResult>().getOwner());
+          assert(pair.first.O == dyn_cast<OpResult>(N.V).getOwner());
           Cache.insert(N.V);
         }
       }
@@ -396,7 +396,7 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
     // the `parallel` op is not an ancestor of `op` or `op` itself), the
     // barrier is considered nested in that `parallel` op and _not_ in `op`.
     for (auto arg : barrier->getOperands()) {
-      if (auto ba = arg.dyn_cast<BlockArgument>()) {
+      if (auto ba = dyn_cast<BlockArgument>(arg)) {
         if (auto parallel =
                 dyn_cast<scf::ParallelOp>(ba.getOwner()->getParentOp())) {
           if (parallel->isAncestor(op))
@@ -2326,7 +2326,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
 
-            if (auto BA = cur.dyn_cast<BlockArgument>())
+            if (auto BA = dyn_cast<BlockArgument>(cur))
               if (BA.getOwner() == op->getBlock())
                 continue;
 
@@ -2426,7 +2426,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
 
-            if (auto BA = cur.dyn_cast<BlockArgument>())
+            if (auto BA = dyn_cast<BlockArgument>(cur))
               if (BA.getOwner() == op->getBlock())
                 continue;
             if (cur.getParentRegion()->isProperAncestor(
@@ -2485,7 +2485,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
           while (!todo.empty()) {
             auto cur = todo.pop_back_val();
 
-            if (auto BA = cur.dyn_cast<BlockArgument>())
+            if (auto BA = dyn_cast<BlockArgument>(cur))
               if (BA.getOwner() == op->getBlock())
                 continue;
 

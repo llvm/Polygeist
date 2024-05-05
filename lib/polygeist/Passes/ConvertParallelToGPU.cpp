@@ -222,7 +222,7 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
       succeeded = true;
     } else {
       assert(blockSize ==
-             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+             dyn_cast<IntegerAttr>(gpuFuncOp->getAttr(attrName)).getInt());
       succeeded = false;
     }
     attrName = "rocdl.max_flat_work_group_size";
@@ -233,7 +233,7 @@ struct AddLaunchBounds : public OpRewritePattern<gpu::LaunchFuncOp> {
       return success();
     } else {
       assert(blockSize ==
-             gpuFuncOp->getAttr(attrName).dyn_cast<IntegerAttr>().getInt());
+             dyn_cast<IntegerAttr>(gpuFuncOp->getAttr(attrName)).getInt());
       assert(!succeeded);
       return failure();
     }
@@ -525,7 +525,7 @@ struct SplitParallelOp : public OpRewritePattern<polygeist::GPUWrapperOp> {
     llvm::SmallVector<BlockArgument, 3> syncIVs;
     pop->walk([&](polygeist::BarrierOp barrier) {
       for (auto o : barrier.getOperands())
-        if (auto ba = o.dyn_cast<BlockArgument>())
+        if (auto ba = dyn_cast<BlockArgument>(o))
           if (std::find(syncIVs.begin(), syncIVs.end(), ba) == syncIVs.end())
             syncIVs.push_back(ba);
     });
@@ -1330,7 +1330,7 @@ struct RemovePolygeistNoopOp : public OpRewritePattern<polygeist::NoopOp> {
       scf::ParallelOp pop = nullptr;
       SmallVector<int, 3> threadIndices;
       for (auto operand : noop.getOperands()) {
-        if (auto blockArg = operand.dyn_cast<BlockArgument>()) {
+        if (auto blockArg = dyn_cast<BlockArgument>(operand)) {
           if (auto _pop = dyn_cast<scf::ParallelOp>(
                   blockArg.getOwner()->getParentOp())) {
             if (!pop)
