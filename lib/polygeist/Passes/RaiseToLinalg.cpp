@@ -138,27 +138,33 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO revisit this later
     iteratorTypes.push_back(utils::IteratorType::parallel);
 
+    StringAttr empty = StringAttr::get(loop.getContext());
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
       loop.getLoc(), TypeRange(), inputs, outputs, affineMaps, iteratorTypes,
-      StringAttr(),
-      StringAttr());
+      empty,
+      empty);
 
 
-    auto &body = genericOp.getRegion();
-    body.takeBody(loop.getRegion());
-
-    auto blk = &*body.begin();
+    auto blk = &*loop.getRegion().begin();
     rewriter.setInsertionPointToStart(blk);
 
     // This index will replace the use of the affine index
     auto idx = rewriter.create<linalg::IndexOp>(loop.getLoc(), rewriter.getIndexAttr(0));
     rewriter.replaceAllUsesWith(loop.getInductionVar(), idx);
 
+    auto &body = genericOp.getRegion();
+    body.takeBody(loop.getRegion());
+
+
     blk->eraseArguments(0, blk->getNumArguments());
 
     for (auto &&[conds, load] : loads) {
         auto arg = blk->addArgument(load.getType(), load.getLoc());
         rewriter.replaceOp(load, arg);
+    }
+
+    for (auto &&[conds, store] : stores) {
+        blk->addArgument(store.getValueToStore().getType(), store.getLoc());
     }
 
     SmallVector<Value> toreturn;
@@ -172,7 +178,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     rewriter.setInsertionPointToEnd(blk);
     rewriter.create<linalg::YieldOp>(loop.getLoc(), toreturn);
 
-
+    rewriter.eraseOp(loop);
     // return success!
     return success();
   }

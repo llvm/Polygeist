@@ -19,14 +19,17 @@ module {
   }
 }
 
+// CHECK: #map = affine_map<(d0) -> (d0)>
 // CHECK:   func.func @main(%[[arg0:.+]]: i1, %[[arg1:.+]]: i32, %[[arg2:.+]]: memref<?xf32>, %[[arg3:.+]]: memref<?xf32>) {
 // CHECK-NEXT:     %[[c4:.+]] = arith.constant 4 : index
 // CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg1]] : i32 to index
 // CHECK-NEXT:     %[[V1:.+]] = arith.muli %[[V0]], %[[c4]] : index
 // CHECK-NEXT:     %[[V2:.+]] = arith.divui %[[V1]], %[[c4]] : index
 // CHECK-NEXT:     scf.if %[[arg0]] {
-// CHECK-NEXT:       affine.for %[[arg4:.+]] = 0 to %[[V2]] {
-// CHECK-NEXT:         %[[a:.+]] = memref.load %[[arg3]][%[[arg4]]] : memref<?xf32>
-// CHECK-NEXT:         memref.store %[[a]], %[[arg2]][%[[arg4]]] : memref<?xf32>
-// CHECK-NEXT:       }
+// TODO note that presently we do not ensure that the memrefs are sliced to the right size as the space requires
+// CHECK-NEXT:        linalg.generic {indexing_maps = [#map, #map], iterator_types = ["parallel"]} ins(%arg2 : memref<?xf32>) outs(%alloca : memref<?xf32>) {
+// CHECK-NEXT:        ^bb0(%in: f32, %out: f32):
+// CHECK-NEXT:          linalg.yield %in : f32
+// CHECK-NEXT:        }
+// CHECK-NEXT:      }
 // CHECK-NEXT:     }
