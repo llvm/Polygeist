@@ -45,7 +45,7 @@ struct Condition {
     AffineIfOp op;
     Condition(bool ifTrue, AffineIfOp op) : ifTrue(ifTrue), op(op) {}
 };
-struct ForOpRaising : public OpRewritePattern<affine::AffineForOp> {
+struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
@@ -65,6 +65,7 @@ struct ForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // Additionally, for each load/store, remember what conditions are
     // required for that load or store to execute.
     auto result = loop->walk<WalkOrder::PreOrder>([&](Operation* op) {
+        if (op == loop) return WalkResult::advance();
         // TODO extend this, any non-memory operation is also legal here.
         // mul, add, etc (we can just check propety)
         if (isa<AffineYieldOp, AffineIfOp>(op)) {
@@ -82,10 +83,10 @@ struct ForOpRaising : public OpRewritePattern<affine::AffineForOp> {
                 conditions.emplace_back(ifTrue, ifstmt);
                 cur = ifstmt->getParentOp();
             }
-            if (auto load = dyn_cast<AffineLoadOp>(cur)) {
+            if (auto load = dyn_cast<AffineLoadOp>(op)) {
                 loads.emplace_back(conditions, load);
             } else {
-                auto store = cast<AffineStoreOp>(cur);
+                auto store = cast<AffineStoreOp>(op);
                 stores.emplace_back(conditions, store);
             }
             return WalkResult::advance();
@@ -173,13 +174,13 @@ struct ForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
 
     // return success!
-    return failure();
+    return success();
   }
 };
 
 void RaiseAffineToLinalg::runOnOperation() {
   RewritePatternSet patterns(&getContext());
-  patterns.insert<ForOpRaising>(&getContext());
+  patterns.insert<AffineForOpRaising>(&getContext());
 
   GreedyRewriteConfig config;
   (void)applyPatternsAndFoldGreedily(getOperation(), std::move(patterns),
