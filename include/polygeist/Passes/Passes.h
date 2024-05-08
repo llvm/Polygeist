@@ -124,6 +124,10 @@ namespace affine {
 class AffineDialect;
 }
 
+namespace linalg {
+class LinalgDialect;
+}
+
 namespace LLVM {
 class LLVMDialect;
 }
