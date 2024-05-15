@@ -10,13 +10,34 @@ module {
     %17 = arith.divui %16, %c4 : index
     %19 = memref.alloca(%17) : memref<?xf32>
     scf.if %12 {
-      affine.for %arg4 = 0 to %17 {
+      affine.for %arg4 = 0 to 17 {
         %ld = affine.load %18[%arg4] : memref<?xf32>
         affine.store %ld, %19[%arg4] : memref<?xf32>
       }
    }
     return
   }
+
+
+  func.func @main2(%12 : i1, %14 : i32, %18 : memref<?xf32> ) {
+    %c0 = arith.constant 0 : index
+    %c4 = arith.constant 4 : index
+    %c1 = arith.constant 1 : index
+    %15 = arith.index_cast %14 : i32 to index
+    %16 = arith.muli %15, %c4 : index
+    %17 = arith.divui %16, %c4 : index
+    %19 = memref.alloca(%17) : memref<?xf32>
+    scf.if %12 {
+      affine.for %arg4 = 0 to 17 {
+        %ld = affine.load %18[3 * %arg4] : memref<?xf32>
+        %ld2 = affine.load %18[0] : memref<?xf32>
+        %fadd = arith.addf %ld, %ld2 : f32
+        affine.store %fadd, %19[%arg4 + 17] : memref<?xf32>
+      }
+   }
+    return
+  }
+
 }
 
 // CHECK: #map = affine_map<(d0) -> (d0)>
