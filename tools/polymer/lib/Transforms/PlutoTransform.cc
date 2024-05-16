@@ -287,12 +287,12 @@ void polymer::registerPlutoTransformPass() {
 
 void polymer::addPlutoOpt(OpPassManager &pm,
                           const PlutoOptPipelineOptions &pipelineOptions) {
-  pm.addPass(std::make_unique<DedupIndexCastPass>());
+  pm.addNestedPass<func::FuncOp>(std::make_unique<DedupIndexCastPass>());
   pm.addPass(createCanonicalizerPass());
   pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
   pm.addPass(createCanonicalizerPass());
   if (pipelineOptions.generateParallel) {
-    pm.addPass(std::make_unique<PlutoParallelizePass>());
+    pm.addNestedPass<func::FuncOp>(std::make_unique<PlutoParallelizePass>());
     pm.addPass(createCanonicalizerPass());
   }
 }
