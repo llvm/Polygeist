@@ -413,7 +413,7 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
   auto getName = [&]() {
     std::string name;
     do {
-      name = "S" + std::to_string(scopId);
+      name = "S" + std::to_string(scopId++);
     } while (m.lookupSymbol(name));
     return name;
   };

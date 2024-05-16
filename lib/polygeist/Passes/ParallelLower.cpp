@@ -132,62 +132,7 @@ std::unique_ptr<Pass> createFixGPUFuncPass() {
 } // namespace polygeist
 } // namespace mlir
 
-#include "mlir/Transforms/InliningUtils.h"
-
-struct AlwaysInlinerInterface : public InlinerInterface {
-  using InlinerInterface::InlinerInterface;
-
-  //===--------------------------------------------------------------------===//
-  // Analysis Hooks
-  //===--------------------------------------------------------------------===//
-
-  /// All call operations within standard ops can be inlined.
-  bool isLegalToInline(Operation *call, Operation *callable,
-                       bool wouldBeCloned) const final {
-    return true;
-  }
-
-  /// All operations within standard ops can be inlined.
-  bool isLegalToInline(Region *, Region *, bool, IRMapping &) const final {
-    return true;
-  }
-
-  /// All operations within standard ops can be inlined.
-  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
-    return true;
-  }
-
-  //===--------------------------------------------------------------------===//
-  // Transformation Hooks
-  //===--------------------------------------------------------------------===//
-
-  /// Handle the given inlined terminator by replacing it with a new operation
-  /// as necessary.
-  void handleTerminator(Operation *op, Block *newDest) const final {
-    // Only "std.return" needs to be handled here.
-    auto returnOp = dyn_cast<func::ReturnOp>(op);
-    if (!returnOp)
-      return;
-
-    // Replace the return with a branch to the dest.
-    OpBuilder builder(op);
-    builder.create<cf::BranchOp>(op->getLoc(), newDest, returnOp.getOperands());
-    op->erase();
-  }
-
-  /// Handle the given inlined terminator by replacing it with a new operation
-  /// as necessary.
-  void handleTerminator(Operation *op,
-                        ArrayRef<Value> valuesToRepl) const final {
-    // Only "std.return" needs to be handled here.
-    auto returnOp = cast<func::ReturnOp>(op);
-
-    // Replace the values directly with the return operands.
-    assert(returnOp.getNumOperands() == valuesToRepl.size());
-    for (const auto &it : llvm::enumerate(returnOp.getOperands()))
-      valuesToRepl[it.index()].replaceAllUsesWith(it.value());
-  }
-};
+#include "AlwaysInliner.h"
 
 // TODO
 mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,

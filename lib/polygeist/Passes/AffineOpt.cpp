@@ -1,4 +1,6 @@
+#include "mlir/IR/Visitors.h"
 #include "mlir/Transforms/Passes.h"
+#include <utility>
 #ifdef POLYGEIST_ENABLE_POLYMER
 
 #include "PassDetails.h"
@@ -25,6 +27,11 @@
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 
+#include "AlwaysInliner.h"
+
+#define DEBUG_TYPE "affine-opt"
+#define DEBUG_LABEL DEBUG_TYPE ": "
+
 using namespace mlir;
 using namespace polygeist;
 
@@ -42,11 +49,11 @@ namespace {
 
 SmallVector<Operation *> findAffineRegions(Operation *root) {
   SmallVector<Operation *> affineRegions;
-  root->walk([&](Operation *loop) {
+  root->walk<mlir::WalkOrder::PreOrder>([&](Operation *loop) {
     if (!(isa<affine::AffineForOp>(loop) ||
           isa<affine::AffineParallelOp>(loop)))
       return;
-    if (affineRegions.back()->isAncestor(loop))
+    if (!affineRegions.empty() && affineRegions.back()->isAncestor(loop))
       return;
 
     auto result = loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
@@ -66,8 +73,11 @@ SmallVector<Operation *> findAffineRegions(Operation *root) {
 
       return WalkResult::interrupt();
     });
-    if (!result.wasInterrupted())
+    if (!result.wasInterrupted()) {
+      LLVM_DEBUG(llvm::dbgs() << DEBUG_LABEL << "Found affine region\n"
+                              << *loop << "\n");
       affineRegions.push_back(loop);
+    }
   });
   return affineRegions;
 }
@@ -82,21 +92,25 @@ FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
   auto executeOp = rewriter.create<scf::ExecuteRegionOp>(loc, TypeRange());
   auto executeOpBlock = rewriter.createBlock(&executeOp.getRegion());
   rewriter.clone(*op);
+  rewriter.create<scf::YieldOp>(loc);
   auto ret = outlineSingleBlockRegion(rewriter, loc, executeOp.getRegion(),
                                       funcName, callOp);
   if (failed(ret)) {
     rewriter.eraseOp(executeOp);
     return ret;
   }
+  rewriter.eraseOp(executeOp.getRegion().front().getTerminator());
   rewriter.inlineBlockBefore(executeOpBlock, op);
   rewriter.eraseOp(executeOp);
   rewriter.eraseOp(op);
   return ret;
 }
 
-SmallVector<func::FuncOp> outlineAffineRegions(Operation *root) {
+SmallVector<std::pair<func::FuncOp, func::CallOp>>
+outlineAffineRegions(Operation *root) {
   auto affineRegions = findAffineRegions(root);
-  auto m = root->getParentOfType<ModuleOp>();
+  auto m = isa<ModuleOp>(root) ? cast<ModuleOp>(root)
+                               : root->getParentOfType<ModuleOp>();
   auto loc = root->getLoc();
 
   unsigned Idx = 0;
@@ -107,7 +121,7 @@ SmallVector<func::FuncOp> outlineAffineRegions(Operation *root) {
     } while (m.lookupSymbol(name));
     return name;
   };
-  SmallVector<func::FuncOp> funcs;
+  SmallVector<std::pair<func::FuncOp, func::CallOp>> funcs;
   IRRewriter rewriter(root->getContext());
   for (Operation *op : affineRegions) {
     func::CallOp callOp;
@@ -116,7 +130,7 @@ SmallVector<func::FuncOp> outlineAffineRegions(Operation *root) {
       llvm::errs() << "Outlining affine region failed\n" << *root;
       abort();
     } else {
-      funcs.push_back(*ret);
+      funcs.push_back(std::make_pair(*ret, callOp));
     }
   }
   return funcs;
@@ -154,8 +168,11 @@ void AffineOptPass::runOnOperation() {
     postTransformPm.addPass(createCanonicalizerPass());
   }
 
+  AlwaysInlinerInterface interface(&getContext());
   IRRewriter b(&context);
-  for (mlir::func::FuncOp f : funcOps) {
+  for (auto &pair : funcOps) {
+    mlir::func::FuncOp f = pair.first;
+    mlir::func::CallOp call = pair.second;
     if (failed(preTransformPm.run(f))) {
       signalPassFailure();
       return;
@@ -178,6 +195,7 @@ void AffineOptPass::runOnOperation() {
       signalPassFailure();
       return;
     }
+    alwaysInlineCall(call);
   }
 }
 

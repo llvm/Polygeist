@@ -93,9 +93,10 @@ public:
                              mlir::affine::FlatAffineValueConstraints &cst,
                              llvm::ArrayRef<mlir::Operation *> ops);
   /// Add the access relation.
-  void addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
-                         mlir::affine::AffineValueMap &vMap,
-                         mlir::affine::FlatAffineValueConstraints &cst);
+  mlir::LogicalResult
+  addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
+                    mlir::affine::AffineValueMap &vMap,
+                    mlir::affine::FlatAffineValueConstraints &cst);
 
   /// Add a new generic field to a statement. `target` gives the statement ID.
   /// `content` specifies the data field in the generic.
@@ -143,7 +144,7 @@ private:
                             bool isEq = true);
 
   /// Create access relation constraints.
-  void createAccessRelationConstraints(
+  mlir::LogicalResult createAccessRelationConstraints(
       mlir::affine::AffineValueMap &vMap,
       mlir::affine::FlatAffineValueConstraints &cst,
       mlir::affine::FlatAffineValueConstraints &domain);

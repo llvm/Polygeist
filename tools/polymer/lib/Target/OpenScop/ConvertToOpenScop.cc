@@ -5,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/Visitors.h"
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
@@ -39,6 +40,7 @@
 #include "osl/osl.h"
 
 #include <memory>
+#include <optional>
 
 using namespace mlir;
 using namespace mlir::func;
@@ -137,7 +139,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
     scop->createStatement();
     scop->addDomainRelation(stmtId, domain);
     scop->addScatteringRelation(stmtId, domain, enclosingOps);
-    callee.walk([&](mlir::Operation *op) {
+    auto res = callee.walk([&](mlir::Operation *op) {
       if (isa<mlir::affine::AffineReadOpInterface>(op) ||
           isa<mlir::affine::AffineWriteOpInterface>(op)) {
         LLVM_DEBUG(dbgs() << "Creating access relation for: " << *op << '\n');
@@ -147,9 +149,14 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
         mlir::Value memref;
 
         stmt.getAccessMapAndMemRef(op, &vMap, &memref);
-        scop->addAccessRelation(stmtId, isRead, memref, vMap, domain);
+        if (scop->addAccessRelation(stmtId, isRead, memref, vMap, domain)
+                .failed())
+          return WalkResult::interrupt();
       }
+      return WalkResult::advance();
     });
+    if (res.wasInterrupted())
+      return nullptr;
 
     stmtId++;
   }
@@ -393,9 +400,11 @@ LogicalResult ModuleEmitter::emitFuncOp(
     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
   OslSymbolTable symTable;
   auto scop = createOpenScopFromFuncOp(func, symTable);
-  if (scop)
+  if (scop) {
     scops.push_back(std::move(scop));
-  return success();
+    return success();
+  }
+  return failure();
 }
 
 /// The entry function to the current OpenScop emitter.
