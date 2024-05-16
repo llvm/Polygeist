@@ -275,12 +275,6 @@ static void getScopStmtOps(Operation *writeOp,
   return;
 }
 
-static void getCalleeName(unsigned calleeId, CalleeName &calleeName,
-                          char prefix = 'S') {
-  calleeName.push_back(prefix);
-  calleeName += std::to_string(calleeId);
-}
-
 /// Create the function definition that contains all the operations that belong
 /// to a Scop statement. The function name will be the given calleeName, its
 /// contents will be ops, and its type depends on the given list of args. This
@@ -394,8 +388,7 @@ static void removeExtractedOps(llvm::SetVector<Operation *> &opsToRemove) {
 
 /// The main function that extracts scop statements as functions. Returns the
 /// number of callees extracted from this function.
-static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
-                                OpBuilder &b) {
+static unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
   // First discover those write ops that will be the "terminator" of each scop
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
@@ -416,6 +409,14 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
 
   // Use the top-level module to locate places for new functions insertion.
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
+  unsigned scopId = 0;
+  auto getName = [&]() {
+    std::string name;
+    do {
+      name = "S" + std::to_string(scopId);
+    } while (m.lookupSymbol(name));
+    return name;
+  };
   // A writeOp will result in a new caller/callee pair.
   for (unsigned i = 0; i < numWriteOps; i++) {
     llvm::SetVector<Operation *> ops;
@@ -427,8 +428,7 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
     getScopStmtOps(writeOp, ops, args, opToCallee, calleeToCallers, f, b);
 
     // Get the name of the callee. Should be in the form of "S<id>".
-    CalleeName calleeName;
-    getCalleeName(i + numCallees, calleeName);
+    CalleeName calleeName = StringRef(getName());
 
     // Create the callee.
     mlir::func::FuncOp callee =
@@ -508,24 +508,18 @@ static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
 
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,
-                               OperationPass<mlir::ModuleOp>> {
+                               OperationPass<mlir::func::FuncOp>> {
   void runOnOperation() override {
-    mlir::ModuleOp m = getOperation();
+    mlir::func::FuncOp f = getOperation();
+    mlir::ModuleOp m = f->getParentOfType<ModuleOp>();
     OpBuilder b(m.getContext());
 
-    SmallVector<mlir::func::FuncOp, 4> funcs;
-    m.walk([&](mlir::func::FuncOp f) {
-      if (f->hasAttr("scop.ignored"))
-        return;
-      funcs.push_back(f);
-    });
+    if (f->hasAttr("scop.ignored"))
+      return;
 
-    unsigned numCallees = 0;
-    for (mlir::func::FuncOp f : funcs) {
-      replaceUsesByStored(f, b);
+    replaceUsesByStored(f, b);
 
-      numCallees += extractScopStmt(f, numCallees, b);
-    }
+    extractScopStmt(f, b);
   }
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();

@@ -72,7 +72,7 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include <fstream>
 
-#if POLYGEIST_ENABLE_POLYMER
+#ifdef POLYGEIST_ENABLE_POLYMER
 #include "polymer/Transforms/ExtractScopStmt.h"
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
@@ -881,18 +881,16 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
-#if POLYGEIST_ENABLE_POLYMER
+#ifdef POLYGEIST_ENABLE_POLYMER
     if (PolymerPlutoOpt.getNumOccurrences() > 0) {
-      mlir::OpPassManager &plutoPM = pm.nest<polygeist::GPUWrapperOp>();
-      plutoPM.addPass(polymer::createRegToMemPass());
-      plutoPM.addPass(polymer::createExtractScopStmtPass());
-      // TODO check if there are polymer canonicalization patterns that we are
-      // missing
-      plutoPM.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
-          canonicalizerConfig, {}, {}));
       auto plutoOpts =
           polymer::PlutoOptPipelineOptions::createFromString(PolymerPlutoOpt);
-      polymer::addPlutoOpt(plutoPM, *plutoOpts);
+      if (!plutoOpts) {
+        llvm::errs() << "Could not parse --polymer-pluto-opt option: "
+                     << PolymerPlutoOpt << "\n";
+        abort();
+      }
+      pm.addPass(polygeist::createAffineOptPass(*plutoOpts));
     }
 #endif
 

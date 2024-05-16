@@ -4,10 +4,15 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
-		MLIRPolygeist
-		MLIRPolygeistTransforms
-		MLIRFuncAllExtensions
+        MLIRPolygeist
+        MLIRPolygeistTransforms
+        MLIRFuncAllExtensions
+        PolymerTransforms
         )
+if(POLYGEIST_ENABLE_POLYMER)
+        list(APPEND LIBS
+                PolymerTransforms)
+endif()
 add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 
 install(TARGETS polygeist-opt

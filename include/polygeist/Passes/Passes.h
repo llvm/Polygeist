@@ -9,6 +9,10 @@
 #include "polygeist/Dialect.h"
 #include <memory>
 
+#ifdef POLYGEIST_ENABLE_POLYMER
+#include "polymer/Transforms/PlutoTransform.h"
+#endif
+
 enum PolygeistAlternativesMode { PAM_Static, PAM_PGO_Profile, PAM_PGO_Opt };
 enum PolygeistGPUStructureMode {
   PGSM_Discard,
@@ -35,6 +39,11 @@ std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
+#ifdef POLYGEIST_ENABLE_POLYMER
+std::unique_ptr<Pass>
+createAffineOptPass(polymer::PlutoOptPipelineOptions &plutoOpts);
+#endif
+std::unique_ptr<Pass> createAffineOptPass();
 std::unique_ptr<Pass> createParallelLowerPass(
     bool wrapParallelOps = false,
     PolygeistGPUStructureMode gpuKernelStructureMode = PGSM_Discard);

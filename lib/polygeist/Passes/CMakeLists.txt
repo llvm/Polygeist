@@ -1,6 +1,7 @@
 add_mlir_dialect_library(MLIRPolygeistTransforms
   ConvertToOpaquePtr.cpp
   AffineCFG.cpp
+  AffineOpt.cpp
   AffineReduction.cpp
   CanonicalizeFor.cpp
   LoopRestructure.cpp
@@ -131,4 +132,16 @@ if(POLYGEIST_ENABLE_ROCM)
     hip::host
   )
 
+endif()
+if(POLYGEIST_ENABLE_POLYMER)
+  target_include_directories(obj.MLIRPolygeistTransforms PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/polymer/include"
+  )
+  target_link_libraries(obj.MLIRPolygeistTransforms PRIVATE
+    PolymerTransforms
+  )
+  target_compile_definitions(obj.MLIRPolygeistTransforms
+    PRIVATE
+    POLYGEIST_ENABLE_POLYMER=1
+  )
 endif()

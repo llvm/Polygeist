@@ -39,13 +39,14 @@ using namespace polymer;
 
 #define DEBUG_TYPE "pluto-opt"
 
+namespace polymer {
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
-static mlir::func::FuncOp
-plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
-               std::string dumpClastAfterPluto, bool parallelize = false,
-               bool debug = false, int cloogf = -1, int cloogl = -1,
-               bool diamondTiling = false) {
+mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
+                                  std::string dumpClastAfterPluto,
+                                  bool parallelize = false, bool debug = false,
+                                  int cloogf = -1, int cloogl = -1,
+                                  bool diamondTiling = false) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 
@@ -103,6 +104,7 @@ plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
   pluto_context_free(context);
   return g;
 }
+} // namespace polymer
 
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
@@ -296,3 +298,12 @@ void polymer::addPlutoOpt(OpPassManager &pm,
     pm.addPass(createCanonicalizerPass());
   }
 }
+
+namespace polymer {
+std::unique_ptr<mlir::Pass> createDedupIndexCastPass() {
+  return std::make_unique<DedupIndexCastPass>();
+}
+std::unique_ptr<mlir::Pass> createPlutoParallelizePass() {
+  return std::make_unique<PlutoParallelizePass>();
+}
+} // namespace polymer
