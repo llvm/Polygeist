@@ -27,6 +27,8 @@
 #include "polymer/Transforms/PlutoTransform.h"
 #include "polymer/Transforms/Reg2Mem.h"
 
+#include "polymer/Support/PolymerUtils.h"
+
 #include "AlwaysInliner.h"
 
 #define DEBUG_TYPE "affine-opt"
@@ -35,19 +37,9 @@
 using namespace mlir;
 using namespace polygeist;
 
-namespace polymer {
-mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
-                                  std::string dumpClastAfterPluto,
-                                  bool parallelize = false, bool debug = false,
-                                  int cloogf = -1, int cloogl = -1,
-                                  bool diamondTiling = false);
-std::unique_ptr<mlir::Pass> createDedupIndexCastPass();
-std::unique_ptr<mlir::Pass> createPlutoParallelizePass();
-} // namespace polymer
-
 namespace {
 
-SmallVector<Operation *> findAffineRegions(Operation *root) {
+static SmallVector<Operation *> findAffineRegions(Operation *root) {
   SmallVector<Operation *> affineRegions;
   root->walk<mlir::WalkOrder::PreOrder>([&](Operation *loop) {
     if (!(isa<affine::AffineForOp>(loop) ||
@@ -82,15 +74,15 @@ SmallVector<Operation *> findAffineRegions(Operation *root) {
   return affineRegions;
 }
 
-FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
-                                  Operation *op, StringRef funcName,
-                                  func::CallOp *callOp) {
+static FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
+                                         Operation *op, StringRef funcName,
+                                         func::CallOp *callOp) {
   assert(!funcName.empty() && "funcName cannot be empty");
 
   OpBuilder::InsertionGuard g(rewriter);
   rewriter.setInsertionPoint(op);
   auto executeOp = rewriter.create<scf::ExecuteRegionOp>(loc, TypeRange());
-  auto executeOpBlock = rewriter.createBlock(&executeOp.getRegion());
+  rewriter.createBlock(&executeOp.getRegion());
   rewriter.clone(*op);
   rewriter.create<scf::YieldOp>(loc);
   auto ret = outlineSingleBlockRegion(rewriter, loc, executeOp.getRegion(),
@@ -100,13 +92,13 @@ FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
     return ret;
   }
   rewriter.eraseOp(executeOp.getRegion().front().getTerminator());
-  rewriter.inlineBlockBefore(executeOpBlock, op);
+  rewriter.inlineBlockBefore(&executeOp.getRegion().front(), op);
   rewriter.eraseOp(executeOp);
   rewriter.eraseOp(op);
   return ret;
 }
 
-SmallVector<std::pair<func::FuncOp, func::CallOp>>
+static SmallVector<std::pair<func::FuncOp, func::CallOp>>
 outlineAffineRegions(Operation *root) {
   auto affineRegions = findAffineRegions(root);
   auto m = isa<ModuleOp>(root) ? cast<ModuleOp>(root)
@@ -136,76 +128,77 @@ outlineAffineRegions(Operation *root) {
   return funcs;
 }
 
+static void inlineAll(func::CallOp callOp, ModuleOp m = nullptr) {
+  if (!m)
+    m = callOp->getParentOfType<ModuleOp>();
+  auto name = callOp.getCallee();
+  if (auto funcOp = dyn_cast<func::FuncOp>(m.lookupSymbol(name))) {
+    funcOp->walk(
+        [&](func::CallOp nestedCallOp) { inlineAll(nestedCallOp, m); });
+    alwaysInlineCall(callOp);
+  } else {
+    llvm::errs() << "Unexpected call to non-FuncOp\n";
+    abort();
+  }
+}
+
 struct AffineOptPass : public AffineOptBase<AffineOptPass> {
-  polymer::PlutoOptPipelineOptions &pipelineOptions;
-  AffineOptPass(polymer::PlutoOptPipelineOptions &plutoOpts)
-      : pipelineOptions(plutoOpts) {}
+  AffineOptPass(polymer::PlutoOptPipelineOptions *plutoOpts) {}
   void runOnOperation() override;
 };
 } // namespace
 
 void AffineOptPass::runOnOperation() {
+  // TODO use a throw-away module for each function to optimize in so as not to
+  // litter scop functions around, then run the inliner in that module at the
+  // end
   Operation *m = getOperation();
   auto &context = *m->getContext();
-  GreedyRewriteConfig canonicalizerConfig;
 
   auto funcOps = outlineAffineRegions(m);
   mlir::PassManager preTransformPm(&context);
-
-  preTransformPm.addPass(polymer::createRegToMemPass());
-  preTransformPm.addPass(polymer::createExtractScopStmtPass());
-  preTransformPm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
-      canonicalizerConfig, {}, {}));
-  preTransformPm.addNestedPass<func::FuncOp>(
-      polymer::createDedupIndexCastPass());
   preTransformPm.addPass(createCanonicalizerPass());
-
-  mlir::PassManager postTransformPm(&context);
-  postTransformPm.addPass(createCanonicalizerPass());
-  if (pipelineOptions.generateParallel) {
-    postTransformPm.addNestedPass<func::FuncOp>(
-        polymer::createPlutoParallelizePass());
-    postTransformPm.addPass(createCanonicalizerPass());
-  }
 
   AlwaysInlinerInterface interface(&getContext());
   IRRewriter b(&context);
   for (auto &pair : funcOps) {
     mlir::func::FuncOp f = pair.first;
     mlir::func::CallOp call = pair.second;
+    // Reg2Mem
+    polymer::separateAffineIfBlocks(f, b);
+    polymer::demoteRegisterToMemory(f, b);
+    // Extract scop stmt
+    polymer::replaceUsesByStored(f, b);
+    polymer::extractScopStmt(f, b);
     if (failed(preTransformPm.run(f))) {
       signalPassFailure();
       return;
     }
-    func::FuncOp postOp = f;
-    if (mlir::func::FuncOp g = polymer::plutoTransform(
-            f, b, pipelineOptions.dumpClastAfterPluto,
-            pipelineOptions.parallelize, pipelineOptions.debug,
-            pipelineOptions.cloogf, pipelineOptions.cloogl,
-            pipelineOptions.diamondTiling)) {
+    polymer::dedupIndexCast(f);
+    if (failed(preTransformPm.run(f))) {
+      signalPassFailure();
+      return;
+    }
+    if (mlir::func::FuncOp g = polymer::plutoTransform(f, b, "")) {
       g.setPublic();
       g->setAttrs(f->getAttrs());
 
       g.setName(f.getName());
       f.erase();
-
-      postOp = g;
+      inlineAll(call);
+      if (true) {
+        polymer::plutoParallelize(g, b);
+      }
     }
-    if (failed(postTransformPm.run(postOp))) {
-      signalPassFailure();
-      return;
-    }
-    alwaysInlineCall(call);
   }
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass(
     polymer::PlutoOptPipelineOptions &plutoOpts) {
-  return std::make_unique<AffineOptPass>(plutoOpts);
+  return std::make_unique<AffineOptPass>(&plutoOpts);
 }
 std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
-  return std::make_unique<AffineOptPass>(
-      *polymer::PlutoOptPipelineOptions::createFromString(""));
+  return std::make_unique<AffineOptPass>(nullptr);
 }
 
 #else

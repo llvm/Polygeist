@@ -32,6 +32,8 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 
+#include "polymer/Support/PolymerUtils.h"
+
 #include <map>
 
 using namespace mlir;
@@ -180,7 +182,8 @@ createScratchpadLoadOp(memref::AllocaOp allocaOp, mlir::Operation *useOp,
       std::vector<mlir::Value>());
 }
 
-static void demoteRegisterToMemory(mlir::func::FuncOp f, OpBuilder &b) {
+namespace polymer {
+void demoteRegisterToMemory(mlir::func::FuncOp f, OpBuilder &b) {
   if (f.getBlocks().size() == 0)
     return;
 
@@ -236,6 +239,7 @@ static void demoteRegisterToMemory(mlir::func::FuncOp f, OpBuilder &b) {
     }
   }
 }
+} // namespace polymer
 
 static IntegerSet getIntegerSetForElse(const IntegerSet &iSet, OpBuilder &b) {
   SmallVector<AffineExpr, 8> newExprs;
@@ -262,9 +266,10 @@ static IntegerSet getIntegerSetForElse(const IntegerSet &iSet, OpBuilder &b) {
                          newEqFlags);
 }
 
+namespace polymer {
 /// Turns affine.if with else block into two affine.if. It works iteratively:
 /// one affine.if op (with else) should be handled at one time.
-static void separateAffineIfBlocks(mlir::func::FuncOp f, OpBuilder &b) {
+void separateAffineIfBlocks(mlir::func::FuncOp f, OpBuilder &b) {
   // Get the first affine.if operation that has an else block.
   auto findIfWithElse = [&](auto &f) {
     Operation *opFound = nullptr;
@@ -306,6 +311,7 @@ static void separateAffineIfBlocks(mlir::func::FuncOp f, OpBuilder &b) {
     ifOp.erase();
   }
 }
+} // namespace polymer
 
 class RegToMemPass
     : public mlir::PassWrapper<RegToMemPass,
@@ -319,8 +325,8 @@ public:
     if (f->hasAttr("scop.ignored"))
       return;
 
-    separateAffineIfBlocks(f, builder);
-    demoteRegisterToMemory(f, builder);
+    polymer::separateAffineIfBlocks(f, builder);
+    polymer::demoteRegisterToMemory(f, builder);
   }
 };
 

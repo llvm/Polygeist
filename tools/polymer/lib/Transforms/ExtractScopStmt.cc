@@ -29,6 +29,8 @@
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
 
+#include "polymer/Support/PolymerUtils.h"
+
 #include "llvm/ADT/SetVector.h"
 
 #define DEBUG_TYPE "extract-scop-stmt"
@@ -386,9 +388,10 @@ static void removeExtractedOps(llvm::SetVector<Operation *> &opsToRemove) {
   }
 }
 
+namespace polymer {
 /// The main function that extracts scop statements as functions. Returns the
 /// number of callees extracted from this function.
-static unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
+unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
   // First discover those write ops that will be the "terminator" of each scop
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
@@ -454,7 +457,7 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
 
 /// Given a value, if any of its uses is a StoreOp, we try to replace other uses
 /// by a load from that store.
-static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
+void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
   SmallVector<mlir::affine::AffineStoreOp, 8> storeOps;
 
   f.walk([&](Operation *op) {
@@ -505,6 +508,7 @@ static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
     }
   }
 }
+} // namespace polymer
 
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,

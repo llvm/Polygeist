@@ -176,7 +176,7 @@ static mlir::affine::AffineForOp findParallelizableLoop(mlir::func::FuncOp f) {
 ///
 /// 1. It is not necessary to check whether the parentOp of a parallelizable
 /// affine.for has the AffineScop trait.
-static void plutoParallelize(mlir::affine::AffineForOp forOp, OpBuilder b) {
+void plutoParallelize(mlir::affine::AffineForOp forOp, OpBuilder b) {
   assert(forOp->hasAttr("scop.parallelizable"));
 
   OpBuilder::InsertionGuard guard(b);
@@ -223,17 +223,19 @@ static bool isBoundParallelizable(mlir::affine::AffineForOp forOp) {
          isBoundParallelizable(forOp, false);
 }
 
+namespace polymer {
 /// Iteratively replace affine.for with scop.parallelizable with
 /// affine.parallel.
-static void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
+void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
   mlir::affine::AffineForOp forOp = nullptr;
   while ((forOp = findParallelizableLoop(f)) != nullptr) {
     if (!isBoundParallelizable(forOp))
       llvm_unreachable(
           "Loops marked as parallelizable should have parallelizable bounds.");
-    plutoParallelize(forOp, b);
+    ::plutoParallelize(forOp, b);
   }
 }
+} // namespace polymer
 
 /// Turn affine.for marked as scop.parallelizable by Pluto into actual
 /// affine.parallel operation.
@@ -248,7 +250,8 @@ struct PlutoParallelizePass
   }
 };
 
-static void dedupIndexCast(func::FuncOp f) {
+namespace polymer {
+void dedupIndexCast(func::FuncOp f) {
   if (f.getBlocks().empty())
     return;
 
@@ -272,6 +275,7 @@ static void dedupIndexCast(func::FuncOp f) {
   for (auto op : toErase)
     op->erase();
 }
+} // namespace polymer
 
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,

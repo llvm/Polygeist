@@ -891,6 +891,7 @@ int main(int argc, char **argv) {
         abort();
       }
       pm.addPass(polygeist::createAffineOptPass(*plutoOpts));
+      pm.addPass(createInlinerPass());
     }
 #endif
 
