@@ -1,5 +1,6 @@
 // clang-format off
 // RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 10 2
+// RUN: cgeist %s %stdinclude %polymer_cudaopts -O3 -o %s.execm && %s.execm 1 10 2
 // clang-format on
 /**
  * seidel-2d.c: This file is part of the PolyBench/C 3.2 test suite.

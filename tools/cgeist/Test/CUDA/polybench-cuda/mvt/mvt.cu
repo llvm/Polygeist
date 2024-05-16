@@ -1,6 +1,5 @@
 // clang-format off
-// COM: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm
-// RUN: true
+// XFAIL: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm
 // clang-format on
 /**
  * mvt.c: This file is part of the PolyBench 3.0 test suite.
