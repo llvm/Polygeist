@@ -1,0 +1,14 @@
+* * * * * * * * * * * * *
+* Authors of PolyBench  *
+* * * * * * * * * * * * *
+
+
+* Louis-Noel Pouchet <pouchet@cse.ohio-state.edu>
+  Who provided packaging and harmonization of all test files,
+  the PolyBench infrastructure and machinery, and several
+  reference C files.
+
+* Uday Bondugula <Uday Bondhugula <ubondhug@us.ibm.com>
+  Who provided many of the original reference C files, including
+  Fortran to C translation.
+
