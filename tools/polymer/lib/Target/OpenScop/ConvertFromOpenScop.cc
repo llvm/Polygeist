@@ -587,7 +587,7 @@ void Importer::initializeFuncOpInterface() {
   // TODO: make sure it is safe.
   std::string sourceFuncName = getSourceFuncName();
   if (!sourceFuncName.empty()) {
-    funcName = std::string(formatv("{0}_opt", sourceFuncName));
+    funcName = std::string(formatv("__polymer_opt_{0}", sourceFuncName));
   }
   // Create the function interface.
   func = b.create<FuncOp>(sourceFuncOp.getLoc(), funcName,
