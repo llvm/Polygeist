@@ -212,11 +212,11 @@ void AffineOptPass::runOnOperation() {
       g.setName(f.getName());
       f.erase();
     }
-    inlineAll(call);
-    cleanupTempFuncs(m);
     if (g && /*options.parallelize=*/true) {
       polymer::plutoParallelize(g, b);
     }
+    inlineAll(call);
+    cleanupTempFuncs(m);
   }
 }
 
