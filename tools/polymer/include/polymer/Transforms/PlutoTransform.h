@@ -40,6 +40,6 @@ struct PlutoOptPipelineOptions
 void registerPlutoTransformPass();
 void addPlutoOpt(mlir::OpPassManager &pm,
                  const PlutoOptPipelineOptions &pipelineOptions);
-}
+} // namespace polymer
 
 #endif

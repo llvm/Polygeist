@@ -10,4 +10,4 @@ namespace polymer {
 
 void registerRegToMemPass();
 std::unique_ptr<mlir::Pass> createRegToMemPass();
-}
+} // namespace polymer

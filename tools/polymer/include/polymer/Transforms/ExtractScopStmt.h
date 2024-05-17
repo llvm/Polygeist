@@ -14,9 +14,8 @@
 #define SCOP_STMT_ATTR_NAME "scop.stmt"
 
 namespace polymer {
-
 void registerExtractScopStmtPass();
 std::unique_ptr<mlir::Pass> createExtractScopStmtPass();
-}
+} // namespace polymer
 
 #endif
