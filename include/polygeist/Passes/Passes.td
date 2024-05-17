@@ -10,6 +10,7 @@ def AffineOpt : Pass<"affine-opt"> {
   let dependentDialects = [
     "scf::SCFDialect",
     "arith::ArithDialect",
+    "memref::MemRefDialect",
   ];
 }
 

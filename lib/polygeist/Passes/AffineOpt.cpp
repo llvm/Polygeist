@@ -133,8 +133,9 @@ static void inlineAll(func::CallOp callOp, ModuleOp m = nullptr) {
     m = callOp->getParentOfType<ModuleOp>();
   auto name = callOp.getCallee();
   if (auto funcOp = dyn_cast<func::FuncOp>(m.lookupSymbol(name))) {
-    funcOp->walk(
-        [&](func::CallOp nestedCallOp) { inlineAll(nestedCallOp, m); });
+    if (funcOp->hasAttr(SCOP_STMT_ATTR_NAME))
+      funcOp->walk(
+          [&](func::CallOp nestedCallOp) { inlineAll(nestedCallOp, m); });
     alwaysInlineCall(callOp);
   } else {
     llvm::errs() << "Unexpected call to non-FuncOp\n";
@@ -166,6 +167,7 @@ void AffineOptPass::runOnOperation() {
     mlir::func::CallOp call = pair.second;
     // Reg2Mem
     polymer::separateAffineIfBlocks(f, b);
+    polymer::demoteLoopReduction(f, b);
     polymer::demoteRegisterToMemory(f, b);
     // Extract scop stmt
     polymer::replaceUsesByStored(f, b);
@@ -179,16 +181,17 @@ void AffineOptPass::runOnOperation() {
       signalPassFailure();
       return;
     }
-    if (mlir::func::FuncOp g = polymer::plutoTransform(f, b, "")) {
+    mlir::func::FuncOp g = nullptr;
+    if ((g = polymer::plutoTransform(f, b, ""))) {
       g.setPublic();
       g->setAttrs(f->getAttrs());
 
       g.setName(f.getName());
       f.erase();
-      inlineAll(call);
-      if (true) {
-        polymer::plutoParallelize(g, b);
-      }
+    }
+    inlineAll(call);
+    if (g && /*options.parallelize=*/true) {
+      polymer::plutoParallelize(g, b);
     }
   }
 }

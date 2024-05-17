@@ -216,13 +216,35 @@ void ScopStmt::getAccessMapAndMemRef(mlir::Operation *op,
   IRMapping argMap;
   impl->getArgsValueMapping(argMap);
 
+  SmallVector<Value, 4> indices;
+  if (auto loadOp = dyn_cast<affine::AffineReadOpInterface>(op)) {
+    *memref = loadOp.getMemRef();
+    llvm::append_range(indices, loadOp.getMapOperands());
+  } else {
+    assert(isa<affine::AffineWriteOpInterface>(op) &&
+           "Affine read/write op expected");
+    auto storeOp = cast<affine::AffineWriteOpInterface>(op);
+    *memref = storeOp.getMemRef();
+    llvm::append_range(indices, storeOp.getMapOperands());
+  }
+
+  // Get affine map from AffineLoad/Store.
+  AffineMap map;
+  if (auto loadOp = dyn_cast<affine::AffineReadOpInterface>(op))
+    map = loadOp.getAffineMap();
+  else
+    map = cast<affine::AffineWriteOpInterface>(op).getAffineMap();
+
+  affine::AffineValueMap aMap;
+
+  // SmallVector<Value, 8> operands2(indices.begin(), indices.end());
+  // affine::fullyComposeAffineMapAndOperands(&map, &operands2);
+  // map = simplifyAffineMap(map);
+  // affine::canonicalizeMapAndOperands(&map, &operands2);
+  aMap.reset(map, indices);
+
   // TODO: assert op is in the callee.
   affine::MemRefAccess access(op);
-
-  // Collect the access affine::AffineValueMap that binds to operands in the
-  // callee.
-  affine::AffineValueMap aMap;
-  access.getAccessMap(&aMap);
 
   // Replace its operands by what the caller uses.
   SmallVector<mlir::Value, 8> operands;

@@ -520,8 +520,9 @@ cloneAffineForWithoutIterArgs(mlir::affine::AffineForOp forOp, OpBuilder &b) {
   return newForOp;
 }
 
-static void demoteLoopReduction(mlir::func::FuncOp f,
-                                mlir::affine::AffineForOp forOp, OpBuilder &b) {
+namespace polymer {
+void demoteLoopReduction(mlir::func::FuncOp f, mlir::affine::AffineForOp forOp,
+                         OpBuilder &b) {
   SmallVector<mlir::Value, 4> initVals{forOp.getInits()};
   mlir::Block *body = forOp.getBody();
   mlir::affine::AffineYieldOp yieldOp = findYieldOp(forOp);
@@ -546,13 +547,14 @@ static void demoteLoopReduction(mlir::func::FuncOp f,
   forOp.erase();
 }
 
-static void demoteLoopReduction(mlir::func::FuncOp f, OpBuilder &b) {
+void demoteLoopReduction(mlir::func::FuncOp f, OpBuilder &b) {
   SmallVector<mlir::affine::AffineForOp, 4> forOps;
   findReductionLoops(f, forOps);
 
   for (mlir::affine::AffineForOp forOp : forOps)
     demoteLoopReduction(f, forOp, b);
 }
+} // namespace polymer
 
 class DemoteLoopReductionPass
     : public mlir::PassWrapper<DemoteLoopReductionPass,
@@ -562,7 +564,7 @@ public:
     mlir::func::FuncOp f = getOperation();
     OpBuilder b(f.getContext());
 
-    demoteLoopReduction(f, b);
+    polymer::demoteLoopReduction(f, b);
   }
 };
 
