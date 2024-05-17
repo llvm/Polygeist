@@ -512,18 +512,23 @@ void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
 
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,
-                               OperationPass<mlir::func::FuncOp>> {
+                               OperationPass<mlir::ModuleOp>> {
   void runOnOperation() override {
-    mlir::func::FuncOp f = getOperation();
-    mlir::ModuleOp m = f->getParentOfType<ModuleOp>();
+    mlir::ModuleOp m = getOperation();
     OpBuilder b(m.getContext());
 
-    if (f->hasAttr("scop.ignored"))
-      return;
+    SmallVector<mlir::func::FuncOp, 4> funcs;
+    m.walk([&](mlir::func::FuncOp f) {
+      if (f->hasAttr("scop.ignored"))
+        return;
+      funcs.push_back(f);
+    });
 
-    replaceUsesByStored(f, b);
+    for (mlir::func::FuncOp f : funcs) {
+      replaceUsesByStored(f, b);
 
-    extractScopStmt(f, b);
+      polymer::extractScopStmt(f, b);
+    }
   }
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
     registry.insert<memref::MemRefDialect>();
