@@ -2,6 +2,8 @@
 
 // CHECK: <OpenScop>
 // CHECK: </OpenScop>
+// CHECK-NOT: __polygeist_outlined
+// CHECK-NOT: S[0-9]+
 #map = affine_map<()[s0] -> (s0)>
 module {
   func.func @gemm(%alpha: f32, %beta: f32,

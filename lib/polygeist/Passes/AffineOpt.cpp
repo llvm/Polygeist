@@ -39,6 +39,8 @@ using namespace polygeist;
 
 namespace {
 
+#define POLYGEIST_OUTLINED_AFFINE_ATTR "polygeist.outlined_affine"
+
 static SmallVector<Operation *> findAffineRegions(Operation *root) {
   SmallVector<Operation *> affineRegions;
   root->walk<mlir::WalkOrder::PreOrder>([&](Operation *loop) {
@@ -91,6 +93,7 @@ static FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
     rewriter.eraseOp(executeOp);
     return ret;
   }
+  (*ret)->setAttr(POLYGEIST_OUTLINED_AFFINE_ATTR, rewriter.getUnitAttr());
   rewriter.eraseOp(executeOp.getRegion().front().getTerminator());
   rewriter.inlineBlockBefore(&executeOp.getRegion().front(), op);
   rewriter.eraseOp(executeOp);
@@ -133,7 +136,8 @@ static void inlineAll(func::CallOp callOp, ModuleOp m = nullptr) {
     m = callOp->getParentOfType<ModuleOp>();
   auto name = callOp.getCallee();
   if (auto funcOp = dyn_cast<func::FuncOp>(m.lookupSymbol(name))) {
-    if (funcOp->hasAttr(SCOP_STMT_ATTR_NAME))
+    if (funcOp->hasAttr(SCOP_STMT_ATTR_NAME) ||
+        funcOp->hasAttr(POLYGEIST_OUTLINED_AFFINE_ATTR))
       funcOp->walk(
           [&](func::CallOp nestedCallOp) { inlineAll(nestedCallOp, m); });
     alwaysInlineCall(callOp);
@@ -141,6 +145,23 @@ static void inlineAll(func::CallOp callOp, ModuleOp m = nullptr) {
     llvm::errs() << "Unexpected call to non-FuncOp\n";
     abort();
   }
+}
+
+static void cleanupTempFuncs(ModuleOp m) {
+  auto eraseWithAttr = [&](StringRef attr) {
+    SmallVector<func::FuncOp> toErase;
+    for (auto &op : m.getBodyRegion().front())
+      if (op.getAttr(attr))
+        toErase.push_back(cast<func::FuncOp>(&op));
+
+    SymbolTable symbolTable(m);
+    for (auto func : toErase) {
+      assert(func.getSymbolUses(m)->empty());
+      symbolTable.erase(func);
+    }
+  };
+  eraseWithAttr(POLYGEIST_OUTLINED_AFFINE_ATTR);
+  eraseWithAttr(SCOP_STMT_ATTR_NAME);
 }
 
 struct AffineOptPass : public AffineOptBase<AffineOptPass> {
@@ -153,10 +174,11 @@ void AffineOptPass::runOnOperation() {
   // TODO use a throw-away module for each function to optimize in so as not to
   // litter scop functions around, then run the inliner in that module at the
   // end
-  Operation *m = getOperation();
-  auto &context = *m->getContext();
+  Operation *op = getOperation();
+  ModuleOp m = cast<ModuleOp>(SymbolTable::getNearestSymbolTable(op));
+  auto &context = *op->getContext();
 
-  auto funcOps = outlineAffineRegions(m);
+  auto funcOps = outlineAffineRegions(op);
   mlir::PassManager preTransformPm(&context);
   preTransformPm.addPass(createCanonicalizerPass());
 
@@ -190,6 +212,7 @@ void AffineOptPass::runOnOperation() {
       f.erase();
     }
     inlineAll(call);
+    cleanupTempFuncs(m);
     if (g && /*options.parallelize=*/true) {
       polymer::plutoParallelize(g, b);
     }
