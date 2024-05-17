@@ -233,6 +233,8 @@ std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
 #include <cstdlib>
 #include <memory>
 
+#include "PassDetails.h"
+
 namespace mlir {
 class Pass;
 }
