@@ -91,9 +91,9 @@ using namespace llvm;
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
-static cl::opt<std::string>
-    PolymerPlutoOpt("polymer-pluto-opt", cl::init(""),
-                    cl::desc("Use polymer to optimize"));
+static cl::opt<bool>
+    ClAffineOpt("affine-opt", cl::init(false),
+                cl::desc("Use polymer to optimize affine regions"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -882,16 +882,10 @@ int main(int argc, char **argv) {
     pm.addPass(mlir::createSymbolDCEPass());
 
 #ifdef POLYGEIST_ENABLE_POLYMER
-    if (PolymerPlutoOpt.getNumOccurrences() > 0) {
-      auto plutoOpts =
-          polymer::PlutoOptPipelineOptions::createFromString(PolymerPlutoOpt);
-      if (!plutoOpts) {
-        llvm::errs() << "Could not parse --polymer-pluto-opt option: "
-                     << PolymerPlutoOpt << "\n";
-        abort();
-      }
-      pm.addPass(polygeist::createAffineOptPass(*plutoOpts));
-      pm.addPass(createInlinerPass());
+    if (ClAffineOpt) {
+      pm.addPass(polygeist::createAffineOptPass());
+      pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+          canonicalizerConfig, {}, {}));
     }
 #endif
 

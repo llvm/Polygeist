@@ -220,10 +220,6 @@ void AffineOptPass::runOnOperation() {
   }
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass(
-    polymer::PlutoOptPipelineOptions &plutoOpts) {
-  return std::make_unique<AffineOptPass>(&plutoOpts);
-}
 std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
   return std::make_unique<AffineOptPass>(nullptr);
 }
