@@ -1,7 +1,8 @@
+#ifdef POLYGEIST_ENABLE_POLYMER
+
 #include "mlir/IR/Visitors.h"
 #include "mlir/Transforms/Passes.h"
 #include <utility>
-#ifdef POLYGEIST_ENABLE_POLYMER
 
 #include "PassDetails.h"
 
@@ -229,7 +230,14 @@ std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
 
 #else
 
-std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
+#include <cstdlib>
+#include <memory>
+
+namespace mlir {
+class Pass;
+}
+
+std::unique_ptr<mlir::Pass> mlir::polygeist::createAffineOptPass() {
   abort();
   return nullptr;
 }
