@@ -230,18 +230,24 @@ std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
 
 #else
 
-#include <cstdlib>
-#include <memory>
-
 #include "PassDetails.h"
+
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 
 namespace mlir {
 class Pass;
 }
-
+using namespace mlir;
+using namespace polygeist;
+namespace {
+struct AffineOptPass : public AffineOptBase<AffineOptPass> {
+  void runOnOperation() override {}
+};
+} // namespace
 std::unique_ptr<mlir::Pass> mlir::polygeist::createAffineOptPass() {
-  abort();
-  return nullptr;
+  return std::make_unique<AffineOptPass>();
 }
 
 #endif

@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --affine-opt %s 2>&1 | FileCheck %s
+// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --affine-opt %s 2>&1 | FileCheck %s; fi
 
 // CHECK: <OpenScop>
 // CHECK: </OpenScop>
