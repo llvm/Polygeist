@@ -10,6 +10,7 @@
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "polygeist/Passes/Passes.h"
@@ -88,6 +89,7 @@ bool isLinearInIndex(AffineMap map, size_t idx) {
    return expr.replaceDimsAndSymbols(dims, {});
  }
 
+//This is reducing the number of input dims in expression by 1
  AffineMap shiftDimsDown1(AffineMap expr, unsigned numDim,
                                   unsigned offset) {
             assert(offset <= expr.getNumDims());
@@ -106,10 +108,11 @@ bool isLinearInIndex(AffineMap map, size_t idx) {
 //     and
 //  2. an affine map `newmap` which takes a single index (`ind`) and produces indices into `newval` such that
 //     indexing `newval[map(ind)]` produces the same result as indexing the original map.
-std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap, Value val, Value idx, Value idx_size, mlir::OperandRange vals) {
+std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap, Value val, Value idx, Value idx_size, int loopLowerBound, int loopStepSize, mlir::OperandRange vals) {
     // First we need to remove any dependence on the loop index from the affine map
     SmallVector<Value> vals_without_idx;
     ssize_t dim_idx = -1;
+    //To check if induction variable of for loop in an operand of this op (load/store)
     for (auto &&[i, v] : llvm::enumerate(vals)) {
         if (v == idx) {
             // Offset we're replacing must be an index (not a symbol).
@@ -131,18 +134,21 @@ std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder,
 
     // Evaluate offsets as oldmap replacing idx with 0, and evaluating at the remaining variables
 
+    //Instead of lower bound we are using 0 (assumption as the lower bound)
     AffineMap offsetMap = oldmap;
     if (dim_idx != -1) {
-        offsetMap = oldmap.replace(builder.getAffineDimExpr(dim_idx), builder.getAffineConstantExpr(0),offsetMap.getNumDims(), offsetMap.getNumSymbols());
+        offsetMap = oldmap.replace(builder.getAffineDimExpr(dim_idx), builder.getAffineConstantExpr(loopLowerBound),offsetMap.getNumDims(), offsetMap.getNumSymbols());
         offsetMap = shiftDimsDown1(offsetMap, oldmap.getNumDims(), dim_idx);
     }
 
+    //Instead of using loop step we are using 1 (Assumption as the stride size)
     AffineMap strideMap = oldmap;
     if (dim_idx != -1) {
-        strideMap = oldmap.replace(builder.getAffineDimExpr(dim_idx), builder.getAffineConstantExpr(1),offsetMap.getNumDims(), offsetMap.getNumSymbols());
+        strideMap = oldmap.replace(builder.getAffineDimExpr(dim_idx), builder.getAffineConstantExpr(loopLowerBound + loopStepSize),strideMap.getNumDims(), strideMap.getNumSymbols());
         strideMap = shiftDimsDown1(strideMap, oldmap.getNumDims(), dim_idx);
     }
 
+    //Subtracting maps of stride and offset, gives you the offset value in the result of the map
     {
         SmallVector<AffineExpr> subtracts;
         for (auto &&[lhs, rhs] : llvm::zip(strideMap.getResults(), offsetMap.getResults())) {
@@ -160,8 +166,8 @@ std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder,
     SmallVector<Value> strides;
 
     for (auto &&[expr, offset_expr, stride_expr] : llvm::zip(oldmap.getResults(), offsetMap.getResults(),strideMap.getResults() )) {
-        offsets.push_back(builder.create<affine::AffineApplyOp>(val.getLoc(), offset_expr, vals_without_idx));
-        strides.push_back(builder.create<affine::AffineApplyOp>(val.getLoc(), stride_expr, vals_without_idx));
+        offsets.push_back(builder.create<affine::AffineApplyOp>(val.getLoc(),AffineMap::get(offsetMap.getNumDims(), offsetMap.getNumSymbols(), offset_expr, builder.getContext()), vals_without_idx)); //What is there are symbols in the expression?
+        strides.push_back(builder.create<affine::AffineApplyOp>(val.getLoc(),AffineMap::get(strideMap.getNumDims(), strideMap.getNumSymbols(), stride_expr, builder.getContext()), vals_without_idx)); //What is there are symbols in the expression?
         if (!expr.isFunctionOfDim(dim_idx)) {
             loop_idxs.push_back(builder.getAffineConstantExpr(0));
             sizes.push_back(builder.create<arith::ConstantIndexOp>(val.getLoc(), 1));
@@ -173,8 +179,19 @@ std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder,
 
     auto newval = builder.create<memref::SubViewOp>(val.getLoc(), val, offsets, sizes, strides);
     legal = true;
+    //Does this need fix? Here we are constraining to dims as 1 and symbols as 0, should it be, original 
     return {newval, AffineMap::get(/*dims*/1, /*symbols*/0, loop_idxs, builder.getContext())};
 }
+
+
+// store A[...]
+// val = load A[...]
+
+/*  prevA : 
+    store A
+    val is now prevA
+*/
+
 
 struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
@@ -230,11 +247,21 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     
     if (result.wasInterrupted()) return failure();
 
+    DominanceInfo DI(loop);
+
     // Check that all of the stores do not alias the loaded values (otherwise we could get an incorrect result)
     // TODO we can extend this and handle things like reductions, but we're going to start easy for now
+    DenseMap<AffineLoadOp, AffineStoreOp> stores_map;
     for (auto &&[_, store] : stores) {
         for (auto &&[_, load]: loads) {
             if (mayAlias(load.getMemref(), store.getMemref())) {
+                // We have one exception in this case -- if the load and store are from the exact same location, it is permitted.
+                if (load.getMemref() == store.getMemref() &&
+                    load.getAffineMap() == store.getAffineMap() &&
+                    load.getIndices() == store.getIndices() && DI.dominates((Operation*)load,(Operation*)store)) {
+                        stores_map[load] = store;
+                        continue;
+                    }
                 return failure();
             }
         }
@@ -249,16 +276,25 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     SmallVector<Value> inputs;
     SmallVector<AffineMap> affineMaps;
 
-    if (loop.getStep() != 1) {
-        return failure();
-    }
+    //if (loop.getStep() != 1) {
+    //    return failure();
+    //}
 
     // our remapper currently assumes 0 start to bound. 
-    if (!loop.hasConstantLowerBound() || loop.getConstantLowerBound() != 0) {
+    if (!loop.hasConstantLowerBound() /*|| loop.getConstantLowerBound() != 0*/) {
         return failure();
     }
 
     // compute this correctly later.
+    auto ubMap = loop.getUpperBoundMap();
+    auto ubOperands = loop.getUpperBoundOperands();
+    if (!ubMap || ubMap.getNumResults() != 1) return failure();
+
+    // Retrieve the lower bound
+    auto lbMap = loop.getLowerBoundMap();
+    auto lbOperands = loop.getLowerBoundOperands();
+    if (!lbMap || lbMap.getNumResults() != 1) return failure();
+    
     auto ub = loop.getSingleUpperBound();
     if (!ub) return failure();
 
@@ -270,17 +306,41 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         return failure();
     }
 
-    Value loopSize = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), loop.getConstantUpperBound());//rewriter.create<arith::SubIOp>(loop.getLoc(), *ub, *lb);
+    // Retrieve the step size
+    int64_t step = loop.getStep();
 
+    // Get the single result expressions
+    AffineExpr ubExpr = ubMap.getResult(0);
+    auto ubValue = rewriter.create<AffineApplyOp>(loop.getLoc(), ubMap, ubOperands);
+    
+    AffineExpr lbExpr = lbMap.getResult(0);
+    auto lbValue = rewriter.create<AffineApplyOp>(loop.getLoc(), lbMap, lbOperands);
+
+    //// Ensure the bounds are constant expressions
+    auto ubConst = ubExpr.dyn_cast<AffineConstantExpr>();
+    auto lbConst = lbExpr.dyn_cast<AffineConstantExpr>();
+    if (!ubConst || !lbConst) return failure();
+
+    // Compute the loop size
+    //int64_t loopSize = ubConst.getValue() - lbConst.getValue();
+    auto loopSize = rewriter.create<SubIOp>(loop.getLoc(), ubValue, lbValue);
+    
+    //Value loopSize = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), loop.getConstantUpperBound());//rewriter.create<arith::SubIOp>(loop.getLoc(), *ub, *lb);
+    
     // current spec is going to be indexed off of the loop var in isolation
     for (auto &&[conds, load] : loads) {
         // Only support unconditional loads for the moment
         if (conds.size() != 0) return failure();
 
+        if (stores_map.find(load) != stores_map.end()) {
+            // We have a store that represents this load.
+            continue;
+        }
+
         bool legal = true;
        
         auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, load.getAffineMap(), load.getMemref(), loop.getInductionVar(),
-        loopSize, load.getMapOperands());
+        loopSize, lbConst.getValue(), step, load.getMapOperands());
 
         if (!legal) return failure();
 
@@ -297,7 +357,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         bool legal = true;
        
         auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, store.getAffineMap(), store.getMemref(), loop.getInductionVar(),
-        loopSize, store.getMapOperands());
+        loopSize, lbConst.getValue(), step, store.getMapOperands());
 
         if (!legal) return failure();
 
@@ -307,7 +367,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     SmallVector<utils::IteratorType> iteratorTypes;
     // TODO revisit this later
-    iteratorTypes.push_back(utils::IteratorType::parallel);
+    iteratorTypes.push_back((stores_map.size() == 0) ? utils::IteratorType::parallel : utils::IteratorType::reduction);
 
     StringAttr empty = StringAttr::get(loop.getContext());
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
@@ -330,12 +390,30 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     blk->eraseArguments(0, blk->getNumArguments());
 
     for (auto &&[conds, load] : loads) {
+        if (stores_map.find(load) != stores_map.end()) {
+            // We have a store that represents this load.
+            continue;
+        }
         auto arg = blk->addArgument(load.getType(), load.getLoc());
         rewriter.replaceOp(load, arg);
+
     }
 
     for (auto &&[conds, store] : stores) {
-        blk->addArgument(store.getValueToStore().getType(), store.getLoc());
+        auto arg = blk->addArgument(store.getValueToStore().getType(), store.getLoc());
+
+        SmallVector<AffineLoadOp> inverted;
+        for (auto && [map_load, map_store] : stores_map) {
+            if (map_store == store) {
+                inverted.push_back(map_load);
+            }
+        }
+        for (size_t i=0; i<inverted.size(); i++) {
+            stores_map.erase(inverted[i]);
+            auto tmp = inverted[i];
+            inverted[i] = nullptr;
+            rewriter.replaceOp(tmp, arg);
+        }
     }
 
     SmallVector<Value> toreturn;
