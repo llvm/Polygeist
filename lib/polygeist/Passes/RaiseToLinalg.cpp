@@ -207,6 +207,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     SmallVector<std::pair<std::vector<Condition>, AffineLoadOp>> loads;
     SmallVector<std::pair<std::vector<Condition>, AffineStoreOp>> stores;
+    // TODO Also collect all the linalg generics!
 
     // Check that the only operations within the region are either:
     //      affine.load, affine.store, affine.if, affine.yield
@@ -251,6 +252,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     // Check that all of the stores do not alias the loaded values (otherwise we could get an incorrect result)
     // TODO we can extend this and handle things like reductions, but we're going to start easy for now
+    // TODO 
     DenseMap<AffineLoadOp, AffineStoreOp> stores_map;
     for (auto &&[_, store] : stores) {
         for (auto &&[_, load]: loads) {
@@ -272,6 +274,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             }
         }
     }
+    // Check that any other loads / stores do not alias with any linalg generics
+    // We're going to need to upgrade the defn of mayAlias for subviews (aka mayAlias(subview, x) -> mayAlias(operand(subview), x))
 
     SmallVector<Value> inputs;
     SmallVector<AffineMap> affineMaps;
@@ -347,6 +351,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         affineMaps.push_back(newAffineMap);
         inputs.push_back(newMemref);
     }
+    // TODO Push all of the inputs to the linalg generics (modifying maps as needed)
     
     SmallVector<Value> outputs;
     // Store we may need to reindex into a splat potentially later, but for now we'll be lazy
@@ -364,10 +369,15 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         affineMaps.push_back(newAffineMap);
         outputs.push_back(newMemref);
     }
+    // TODO Push all of the outputs to the linalg generics
 
+    // TODO presently  if linalg generic exists, assert there are no load/stores
+    // TODO assert only zero or one linalg generic exists
     SmallVector<utils::IteratorType> iteratorTypes;
-    // TODO revisit this later
+    // TODO if linalg generic exists, make this iterator type prepend to the existing iterators
     iteratorTypes.push_back((stores_map.size() == 0) ? utils::IteratorType::parallel : utils::IteratorType::reduction);
+
+
 
     StringAttr empty = StringAttr::get(loop.getContext());
     auto genericOp = rewriter.create<mlir::linalg::GenericOp>(
@@ -375,7 +385,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       empty,
       empty);
 
-
+    // TODO if doing the linalg generic case, ignore a lot of the below and instead of injecting the old body of the affine.for, move the inner linalg.generic body 
+    // and also add a new induction variable
     auto blk = &*loop.getRegion().begin();
     rewriter.setInsertionPointToStart(blk);
 
@@ -435,6 +446,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
 void RaiseAffineToLinalg::runOnOperation() {
   RewritePatternSet patterns(&getContext());
+  // TODO add the existing canonicalization patterns
+  //  + subview of an affine apply -> subview
   patterns.insert<AffineForOpRaising>(&getContext());
 
   GreedyRewriteConfig config;
