@@ -5618,6 +5618,10 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       return retTy;
     }
 
+    if (ST->isOpaque()) {
+      OpBuilder builder(module->getContext());
+      types.push_back(builder.getIntegerType(8));
+    }
     if (!types.size()) {
       RT->dump();
       llvm::errs() << "ST: " << *ST << "\n";

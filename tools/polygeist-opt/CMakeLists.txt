@@ -6,8 +6,11 @@ set(LIBS
         MLIROptLib
 		MLIRPolygeist
 		MLIRPolygeistTransforms
-		MLIRFuncAllExtensions
         )
+if (ENABLE_SQL)
+  set(LIBS ${LIBS} MLIRSQLTransforms MLIRSQL)
+endif()
+
 add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 
 install(TARGETS polygeist-opt

@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.13.4)
 
 include(CheckCXXSourceCompiles)
 
-set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA frontend and backend")
-set(POLYGEIST_ENABLE_ROCM 0 CACHE BOOL "Enable ROCM backend")
+set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA compilation support")
 
 set(POLYGEIST_ENABLE_POLYMER 0 CACHE BOOL "Enable Polymer")
 
@@ -33,15 +32,10 @@ endif()
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 
+option(ENABLE_SQL "Build SQL dialect" OFF)
+
 set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
 set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
-
-find_program(XXD_BIN xxd)
-
-# TODO should depend on OS
-set(POLYGEIST_PGO_DEFAULT_DATA_DIR "/var/tmp/polygeist/pgo/" CACHE STRING "Directory for PGO data")
-set(POLYGEIST_PGO_ALTERNATIVE_ENV_VAR "POLYGEIST_PGO_ALTERNATIVE" CACHE STRING "Env var name to specify alternative to profile")
-set(POLYGEIST_PGO_DATA_DIR_ENV_VAR "POLYGEIST_PGO_DATA_DIR" CACHE STRING "Env var name to specify PGO data dir")
 
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(polygeist LANGUAGES CXX C)
@@ -123,6 +117,40 @@ set(POLYGEIST_UTILS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils)
 set(LLVM_LIT_ARGS "-sv" CACHE STRING "lit default options")
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
 include(sanitizers)
+
+if (ENABLE_SQL)
+  include(FetchContent)
+  include(ExternalProject)
+
+  FetchContent_Declare(sqlparser_ext
+    GIT_REPOSITORY https://github.com/wsmoses/sql-parser
+    GIT_TAG c2471248cef8cd33081e698e8ac65d691283dbd4
+    )
+
+  FetchContent_GetProperties(sqlparser_ext)
+
+  FetchContent_MakeAvailable(sqlparser_ext)
+
+  ExternalProject_Add(sqlparser
+      SOURCE_DIR ${sqlparser_ext_SOURCE_DIR}
+      INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/sql/install
+      CONFIGURE_COMMAND ""
+      BUILD_COMMAND ${CMAKE_COMMAND} -E env
+          CXX=${CMAKE_CXX_COMPILER}
+          make static=yes -C ${sqlparser_ext_SOURCE_DIR}
+      BUILD_IN_SOURCE TRUE
+      INSTALL_COMMAND ""
+      BUILD_BYPRODUCTS ${sqlparser_ext_SOURCE_DIR}/libsqlparser.a
+  )
+
+
+  add_library(sqlparse_lib INTERFACE)
+
+  target_include_directories(sqlparse_lib INTERFACE "${sqlparser_ext_SOURCE_DIR}/src")
+  target_link_libraries(sqlparse_lib INTERFACE ${sqlparser_ext_SOURCE_DIR}/libsqlparser.a)
+  add_dependencies(sqlparse_lib sqlparser)
+
+endif()
 
 add_subdirectory(include)
 add_subdirectory(lib)
