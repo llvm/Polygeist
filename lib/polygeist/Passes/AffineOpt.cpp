@@ -216,8 +216,8 @@ void AffineOptPass::runOnOperation() {
       polymer::plutoParallelize(g, b);
     }
     inlineAll(call);
-    cleanupTempFuncs(m);
   }
+  cleanupTempFuncs(m);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
