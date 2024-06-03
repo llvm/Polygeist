@@ -1843,12 +1843,12 @@ static void dump_isl(osl_scop_p scop, PlutoOptions *options) {
   isl_printer *p;
   int equal;
   p = isl_printer_to_str(ctx);
-  // p = isl_printer_set_output_format(p, ISL_FORMAT_C);
-  // p = isl_printer_print_pw_aff(p, pa);
+  p = isl_printer_set_output_format(p, ISL_FORMAT_ISL);
+  p = isl_printer_print_space(p, space);
   s = isl_printer_get_str(p);
   isl_printer_free(p);
 
-  llvm::outs() << str << "\n";
+  llvm::outs() << s << "\n";
 
   compute_deps_isl(reads, writes, schedule, empty, &dep_raw, &dep_war, &dep_waw,
                    &dep_rar, &trans_dep_war, &trans_dep_waw, options);
@@ -1891,7 +1891,26 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   if (scop->getNumStatements() == 0)
     return nullptr;
 
-  osl_scop_to_pluto_prog(scop->get(), context);
+  PlutoOptions options;
+  bool debug = true;
+  options.silent = !debug;
+  options.moredebug = debug;
+  options.debug = debug;
+  options.isldep = 1;
+  options.readscop = 1;
+
+  options.identity = 0;
+  // options.parallel = parallelize;
+  options.unrolljam = 0;
+  options.prevector = 0;
+  // options.diamondtile = diamondTiling;
+
+  // if (cloogf != -1)
+  //   context->options->cloogf = cloogf;
+  // if (cloogl != -1)
+  //   context->options->cloogl = cloogl;
+
+  dump_isl(scop->get(), &options);
 
   return f;
 }
