@@ -2,6 +2,8 @@
 #define POLYMER_SUPPORT_POLYMERUTILS_H_
 
 namespace polymer {
+mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f,
+                                    mlir::OpBuilder &rewriter);
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f,
                                   mlir::OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,

@@ -205,6 +205,7 @@ void PolyhedralOptPass::runOnOperation() {
       return;
     }
     mlir::func::FuncOp g = nullptr;
+    polymer::tadashiTransform(f, b);
     if ((g = polymer::plutoTransform(f, b, ""))) {
       g.setPublic();
       g->setAttrs(f->getAttrs());
