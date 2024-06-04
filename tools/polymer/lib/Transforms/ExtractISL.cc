@@ -27,6 +27,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+#include "isl/schedule.h"
 
 using namespace mlir;
 using namespace llvm;
@@ -1837,21 +1838,40 @@ static void dump_isl(osl_scop_p scop, PlutoOptions *options) {
     }
   }
 
+  compute_deps_isl(reads, writes, schedule, empty, &dep_raw, &dep_war, &dep_waw,
+                   &dep_rar, &trans_dep_war, &trans_dep_waw, options);
+
   char *s;
-  const char *str;
   // isl_pw_aff *pa;
   isl_printer *p;
-  int equal;
   p = isl_printer_to_str(ctx);
   p = isl_printer_set_output_format(p, ISL_FORMAT_ISL);
+  p = isl_printer_print_str(p, "nspace: ");
   p = isl_printer_print_space(p, space);
+  p = isl_printer_print_str(p, "\nschedule: ");
+  p = isl_printer_print_union_map(p, schedule);
+  p = isl_printer_print_str(p, "\nreads: ");
+  p = isl_printer_print_union_map(p, reads);
+  p = isl_printer_print_str(p, "\nwrites: ");
+  p = isl_printer_print_union_map(p, writes);
+  p = isl_printer_print_str(p, "\nempty: ");
+  p = isl_printer_print_union_map(p, empty);
+  p = isl_printer_print_str(p, "\ndep_raw: ");
+  p = isl_printer_print_union_map(p, dep_raw);
+  p = isl_printer_print_str(p, "\ndep_war: ");
+  p = isl_printer_print_union_map(p, dep_war);
+  p = isl_printer_print_str(p, "\ndep_waw: ");
+  p = isl_printer_print_union_map(p, dep_waw);
+  p = isl_printer_print_str(p, "\ndep_rar: ");
+  p = isl_printer_print_union_map(p, dep_rar);
+  p = isl_printer_print_str(p, "\n");
+  // TODO for some reason we segfault when printing these two
+  // p = isl_printer_print_union_map(p, trans_dep_war);
+  // p = isl_printer_print_union_map(p, trans_dep_waw);
   s = isl_printer_get_str(p);
   isl_printer_free(p);
 
   llvm::outs() << s << "\n";
-
-  compute_deps_isl(reads, writes, schedule, empty, &dep_raw, &dep_war, &dep_waw,
-                   &dep_rar, &trans_dep_war, &trans_dep_waw, options);
 
   if (options->lastwriter) {
     isl_union_map_free(trans_dep_war);
@@ -1876,8 +1896,6 @@ static void dump_isl(osl_scop_p scop, PlutoOptions *options) {
 }
 
 namespace polymer {
-/// The main function that implements the Pluto based optimization.
-/// TODO: transform options?
 mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
@@ -1891,27 +1909,27 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   if (scop->getNumStatements() == 0)
     return nullptr;
 
-  PlutoOptions options;
   bool debug = true;
-  options.silent = !debug;
-  options.moredebug = debug;
-  options.debug = debug;
-  options.isldep = 1;
-  options.readscop = 1;
+  context->options->silent = !debug;
+  context->options->moredebug = debug;
+  context->options->debug = debug;
+  context->options->isldep = 1;
+  context->options->readscop = 1;
 
-  options.identity = 0;
-  // options.parallel = parallelize;
-  options.unrolljam = 0;
-  options.prevector = 0;
-  // options.diamondtile = diamondTiling;
+  context->options->identity = 0;
+  context->options->parallel = 0;
+  context->options->unrolljam = 0;
+  context->options->prevector = 0;
+  context->options->diamondtile = 0;
 
   // if (cloogf != -1)
   //   context->options->cloogf = cloogf;
   // if (cloogl != -1)
   //   context->options->cloogl = cloogl;
 
-  dump_isl(scop->get(), &options);
+  dump_isl(scop->get(), context->options);
 
-  return f;
+  // TODO we leak
+  return nullptr;
 }
 } // namespace polymer
