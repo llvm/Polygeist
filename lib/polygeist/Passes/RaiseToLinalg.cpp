@@ -342,21 +342,42 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     //Value loopSize = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), loop.getConstantUpperBound());//rewriter.create<arith::SubIOp>(loop.getLoc(), *ub, *lb);
     
     for (auto &&[conds, lg] : linalgGenerics) {
-        for(auto &x : lg.args?)
-        //Is this needed?
-        if (conds.size() != 0) return failure();
-
-        getLinalgArgMap(x, lgMap, lgOperands, lgMemref);
-        bool legal = true;
+        // Iterate over input arguments
+        for (Value input : lg.getInputs()) {
+            //Is this needed?
+            if (conds.size() != 0) return failure();
+            
+            //TODO: Implement this
+            getLinalgArgMap(inout, lgMap, lgOperands, lgMemref);
+            bool legal = true;
        
-        auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
-        loopSize, lbConst.getValue(), step, lgOperands);
+            auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
+            loopSize, lbConst.getValue(), step, lgOperands);
 
-        if (!legal) return failure();
+            if (!legal) return failure();
 
-        //TODO: need to mergre previous indexing maps and new affine maps
-        affineMaps.push_back(newAffineMap);
-        inputs.push_back(newMemref);
+            //TODO: need to mergre previous indexing maps and new affine maps
+            affineMaps.push_back(newAffineMap);
+            inputs.push_back(newMemref);
+        }
+
+        // Iterate over output arguments
+        for (Value output : lg.getOutputs()) {
+            //Is this needed?
+            if (conds.size() != 0) return failure();
+
+            getLinalgArgMap(output, lgMap, lgOperands, lgMemref);
+            bool legal = true;
+       
+            auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
+            loopSize, lbConst.getValue(), step, lgOperands);
+
+            if (!legal) return failure();
+
+            //TODO: need to mergre previous indexing maps and new affine maps
+            affineMaps.push_back(newAffineMap);
+            inputs.push_back(newMemref);
+        }
     }
     
     // current spec is going to be indexed off of the loop var in isolation
