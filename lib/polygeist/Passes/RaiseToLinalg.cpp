@@ -23,6 +23,7 @@ using namespace mlir;
 using namespace mlir::arith;
 using namespace polygeist;
 using namespace affine;
+using namespace linalg;
 
 namespace {
 struct RaiseAffineToLinalg : public AffineRaiseToLinalgBase<RaiseAffineToLinalg> {
@@ -111,6 +112,7 @@ bool isLinearInIndex(AffineMap map, size_t idx) {
 std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap, Value val, Value idx, Value idx_size, int loopLowerBound, int loopStepSize, mlir::OperandRange vals) {
     // First we need to remove any dependence on the loop index from the affine map
     SmallVector<Value> vals_without_idx;
+    //This tracks the index corresponding to the for loop if present in load/store operands else it's -1
     ssize_t dim_idx = -1;
     //To check if induction variable of for loop in an operand of this op (load/store)
     for (auto &&[i, v] : llvm::enumerate(vals)) {
@@ -207,6 +209,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     SmallVector<std::pair<std::vector<Condition>, AffineLoadOp>> loads;
     SmallVector<std::pair<std::vector<Condition>, AffineStoreOp>> stores;
+    SmallVector<std::pair<std::vector<Condition>, GenericOp>> linalgGenerics;
     // TODO Also collect all the linalg generics!
 
     // Check that the only operations within the region are either:
@@ -220,7 +223,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         if (isa<AffineYieldOp, AffineIfOp>(op)) {
             return WalkResult::advance();
         }
-        if (isa<AffineLoadOp, AffineStoreOp>(op)) {
+        if (isa<AffineLoadOp, AffineStoreOp>(op) || isa<GenericOp>(op)) {
             Operation *cur = op->getParentOp();
             std::vector<Condition> conditions;
             while (cur != loop) {
@@ -232,7 +235,10 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
                 conditions.emplace_back(ifTrue, ifstmt);
                 cur = ifstmt->getParentOp();
             }
-            if (auto load = dyn_cast<AffineLoadOp>(op)) {
+            if (auto linalgGeneric = dyn_cast<GenericOp>(op)) {
+                linalgGenerics.emplace_back(conditions, linalgGeneric);
+            }
+            else if (auto load = dyn_cast<AffineLoadOp>(op)) {
                 loads.emplace_back(conditions, load);
             } else {
                 auto store = cast<AffineStoreOp>(op);
@@ -240,6 +246,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             }
             return WalkResult::advance();
         }
+        //IsReadNone takes care of apply and subview too?
         if (isReadNone(op)) {
             return WalkResult::advance();
         }
@@ -261,6 +268,9 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
                 if (load.getMemref() == store.getMemref() &&
                     load.getAffineMap() == store.getAffineMap() &&
                     load.getIndices() == store.getIndices() && DI.dominates((Operation*)load,(Operation*)store)) {
+                        //Example case where load does not dominate stores - if the load was conditional.
+                        //Or, store followed by load?
+                        //Q. Can't we still overlook the aliasing?
                         stores_map[load] = store;
                         continue;
                     }
@@ -331,6 +341,24 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     
     //Value loopSize = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), loop.getConstantUpperBound());//rewriter.create<arith::SubIOp>(loop.getLoc(), *ub, *lb);
     
+    for (auto &&[conds, lg] : linalgGenerics) {
+        for(auto &x : lg.args?)
+        //Is this needed?
+        if (conds.size() != 0) return failure();
+
+        getLinalgArgMap(x, lgMap, lgOperands, lgMemref);
+        bool legal = true;
+       
+        auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
+        loopSize, lbConst.getValue(), step, lgOperands);
+
+        if (!legal) return failure();
+
+        //TODO: need to mergre previous indexing maps and new affine maps
+        affineMaps.push_back(newAffineMap);
+        inputs.push_back(newMemref);
+    }
+    
     // current spec is going to be indexed off of the loop var in isolation
     for (auto &&[conds, load] : loads) {
         // Only support unconditional loads for the moment
@@ -372,7 +400,10 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO Push all of the outputs to the linalg generics
 
     // TODO presently  if linalg generic exists, assert there are no load/stores
+    assert((linalgGenerics.size() > 0) ? ((loads.size() == 0 ) && (stores.size() == 0)) : 1);
     // TODO assert only zero or one linalg generic exists
+    assert(linalgGenerics.size() == 1 || linalgGenerics.size() == 0);
+
     SmallVector<utils::IteratorType> iteratorTypes;
     // TODO if linalg generic exists, make this iterator type prepend to the existing iterators
     iteratorTypes.push_back((stores_map.size() == 0) ? utils::IteratorType::parallel : utils::IteratorType::reduction);
