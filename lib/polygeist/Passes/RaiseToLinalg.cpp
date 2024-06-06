@@ -289,6 +289,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
     SmallVector<Value> inputs;
     SmallVector<AffineMap> affineMaps;
+    SmallVector<AffineMap> indexingMaps;
 
     //if (loop.getStep() != 1) {
     //    return failure();
@@ -342,12 +343,18 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     //Value loopSize = rewriter.create<arith::ConstantIndexOp>(loop.getLoc(), loop.getConstantUpperBound());//rewriter.create<arith::SubIOp>(loop.getLoc(), *ub, *lb);
     
     for (auto &&[conds, lg] : linalgGenerics) {
+        
+        //This captures the indexing map attribute from the linalg.generic being processed
+        ArrayAttr indexingMapsAttr = lg.getIndexingMaps();
+
         // Iterate over input arguments
         for (Value input : lg.getInputs()) {
             //Is this needed?
             if (conds.size() != 0) return failure();
             
             //TODO: Implement this
+            //lgMap comes from offset of memref.subview,
+            //lgOperands comes from operands of memref.subview
             getLinalgArgMap(inout, lgMap, lgOperands, lgMemref);
             bool legal = true;
        
