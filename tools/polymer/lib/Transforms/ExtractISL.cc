@@ -4,6 +4,7 @@
 #include "polymer/Support/OslSymbolTable.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/OpenScop.h"
+#include "polymer/Transforms/ExtractScopStmt.h"
 #include "polymer/Transforms/PlutoTransform.h"
 
 #include "pluto/internal/pluto.h"
@@ -27,6 +28,9 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+
+#include "isl/id.h"
+#include "isl/id_to_id.h"
 #include "isl/schedule.h"
 
 using namespace mlir;
@@ -1899,6 +1903,80 @@ namespace polymer {
 mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
+
+  int i;
+  isl_ctx *ctx = isl_ctx_alloc();
+  assert(ctx);
+  isl_id_to_id *id2stmt;
+
+  int nStmt = 0;
+
+  ModuleOp m = f->getParentOfType<ModuleOp>();
+
+  f.walk([&](mlir::Operation *op) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
+      llvm::StringRef calleeName = caller.getCallee();
+      mlir::func::FuncOp callee =
+          m.lookupSymbol<mlir::func::FuncOp>(calleeName);
+
+      if (callee->getAttr(SCOP_STMT_ATTR_NAME)) {
+        nStmt++;
+      }
+    }
+  });
+
+  id2stmt = isl_id_to_id_alloc(ctx, nStmt);
+
+  f.walk([&](mlir::Operation *op) {
+    if (mlir::func::CallOp caller = dyn_cast<mlir::func::CallOp>(op)) {
+      llvm::StringRef calleeName = caller.getCallee();
+      mlir::func::FuncOp callee =
+          m.lookupSymbol<mlir::func::FuncOp>(calleeName);
+
+      // If the callee is of scop.stmt, we create a new instance in the map
+      if (callee->getAttr(SCOP_STMT_ATTR_NAME)) {
+
+        // TODO not sure if this is 0 terminated
+        const char *name = calleeName.data();
+        isl_id *id = isl_id_alloc(ctx, name, callee.getOperation());
+        id2stmt = isl_id_to_id_set(id2stmt, id, id);
+      }
+    }
+  });
+
+  for (const auto &it : *scopStmtMap) {
+    affine::FlatAffineValueConstraints *domain = it.second.getDomain();
+    affine::FlatAffineValueConstraints cst(*domain);
+
+    LLVM_DEBUG(dbgs() << "Statement:\n");
+    LLVM_DEBUG(it.second.getCaller().dump());
+    LLVM_DEBUG(it.second.getCallee().dump());
+    LLVM_DEBUG(dbgs() << "Target domain: \n");
+    LLVM_DEBUG(domain->dump());
+
+    LLVM_DEBUG({
+      dbgs() << "Domain values: \n";
+      SmallVector<Value> values;
+      domain->getValues(0, domain->getNumDimAndSymbolVars(), &values);
+      for (Value value : values)
+        dbgs() << " * " << value << '\n';
+    });
+
+    ctx.mergeAndAlignVarsWithOther(0, &cst);
+    ctx.append(cst);
+    ctx.removeRedundantConstraints();
+
+    LLVM_DEBUG(dbgs() << "Updated context: \n");
+    LLVM_DEBUG(ctx.dump());
+
+    LLVM_DEBUG({
+      dbgs() << "Context values: \n";
+      SmallVector<Value> values;
+      ctx.getValues(0, ctx.getNumDimAndSymbolVars(), &values);
+      for (Value value : values)
+        dbgs() << " * " << value << '\n';
+    });
+  }
 
   PlutoContext *context = pluto_context_alloc();
   OslSymbolTable srcTable, dstTable;
