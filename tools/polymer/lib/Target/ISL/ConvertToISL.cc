@@ -147,7 +147,9 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
         mlir::Value memref;
 
         stmt.getAccessMapAndMemRef(op, &vMap, &memref);
-        scop->addAccessRelation(stmtId, isRead, memref, vMap, domain);
+        [[maybe_unused]] auto ret =
+            scop->addAccessRelation(stmtId, isRead, memref, vMap, domain);
+        assert(succeeded(ret));
       }
     });
 
@@ -164,7 +166,7 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
     const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
     scop->addBodyExtension(stmtId, stmt);
   }
-  auto res = scop->validate();
+  [[maybe_unused]] auto res = scop->validate();
   assert(res && "The scop object created cannot be validated.");
 
   // Additionally, setup the name of the function in the comment.
