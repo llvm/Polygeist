@@ -194,6 +194,106 @@ std::pair<Value, AffineMap> remap_in_affine_dim(bool &legal, OpBuilder &builder,
     val is now prevA
 */
 
+/*
+
+f(%memref )
+
+%memref = ...
+
+affine.for {
+
+
+    %inp = .. subview %memref [ ... ]
+
+    linalg.generic %inp #map {
+
+    }
+}
+
+
+#map2 = #map with the indexing done to %inp
+
+*/
+
+
+LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap, lgOperands, lgMemref) {
+
+    while (Operation *defOp = input.getDefiningOp()) {
+
+        // If the input is defined outside of the loop, we are finished.
+        if (!loop->isAncestor(defOp)) continue;
+
+        if (auto SV = dyn_cast<memref::SubViewOp>(defOp)) {
+
+            // TODO update map with the new indexing from here
+
+            size_t numNewStartDims = 0;
+            size_t numNewStartSymbols = 0;
+            for (auto val : SV->getStarts()) {
+                // Only support constants, symbols, or affine apply as offsets
+                if (val.getDefinigOp<ConstantInt>()) {
+                    continue;
+                }
+                auto valOp = val.getDefiningOp();
+                // Defined outside loop, consider it a symbol [for now]
+                if (!valOp || !loop->isAncestor(valOp)) continue;
+                
+                if(auto index = dyn_cast<>(valOp)) {
+                    
+                }
+
+                //Q. If we just extract num dims and symbs-
+                // i. Won't we miss constant values in the affine map?
+                // ii. How will we know the relation between dims and syms?
+                // Eg- affine_map<(d0, d1)[s0] -> (d0 + 2 * d1 + s0, d1 - s0)>
+                //Also we need to check for unique args and only count them in numNewStartDims and Symbols.
+                if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
+                    numNewStartDims += apply.getAffineMap().getNumDims();
+                    numNewStartSymbols += apply.getAffineMap().getNumSymbols();
+                    newExpr = apply.getResults();
+                }
+
+                // unsupported index to subview
+                return failure();
+            }
+            size_t numNewStrideDims = 0;
+            size_t numNewStrideSymbols = 0;
+            for (auto val : SV->getStrides()) {
+                // Only support constants, symbols, or affine apply as offsets
+                if (val.getDefinigOp<ConstantInt>()) {
+                    continue;
+                }
+                auto valOp = val.getDefiningOp();
+                // Defined outside loop, consider it a symbol [for now]
+                if (!valOp || loop->isAncestor(defOp)) continue;
+
+                if (auto apply = dyn_cast<AffineApplyOp>(val)) {
+                    numNewStrideDims += apply.getAffineMap().getNumDims();
+                    numNewStrideSymbols += apply.getAffineMap().getNumSymbols();
+                    continue;
+                }
+
+                // unsupported index to subview
+                return failure();
+            }
+
+            SmallVector<AffineExpr> exprs = lgMap.getAffineExprs();
+
+            for (auto expr : exprs) {
+                auto newexpr = expr.compose with the start and index above
+                and also take into account new dims/symbols
+            }
+
+            lgMap = AffineMap::get(exprs, num total new dims, num total new symbols);
+            input = SV.getInput();
+
+        }
+
+        return failure();
+
+    }
+    return success();
+}
 
 struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
   using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
@@ -347,6 +447,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         //This captures the indexing map attribute from the linalg.generic being processed
         ArrayAttr indexingMapsAttr = lg.getIndexingMaps();
 
+        int idx = 0;
         // Iterate over input arguments
         for (Value input : lg.getInputs()) {
             //Is this needed?
@@ -355,7 +456,12 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             //TODO: Implement this
             //lgMap comes from offset of memref.subview,
             //lgOperands comes from operands of memref.subview
-            getLinalgArgMap(inout, lgMap, lgOperands, lgMemref);
+            AffineMap lgMap = indexingMapsAttr[idx];
+
+            auto result = getLinalgArgMap(loop, input, lgMap, lgOperands, lgMemref);
+
+            if (!result.succeeded()) return failure();
+
             bool legal = true;
        
             auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
@@ -366,6 +472,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             //TODO: need to mergre previous indexing maps and new affine maps
             affineMaps.push_back(newAffineMap);
             inputs.push_back(newMemref);
+            idx++;
         }
 
         // Iterate over output arguments
@@ -373,7 +480,12 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             //Is this needed?
             if (conds.size() != 0) return failure();
 
-            getLinalgArgMap(output, lgMap, lgOperands, lgMemref);
+            AffineMap lgMap = indexingMapsAttr[idx];
+
+            auto result = getLinalgArgMap(loop, output, lgMap, lgOperands, lgMemref);
+            
+            if (!result.succeeded()) return failure();
+            
             bool legal = true;
        
             auto &&[newMemref, newAffineMap] = remap_in_affine_dim(legal, rewriter, lgMap, lgMemref, loop.getInductionVar(),
@@ -428,9 +540,13 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO Push all of the outputs to the linalg generics
 
     // TODO presently  if linalg generic exists, assert there are no load/stores
-    assert((linalgGenerics.size() > 0) ? ((loads.size() == 0 ) && (stores.size() == 0)) : 1);
+    if(!((linalgGenerics.size() > 0) && ((loads.size() == 0 ) && (stores.size() == 0))))
+        return failure;
+
     // TODO assert only zero or one linalg generic exists
-    assert(linalgGenerics.size() == 1 || linalgGenerics.size() == 0);
+    if(!(linalgGenerics.size() == 1 || linalgGenerics.size() == 0))
+        return failure;
+
 
     SmallVector<utils::IteratorType> iteratorTypes;
     // TODO if linalg generic exists, make this iterator type prepend to the existing iterators
