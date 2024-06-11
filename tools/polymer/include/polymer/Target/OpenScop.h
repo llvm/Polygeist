@@ -32,17 +32,17 @@ class Value;
 namespace polymer {
 
 class OslScop;
-class OslSymbolTable;
+class PolymerSymbolTable;
 
 std::unique_ptr<OslScop> createOpenScopFromFuncOp(mlir::func::FuncOp funcOp,
-                                                  OslSymbolTable &symTable);
+                                                  PolymerSymbolTable &symTable);
 
 /// Create a function (FuncOp) from the given OpenScop object in the given
 /// module (ModuleOp).
 mlir::Operation *
 createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop, mlir::ModuleOp module,
-                         OslSymbolTable &symTable, mlir::MLIRContext *context,
-                         PlutoProg *prog = nullptr,
+                         PolymerSymbolTable &symTable,
+                         mlir::MLIRContext *context, PlutoProg *prog = nullptr,
                          const char *dumpClastAfterPluto = nullptr);
 
 mlir::OwningOpRef<mlir::ModuleOp>

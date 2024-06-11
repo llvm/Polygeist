@@ -1979,7 +1979,7 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   }
 
   PlutoContext *context = pluto_context_alloc();
-  OslSymbolTable srcTable, dstTable;
+  PolymerSymbolTable srcTable, dstTable;
 
   std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(f, srcTable);
   if (!scop)

@@ -49,23 +49,23 @@ using namespace polymer;
 
 namespace {
 
-/// Build OslScop from FuncOp.
-class OslScopBuilder {
+/// Build IslScop from FuncOp.
+class IslScopBuilder {
 public:
-  OslScopBuilder() {}
+  IslScopBuilder() {}
 
   /// Build a scop from a common FuncOp.
-  std::unique_ptr<OslScop> build(mlir::func::FuncOp f);
+  std::unique_ptr<IslScop> build(mlir::func::FuncOp f);
 
 private:
   /// Find all statements that calls a scop.stmt.
   void buildScopStmtMap(mlir::func::FuncOp f,
-                        OslScop::ScopStmtNames *scopStmtNames,
-                        OslScop::ScopStmtMap *scopStmtMap) const;
+                        IslScop::ScopStmtNames *scopStmtNames,
+                        IslScop::ScopStmtMap *scopStmtMap) const;
 
   /// Build the scop context. The domain of each scop stmt will be updated, by
   /// merging and aligning its IDs with the context as well.
-  void buildScopContext(OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
+  void buildScopContext(IslScop *scop, IslScop::ScopStmtMap *scopStmtMap,
                         affine::FlatAffineValueConstraints &ctx) const;
 };
 
@@ -80,8 +80,8 @@ static void sanityCheckDomain(affine::FlatAffineValueConstraints &dom) {
   }
 }
 
-/// Build OslScop from a given FuncOp.
-std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
+/// Build IslScop from a given FuncOp.
+std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
 
   /// Context constraints.
   affine::FlatAffineValueConstraints ctx;
@@ -90,9 +90,9 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
   // created. It doesn't contain any fields, and this may incur some problems,
   // which the validate function won't discover, e.g., no context will cause
   // segfault when printing scop. Please don't just return this object.
-  auto scop = std::make_unique<OslScop>();
+  auto scop = std::make_unique<IslScop>();
   // Mapping between scop stmt names and their caller/callee op pairs.
-  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
+  IslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
   auto *scopStmtNames = scop->getScopStmtNames();
 
   // Find all caller/callee pairs in which the callee has the attribute of name
@@ -133,7 +133,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
       callee.dump();
     });
 
-    // Create a statement in OslScop and setup relations in it.
+    // Create a statement in IslScop and setup relations in it.
     scop->createStatement();
     scop->addDomainRelation(stmtId, domain);
     scop->addScatteringRelation(stmtId, domain, enclosingOps);
@@ -154,7 +154,7 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
     stmtId++;
   }
 
-  // Setup the symbol table within the OslScop, which builds the mapping from
+  // Setup the symbol table within the IslScop, which builds the mapping from
   // mlir::Value to their names in the OpenScop representation, and maps them
   // backward.
   scop->initializeSymbolTable(f, &ctx);
@@ -178,9 +178,9 @@ std::unique_ptr<OslScop> OslScopBuilder::build(mlir::func::FuncOp f) {
 }
 
 /// Find all statements that calls a scop.stmt.
-void OslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
-                                      OslScop::ScopStmtNames *scopStmtNames,
-                                      OslScop::ScopStmtMap *scopStmtMap) const {
+void IslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
+                                      IslScop::ScopStmtNames *scopStmtNames,
+                                      IslScop::ScopStmtMap *scopStmtMap) const {
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
 
   f.walk([&](mlir::Operation *op) {
@@ -199,8 +199,8 @@ void OslScopBuilder::buildScopStmtMap(mlir::func::FuncOp f,
   });
 }
 
-void OslScopBuilder::buildScopContext(
-    OslScop *scop, OslScop::ScopStmtMap *scopStmtMap,
+void IslScopBuilder::buildScopContext(
+    IslScop *scop, IslScop::ScopStmtMap *scopStmtMap,
     affine::FlatAffineValueConstraints &ctx) const {
   LLVM_DEBUG(dbgs() << "--- Building SCoP context ...\n");
 
@@ -320,9 +320,10 @@ void OslScopBuilder::buildScopContext(
   }
 }
 
-std::unique_ptr<OslScop>
-polymer::createIslFromFuncOp(mlir::func::FuncOp f, OslSymbolTable &symTable) {
-  return OslScopBuilder().build(f);
+std::unique_ptr<IslScop>
+polymer::createIslFromFuncOp(mlir::func::FuncOp f,
+                             PolymerSymbolTable &symTable) {
+  return IslScopBuilder().build(f);
 }
 
 namespace {
@@ -378,19 +379,19 @@ public:
 
   /// Emit OpenScop definitions for all functions in the given module.
   void emitMLIRModule(ModuleOp module,
-                      llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops);
+                      llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops);
 
 private:
   /// Emit a OpenScop definition for a single function.
   LogicalResult
   emitFuncOp(FuncOp func,
-             llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops);
+             llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops);
 };
 
 LogicalResult ModuleEmitter::emitFuncOp(
     mlir::func::FuncOp func,
-    llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
-  OslSymbolTable symTable;
+    llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops) {
+  PolymerSymbolTable symTable;
   auto scop = createIslFromFuncOp(func, symTable);
   if (scop)
     scops.push_back(std::move(scop));
@@ -399,7 +400,7 @@ LogicalResult ModuleEmitter::emitFuncOp(
 
 /// The entry function to the current OpenScop emitter.
 void ModuleEmitter::emitMLIRModule(
-    ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
+    ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops) {
   // Emit a single OpenScop definition for each function.
   for (auto &op : *module.getBody()) {
     if (auto func = dyn_cast<mlir::func::FuncOp>(op)) {
@@ -418,7 +419,7 @@ void ModuleEmitter::emitMLIRModule(
 /// TODO: should decouple emitter and openscop builder.
 mlir::LogicalResult polymer::translateModuleToIsl(
     mlir::ModuleOp module,
-    llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops,
+    llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops,
     llvm::raw_ostream &os) {
   OpenScopEmitterState state(os);
   ::ModuleEmitter(state).emitMLIRModule(module, scops);
@@ -426,8 +427,8 @@ mlir::LogicalResult polymer::translateModuleToIsl(
   return success();
 }
 
-static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
-  llvm::SmallVector<std::unique_ptr<OslScop>, 8> scops;
+static LogicalResult emitISL(ModuleOp module, llvm::raw_ostream &os) {
+  llvm::SmallVector<std::unique_ptr<IslScop>, 8> scops;
 
   if (failed(translateModuleToIsl(module, scops, os)))
     return failure();
@@ -440,5 +441,5 @@ static LogicalResult emitOpenScop(ModuleOp module, llvm::raw_ostream &os) {
 
 void polymer::registerToIslTranslation() {
   static TranslateFromMLIRRegistration toOpenScop("export-isl", "Export ISL",
-                                                  emitOpenScop);
+                                                  emitISL);
 }

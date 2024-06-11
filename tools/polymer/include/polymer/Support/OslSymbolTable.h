@@ -18,11 +18,11 @@ class Value;
 
 namespace polymer {
 
-class OslScopStmtOpSet;
+class ScopStmtOpSet;
 
-class OslSymbolTable {
+class PolymerSymbolTable {
 public:
-  using OpSet = OslScopStmtOpSet;
+  using OpSet = ScopStmtOpSet;
   using OpSetPtr = std::unique_ptr<OpSet>;
 
   enum SymbolType { LoopIV, Memref, StmtOpSet };

@@ -329,7 +329,7 @@ void OslScopBuilder::buildScopContext(
 
 std::unique_ptr<OslScop>
 polymer::createOpenScopFromFuncOp(mlir::func::FuncOp f,
-                                  OslSymbolTable &symTable) {
+                                  PolymerSymbolTable &symTable) {
   return OslScopBuilder().build(f);
 }
 
@@ -398,7 +398,7 @@ private:
 LogicalResult ModuleEmitter::emitFuncOp(
     mlir::func::FuncOp func,
     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops) {
-  OslSymbolTable symTable;
+  PolymerSymbolTable symTable;
   auto scop = createOpenScopFromFuncOp(func, symTable);
   if (scop) {
     scops.push_back(std::move(scop));

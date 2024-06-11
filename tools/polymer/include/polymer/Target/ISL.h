@@ -31,27 +31,27 @@ class Value;
 
 namespace polymer {
 
-class OslScop;
-class OslSymbolTable;
+class IslScop;
+class PolymerSymbolTable;
 
-std::unique_ptr<OslScop> createIslFromFuncOp(mlir::func::FuncOp funcOp,
-                                             OslSymbolTable &symTable);
+std::unique_ptr<IslScop> createIslFromFuncOp(mlir::func::FuncOp funcOp,
+                                             PolymerSymbolTable &symTable);
 
 /// Create a function (FuncOp) from the given OpenScop object in the given
 /// module (ModuleOp).
-mlir::Operation *createFuncOpFromIsl(std::unique_ptr<OslScop> scop,
+mlir::Operation *createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
                                      mlir::ModuleOp module,
-                                     OslSymbolTable &symTable,
+                                     PolymerSymbolTable &symTable,
                                      mlir::MLIRContext *context,
                                      PlutoProg *prog = nullptr,
                                      const char *dumpClastAfterPluto = nullptr);
 
 mlir::OwningOpRef<mlir::ModuleOp>
-translateIslToModule(std::unique_ptr<OslScop> scop, mlir::MLIRContext *context);
+translateIslToModule(std::unique_ptr<IslScop> scop, mlir::MLIRContext *context);
 
 mlir::LogicalResult
 translateModuleToIsl(mlir::ModuleOp module,
-                     llvm::SmallVectorImpl<std::unique_ptr<OslScop>> &scops,
+                     llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops,
                      llvm::raw_ostream &os);
 
 void registerToIslTranslation();

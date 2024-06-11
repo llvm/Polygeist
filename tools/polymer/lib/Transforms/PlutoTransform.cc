@@ -51,7 +51,7 @@ mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
   LLVM_DEBUG(f.dump());
 
   PlutoContext *context = pluto_context_alloc();
-  OslSymbolTable srcTable, dstTable;
+  PolymerSymbolTable srcTable, dstTable;
 
   std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(f, srcTable);
   if (!scop)

@@ -60,8 +60,8 @@ typedef llvm::StringMap<mlir::Value> SymbolTable;
 /// TODO: manage the priviledge.
 class AffineExprBuilder {
 public:
-  AffineExprBuilder(MLIRContext *context, OslSymbolTable *symTable,
-                    SymbolTable *symbolTable, OslScop *scop,
+  AffineExprBuilder(MLIRContext *context, PolymerSymbolTable *symTable,
+                    SymbolTable *symbolTable, IslScop *scop,
                     CloogOptions *options)
       : b(context), context(context), scop(scop), symTable(symTable),
         symbolTable(symbolTable), options(options) {
@@ -93,10 +93,10 @@ public:
   OpBuilder b;
   /// The MLIR context
   MLIRContext *context;
-  /// The OslScop of the whole program.
-  OslScop *scop;
+  /// The IslScop of the whole program.
+  IslScop *scop;
   /// TODO: keep only one of them
-  OslSymbolTable *symTable;
+  PolymerSymbolTable *symTable;
   SymbolTable *symbolTable;
   ///
   CloogOptions *options;
@@ -371,7 +371,7 @@ namespace {
 /// the OpenScop.
 class IterScatNameMapper {
 public:
-  IterScatNameMapper(OslScop *scop) : scop(scop) {}
+  IterScatNameMapper(IslScop *scop) : scop(scop) {}
 
   void visitStmtList(clast_stmt *s);
 
@@ -382,7 +382,7 @@ private:
   void visit(clast_guard *guardStmt);
   void visit(clast_user_stmt *userStmt);
 
-  OslScop *scop;
+  IslScop *scop;
 
   IterScatNameMap iterScatNameMap;
 };
@@ -428,8 +428,8 @@ namespace {
 /// Import MLIR code from the clast AST.
 class Importer {
 public:
-  Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
-           OslScop *scop, CloogOptions *options);
+  Importer(MLIRContext *context, ModuleOp module, PolymerSymbolTable *symTable,
+           IslScop *scop, CloogOptions *options);
 
   LogicalResult processStmtList(clast_stmt *s);
 
@@ -487,9 +487,9 @@ private:
   /// The main function.
   FuncOp func;
   /// The OpenScop object pointer.
-  OslScop *scop;
+  IslScop *scop;
   /// The symbol table for labels in the OpenScop input (to be deprecated).
-  OslSymbolTable *symTable;
+  PolymerSymbolTable *symTable;
   /// The symbol table that will be built on the fly.
   SymbolTable symbolTable;
 
@@ -513,7 +513,7 @@ private:
 } // namespace
 
 Importer::Importer(MLIRContext *context, ModuleOp module,
-                   OslSymbolTable *symTable, OslScop *scop,
+                   PolymerSymbolTable *symTable, IslScop *scop,
                    CloogOptions *options)
     : b(context), context(context), module(module), scop(scop),
       symTable(symTable), options(options) {
@@ -574,7 +574,7 @@ LogicalResult Importer::processStmtList(clast_stmt *s) {
 }
 
 void Importer::initializeFuncOpInterface() {
-  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+  IslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   /// First collect the source FuncOp in the original MLIR code.
   mlir::func::FuncOp sourceFuncOp = getSourceFuncOp();
@@ -630,7 +630,7 @@ LogicalResult Importer::processStmt(clast_root *rootStmt) {
 /// Initialize the value in the symbol table.
 void Importer::initializeSymbol(mlir::Value val) {
   assert(val != nullptr);
-  OslScop::ValueTable *oslValueTable = scop->getValueTable();
+  IslScop::ValueTable *oslValueTable = scop->getValueTable();
 
   auto &entryBlock = *func.getBody().begin();
 
@@ -726,7 +726,7 @@ void Importer::initializeSymbol(mlir::Value val) {
 }
 
 void Importer::initializeSymbolTable() {
-  OslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
+  IslScop::SymbolTable *oslSymbolTable = scop->getSymbolTable();
 
   OpBuilder::InsertionGuard guard(b);
 
@@ -822,7 +822,7 @@ void Importer::createCalleeAndCallerArgs(
       Value memref = symTable->getValue(args[i]);
       if (!memref) {
         memref = entryBlock.addArgument(memType, b.getUnknownLoc());
-        symTable->setValue(args[i], memref, OslSymbolTable::Memref);
+        symTable->setValue(args[i], memref, PolymerSymbolTable::Memref);
       }
       callerArgs.push_back(memref);
       i++;
@@ -842,7 +842,7 @@ void Importer::createCalleeAndCallerArgs(
         // We should set the symbol table for args[i], otherwise we cannot
         // build a correct mapping from the original symbol table (only
         // args[i] exists in it).
-        symTable->setValue(args[i], iv, OslSymbolTable::LoopIV);
+        symTable->setValue(args[i], iv, PolymerSymbolTable::LoopIV);
       } else {
         llvm::errs() << "Cannot find the scatname " << newArgName
                      << " as a valid loop IV.\n";
@@ -953,8 +953,8 @@ static mlir::Value findBlockArg(mlir::Value v) {
 /// will also generate the declaration of the function to be called, which has
 /// an empty body, in order to make the compiler happy.
 LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
-  OslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
-  OslScop::ValueTable *valueTable = scop->getValueTable();
+  IslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
+  IslScop::ValueTable *valueTable = scop->getValueTable();
 
   osl_statement_p stmt;
   auto res =
@@ -1271,7 +1271,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "affine.for should only have one block argument (iv).");
 
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
-                     OslSymbolTable::LoopIV);
+                     PolymerSymbolTable::LoopIV);
 
   // Symbol table is mutable.
   // TODO: is there a better way to improve this? Not very safe.
@@ -1381,7 +1381,7 @@ LogicalResult Importer::processStmt(clast_assignment *ass) {
   return success();
 }
 
-static std::unique_ptr<OslScop> readOpenScop(llvm::MemoryBufferRef buf) {
+static std::unique_ptr<IslScop> readOpenScop(llvm::MemoryBufferRef buf) {
   // Read OpenScop by OSL API.
   // TODO: is there a better way to get the FILE pointer from
   // MemoryBufferRef?
@@ -1389,7 +1389,7 @@ static std::unique_ptr<OslScop> readOpenScop(llvm::MemoryBufferRef buf) {
       reinterpret_cast<void *>(const_cast<char *>(buf.getBufferStart())),
       buf.getBufferSize(), "r");
 
-  auto scop = std::make_unique<OslScop>(osl_scop_read(inputFile));
+  auto scop = std::make_unique<IslScop>(osl_scop_read(inputFile));
   fclose(inputFile);
 
   return scop;
@@ -1488,10 +1488,12 @@ static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
     markParallel(root, prog, cloogOptions);
 }
 
-mlir::Operation *
-polymer::createFuncOpFromIsl(std::unique_ptr<OslScop> scop, ModuleOp module,
-                             OslSymbolTable &symTable, MLIRContext *context,
-                             PlutoProg *prog, const char *dumpClastAfterPluto) {
+namespace polymer {
+mlir::Operation *createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
+                                     ModuleOp module,
+                                     PolymerSymbolTable &symTable,
+                                     MLIRContext *context, PlutoProg *prog,
+                                     const char *dumpClastAfterPluto) {
   // TODO: turn these C struct into C++ classes.
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
@@ -1549,15 +1551,16 @@ polymer::createFuncOpFromIsl(std::unique_ptr<OslScop> scop, ModuleOp module,
 
   return deserializer.getFunc();
 }
+} // namespace polymer
 
 OwningOpRef<ModuleOp>
-polymer::translateIslToModule(std::unique_ptr<OslScop> scop,
+polymer::translateIslToModule(std::unique_ptr<IslScop> scop,
                               MLIRContext *context) {
   context->loadDialect<affine::AffineDialect>();
   OwningOpRef<ModuleOp> module(ModuleOp::create(
       FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
-  OslSymbolTable symTable;
+  PolymerSymbolTable symTable;
   if (!createFuncOpFromIsl(std::move(scop), module.get(), symTable, context))
     return {};
 
@@ -1567,7 +1570,7 @@ polymer::translateIslToModule(std::unique_ptr<OslScop> scop,
 static OwningOpRef<ModuleOp> translateIslToModule(llvm::SourceMgr &sourceMgr,
                                                   MLIRContext *context) {
   llvm::SMDiagnostic err;
-  std::unique_ptr<OslScop> scop =
+  std::unique_ptr<IslScop> scop =
       readOpenScop(*sourceMgr.getMemoryBuffer(sourceMgr.getMainFileID()));
 
   return translateIslToModule(std::move(scop), context);
