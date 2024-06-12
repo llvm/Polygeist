@@ -103,12 +103,11 @@ void IslScop::addDomainRelation(int stmtId,
   isl_mat *ineqMat = createConstraintRows(cst, /*isEq=*/false);
   LLVM_DEBUG({
     llvm::errs() << "Adding domain relation\n";
-    llvm::errs() << " MLIR:\n";
-    cst.dump();
     llvm::errs() << " ISL eq mat:\n";
     isl_mat_dump(eqMat);
     llvm::errs() << " ISL ineq mat:\n";
     isl_mat_dump(ineqMat);
+    llvm::errs() << "\n";
   });
   isl_mat_free(eqMat);
   isl_mat_free(ineqMat);
@@ -131,33 +130,39 @@ void IslScop::addScatteringRelation(
   // Columns include new scattering dimensions and those from the domain.
   unsigned numScatCols = numScatEqs + cst.getNumCols() + 1;
 
-  // Create equalities and inequalities.
-  std::vector<int64_t> eqs, inEqs;
-
   // Initialize contents for equalities.
-  eqs.resize(numScatEqs * (numScatCols - 1));
+  isl_mat *eqMat = isl_mat_alloc(ctx, numScatEqs, numScatCols);
   for (unsigned j = 0; j < numScatEqs; j++) {
 
     // Initializing scattering dimensions by setting the diagonal to -1.
     for (unsigned k = 0; k < numScatEqs; k++)
-      eqs[j * (numScatCols - 1) + k] = -static_cast<int64_t>(k == j);
+      eqMat = isl_mat_set_element_si(eqMat, j, k, (k == j));
 
     // Relating the loop IVs to the scattering dimensions. If it's the odd
     // equality, set its scattering dimension to the loop IV; otherwise, it's
     // scattering dimension will be set in the following constant section.
     for (unsigned k = 0; k < cst.getNumDimVars(); k++)
-      eqs[j * (numScatCols - 1) + k + numScatEqs] =
-          (j % 2) ? (k == (j / 2)) : 0;
+      eqMat = isl_mat_set_element_si(eqMat, j, k + numScatEqs,
+                                     (j % 2) ? (k == (j / 2)) : 0);
 
     // TODO: consider the parameters that may appear in the scattering
     // dimension.
     for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars();
          k++)
-      eqs[j * (numScatCols - 1) + k + numScatEqs + cst.getNumDimVars()] = 0;
+      eqMat = isl_mat_set_element_si(eqMat, j,
+                                     k + numScatEqs + cst.getNumDimVars(), 0);
 
     // Relating the constants (the last column) to the scattering dimensions.
-    eqs[j * (numScatCols - 1) + numScatCols - 2] = (j % 2) ? 0 : scats[j / 2];
+    eqMat = isl_mat_set_element_si(eqMat, j, numScatCols - 2,
+                                   (j % 2) ? 0 : scats[j / 2]);
   }
+  LLVM_DEBUG({
+    llvm::errs() << "Adding scattering relation\n";
+    llvm::errs() << " ISL eq mat:\n";
+    isl_mat_dump(eqMat);
+    llvm::errs() << "\n";
+  });
+  isl_mat_free(eqMat);
 
   // Then put them into the scop as a SCATTERING relation.
   // addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
@@ -408,7 +413,6 @@ bool IslScop::isConstantSymbol(llvm::StringRef name) const {
 
 isl_mat *IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
                                        bool isEq) {
-  isl_mat *mat;
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
   unsigned numDimIds = cst.getNumDimVars();
   unsigned numLocalIds = cst.getNumLocalVars();
@@ -419,7 +423,7 @@ isl_mat *IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
     auto row = isEq ? cst.getEquality(0) : cst.getInequality(0);
     numCols = row.size();
   }
-  mat = isl_mat_alloc(ctx, numRows, numCols);
+  isl_mat *mat = isl_mat_alloc(ctx, numRows, numCols);
 
   for (unsigned i = 0; i < numRows; i++) {
     // Get the row based on isEq.
