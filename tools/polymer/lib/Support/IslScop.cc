@@ -113,6 +113,8 @@ void IslScop::addDomainRelation(int stmtId,
 
   isl_space *space =
       isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  space = isl_space_set_tuple_name(space, isl_dim_set,
+                                   scopStmtNames[stmtId].c_str());
   LLVM_DEBUG(llvm::errs() << "space: ");
   LLVM_DEBUG(isl_space_dump(space));
 
