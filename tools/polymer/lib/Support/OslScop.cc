@@ -631,7 +631,7 @@ OslScop::ScopStmtNames *OslScop::getScopStmtNames() { return &scopStmtNames; }
 IslScop::IslScop() {
   scatTreeRoot = std::make_unique<ScatTreeNode>();
 
-  scop = osl_scop_malloc();
+  // scop = osl_scop_malloc();
 
   // Initialize string buffer for language.
   OSL_strdup(scop->language, "C");
@@ -641,21 +641,23 @@ IslScop::IslScop() {
   scop->registry = osl_interface_clone(registry);
 }
 
-IslScop::IslScop(osl_scop *scop)
-    : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
+// IslScop::IslScop(osl_scop *scop)
+//     : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
 
-IslScop::~IslScop() { osl_scop_free(scop); }
+IslScop::~IslScop() {
+  // TODO ISL
+}
 
-void IslScop::print() { osl_scop_print(stdout, scop); }
+void IslScop::print() {
+  // TODO ISL
+}
 
 bool IslScop::validate() {
-  // TODO: do we need to check the scoplib compatibility?
-  return osl_scop_integrity_check(scop);
+  // TODO ISL
 }
 
 void IslScop::createStatement() {
-  osl_statement_p stmt = osl_statement_malloc();
-  osl_statement_add(&(scop->statement), stmt);
+  // TODO ISL
 }
 
 void IslScop::addRelation(int target, int type, int numRows, int numCols,

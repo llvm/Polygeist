@@ -162,19 +162,25 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
   scop->initializeSymbolTable(f, &ctx);
 
   // Insert body extension.
-  for (unsigned stmtId = 0; stmtId < scopStmtNames->size(); stmtId++) {
-    const ScopStmt &stmt = scopStmtMap->find(scopStmtNames->at(stmtId))->second;
-    scop->addBodyExtension(stmtId, stmt);
-  }
-  [[maybe_unused]] auto res = scop->validate();
-  assert(res && "The scop object created cannot be validated.");
+  // This outputs this to openscop:
+  //
+  // # Statement body expression
+  // S1(i0, i1, i2)
+  //
+  // for (unsigned stmtId = 0; stmtId < scopStmtNames->size(); stmtId++) {
+  //   const ScopStmt &stmt =
+  //   scopStmtMap->find(scopStmtNames->at(stmtId))->second;
+  //   scop->addBodyExtension(stmtId, stmt);
+  // }
+  // [[maybe_unused]] auto res = scop->validate();
+  // assert(res && "The scop object created cannot be validated.");
 
   // Additionally, setup the name of the function in the comment.
-  std::string funcName(f.getName());
-  scop->addExtensionGeneric("comment", funcName);
+  // std::string funcName(f.getName());
+  // scop->addExtensionGeneric("comment", funcName);
 
-  res = scop->validate();
-  assert(res && "The scop object created cannot be validated.");
+  // auto res = scop->validate();
+  // assert(res && "The scop object created cannot be validated.");
 
   return scop;
 }

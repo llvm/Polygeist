@@ -179,12 +179,12 @@ public:
   using ScopStmtNames = std::vector<std::string>;
 
   IslScop();
-  IslScop(osl_scop *scop);
+  // IslScop(osl_scop *scop);
 
   ~IslScop();
 
   /// Get the raw scop pointer.
-  osl_scop *get() { return scop; }
+  // osl_scop *get() { return scop; }
 
   /// Print the content of the Scop to the stdout.
   void print();
@@ -195,7 +195,9 @@ public:
   /// Simply create a new statement in the linked list scop->statement.
   void createStatement();
   /// Get statement by index.
-  mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt) const;
+  // mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt)
+  // const;
+
   /// Get the total number of statements
   unsigned getNumStatements() const;
 
@@ -238,7 +240,7 @@ public:
   bool isSymbol(llvm::StringRef name);
 
   /// Get extension by interface name
-  osl_generic *getExtension(llvm::StringRef interface) const;
+  // osl_generic *getExtension(llvm::StringRef interface) const;
 
   /// Initialize the symbol table.
   void initializeSymbolTable(mlir::func::FuncOp f,
@@ -281,7 +283,7 @@ private:
   void addParameterNames();
 
   /// The internal storage of the Scop.
-  osl_scop *scop;
+  // osl_scop *scop;
 
   /// The scattering tree maintained.
   std::unique_ptr<ScatTreeNode> scatTreeRoot;
