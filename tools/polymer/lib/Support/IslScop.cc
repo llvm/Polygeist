@@ -24,6 +24,7 @@
 
 #include "isl/space.h"
 #include "isl/space_type.h"
+#include "isl/union_map.h"
 #include <isl/ctx.h>
 #include <isl/mat.h>
 #include <isl/set.h>
@@ -87,14 +88,15 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
 
   isl_union_set *domain = isl_union_set_empty(paramSpace);
-  isl_union_set_dump(domain);
+  LLVM_DEBUG(isl_union_set_dump(domain));
   for (IslStmt &stmt : islStmts) {
     isl_union_set *set = isl_union_set_from_basic_set(stmt.bset);
-    isl_union_set_dump(set);
+    LLVM_DEBUG(isl_union_set_dump(set));
     domain = isl_union_set_union(set, domain);
-    isl_union_set_dump(domain);
+    LLVM_DEBUG(isl_union_set_dump(domain));
   }
-  isl_union_set_dump(domain);
+  LLVM_DEBUG(isl_union_set_dump(domain));
+  domain = isl_union_set_free(domain);
 }
 
 void IslScop::addDomainRelation(int stmtId,
@@ -123,8 +125,6 @@ void IslScop::addDomainRelation(int stmtId,
       isl_dim_cst);
   LLVM_DEBUG(llvm::errs() << "bset: ");
   LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].bset));
-  // isl_mat_free(eqMat);
-  // isl_mat_free(ineqMat);
 }
 
 void IslScop::addScatteringRelation(
