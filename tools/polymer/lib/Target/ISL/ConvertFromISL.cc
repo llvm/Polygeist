@@ -409,19 +409,7 @@ void IterScatNameMapper::visit(clast_guard *guardStmt) {
 }
 
 void IterScatNameMapper::visit(clast_user_stmt *userStmt) {
-  osl_statement_p stmt;
-  if (failed(scop->getStatement(userStmt->statement->number - 1, &stmt)))
-    return assert(false);
-
-  osl_body_p body = osl_statement_get_body(stmt);
-  assert(body != NULL && "The body of the statement should not be NULL.");
-  assert(body->expression != NULL && "The body expression should not be NULL.");
-  assert(body->iterators != NULL && "The body iterators should not be NULL.");
-
-  // Map iterator names in the current statement to the values in <scatnames>.
-  osl_generic_p scatnames = scop->getExtension("scatnames");
-  assert(scatnames && "There should be a <scatnames> in the scop.");
-  buildIterToScatNameMap(iterScatNameMap, stmt, scatnames);
+  // TODO ISL
 }
 
 namespace {
@@ -534,12 +522,7 @@ mlir::func::FuncOp Importer::getSourceFuncOp() {
 /// If there is anything in the comment, we will use it as a function name.
 /// Otherwise, we return an empty string.
 std::string Importer::getSourceFuncName() const {
-  osl_generic_p comment = scop->getExtension("comment");
-  if (comment) {
-    char *commentStr = reinterpret_cast<osl_comment_p>(comment->data)->comment;
-    return std::string(commentStr);
-  }
-  return std::string("");
+  // TODO ISL
 }
 
 bool Importer::isMemrefArg(llvm::StringRef argName) {
@@ -953,208 +936,12 @@ static mlir::Value findBlockArg(mlir::Value v) {
 /// will also generate the declaration of the function to be called, which has
 /// an empty body, in order to make the compiler happy.
 LogicalResult Importer::processStmt(clast_user_stmt *userStmt) {
-  IslScop::ScopStmtMap *scopStmtMap = scop->getScopStmtMap();
-  IslScop::ValueTable *valueTable = scop->getValueTable();
-
-  osl_statement_p stmt;
-  auto res =
-      succeeded(scop->getStatement(userStmt->statement->number - 1, &stmt));
-  assert(res);
-
-  osl_body_p body = osl_statement_get_body(stmt);
-  assert(body != NULL && "The body of the statement should not be NULL.");
-  assert(body->expression != NULL && "The body expression should not be NULL.");
-  assert(body->iterators != NULL && "The body iterators should not be NULL.");
-
-  // Map iterator names in the current statement to the values in <scatnames>.
-  osl_generic_p scatnames = scop->getExtension("scatnames");
-  assert(scatnames && "There should be a <scatnames> in the scop.");
-
-  SmallVector<mlir::Value, 8> inductionVars;
-  getInductionVars(userStmt, body, inductionVars);
-
-  // Parse the statement body.
-  llvm::SmallVector<std::string, 8> args;
-  std::string calleeName;
-  if (failed(parseUserStmtBody(body->expression->string[0], calleeName, args)))
-    return failure();
-
-  // Create the callee and the caller args.
-  FuncOp callee;
-  llvm::SmallVector<mlir::Value, 8> callerArgs;
-
-  Location loc = b.getUnknownLoc();
-
-  // If the calleeName can be found in the scopStmtMap, i.e., we have the
-  // definition of the callee already, we will generate the caller based on that
-  // interface.
-  if (scopStmtMap->find(calleeName) != scopStmtMap->end()) {
-    const auto &it = scopStmtMap->find(calleeName);
-    callee = it->second.getCallee();
-
-    assert(callee.getName() == calleeName && "Callee names should match.");
-    // Note that caller is in the original function.
-    mlir::func::CallOp origCaller = it->second.getCaller();
-    loc = origCaller.getLoc();
-    unsigned currInductionVar = 0;
-
-    for (mlir::Value arg : origCaller.getOperands()) {
-      std::string argSymbol = valueTable->lookup(arg);
-      if (argSymbol.empty()) {
-        mlir::Value blockArg = findBlockArg(arg);
-        argSymbol = valueTable->lookup(blockArg);
-        assert(!argSymbol.empty());
-      }
-
-      // Type casting
-      if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
-        if (arg.getType() != val.getType()) {
-          OpBuilder::InsertionGuard guard(b);
-          b.setInsertionPointAfterValue(val);
-          mlir::Operation *castOp = b.create<mlir::arith::IndexCastOp>(
-              b.getUnknownLoc(), arg.getType(), val);
-          callerArgs.push_back(castOp->getResult(0));
-        } else {
-          callerArgs.push_back(val);
-        }
-        continue;
-      }
-
-      // Special handling for the memory allocation case.
-      mlir::Operation *defOp = arg.getDefiningOp();
-      if (defOp && isa<memref::AllocaOp>(defOp)) {
-        // If this memory has been allocated, need to check its owner.
-        if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
-          DominanceInfo dom(func);
-          if (dom.dominates(val.getParentBlock(), b.getBlock())) {
-            callerArgs.push_back(val);
-            continue;
-          }
-        }
-
-        // Otherwise, create a new alloca op.
-        OpBuilder::InsertionGuard guard(b);
-        b.setInsertionPointToStart(b.getBlock());
-        mlir::Operation *newDefOp = b.clone(*defOp);
-
-        this->symbolTable[argSymbol] = newDefOp->getResult(0);
-
-        callerArgs.push_back(newDefOp->getResult(0));
-      } else if (scop->isDimSymbol(argSymbol)) {
-        // dbgs() << "currInductionVar: " << currInductionVar << '\n';
-        // dbgs() << "inductionVars: \n";
-        // interleave(inductionVars, dbgs(), "\n");
-        // dbgs() << '\n';
-        callerArgs.push_back(inductionVars[currInductionVar++]);
-      } else if (mlir::Value val = this->symbolTable.lookup(argSymbol)) {
-        callerArgs.push_back(val);
-      } else {
-        std::string scatName = iterScatNameMap.lookup(argSymbol);
-        // Dealing with loop IV.
-        if (!scatName.empty()) {
-          argSymbol = scatName;
-          if (mlir::Value val = this->symbolTable.lookup(argSymbol))
-            callerArgs.push_back(val);
-          else // no IV symbol means this statement is called errside the loop.
-            callerArgs.push_back(this->symbolTable.lookup("zero"));
-        } else {
-          llvm::errs() << "Missing symbol: " << arg << "\n";
-          assert(false && "Cannot insert the correct number of caller args. "
-                          "Some symbols must be missing in the symbol table.");
-        }
-      }
-    }
-  } else {
-    createCalleeAndCallerArgs(calleeName, args, callee, callerArgs);
-  }
-
-  // Finally create the CallOp.
-  b.create<mlir::func::CallOp>(loc, callee, callerArgs);
-
-  return success();
+  // TODO ISL
 }
 
 /// Process the if statement.
 LogicalResult Importer::processStmt(clast_guard *guardStmt) {
-  // Build the integer set.
-  SmallVector<AffineExpr, 4> conds;
-  SmallVector<bool, 4> eqFlags;
-
-  AffineExprBuilder builder(context, symTable, &symbolTable, scop, options);
-  for (int i = 0; i < guardStmt->n; i++) {
-    clast_equation eq = guardStmt->eq[i];
-
-    SmallVector<AffineExpr, 4> lhsExprs, rhsExprs;
-
-    clast_expr *lhs = eq.LHS;
-    if (eq.LHS->type == clast_expr_name ||
-        (eq.LHS->type == clast_expr_term &&
-         ((clast_term *)eq.LHS)->var->type == clast_expr_name)) {
-      clast_expr *expr = eq.LHS;
-      if (expr->type == clast_expr_term)
-        expr = ((clast_term *)eq.LHS)->var;
-
-      const char *name = ((clast_name *)expr)->name;
-      if (lhsToAss.find(name) != lhsToAss.end()) {
-        // can be replaced by assign.
-        clast_stmt *s = lhsToAss[name];
-        if (CLAST_STMT_IS_A(s, stmt_ass)) {
-          clast_assignment *ass = (clast_assignment *)s;
-          if (ass->RHS->type == clast_expr_red) {
-            clast_reduction *red = (clast_reduction *)ass->RHS;
-            if ((red->type == clast_red_max && eq.sign < 0) ||
-                (red->type == clast_red_min && eq.sign > 0))
-              lhs = ass->RHS;
-          }
-        }
-      }
-    }
-
-    auto res = succeeded(builder.process(lhs, lhsExprs));
-    assert(res);
-    res = succeeded(builder.process(eq.RHS, rhsExprs));
-    assert(res);
-
-    for (AffineExpr rhsExpr : rhsExprs) {
-      AffineExpr eqExpr;
-      for (AffineExpr lhsExpr : lhsExprs) {
-        if (eq.sign >= 0)
-          eqExpr = lhsExpr - rhsExpr;
-        else
-          eqExpr = rhsExpr - lhsExpr;
-        conds.push_back(eqExpr);
-        eqFlags.push_back(eq.sign == 0);
-      }
-    }
-  }
-
-  SmallVector<mlir::Value, 8> operands(builder.dimNames.size() +
-                                       builder.symbolNames.size());
-
-  for (const auto &it : builder.dimNames) {
-    mlir::Value iv = symbolTable[it.first()];
-    assert(iv != nullptr);
-    operands[it.second] = iv;
-  }
-  for (const auto &it : builder.symbolNames) {
-    mlir::Value sym = symbolTable[it.first()];
-    assert(sym != nullptr);
-    operands[it.second + builder.dimNames.size()] = sym;
-  }
-
-  IntegerSet iset = IntegerSet::get(builder.dimNames.size(),
-                                    builder.symbolNames.size(), conds, eqFlags);
-
-  mlir::affine::AffineIfOp ifOp = b.create<mlir::affine::AffineIfOp>(
-      b.getUnknownLoc(), iset, operands, false);
-
-  Block *entryBlock = ifOp.getThenBlock();
-  b.setInsertionPointToStart(entryBlock);
-  auto res = processStmtList(guardStmt->then).succeeded();
-  assert(res);
-  b.setInsertionPointAfter(ifOp);
-
-  return success();
+  // TODO ISL
 }
 
 /// We treat the provided the clast_expr as a loop bound. If it is a min/max
@@ -1162,69 +949,14 @@ LogicalResult Importer::processStmt(clast_guard *guardStmt) {
 static LogicalResult processClastLoopBound(clast_expr *expr,
                                            AffineExprBuilder &builder,
                                            SmallVectorImpl<AffineExpr> &exprs) {
-  SmallVector<clast_expr *, 1> expandedExprs;
-
-  if (expr->type == clast_expr_red) {
-    clast_reduction *red = reinterpret_cast<clast_reduction *>(expr);
-    if (red->type == clast_red_max || red->type == clast_red_min) {
-      for (int i = 0; i < red->n; i++) {
-        expandedExprs.push_back(red->elts[i]);
-      }
-    }
-  }
-
-  if (expandedExprs.empty()) // no expansion, just put the original input in.
-    expandedExprs.push_back(expr);
-
-  for (clast_expr *e : expandedExprs)
-    if (failed(builder.process(e, exprs)))
-      return failure();
-
-  return success();
+  // TODO ISL
 }
 
 LogicalResult
 Importer::getAffineLoopBound(clast_expr *expr,
                              llvm::SmallVectorImpl<mlir::Value> &operands,
                              AffineMap &affMap, bool isUpper) {
-  AffineExprBuilder builder(context, symTable, &symbolTable, scop, options);
-  SmallVector<AffineExpr, 4> boundExprs;
-
-  if (failed(processClastLoopBound(expr, builder, boundExprs)))
-    return failure();
-
-  // If looking at the upper bound, we should add 1 to all of them.
-  if (isUpper)
-    for (auto &expr : boundExprs)
-      expr = expr + b.getAffineConstantExpr(1);
-
-  // Insert dim operands.
-  unsigned numDims = builder.dimNames.size();
-  unsigned numSymbols = builder.symbolNames.size();
-  operands.resize(numDims + numSymbols);
-
-  for (const auto &it : builder.dimNames) {
-    if (auto iv = symbolTable[it.first()]) {
-      operands[it.second] = iv;
-    } else {
-      llvm::errs() << "Dim " << it.first()
-                   << " cannot be recognized as a value.\n";
-      return failure();
-    }
-  }
-
-  // Create or get BlockArgument for the symbols. We assume all symbols come
-  // from the BlockArgument of the generated function.
-  for (const auto &it : builder.symbolNames) {
-    mlir::Value operand = symbolTable[it.first()];
-    assert(operand != nullptr);
-    operands[it.second + numDims] = operand;
-  }
-
-  // Create the AffineMap for loop bound.
-  affMap = AffineMap::get(numDims, numSymbols, boundExprs, context);
-
-  return success();
+  // TODO ISL
 }
 
 /// Generate the affine::AffineForOp from a clast_for statement. First we create
@@ -1232,246 +964,26 @@ Importer::getAffineLoopBound(clast_expr *expr,
 /// there is any. And finally, we create the affine::AffineForOp instance and
 /// generate its body.
 LogicalResult Importer::processStmt(clast_for *forStmt) {
-  // Get loop bounds.
-  AffineMap lbMap, ubMap;
-  llvm::SmallVector<mlir::Value, 8> lbOperands, ubOperands;
-
-  assert((forStmt->LB && forStmt->UB) && "Unbounded loops are not allowed.");
-  // TODO: simplify these sanity checks.
-  assert(!(forStmt->LB->type == clast_expr_red &&
-           reinterpret_cast<clast_reduction *>(forStmt->LB)->type ==
-               clast_red_min) &&
-         "If the lower bound is a reduced result, it should not use min for "
-         "reduction.");
-  assert(!(forStmt->UB->type == clast_expr_red &&
-           reinterpret_cast<clast_reduction *>(forStmt->UB)->type ==
-               clast_red_max) &&
-         "If the lower bound is a reduced result, it should not use max for "
-         "reduction.");
-
-  if (failed(getAffineLoopBound(forStmt->LB, lbOperands, lbMap)) ||
-      failed(getAffineLoopBound(forStmt->UB, ubOperands, ubMap,
-                                /*isUpper=*/true)))
-    return failure();
-
-  int64_t stride = 1;
-  if (cloog_int_gt_si(forStmt->stride, 1)) {
-    if (failed(getI64(forStmt->stride, &stride)))
-      return failure();
-  }
-
-  // Create the for operation.
-  mlir::affine::AffineForOp forOp = b.create<mlir::affine::AffineForOp>(
-      UnknownLoc::get(context), lbOperands, lbMap, ubOperands, ubMap, stride);
-
-  // Update the loop IV mapping.
-  auto &entryBlock = *forOp.getBody();
-  // TODO: confirm is there a case that forOp has multiple operands.
-  assert(entryBlock.getNumArguments() == 1 &&
-         "affine.for should only have one block argument (iv).");
-
-  symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
-                     PolymerSymbolTable::LoopIV);
-
-  // Symbol table is mutable.
-  // TODO: is there a better way to improve this? Not very safe.
-  mlir::Value symValue = symbolTable[forStmt->iterator];
-  symbolTable[forStmt->iterator] = entryBlock.getArgument(0);
-
-  // Create the loop body
-  b.setInsertionPointToStart(&entryBlock);
-  entryBlock.walk(
-      [&](mlir::affine::AffineYieldOp op) { b.setInsertionPoint(op); });
-  auto res = processStmtList(forStmt->body).succeeded();
-  assert(res);
-  b.setInsertionPointAfter(forOp);
-
-  // Restore the symbol value.
-  symbolTable[forStmt->iterator] = symValue;
-
-  // TODO: affine.parallel currently has more restrictions on what it can cover.
-  // So we don't create a parallel op at this stage.
-  if (forStmt->parallel)
-    forOp->setAttr("scop.parallelizable", b.getUnitAttr());
-
-  // Finally, we will move this affine.for op into a FuncOp if it uses values
-  // defined by affine.min/max as loop bound operands.
-  auto isMinMaxDefined = [](mlir::Value operand) {
-    return isa_and_nonnull<mlir::affine::AffineMaxOp,
-                           mlir::affine::AffineMinOp>(operand.getDefiningOp());
-  };
-
-  if (std::none_of(lbOperands.begin(), lbOperands.end(), isMinMaxDefined) &&
-      std::none_of(ubOperands.begin(), ubOperands.end(), isMinMaxDefined))
-    return success();
-
-  // Extract forOp out of the current block into a function.
-  Block *prevBlock = forOp->getBlock();
-  Block *currBlock = prevBlock->splitBlock(forOp);
-  Block *nextBlock = currBlock->splitBlock(forOp->getNextNode());
-
-  llvm::SetVector<mlir::Value> args;
-  inferBlockArgs(currBlock, args);
-
-  // Create the function body
-  mlir::FunctionType funcTy =
-      b.getFunctionType(TypeRange(args.getArrayRef()), {});
-  b.setInsertionPoint(&*getFuncInsertPt());
-  mlir::func::FuncOp func = b.create<mlir::func::FuncOp>(
-      forOp->getLoc(), std::string("T") + std::to_string(numInternalFunctions),
-      funcTy);
-  numInternalFunctions++;
-  Block *newEntry = func.addEntryBlock();
-  IRMapping vMap;
-  vMap.map(args, func.getArguments());
-  b.setInsertionPointToStart(newEntry);
-  b.clone(*forOp.getOperation(), vMap);
-  b.create<mlir::func::ReturnOp>(func.getLoc());
-
-  // Create function call.
-  b.setInsertionPointAfter(forOp);
-  b.create<mlir::func::CallOp>(forOp.getLoc(), func,
-                               ValueRange(args.getArrayRef()));
-
-  // Clean up
-  forOp.erase();
-  b.setInsertionPointToEnd(prevBlock);
-  for (Operation &op : *currBlock)
-    b.clone(op);
-  for (Operation &op : *nextBlock)
-    b.clone(op);
-  currBlock->erase();
-  nextBlock->erase();
-
-  // Set the insertion point right before the terminator.
-  b.setInsertionPoint(&*std::prev(prevBlock->end()));
-
-  return success();
+  // TODO ISL
 }
 
 LogicalResult Importer::processStmt(clast_assignment *ass) {
-  SmallVector<mlir::Value, 8> substOperands;
-  AffineMap substMap;
-  getAffineExprForLoopIterator((clast_stmt *)ass, substOperands, substMap);
-
-  mlir::Operation *op;
-  if (substMap.isSingleConstant()) {
-    op = b.create<mlir::arith::ConstantOp>(
-        b.getUnknownLoc(), b.getIndexType(),
-        b.getIntegerAttr(b.getIndexType(), substMap.getSingleConstantResult()));
-  } else if (substMap.getNumResults() == 1) {
-    op = b.create<mlir::affine::AffineApplyOp>(b.getUnknownLoc(), substMap,
-                                               substOperands);
-  } else {
-    assert(ass->RHS->type == clast_expr_red);
-    clast_reduction *red = reinterpret_cast<clast_reduction *>(ass->RHS);
-
-    assert(red->type != clast_red_sum);
-    if (red->type == clast_red_max)
-      op = b.create<mlir::affine::AffineMaxOp>(b.getUnknownLoc(), substMap,
-                                               substOperands);
-    else
-      op = b.create<mlir::affine::AffineMinOp>(b.getUnknownLoc(), substMap,
-                                               substOperands);
-  }
-
-  assert(op->getNumResults() == 1);
-  symbolTable[ass->LHS] = op->getResult(0);
-  lhsToAss[ass->LHS] = (clast_stmt *)ass;
-  return success();
+  // TODO ISL
 }
 
 static std::unique_ptr<IslScop> readOpenScop(llvm::MemoryBufferRef buf) {
-  // Read OpenScop by OSL API.
-  // TODO: is there a better way to get the FILE pointer from
-  // MemoryBufferRef?
-  FILE *inputFile = fmemopen(
-      reinterpret_cast<void *>(const_cast<char *>(buf.getBufferStart())),
-      buf.getBufferSize(), "r");
-
-  auto scop = std::make_unique<IslScop>(osl_scop_read(inputFile));
-  fclose(inputFile);
-
-  return scop;
+  // TODO ISL
 }
 
 static void updateCloogOptionsByPlutoProg(CloogOptions *options,
                                           const PlutoProg *prog) {
-  Stmt **stmts = prog->stmts;
-  int nstmts = prog->nstmts;
-
-  options->fs = (int *)malloc(nstmts * sizeof(int));
-  options->ls = (int *)malloc(nstmts * sizeof(int));
-  options->fs_ls_size = nstmts;
-
-  for (int i = 0; i < nstmts; i++) {
-    options->fs[i] = -1;
-    options->ls[i] = -1;
-  }
-
-  if (prog->context->options->cloogf >= 1 &&
-      prog->context->options->cloogl >= 1) {
-    options->f = prog->context->options->cloogf;
-    options->l = prog->context->options->cloogl;
-  } else {
-    if (prog->context->options->tile) {
-      for (int i = 0; i < nstmts; i++) {
-        options->fs[i] = get_first_point_loop(stmts[i], prog) + 1;
-        options->ls[i] = prog->num_hyperplanes;
-      }
-    } else {
-      options->f = 1;
-      options->l = prog->num_hyperplanes;
-    }
-  }
+  // TODO ISL
 }
 
 static void unrollJamClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
                                       CloogOptions *cloogOptions,
                                       unsigned ufactor) {
-  unsigned numPloops;
-  Ploop **ploops = pluto_get_parallel_loops(prog, &numPloops);
-
-  for (unsigned i = 0; i < numPloops; i++) {
-    if (!pluto_loop_is_innermost(ploops[i], prog))
-      continue;
-
-    std::string iter(formatv("t{0}", ploops[i]->depth + 1));
-
-    // Collect all statements within the current parallel loop.
-    SmallVector<int, 8> stmtIds(ploops[i]->nstmts);
-    for (unsigned j = 0; j < ploops[i]->nstmts; j++)
-      stmtIds[j] = ploops[i]->stmts[j]->id + 1;
-
-    ClastFilter filter = {/*iter=*/iter.c_str(),
-                          /*stmts_filter=*/stmtIds.data(),
-                          /*nstmts_filter=*/static_cast<int>(ploops[i]->nstmts),
-                          /*filter_type=*/subset};
-
-    clast_for **loops;
-    unsigned numLoops, numStmts;
-    int *stmts;
-    clast_filter(root, filter, &loops, (int *)&numLoops, &stmts,
-                 (int *)&numStmts);
-
-    // There should be at least one loops.
-    if (numLoops == 0) {
-      free(loops);
-      free(stmts);
-      continue;
-    }
-
-    for (unsigned j = 0; j < numLoops; j++)
-      loops[j]->parallel += CLAST_PARALLEL_VEC;
-
-    free(loops);
-    free(stmts);
-  }
-
-  pluto_loops_free(ploops, numPloops);
-
-  // Call clast transformation.
-  clast_unroll_jam(root);
+  // TODO ISL
 }
 
 static void markParallel(clast_stmt *root, const PlutoProg *prog,
@@ -1494,62 +1006,7 @@ mlir::Operation *createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
                                      PolymerSymbolTable &symTable,
                                      MLIRContext *context, PlutoProg *prog,
                                      const char *dumpClastAfterPluto) {
-  // TODO: turn these C struct into C++ classes.
-  CloogState *state = cloog_state_malloc();
-  CloogOptions *options = cloog_options_malloc(state);
-  options->openscop = 1;
-  options->quiet = 0;
-  options->scop = scop->get();
-
-  CloogInput *input = cloog_input_from_osl_scop(options->state, scop->get());
-
-  cloog_options_copy_from_osl_scop(scop->get(), options);
-  if (prog != nullptr)
-    updateCloogOptionsByPlutoProg(options, prog);
-
-  // Create cloog_program
-  CloogProgram *program =
-      cloog_program_alloc(input->context, input->ud, options);
-  assert(program->loop);
-  program = cloog_program_generate(program, options);
-  if (!program->loop) {
-    cloog_program_print(stderr, program);
-    assert(false && "No loop found in the CloogProgram, which may indicate the "
-                    "provided OpenScop is malformed.");
-  }
-
-  // Convert to clast
-  clast_stmt *rootStmt = cloog_clast_create(program, options);
-  assert(rootStmt);
-  if (prog != nullptr)
-    transformClastByPlutoProg(rootStmt, prog, options, prog->context->options);
-
-  FILE *clastPrintFile = stderr;
-  if (dumpClastAfterPluto) {
-    clastPrintFile = fopen(dumpClastAfterPluto, "w");
-    assert(clastPrintFile &&
-           "File for clast dump after Pluto cannot be opened.");
-  }
-
-  clast_pprint(clastPrintFile, rootStmt, 0, options);
-
-  if (dumpClastAfterPluto)
-    fclose(clastPrintFile);
-
-  // Process the input.
-  Importer deserializer(context, module, &symTable, scop.get(), options);
-  if (failed(deserializer.processStmtList(rootStmt)))
-    return nullptr;
-
-  // Cannot use cloog_input_free, some pointers don't exist.
-  free(input);
-  cloog_program_free(program);
-
-  options->scop = NULL; // Prevents freeing the scop object.
-  cloog_options_free(options);
-  cloog_state_free(state);
-
-  return deserializer.getFunc();
+  // TODO ISL
 }
 } // namespace polymer
 

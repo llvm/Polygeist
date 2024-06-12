@@ -49,6 +49,7 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
 
   PolymerSymbolTable srcTable, dstTable;
   std::unique_ptr<IslScop> scop = createIslFromFuncOp(f, srcTable);
+  scop->dumpTadashi(llvm::outs());
 
   mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
       createFuncOpFromIsl(std::move(scop), m, dstTable, rewriter.getContext()));

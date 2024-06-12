@@ -265,6 +265,8 @@ public:
   /// Get the list of stmt names followed by their insertion order
   ScopStmtNames *getScopStmtNames();
 
+  void dumpTadashi(llvm::raw_ostream &os);
+
 private:
   /// Create a 1-d array that carries all the constraints in a relation,
   /// arranged in the row-major order.

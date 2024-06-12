@@ -38,6 +38,11 @@
 using namespace mlir;
 using namespace polygeist;
 
+static llvm::cl::opt<std::string>
+    UsePolyhedralOptimizerCl("use-polyhedral-optimizer",
+                             llvm::cl::init("tadashi"),
+                             llvm::cl::desc("pluto or tadashi"));
+
 namespace {
 
 #define POLYGEIST_OUTLINED_AFFINE_ATTR "polygeist.outlined_affine"
@@ -205,17 +210,21 @@ void PolyhedralOptPass::runOnOperation() {
       return;
     }
     mlir::func::FuncOp g = nullptr;
-    polymer::tadashiTransform(f, b);
-    if ((g = polymer::plutoTransform(f, b, ""))) {
+    if (UsePolyhedralOptimizerCl == "tadashi") {
+      g = polymer::tadashiTransform(f, b);
+    } else if (UsePolyhedralOptimizerCl == "pluto") {
+      g = polymer::plutoTransform(f, b, "");
+    }
+    if (g) {
       g.setPublic();
       g->setAttrs(f->getAttrs());
 
       g.setName(f.getName());
       f.erase();
     }
-    if (g && /*options.parallelize=*/true) {
-      polymer::plutoParallelize(g, b);
-    }
+    // if (g && /*options.parallelize=*/true) {
+    //   polymer::plutoParallelize(g, b);
+    // }
     inlineAll(call);
   }
   cleanupTempFuncs(m);

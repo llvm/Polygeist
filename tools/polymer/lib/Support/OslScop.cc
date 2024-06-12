@@ -630,15 +630,7 @@ OslScop::ScopStmtNames *OslScop::getScopStmtNames() { return &scopStmtNames; }
 
 IslScop::IslScop() {
   scatTreeRoot = std::make_unique<ScatTreeNode>();
-
-  // scop = osl_scop_malloc();
-
-  // Initialize string buffer for language.
-  OSL_strdup(scop->language, "C");
-
-  // Use the default interface registry
-  osl_interface_p registry = osl_interface_get_default_registry();
-  scop->registry = osl_interface_clone(registry);
+  // TODO ISL
 }
 
 // IslScop::IslScop(osl_scop *scop)
@@ -664,69 +656,7 @@ void IslScop::addRelation(int target, int type, int numRows, int numCols,
                           int numOutputDims, int numInputDims, int numLocalDims,
                           int numParams, llvm::ArrayRef<int64_t> eqs,
                           llvm::ArrayRef<int64_t> inEqs) {
-  // Here we preset the precision to 64.
-  osl_relation_p rel = osl_relation_pmalloc(64, numRows, numCols);
-  rel->type = type;
-  rel->nb_output_dims = numOutputDims;
-  rel->nb_input_dims = numInputDims;
-  rel->nb_local_dims = numLocalDims;
-  rel->nb_parameters = numParams;
-
-  // The number of columns in the given equalities and inequalities, which is
-  // one less than the number of columns in the OSL representation (missing e/i
-  // indicator).
-  size_t numColsInEqs = numCols - 1;
-
-  assert(eqs.size() % numColsInEqs == 0 &&
-         "Number of elements in the eqs should be an integer multiply of "
-         "numColsInEqs");
-  size_t numEqs = eqs.size() / numColsInEqs;
-
-  // Replace those allocated vector elements in rel.
-  for (int i = 0; i < numRows; i++) {
-    osl_vector_p vec;
-
-    if (i >= static_cast<int>(numEqs)) {
-      auto inEq = llvm::ArrayRef<int64_t>(&inEqs[(i - numEqs) * numColsInEqs],
-                                          numColsInEqs);
-      getOslVector(false, inEq, &vec);
-    } else {
-      auto eq = llvm::ArrayRef<int64_t>(&eqs[i * numColsInEqs], numColsInEqs);
-      getOslVector(true, eq, &vec);
-    }
-
-    // Replace the vector content of the i-th row by the contents in
-    // constraints.
-    osl_relation_replace_vector(rel, vec, i);
-  }
-
-  LLVM_DEBUG({
-    dbgs() << "Newly created relation: ";
-    osl_relation_dump(stderr, rel);
-  });
-
-  // Append the newly created relation to a target linked list, or simply set it
-  // to a relation pointer, which is indicated by the target argument.
-  if (target == 0) {
-    // Simply assign the newly created relation to the context field.
-    scop->context = rel;
-  } else {
-    // Get the pointer to the statement.
-    osl_statement_p stmt = getOslStatement(scop, target - 1);
-
-    // Depending on the type of the relation, we decide which field of the
-    // statement we should set.
-    if (type == OSL_TYPE_DOMAIN) {
-      stmt->domain = rel;
-    } else if (type == OSL_TYPE_SCATTERING) {
-      stmt->scattering = rel;
-    } else if (type == OSL_TYPE_ACCESS || type == OSL_TYPE_WRITE ||
-               type == OSL_TYPE_READ) {
-      osl_relation_list_p relList = osl_relation_list_malloc();
-      relList->elt = rel;
-      osl_relation_list_add(&(stmt->access), relList);
-    }
-  }
+  // TODO ISL
 }
 
 void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
@@ -753,6 +683,8 @@ void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
               cst.getNumSymbolVars(), eqs, inEqs);
 }
+
+void IslScop::dumpTadashi(llvm::raw_ostream &os) { os << "Domain:\n"; }
 
 void IslScop::addDomainRelation(int stmtId,
                                 affine::FlatAffineValueConstraints &cst) {
@@ -854,30 +786,7 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
 
 void IslScop::addGeneric(int target, llvm::StringRef tag,
                          llvm::StringRef content) {
-
-  osl_generic_p generic = osl_generic_malloc();
-
-  // Add interface.
-  osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
-  generic->interface = osl_interface_nclone(interface, 1);
-
-  // Add content
-  char *buf;
-  OSL_malloc(buf, char *, (content.size() * sizeof(char) + 10));
-  OSL_strdup(buf, content.data());
-  generic->data = interface->sread(&buf);
-
-  if (target == 0) {
-    // Add to Scop extension.
-    osl_generic_add(&(scop->extension), generic);
-  } else if (target == -1) {
-    // Add to Scop parameters.
-    osl_generic_add(&(scop->parameters), generic);
-  } else {
-    // Add to statement.
-    osl_statement_p stmt = getOslStatement(scop, target - 1);
-    osl_generic_add(&(stmt->extension), generic);
-  }
+  // TODO ISL
 }
 
 void IslScop::addExtensionGeneric(llvm::StringRef tag,
@@ -898,60 +807,20 @@ void IslScop::addStatementGeneric(int stmtId, llvm::StringRef tag,
 /// We determine whether the name refers to a symbol by looking up the parameter
 /// list of the scop.
 bool IslScop::isSymbol(llvm::StringRef name) {
-  osl_generic_p parameters = scop->parameters;
-  if (!parameters)
-    return false;
-
-  assert(parameters->next == NULL &&
-         "Should only exist one parameters generic object.");
-  assert(osl_generic_has_URI(parameters, OSL_URI_STRINGS) &&
-         "Parameters should be of strings interface.");
-
-  // TODO: cache this result, otherwise we need O(N) each time calling this API.
-  osl_strings_p parameterNames =
-      reinterpret_cast<osl_strings_p>(parameters->data);
-  unsigned numParameters = osl_strings_size(parameterNames);
-
-  for (unsigned i = 0; i < numParameters; i++)
-    if (name.equals(parameterNames->string[i]))
-      return true;
-
-  return false;
+  // TODO ISL
 }
 
-LogicalResult IslScop::getStatement(unsigned index,
-                                    osl_statement **stmt) const {
-  // TODO: cache all the statements.
-  osl_statement_p curr = scop->statement;
-  if (!curr)
-    return failure();
+// LogicalResult IslScop::getStatement(unsigned index,
+//                                     osl_statement **stmt) const {
+//   // TODO ISL
+// }
 
-  for (unsigned i = 0; i < index; i++) {
-    curr = curr->next;
-    if (!curr)
-      return failure();
-  }
+// unsigned IslScop::getNumStatements() const {
+//   return osl_statement_number(scop->statement);
+// }
 
-  *stmt = curr;
-  return success();
-}
-
-unsigned IslScop::getNumStatements() const {
-  return osl_statement_number(scop->statement);
-}
-
-osl_generic_p IslScop::getExtension(llvm::StringRef tag) const {
-  osl_generic_p ext = scop->extension;
-  osl_interface_p interface = osl_interface_lookup(scop->registry, tag.data());
-
-  while (ext) {
-    if (osl_interface_equal(ext->interface, interface))
-      return ext;
-    ext = ext->next;
-  }
-
-  return nullptr;
-}
+// osl_generic_p IslScop::getExtension(llvm::StringRef tag) const {
+// }
 
 void IslScop::addParameterNames() {
   std::string body;
