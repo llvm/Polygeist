@@ -22,11 +22,13 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "isl/ctx.h"
-#include "isl/val.h"
-#include <vector>
-
+#include "isl/space.h"
+#include "isl/space_type.h"
+#include <isl/ctx.h>
 #include <isl/mat.h>
+#include <isl/set.h>
+#include <isl/union_set.h>
+#include <isl/val.h>
 
 using namespace polymer;
 using namespace mlir;
@@ -57,9 +59,7 @@ bool IslScop::validate() {
   return true;
 }
 
-void IslScop::createStatement() {
-  // TODO ISL
-}
+void IslScop::createStatement() { islStmts.push_back({}); }
 
 void IslScop::addRelation(int target, int type, int numRows, int numCols,
                           int numOutputDims, int numInputDims, int numLocalDims,
@@ -77,24 +77,24 @@ void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   if (cst.getNumDimAndSymbolVars() > 0)
     cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolVars());
 
-  SmallVector<int64_t, 8> eqs, inEqs;
-  // createConstraintRows(cst, eqs);
-  // createConstraintRows(cst, inEqs, /*isEq=*/false);
-
-  unsigned numCols = 2 + cst.getNumSymbolVars();
-  unsigned numEntries = inEqs.size() + eqs.size();
-  assert(numEntries % (numCols - 1) == 0 &&
-         "Total number of entries should be divisible by the number of columns "
-         "(excluding e/i)");
-
-  unsigned numRows = (inEqs.size() + eqs.size()) / (numCols - 1);
-  // Create the context relation.
-  // addRelation(0, OSL_TYPE_CONTEXT, numRows, numCols, 0, 0, 0,
-  //             cst.getNumSymbolVars(), eqs, inEqs);
+  paramSpace =
+      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  LLVM_DEBUG(llvm::errs() << "context relation space: ");
+  LLVM_DEBUG(isl_space_dump(paramSpace));
 }
 
 void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
+
+  isl_union_set *domain = isl_union_set_empty(paramSpace);
+  isl_union_set_dump(domain);
+  for (IslStmt &stmt : islStmts) {
+    isl_union_set *set = isl_union_set_from_basic_set(stmt.bset);
+    isl_union_set_dump(set);
+    domain = isl_union_set_union(set, domain);
+    isl_union_set_dump(domain);
+  }
+  isl_union_set_dump(domain);
 }
 
 void IslScop::addDomainRelation(int stmtId,
@@ -110,11 +110,19 @@ void IslScop::addDomainRelation(int stmtId,
     isl_mat_dump(ineqMat);
     llvm::errs() << "\n";
   });
-  isl_mat_free(eqMat);
-  isl_mat_free(ineqMat);
-  // addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
-  //             cst.getNumCols() + 1, cst.getNumDimVars(), 0,
-  //             cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs, inEqs);
+
+  isl_space *space =
+      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  LLVM_DEBUG(llvm::errs() << "space: ");
+  LLVM_DEBUG(isl_space_dump(space));
+
+  islStmts[stmtId].bset = isl_basic_set_from_constraint_matrices(
+      space, eqMat, ineqMat, isl_dim_div, isl_dim_set, isl_dim_param,
+      isl_dim_cst);
+  LLVM_DEBUG(llvm::errs() << "bset: ");
+  LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].bset));
+  // isl_mat_free(eqMat);
+  // isl_mat_free(ineqMat);
 }
 
 void IslScop::addScatteringRelation(
@@ -427,11 +435,11 @@ isl_mat *IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
   unsigned numLocalIds = cst.getNumLocalVars();
   unsigned numSymbolIds = cst.getNumSymbolVars();
 
-  unsigned numCols = 0;
-  if (numRows != 0) {
-    auto row = isEq ? cst.getEquality(0) : cst.getInequality(0);
-    numCols = row.size();
-  }
+  LLVM_DEBUG(llvm::errs() << "createConstraintRows " << numRows << " "
+                          << numDimIds << " " << numLocalIds << " "
+                          << numSymbolIds << "\n");
+
+  unsigned numCols = cst.getNumCols();
   isl_mat *mat = isl_mat_alloc(ctx, numRows, numCols);
 
   for (unsigned i = 0; i < numRows; i++) {

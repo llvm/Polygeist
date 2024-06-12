@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 
+#include "isl/union_map_type.h"
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -22,6 +23,7 @@
 
 #include <isl/ctx.h>
 #include <isl/mat.h>
+#include <isl/set.h>
 
 struct osl_scop;
 struct osl_statement;
@@ -271,6 +273,12 @@ public:
   void dumpTadashi(llvm::raw_ostream &os);
 
 private:
+  struct IslStmt {
+    isl_basic_set *bset;
+  };
+  std::vector<IslStmt> islStmts;
+  isl_space *paramSpace;
+
   isl_mat *createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
                                 bool isEq);
 
