@@ -28,7 +28,10 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "isl/ctx.h"
 #include <vector>
+
+#include <isl/mat.h>
 
 using namespace polymer;
 using namespace mlir;
@@ -630,6 +633,7 @@ OslScop::ScopStmtNames *OslScop::getScopStmtNames() { return &scopStmtNames; }
 
 IslScop::IslScop() {
   scatTreeRoot = std::make_unique<ScatTreeNode>();
+  ctx = isl_ctx_alloc();
   // TODO ISL
 }
 
@@ -637,6 +641,7 @@ IslScop::IslScop() {
 //     : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
 
 IslScop::~IslScop() {
+  isl_ctx_free(ctx);
   // TODO ISL
 }
 
@@ -646,6 +651,7 @@ void IslScop::print() {
 
 bool IslScop::validate() {
   // TODO ISL
+  return true;
 }
 
 void IslScop::createStatement() {
@@ -689,9 +695,12 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) { os << "Domain:\n"; }
 void IslScop::addDomainRelation(int stmtId,
                                 affine::FlatAffineValueConstraints &cst) {
   SmallVector<int64_t, 8> eqs, inEqs;
-  createConstraintRows(cst, eqs);
-  createConstraintRows(cst, inEqs, /*isEq=*/false);
-
+  isl_mat *eq_mat = createConstraintRows(cst, true);
+  isl_mat *in_eq_mat = createConstraintRows(cst, /*isEq=*/false);
+  isl_mat *mat = isl_mat_alloc(ctx, cst.getNumConstraints(), cst.getNumCols());
+  cst.dump();
+  isl_mat_dump(mat);
+  isl_mat_free(mat);
   addRelation(stmtId + 1, OSL_TYPE_DOMAIN, cst.getNumConstraints(),
               cst.getNumCols() + 1, cst.getNumDimVars(), 0,
               cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs, inEqs);
@@ -762,25 +771,25 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   cst.addBound(mlir::presburger::BoundType::EQ, 0, memRefIdMap[memref]);
   // cst.setIdToConstant(0, memRefIdMap[memref]);
 
-  SmallVector<int64_t, 8> eqs, inEqs;
-  createConstraintRows(cst, eqs);
-  createConstraintRows(cst, inEqs, /*isEq=*/false);
-  for (unsigned i = 0; i < eqs.size(); i++)
-    eqs[i] = -eqs[i];
+  // SmallVector<int64_t, 8> eqs, inEqs;
+  // createConstraintRows(cst, eqs);
+  // createConstraintRows(cst, inEqs, /*isEq=*/false);
+  // for (unsigned i = 0; i < eqs.size(); i++)
+  //   eqs[i] = -eqs[i];
 
-  LLVM_DEBUG({
-    dbgs() << "Resolved access constraints: \n";
-    cst.dump();
-  });
+  // LLVM_DEBUG({
+  //   dbgs() << "Resolved access constraints: \n";
+  //   cst.dump();
+  // });
 
-  // Then put them into the scop as an ACCESS relation.
-  // Number of access indices + 1 for the memref ID.
-  unsigned numOutputDims = vMap.getNumResults() + 1;
-  unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
-  addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-              cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-              numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(), eqs,
-              inEqs);
+  // // Then put them into the scop as an ACCESS relation.
+  // // Number of access indices + 1 for the memref ID.
+  // unsigned numOutputDims = vMap.getNumResults() + 1;
+  // unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
+  // addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
+  //             cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
+  //             numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(),
+  //             eqs, inEqs);
   return success();
 }
 
@@ -986,8 +995,9 @@ bool IslScop::isConstantSymbol(llvm::StringRef name) const {
   return name.startswith("C");
 }
 
-void IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
-                                   SmallVectorImpl<int64_t> &rows, bool isEq) {
+isl_mat *IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
+                                       bool isEq) {
+  isl_mat *mat;
   unsigned numRows = isEq ? cst.getNumEqualities() : cst.getNumInequalities();
   unsigned numDimIds = cst.getNumDimVars();
   unsigned numLocalIds = cst.getNumLocalVars();
@@ -999,22 +1009,24 @@ void IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
 
     unsigned numCols = row.size();
     if (i == 0)
-      rows.resize(numRows * numCols);
+      mat = isl_mat_alloc(ctx, numRows, numCols);
 
     // Dims stay at the same positions.
     for (unsigned j = 0; j < numDimIds; j++)
-      rows[i * numCols + j] = (int64_t)row[j];
+      mat = isl_mat_set_element_si(mat, i, j, (int64_t)row[j]);
     // Output local ids before symbols.
     for (unsigned j = 0; j < numLocalIds; j++)
-      rows[i * numCols + j + numDimIds] =
-          (int64_t)row[j + numDimIds + numSymbolIds];
+      mat = isl_mat_set_element_si(mat, i, j + numDimIds,
+                                   (int64_t)row[j + numDimIds + numSymbolIds]);
     // Output symbols in the end.
     for (unsigned j = 0; j < numSymbolIds; j++)
-      rows[i * numCols + j + numDimIds + numLocalIds] =
-          (int64_t)row[j + numDimIds];
+      mat = isl_mat_set_element_si(mat, i, j + numDimIds + numLocalIds,
+                                   (int64_t)row[j + numDimIds]);
     // Finally outputs the constant.
-    rows[i * numCols + numCols - 1] = (int64_t)row[numCols - 1];
+    mat =
+        isl_mat_set_element_si(mat, i, numCols - 1, (int64_t)row[numCols - 1]);
   }
+  return mat;
 }
 
 LogicalResult IslScop::createAccessRelationConstraints(

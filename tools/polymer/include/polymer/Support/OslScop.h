@@ -20,6 +20,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <isl/ctx.h>
+#include <isl/mat.h>
+
 struct osl_scop;
 struct osl_statement;
 struct osl_generic;
@@ -268,11 +271,8 @@ public:
   void dumpTadashi(llvm::raw_ostream &os);
 
 private:
-  /// Create a 1-d array that carries all the constraints in a relation,
-  /// arranged in the row-major order.
-  void createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
-                            llvm::SmallVectorImpl<int64_t> &eqs,
-                            bool isEq = true);
+  isl_mat *createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
+                                bool isEq);
 
   /// Create access relation constraints.
   mlir::LogicalResult createAccessRelationConstraints(
@@ -286,6 +286,7 @@ private:
 
   /// The internal storage of the Scop.
   // osl_scop *scop;
+  isl_ctx *ctx;
 
   /// The scattering tree maintained.
   std::unique_ptr<ScatTreeNode> scatTreeRoot;
