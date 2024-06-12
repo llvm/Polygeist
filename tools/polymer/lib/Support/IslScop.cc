@@ -23,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "isl/ctx.h"
+#include "isl/val.h"
 #include <vector>
 
 #include <isl/mat.h>
@@ -187,25 +188,33 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   cst.addBound(mlir::presburger::BoundType::EQ, 0, memRefIdMap[memref]);
   // cst.setIdToConstant(0, memRefIdMap[memref]);
 
-  // SmallVector<int64_t, 8> eqs, inEqs;
-  // createConstraintRows(cst, eqs);
-  // createConstraintRows(cst, inEqs, /*isEq=*/false);
-  // for (unsigned i = 0; i < eqs.size(); i++)
-  //   eqs[i] = -eqs[i];
+  isl_mat *eqMat = createConstraintRows(cst, /*isEq=*/true);
+  isl_mat *ineqMat = createConstraintRows(cst, /*isEq=*/false);
 
-  // LLVM_DEBUG({
-  //   dbgs() << "Resolved access constraints: \n";
-  //   cst.dump();
-  // });
+  unsigned rows = isl_mat_rows(eqMat);
+  unsigned cols = isl_mat_cols(eqMat);
+  for (unsigned i = 0; i < rows; i++) {
+    for (unsigned j = 0; j < cols; j++) {
+      isl_val *val = isl_mat_get_element_val(eqMat, i, j);
+      val = isl_val_neg(val);
+      eqMat = isl_mat_set_element_val(eqMat, i, j, val);
+    }
+  }
 
-  // // Then put them into the scop as an ACCESS relation.
-  // // Number of access indices + 1 for the memref ID.
-  // unsigned numOutputDims = vMap.getNumResults() + 1;
-  // unsigned numInputDims = cst.getNumDimVars() - numOutputDims;
-  // addRelation(stmtId + 1, isRead ? OSL_TYPE_READ : OSL_TYPE_WRITE,
-  //             cst.getNumConstraints(), cst.getNumCols() + 1, numOutputDims,
-  //             numInputDims, cst.getNumLocalVars(), cst.getNumSymbolVars(),
-  //             eqs, inEqs);
+  LLVM_DEBUG({
+    llvm::errs() << "Adding access relation\n";
+    dbgs() << "Resolved MLIR access constraints:\n";
+    cst.dump();
+    llvm::errs() << " ISL eq mat:\n";
+    isl_mat_dump(eqMat);
+    llvm::errs() << " ISL ineq mat:\n";
+    isl_mat_dump(ineqMat);
+    llvm::errs() << "\n";
+  });
+
+  isl_mat_free(eqMat);
+  isl_mat_free(ineqMat);
+
   return success();
 }
 
