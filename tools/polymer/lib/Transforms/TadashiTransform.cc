@@ -38,22 +38,27 @@ using namespace mlir;
 using namespace llvm;
 using namespace polymer;
 
-#define DEBUG_TYPE "pluto-opt"
+#define DEBUG_TYPE "tadashi-opt"
 
 namespace polymer {
 mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
-  LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
+  LLVM_DEBUG(dbgs() << "Tadashi transforming: \n");
   LLVM_DEBUG(f.dump());
 
-  ModuleOp m = f->getParentOfType<ModuleOp>();
+  // ModuleOp m = f->getParentOfType<ModuleOp>();
 
   PolymerSymbolTable srcTable, dstTable;
   std::unique_ptr<IslScop> scop = createIslFromFuncOp(f, srcTable);
   scop->dumpTadashi(llvm::outs());
 
-  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
-      createFuncOpFromIsl(std::move(scop), m, dstTable, rewriter.getContext()));
+  // mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
+  //     createFuncOpFromIsl(std::move(scop), m, dstTable,
+  //     rewriter.getContext()));
 
-  return nullptr;
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(f);
+  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(rewriter.clone(*f));
+
+  return g;
 }
 } // namespace polymer
