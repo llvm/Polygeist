@@ -766,7 +766,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
         while (user->getBlock() != barrier->getBlock())
           user = user->getBlock()->getParentOp();
         if (barrier->isBeforeInBlock(user)) {
-          rewriter.startRootUpdate(user);
+          rewriter.startOpModification(user);
           u.set(mapping.lookup(v));
           rewriter.finalizeRootUpdate(user);
         }
@@ -919,7 +919,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
         user = user->getBlock()->getParentOp();
 
       if (barrier->isBeforeInBlock(user)) {
-        rewriter.startRootUpdate(user);
+        rewriter.startOpModification(user);
         u.set(reloaded);
         rewriter.finalizeRootUpdate(user);
       }
@@ -1232,7 +1232,7 @@ static void insertRecomputables(PatternRewriter &rewriter, T oldParallel,
 template <typename T, typename IfType>
 static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
                          IfType newIf) {
-  rewriter.startRootUpdate(op);
+  rewriter.startOpModification(op);
   {
     OpBuilder::InsertionGuard guard(rewriter);
     rewriter.setInsertionPointToStart(getThenBlock(newIf));
@@ -1872,7 +1872,7 @@ void getIfCrossingCache(mlir::PatternRewriter &rewriter, Block *original,
         while (user->getBlock() != barrier->getBlock())
           user = user->getBlock()->getParentOp();
         if (barrier->isBeforeInBlock(user)) {
-          rewriter.startRootUpdate(user);
+          rewriter.startOpModification(user);
           u.set(mapping.lookup(v));
           rewriter.finalizeRootUpdate(user);
         }
@@ -2152,7 +2152,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
             user = user->getBlock()->getParentOp();
 
           if (barrier->isBeforeInBlock(user)) {
-            rewriter.startRootUpdate(user);
+            rewriter.startOpModification(user);
             u.set(reloaded);
             rewriter.finalizeRootUpdate(user);
           }
@@ -2528,7 +2528,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
     rewriter.eraseOp(&getElseBlock(newOp)->back());
     rewriter.mergeBlocks(getElseBlock(op), getElseBlock(newOp));
 
-    rewriter.startRootUpdate(op);
+    rewriter.startOpModification(op);
     rewriter.setInsertionPoint(op);
     for (auto pair : llvm::zip(op->getResults(), allocated)) {
       auto alloc = std::get<1>(pair);

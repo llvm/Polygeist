@@ -2116,7 +2116,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
           return failure();
     }
 
-    rewriter.startRootUpdate(nextIf);
+    rewriter.startOpModification(nextIf);
     nextIf->moveBefore(yield);
     nextIf.getConditionMutable().assign(nextIfCondition);
     for (auto it : llvm::zip(prevIf.getResults(), yield.getOperands())) {
@@ -2124,7 +2124,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
            llvm::make_early_inc_range(std::get<0>(it).getUses()))
         if (nextIf.getThenRegion().isAncestor(
                 use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
           rewriter.finalizeRootUpdate(use.getOwner());
         }
@@ -2241,8 +2241,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
         return failure();
     }
 
-    rewriter.startRootUpdate(nextIf);
-    rewriter.startRootUpdate(prevOp);
+    rewriter.startOpModification(nextIf);
+    rewriter.startOpModification(prevOp);
     prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front()
                                : &nextIf.elseBlock()->front());
     for (OpOperand &use : llvm::make_early_inc_range(prevOp->getUses())) {
@@ -3931,12 +3931,12 @@ struct CombineAffineIfs : public OpRewritePattern<affine::AffineIfOp> {
            llvm::make_early_inc_range(std::get<0>(it).getUses())) {
         if (nextThen && nextThen->getParent()->isAncestor(
                             use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
           rewriter.finalizeRootUpdate(use.getOwner());
         } else if (nextElse && nextElse->getParent()->isAncestor(
                                    use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<2>(it));
           rewriter.finalizeRootUpdate(use.getOwner());
         }
