@@ -30,8 +30,8 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
 
-#include "polygeist/Dialect.h"
-#include "polygeist/Passes/Passes.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 using namespace mlir;
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::polygeist::PolygeistDialect>();
   registry.insert<DLTIDialect>();
 
-  mlir::registerpolygeistPasses();
+  mlir::registerPolygeistPasses();
   mlir::func::registerInlinerExtension(registry);
 
   // Register the standard passes we want.

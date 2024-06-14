@@ -1,0 +1,30 @@
+add_mlir_conversion_library(MLIRPolygeistToLLVM
+  PolygeistToLLVM.cpp
+
+  ADDITIONAL_HEADER_DIRS
+  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Conversion/PolygeistToLLVM
+
+  DEPENDS
+  MLIRPolygeistConversionPassIncGen
+
+  LINK_COMPONENTS
+  Core
+
+  LINK_LIBS PUBLIC
+  MLIRAsyncDialect
+  MLIRFuncTransforms
+  MLIRMathToLLVM
+  MLIROpenMPToLLVM
+  MLIRPass
+  MLIRPolygeistDialect
+  MLIRPolygeistTransforms
+  MLIRSCFToControlFlow
+  MLIRVectorToLLVM
+)
+
+target_compile_definitions(obj.MLIRPolygeistToLLVM
+  PRIVATE
+  POLYGEIST_PGO_DEFAULT_DATA_DIR="${POLYGEIST_PGO_DEFAULT_DATA_DIR}"
+  POLYGEIST_PGO_ALTERNATIVE_ENV_VAR="${POLYGEIST_PGO_ALTERNATIVE_ENV_VAR}"
+  POLYGEIST_PGO_DATA_DIR_ENV_VAR="${POLYGEIST_PGO_DATA_DIR_ENV_VAR}"
+)

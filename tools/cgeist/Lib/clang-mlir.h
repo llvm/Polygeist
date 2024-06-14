@@ -24,7 +24,7 @@
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
-#include "polygeist/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 #include "pragmaHandler.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/StmtVisitor.h"

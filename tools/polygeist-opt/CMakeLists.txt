@@ -4,7 +4,8 @@ set(LIBS
         ${dialect_libs}
         ${conversion_libs}
         MLIROptLib
-		MLIRPolygeist
+		MLIRPolygeistDialect
+		MLIRPolygeistToLLVM
 		MLIRPolygeistTransforms
 		MLIRFuncAllExtensions
         )

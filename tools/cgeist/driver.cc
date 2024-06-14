@@ -72,8 +72,8 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include <fstream>
 
-#include "polygeist/Dialect.h"
-#include "polygeist/Passes/Passes.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include <fstream>
 

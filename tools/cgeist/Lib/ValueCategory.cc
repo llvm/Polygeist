@@ -13,7 +13,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "polygeist/Ops.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
 
 using namespace mlir;
 using namespace mlir::arith;
