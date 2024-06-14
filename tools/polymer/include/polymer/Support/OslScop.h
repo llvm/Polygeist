@@ -275,7 +275,8 @@ public:
 private:
   struct IslStmt {
     isl_basic_set *domain;
-    std::vector<isl_basic_map *> accessRelations;
+    std::vector<isl_basic_map *> readRelations;
+    std::vector<isl_basic_map *> writeRelations;
   };
   std::vector<IslStmt> islStmts;
   isl_space *paramSpace;

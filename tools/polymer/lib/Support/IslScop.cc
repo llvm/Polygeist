@@ -238,10 +238,13 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   space =
       isl_space_set_tuple_name(space, isl_dim_out, memRefIdMap[memref].c_str());
 
-  islStmts[stmtId].accessRelations.push_back(
-      isl_basic_map_from_constraint_matrices(space, eqMat, ineqMat, isl_dim_in,
-                                             isl_dim_div, isl_dim_out,
-                                             isl_dim_param, isl_dim_cst));
+  isl_basic_map *bmap = isl_basic_map_from_constraint_matrices(
+      space, eqMat, ineqMat, isl_dim_in, isl_dim_div, isl_dim_out,
+      isl_dim_param, isl_dim_cst);
+  if (isRead)
+    islStmts[stmtId].readRelations.push_back(bmap);
+  else
+    islStmts[stmtId].writeRelations.push_back(bmap);
 
   return success();
 }
