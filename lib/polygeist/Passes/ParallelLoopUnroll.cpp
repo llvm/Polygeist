@@ -105,14 +105,14 @@ static LogicalResult generateUnrolledInterleavedLoop(
   std::function<LogicalResult(Block *, Block *)> interleaveBlock =
       [&](Block *srcBlock, Block *dstBlock) {
         auto insertInterleavedYield = [&](Block *srcBlock, Block *dstBlock) {
-          auto srcYieldOp = cast<scf::ReduceOp>(srcBlock->getTerminator());
-          SmallVector<Value> dstYieldArgs;
-          for (auto yieldOperand : srcYieldOp.getOperands())
+          Operation *srcTerm = srcBlock->getTerminator();
+          Operation *dstTerm = OpBuilder::atBlockEnd(dstBlock).clone(*srcTerm);
+          SmallVector<Value> dstTermArgs;
+          for (auto &yieldOperand : srcTerm->getOpOperands())
             for (unsigned i = 0; i < unrollFactor; i++)
-              dstYieldArgs.push_back(
-                  operandMap[i].lookupOrDefault(yieldOperand));
-          OpBuilder::atBlockEnd(dstBlock).create<scf::ReduceOp>(
-              srcYieldOp.getLoc(), dstYieldArgs);
+              dstTerm->setOperand(
+                  yieldOperand.getOperandNumber() * unrollFactor + i,
+                  operandMap[i].lookupOrDefault(yieldOperand.get()));
         };
         auto interleaveOp = [&](Operation *op) {
           // An operation can be recursively interleaved if its control flow is
