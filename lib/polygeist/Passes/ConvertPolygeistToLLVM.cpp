@@ -285,7 +285,8 @@ struct Memref2PointerOpLowering
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
-    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
+    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr.getType(), ptr,
+                                       idxs);
     ptr = rewriter.create<LLVM::BitcastOp>(
         loc, LLVM::LLVMPointerType::get(op.getContext(), space0), ptr);
     if (space0 != LPT.getAddressSpace())
@@ -1143,7 +1144,7 @@ public:
         globalOp, convertedType, globalOp.getConstant(), globalOp.getSymName(),
         linkage, dso_local, thread_local_, initialValue, alignment,
         originalType.getMemorySpaceAsInt(), unnamed_addr, section,
-        /*comdat=*/nullptr);
+        /*comdat=*/nullptr, /*dbg_expr=*/nullptr);
     if (!globalOp.isExternal() && globalOp.isUninitialized()) {
       Block *block =
           rewriter.createBlock(&newGlobal.getInitializerRegion(),
@@ -2280,7 +2281,8 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         OpBuilder dtorBuilder(moduleOp->getContext());
         dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock(rewriter));
         auto aoo = dtorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
-        auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
+        auto module = dtorBuilder.create<LLVM::LoadOp>(
+            loc, moduleGlobal.getGlobalType(), aoo->getResult(0));
         rtUnregisterFatBinaryCallBuilder.create(loc, dtorBuilder,
                                                 module.getResult());
         dtorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
