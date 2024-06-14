@@ -34,10 +34,7 @@ extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
 static bool addressSpaceMatches(MemRefType SrcTy, MemRefType DstTy) {
   if (SrcTy.getMemorySpace() == DstTy.getMemorySpace())
     return true;
-
-  // Cast to a pointer with generic address space is always legal.
-  return DstTy.getMemorySpaceAsInt() ==
-         static_cast<unsigned>(sycl::AccessAddrSpace::GenericAccess);
+  return false;
 }
 
 /// Try to typecast the caller arg of type MemRef to fit the corresponding
