@@ -802,11 +802,6 @@ void CodeGenTypes::constructAttributeList(
                                                RawArgs);
     }
 
-    // Function is a SYCL KernelObjFunc implementing a SYCL kernel
-    if (auto *KernelBodyAttr = TargetDecl->getAttr<SYCLKernelObjFuncAttr>()) {
-      llvm_unreachanble("sycl kernels not supported");
-    }
-
     if (TargetDecl->hasAttr<OpenCLKernelAttr>()) {
       if (CGM.getLangOpts().OpenCLVersion <= 120) {
         // OpenCL v1.2 Work groups are always uniform
