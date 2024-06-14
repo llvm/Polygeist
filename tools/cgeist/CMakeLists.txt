@@ -51,6 +51,7 @@ target_include_directories(cgeist PRIVATE
   "${PROJECT_BINARY_DIR}"
   "${LLVM_SOURCE_DIR}/../clang/include"
   "${CMAKE_BINARY_DIR}/tools/clang/include"
+  "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 target_compile_definitions(cgeist PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")

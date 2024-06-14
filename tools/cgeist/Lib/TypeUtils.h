@@ -10,7 +10,6 @@
 #define MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "clang/AST/Type.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -60,9 +59,6 @@ unsigned getAddressSpace(mlir::Type Ty);
 /// rest of the parameters.
 mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType);
 
-mlir::Type getSYCLType(const clang::RecordType *RT,
-                       mlirclang::CodeGen::CodeGenTypes &CGT);
-
 llvm::Type *getLLVMType(clang::QualType QT, clang::CodeGen::CodeGenModule &CGM);
 
 bool isFPOrFPVectorTy(mlir::Type Ty);
@@ -75,19 +71,15 @@ inline bool isPointerOrMemRefTy(mlir::Type Ty) {
 inline bool isFirstClassType(mlir::Type Ty) {
   return llvm::isa<mlir::IntegerType, mlir::IndexType, mlir::FloatType,
                    mlir::VectorType, mlir::MemRefType,
-                   mlir::LLVM::LLVMPointerType, mlir::LLVM::LLVMStructType,
-                   mlir::sycl::SYCLType>(Ty);
+                   mlir::LLVM::LLVMPointerType, mlir::LLVM::LLVMStructType>(Ty);
 }
 
 inline bool isAggregateType(mlir::Type Ty) {
-  return llvm::isa<mlir::LLVM::LLVMStructType, mlir::sycl::SYCLType>(Ty);
+  return llvm::isa<mlir::LLVM::LLVMStructType>(Ty);
 }
 
 unsigned getPrimitiveSizeInBits(mlir::Type Ty);
 
-/// Return whether the input types are suitable for a member function or
-/// constructor.
-bool areSYCLMemberFunctionOrConstructorArgs(mlir::TypeRange Types);
 } // namespace mlirclang
 
 #endif // MLIR_TOOLS_MLIRCLANG_TYPE_UTILS_H

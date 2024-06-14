@@ -348,7 +348,7 @@ bool OslScop::isSymbol(llvm::StringRef name) {
   unsigned numParameters = osl_strings_size(parameterNames);
 
   for (unsigned i = 0; i < numParameters; i++)
-    if (name.equals(parameterNames->string[i]))
+    if (name == parameterNames->string[i])
       return true;
 
   return false;
@@ -537,19 +537,19 @@ void OslScop::initializeSymbolTable(mlir::func::FuncOp f,
 }
 
 bool OslScop::isParameterSymbol(llvm::StringRef name) const {
-  return name.startswith("P");
+  return name.starts_with("P");
 }
 
 bool OslScop::isDimSymbol(llvm::StringRef name) const {
-  return name.startswith("i");
+  return name.starts_with("i");
 }
 
 bool OslScop::isArraySymbol(llvm::StringRef name) const {
-  return name.startswith("A");
+  return name.starts_with("A");
 }
 
 bool OslScop::isConstantSymbol(llvm::StringRef name) const {
-  return name.startswith("C");
+  return name.starts_with("C");
 }
 
 void OslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
