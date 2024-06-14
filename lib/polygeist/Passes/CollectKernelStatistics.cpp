@@ -36,8 +36,9 @@ static double estimateTripCount(Block *block, unsigned threadNum) {
           forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>();
       auto stepCstOp = forOp.getStep().getDefiningOp<arith::ConstantIndexOp>();
       if (lbCstOp && ubCstOp && stepCstOp)
-        return llvm::ceilDiv(ubCstOp.value() - lbCstOp.value(),
-                             stepCstOp.value());
+        return (int64_t)llvm::ceilDiv(
+            DynamicAPInt(ubCstOp.value() - lbCstOp.value()),
+            DynamicAPInt(stepCstOp.value()));
       else
         return 1.0;
     } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
