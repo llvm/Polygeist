@@ -5075,7 +5075,7 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
             assert(otherBuf.getType() == op.getType());
 
-            rewriter.replaceOpWithIf(
+            rewriter.replaceOpUsesWithIf(
                 op, otherBuf, nullptr, [&](OpOperand &use) {
                   Operation *owner = use.getOwner();
                   while (owner &&

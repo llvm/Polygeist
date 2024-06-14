@@ -1212,7 +1212,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       } else {
         llvm_unreachable("are there other effects?");
       }
-      rewriter.replaceOpWithIf(op, cloned, [&](OpOperand &use) {
+      rewriter.replaceOpUsesWithIf(op, cloned, [&](OpOperand &use) {
         Operation *owner = use.getOwner();
         while (owner->getBlock() != pop->getBlock())
           owner = owner->getParentOp();
