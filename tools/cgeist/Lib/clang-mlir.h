@@ -87,26 +87,16 @@ inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
 class FunctionToEmit {
 public:
   // Note: the context is determined from the given function declarator.
+  // TODO hoook in here to check if function we are handling should be in a
+  // device context
   explicit FunctionToEmit(const clang::FunctionDecl &FuncDecl)
-      : FuncDecl(FuncDecl),
-        FuncContext((FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
-                     FuncDecl.hasAttr<clang::SYCLDeviceAttr>())
-                        ? InsertionContext::SYCLDevice
-                        : InsertionContext::Host) {}
+      : FuncDecl(FuncDecl), FuncContext(InsertionContext::Host) {}
 
   /// Note: set the context requested, ensuring a host context is not requested
   /// for SYCL kernel/functions.
   FunctionToEmit(const clang::FunctionDecl &FuncDecl,
                  InsertionContext FuncContext)
-      : FuncDecl(FuncDecl), FuncContext(FuncContext) {
-    bool IsSyclFunc = FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
-                      FuncDecl.hasAttr<clang::SYCLDeviceAttr>();
-    (void)IsSyclFunc;
-
-    assert((FuncContext == InsertionContext::SYCLDevice ||
-            (FuncContext == InsertionContext::Host && !IsSyclFunc)) &&
-           "SYCL kernel/device functions should not have host context");
-  }
+      : FuncDecl(FuncDecl), FuncContext(FuncContext) {}
 
   const clang::FunctionDecl &getDecl() const { return FuncDecl; }
   InsertionContext getContext() const { return FuncContext; }
