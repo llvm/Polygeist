@@ -23,7 +23,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -278,7 +277,7 @@ struct SharedLLVMAllocaToGlobal : public OpRewritePattern<LLVM::AllocaOp> {
       return failure();
     }
 
-    auto type = PT.getElementType();
+    auto type = ao.getElemType();
     auto loc = ao->getLoc();
     auto name = "shared_mem_" + std::to_string((long long int)(Operation *)ao);
 
@@ -896,6 +895,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       if (isa<scf::ParallelOp>(&op)) {
         llvm_unreachable("Unhandled case");
         break;
+      } else if (isa<scf::ReduceOp>(&op)) {
+        continue;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -923,7 +924,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         }
         newOp = rewriter.clone(op, mapping);
       }
-      rewriter.replaceOpWithinBlock(&op, newOp->getResults(), innerBlock);
+      rewriter.replaceOpUsesWithinBlock(&op, newOp->getResults(), innerBlock);
       toErase.push_back(&op);
     }
     it++;
@@ -949,6 +950,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         if (isa<scf::ParallelOp>(&op)) {
           llvm_unreachable("Unhandled case");
           break;
+        } else if (isa<scf::ReduceOp>(&op)) {
+          continue;
         } else if (isa<scf::YieldOp>(&op)) {
           continue;
         } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -1212,7 +1215,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       } else {
         llvm_unreachable("are there other effects?");
       }
-      rewriter.replaceOpWithIf(op, cloned, [&](OpOperand &use) {
+      rewriter.replaceOpUsesWithIf(op, cloned, [&](OpOperand &use) {
         Operation *owner = use.getOwner();
         while (owner->getBlock() != pop->getBlock())
           owner = owner->getParentOp();
@@ -1279,7 +1282,7 @@ struct RemovePolygeistNoopOp : public OpRewritePattern<polygeist::NoopOp> {
     }
     auto noopType =
         noop->getAttrOfType<StringAttr>("polygeist.noop_type").getValue();
-    if (!noopType.startswith("gpu_kernel.")) {
+    if (!noopType.starts_with("gpu_kernel.")) {
       LLVM_DEBUG(DBGS() << "noop does not have the appropriate attribute\n");
       return failure();
     }
@@ -1628,14 +1631,14 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     rewriter.eraseOp(gridPop);
 
-    Operation *yieldOp = nullptr;
+    Operation *reduceOp = nullptr;
     for (auto &op : *launchBlock) {
-      if (auto y = dyn_cast<scf::YieldOp>(&op)) {
-        assert(!yieldOp && "Multiple yields in the final block? why?");
-        yieldOp = y;
+      if (auto y = dyn_cast<scf::ReduceOp>(&op)) {
+        assert(!reduceOp && "Multiple yields in the final block? why?");
+        reduceOp = y;
       }
     }
-    rewriter.eraseOp(yieldOp);
+    rewriter.eraseOp(reduceOp);
 
     launchBlock->walk([&](mlir::polygeist::BarrierOp op) {
       rewriter.setInsertionPoint(op);

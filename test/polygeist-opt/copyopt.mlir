@@ -15,10 +15,10 @@ module {
 }
 
 // CHECK:   func.func @cpy(%[[arg0:.+]]: i64, %[[arg1:.+]]: memref<?xi32>, %[[arg2:.+]]: memref<?xi32>) {
-// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-NEXT:     %[[c4:.+]] = arith.constant 4 : index
-// CHECK-NEXT:     %[[c4_i64:.+]] = arith.constant 4 : i64
+// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-DAG:     %[[c4:.+]] = arith.constant 4 : index
+// CHECK-DAG:     %[[c4_i64:.+]] = arith.constant 4 : i64
 // CHECK-NEXT:     %[[V0:.+]] = arith.muli %[[arg0]], %[[c4_i64]] : i64
 // CHECK-NEXT:     %[[V1:.+]] = arith.trunci %[[V0]] : i64 to i32
 // CHECK-NEXT:     %[[V2:.+]] = arith.index_cast %[[V1]] : i32 to index

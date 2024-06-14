@@ -11,7 +11,7 @@ module {
     affine.store %c0_i32, %alloca[0] : memref<1xi32>
     %4 = affine.load %arg1[1] : memref<?xmemref<?xi8>>
     %8 = llvm.mlir.addressof @str4 : !llvm.ptr
-    %9 = llvm.getelementptr %8[0, 0] {elem_type = !llvm.array<3 x i8>} : (!llvm.ptr) -> !llvm.ptr
+    %9 = llvm.getelementptr %8[0, 0]  : (!llvm.ptr) -> !llvm.ptr, !llvm.array<3 x i8>
     %10 = "polygeist.memref2pointer"(%alloca) : (memref<1xi32>) -> !llvm.ptr
     %11 = llvm.call @scanf(%9, %10) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32
     %12 = affine.load %alloca[0] : memref<1xi32>

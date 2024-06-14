@@ -14,7 +14,7 @@ module {
         %c1_112 = arith.constant 1 : index
         scf.parallel (%arg7) = (%c0_111) to (%129) step (%c1_112) {
           func.call @use(%arg7) : (index) -> ()
-          scf.yield
+          scf.reduce
         }
       }
       "polygeist.polygeist_yield"() : () -> ()

@@ -20,7 +20,7 @@ module {
       %75 = arith.index_cast %arg0 : i32 to index
       scf.parallel (%arg5) = (%c0) to (%75) step (%c1) {
         "test.op"() : () -> ()
-        scf.yield
+        scf.reduce
       }
     }
     return 

@@ -27,10 +27,10 @@ module {
         scf.if %5 {
           func.call @print() : () -> ()
         }
-        scf.yield
+        scf.reduce
       }
       "test.use"(%0) : (!llvm.ptr) -> ()
-      scf.yield
+      scf.reduce
     }
     return
   }

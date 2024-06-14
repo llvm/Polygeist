@@ -186,7 +186,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
         auto zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
         indices.push_back(zero);
       }
-      assert(t.isOpaque());
       if (!elTy.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType>())
         assert(indices.size() == 1);
       auto ptr = rewriter.create<LLVM::GEPOp>(loc, t, elTy,
@@ -247,8 +246,9 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
 
     MemRefDescriptor nexRef = createMemRefDescriptor(
         loc, subViewOp.getType(), targetMemRef.allocatedPtr(rewriter, loc),
-        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
-        strides, rewriter);
+        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev.getType(), prev,
+                                     idxs),
+        sizes, strides, rewriter);
 
     rewriter.replaceOp(subViewOp, {nexRef});
     return success();
@@ -285,7 +285,8 @@ struct Memref2PointerOpLowering
     Value baseOffset = targetMemRef.offset(rewriter, loc);
     Value ptr = targetMemRef.alignedPtr(rewriter, loc);
     Value idxs[] = {baseOffset};
-    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr, idxs);
+    ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), ptr.getType(), ptr,
+                                       idxs);
     ptr = rewriter.create<LLVM::BitcastOp>(
         loc, LLVM::LLVMPointerType::get(op.getContext(), space0), ptr);
     if (space0 != LPT.getAddressSpace())
@@ -723,7 +724,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           funcType);
     }
 
-    rewriter.setInsertionPointToStart(func.addEntryBlock());
+    rewriter.setInsertionPointToStart(func.addEntryBlock(rewriter));
     IRMapping valueMapping;
     for (Value capture : toErase) {
       Operation *op = capture.getDefiningOp();
@@ -772,15 +773,13 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           };
           Value next =
               rewriter.create<LLVM::GEPOp>(loc, LLVM::LLVMPointerType::get(ctx),
-                                           idx.value().getType(), alloc, idxs);
+                                           ST, alloc, idxs);
           valueMapping.map(idx.value(), rewriter.create<LLVM::LoadOp>(
                                             loc, idx.value().getType(), next));
         }
-        auto freef =
-            getTypeConverter()->getOptions().useGenericFunctions
-                ? LLVM::lookupOrCreateGenericFreeFn(module,
-                                                    /*opaquePointers=*/true)
-                : LLVM::lookupOrCreateFreeFn(module, /*opaquePointers=*/true);
+        auto freef = getTypeConverter()->getOptions().useGenericFunctions
+                         ? LLVM::lookupOrCreateGenericFreeFn(module)
+                         : LLVM::lookupOrCreateFreeFn(module);
         Value args[] = {arg};
         rewriter.create<LLVM::CallOp>(loc, freef, args);
       }
@@ -833,8 +832,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
             loc, rewriter.getI64Type(),
             rewriter.create<polygeist::TypeSizeOp>(loc, rewriter.getIndexType(),
                                                    ST));
-        auto mallocFunc = LLVM::lookupOrCreateMallocFn(module, getIndexType(),
-                                                       /*opaquePointers=*/true);
+        auto mallocFunc = LLVM::lookupOrCreateMallocFn(module, getIndexType());
         mlir::Value alloc =
             rewriter.create<LLVM::CallOp>(loc, mallocFunc, arg).getResult();
         rewriter.setInsertionPoint(execute);
@@ -846,7 +844,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           };
           Value next = rewriter.create<LLVM::GEPOp>(
               loc, LLVM::LLVMPointerType::get(rewriter.getContext()),
-              idx.value().getType(), alloc, idxs);
+              ST, alloc, idxs);
           rewriter.create<LLVM::StoreOp>(loc, idx.value(), next);
         }
         vals.push_back(
@@ -894,7 +892,7 @@ struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
     if (convertedType == globalType)
       return failure();
 
-    rewriter.updateRootInPlace(
+    rewriter.modifyOpInPlace(
         op, [&]() { op.setGlobalTypeAttr(TypeAttr::get(convertedType)); });
     return success();
   }
@@ -1047,10 +1045,8 @@ public:
     } else {
       LLVM::LLVMFuncOp mallocFunc =
           getTypeConverter()->getOptions().useGenericFunctions
-              ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType(),
-                                                   /*opaquePointers=*/true)
-              : LLVM::lookupOrCreateMallocFn(module, getIndexType(),
-                                             /*opaquePointers=*/true);
+              ? LLVM::lookupOrCreateGenericAllocFn(module, getIndexType())
+              : LLVM::lookupOrCreateMallocFn(module, getIndexType());
       Value allocated =
           rewriter.create<LLVM::CallOp>(loc, mallocFunc, size).getResult();
       rewriter.replaceOpWithNewOp<LLVM::BitcastOp>(allocOp, convertedType,
@@ -1077,9 +1073,8 @@ public:
     } else {
       LLVM::LLVMFuncOp freeFunc =
           getTypeConverter()->getOptions().useGenericFunctions
-              ? LLVM::lookupOrCreateGenericFreeFn(module,
-                                                  /*opaquePointers*/ true)
-              : LLVM::lookupOrCreateFreeFn(module, /*opaquePointers*/ true);
+              ? LLVM::lookupOrCreateGenericFreeFn(module)
+              : LLVM::lookupOrCreateFreeFn(module);
       rewriter.replaceOpWithNewOp<LLVM::CallOp>(deallocOp, freeFunc,
                                                 adaptor.getMemref());
     }
@@ -1149,7 +1144,7 @@ public:
         globalOp, convertedType, globalOp.getConstant(), globalOp.getSymName(),
         linkage, dso_local, thread_local_, initialValue, alignment,
         originalType.getMemorySpaceAsInt(), unnamed_addr, section,
-        /*comdat=*/nullptr);
+        /*comdat=*/nullptr, /*dbg_expr=*/nullptr);
     if (!globalOp.isExternal() && globalOp.isUninitialized()) {
       Block *block =
           rewriter.createBlock(&newGlobal.getInitializerRegion(),
@@ -1174,7 +1169,6 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     MemRefType originalType = getGlobalOp.getType();
     Type convertedType = getTypeConverter()->convertType(originalType);
-    assert(convertedType.cast<LLVM::LLVMPointerType>().isOpaque());
     Value wholeAddress = rewriter.create<LLVM::AddressOfOp>(
         getGlobalOp->getLoc(), convertedType, getGlobalOp.getName());
 
@@ -1811,7 +1805,7 @@ struct LowerGPUAlternativesOp
       nullTermLocStr.push_back('\0');
       auto kernelId = LLVM::createGlobalString(
           loc, rewriter, std::string("kernelId.") + std::to_string(num++),
-          nullTermLocStr, LLVM::Linkage::Internal, /*opaquePointers*/ true);
+          nullTermLocStr, LLVM::Linkage::Internal);
       auto totalAlternatives = rewriter.create<LLVM::ConstantOp>(
           loc, llvmInt32Type, gao->getNumRegions());
       auto alternative =
@@ -1986,7 +1980,7 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateKernelNameConstant(
       std::string(llvm::formatv("{0}_{1}_kernel_name", moduleName, name));
   return LLVM::createGlobalString(
       loc, builder, globalName, StringRef(kernelName.data(), kernelName.size()),
-      LLVM::Linkage::Internal, /*opaquePointers*/ true);
+      LLVM::Linkage::Internal);
 }
 
 // Returns whether all operands are of LLVM type.
@@ -2097,7 +2091,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       auto moduleName = launchOp.getKernelModuleName().getValue();
 
       OpBuilder ctorBuilder(moduleOp->getContext());
-      ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock());
+      ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock(rewriter));
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
 
@@ -2166,7 +2160,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         // data.setSectionAttr(moduleBuilder.getStringAttr(fatbinSectionName));
         Value data = LLVM::createGlobalString(
             loc, globalBuilder, nameBuffer.str(), binaryAttr.getValue(),
-            LLVM::Linkage::Internal, /*opaquePointers*/ true);
+            LLVM::Linkage::Internal);
         constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
             loc, fatBinWrapperType, constructedStruct, data,
             globalBuilder.getDenseI64ArrayAttr(i++));
@@ -2217,7 +2211,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
               LLVM::LLVMFunctionType::get(llvmVoidType, {}));
           {
             OpBuilder::InsertionGuard guard(rewriter);
-            rewriter.setInsertionPointToStart(stub.addEntryBlock());
+            rewriter.setInsertionPointToStart(stub.addEntryBlock(rewriter));
             rewriter.create<LLVM::ReturnOp>(loc, ValueRange());
           }
           auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, stub);
@@ -2243,8 +2237,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
 
             return LLVM::createGlobalString(
                 loc, ctorBuilder, globalName,
-                StringRef(sname.data(), sname.size()), LLVM::Linkage::Internal,
-                /*opaquePointers*/ true);
+                StringRef(sname.data(), sname.size()), LLVM::Linkage::Internal);
           }();
           // TODO could this be a memref global op?
           auto stub = moduleOp.lookupSymbol<LLVM::GlobalOp>(g.getName());
@@ -2252,8 +2245,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, stub);
           auto bitcast =
               ctorBuilder.create<LLVM::BitcastOp>(loc, llvmPointerType, aoo);
-          auto globalTy =
-              dyn_cast<LLVM::LLVMPointerType>(aoo.getType()).getElementType();
+          auto globalTy = g.getGlobalType();
           // TODO This should actually be the GPUModuleOp's data layout I
           // believe, there were problems with assigning the data layout to the
           // gpumodule because MLIR didnt like the nested data layout, and
@@ -2287,9 +2279,10 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           moduleBuilder.getI32ArrayAttr({65535}));
       {
         OpBuilder dtorBuilder(moduleOp->getContext());
-        dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock());
+        dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock(rewriter));
         auto aoo = dtorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
-        auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
+        auto module = dtorBuilder.create<LLVM::LoadOp>(
+            loc, moduleGlobal.getGlobalType(), aoo->getResult(0));
         rtUnregisterFatBinaryCallBuilder.create(loc, dtorBuilder,
                                                 module.getResult());
         dtorBuilder.create<LLVM::ReturnOp>(loc, ValueRange());
@@ -2478,14 +2471,12 @@ public:
         // Explicitly drop memory space when lowering private memory
         // attributions since NVVM models it as `alloca`s in the default
         // memory space and does not support `alloca`s with addrspace(5).
-        auto ptrType = LLVM::LLVMPointerType::get(
-            typeConverter->convertType(type.getElementType())
-                .template cast<Type>(),
-            allocaAddrSpace);
+        auto ptrType =
+            LLVM::LLVMPointerType::get(gpuFuncOp.getContext(), allocaAddrSpace);
         Value numElements = rewriter.create<LLVM::ConstantOp>(
             gpuFuncOp.getLoc(), int64Ty, type.getNumElements());
         Value allocated = rewriter.create<LLVM::AllocaOp>(
-            gpuFuncOp.getLoc(), ptrType, numElements, /*alignment=*/0);
+            gpuFuncOp.getLoc(), ptrType, ptrType, numElements, /*alignment=*/0);
         auto descr = MemRefDescriptor::fromStaticShape(
             rewriter, loc, *getTypeConverter(), type, allocated);
         signatureConversion.remapInput(
@@ -2794,7 +2785,6 @@ struct ConvertPolygeistToLLVMPass
       options.overrideIndexBitwidth(indexBitwidth);
 
     options.dataLayout = llvm::DataLayout(this->dataLayout);
-    options.useOpaquePointers = false;
 
     // Define the type converter. Override the default behavior for memrefs if
     // requested.
@@ -2881,7 +2871,6 @@ struct ConvertPolygeistToLLVMPass
 
       // The default impls
       populateGpuToLLVMConversionPatterns(converter, patterns,
-                                          gpu::getDefaultGpuBinaryAnnotation(),
                                           kernelBarePtrCallConv);
 
       // Legality callback for operations that checks whether their operand and
@@ -2921,7 +2910,7 @@ struct ConvertPolygeistToLLVMPass
                             LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
         target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
       }
-      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
+      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsloopOp, omp::LoopNestOp>(
           [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
       target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
                           scf::ExecuteRegionOp, func::FuncOp>();

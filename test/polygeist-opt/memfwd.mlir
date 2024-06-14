@@ -56,7 +56,7 @@ module {
 // CHECK:               %[[VAL_13:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = affine.if #[[$ATTR_1]](%[[VAL_10]], %[[VAL_6]], %[[VAL_8]]){{\[}}%[[VAL_1]], %[[VAL_2]]] -> i32 {
 // CHECK:                 affine.yield %[[VAL_5]] : i32
 // CHECK:               } else {
-// CHECK:                 %[[VAL_14:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = affine.load %[[VAL_4]]{{\[}}%[[VAL_8]] + %[[VAL_6]] * 16 + (%[[VAL_10]] * symbol(%[[VAL_1]])) * 16] : memref<?xi32>
+// CHECK:                 %[[VAL_14:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = affine.load %[[VAL_4]]{{\[}}%[[VAL_6]] * 16 + (%[[VAL_10]] * symbol(%[[VAL_1]])) * 16 + %[[VAL_8]]] : memref<?xi32>
 // CHECK:                 affine.yield %[[VAL_14]] : i32
 // CHECK:               }
 // CHECK:               %[[VAL_15:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = arith.muli %[[VAL_11]], %[[VAL_13]] : i32

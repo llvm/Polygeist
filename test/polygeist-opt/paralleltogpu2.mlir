@@ -11,7 +11,7 @@ module {
       %c1 = arith.constant 1 : index
       scf.parallel (%arg6) = (%c0_3) to (%aindex) step (%c1) {
         memref.store %cst3, %arg0[%arg6] : memref<?xf64>
-        scf.yield
+        scf.reduce
       }
       %c0_4 = arith.constant 0 : index
       memref.store %cst5, %arg1[%c0_4] : memref<?xf64>
@@ -23,11 +23,11 @@ module {
 // CHECK-SAME:                  %[[VAL_0:[a-z0-9]+]]: memref<?xf64>,
 // CHECK-SAME:                  %[[VAL_1:[a-z0-9]+]]: memref<?xf64>,
 // CHECK-SAME:                  %[[VAL_2:.*]]: index) {
-// CHECK:           %[[VAL_3:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_4:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_5:.*]] = arith.constant 512 : index
-// CHECK:           %[[VAL_6:.*]] = arith.constant 3.000000e+00 : f64
-// CHECK:           %[[VAL_7:.*]] = arith.constant 5.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 0 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = arith.constant 512 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = arith.constant 3.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_7:.*]] = arith.constant 5.000000e+00 : f64
 // CHECK:           %[[VAL_8:.*]] = arith.subi %[[VAL_2]], %[[VAL_3]] : index
 // CHECK:           %[[VAL_9:.*]] = arith.divui %[[VAL_8]], %[[VAL_5]] : index
 // CHECK:           %[[VAL_10:.*]] = arith.addi %[[VAL_9]], %[[VAL_3]] : index
@@ -61,7 +61,7 @@ module {
         memref.store %cst3, %arg2[%arg6] : memref<?xf64>
         scf.parallel (%arg7) = (%c0_3) to (%aindex) step (%c1) {
           memref.store %cst4, %arg0[%arg6, %arg7] : memref<?x100xf64>
-          scf.yield
+          scf.reduce
         }
       }
       %c0_4 = arith.constant 0 : index
@@ -75,11 +75,11 @@ module {
 // CHECK-SAME:                  %[[VAL_1:[a-z0-9]+]]: memref<?xf64>,
 // CHECK-SAME:                  %[[VAL_2:[a-z0-9]+]]: memref<?xf64>,
 // CHECK-SAME:                  %[[VAL_3:.*]]: index) {
-// CHECK:           %[[VAL_4:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_5:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_6:.*]] = arith.constant 3.000000e+00 : f64
-// CHECK:           %[[VAL_7:.*]] = arith.constant 4.000000e+00 : f64
-// CHECK:           %[[VAL_8:.*]] = arith.constant 5.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_4:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_5:.*]] = arith.constant 0 : index
+// CHECK-DAG:           %[[VAL_6:.*]] = arith.constant 3.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_7:.*]] = arith.constant 4.000000e+00 : f64
+// CHECK-DAG:           %[[VAL_8:.*]] = arith.constant 5.000000e+00 : f64
 // CHECK:           gpu.launch blocks(%[[VAL_9:.*]], %[[VAL_10:.*]], %[[VAL_11:.*]]) in (%[[VAL_12:.*]] = %[[VAL_3]], %[[VAL_13:.*]] = %[[VAL_4]], %[[VAL_14:.*]] = %[[VAL_4]]) threads(%[[VAL_15:.*]], %[[VAL_16:.*]], %[[VAL_17:.*]]) in (%[[VAL_18:.*]] = %[[VAL_3]], %[[VAL_19:.*]] = %[[VAL_4]], %[[VAL_20:.*]] = %[[VAL_4]]) {
 // CHECK:             %[[VAL_21:.*]] = gpu.block_id  x
 // CHECK:             %[[VAL_22:.*]] = gpu.thread_id  x

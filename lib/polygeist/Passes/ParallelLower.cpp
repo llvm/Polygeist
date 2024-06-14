@@ -152,8 +152,7 @@ mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
     auto *ctx = module->getContext();
     mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
     auto llvmFnType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
-        false);
+        LLVM::LLVMPointerType::get(ctx), types, false);
 
     LLVM::Linkage lnk = LLVM::Linkage::External;
     builder.setInsertionPointToStart(module.getBody());
@@ -559,7 +558,7 @@ void ParallelLower::runOnOperation() {
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
         auto newAlloca = builder.create<LLVM::AllocaOp>(
-            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
+            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getContext(), 0),
             alop.getArraySize());
         builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
@@ -754,7 +753,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }
@@ -762,7 +761,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 src);
           }
@@ -779,7 +778,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }
@@ -787,13 +786,14 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 src);
           }
           bz.create<LLVM::MemcpyOp>(
               call->getLoc(),
-              bz.create<LLVM::GEPOp>(call->getLoc(), dst.getType(), dst,
+              bz.create<LLVM::GEPOp>(call->getLoc(), dst.getType(),
+                                     dst.getType(), dst,
                                      std::vector<Value>({call->getOperand(3)})),
               src, call->getOperand(2),
               /*isVolatile*/ falsev);
@@ -807,7 +807,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }

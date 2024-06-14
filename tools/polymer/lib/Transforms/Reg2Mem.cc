@@ -6,6 +6,7 @@
 
 #include "polymer/Transforms/Reg2Mem.h"
 
+#include "mlir/Analysis/TopologicalSortUtils.h"
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
@@ -506,7 +507,8 @@ cloneAffineForWithoutIterArgs(mlir::affine::AffineForOp forOp, OpBuilder &b) {
 
   mlir::affine::AffineForOp newForOp = b.create<mlir::affine::AffineForOp>(
       forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
-      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(), forOp.getStep());
+      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
+      forOp.getStep().getSExtValue());
 
   IRMapping mapping;
   mapping.map(forOp.getInductionVar(), newForOp.getInductionVar());

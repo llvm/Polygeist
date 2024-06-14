@@ -65,7 +65,7 @@ cloneWithoutResults(mlir::affine::AffineForOp op,
     upper.push_back(mapping.lookupOrDefault(o));
   return rewriter.create<affine::AffineForOp>(
       op.getLoc(), lower, op.getLowerBoundMap(), upper, op.getUpperBoundMap(),
-      op.getStep());
+      op.getStep().getSExtValue());
 }
 
 static inline void clearBlock(mlir::Block *block,

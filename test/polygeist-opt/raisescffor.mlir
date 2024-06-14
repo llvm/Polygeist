@@ -13,8 +13,8 @@ module {
 // CHECK-LABEL:   func.func private @_Z12kernel5_initPc(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: index,
 // CHECK-SAME:                                          %[[VAL_1:.*]]: memref<index>) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 1 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 10 : index
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 1 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 10 : index
 // CHECK:           %[[VAL_4:.*]] = arith.subi %[[VAL_0]], %[[VAL_2]] : index
 // CHECK:           %[[VAL_5:.*]] = arith.addi %[[VAL_4]], %[[VAL_3]] : index
 // CHECK:           %[[VAL_6:.*]] = arith.divui %[[VAL_5]], %[[VAL_0]] : index

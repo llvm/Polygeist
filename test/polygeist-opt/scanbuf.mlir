@@ -14,7 +14,7 @@ module {
     %ptr = "polygeist.memref2pointer"(%alloca2) : (memref<i32>) -> !llvm.ptr
     
     %6 = llvm.mlir.addressof @str5 : !llvm.ptr
-    %7 = llvm.getelementptr %6[0, 0] {elem_type = !llvm.array<6 x i8>} : (!llvm.ptr) -> !llvm.ptr
+    %7 = llvm.getelementptr %6[0, 0]  : (!llvm.ptr) -> !llvm.ptr, !llvm.array<6 x i8>
 
     scf.for %arg4 = %c0 to %arg step %c1 {
       %12 = llvm.call @scanf(%7, %ptr) vararg(!llvm.func<i32 (ptr, ...)>) : (!llvm.ptr, !llvm.ptr) -> i32

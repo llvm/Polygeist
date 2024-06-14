@@ -19,7 +19,7 @@ module {
         %4 = memref.load %alloca[%3] : memref<2xf32>
         func.call @print1(%4) : (f32) -> ()
       }
-      scf.yield
+      scf.reduce
     }
     return
   }
@@ -38,7 +38,7 @@ module {
 // CHECK-NEXT:         %[[i3:.+]] = arith.sitofp %[[i2]] : i32 to f32
 // CHECK-NEXT:         func.call @print1(%[[i3]]) : (f32) -> ()
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

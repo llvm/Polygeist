@@ -25,7 +25,7 @@ module {
 
       %d3 = memref.load %d2[%c0] : memref<?xi32>
       func.call @use(%a2, %b2, %d3, %e3) : (memref<?xi32>, f32, i32, f32) -> ()
-      scf.yield
+      scf.reduce
     }
     return
   }
@@ -54,7 +54,7 @@ module {
 // CHECK:               %[[VAL_15:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloca() : memref<1xf32>
 // CHECK:               %[[VAL_16:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_15]]{{\[}}%[[VAL_0]]] : memref<1xf32>
 // CHECK:               memref.store %[[VAL_16]], %[[VAL_3]]{{\[}}%[[VAL_9]]] : memref<?xf32>
-// CHECK:               scf.yield
+// CHECK:               scf.reduce
 // CHECK:             }
 // CHECK:             scf.parallel (%[[VAL_17:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]) = (%[[VAL_0]]) to (%[[VAL_2]]) step (%[[VAL_1]]) {
 // CHECK:               %[[VAL_18:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_5]]{{\[}}%[[VAL_17]]] : memref<?xmemref<?xi32>>
@@ -63,7 +63,7 @@ module {
 // CHECK:               %[[VAL_21:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = "polygeist.subindex"(%[[VAL_8]], %[[VAL_17]]) : (memref<?x1xi32>, index) -> memref<1xi32>
 // CHECK:               %[[VAL_22:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.load %[[VAL_21]]{{\[}}%[[VAL_0]]] : memref<1xi32>
 // CHECK:               func.call @use(%[[VAL_18]], %[[VAL_19]], %[[VAL_22]], %[[VAL_20]]) : (memref<?xi32>, f32, i32, f32) -> ()
-// CHECK:               scf.yield
+// CHECK:               scf.reduce
 // CHECK:             }
 // CHECK:           }
 // CHECK:           return

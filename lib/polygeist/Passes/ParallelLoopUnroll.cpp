@@ -20,7 +20,6 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/RegionUtils.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
@@ -106,14 +105,14 @@ static LogicalResult generateUnrolledInterleavedLoop(
   std::function<LogicalResult(Block *, Block *)> interleaveBlock =
       [&](Block *srcBlock, Block *dstBlock) {
         auto insertInterleavedYield = [&](Block *srcBlock, Block *dstBlock) {
-          auto srcYieldOp = cast<scf::YieldOp>(srcBlock->getTerminator());
-          SmallVector<Value> dstYieldArgs;
-          for (auto yieldOperand : srcYieldOp.getOperands())
+          Operation *srcTerm = srcBlock->getTerminator();
+          Operation *dstTerm = OpBuilder::atBlockEnd(dstBlock).clone(*srcTerm);
+          SmallVector<Value> dstTermArgs;
+          for (auto &yieldOperand : srcTerm->getOpOperands())
             for (unsigned i = 0; i < unrollFactor; i++)
-              dstYieldArgs.push_back(
-                  operandMap[i].lookupOrDefault(yieldOperand));
-          OpBuilder::atBlockEnd(dstBlock).create<scf::YieldOp>(
-              srcYieldOp.getLoc(), dstYieldArgs);
+              dstTerm->setOperand(
+                  yieldOperand.getOperandNumber() * unrollFactor + i,
+                  operandMap[i].lookupOrDefault(yieldOperand.get()));
         };
         auto interleaveOp = [&](Operation *op) {
           // An operation can be recursively interleaved if its control flow is
@@ -339,7 +338,7 @@ LogicalResult mlir::polygeist::scfParallelUnrollByFactor(
       llvm_unreachable("expected positive loop bounds and step");
       return failure();
     }
-    int64_t upperBoundRem = mlir::mod(ubCst, unrollFactor);
+    int64_t upperBoundRem = llvm::mod(ubCst, unrollFactor);
 
     if (upperBoundRem && !generateEpilogueLoop) {
       return failure();

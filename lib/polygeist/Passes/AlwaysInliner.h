@@ -73,7 +73,7 @@ struct AlwaysInlinerInterface : public mlir::InlinerInterface {
   /// Handle the given inlined terminator by replacing it with a new operation
   /// as necessary.
   void handleTerminator(mlir::Operation *op,
-                        mlir::ArrayRef<mlir::Value> valuesToRepl) const final {
+                        mlir::ValueRange valuesToRepl) const final {
     // Only "std.return" needs to be handled here.
     auto returnOp = mlir::cast<mlir::func::ReturnOp>(op);
 

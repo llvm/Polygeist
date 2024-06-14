@@ -132,8 +132,8 @@ module {
 // CHECK-LABEL:   func.func @g(
 // CHECK-SAME:                 %[[VAL_0:.*]]: index,
 // CHECK-SAME:                 %[[VAL_1:.*]]: memref<?xf64>) {
-// CHECK:           %[[VAL_2:.*]] = arith.constant 0 : index
-// CHECK:           %[[VAL_3:.*]] = arith.constant 512 : i32
+// CHECK-DAG:           %[[VAL_2:.*]] = arith.constant 0 : index
+// CHECK-DAG:           %[[VAL_3:.*]] = arith.constant 512 : i32
 // CHECK:           affine.if #set1(){{\[}}%[[VAL_0]]] {
 // CHECK:             func.call @use(%[[VAL_2]]) : (index) -> ()
 // CHECK:           }
