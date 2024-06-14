@@ -107,7 +107,7 @@ struct FuncOpConversion : public OpConversionPattern<func::FuncOp> {
         funcOp.getLoc(), funcOp.getName(), convertedType,
         funcOp.getSymVisibilityAttr(), funcOp.getArgAttrsAttr(),
         funcOp.getResAttrsAttr());
-    newFuncOp->setDiscardableAttrs(funcOp->getDiscardableAttrs());
+    newFuncOp->setDiscardableAttrs(funcOp->getDiscardableAttrDictionary());
 
     rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                                 newFuncOp.end());
@@ -146,8 +146,8 @@ struct LLVMFuncOpConversion : public OpConversionPattern<LLVM::LLVMFuncOp> {
     auto newFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
         funcOp.getLoc(), funcOp.getNameAttr(), convertedType,
         funcOp.getLinkage(), funcOp.getDsoLocal(), funcOp.getCConv(),
-        funcOp.getComdatAttr(), funcOp->getDiscardableAttrs());
-    newFuncOp->setDiscardableAttrs(funcOp->getDiscardableAttrs());
+        funcOp.getComdatAttr(), funcOp->getDiscardableAttrDictionary());
+    newFuncOp->setDiscardableAttrs(funcOp->getDiscardableAttrDictionary());
 
     rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                                 newFuncOp.end());
