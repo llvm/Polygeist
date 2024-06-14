@@ -768,7 +768,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
         if (barrier->isBeforeInBlock(user)) {
           rewriter.startOpModification(user);
           u.set(mapping.lookup(v));
-          rewriter.finalizeRootUpdate(user);
+          rewriter.finalizeOpModification(user);
         }
       }
     }
@@ -921,7 +921,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
       if (barrier->isBeforeInBlock(user)) {
         rewriter.startOpModification(user);
         u.set(reloaded);
-        rewriter.finalizeRootUpdate(user);
+        rewriter.finalizeOpModification(user);
       }
     }
   }
@@ -1289,7 +1289,7 @@ static void moveBodiesIf(PatternRewriter &rewriter, T op, IfType ifOp,
 
   rewriter.eraseOp(ifOp);
   rewriter.eraseOp(op);
-  rewriter.finalizeRootUpdate(op);
+  rewriter.finalizeOpModification(op);
 }
 
 mlir::OperandRange getLowerBounds(scf::ParallelOp op,
@@ -1874,7 +1874,7 @@ void getIfCrossingCache(mlir::PatternRewriter &rewriter, Block *original,
         if (barrier->isBeforeInBlock(user)) {
           rewriter.startOpModification(user);
           u.set(mapping.lookup(v));
-          rewriter.finalizeRootUpdate(user);
+          rewriter.finalizeOpModification(user);
         }
       }
     }
@@ -2154,7 +2154,7 @@ struct DistributeIfAroundBarrier : public OpRewritePattern<IfOpType> {
           if (barrier->isBeforeInBlock(user)) {
             rewriter.startOpModification(user);
             u.set(reloaded);
-            rewriter.finalizeRootUpdate(user);
+            rewriter.finalizeOpModification(user);
           }
         }
       }
@@ -2546,7 +2546,7 @@ struct Reg2MemIf : public OpRewritePattern<T> {
                   ->getResult(0));
       }
     }
-    rewriter.finalizeRootUpdate(op);
+    rewriter.finalizeOpModification(op);
     rewriter.eraseOp(op);
     return success();
   }

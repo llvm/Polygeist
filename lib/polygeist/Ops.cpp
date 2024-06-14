@@ -2126,10 +2126,10 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
                 use.getOwner()->getParentRegion())) {
           rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         }
     }
-    rewriter.finalizeRootUpdate(nextIf);
+    rewriter.finalizeOpModification(nextIf);
 
     // Handle else region
     if (!nextIf.getElseRegion().empty()) {
@@ -2272,8 +2272,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
             storeOp, storeOp.getValue(), storeOp.getMemref(), indices);
       }
     }
-    rewriter.finalizeRootUpdate(prevOp);
-    rewriter.finalizeRootUpdate(nextIf);
+    rewriter.finalizeOpModification(prevOp);
+    rewriter.finalizeOpModification(nextIf);
     return success();
   }
 };
@@ -3933,12 +3933,12 @@ struct CombineAffineIfs : public OpRewritePattern<affine::AffineIfOp> {
                             use.getOwner()->getParentRegion())) {
           rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         } else if (nextElse && nextElse->getParent()->isAncestor(
                                    use.getOwner()->getParentRegion())) {
           rewriter.startOpModification(use.getOwner());
           use.set(std::get<2>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         }
       }
 
