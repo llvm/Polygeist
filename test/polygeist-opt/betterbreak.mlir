@@ -47,7 +47,7 @@ module {
 // CHECK-NEXT:         } else {
 // CHECK-NEXT:           scf.yield %[[arg3]], %[[false]] : i32, i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield %[[V5]]#0, %[[V5]]#1 : i32, i1
+// CHECK-NEXT:         scf.reduce %[[V5]]#0, %[[V5]]#1 : i32, i1
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.yield %[[V3]]#0 : i32
 // CHECK-NEXT:     } else {

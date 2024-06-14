@@ -79,7 +79,7 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
           memref.store %59, %arg6[%14] : memref<?xf32>
         }
       }
-      scf.yield
+      scf.reduce
     }
     return
   }
@@ -158,9 +158,9 @@ module attributes {llvm.data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i6
           %25 = arith.addi %arg9, %24 : index
           memref.store %23, %arg4[%25] : memref<?xf32>
         }
-        scf.yield
+        scf.reduce
       }
-      scf.yield
+      scf.reduce
     }
     return
   }

@@ -283,9 +283,9 @@ module {
             %106 = arith.addi %81, %80 : index
             memref.store %105, %48[%106] : memref<?xf32>
           }
-          scf.yield
+          scf.reduce
         }
-        scf.yield
+        scf.reduce
       }
       %55 = arith.addf %arg12, %27 : f32
       scf.yield %arg11, %arg10, %55 : i32, i32, f32
