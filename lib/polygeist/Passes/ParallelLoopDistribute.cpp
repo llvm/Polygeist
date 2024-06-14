@@ -736,7 +736,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
 
       // We always have to recalculate operands of yields, otherwise check if we
       // don't already have the results
-      if (!isa<scf::YieldOp, affine::AffineYieldOp>(op) &&
+      if (!isa<scf::ReduceOp, scf::YieldOp, affine::AffineYieldOp>(op) &&
           llvm::all_of(op->getResults(),
                        [&mapping](Value v) { return mapping.contains(v); }))
         return;
@@ -937,7 +937,7 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
   rewriter.setInsertionPointToEnd(outerBlock);
   if (outerLoop) {
     if (isa<scf::ParallelOp>(outerLoop))
-      rewriter.create<scf::YieldOp>(op.getLoc());
+      rewriter.create<scf::ReduceOp>(op.getLoc());
     else {
       assert(isa<affine::AffineParallelOp>(outerLoop));
       rewriter.create<affine::AffineYieldOp>(op.getLoc());
@@ -1112,8 +1112,8 @@ static LogicalResult wrapAndDistribute(T op, bool singleExecution,
     return failure();
 
   bool recomputable = arePreceedingOpsFullyRecomputable(op, singleExecution);
-  if (recomputable &&
-      isa<scf::YieldOp, affine::AffineYieldOp>(op->getNextNode())) {
+  if (recomputable && isa<scf::ReduceOp, scf::YieldOp, affine::AffineYieldOp>(
+                          op->getNextNode())) {
     return failure();
   }
 

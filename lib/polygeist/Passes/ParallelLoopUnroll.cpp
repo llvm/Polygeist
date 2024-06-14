@@ -105,13 +105,13 @@ static LogicalResult generateUnrolledInterleavedLoop(
   std::function<LogicalResult(Block *, Block *)> interleaveBlock =
       [&](Block *srcBlock, Block *dstBlock) {
         auto insertInterleavedYield = [&](Block *srcBlock, Block *dstBlock) {
-          auto srcYieldOp = cast<scf::YieldOp>(srcBlock->getTerminator());
+          auto srcYieldOp = cast<scf::ReduceOp>(srcBlock->getTerminator());
           SmallVector<Value> dstYieldArgs;
           for (auto yieldOperand : srcYieldOp.getOperands())
             for (unsigned i = 0; i < unrollFactor; i++)
               dstYieldArgs.push_back(
                   operandMap[i].lookupOrDefault(yieldOperand));
-          OpBuilder::atBlockEnd(dstBlock).create<scf::YieldOp>(
+          OpBuilder::atBlockEnd(dstBlock).create<scf::ReduceOp>(
               srcYieldOp.getLoc(), dstYieldArgs);
         };
         auto interleaveOp = [&](Operation *op) {
