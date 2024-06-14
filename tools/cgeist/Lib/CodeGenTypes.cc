@@ -18,6 +18,7 @@
 #include "clang/../../lib/CodeGen/CGOpenCLRuntime.h"
 #include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/Attrs.inc"
 #include "clang/CodeGen/CGFunctionInfo.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -25,6 +26,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
+#include "clang/AST/Attrs.inc"
 
 #include "llvm/IR/Assumptions.h"
 #include "llvm/Support/CommandLine.h"
@@ -140,25 +142,6 @@ addAttributesFromFunctionProtoType(mlirclang::AttrBuilder &FuncAttrs,
   if (!isUnresolvedExceptionSpec(FPT->getExceptionSpecType()) &&
       FPT->isNothrow())
     FuncAttrs.addPassThroughAttribute(llvm::Attribute::NoUnwind);
-}
-
-static void addAttributesFromAssumes(mlirclang::AttrBuilder &FuncAttrs,
-                                     const Decl *Callee) {
-  if (!Callee)
-    return;
-
-  SmallVector<StringRef, 4> Attrs;
-  for (const AssumptionAttr *AA : Callee->specific_attrs<AssumptionAttr>())
-    AA->getAssumption().split(Attrs, ",");
-
-  MLIRContext *Ctx = &FuncAttrs.getContext();
-  SmallVector<mlir::Attribute, 4> StrAttrs;
-  for (StringRef AttrName : Attrs)
-    StrAttrs.push_back(StringAttr::get(Ctx, AttrName));
-
-  if (!StrAttrs.empty())
-    FuncAttrs.addPassThroughAttribute(llvm::AssumptionAttrKey,
-                                      mlir::ArrayAttr::get(Ctx, StrAttrs));
 }
 
 static void addNoBuiltinAttributes(mlirclang::AttrBuilder &FuncAttrs,
@@ -691,10 +674,6 @@ void CodeGenTypes::constructAttributeList(
                                      CalleeInfo.getCalleeFunctionProtoType());
 
   const Decl *TargetDecl = CalleeInfo.getCalleeDecl().getDecl();
-
-  // Attach assumption attributes to the declaration. If this is a call
-  // site, attach assumptions from the caller to the call as well.
-  addAttributesFromAssumes(FuncAttrsBuilder, TargetDecl);
 
   bool HasOptnone = false;
   // The NoBuiltinAttr attached to the target FunctionDecl.
