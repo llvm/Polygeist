@@ -244,10 +244,12 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       targetMemRef.setOffset(rewriter, loc, baseOffset);
     }
 
+    assert(idxs.size() == 1);
     MemRefDescriptor nexRef = createMemRefDescriptor(
         loc, subViewOp.getType(), targetMemRef.allocatedPtr(rewriter, loc),
-        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev, idxs), sizes,
-        strides, rewriter);
+        rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev.getType(), prev,
+                                     idxs),
+        sizes, strides, rewriter);
 
     rewriter.replaceOp(subViewOp, {nexRef});
     return success();
@@ -2243,8 +2245,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, stub);
           auto bitcast =
               ctorBuilder.create<LLVM::BitcastOp>(loc, llvmPointerType, aoo);
-          auto globalTy =
-              dyn_cast<LLVM::LLVMPointerType>(aoo.getType()).getElementType();
+          auto globalTy = g.getGlobalType();
           // TODO This should actually be the GPUModuleOp's data layout I
           // believe, there were problems with assigning the data layout to the
           // gpumodule because MLIR didnt like the nested data layout, and
@@ -2908,7 +2909,7 @@ struct ConvertPolygeistToLLVMPass
                             LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
         target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
       }
-      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsLoopOp>(
+      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsloopOp>(
           [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
       target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
                           scf::ExecuteRegionOp, func::FuncOp>();
