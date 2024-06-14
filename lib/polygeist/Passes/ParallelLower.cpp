@@ -152,8 +152,7 @@ mlir::Value callMalloc(mlir::OpBuilder &ibuilder, mlir::ModuleOp module,
     auto *ctx = module->getContext();
     mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
     auto llvmFnType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMPointerType::get(mlir::IntegerType::get(ctx, 8)), types,
-        false);
+        LLVM::LLVMPointerType::get(ctx), types, false);
 
     LLVM::Linkage lnk = LLVM::Linkage::External;
     builder.setInsertionPointToStart(module.getBody());
