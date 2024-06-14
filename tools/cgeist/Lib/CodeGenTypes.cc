@@ -12,6 +12,7 @@
 
 #include "CodeGenTypes.h"
 #include "TypeUtils.h"
+#include "mlir/IR/Diagnostics.h"
 #include "utils.h"
 
 #include "clang/../../lib/CodeGen/CGOpenCLRuntime.h"
@@ -28,6 +29,7 @@
 #include "llvm/IR/Assumptions.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ModRef.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
@@ -802,16 +804,7 @@ void CodeGenTypes::constructAttributeList(
 
     // Function is a SYCL KernelObjFunc implementing a SYCL kernel
     if (auto *KernelBodyAttr = TargetDecl->getAttr<SYCLKernelObjFuncAttr>()) {
-      // Note the calling kernel name is already mangled in the Clang attribute.
-      SmallVector<mlir::Attribute> KernelNames;
-      llvm::transform(KernelBodyAttr->kernels(),
-                      std::back_inserter(KernelNames),
-                      [Ctx](StringRef KernelName) {
-                        return FlatSymbolRefAttr::get(Ctx, KernelName);
-                      });
-      FuncAttrsBuilder.addAttribute(
-          sycl::SYCLDialect::getKernelFuncObjAttrName(),
-          ArrayAttr::get(Ctx, KernelNames));
+      llvm_unreachanble("sycl kernels not supported");
     }
 
     if (TargetDecl->hasAttr<OpenCLKernelAttr>()) {
@@ -1263,9 +1256,7 @@ void CodeGenTypes::constructAttributeList(
       auto DeclArgTy = getDeclArgTy(*FD, ArgNo, ParamType);
 
       // Set 'noalias' if an argument type has the `restrict` qualifier.
-      if (DeclArgTy.isRestrictQualified() ||
-          (FD->hasAttr<SYCLIntelKernelArgsRestrictAttr>() &&
-           DeclArgTy->isPointerType()))
+      if (DeclArgTy.isRestrictQualified())
         ParamAttrsBuilder.addAttribute(llvm::Attribute::NoAlias);
     }
 
@@ -1296,27 +1287,6 @@ mlir::Type CodeGenTypes::getMLIRTypeForMem(clang::QualType QT,
 
   // Else, don't map it.
   return R;
-}
-
-static bool isAllowedUndefinedSYCLType(StringRef TypeName) {
-  // Sorted list of allowed names
-  constexpr std::array<llvm::StringLiteral, 8> AllowedUndefinedSYCLType{
-      // Exceptions for `h_item` and `private_memory`: SYCL-MLIR doesn't
-      // support hierarchical parallelism as a first-class concept, but
-      // it can pass through its use to the runtime.
-      //
-      // For others: These should be semantically correct when lowered to
-      // llvm.struct. Use that until the dialect is expanded.
-      "atomic_ref",
-      "device_event",
-      "h_item",
-      "marray",
-      "private_memory",
-      "reducer",
-      "sampled_image_accessor",
-      "unsampled_image_accessor"};
-  return std::binary_search(AllowedUndefinedSYCLType.begin(),
-                            AllowedUndefinedSYCLType.end(), TypeName);
 }
 
 mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
@@ -1366,8 +1336,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
       // If -memref-fullrank is unset or it cannot be fulfilled.
       auto MT = dyn_cast<MemRefType>(MLIRTy);
-      auto Shape2 = std::vector<int64_t>(MT.getShape());
-      Shape2[0] = ShapedType::kDynamic;
+      auto Shape2 = std::vector<int64_t>(MT.getShape()) Shape2[0] =
+          ShapedType::kDynamic;
       return mlir::MemRefType::get(Shape2, MT.getElementType(),
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
@@ -1411,33 +1381,6 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     bool Recursive = isRecursiveStruct(QT, RecordsEncountered);
 
     const auto *RD = RT->getAsRecordDecl();
-    if (const mlirclang::NamespaceKind NamespaceKind =
-            mlirclang::getNamespaceKind(RD->getEnclosingNamespaceContext());
-        NamespaceKind != mlirclang::NamespaceKind::Other) {
-      const auto TypeName = RD->getName();
-      if (TypeName == "accessor" || TypeName == "accessor_common" ||
-          TypeName == "AccessorImplDevice" || TypeName == "AccessorSubscript" ||
-          TypeName == "array" || TypeName == "atomic" || TypeName == "group" ||
-          TypeName == "half" || TypeName == "id" || TypeName == "item" ||
-          TypeName == "ItemBase" || TypeName == "kernel_handler" ||
-          TypeName == "LocalAccessorBaseDevice" ||
-          TypeName == "local_accessor_base" || TypeName == "local_accessor" ||
-          TypeName == "maximum" || TypeName == "minimum" ||
-          TypeName == "multi_ptr" || TypeName == "nd_item" ||
-          TypeName == "nd_range" || TypeName == "OwnerLessBase" ||
-          TypeName == "range" || TypeName == "SwizzleOp" ||
-          TypeName == "stream" || TypeName == "sub_group" || TypeName == "vec")
-        return getSYCLType(RT, *this);
-
-      assert((AllowUndefinedSYCLTypes ||
-              // Accept types nested in other namespaces, e.g. `sycl::detail`.
-              NamespaceKind != mlirclang::NamespaceKind::SYCL ||
-              // Accept types nested in other structs/classes.
-              !RD->getDeclContext()->isNamespace() ||
-              isAllowedUndefinedSYCLType(TypeName)) &&
-             "Found type in the sycl namespace, but not in the SYCL dialect");
-    }
-
     auto *CXRD = dyn_cast<CXXRecordDecl>(RT->getDecl());
     if (CodeGenTypes::isLLVMStructABI(RT->getDecl(), ST))
       return TypeTranslator.translateType(anonymize(ST));
@@ -1569,18 +1512,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     if (!MemRefABI ||
         isa<LLVM::LLVMArrayType, LLVM::LLVMStructType, LLVM::LLVMPointerType,
             LLVM::LLVMFunctionType, LLVM::LLVMTargetExtType>(SubType)) {
-      // JLE_QUEL::THOUGHTS
-      // When generating the sycl_halide_kernel, If a struct type contains
-      // SYCL types, that means that this is the functor, and we can't create
-      // a llvm pointer that contains custom aggregate types. We could create
-      // a sycl::Functor type, that will help us get rid of those conditions.
-      bool InnerSYCL = false;
-      if (auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(SubType))
-        InnerSYCL |= any_of(ST.getBody(), sycl::SYCLType::classof);
-
-      if (!InnerSYCL)
-        return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
-                                           PointeeType.getAddressSpace()));
+      return getPointerType(SubType, CGM.getContext().getTargetAddressSpace(
+                                         PointeeType.getAddressSpace()));
     }
 
     if (isa<clang::ArrayType>(PTT)) {
