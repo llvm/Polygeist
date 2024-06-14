@@ -276,26 +276,6 @@ mlir::Attribute MLIRScanner::InitializeValueByInitListExpr(mlir::Value ToInit,
             ET = mlir::MemRefType::get(Shape, StoreTy,
                                        MemRefLayoutAttrInterface(),
                                        MT.getMemorySpace());
-          } else if (isa<sycl::SYCLType>(ElemTy)) {
-            std::pair<mlir::MemRefType, mlir::Type> Types =
-                TypeSwitch<mlir::Type, std::pair<mlir::MemRefType, mlir::Type>>(
-                    MRET)
-                    .Case<mlir::sycl::IDType, mlir::sycl::RangeType>([&](auto) {
-                      return std::pair<mlir::MemRefType, mlir::Type>{
-                          mlir::MemRefType::get(Shape, MRET,
-                                                MemRefLayoutAttrInterface(),
-                                                MT.getMemorySpace()),
-                          MRET};
-                    })
-                    .Case<mlir::sycl::ItemBaseType>([&](auto Ty) {
-                      return std::pair<mlir::MemRefType, mlir::Type>{
-                          mlir::MemRefType::get(Shape, Ty.getBody()[I],
-                                                MemRefLayoutAttrInterface(),
-                                                MT.getMemorySpace()),
-                          Ty.getBody()[I]};
-                    });
-            ET = Types.first;
-            StoreTy = Types.second;
           } else {
             StoreTy = MRET;
             ET = mlir::MemRefType::get(Shape, MRET, MemRefLayoutAttrInterface(),
@@ -983,10 +963,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *Cons,
     return ValueCategory(Op, /*isReference*/ true, SubType);
 
   // We will replace memcpy-equivalent constructors with an actual memcpy.
-  // In the case of SYCL constructors, we should instead be generating the
-  // relevant constructor operation and rely on lowering to convert to memcpy.
-  if (!isa<sycl::SYCLType>(SubType) &&
-      isMemcpyEquivalentSpecialMember(CtorDecl)) {
+  if (isMemcpyEquivalentSpecialMember(CtorDecl)) {
     assert(Cons->getNumArgs() == 1 && "unexpected argcount for trivial ctor");
 
     ValueCategory Dst(Op, /*isReference=*/true, SubType);
