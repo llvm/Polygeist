@@ -2841,7 +2841,7 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
           break;
       }
       if (legal) {
-        rewriter.updateRootInPlace(forOp, [&] {
+        rewriter.modifyOpInPlace(forOp, [&] {
           std::get<1>(tup).replaceAllUsesWith(std::get<2>(tup));
         });
         changed = true;

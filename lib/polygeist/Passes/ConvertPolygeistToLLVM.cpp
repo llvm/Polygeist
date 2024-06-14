@@ -894,7 +894,7 @@ struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
     if (convertedType == globalType)
       return failure();
 
-    rewriter.updateRootInPlace(
+    rewriter.modifyOpInPlace(
         op, [&]() { op.setGlobalTypeAttr(TypeAttr::get(convertedType)); });
     return success();
   }

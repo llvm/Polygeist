@@ -1074,7 +1074,7 @@ wrapWithBarriers(T op, PatternRewriter &rewriter,
 
   // We don't actually change the op, but the pattern infra wants us to. Just
   // pretend we changed it in-place.
-  rewriter.updateRootInPlace(op, [] {});
+  rewriter.modifyOpInPlace(op, [] {});
   LLVM_DEBUG(DBGS() << "[wrap] wrapped '" << op->getName().getStringRef()
                     << "' with barriers\n");
   return success();
@@ -2607,7 +2607,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     storeValues(op.getLoc(), beforeTerminator.getArgs(), afterAllocated,
                 rewriter);
 
-    rewriter.updateRootInPlace(
+    rewriter.modifyOpInPlace(
         beforeTerminator, [&] { beforeTerminator.getArgsMutable().clear(); });
 
     Block *newAfter =
@@ -2622,7 +2622,7 @@ struct Reg2MemWhile : public OpRewritePattern<scf::WhileOp> {
     storeValues(op.getLoc(), afterTerminator.getResults(), beforeAllocated,
                 rewriter);
 
-    rewriter.updateRootInPlace(
+    rewriter.modifyOpInPlace(
         afterTerminator, [&] { afterTerminator.getResultsMutable().clear(); });
 
     rewriter.setInsertionPointAfter(op);
