@@ -122,7 +122,7 @@ getConstantArrayShapeAndElemType(const clang::QualType &Ty,
 static constexpr int AllocSizeNumElemsNotPresent = -1;
 
 static uint64_t packAllocSizeArgs(unsigned ElemSizeArg,
-                                  const Optional<int> &NumElemsArg) {
+                                  const std::optional<int> &NumElemsArg) {
   assert((!NumElemsArg || *NumElemsArg != AllocSizeNumElemsNotPresent) &&
          "Attempting to pack a reserved value");
 
@@ -792,7 +792,7 @@ void CodeGenTypes::constructAttributeList(
 
     HasOptnone = TargetDecl->hasAttr<OptimizeNoneAttr>();
     if (auto *AllocSize = TargetDecl->getAttr<AllocSizeAttr>()) {
-      Optional<int> NumElemsParam;
+      std::optional<int> NumElemsParam;
       if (AllocSize->getNumElemsParam().isValid())
         NumElemsParam = AllocSize->getNumElemsParam().getLLVMIndex();
       uint64_t RawArgs = packAllocSizeArgs(

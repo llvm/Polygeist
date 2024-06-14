@@ -1800,7 +1800,7 @@ MLIRASTConsumer::getOrCreateMLIRFunction(FunctionToEmit &FTE,
           : PrefixABI + MLIRScanner::getMangledFuncName(FD, CGM);
 
   // Early exit if the function has already been generated.
-  if (Optional<FunctionOpInterface> OptFunction =
+  if (std::optional<FunctionOpInterface> OptFunction =
           getMLIRFunction(MangledName, FTE.getContext()))
     return *OptFunction;
 

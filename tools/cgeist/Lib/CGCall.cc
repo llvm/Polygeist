@@ -1436,7 +1436,7 @@ MLIRScanner::emitBuiltinOps(clang::CallExpr *Expr) {
     for (auto *A : Expr->arguments())
       Args.push_back(Visit(A).getValue(Builder));
   };
-  Optional<Value> V = std::nullopt;
+  std::optional<Value> V = std::nullopt;
   std::optional<mlir::Type> ElemTy = std::nullopt;
 
   switch (Expr->getBuiltinCallee()) {

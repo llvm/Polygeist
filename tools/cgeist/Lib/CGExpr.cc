@@ -2804,9 +2804,9 @@ ValueCategory MLIRScanner::EmitBinRem(const BinOpInfo &Info) {
 }
 
 /// Casts index of subindex operation conditionally.
-static Optional<Value> castSubIndexOpIndex(OpBuilder &Builder, Location Loc,
-                                           ValueCategory Pointer,
-                                           ValueRange IdxList, bool IsSigned) {
+static std::optional<Value>
+castSubIndexOpIndex(OpBuilder &Builder, Location Loc, ValueCategory Pointer,
+                    ValueRange IdxList, bool IsSigned) {
   if (isa<MemRefType>(Pointer.val.getType())) {
     assert(IdxList.size() == 1 && "SubIndexOp accepts just an index");
     return ValueCategory(IdxList.front(), false)
@@ -2827,7 +2827,7 @@ ValueCategory MLIRScanner::EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,
              [](mlir::Value Val) { return isa<IntegerType>(Val.getType()); }) &&
          "Expecting indices list");
 
-  Optional<Value> NewValue =
+  std::optional<Value> NewValue =
       castSubIndexOpIndex(Builder, Loc, Pointer, IdxList, IsSigned);
   if (NewValue.has_value())
     IdxList = NewValue.value();
@@ -2925,7 +2925,7 @@ ValueCategory MLIRScanner::EmitPointerArithmetic(const BinOpInfo &Info) {
 
   auto ElemTy = Glob.getTypes().getMLIRTypeForMem(ElementType);
   if (CGM.getLangOpts().isSignedOverflowDefined()) {
-    if (Optional<Value> NewIndex =
+    if (std::optional<Value> NewIndex =
             castSubIndexOpIndex(Builder, Loc, Pointer, Index.val, IsSigned))
       Index.val = *NewIndex;
     return Pointer.GEPOrSubIndex(Builder, Loc, ElemTy, Index.val);

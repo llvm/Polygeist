@@ -115,7 +115,7 @@ AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
 AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
                                          MLIRContext &Ctx) {
   for (const NamedAttribute &NewFnAttr : Attrs) {
-    Optional<NamedAttribute> ExistingFnAttr =
+    std::optional<NamedAttribute> ExistingFnAttr =
         FnAttrs.getNamed(NewFnAttr.getName());
     if (!ExistingFnAttr) {
       FnAttrs.append(NewFnAttr);
@@ -143,7 +143,7 @@ AttributeList &AttributeList::addRetAttrs(const AttrBuilder &B) {
 AttributeList &AttributeList::addRetAttrs(const mlir::NamedAttrList &Attrs,
                                           mlir::MLIRContext &Ctx) {
   for (const NamedAttribute &NewNamedAttr : Attrs) {
-    Optional<NamedAttribute> ExistingAttr =
+    std::optional<NamedAttribute> ExistingAttr =
         RetAttrs.getNamed(NewNamedAttr.getName());
     if (!ExistingAttr) {
       RetAttrs.append(NewNamedAttr);
@@ -257,25 +257,25 @@ bool AttrBuilder::contains(llvm::Attribute::AttrKind Kind) const {
   return contains(AttrName);
 }
 
-Optional<NamedAttribute> AttrBuilder::getAttribute(StringRef AttrName) const {
+std::optional<NamedAttribute>
+AttrBuilder::getAttribute(StringRef AttrName) const {
   return Attrs.getNamed(AttrName);
 }
 
-Optional<NamedAttribute>
+std::optional<NamedAttribute>
 AttrBuilder::getAttribute(llvm::Attribute::AttrKind Kind) const {
   StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
   return getAttribute(AttrName);
 }
 
-StringAttr AttrBuilder::createStringAttribute(Twine AttrName,
-                                              Optional<StringLiteral> Prefix,
-                                              MLIRContext &Ctx) {
+StringAttr AttrBuilder::createStringAttribute(
+    Twine AttrName, std::optional<StringLiteral> Prefix, MLIRContext &Ctx) {
   return (Prefix) ? StringAttr::get(&Ctx, *Prefix + "." + AttrName)
                   : StringAttr::get(&Ctx, AttrName);
 }
 
 AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
-                                           Optional<StringLiteral> Dialect,
+                                           std::optional<StringLiteral> Dialect,
                                            AddAttrFuncPtr AddAttrPtr) {
   assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
 
@@ -294,7 +294,7 @@ AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
 
 AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
                                            mlir::Type Ty,
-                                           Optional<StringLiteral> Dialect,
+                                           std::optional<StringLiteral> Dialect,
                                            AddAttrFuncPtr AddAttrPtr) {
   assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
 
@@ -392,7 +392,7 @@ AttrBuilder::addPassThroughRawIntAttr(llvm::Attribute::AttrKind Kind,
 }
 
 NamedAttribute AttrBuilder::getOrCreatePassThroughAttr() const {
-  Optional<NamedAttribute> PassThroughAttr =
+  std::optional<NamedAttribute> PassThroughAttr =
       getAttribute(AttributeList::PassThroughAttrName);
   if (!PassThroughAttr) {
     LLVM_DEBUG(llvm::dbgs()
