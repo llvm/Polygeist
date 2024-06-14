@@ -244,7 +244,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
       targetMemRef.setOffset(rewriter, loc, baseOffset);
     }
 
-    assert(idxs.size() == 1);
     MemRefDescriptor nexRef = createMemRefDescriptor(
         loc, subViewOp.getType(), targetMemRef.allocatedPtr(rewriter, loc),
         rewriter.create<LLVM::GEPOp>(loc, prev.getType(), prev.getType(), prev,
