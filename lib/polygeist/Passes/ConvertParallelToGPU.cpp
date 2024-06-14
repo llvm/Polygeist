@@ -895,6 +895,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       if (isa<scf::ParallelOp>(&op)) {
         llvm_unreachable("Unhandled case");
         break;
+      } else if (isa<scf::ReduceOp>(&op)) {
+        continue;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
       } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -948,6 +950,8 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         if (isa<scf::ParallelOp>(&op)) {
           llvm_unreachable("Unhandled case");
           break;
+        } else if (isa<scf::ReduceOp>(&op)) {
+          continue;
         } else if (isa<scf::YieldOp>(&op)) {
           continue;
         } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
@@ -1627,14 +1631,14 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
 
     rewriter.eraseOp(gridPop);
 
-    Operation *yieldOp = nullptr;
+    Operation *reduceOp = nullptr;
     for (auto &op : *launchBlock) {
-      if (auto y = dyn_cast<scf::YieldOp>(&op)) {
-        assert(!yieldOp && "Multiple yields in the final block? why?");
-        yieldOp = y;
+      if (auto y = dyn_cast<scf::ReduceOp>(&op)) {
+        assert(!reduceOp && "Multiple yields in the final block? why?");
+        reduceOp = y;
       }
     }
-    rewriter.eraseOp(yieldOp);
+    rewriter.eraseOp(reduceOp);
 
     launchBlock->walk([&](mlir::polygeist::BarrierOp op) {
       rewriter.setInsertionPoint(op);
