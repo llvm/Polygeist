@@ -1566,38 +1566,21 @@ public:
       return failure();
 
     Value idx[] = {src.getIndex()};
-    auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
     auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
-    if (PET != MET) {
-      Value ps;
-      if (PET)
-        // non-opaque pointer
-        ps = rewriter.create<polygeist::TypeSizeOp>(
-            op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
-      else
-        // opaque pointer
-        ps = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
-      auto ms = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
-      idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
-      idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
-    }
+    Value ps = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+    auto ms = rewriter.create<polygeist::TypeSizeOp>(
+        op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
+    idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
+    idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
     idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
                                                  rewriter.getI64Type(), idx[0]);
-    if (PET)
-      // non-opaque pointer
-      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-          op, op.getType(),
-          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                            src.getSource()),
-          idx);
-    else
-      // opaque pointer
-      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-          op, op.getType(), rewriter.getI8Type(),
-          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                            src.getSource()),
-          idx);
+
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, op.getType(), rewriter.getI8Type(),
+        rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
+                                          src.getSource()),
+        idx);
+
     return success();
   }
 };
@@ -1954,7 +1937,6 @@ public:
         return failure();
 
     Value val = src.getSource();
-    assert(val.getType().cast<LLVM::LLVMPointerType>().isOpaque());
 
     Value idx = nullptr;
     auto shape = mt.getShape();
