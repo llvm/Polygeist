@@ -49,9 +49,10 @@ IslScop::IslScop() {
 
 IslScop::~IslScop() {
   for (IslStmt &stmt : islStmts) {
-    for (auto &rel : stmt.accessRelations) {
+    for (auto &rel : stmt.readRelations)
       rel = isl_basic_map_free(rel);
-    }
+    for (auto &rel : stmt.writeRelations)
+      rel = isl_basic_map_free(rel);
   }
   isl_ctx_free(ctx);
 }
@@ -89,22 +90,48 @@ void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   LLVM_DEBUG(isl_space_dump(paramSpace));
 }
 
+namespace {
+struct IslStr {
+  char *s;
+  char *str() { return s; }
+  IslStr(char *s) : s(s) {}
+  ~IslStr() { free(s); }
+};
+llvm::raw_ostream &operator<<(llvm::raw_ostream &os, IslStr s) {
+  return os << s.str();
+}
+} // namespace
+
 void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
+  auto indent = [&os](unsigned n) -> llvm::raw_ostream & {
+    return os << std::string(n, ' ');
+  };
 
   isl_union_set *domain = isl_union_set_empty(paramSpace);
-  LLVM_DEBUG(isl_union_set_dump(domain));
   for (IslStmt &stmt : islStmts) {
     isl_union_set *set = isl_union_set_from_basic_set(stmt.domain);
-    LLVM_DEBUG(isl_union_set_dump(set));
     domain = isl_union_set_union(set, domain);
-    LLVM_DEBUG(isl_union_set_dump(domain));
   }
-  LLVM_DEBUG(isl_union_set_dump(domain));
-  for (IslStmt &stmt : islStmts) {
-    for (auto rel : stmt.accessRelations) {
-      LLVM_DEBUG(isl_basic_map_dump(rel));
-    }
+
+  indent(0) << "domain: " << '"' << IslStr(isl_union_set_to_str(domain)) << '"'
+            << "\n";
+
+  os << "statements:\n";
+  for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
+    auto &stmt = islStmts[stmtId];
+    indent(2) << "- " << scopStmtNames[stmtId] << ":"
+              << "\n";
+    indent(6) << "reads:"
+              << "\n";
+    for (auto rel : stmt.readRelations)
+      indent(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"'
+                << "\n";
+    indent(6) << "writes:"
+              << "\n";
+    for (auto rel : stmt.writeRelations)
+      indent(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"'
+                << "\n";
   }
   domain = isl_union_set_free(domain);
 }
