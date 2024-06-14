@@ -186,7 +186,6 @@ struct SubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
         auto zero = rewriter.create<arith::ConstantIntOp>(loc, 0, 64);
         indices.push_back(zero);
       }
-      assert(t.isOpaque());
       if (!elTy.isa<LLVM::LLVMArrayType, LLVM::LLVMStructType>())
         assert(indices.size() == 1);
       auto ptr = rewriter.create<LLVM::GEPOp>(loc, t, elTy,
@@ -776,11 +775,9 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           valueMapping.map(idx.value(), rewriter.create<LLVM::LoadOp>(
                                             loc, idx.value().getType(), next));
         }
-        auto freef =
-            getTypeConverter()->getOptions().useGenericFunctions
-                ? LLVM::lookupOrCreateGenericFreeFn(module,
-                                                    /*opaquePointers=*/true)
-                : LLVM::lookupOrCreateFreeFn(module, /*opaquePointers=*/true);
+        auto freef = getTypeConverter()->getOptions().useGenericFunctions
+                         ? LLVM::lookupOrCreateGenericFreeFn(module)
+                         : LLVM::lookupOrCreateFreeFn(module);
         Value args[] = {arg};
         rewriter.create<LLVM::CallOp>(loc, freef, args);
       }
