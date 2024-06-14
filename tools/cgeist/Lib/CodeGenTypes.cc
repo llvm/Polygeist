@@ -1331,8 +1331,8 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
       // If -memref-fullrank is unset or it cannot be fulfilled.
       auto MT = dyn_cast<MemRefType>(MLIRTy);
-      auto Shape2 = std::vector<int64_t>(MT.getShape()) Shape2[0] =
-          ShapedType::kDynamic;
+      auto Shape2 = std::vector<int64_t>(MT.getShape());
+      Shape2[0] = ShapedType::kDynamic;
       return mlir::MemRefType::get(Shape2, MT.getElementType(),
                                    MemRefLayoutAttrInterface(),
                                    MT.getMemorySpace());
