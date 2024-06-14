@@ -454,7 +454,7 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
         Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  auto AffineOp = Builder.create<omp::WsLoopOp>(Loc, Inits, Finals, Incs);
+  auto AffineOp = Builder.create<omp::WsloopOp>(Loc, Inits, Finals, Incs);
   AffineOp.getRegion().push_back(new Block());
   for (auto Init : Inits)
     AffineOp.getRegion().front().addArgument(Init.getType(), Init.getLoc());
