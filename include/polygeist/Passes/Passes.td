@@ -4,9 +4,9 @@
 include "mlir/Pass/PassBase.td"
 include "mlir/Rewrite/PassUtil.td"
 
-def AffineOpt : Pass<"affine-opt"> {
+def PolyhedralOpt : Pass<"affine-opt"> {
   let summary = "Optimize affine regions with pluto";
-  let constructor = "mlir::polygeist::createAffineOptPass()";
+  let constructor = "mlir::polygeist::createPolyhedralOptPass()";
   let dependentDialects = [
     "scf::SCFDialect",
     "arith::ArithDialect",

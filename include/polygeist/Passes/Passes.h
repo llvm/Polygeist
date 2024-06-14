@@ -39,7 +39,7 @@ std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
 std::unique_ptr<Pass> detectReductionPass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> createAffineOptPass();
+std::unique_ptr<Pass> createPolyhedralOptPass();
 std::unique_ptr<Pass> createParallelLowerPass(
     bool wrapParallelOps = false,
     PolygeistGPUStructureMode gpuKernelStructureMode = PGSM_Discard);

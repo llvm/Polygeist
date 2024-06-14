@@ -165,13 +165,13 @@ static void cleanupTempFuncs(ModuleOp m) {
   eraseWithAttr(SCOP_STMT_ATTR_NAME);
 }
 
-struct AffineOptPass : public AffineOptBase<AffineOptPass> {
-  AffineOptPass(polymer::PlutoOptPipelineOptions *plutoOpts) {}
+struct PolyhedralOptPass : public PolyhedralOptBase<PolyhedralOptPass> {
+  PolyhedralOptPass(polymer::PlutoOptPipelineOptions *plutoOpts) {}
   void runOnOperation() override;
 };
 } // namespace
 
-void AffineOptPass::runOnOperation() {
+void PolyhedralOptPass::runOnOperation() {
   // TODO use a throw-away module for each function to optimize in so as not to
   // litter scop functions around, then run the inliner in that module at the
   // end
@@ -220,8 +220,8 @@ void AffineOptPass::runOnOperation() {
   cleanupTempFuncs(m);
 }
 
-std::unique_ptr<Pass> mlir::polygeist::createAffineOptPass() {
-  return std::make_unique<AffineOptPass>(nullptr);
+std::unique_ptr<Pass> mlir::polygeist::createPolyhedralOptPass() {
+  return std::make_unique<PolyhedralOptPass>(nullptr);
 }
 
 #else
@@ -238,12 +238,12 @@ class Pass;
 using namespace mlir;
 using namespace polygeist;
 namespace {
-struct AffineOptPass : public AffineOptBase<AffineOptPass> {
+struct PolyhedralOptPass : public PolyhedralOptBase<PolyhedralOptPass> {
   void runOnOperation() override {}
 };
 } // namespace
-std::unique_ptr<mlir::Pass> mlir::polygeist::createAffineOptPass() {
-  return std::make_unique<AffineOptPass>();
+std::unique_ptr<mlir::Pass> mlir::polygeist::createPolyhedralOptPass() {
+  return std::make_unique<PolyhedralOptPass>();
 }
 
 #endif
