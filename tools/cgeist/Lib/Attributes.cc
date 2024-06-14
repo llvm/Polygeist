@@ -1,0 +1,436 @@
+//===- Attributes.cc - Construct MLIR attributes --------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "Attributes.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "llvm/Support/Debug.h"
+
+#include <algorithm>
+#include <functional>
+
+#define DEBUG_TYPE "attributes"
+
+using namespace llvm;
+using namespace mlir;
+
+namespace mlirclang {
+
+constexpr StringLiteral AttributeList::PassThroughAttrName;
+
+//===----------------------------------------------------------------------===//
+// Helper functions.
+//===----------------------------------------------------------------------===//
+
+static void addToPassThroughAttr(NamedAttribute &PassThroughAttr,
+                                 mlir::NamedAttribute Attr, MLIRContext &Ctx) {
+  assert(PassThroughAttr.getName() == AttributeList::PassThroughAttrName &&
+         "PassThroughAttr is not valid");
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
+         "PassThroughAttr should have an ArrayAttr as value");
+
+  LLVM_DEBUG(llvm::dbgs() << "Adding attribute " << Attr.getName() << " to '"
+                          << AttributeList::PassThroughAttrName << "'.\n";);
+
+  std::vector<mlir::Attribute> Vec =
+      cast<ArrayAttr>(PassThroughAttr.getValue()).getValue().vec();
+
+  // TODO: find a way to add the attributes only if one does not exist already.
+  if (isa<UnitAttr>(Attr.getValue()))
+    Vec.push_back(Attr.getName());
+  else
+    Vec.push_back(ArrayAttr::get(&Ctx, {Attr.getName(), Attr.getValue()}));
+
+  auto Comp = [&](const mlir::Attribute &A1, const mlir::Attribute &A2) {
+    assert(isa<StringAttr>(A1) || isa<ArrayAttr>(A1));
+    assert(isa<StringAttr>(A2) || isa<ArrayAttr>(A2));
+
+    if (auto StrA1 = dyn_cast<StringAttr>(A1)) {
+      if (auto StrA2 = dyn_cast<StringAttr>(A2))
+        return StrA1 < StrA2;
+      return true;
+    }
+
+    auto ArrA1 = cast<ArrayAttr>(A1);
+    if (auto ArrA2 = dyn_cast<ArrayAttr>(A2))
+      return cast<StringAttr>(ArrA1[0]) < cast<StringAttr>(ArrA2[0]);
+    return false;
+  };
+
+  llvm::sort(Vec.begin(), Vec.end(), Comp);
+  PassThroughAttr.setValue(ArrayAttr::get(&Ctx, Vec));
+
+  LLVM_DEBUG({
+    llvm::dbgs().indent(2) << AttributeList::PassThroughAttrName << ": ( ";
+    for (auto Item : Vec)
+      llvm::dbgs() << Item << " ";
+    llvm::dbgs() << ")\n";
+  });
+}
+
+static void addToPassThroughAttr(mlir::NamedAttribute &PassThroughAttr,
+                                 mlir::ArrayAttr NewAttrs, MLIRContext &Ctx) {
+  assert(PassThroughAttr.getName() == AttributeList::PassThroughAttrName &&
+         "PassThroughAttr is not valid");
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
+         "PassThroughAttr should have an ArrayAttr as value");
+
+  for (mlir::Attribute NewAttr : NewAttrs) {
+    if (auto ArrAttr = dyn_cast<ArrayAttr>(NewAttr)) {
+      assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+      NamedAttribute NamedAttr(cast<StringAttr>(ArrAttr[0]), ArrAttr[1]);
+      addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
+    } else if (auto StrAttr = dyn_cast<StringAttr>(NewAttr)) {
+      NamedAttribute NamedAttr(StrAttr, UnitAttr::get(&Ctx));
+      addToPassThroughAttr(PassThroughAttr, NamedAttr, Ctx);
+    } else
+      llvm_unreachable("Unexpected attribute kind");
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// AttributeList Method Implementations
+//===----------------------------------------------------------------------===//
+
+AttributeList::AttributeList(const mlir::NamedAttrList &FnAttrs,
+                             const mlir::NamedAttrList &RetAttrs,
+                             llvm::ArrayRef<mlir::NamedAttrList> ParamAttrs)
+    : FnAttrs(FnAttrs), RetAttrs(RetAttrs), ParamAttrs(ParamAttrs) {}
+
+AttributeList &
+AttributeList::addAttrs(const AttrBuilder &FnAttrB, const AttrBuilder &RetAttrB,
+                        llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
+  return addFnAttrs(FnAttrB).addRetAttrs(RetAttrB).addParamAttributes(Attrs);
+}
+
+AttributeList &AttributeList::addFnAttrs(const AttrBuilder &B) {
+  return addFnAttrs(B.getAttributes(), B.getContext());
+}
+
+AttributeList &AttributeList::addFnAttrs(const NamedAttrList &Attrs,
+                                         MLIRContext &Ctx) {
+  for (const NamedAttribute &NewFnAttr : Attrs) {
+    Optional<NamedAttribute> ExistingFnAttr =
+        FnAttrs.getNamed(NewFnAttr.getName());
+    if (!ExistingFnAttr) {
+      FnAttrs.append(NewFnAttr);
+      continue;
+    }
+
+    // Merge the 'passthrough' attribute lists.
+    if (ExistingFnAttr->getName() == PassThroughAttrName) {
+      auto Attrs = cast<ArrayAttr>(NewFnAttr.getValue());
+      addToPassThroughAttr(*ExistingFnAttr, Attrs, Ctx);
+      FnAttrs.set(ExistingFnAttr->getName(), ExistingFnAttr->getValue());
+      continue;
+    }
+
+    llvm_unreachable("Function attribute already exists");
+  }
+
+  return *this;
+}
+
+AttributeList &AttributeList::addRetAttrs(const AttrBuilder &B) {
+  return addRetAttrs(B.getAttributes(), B.getContext());
+}
+
+AttributeList &AttributeList::addRetAttrs(const mlir::NamedAttrList &Attrs,
+                                          mlir::MLIRContext &Ctx) {
+  for (const NamedAttribute &NewNamedAttr : Attrs) {
+    Optional<NamedAttribute> ExistingAttr =
+        RetAttrs.getNamed(NewNamedAttr.getName());
+    if (!ExistingAttr) {
+      RetAttrs.append(NewNamedAttr);
+      continue;
+    }
+    llvm_unreachable("Return value attribute already exits");
+  }
+
+  return *this;
+}
+
+AttributeList &
+AttributeList::addParamAttributes(llvm::ArrayRef<mlir::NamedAttrList> Attrs) {
+  ParamAttrs.reserve(Attrs.size());
+  llvm::append_range(ParamAttrs, Attrs);
+  return *this;
+}
+
+//===----------------------------------------------------------------------===//
+// AttrBuilder Method Implementations
+//===----------------------------------------------------------------------===//
+
+AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind Kind) {
+  return addAttributeImpl(Kind, LLVM::LLVMDialect::getDialectNamespace(),
+                          &AttrBuilder::addAttributeImpl);
+}
+
+AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind Kind,
+                                       mlir::Type Ty) {
+  return addAttributeImpl(Kind, Ty, LLVM::LLVMDialect::getDialectNamespace(),
+                          &AttrBuilder::addAttributeImpl);
+}
+
+AttrBuilder &AttrBuilder::addAttribute(llvm::Attribute::AttrKind Kind,
+                                       uint64_t Val) {
+  return addAttributeImpl(Kind, Val, &AttrBuilder::addRawIntAttr);
+}
+
+AttrBuilder &AttrBuilder::addAttribute(Twine AttrName, mlir::Attribute Attr) {
+  return addAttributeImpl(AttrName, Attr, &AttrBuilder::addAttributeImpl);
+}
+
+AttrBuilder &
+AttrBuilder::addPassThroughAttribute(llvm::Attribute::AttrKind Kind) {
+  return addAttributeImpl(Kind, std::nullopt,
+                          &AttrBuilder::addPassThroughAttributeImpl);
+}
+
+AttrBuilder &
+AttrBuilder::addPassThroughAttribute(llvm::Attribute::AttrKind Kind,
+                                     mlir::Type Ty) {
+  return addAttributeImpl(Kind, Ty, std::nullopt,
+                          &AttrBuilder::addPassThroughAttributeImpl);
+}
+
+AttrBuilder &
+AttrBuilder::addPassThroughAttribute(llvm::Attribute::AttrKind Kind,
+                                     uint64_t Val) {
+  return addAttributeImpl(Kind, Val, &AttrBuilder::addPassThroughRawIntAttr);
+}
+
+AttrBuilder &AttrBuilder::addPassThroughAttribute(StringRef AttrName,
+                                                  mlir::Attribute Attr) {
+  return addAttributeImpl(AttrName, Attr,
+                          &AttrBuilder::addPassThroughAttributeImpl);
+}
+
+AttrBuilder &AttrBuilder::removeAttribute(llvm::StringRef AttrName) {
+  bool ContainsPassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName).has_value();
+  if (ContainsPassThroughAttr) {
+    NamedAttribute PassThroughAttr =
+        getAttribute(AttributeList::PassThroughAttrName).value();
+    auto ArrAttr = cast<ArrayAttr>(PassThroughAttr.getValue());
+    std::vector<mlir::Attribute> Vec = ArrAttr.getValue().vec();
+
+    std::remove_if(Vec.begin(), Vec.end(), [AttrName](mlir::Attribute &Attr) {
+      if (isa<StringAttr>(Attr))
+        return (cast<StringAttr>(Attr).strref() == AttrName);
+      if (isa<ArrayAttr>(Attr)) {
+        auto ArrAttr = cast<ArrayAttr>(Attr);
+        assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+        return (cast<StringAttr>(ArrAttr[0]).strref() == AttrName);
+      }
+      return false;
+    });
+
+    PassThroughAttr.setValue(ArrayAttr::get(&Ctx, Vec));
+    return *this;
+  }
+
+  Attrs.erase(AttrName);
+  return *this;
+}
+
+AttrBuilder &AttrBuilder::removeAttribute(llvm::Attribute::AttrKind Kind) {
+  assert((unsigned)Kind < llvm::Attribute::EndAttrKinds &&
+         "Attribute out of range!");
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  return removeAttribute(AttrName);
+}
+
+bool AttrBuilder::contains(StringRef AttrName) const {
+  if (containsInPassThrough(AttrName))
+    return true;
+  return getAttribute(AttrName).has_value();
+}
+
+bool AttrBuilder::contains(llvm::Attribute::AttrKind Kind) const {
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  return contains(AttrName);
+}
+
+Optional<NamedAttribute> AttrBuilder::getAttribute(StringRef AttrName) const {
+  return Attrs.getNamed(AttrName);
+}
+
+Optional<NamedAttribute>
+AttrBuilder::getAttribute(llvm::Attribute::AttrKind Kind) const {
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  return getAttribute(AttrName);
+}
+
+StringAttr AttrBuilder::createStringAttribute(Twine AttrName,
+                                              Optional<StringLiteral> Prefix,
+                                              MLIRContext &Ctx) {
+  return (Prefix) ? StringAttr::get(&Ctx, *Prefix + "." + AttrName)
+                  : StringAttr::get(&Ctx, AttrName);
+}
+
+AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
+                                           Optional<StringLiteral> Dialect,
+                                           AddAttrFuncPtr AddAttrPtr) {
+  assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
+
+  // TODO: Replace with std::invoke once C++17 headers are available.
+  auto Invoke = [this](AddAttrFuncPtr AddAttrPtr,
+                       auto... Args) -> AttrBuilder & {
+    return (this->*AddAttrPtr)(Args...);
+  };
+
+  OpBuilder Builder(&Ctx);
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  NamedAttribute NamedAttr(createStringAttribute(AttrName, Dialect, Ctx),
+                           Builder.getUnitAttr());
+  return Invoke(AddAttrPtr, NamedAttr);
+}
+
+AttrBuilder &AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind,
+                                           mlir::Type Ty,
+                                           Optional<StringLiteral> Dialect,
+                                           AddAttrFuncPtr AddAttrPtr) {
+  assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
+
+  // TODO: Replace with std::invoke once C++17 headers are available.
+  auto Invoke = [this](AddAttrFuncPtr AddAttrPtr,
+                       auto... Args) -> AttrBuilder & {
+    return (this->*AddAttrPtr)(Args...);
+  };
+
+  OpBuilder Builder(&Ctx);
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  NamedAttribute NamedAttr(createStringAttribute(AttrName, Dialect, Ctx),
+                           mlir::TypeAttr::get(Ty));
+  return Invoke(AddAttrPtr, NamedAttr);
+}
+
+AttrBuilder &
+AttrBuilder::addAttributeImpl(llvm::Attribute::AttrKind Kind, uint64_t Val,
+                              AddRawIntAttrFuncPtr AddRawIntAttrPtr) {
+  assert(AddRawIntAttrPtr &&
+         "'AddRawIntAttrPtr' should be a valid function pointer");
+
+  // TODO: Replace with std::invoke once C++17 headers are available.
+  auto Invoke = [this](AddRawIntAttrFuncPtr AddRawIntAttrPtr,
+                       auto... Args) -> AttrBuilder & {
+    return (this->*AddRawIntAttrPtr)(Args...);
+  };
+
+  switch (Kind) {
+  case llvm::Attribute::AttrKind::Memory:
+    // Val can be zero for memory(none).
+    return Invoke(AddRawIntAttrPtr, Kind, Val);
+  case llvm::Attribute::AttrKind::Alignment:
+    assert(Val <= llvm::Value::MaximumAlignment && "Alignment too large");
+    return (!Val) ? *this : Invoke(AddRawIntAttrPtr, Kind, Val);
+  case llvm::Attribute::AttrKind::StackAlignment:
+    assert(Val <= 0x100 && "Alignment too large.");
+    LLVM_FALLTHROUGH;
+  case llvm::Attribute::AttrKind::Dereferenceable:
+  case llvm::Attribute::AttrKind::DereferenceableOrNull:
+  case llvm::Attribute::AttrKind::UWTable:
+    return (!Val) ? *this : Invoke(AddRawIntAttrPtr, Kind, Val);
+
+  default:
+    llvm_unreachable("Unexpected attribute kind");
+  }
+
+  return *this;
+}
+
+AttrBuilder &AttrBuilder::addAttributeImpl(Twine AttrName, mlir::Attribute Attr,
+                                           AddAttrFuncPtr AddAttrPtr) {
+  assert(AddAttrPtr && "'AddAttrPtr' should be a valid function pointer");
+
+  // TODO: Replace with std::invoke once C++17 headers are available.
+  auto Invoke = [this](AddAttrFuncPtr AddAttrPtr,
+                       auto... Args) -> AttrBuilder & {
+    return (this->*AddAttrPtr)(Args...);
+  };
+
+  NamedAttribute NamedAttr(StringAttr::get(&Ctx, AttrName), Attr);
+  return Invoke(AddAttrPtr, NamedAttr);
+}
+
+AttrBuilder &AttrBuilder::addAttributeImpl(mlir::NamedAttribute Attr) {
+  Attrs.set(Attr.getName(), Attr.getValue());
+  return *this;
+}
+
+AttrBuilder &
+AttrBuilder::addPassThroughAttributeImpl(mlir::NamedAttribute Attr) {
+  NamedAttribute PassThroughAttr = getOrCreatePassThroughAttr();
+  addToPassThroughAttr(PassThroughAttr, Attr, Ctx);
+  return addAttributeImpl(PassThroughAttr);
+}
+
+AttrBuilder &AttrBuilder::addRawIntAttr(llvm::Attribute::AttrKind Kind,
+                                        uint64_t Value) {
+  OpBuilder Builder(&Ctx);
+  NamedAttribute NamedAttr(
+      createStringAttribute(llvm::Attribute::getNameFromAttrKind(Kind),
+                            LLVM::LLVMDialect::getDialectNamespace(), Ctx),
+      Builder.getIntegerAttr(Builder.getIntegerType(64), Value));
+  return addAttributeImpl(NamedAttr);
+}
+
+AttrBuilder &
+AttrBuilder::addPassThroughRawIntAttr(llvm::Attribute::AttrKind Kind,
+                                      uint64_t Value) {
+  OpBuilder Builder(&Ctx);
+  NamedAttribute NamedAttr(
+      StringAttr::get(&Ctx, llvm::Attribute::getNameFromAttrKind(Kind)),
+      StringAttr::get(&Ctx, Twine(Value)));
+  return addPassThroughAttributeImpl(NamedAttr);
+}
+
+NamedAttribute AttrBuilder::getOrCreatePassThroughAttr() const {
+  Optional<NamedAttribute> PassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName);
+  if (!PassThroughAttr) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Creating empty '" << AttributeList::PassThroughAttrName
+               << "' attribute\n");
+    PassThroughAttr = NamedAttribute(
+        StringAttr::get(&Ctx, AttributeList::PassThroughAttrName),
+        ArrayAttr::get(&Ctx, {}));
+  }
+  return *PassThroughAttr;
+}
+
+bool AttrBuilder::containsInPassThrough(StringRef AttrName) const {
+  if (!getAttribute(AttributeList::PassThroughAttrName).has_value())
+    return false;
+
+  NamedAttribute PassThroughAttr =
+      getAttribute(AttributeList::PassThroughAttrName).value();
+  assert(isa<ArrayAttr>(PassThroughAttr.getValue()) &&
+         "passthrough attribute value should be an ArrayAttr");
+
+  return llvm::any_of(
+      cast<ArrayAttr>(PassThroughAttr.getValue()),
+      [AttrName](mlir::Attribute Attr) {
+        if (isa<ArrayAttr>(Attr)) {
+          auto ArrAttr = cast<ArrayAttr>(Attr);
+          assert(ArrAttr.size() == 2 && isa<StringAttr>(ArrAttr[0]));
+          return cast<StringAttr>(ArrAttr[0]) == AttrName;
+        }
+
+        assert(isa<StringAttr>(Attr) && "Unexpected attribute Kind");
+        return cast<StringAttr>(Attr) == AttrName;
+      });
+}
+
+bool AttrBuilder::containsInPassThrough(llvm::Attribute::AttrKind Kind) const {
+  StringRef AttrName = llvm::Attribute::getNameFromAttrKind(Kind);
+  return containsInPassThrough(AttrName);
+}
+
+} // end namespace mlirclang

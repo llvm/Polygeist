@@ -1,15 +1,15 @@
-// RUN: cgeist %s %stdinclude -S | FileCheck %s
+// RUN: cgeist -omit-fp-contract %s -O2 %stdinclude -S | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
-// RUN: cgeist %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: cgeist -omit-fp-contract %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
-// RUN: rm -f %s.exec2 %s.execm
+// RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time 
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
@@ -124,15 +124,15 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: [[MAP:#map.*]] = affine_map<()[s0] -> (s0 - 1)>
 
 // CHECK: func @kernel_seidel_2d(%arg0: i32, %arg1: i32, %arg2: memref<?x2000xf64>)
 // CHECK-NEXT:      %cst = arith.constant 9.000000e+00 : f64
 // CHECK-DAG:      %[[a0cst:.+]] = arith.index_cast %arg0 : i32 to index
 // CHECK-DAG:      %[[a1cst:.+]] = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:      affine.for %arg3 = 0 to %[[a0cst]] {
-// CHECK-NEXT:        affine.for %arg4 = 1 to #map()[%[[a1cst]]] {
-// CHECK-NEXT:          affine.for %arg5 = 1 to #map()[%[[a1cst]]] {
+// CHECK-NEXT:        affine.for %arg4 = 1 to [[MAP]]()[%[[a1cst]]] {
+// CHECK-NEXT:          affine.for %arg5 = 1 to [[MAP]]()[%[[a1cst]]] {
 // CHECK-NEXT:            %2 = affine.load %arg2[%arg4 - 1, %arg5 - 1] : memref<?x2000xf64>
 // CHECK-NEXT:            %3 = affine.load %arg2[%arg4 - 1, %arg5] : memref<?x2000xf64>
 // CHECK-NEXT:            %4 = arith.addf %2, %3 : f64

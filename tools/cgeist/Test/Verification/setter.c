@@ -10,18 +10,18 @@ void kernel_deriche() {
     sub0(&a);
 }
 
-// CHECK:  func @sub(%[[arg0:.+]]: memref<?xi32>)
-// CHECK-NEXT:    %[[c3_i32:.+]] = arith.constant 3 : i32
-// CHECK-NEXT:    affine.store %[[c3_i32]], %[[arg0]][0] : memref<?xi32>
+// CHECK:  func @sub(%arg0: memref<?xi32>)
+// CHECK-NEXT:    %c3_i32 = arith.constant 3 : i32
+// CHECK-NEXT:    affine.store %c3_i32, %arg0[0] : memref<?xi32>
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 
 // CHECK:  func @kernel_deriche()
-// CHECK-NEXT:    %[[V0:.+]] = memref.alloca() : memref<1xi32>
-// CHECK-NEXT:    %[[V1:.+]] = llvm.mlir.undef : i32
-// CHECK-NEXT:    affine.store %[[V1]], %[[V0]][0] : memref<1xi32>
-// CHECK-NEXT:    %[[V2:.+]] = memref.cast %[[V0]] : memref<1xi32> to memref<?xi32>
-// CHECK-NEXT:    call @sub0(%[[V2]]) : (memref<?xi32>) -> ()
+// CHECK-NEXT:    %alloca = memref.alloca() : memref<1xi32>
+// CHECK-NEXT:    %0 = llvm.mlir.undef : i32
+// CHECK-NEXT:    affine.store %0, %alloca[0] : memref<1xi32>
+// CHECK-NEXT:    %cast = memref.cast %alloca : memref<1xi32> to memref<?xi32>
+// CHECK-NEXT:    call @sub0(%cast) : (memref<?xi32>) -> ()
 // CHECK-NEXT:    return
 // CHECK-NEXT:  }
 

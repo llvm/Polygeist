@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist  %s -O0 --function=* -S | FileCheck %s
 
 extern "C" {
 
@@ -10,37 +10,38 @@ double kernel_deriche(int x, float y) {
 }
 
 }
+
 // CHECK-LABEL:   func.func @kernel_deriche(
-// CHECK-SAME:                              %[[VAL_0:[A-Za-z0-9_]*]]: i32,
-// CHECK-SAME:                              %[[VAL_1:[A-Za-z0-9_]*]]: f32) -> f64  
-// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(memref<?xf32>, i32)>>
-// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = memref.cast %[[VAL_2]] : memref<1x!llvm.struct<(memref<?xf32>, i32)>> to memref<?x!llvm.struct<(memref<?xf32>, i32)>>
-// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x!llvm.struct<(memref<?xf32>, i32)>>
-// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = memref.alloca() : memref<1xf32>
-// CHECK:           affine.store %[[VAL_1]], %[[VAL_5]][0] : memref<1xf32>
-// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = memref.cast %[[VAL_5]] : memref<1xf32> to memref<?xf32>
-// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_4]]) : (memref<1x!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_6]], %[[VAL_7]] : memref<?xf32>, !llvm.ptr
-// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_7]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
-// CHECK:           llvm.store %[[VAL_0]], %[[VAL_8]] : i32, !llvm.ptr
-// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = affine.load %[[VAL_4]][0] : memref<1x!llvm.struct<(memref<?xf32>, i32)>>
-// CHECK:           affine.store %[[VAL_9]], %[[VAL_2]][0] : memref<1x!llvm.struct<(memref<?xf32>, i32)>>
-// CHECK:           call @_ZZ14kernel_dericheENK3$_0clEv(%[[VAL_3]]) : (memref<?x!llvm.struct<(memref<?xf32>, i32)>>) -> ()
-// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = affine.load %[[VAL_5]][0] : memref<1xf32>
-// CHECK:           %[[VAL_11:[A-Za-z0-9_]*]] = arith.extf %[[VAL_10]] : f32 to f64
-// CHECK:           return %[[VAL_11]] : f64
-// CHECK:         }
+// CHECK-SAME:                              %[[VAL_0:.*]]: i32,
+// CHECK-SAME:                              %[[VAL_1:.*]]: f32) -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(memref<?xf32>, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(memref<?xf32>, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = memref.alloca() : memref<1xf32>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.mlir.undef : f32
+// CHECK-NEXT:      affine.store %[[VAL_1]], %[[VAL_5]][0] : memref<1xf32>
+// CHECK-NEXT:      %[[VAL_7:.*]] = memref.cast %[[VAL_5]] : memref<1xf32> to memref<?xf32>
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_7]], %[[VAL_8]] : memref<?xf32>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_9]] : i32, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr -> !llvm.struct<(memref<?xf32>, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_10]], %[[VAL_3]] : !llvm.struct<(memref<?xf32>, i32)>, !llvm.ptr
+// CHECK-NEXT:      call @_ZZ14kernel_dericheENK3$_0clEv(%[[VAL_3]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_11:.*]] = affine.load %[[VAL_5]][0] : memref<1xf32>
+// CHECK-NEXT:      %[[VAL_12:.*]] = arith.extf %[[VAL_11]] : f32 to f64
+// CHECK-NEXT:      return %[[VAL_12]] : f64
+// CHECK-NEXT:    }
 
 // CHECK-LABEL:   func.func private @_ZZ14kernel_dericheENK3$_0clEv(
-// CHECK-SAME:                                                      %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x!llvm.struct<(memref<?xf32>, i32)>>)  
-// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?x!llvm.struct<(memref<?xf32>, i32)>>) -> !llvm.ptr
-// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> memref<?xf32>
-// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.getelementptr %[[VAL_1]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
-// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i32
-// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = arith.sitofp %[[VAL_4]] : i32 to f32
-// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = affine.load %[[VAL_2]][0] : memref<?xf32>
-// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = arith.mulf %[[VAL_6]], %[[VAL_5]] : f32
-// CHECK:           affine.store %[[VAL_7]], %[[VAL_2]][0] : memref<?xf32>
-// CHECK:           return
-// CHECK:         }
-
+// CHECK-SAME:                                                      %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<internal>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> i32
+// CHECK-NEXT:      %[[VAL_3:.*]] = arith.sitofp %[[VAL_2]] : i32 to f32
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(memref<?xf32>, i32)>
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.load %[[VAL_4]] : !llvm.ptr -> memref<?xf32>
+// CHECK-NEXT:      %[[VAL_6:.*]] = affine.load %[[VAL_5]][0] : memref<?xf32>
+// CHECK-NEXT:      %[[VAL_7:.*]] = arith.mulf %[[VAL_6]], %[[VAL_3]] : f32
+// CHECK-NEXT:      affine.store %[[VAL_7]], %[[VAL_5]][0] : memref<?xf32>
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

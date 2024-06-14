@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=* -S | FileCheck %s
 
 typedef struct {
   int a, b;
@@ -18,25 +18,33 @@ int create() {
   return p2.a;
 }
 
-// CHECK:   func @byval(%[[arg0:.+]]: memref<?x2xi32>, %[[arg1:.+]]: i32, %[[arg2:.+]]: memref<?x2xi32>)
-// CHECK-NEXT:     affine.store %[[arg1]], %[[arg0]][0, 1] : memref<?x2xi32>
-// CHECK-NEXT:     %[[V0:.+]] = affine.load %[[arg0]][0, 0] : memref<?x2xi32>
-// CHECK-NEXT:     affine.store %[[V0]], %[[arg2]][0, 0] : memref<?x2xi32>
-// CHECK-NEXT:     %[[V1:.+]] = affine.load %[[arg0]][0, 1] : memref<?x2xi32>
-// CHECK-NEXT:     affine.store %[[V1]], %[[arg2]][0, 1] : memref<?x2xi32>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
-// CHECK:   func @create() -> i32
-// CHECK-DAG:     %[[c2_i32:.+]] = arith.constant 2 : i32
-// CHECK-DAG:     %[[c1_i32:.+]] = arith.constant 1 : i32
-// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %[[c0_i32]], %[[V1]][0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %[[c1_i32]], %[[V1]][0, 1] : memref<1x2xi32>
-// CHECK-NEXT:     %[[V2:.+]] = memref.cast %[[V1]] : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     %[[V3:.+]] = memref.cast %[[V0]] : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     call @byval0(%[[V2]], %[[c2_i32]], %[[V3]]) : (memref<?x2xi32>, i32, memref<?x2xi32>) -> ()
-// CHECK-NEXT:     %[[V4:.+]] = affine.load %[[V0]][0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     return %[[V4]] : i32
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @byval(
+// CHECK-SAME:                     %[[VAL_0:.*]]: !llvm.struct<(i32, i32)>,
+// CHECK-SAME:                     %[[VAL_1:.*]]: i32) -> !llvm.struct<(i32, i32)> attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_0]], %[[VAL_3]] : !llvm.struct<(i32, i32)>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.getelementptr inbounds %[[VAL_3]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_4]] : i32, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      return %[[VAL_5]] : !llvm.struct<(i32, i32)>
+// CHECK-NEXT:    }
+
+// CHECK-LABEL:   func.func @create() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-DAG:       %[[VAL_0:.*]] = arith.constant 2 : i32
+// CHECK-DAG:       %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK-DAG:       %[[VAL_2:.*]] = arith.constant 0 : i32
+// CHECK-DAG:       %[[VAL_3:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<(i32, i32)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.getelementptr inbounds %[[VAL_5]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_2]], %[[VAL_6]] : i32, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.getelementptr inbounds %[[VAL_5]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_7]] : i32, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      %[[VAL_9:.*]] = call @byval0(%[[VAL_8]], %[[VAL_0]]) : (!llvm.struct<(i32, i32)>, i32) -> !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      llvm.store %[[VAL_9]], %[[VAL_4]] : !llvm.struct<(i32, i32)>, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.getelementptr inbounds %[[VAL_4]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i32, i32)>
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.load %[[VAL_10]] : !llvm.ptr -> i32
+// CHECK-NEXT:      return %[[VAL_11]] : i32
+// CHECK-NEXT:    }

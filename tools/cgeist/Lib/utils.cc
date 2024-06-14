@@ -9,66 +9,112 @@
 #include "utils.h"
 #include "clang-mlir.h"
 
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/Operation.h"
-#include "mlir/IR/OperationSupport.h"
-#include "mlir/IR/Value.h"
-#include "mlir/Interfaces/FunctionInterfaces.h"
-
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/StringRef.h"
+#include "clang/AST/Expr.h"
 
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/Utils/Utils.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/Value.h"
 
-#include "clang/AST/Expr.h"
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
-using namespace llvm;
-using namespace clang;
 
-Operation *buildLinalgOp(StringRef name, OpBuilder &b,
-                         SmallVectorImpl<mlir::Value> &input,
-                         SmallVectorImpl<mlir::Value> &output) {
-  if (name.compare("memref.copy") == 0) {
-    assert(input.size() == 1 && "memref::copyOp requires 1 input");
-    assert(output.size() == 1 && "memref::CopyOp requires 1 output");
-    return b.create<memref::CopyOp>(b.getUnknownLoc(), input[0], output[0]);
-  } else {
-    llvm::report_fatal_error(llvm::Twine("builder not supported for: ") + name);
-    return nullptr;
+namespace mlirclang {
+
+Operation *buildLinalgOp(llvm::StringRef Name, OpBuilder &B,
+                         llvm::SmallVectorImpl<Value> &Input,
+                         llvm::SmallVectorImpl<Value> &Output) {
+  if (Name.compare("memref.copy") == 0) {
+    assert(Input.size() == 1 && "memref::copyOp requires 1 input");
+    assert(Output.size() == 1 && "memref::CopyOp requires 1 output");
+    return B.create<memref::CopyOp>(B.getUnknownLoc(), Input[0], Output[0]);
   }
+
+  llvm::report_fatal_error(llvm::Twine("builder not supported for: ") + Name);
+  return nullptr;
 }
 
-Operation *mlirclang::replaceFuncByOperation(
-    func::FuncOp f, StringRef opName, OpBuilder &b,
-    SmallVectorImpl<mlir::Value> &input, SmallVectorImpl<mlir::Value> &output) {
-  MLIRContext *ctx = f->getContext();
-  if (!ctx->isOperationRegistered(opName)) {
-    ctx->allowUnregisteredDialects();
-    llvm::errs() << " warning unregistered dialect op: " << opName << "\n";
-  }
+Operation *replaceFuncByOperation(func::FuncOp F, llvm::StringRef OpName,
+                                  OpBuilder &B,
+                                  llvm::SmallVectorImpl<Value> &Input,
+                                  llvm::SmallVectorImpl<Value> &Output) {
+  MLIRContext *Ctx = F->getContext();
+  assert(Ctx->isOperationRegistered(OpName) &&
+         "Provided lower_to opName should be registered.");
 
-  if (opName.startswith("memref"))
-    return buildLinalgOp(opName, b, input, output);
+  if (OpName.starts_with("memref"))
+    return buildLinalgOp(OpName, B, Input, Output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.
-  OperationState opState(b.getUnknownLoc(), opName, input, f.getResultTypes(),
+  OperationState OpState(B.getUnknownLoc(), OpName, Input, F.getResultTypes(),
                          {});
-  return b.create(opState);
+  return B.create(OpState);
 }
 
-mlir::Value mlirclang::castInteger(mlir::OpBuilder &builder,
-                                   mlir::Location &loc, mlir::Value v,
-                                   mlir::Type postTy_) {
-  auto prevTy = v.getType().cast<mlir::IntegerType>();
-  auto postTy = postTy_.cast<mlir::IntegerType>();
-  if (prevTy.getWidth() < postTy.getWidth())
-    return builder.create<mlir::arith::ExtUIOp>(loc, postTy, v);
-  else if (prevTy.getWidth() > postTy.getWidth())
-    return builder.create<mlir::arith::TruncIOp>(loc, postTy, v);
-  else
-    return v;
+NamespaceKind getNamespaceKind(const clang::DeclContext *DC) {
+  if (!DC)
+    return NamespaceKind::Other;
+
+  // Skip inline namespaces.
+  while (DC && DC->isInlineNamespace())
+    DC = DC->getParent();
+
+  if (const auto *ND = dyn_cast<clang::NamespaceDecl>(DC)) {
+    if (const auto *II = ND->getIdentifier()) {
+      if (II->isStr("sycl"))
+        return NamespaceKind::SYCL;
+    }
+  }
+
+  if (DC->getParent() &&
+      getNamespaceKind(DC->getParent()) != NamespaceKind::Other)
+    return NamespaceKind::WithinSYCL;
+
+  return NamespaceKind::Other;
 }
+
+gpu::GPUModuleOp getDeviceModule(ModuleOp Module) {
+  return cast<gpu::GPUModuleOp>(Module.lookupSymbol(DeviceModuleName));
+}
+
+void setInsertionPoint(OpBuilder &Builder, InsertionContext FuncContext,
+                       ModuleOp Module) {
+  switch (FuncContext) {
+  case InsertionContext::SYCLDevice:
+    Builder.setInsertionPointToStart(
+        mlirclang::getDeviceModule(Module).getBody());
+    break;
+  case InsertionContext::Host:
+    Builder.setInsertionPointToStart(Module.getBody());
+    break;
+  }
+}
+
+arith::FastMathFlagsAttr getFastMathFlags(mlir::Builder &Builder,
+                                          clang::FPOptions FPFeatures) {
+  arith::FastMathFlags FMF =
+      arith::FastMathFlags::none |
+      (FPFeatures.getAllowFPReassociate() ? arith::FastMathFlags::reassoc
+                                          : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorNaNs() ? arith::FastMathFlags::nnan
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoHonorInfs() ? arith::FastMathFlags::ninf
+                                   : arith::FastMathFlags::none) |
+      (FPFeatures.getNoSignedZero() ? arith::FastMathFlags::nsz
+                                    : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowReciprocal() ? arith::FastMathFlags::arcp
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.getAllowApproxFunc() ? arith::FastMathFlags::afn
+                                       : arith::FastMathFlags::none) |
+      (FPFeatures.allowFPContractAcrossStatement()
+           ? arith::FastMathFlags::contract
+           : arith::FastMathFlags::none);
+  return Builder.getAttr<arith::FastMathFlagsAttr>(FMF);
+}
+
+} // namespace mlirclang

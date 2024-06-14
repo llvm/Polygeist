@@ -1,16 +1,16 @@
-// RUN: cgeist %s %stdinclude -S | FileCheck %s
-// RUN: cgeist %s %stdinclude -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist -omit-fp-contract %s %stdinclude -S | FileCheck %s
+// RUN: cgeist -omit-fp-contract %s %stdinclude -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
-// RUN: cgeist %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: cgeist -omit-fp-contract %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
-// RUN: rm -f %s.exec2 %s.execm
+// RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
@@ -164,7 +164,7 @@ int main(int argc, char** argv)
 // FULLRANK: func @kernel_gemm(%{{.*}}: i32, %{{.*}}: i32, %{{.*}}: i32, %{{.*}}: f64, %{{.*}}: f64, %{{.*}}: memref<1000x1100xf64>, %{{.*}}: memref<1000x1200xf64>, %{{.*}}: memref<1200x1100xf64>)
 
 // CHECK:   func @kernel_gemm(%arg0: i32, %arg1: i32, %arg2: i32, %arg3: f64, %arg4: f64, %arg5: memref<?x1100xf64>, %arg6: memref<?x1200xf64>, %arg7: memref<?x1100xf64>)
-// CHECK-DAG:    %[[i0:.+]] = arith.index_cast %arg0 : i32 to index  
+// CHECK-DAG:    %[[i0:.+]] = arith.index_cast %arg0 : i32 to index
 // CHECK-DAG:    %[[i1:.+]] = arith.index_cast %arg1 : i32 to index
 // CHECK-DAG:    %[[i2:.+]] = arith.index_cast %arg2 : i32 to index
 // CHECK-DAG:    affine.for %arg8 = 0 to %[[i0]] {

@@ -1,18 +1,19 @@
-// RUN: cgeist %s %stdinclude --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S | FileCheck %s
 
 #include <stdlib.h>
     struct band {
-        int dimX;
+        int dimX; 
     };
     struct dimensions {
         struct band LL;
     };
-void writeNStage2DDWT(struct dimensions* bandDims)
+void writeNStage2DDWT(struct dimensions* bandDims) 
 {
     free(bandDims);
 }
 
-// CHECK:   func @writeNStage2DDWT(%[[arg0:.+]]: memref<?x!llvm.struct<(struct<(i32)>)>>)  
-// CHECK-NEXT:     memref.dealloc %[[arg0]] : memref<?x!llvm.struct<(struct<(i32)>)>>
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @writeNStage2DDWT(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !llvm.ptr) attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      call @free(%[[VAL_0]]) : (!llvm.ptr) -> ()
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

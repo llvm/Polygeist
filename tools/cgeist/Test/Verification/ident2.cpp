@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist  -O0 -w %s --function=* -S | FileCheck %s
 
 struct MOperandInfo {
   char device;
@@ -11,8 +11,8 @@ struct MOperandInfo& inner() {
   return begin()[0];
 }
 
-// CHECK:   func @_Z5innerv() -> memref<?x2xi8>  
-// CHECK-NEXT:     %[[V0:.+]] = call @_Z5beginv() : () -> memref<?x2xi8>
-// CHECK-NEXT:     return %[[V0]] : memref<?x2xi8>
-// CHECK-NEXT:   }
-// CHECK-NEXT:   func private @_Z5beginv() -> memref<?x2xi8> 
+// CHECK-LABEL:   func.func @_Z5innerv() -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_0:.*]] = call @_Z5beginv() : () -> !llvm.ptr
+// CHECK-NEXT:      return %[[VAL_0]] : !llvm.ptr
+// CHECK-NEXT:    }
+// CHECK-NEXT:    func.func private @_Z5beginv() -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<external>}

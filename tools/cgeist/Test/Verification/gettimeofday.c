@@ -1,4 +1,4 @@
-// RUN: cgeist %s %stdinclude --function=alloc -S | FileCheck %s
+// RUN: cgeist -O0 -w %s %stdinclude --function=alloc -S | FileCheck %s
 
 #include <time.h>
 #include <sys/time.h>
@@ -8,20 +8,18 @@ double alloc() {
   return Tp.tv_sec + Tp.tv_usec * 1.0e-6;
 }
 
-
-
-// CHECK-LABEL:   func.func @alloc() -> f64  
-// CHECK-DAG:           %[[VAL_0:[A-Za-z0-9_]*]] = arith.constant 9.9999999999999995E-7 : f64
-// CHECK-DAG:           %[[VAL_1:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x2xi64>
-// CHECK-DAG:           %[[VAL_2:[A-Za-z0-9_]*]] = memref.cast %[[VAL_1]] : memref<1x2xi64> to memref<?x2xi64>
-// CHECK-DAG:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.mlir.zero : !llvm.ptr
-// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_3]]) : (!llvm.ptr) -> memref<[[MEMREF_TY:.*]]>
-// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = call @gettimeofday(%[[VAL_2]], %[[VAL_4]]) : (memref<?x2xi64>, memref<[[MEMREF_TY:.*]]>) -> i32
-// CHECK:           %[[VAL_6:[A-Za-z0-9_]*]] = affine.load %[[VAL_1]][0, 0] : memref<1x2xi64>
-// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = arith.sitofp %[[VAL_6]] : i64 to f64
-// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = affine.load %[[VAL_1]][0, 1] : memref<1x2xi64>
-// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = arith.sitofp %[[VAL_8]] : i64 to f64
-// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = arith.mulf %[[VAL_9]], %[[VAL_0]] : f64
-// CHECK:           %[[VAL_11:[A-Za-z0-9_]*]] = arith.addf %[[VAL_7]], %[[VAL_10]] : f64
-// CHECK:           return %[[VAL_11]] : f64
-// CHECK:         }
+// CHECK:         func.func @alloc() -> f64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_0:.*]] = arith.constant 9.9999999999999995E-7 : f64
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i64, i64)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.zero : !llvm.ptr
+// CHECK:           %[[VAL_4:.*]] = call @gettimeofday(%[[VAL_2]], %[[VAL_3]]) : (!llvm.ptr, !llvm.ptr) -> i32
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i64, i64)>
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.load %[[VAL_5]] : !llvm.ptr -> i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = arith.sitofp %[[VAL_6]] : i64 to f64
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.getelementptr inbounds %[[VAL_2]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(i64, i64)>
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.load %[[VAL_8]] : !llvm.ptr -> i64
+// CHECK-NEXT:      %[[VAL_10:.*]] = arith.sitofp %[[VAL_9]] : i64 to f64
+// CHECK-NEXT:      %[[VAL_11:.*]] = math.fma %[[VAL_10]], %[[VAL_0]], %[[VAL_7]] : f64
+// CHECK-NEXT:      return %[[VAL_11]] : f64
+// CHECK-NEXT:    }

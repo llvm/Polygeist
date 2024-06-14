@@ -10,9 +10,13 @@
 #define CLANG_MLIR_H
 
 #include "AffineUtils.h"
+#include "Attributes.h"
+#include "CodeGenTypes.h"
 #include "ValueCategory.h"
+
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
@@ -23,10 +27,12 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
-#include "mlir/Target/LLVMIR/TypeFromLLVM.h"
-#include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "pragmaHandler.h"
+
+#include "clang/../../lib/CodeGen/CGRecordLayout.h"
+#include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/ASTConsumer.h"
+#include "clang/AST/Mangle.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/HeaderSearchOptions.h"
@@ -35,254 +41,415 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/CommandLine.h"
 
-#include "clang/../../lib/CodeGen/CGRecordLayout.h"
-#include "clang/../../lib/CodeGen/CodeGenModule.h"
-#include "clang/AST/Mangle.h"
-
-using namespace clang;
-using namespace mlir;
-
 extern llvm::cl::opt<std::string> PrefixABI;
 
+namespace mlir {
+namespace sycl {
+class SYCLMethodOpInterface;
+} // namespace sycl
+} // namespace mlir
+
+namespace mlirclang {
+namespace CodeGen {
+class CodeGenTypes;
+} // namespace CodeGen
+} // namespace mlirclang
+
 struct LoopContext {
-  mlir::Value keepRunning;
-  mlir::Value noBreak;
+  mlir::Value KeepRunning;
+  mlir::Value NoBreak;
 };
 
-struct MLIRASTConsumer : public ASTConsumer {
-  std::set<std::string> &emitIfFound;
-  std::set<std::string> &done;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals;
-  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals;
-  std::map<std::string, mlir::func::FuncOp> &functions;
-  std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals;
-  std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions;
-  Preprocessor &PP;
-  ASTContext &astContext;
-  mlir::OwningOpRef<mlir::ModuleOp> &module;
+class BinOpInfo;
+
+/// Context in which a function or a global is located.
+enum class InsertionContext {
+  Host,      ///< Host context
+  SYCLDevice ///< SYCL Device context
+};
+
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &Out,
+                                     const InsertionContext &Context) {
+  switch (Context) {
+  case InsertionContext::Host:
+    Out << "Host";
+    break;
+  case InsertionContext::SYCLDevice:
+    Out << "SYCLDevice";
+    break;
+  }
+  return Out;
+}
+
+/// class encapsulating a function declaration and its context.
+/// Note: SYCL kernel & device functions should always be in a SYCLDevice
+///       context. Any other functions may be in a host or device context.
+class FunctionToEmit {
+public:
+  // Note: the context is determined from the given function declarator.
+  explicit FunctionToEmit(const clang::FunctionDecl &FuncDecl)
+      : FuncDecl(FuncDecl),
+        FuncContext((FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                     FuncDecl.hasAttr<clang::SYCLDeviceAttr>())
+                        ? InsertionContext::SYCLDevice
+                        : InsertionContext::Host) {}
+
+  /// Note: set the context requested, ensuring a host context is not requested
+  /// for SYCL kernel/functions.
+  FunctionToEmit(const clang::FunctionDecl &FuncDecl,
+                 InsertionContext FuncContext)
+      : FuncDecl(FuncDecl), FuncContext(FuncContext) {
+    bool IsSyclFunc = FuncDecl.hasAttr<clang::SYCLKernelAttr>() ||
+                      FuncDecl.hasAttr<clang::SYCLDeviceAttr>();
+    (void)IsSyclFunc;
+
+    assert((FuncContext == InsertionContext::SYCLDevice ||
+            (FuncContext == InsertionContext::Host && !IsSyclFunc)) &&
+           "SYCL kernel/device functions should not have host context");
+  }
+
+  const clang::FunctionDecl &getDecl() const { return FuncDecl; }
+  InsertionContext getContext() const { return FuncContext; }
+
+private:
+  const clang::FunctionDecl &FuncDecl;
+  const InsertionContext FuncContext;
+};
+
+class MLIRASTConsumer : public clang::ASTConsumer {
+private:
+  std::set<std::string> &EmitIfFound;
+  std::set<std::pair<InsertionContext, std::string>> &Done;
+  std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals;
+  std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals;
+  std::map<std::string, mlir::func::FuncOp> &Functions;
+  std::map<std::string, mlir::FunctionOpInterface> &DeviceFunctions;
+  std::map<std::string, mlir::LLVM::GlobalOp> &LLVMGlobals;
+  std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions;
+  std::deque<FunctionToEmit> FunctionsToEmit;
+  mlir::OwningOpRef<mlir::ModuleOp> &Module;
   clang::SourceManager &SM;
-  llvm::LLVMContext lcontext;
-  llvm::Module llvmMod;
-  CodeGenOptions &codegenops;
-  CodeGen::CodeGenModule CGM;
-  bool error;
-  ScopLocList scopLocList;
+  std::unique_ptr<llvm::LLVMContext> Lcontext;
+  llvm::Module LLVMMod;
+  clang::CodeGen::CodeGenModule CGM;
+  mlirclang::CodeGen::CodeGenTypes CGTypes;
+  bool Error;
+  ScopLocList ScopLocs;
   LowerToInfo LTInfo;
+  std::map<const clang::FunctionDecl *, const clang::CodeGen::CGFunctionInfo *>
+      CGFunctionInfos;
 
-  /// The stateful type translator (contains named structs).
-  LLVM::TypeFromLLVMIRTranslator typeTranslator;
-  LLVM::TypeToLLVMIRTranslator reverseTypeTranslator;
-
+public:
   MLIRASTConsumer(
-      std::set<std::string> &emitIfFound, std::set<std::string> &done,
-      std::map<std::string, mlir::LLVM::GlobalOp> &llvmStringGlobals,
-      std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &globals,
-      std::map<std::string, mlir::func::FuncOp> &functions,
-      std::map<std::string, mlir::LLVM::GlobalOp> &llvmGlobals,
-      std::map<std::string, mlir::LLVM::LLVMFuncOp> &llvmFunctions,
-      Preprocessor &PP, ASTContext &astContext,
-      mlir::OwningOpRef<mlir::ModuleOp> &module, clang::SourceManager &SM,
-      CodeGenOptions &codegenops)
-      : emitIfFound(emitIfFound), done(done),
-        llvmStringGlobals(llvmStringGlobals), globals(globals),
-        functions(functions), llvmGlobals(llvmGlobals),
-        llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
-        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
-        codegenops(codegenops),
-        CGM(astContext, nullptr, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
-            PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
-        error(false), typeTranslator(*module->getContext()),
-        reverseTypeTranslator(lcontext) {
-    addPragmaScopHandlers(PP, scopLocList);
-    addPragmaEndScopHandlers(PP, scopLocList);
+      std::set<std::string> &EmitIfFound,
+      std::set<std::pair<InsertionContext, std::string>> &Done,
+      std::map<std::string, mlir::LLVM::GlobalOp> &LLVMStringGlobals,
+      std::map<std::string, std::pair<mlir::memref::GlobalOp, bool>> &Globals,
+      std::map<std::string, mlir::func::FuncOp> &Functions,
+      std::map<std::string, mlir::FunctionOpInterface> &DeviceFunctions,
+      std::map<std::string, mlir::LLVM::GlobalOp> &LLVMGlobals,
+      std::map<std::string, mlir::LLVM::LLVMFuncOp> &LLVMFunctions,
+      clang::Preprocessor &PP, clang::ASTContext &AstContext,
+      mlir::OwningOpRef<mlir::ModuleOp> &Module, clang::SourceManager &SM,
+      std::unique_ptr<llvm::LLVMContext> &&LCtx,
+      clang::CodeGenOptions &Codegenops, std::string ModuleId)
+      : EmitIfFound(EmitIfFound), Done(Done),
+        LLVMStringGlobals(LLVMStringGlobals), Globals(Globals),
+        Functions(Functions), DeviceFunctions(DeviceFunctions),
+        LLVMGlobals(LLVMGlobals), LLVMFunctions(LLVMFunctions),
+        FunctionsToEmit(), Module(Module), SM(SM), Lcontext(std::move(LCtx)),
+        LLVMMod(ModuleId, *Lcontext),
+        CGM(AstContext, &SM.getFileManager().getVirtualFileSystem(),
+            PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+            PP.getPreprocessorOpts(), Codegenops, LLVMMod, PP.getDiagnostics()),
+        CGTypes(CGM, Module), Error(false), ScopLocs(), LTInfo() {
+    addPragmaScopHandlers(PP, ScopLocs);
+    addPragmaEndScopHandlers(PP, ScopLocs);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
-  ~MLIRASTConsumer() {}
-
-  mlir::Type getVoidMemRefTy() const {
-    return MemRefType::get({ShapedType::kDynamic},
-                           mlir::OpBuilder(module->getContext()).getI8Type());
+  clang::CodeGen::CodeGenModule &getCGM() { return CGM; }
+  mlirclang::CodeGen::CodeGenTypes &getTypes() { return CGTypes; }
+  std::map<std::string, mlir::func::FuncOp> &getFunctions() {
+    return Functions;
   }
+  ::ScopLocList &getScopLocList() { return ScopLocs; }
 
-  mlir::func::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD,
-                                             bool getDeviceStub = false);
+  mlir::FunctionOpInterface getOrCreateMLIRFunction(FunctionToEmit &FTE,
+                                                    bool GetDeviceStub = false);
+  mlir::LLVM::LLVMFuncOp getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
+                                                 InsertionContext FuncContext);
 
-  mlir::LLVM::LLVMFuncOp GetOrCreateLLVMFunction(const FunctionDecl *FD);
-  mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction();
-  mlir::Value CallMalloc(mlir::OpBuilder &builder, mlir::Location loc,
-                         mlir::Value arg);
+  mlir::LLVM::GlobalOp getOrCreateLLVMGlobal(const clang::ValueDecl *VD,
+                                             std::string Prefix,
+                                             InsertionContext FuncContext);
 
-  mlir::LLVM::GlobalOp GetOrCreateLLVMGlobal(const ValueDecl *VD,
-                                             std::string prefix = "");
+  /// Return a value representing an access into a global string with the
+  /// given name, creating the string if necessary.
+  mlir::Value getOrCreateGlobalLLVMString(mlir::Location Loc,
+                                          mlir::OpBuilder &Builder,
+                                          clang::StringRef Value,
+                                          InsertionContext FuncContext);
 
-  /// Return a value representing an access into a global string with the given
-  /// name, creating the string if necessary.
-  mlir::Value GetOrCreateGlobalLLVMString(mlir::Location loc,
-                                          mlir::OpBuilder &builder,
-                                          StringRef value);
-
+  /// Create global variable and initialize it.
   std::pair<mlir::memref::GlobalOp, bool>
-  GetOrCreateGlobal(const ValueDecl *VD, std::string prefix,
-                    bool tryInit = true);
+  getOrCreateGlobal(const clang::ValueDecl &VD, std::string Prefix,
+                    InsertionContext FuncContext);
 
-  std::deque<const FunctionDecl *> functionsToEmit;
+  const clang::CodeGen::CGFunctionInfo &
+  getOrCreateCGFunctionInfo(const clang::FunctionDecl *FD);
 
   void run();
 
   void HandleTranslationUnit(clang::ASTContext &Context) override;
 
-  bool HandleTopLevelDecl(DeclGroupRef dg) override;
+  bool HandleTopLevelDecl(clang::DeclGroupRef DG) override;
 
-  void HandleDeclContext(DeclContext *DC);
+  void HandleDeclContext(clang::DeclContext *DC);
 
-  std::map<const clang::RecordType *, mlir::LLVM::LLVMStructType> typeCache;
-  mlir::Type getMLIRType(clang::QualType t, bool *implicitRef = nullptr,
-                         bool allowMerge = true);
+  mlir::Location getMLIRLocation(clang::SourceLocation Loc);
 
-  llvm::Type *getLLVMType(clang::QualType t);
+private:
+  /// Returns the LLVM linkage type of the given function declaration \p FD.
+  llvm::GlobalValue::LinkageTypes
+  getLLVMLinkageType(const clang::FunctionDecl &FD);
 
-  mlir::Location getMLIRLocation(clang::SourceLocation loc);
+  /// Returns the MLIR LLVM dialect linkage corresponding to \p LV.
+  static mlir::LLVM::Linkage getMLIRLinkage(llvm::GlobalValue::LinkageTypes LV);
+
+  /// Returns the MLIR Function type given clang's CGFunctionInfo \p FI.
+  mlir::FunctionType getFunctionType(const clang::CodeGen::CGFunctionInfo &FI,
+                                     const clang::FunctionDecl &FD);
+
+  /// Returns the MLIR function corresponding to \p mangledName.
+  llvm::Optional<mlir::FunctionOpInterface>
+  getMLIRFunction(const std::string &MangledName,
+                  InsertionContext Context) const;
+
+  /// Create the MLIR function corresponding to the given \p FTE.
+  /// The MLIR function is created in either the device module (GPUModuleOp) or
+  /// in the host module (ModuleOp), depending on the calling context embedded
+  /// in the FTE).
+  mlir::FunctionOpInterface createMLIRFunction(const FunctionToEmit &FTE,
+                                               std::string MangledName);
+
+  /// Set the symbol visibility on the given \p function.
+  void setMLIRFunctionVisibility(mlir::FunctionOpInterface Function,
+                                 const FunctionToEmit &FTE);
+
+  /// Set the MLIR function attributes for the given \p function.
+  void setMLIRFunctionAttributes(mlir::FunctionOpInterface Function,
+                                 const FunctionToEmit &FTE);
+
+  void setMLIRFunctionAttributesForDefinition(
+      const clang::Decl *D, mlir::FunctionOpInterface Function) const;
 };
 
-class MLIRScanner : public StmtVisitor<MLIRScanner, ValueCategory> {
-private:
+class MLIRScanner : public clang::StmtVisitor<MLIRScanner, ValueCategory> {
   friend class IfScope;
+
+private:
   MLIRASTConsumer &Glob;
-  mlir::func::FuncOp function;
-  mlir::OwningOpRef<mlir::ModuleOp> &module;
-  mlir::OpBuilder builder;
-  mlir::Block *entryBlock;
-  std::vector<LoopContext> loops;
-  mlir::Block *allocationScope;
-
-  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> bufs;
-  mlir::LLVM::AllocaOp allocateBuffer(size_t i, mlir::LLVM::LLVMPointerType t) {
-    auto &vec = bufs[t.getAsOpaquePointer()];
-    if (i < vec.size())
-      return vec[i];
-
-    mlir::OpBuilder subbuilder(builder.getContext());
-    subbuilder.setInsertionPointToStart(allocationScope);
-    auto loc = subbuilder.getUnknownLoc();
-
-    auto one = subbuilder.create<arith::ConstantIntOp>(loc, 1, 64);
-    auto rs = subbuilder.create<mlir::LLVM::AllocaOp>(loc, t, one, 0);
-    vec.push_back(rs);
-    return rs;
-  }
-
-  LLVM::LLVMPointerType getOpaquePtr() {
-    return LLVM::LLVMPointerType::get(builder.getContext());
-  }
-
-  mlir::Location getMLIRLocation(clang::SourceLocation loc);
-
-  llvm::Type *getLLVMType(clang::QualType t);
-  mlir::Type getMLIRType(clang::QualType t);
-
-  mlir::Value getTypeSize(mlir::Location loc, clang::QualType t);
-  mlir::Value getTypeAlign(mlir::Location loc, clang::QualType t);
-
-  mlir::Value createAllocOp(mlir::Type t, VarDecl *name, uint64_t memspace,
-                            bool isArray, bool LLVMABI);
-
-  const clang::FunctionDecl *EmitCallee(const Expr *E);
-
-  mlir::func::FuncOp EmitDirectCallee(const FunctionDecl *FD);
-
-  std::map<int, mlir::Value> constants;
-
-  mlir::Value castToIndex(mlir::Location loc, mlir::Value val);
-
-  mlir::Value getLLVM(Expr *E, bool isRef = false);
-
-  bool isTrivialAffineLoop(clang::ForStmt *fors,
-                           mlirclang::AffineLoopDescriptor &descr);
-
-  bool getUpperBound(clang::ForStmt *fors,
-                     mlirclang::AffineLoopDescriptor &descr);
-
-  bool getLowerBound(clang::ForStmt *fors,
-                     mlirclang::AffineLoopDescriptor &descr);
-
-  bool getConstantStep(clang::ForStmt *fors,
-                       mlirclang::AffineLoopDescriptor &descr);
-
-  void buildAffineLoop(clang::ForStmt *fors, mlir::Location loc,
-                       const mlirclang::AffineLoopDescriptor &descr);
-
-  void buildAffineLoopImpl(clang::ForStmt *fors, mlir::Location loc,
-                           mlir::Value lb, mlir::Value ub,
-                           const mlirclang::AffineLoopDescriptor &descr);
-
-public:
-  const FunctionDecl *EmittingFunctionDecl;
-  std::map<const ValueDecl *, ValueCategory> params;
-  llvm::DenseMap<const ValueDecl *, FieldDecl *> Captures;
-  llvm::DenseMap<const ValueDecl *, LambdaCaptureKind> CaptureKinds;
-  FieldDecl *ThisCapture;
-  std::vector<mlir::Value> arrayinit;
+  mlir::FunctionOpInterface Function;
+  InsertionContext FuncContext;
+  mlir::OwningOpRef<mlir::ModuleOp> &Module;
+  mlir::OpBuilder Builder;
+  mlir::Location Loc;
+  mlir::Block *EntryBlock;
+  std::vector<LoopContext> Loops;
+  mlir::Block *AllocationScope;
+  std::map<const void *, std::vector<mlir::LLVM::AllocaOp>> Bufs;
+  std::map<int, mlir::Value> Constants;
+  std::map<clang::LabelStmt *, mlir::Block *> Labels;
+  const clang::FunctionDecl *EmittingFunctionDecl;
+  std::map<const clang::ValueDecl *, ValueCategory> Params;
+  llvm::DenseMap<const clang::ValueDecl *, clang::FieldDecl *> Captures;
+  llvm::DenseMap<const clang::ValueDecl *, clang::LambdaCaptureKind>
+      CaptureKinds;
+  clang::FieldDecl *ThisCapture;
+  std::vector<mlir::Value> ArrayInit;
   ValueCategory ThisVal;
-  mlir::Value returnVal;
+  mlir::Value ReturnVal;
   LowerToInfo &LTInfo;
 
-  MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &module,
-              LowerToInfo &LTInfo);
+  // Get the \p FNum field of MemRef Value \p V of element type T. \p Shape is
+  // the shape of the result MemRef.
+  template <typename T>
+  mlir::Value SYCLCommonFieldLookup(mlir::Value V, size_t FNum,
+                                    llvm::ArrayRef<int64_t> Shape);
 
-  void init(mlir::func::FuncOp function, const FunctionDecl *fd);
+  mlir::LLVM::AllocaOp allocateBuffer(size_t I, mlir::LLVM::LLVMPointerType T,
+                                      mlir::Type ElemTy) {
+    auto &Vec = Bufs[T.getAsOpaquePointer()];
+    if (I < Vec.size())
+      return Vec[I];
 
-  void setEntryAndAllocBlock(mlir::Block *B) {
-    allocationScope = entryBlock = B;
-    builder.setInsertionPointToStart(B);
+    mlir::OpBuilder Subbuilder(Builder.getContext());
+    Subbuilder.setInsertionPointToStart(AllocationScope);
+
+    auto One = Subbuilder.create<mlir::arith::ConstantIntOp>(Loc, 1, 64);
+    auto Rs = Subbuilder.create<mlir::LLVM::AllocaOp>(Loc, T, ElemTy, One, 0);
+    Vec.push_back(Rs);
+    return Rs;
   }
 
-  mlir::OpBuilder &getBuilder();
+  mlir::Location getMLIRLocation(clang::SourceLocation Loc);
 
-  mlir::Value getConstantIndex(int x);
+  mlir::Value getTypeSize(clang::QualType Ty);
+  mlir::Value getTypeAlign(clang::QualType Ty);
 
-  ValueCategory createComplexFloat(mlir::Location loc, mlir::Value real,
-                                   mlir::Value imag, clang::QualType cty);
-  mlir::Value getComplexPart(mlir::Location loc, mlir::Value complex, int fnum);
-  ValueCategory getComplexPartRef(mlir::Location loc, mlir::Value complex,
-                                  int fnum);
+  mlir::Value createAllocOp(mlir::Type Ty, clang::VarDecl *Name,
+                            uint64_t Myspace, bool IsArray, bool LLVMABI);
 
-  ValueCategory VisitDeclStmt(clang::DeclStmt *decl);
+  const clang::FunctionDecl *EmitCallee(const clang::Expr *E);
 
-  ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *decl);
+  mlir::FunctionOpInterface EmitDirectCallee(const clang::FunctionDecl *FD,
+                                             InsertionContext Context);
 
-  ValueCategory VisitExtVectorElementExpr(clang::ExtVectorElementExpr *expr);
+  mlir::Value castToIndex(mlir::Location Loc, mlir::Value Val);
 
-  ValueCategory VisitConstantExpr(clang::ConstantExpr *expr);
+  /// Converts the \p val to the memory space \p memSpace and returns the
+  /// converted value.
+  mlir::Value castToMemSpace(mlir::Value Val, unsigned MemSpace);
 
-  ValueCategory VisitAtomicExpr(clang::AtomicExpr *expr);
+  /// Converts the \p val to the memory space of \p t and returns the
+  /// converted value.
+  mlir::Value castToMemSpaceOfType(mlir::Value Val, mlir::Type TargetType);
 
-  ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *expr);
+  bool isTrivialAffineLoop(clang::ForStmt *Fors,
+                           mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *expr);
-  ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *expr);
+  bool getUpperBound(clang::ForStmt *Fors,
+                     mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *expr);
+  bool getLowerBound(clang::ForStmt *Fors,
+                     mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitFloatingLiteral(clang::FloatingLiteral *expr);
+  bool getConstantStep(clang::ForStmt *Fors,
+                       mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitImaginaryLiteral(clang::ImaginaryLiteral *expr);
+  void buildAffineLoop(clang::ForStmt *Fors, mlir::Location Loc,
+                       const mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *expr);
+  void buildAffineLoopImpl(clang::ForStmt *Fors, mlir::Location Loc,
+                           mlir::Value LB, mlir::Value UB,
+                           const mlirclang::AffineLoopDescriptor &Descr);
 
-  ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr);
+  /// Creates an instance of SYCLMethodOpInterface if the SYCLCallOp with
+  /// function name \param functionName, parameters \param operands and
+  /// (optional) return type \param returnType can be represented as such.
+  ///
+  /// E.g., the SYCLCallOp to the accessor member function
+  /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
+  llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
+  createSYCLMethodOp(llvm::StringRef FunctionName, mlir::ValueRange Operands,
+                     llvm::Optional<mlir::Type> ReturnType);
 
-  ValueCategory VisitCXXTryStmt(clang::CXXTryStmt *stmt);
+  /// Attempts to map a call to \param FunctionName to a math operation in the
+  /// `sycl` dialect.
+  mlir::Operation *createSYCLMathOp(llvm::StringRef FunctionName,
+                                    mlir::ValueRange Operands,
+                                    mlir::Type ReturnType,
+                                    mlir::arith::FastMathFlagsAttr FMF);
 
-  ValueCategory VisitStringLiteral(clang::StringLiteral *expr);
+  /// Creates an instance of a SYCL grid operation replacing a call to \param
+  /// Callee.
+  mlir::Operation *createSYCLBuiltinOp(const clang::FunctionDecl *Callee,
+                                       mlir::Location Loc);
 
-  ValueCategory VisitParenExpr(clang::ParenExpr *expr);
+  // Reshape memref<elemTy> to memref<1 x elemTy>.
+  mlir::Value reshapeRanklessGlobal(mlir::memref::GetGlobalOp GV);
 
-  ValueCategory VisitVarDecl(clang::VarDecl *decl);
+  ValueCategory CastToVoidPtr(ValueCategory Ptr);
 
-  ValueCategory VisitForStmt(clang::ForStmt *fors);
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarCast(mlir::Location Loc, ValueCategory Src,
+                               clang::QualType SrcType, clang::QualType DstType,
+                               mlir::Type SrcTy, mlir::Type DstTy);
+  /// TODO: Add ScalarConversion options
+  ValueCategory EmitScalarConversion(ValueCategory Src, clang::QualType SrcType,
+                                     clang::QualType DstType,
+                                     clang::SourceLocation Loc);
 
-  ValueCategory VisitCXXForRangeStmt(clang::CXXForRangeStmt *fors);
+  ValueCategory EmitPointerToBoolConversion(mlir::Location Loc,
+                                            ValueCategory Src);
+  ValueCategory EmitIntToBoolConversion(mlir::Location Loc, ValueCategory Src);
+  ValueCategory EmitFloatToBoolConversion(mlir::Location Loc,
+                                          ValueCategory Src);
+  ValueCategory EmitConversionToBool(mlir::Location Loc, ValueCategory Src,
+                                     clang::QualType SrcType);
+  ValueCategory EmitPointerToIntegralConversion(mlir::Location Loc,
+                                                mlir::Type DestTy,
+                                                ValueCategory Src);
+  ValueCategory EmitIntegralToPointerConversion(mlir::Location Loc,
+                                                mlir::Type DestTy,
+                                                mlir::Type ElemTy,
+                                                ValueCategory Src);
+  ValueCategory EmitVectorInitList(clang::InitListExpr *Expr,
+                                   mlir::VectorType VType);
+  ValueCategory EmitVectorSubscript(clang::ArraySubscriptExpr *Expr);
+  ValueCategory EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E);
+  ValueCategory EmitConditionalOperator(clang::ConditionalOperator *E,
+                                        bool isReference);
+  ValueCategory EmitConditionalOperatorLValue(clang::ConditionalOperator *E);
+  ValueCategory EvaluateExprAsBool(clang::Expr *E);
+  void EmitAggregateCopy(mlir::Location Loc, ValueCategory Dest,
+                         clang::QualType Ty, ValueCategory Src);
+  mlir::Operation *
+  EmitSpecificSYCLConstructor(const clang::CXXConstructExpr *Expr,
+                              mlir::ValueRange Args);
+  mlir::Operation *EmitSYCLConstructor(const clang::CXXConstructExpr *Expr,
+                                       mlir::ValueRange Args);
+
+public:
+  MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,
+              LowerToInfo &LTInfo, InsertionContext FuncContext);
+
+  void init(mlir::FunctionOpInterface Function, const FunctionToEmit &FTE);
+
+  void setEntryAndAllocBlock(mlir::Block *B);
+
+  mlir::OpBuilder &getBuilder() { return Builder; };
+  std::vector<LoopContext> &getLoops() { return Loops; }
+  mlir::Location getLoc() const { return Loc; }
+
+  mlir::Value getConstantIndex(int X);
+
+  ValueCategory VisitDeclStmt(clang::DeclStmt *Decl);
+
+  ValueCategory VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl);
+
+  ValueCategory VisitConstantExpr(clang::ConstantExpr *Expr);
+
+  ValueCategory VisitAtomicExpr(clang::AtomicExpr *Expr);
+
+  ValueCategory VisitTypeTraitExpr(clang::TypeTraitExpr *Expr);
+
+  ValueCategory VisitGNUNullExpr(clang::GNUNullExpr *Expr);
+
+  ValueCategory VisitIntegerLiteral(clang::IntegerLiteral *Expr);
+
+  ValueCategory VisitCharacterLiteral(clang::CharacterLiteral *Expr);
+
+  ValueCategory VisitFloatingLiteral(clang::FloatingLiteral *Expr);
+
+  ValueCategory VisitImaginaryLiteral(clang::ImaginaryLiteral *Expr);
+
+  ValueCategory VisitCXXBoolLiteralExpr(clang::CXXBoolLiteralExpr *Expr);
+
+  ValueCategory VisitCXXTypeidExpr(clang::CXXTypeidExpr *Expr);
+
+  ValueCategory VisitCXXTryStmt(clang::CXXTryStmt *Stmt);
+
+  ValueCategory VisitStringLiteral(clang::StringLiteral *Expr);
+
+  ValueCategory VisitParenExpr(clang::ParenExpr *Expr);
+
+  ValueCategory VisitVarDecl(clang::VarDecl *Decl);
+
+  ValueCategory VisitForStmt(clang::ForStmt *Fors);
+
+  ValueCategory VisitCXXForRangeStmt(clang::CXXForRangeStmt *Fors);
 
   ValueCategory VisitOMPSingleDirective(clang::OMPSingleDirective *);
 
@@ -290,55 +457,130 @@ public:
 
   ValueCategory VisitOMPParallelDirective(clang::OMPParallelDirective *);
 
-  ValueCategory
-  VisitOMPParallelForDirective(clang::OMPParallelForDirective *fors);
-
-  ValueCategory VisitWhileStmt(clang::WhileStmt *fors);
-
-  ValueCategory VisitDoStmt(clang::DoStmt *fors);
-
-  ValueCategory VisitArraySubscriptExpr(clang::ArraySubscriptExpr *expr);
-
-  ValueCategory VisitCallExpr(clang::CallExpr *expr);
+  ValueCategory VisitExtVectorElementExpr(clang::ExtVectorElementExpr *);
 
   ValueCategory
-  CallHelper(mlir::func::FuncOp tocall, QualType objType,
-             ArrayRef<std::pair<ValueCategory, clang::Expr *>> arguments,
-             QualType retType, bool retReference, clang::Expr *expr);
+  VisitOMPParallelForDirective(clang::OMPParallelForDirective *Fors);
+
+  ValueCategory VisitWhileStmt(clang::WhileStmt *Fors);
+
+  ValueCategory VisitDoStmt(clang::DoStmt *Fors);
+
+  ValueCategory VisitArraySubscriptExpr(clang::ArraySubscriptExpr *Expr);
+
+  ValueCategory VisitCallExpr(clang::CallExpr *Expr);
+
+  ValueCategory
+  callHelper(mlir::func::FuncOp ToCall, clang::QualType ObjType,
+             clang::ArrayRef<std::pair<ValueCategory, clang::Expr *>> Arguments,
+             clang::QualType RetType, bool RetReference, clang::Expr *Expr,
+             const clang::FunctionDecl &Callee);
+
+  /// Emit a call to the inherited constructor \p InheritedCtor. \p BasePtr is a
+  /// pointer to the base member and \p Args, the list of arguments to the
+  /// original constructor.
+  void
+  emitCallToInheritedCtor(const clang::CXXInheritedCtorInitExpr *InheritedCtor,
+                          mlir::Value BasePtr,
+                          mlir::FunctionOpInterface::BlockArgListType Args);
 
   std::pair<ValueCategory, bool>
-  EmitClangBuiltinCallExpr(clang::CallExpr *expr);
+  emitClangBuiltinCallExpr(clang::CallExpr *Expr);
 
-  std::pair<ValueCategory, bool> EmitGPUCallExpr(clang::CallExpr *expr);
+  std::pair<ValueCategory, bool> emitGPUCallExpr(clang::CallExpr *Expr);
 
-  std::pair<ValueCategory, bool> EmitBuiltinOps(clang::CallExpr *expr);
+  std::pair<ValueCategory, bool> emitBuiltinOps(clang::CallExpr *Expr);
+
+  mlir::Operation *emitSYCLOps(const clang::Expr *Expr,
+                               const llvm::SmallVectorImpl<mlir::Value> &Args);
 
   ValueCategory
-  VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *expr);
+  VisitCXXScalarValueInitExpr(clang::CXXScalarValueInitExpr *Expr);
 
   ValueCategory
-  VisitCXXPseudoDestructorExpr(clang::CXXPseudoDestructorExpr *expr);
+  VisitCXXPseudoDestructorExpr(clang::CXXPseudoDestructorExpr *Expr);
 
-  ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *expr);
+  ValueCategory VisitCXXConstructExpr(clang::CXXConstructExpr *Expr);
 
-  ValueCategory VisitConstructCommon(clang::CXXConstructExpr *expr,
-                                     VarDecl *name, unsigned space,
-                                     mlir::Value mem = nullptr,
-                                     mlir::Value count = nullptr);
+  ValueCategory VisitConstructCommon(clang::CXXConstructExpr *Expr,
+                                     clang::VarDecl *Name, unsigned Space,
+                                     mlir::Value Mem = nullptr,
+                                     mlir::Value Count = nullptr);
 
-  ValueCategory VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *expr);
+  ValueCategory VisitMSPropertyRefExpr(clang::MSPropertyRefExpr *Expr);
 
-  ValueCategory VisitPseudoObjectExpr(clang::PseudoObjectExpr *expr);
+  ValueCategory VisitPseudoObjectExpr(clang::PseudoObjectExpr *Expr);
 
   ValueCategory VisitUnaryOperator(clang::UnaryOperator *U);
 
   ValueCategory
-  VisitSubstNonTypeTemplateParmExpr(clang::SubstNonTypeTemplateParmExpr *expr);
+  VisitSubstNonTypeTemplateParmExpr(clang::SubstNonTypeTemplateParmExpr *Expr);
 
   ValueCategory
   VisitUnaryExprOrTypeTraitExpr(clang::UnaryExprOrTypeTraitExpr *Uop);
 
   ValueCategory VisitBinaryOperator(clang::BinaryOperator *BO);
+  ValueCategory VisitBinAssign(clang::BinaryOperator *BO);
+
+  ValueCategory EmitPromoted(clang::Expr *E, clang::QualType PromotionType);
+  ValueCategory EmitPromotedScalarExpr(clang::Expr *E,
+                                       clang::QualType PromotionType);
+  ValueCategory EmitPromotedValue(mlir::Location Loc, ValueCategory Result,
+                                  clang::QualType PromotionType);
+  ValueCategory EmitUnPromotedValue(mlir::Location Loc, ValueCategory Result,
+                                    clang::QualType PromotionType);
+
+  ValueCategory EmitCompoundAssignmentLValue(clang::CompoundAssignOperator *E);
+
+  ValueCategory EmitLValue(clang::Expr *E);
+  std::pair<ValueCategory, ValueCategory>
+  EmitCompoundAssignLValue(clang::CompoundAssignOperator *E,
+                           ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+  ValueCategory EmitBinaryOperatorLValue(clang::BinaryOperator *E);
+
+  ValueCategory
+  EmitCompoundAssign(clang::CompoundAssignOperator *E,
+                     ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+
+  ValueCategory EmitCheckedInBoundsPtrOffsetOp(mlir::Type ElemTy,
+                                               ValueCategory Pointer,
+                                               mlir::ValueRange IdxList,
+                                               bool IsSigned,
+                                               bool IsSubtraction);
+  ValueCategory EmitPointerArithmetic(const BinOpInfo &Info);
+
+  BinOpInfo EmitBinOps(clang::BinaryOperator *E,
+                       clang::QualType PromotionTy = clang::QualType());
+#define HANDLEBINOP(OP)                                                        \
+  ValueCategory EmitBin##OP(const BinOpInfo &E);                               \
+  ValueCategory VisitBin##OP(clang::BinaryOperator *E);                        \
+  ValueCategory VisitBin##OP##Assign(clang::BinaryOperator *E);
+#include "Expressions.def"
+#undef HANDLEBINOP
+
+#define VISITCOMP(CODE, UI, SI, FP)                                            \
+  ValueCategory VisitBin##CODE(clang::BinaryOperator *E) {                     \
+    return EmitCompare(E, mlir::arith::CmpIPredicate::UI,                      \
+                       mlir::arith::CmpIPredicate::SI,                         \
+                       mlir::arith::CmpFPredicate::FP);                        \
+  }
+#include "CmpExpressions.def"
+#undef VISITCOMP
+
+  ValueCategory EmitCompare(clang::BinaryOperator *E,
+                            mlir::arith::CmpIPredicate UICmp,
+                            mlir::arith::CmpIPredicate SICmp,
+                            mlir::arith::CmpFPredicate FCmp);
+
+#define HANDLEUNARYOP(OP)                                                      \
+  ValueCategory VisitUnary##OP(clang::UnaryOperator *E,                        \
+                               clang::QualType PromotionTy =                   \
+                                   clang::QualType());                         \
+  ValueCategory Visit##OP(clang::UnaryOperator *E, clang::QualType PromotionTy);
+#include "Expressions.def"
+#undef HANDLEUNARYOP
+
+  ValueCategory ConstrainShiftValue(ValueCategory LHS, ValueCategory RHS);
 
   ValueCategory VisitCXXNoexceptExpr(clang::CXXNoexceptExpr *AS);
 
@@ -354,80 +596,88 @@ public:
 
   ValueCategory VisitCastExpr(clang::CastExpr *E);
 
-  mlir::Value GetAddressOfBaseClass(mlir::Location loc, mlir::Value obj,
-                                    const CXXRecordDecl *DerivedClass,
-                                    ArrayRef<const clang::Type *> BaseTypes,
-                                    ArrayRef<bool> BaseVirtuals);
+  mlir::Value
+  GetAddressOfBaseClass(mlir::Value Obj,
+                        const clang::CXXRecordDecl *DerivedClass,
+                        clang::ArrayRef<const clang::Type *> BaseTypes,
+                        clang::ArrayRef<bool> BaseVirtuals);
 
-  mlir::Value GetAddressOfDerivedClass(mlir::Location loc, mlir::Value obj,
-                                       const CXXRecordDecl *DerivedClass,
-                                       CastExpr::path_const_iterator Start,
-                                       CastExpr::path_const_iterator End);
+  mlir::Value
+  GetAddressOfDerivedClass(mlir::Value Obj,
+                           const clang::CXXRecordDecl *DerivedClass,
+                           clang::CastExpr::path_const_iterator Start,
+                           clang::CastExpr::path_const_iterator End);
 
-  ValueCategory VisitIfStmt(clang::IfStmt *stmt);
+  ValueCategory VisitIfStmt(clang::IfStmt *Stmt);
 
-  ValueCategory VisitSwitchStmt(clang::SwitchStmt *stmt);
+  ValueCategory VisitSwitchStmt(clang::SwitchStmt *Stmt);
 
   ValueCategory VisitConditionalOperator(clang::ConditionalOperator *E);
 
-  ValueCategory VisitCompoundStmt(clang::CompoundStmt *stmt);
+  ValueCategory VisitCompoundStmt(clang::CompoundStmt *Stmt);
 
-  ValueCategory VisitBreakStmt(clang::BreakStmt *stmt);
+  ValueCategory VisitBreakStmt(clang::BreakStmt *Stmt);
 
-  ValueCategory VisitContinueStmt(clang::ContinueStmt *stmt);
+  ValueCategory VisitContinueStmt(clang::ContinueStmt *Stmt);
 
-  ValueCategory VisitReturnStmt(clang::ReturnStmt *stmt);
+  ValueCategory VisitReturnStmt(clang::ReturnStmt *Stmt);
 
-  std::map<LabelStmt *, Block *> labels;
-  ValueCategory VisitLabelStmt(clang::LabelStmt *stmt);
+  ValueCategory VisitLabelStmt(clang::LabelStmt *Stmt);
 
-  ValueCategory VisitGotoStmt(clang::GotoStmt *stmt);
+  ValueCategory VisitGotoStmt(clang::GotoStmt *Stmt);
 
-  ValueCategory VisitStmtExpr(clang::StmtExpr *stmt);
+  ValueCategory VisitStmtExpr(clang::StmtExpr *Stmt);
 
-  ValueCategory VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *expr);
+  ValueCategory VisitCXXDefaultArgExpr(clang::CXXDefaultArgExpr *Expr);
 
   ValueCategory
-  VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *expr);
+  VisitMaterializeTemporaryExpr(clang::MaterializeTemporaryExpr *Expr);
 
-  ValueCategory VisitCXXNewExpr(clang::CXXNewExpr *expr);
+  ValueCategory VisitCXXNewExpr(clang::CXXNewExpr *Expr);
 
-  ValueCategory VisitCXXDeleteExpr(clang::CXXDeleteExpr *expr);
+  ValueCategory VisitCXXDeleteExpr(clang::CXXDeleteExpr *Expr);
 
-  ValueCategory VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *expr);
+  ValueCategory VisitCXXDefaultInitExpr(clang::CXXDefaultInitExpr *Expr);
 
-  ValueCategory VisitCXXThisExpr(clang::CXXThisExpr *expr);
+  ValueCategory VisitCXXThisExpr(clang::CXXThisExpr *Expr);
 
-  ValueCategory VisitPredefinedExpr(clang::PredefinedExpr *expr);
+  ValueCategory VisitPredefinedExpr(clang::PredefinedExpr *Expr);
 
-  ValueCategory VisitLambdaExpr(clang::LambdaExpr *expr);
+  ValueCategory VisitLambdaExpr(clang::LambdaExpr *Expr);
 
-  ValueCategory VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *expr);
+  ValueCategory VisitCXXBindTemporaryExpr(clang::CXXBindTemporaryExpr *Expr);
 
-  ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *expr);
+  ValueCategory VisitCXXFunctionalCastExpr(clang::CXXFunctionalCastExpr *Expr);
 
-  mlir::Attribute InitializeValueByInitListExpr(mlir::Value toInit,
-                                                clang::Expr *expr);
-  ValueCategory VisitInitListExpr(clang::InitListExpr *expr);
+  mlir::Attribute InitializeValueByInitListExpr(mlir::Value ToInit,
+                                                mlir::Type ElemTy,
+                                                clang::Expr *Expr);
+
+  ValueCategory VisitInitListExpr(clang::InitListExpr *Expr);
+
   ValueCategory
-  VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *expr);
+  VisitCXXStdInitializerListExpr(clang::CXXStdInitializerListExpr *Expr);
 
-  ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *expr,
-                                   ValueCategory tostore);
+  ValueCategory VisitArrayInitLoop(clang::ArrayInitLoopExpr *Expr,
+                                   ValueCategory Tostore);
 
-  ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *expr);
+  ValueCategory VisitArrayInitIndexExpr(clang::ArrayInitIndexExpr *Expr);
 
-  ValueCategory VisitSizeOfPackExpr(clang::SizeOfPackExpr *e);
+  ValueCategory VisitSizeOfPackExpr(clang::SizeOfPackExpr *E);
 
-  ValueCategory CommonFieldLookup(mlir::Location loc, clang::QualType OT,
-                                  const FieldDecl *FD, mlir::Value val,
-                                  bool isLValue);
+  ValueCategory CommonFieldLookup(clang::QualType OT,
+                                  const clang::FieldDecl *FD, mlir::Value Val,
+                                  mlir::Type ElementType, bool IsLValue,
+                                  mlir::Type BaseType = nullptr);
 
-  ValueCategory CommonArrayLookup(mlir::Location loc, ValueCategory val,
-                                  mlir::Value idx, bool isImplicitRefResult,
-                                  bool removeIndex = true);
+  ValueCategory CommonArrayLookup(ValueCategory Val, mlir::Value Idx,
+                                  bool IsImplicitRefResult,
+                                  bool RemoveIndex = true);
 
-  ValueCategory CommonArrayToPointer(mlir::Location loc, ValueCategory val);
+  ValueCategory CommonArrayToPointer(ValueCategory Val);
+
+  static std::string getMangledFuncName(const clang::FunctionDecl &FD,
+                                        clang::CodeGen::CodeGenModule &CGM);
 };
 
-#endif
+#endif /* CLANG_MLIR_H */

@@ -1,15 +1,15 @@
-// RUN: cgeist %s %stdinclude -S | FileCheck %s
+// RUN: cgeist -omit-fp-contract %s -O2 %stdinclude -S | FileCheck %s
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s -O3 %polyverify %stdinclude -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
-// RUN: cgeist %s %polyexec %stdinclude -O3 -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
+// RUN: cgeist -omit-fp-contract %s -O3 %polyexec %stdinclude -o %s.execm && %s.execm > %s.mlir.time; cat %s.mlir.time | FileCheck %s --check-prefix EXEC
 // RUN: clang %s -O3 %polyexec %stdinclude -o %s.exec2 && %s.exec2 > %s.clang.time; cat %s.clang.time | FileCheck %s --check-prefix EXEC
-// RUN: rm -f %s.exec2 %s.execm
+// RUN: rm -f %s.exec2 %s.execm %s.mlir.time %s.clang.time
 
 // RUN: clang %s -O3 %stdinclude %polyverify -o %s.exec1 && %s.exec1 &> %s.out1
-// RUN: cgeist %s %polyverify %stdinclude -detect-reduction -O3 -o %s.execm && %s.execm &> %s.out2
+// RUN: cgeist -omit-fp-contract %s -O3 %polyverify %stdinclude -detect-reduction -o %s.execm && %s.execm &> %s.out2
 // RUN: rm -f %s.exec1 %s.execm
 // RUN: diff %s.out1 %s.out2
 // RUN: rm -f %s.out1 %s.out2
@@ -132,13 +132,13 @@ int main(int argc, char** argv)
   return 0;
 }
 
-// CHECK: #map = affine_map<()[s0] -> (s0 - 1)>
+// CHECK: [[MAP:#map.*]] = affine_map<()[s0] -> (s0 - 1)>
 // CHECK: func @kernel_jacobi_1d(%arg0: i32, %arg1: i32, %arg2: memref<?xf64>, %arg3: memref<?xf64>)
 // CHECK-NEXT:      %cst = arith.constant 3.333300e-01 : f64
 // CHECK-NEXT:      %0 = arith.index_cast %arg1 : i32 to index
 // CHECK-NEXT:      %1 = arith.index_cast %arg0 : i32 to index
 // CHECK-NEXT:      affine.for %arg4 = 0 to %1 {
-// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:        affine.for %arg5 = 1 to [[MAP]]()[%0] {
 // CHECK-NEXT:          %2 = affine.load %arg2[%arg5 - 1] : memref<?xf64>
 // CHECK-NEXT:          %3 = affine.load %arg2[%arg5] : memref<?xf64>
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64
@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 // CHECK-NEXT:          %7 = arith.mulf %6, %cst : f64
 // CHECK-NEXT:          affine.store %7, %arg3[%arg5] : memref<?xf64>
 // CHECK-NEXT:        }
-// CHECK-NEXT:        affine.for %arg5 = 1 to #map()[%0] {
+// CHECK-NEXT:        affine.for %arg5 = 1 to [[MAP]]()[%0] {
 // CHECK-NEXT:          %2 = affine.load %arg3[%arg5 - 1] : memref<?xf64>
 // CHECK-NEXT:          %3 = affine.load %arg3[%arg5] : memref<?xf64>
 // CHECK-NEXT:          %4 = arith.addf %2, %3 : f64
