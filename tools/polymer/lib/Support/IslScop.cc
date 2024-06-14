@@ -104,7 +104,7 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, IslStr s) {
 
 void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
-  auto indent = [&os](unsigned n) -> llvm::raw_ostream & {
+  auto o = [&os](unsigned n) -> llvm::raw_ostream & {
     return os << std::string(n, ' ');
   };
 
@@ -114,24 +114,22 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
     domain = isl_union_set_union(set, domain);
   }
 
-  indent(0) << "domain: " << '"' << IslStr(isl_union_set_to_str(domain)) << '"'
-            << "\n";
+  o(0) << "domain: " << '"' << IslStr(isl_union_set_to_str(domain)) << '"'
+       << "\n";
 
   os << "statements:\n";
   for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
     auto &stmt = islStmts[stmtId];
-    indent(2) << "- " << scopStmtNames[stmtId] << ":"
-              << "\n";
-    indent(6) << "reads:"
-              << "\n";
+    o(2) << "- " << scopStmtNames[stmtId] << ":"
+         << "\n";
+    o(6) << "reads:"
+         << "\n";
     for (auto rel : stmt.readRelations)
-      indent(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"'
-                << "\n";
-    indent(6) << "writes:"
-              << "\n";
+      o(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"' << "\n";
+    o(6) << "writes:"
+         << "\n";
     for (auto rel : stmt.writeRelations)
-      indent(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"'
-                << "\n";
+      o(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"' << "\n";
   }
   domain = isl_union_set_free(domain);
 }
