@@ -23,7 +23,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Support/MathExtras.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
@@ -278,7 +277,7 @@ struct SharedLLVMAllocaToGlobal : public OpRewritePattern<LLVM::AllocaOp> {
       return failure();
     }
 
-    auto type = PT.getElementType();
+    auto type = ao.getElemType();
     auto loc = ao->getLoc();
     auto name = "shared_mem_" + std::to_string((long long int)(Operation *)ao);
 
@@ -1279,7 +1278,7 @@ struct RemovePolygeistNoopOp : public OpRewritePattern<polygeist::NoopOp> {
     }
     auto noopType =
         noop->getAttrOfType<StringAttr>("polygeist.noop_type").getValue();
-    if (!noopType.startswith("gpu_kernel.")) {
+    if (!noopType.starts_with("gpu_kernel.")) {
       LLVM_DEBUG(DBGS() << "noop does not have the appropriate attribute\n");
       return failure();
     }
