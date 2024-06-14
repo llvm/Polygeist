@@ -92,7 +92,7 @@ using namespace llvm;
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
 
 static cl::opt<bool>
-    ClPolyhedralOpt("affine-opt", cl::init(false),
+    ClPolyhedralOpt("polyhedral-opt", cl::init(false),
                     cl::desc("Use polymer to optimize affine regions"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),

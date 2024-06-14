@@ -32,7 +32,7 @@
 
 #include "AlwaysInliner.h"
 
-#define DEBUG_TYPE "affine-opt"
+#define DEBUG_TYPE "polyhedral-opt"
 #define DEBUG_LABEL DEBUG_TYPE ": "
 
 using namespace mlir;
