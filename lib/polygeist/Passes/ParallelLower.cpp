@@ -558,7 +558,7 @@ void ParallelLower::runOnOperation() {
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
         auto newAlloca = builder.create<LLVM::AllocaOp>(
-            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getElementType(), 0),
+            alop.getLoc(), LLVM::LLVMPointerType::get(PT.getContext(), 0),
             alop.getArraySize());
         builder.replaceOpWithNewOp<LLVM::AddrSpaceCastOp>(alop, PT, newAlloca);
       }
@@ -753,7 +753,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }
@@ -761,7 +761,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 src);
           }
@@ -778,7 +778,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }
@@ -786,7 +786,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(src.getType())) {
             src = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 src);
           }
@@ -806,7 +806,7 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           if (auto mt = dyn_cast<MemRefType>(dst.getType())) {
             dst = bz.create<polygeist::Memref2PointerOp>(
                 call->getLoc(),
-                LLVM::LLVMPointerType::get(mt.getElementType(),
+                LLVM::LLVMPointerType::get(mt.getContext(),
                                            mt.getMemorySpaceAsInt()),
                 dst);
           }
