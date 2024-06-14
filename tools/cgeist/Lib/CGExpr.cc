@@ -9,13 +9,8 @@
 #include "TypeUtils.h"
 #include "clang-mlir.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
-#include "mlir/Dialect/SYCL/MethodUtils.h"
 #include "mlir/IR/Verifier.h"
 #include "utils.h"
-
-#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"

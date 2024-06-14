@@ -12,7 +12,6 @@
 #include "utils.h"
 
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/WithColor.h"
