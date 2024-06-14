@@ -175,7 +175,7 @@ struct AffineForReductionIter : public OpRewritePattern<affine::AffineForOp> {
     affine::AffineForOp newForOp = rewriter.create<affine::AffineForOp>(
         forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
         forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
-        forOp.getStep(), newIterArgs);
+        forOp.getStep().getSExtValue(), newIterArgs);
 
     // remove load operation inside the for.
     size_t i = 0;

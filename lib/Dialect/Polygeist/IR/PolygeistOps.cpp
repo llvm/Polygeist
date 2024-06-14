@@ -1566,38 +1566,21 @@ public:
       return failure();
 
     Value idx[] = {src.getIndex()};
-    auto PET = op.getType().cast<LLVM::LLVMPointerType>().getElementType();
     auto MET = src.getSource().getType().cast<MemRefType>().getElementType();
-    if (PET != MET) {
-      Value ps;
-      if (PET)
-        // non-opaque pointer
-        ps = rewriter.create<polygeist::TypeSizeOp>(
-            op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(PET));
-      else
-        // opaque pointer
-        ps = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
-      auto ms = rewriter.create<polygeist::TypeSizeOp>(
-          op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
-      idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
-      idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
-    }
+    Value ps = rewriter.create<arith::ConstantIndexOp>(op.getLoc(), 1);
+    auto ms = rewriter.create<polygeist::TypeSizeOp>(
+        op.getLoc(), rewriter.getIndexType(), mlir::TypeAttr::get(MET));
+    idx[0] = rewriter.create<MulIOp>(op.getLoc(), idx[0], ms);
+    idx[0] = rewriter.create<DivUIOp>(op.getLoc(), idx[0], ps);
     idx[0] = rewriter.create<arith::IndexCastOp>(op.getLoc(),
                                                  rewriter.getI64Type(), idx[0]);
-    if (PET)
-      // non-opaque pointer
-      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-          op, op.getType(),
-          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                            src.getSource()),
-          idx);
-    else
-      // opaque pointer
-      rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-          op, op.getType(), rewriter.getI8Type(),
-          rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
-                                            src.getSource()),
-          idx);
+
+    rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
+        op, op.getType(), rewriter.getI8Type(),
+        rewriter.create<Memref2PointerOp>(op.getLoc(), op.getType(),
+                                          src.getSource()),
+        idx);
+
     return success();
   }
 };
@@ -1954,7 +1937,6 @@ public:
         return failure();
 
     Value val = src.getSource();
-    assert(val.getType().cast<LLVM::LLVMPointerType>().isOpaque());
 
     Value idx = nullptr;
     auto shape = mt.getShape();
@@ -2134,7 +2116,7 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
           return failure();
     }
 
-    rewriter.startRootUpdate(nextIf);
+    rewriter.startOpModification(nextIf);
     nextIf->moveBefore(yield);
     nextIf.getConditionMutable().assign(nextIfCondition);
     for (auto it : llvm::zip(prevIf.getResults(), yield.getOperands())) {
@@ -2142,12 +2124,12 @@ struct IfAndLazy : public OpRewritePattern<scf::IfOp> {
            llvm::make_early_inc_range(std::get<0>(it).getUses()))
         if (nextIf.getThenRegion().isAncestor(
                 use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         }
     }
-    rewriter.finalizeRootUpdate(nextIf);
+    rewriter.finalizeOpModification(nextIf);
 
     // Handle else region
     if (!nextIf.getElseRegion().empty()) {
@@ -2259,8 +2241,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
         return failure();
     }
 
-    rewriter.startRootUpdate(nextIf);
-    rewriter.startRootUpdate(prevOp);
+    rewriter.startOpModification(nextIf);
+    rewriter.startOpModification(prevOp);
     prevOp->moveBefore(thenUse ? &nextIf.thenBlock()->front()
                                : &nextIf.elseBlock()->front());
     for (OpOperand &use : llvm::make_early_inc_range(prevOp->getUses())) {
@@ -2290,8 +2272,8 @@ struct MoveIntoIfs : public OpRewritePattern<scf::IfOp> {
             storeOp, storeOp.getValue(), storeOp.getMemref(), indices);
       }
     }
-    rewriter.finalizeRootUpdate(prevOp);
-    rewriter.finalizeRootUpdate(nextIf);
+    rewriter.finalizeOpModification(prevOp);
+    rewriter.finalizeOpModification(nextIf);
     return success();
   }
 };
@@ -2859,7 +2841,7 @@ struct InductiveVarRemoval : public OpRewritePattern<scf::ForOp> {
           break;
       }
       if (legal) {
-        rewriter.updateRootInPlace(forOp, [&] {
+        rewriter.modifyOpInPlace(forOp, [&] {
           std::get<1>(tup).replaceAllUsesWith(std::get<2>(tup));
         });
         changed = true;
@@ -3720,7 +3702,8 @@ struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
     rewriter.setInsertionPointToStart(newIf.getThenBlock());
     for (auto o : llvm::reverse(toSink)) {
       auto nop = rewriter.clone(*o, map);
-      rewriter.replaceOpWithinBlock(o, nop->getResults(), newIf.getThenBlock());
+      rewriter.replaceOpUsesWithinBlock(o, nop->getResults(),
+                                        newIf.getThenBlock());
     }
     for (auto i : par.getIVs()) {
       i.replaceUsesWithIf(c0, [&](OpOperand &user) {
@@ -3949,14 +3932,14 @@ struct CombineAffineIfs : public OpRewritePattern<affine::AffineIfOp> {
            llvm::make_early_inc_range(std::get<0>(it).getUses())) {
         if (nextThen && nextThen->getParent()->isAncestor(
                             use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<1>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         } else if (nextElse && nextElse->getParent()->isAncestor(
                                    use.getOwner()->getParentRegion())) {
-          rewriter.startRootUpdate(use.getOwner());
+          rewriter.startOpModification(use.getOwner());
           use.set(std::get<2>(it));
-          rewriter.finalizeRootUpdate(use.getOwner());
+          rewriter.finalizeOpModification(use.getOwner());
         }
       }
 
@@ -4927,7 +4910,8 @@ struct RemoveAffineParallelSingleIter
 
       affineLoop.getRegion().getBlocks().push_back(Tmp);
       if (rewriter.getListener())
-        rewriter.getListener()->notifyBlockCreated(Tmp);
+        rewriter.getListener()->notifyBlockInserted(Tmp, nullptr,
+                                                    Region::iterator());
 
       rewriter.mergeBlocks(op.getBody(), affineLoop.getBody(), replacements);
       rewriter.replaceOp(op, affineLoop->getResults());
@@ -5092,19 +5076,17 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
             assert(otherBuf.getType() == op.getType());
 
-            rewriter.replaceOpWithIf(
-                op, otherBuf, nullptr, [&](OpOperand &use) {
-                  Operation *owner = use.getOwner();
-                  while (owner &&
-                         owner->getBlock() != copyIntoBuffer->getBlock()) {
-                    owner = owner->getParentOp();
-                  }
-                  if (!owner)
-                    return false;
+            rewriter.replaceOpUsesWithIf(op, otherBuf, [&](OpOperand &use) {
+              Operation *owner = use.getOwner();
+              while (owner && owner->getBlock() != copyIntoBuffer->getBlock()) {
+                owner = owner->getParentOp();
+              }
+              if (!owner)
+                return false;
 
-                  return copyIntoBuffer->isBeforeInBlock(owner) &&
-                         owner->isBeforeInBlock(copyOutOfBuffer);
-                });
+              return copyIntoBuffer->isBeforeInBlock(owner) &&
+                     owner->isBeforeInBlock(copyOutOfBuffer);
+            });
 
             rewriter.setInsertionPoint(copyOutOfBuffer);
             rewriter.clone(*copyIntoBuffer);

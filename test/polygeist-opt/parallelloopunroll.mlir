@@ -147,7 +147,7 @@ module {
 // CHECK:             func.call @use2(%[[VAL_6]]) : (index) -> ()
 // CHECK:             func.call @use2(%[[VAL_6]]) : (index) -> ()
 // CHECK:             func.call @use2(%[[VAL_6]]) : (index) -> ()
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }
 
 // CHECK-LABEL:   func.func @f2(
@@ -202,9 +202,9 @@ module {
 // CHECK:               func.call @use0(%[[VAL_15]]) : (index) -> ()
 // CHECK:               func.call @use0(%[[VAL_15]]) : (index) -> ()
 // CHECK:               func.call @use0(%[[VAL_15]]) : (index) -> ()
-// CHECK:               scf.yield
+// CHECK:               scf.reduce
 // CHECK:             }
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }
 
 // CHECK-LABEL:   func.func @f3() {
@@ -228,7 +228,7 @@ module {
 // CHECK:             scf.for %[[VAL_14:.*]] = %[[VAL_0]] to %[[VAL_11]] step %[[VAL_1]] {
 // CHECK:               func.call @use0(%[[VAL_11]]) : (index) -> ()
 // CHECK:             }
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }
 
 // CHECK-LABEL:   func.func @f4() {
@@ -255,7 +255,7 @@ module {
 // CHECK:             scf.if %[[VAL_14]] {
 // CHECK:               func.call @use0(%[[VAL_11]]) : (index) -> ()
 // CHECK:             }
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }
 
 // CHECK-LABEL:   func.func @f5() {
@@ -278,9 +278,9 @@ module {
 // CHECK:               func.call @use0(%[[VAL_13]]) : (index) -> ()
 // CHECK:               func.call @use0(%[[VAL_13]]) : (index) -> ()
 // CHECK:               func.call @use0(%[[VAL_13]]) : (index) -> ()
-// CHECK:               scf.yield
+// CHECK:               scf.reduce
 // CHECK:             }
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }
 
 // CHECK-LABEL:   func.func @f6() {
@@ -307,5 +307,5 @@ module {
 // CHECK:               func.call @use0(%[[VAL_9]]) : (index) -> ()
 // CHECK:               func.call @use0(%[[VAL_11]]) : (index) -> ()
 // CHECK:             }
-// CHECK:             scf.yield
+// CHECK:             scf.reduce
 // CHECK:           }

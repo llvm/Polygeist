@@ -410,10 +410,10 @@ void moveParallelLoopInvariantCode(scf::ParallelOp looplike) {
     looplike->moveBefore(ifOp.thenBlock(), ifOp.thenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.thenBlock(), ifOp.thenBlock()->end());
-    B.create<scf::YieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<scf::ReduceOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.elseBlock());
-      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getInitVals());
+      B.create<scf::ReduceOp>(looplike.getLoc(), looplike.getInitVals());
     }
   }
   for (auto op : opsToMove)
@@ -574,10 +574,10 @@ void moveSerialLoopInvariantCode(scf::ForOp looplike) {
     looplike->moveBefore(ifOp.thenBlock(), ifOp.thenBlock()->begin());
     looplike.replaceAllUsesWith(ifOp->getResults());
     OpBuilder B(ifOp.thenBlock(), ifOp.thenBlock()->end());
-    B.create<scf::YieldOp>(looplike.getLoc(), looplike.getResults());
+    B.create<scf::ReduceOp>(looplike.getLoc(), looplike.getResults());
     if (!looplike.getResultTypes().empty()) {
       B.setInsertionPointToEnd(ifOp.elseBlock());
-      B.create<scf::YieldOp>(looplike.getLoc(), looplike.getInits());
+      B.create<scf::ReduceOp>(looplike.getLoc(), looplike.getInits());
     }
   }
   for (auto op : opsToMove)
@@ -643,7 +643,7 @@ void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
 
         // Bound is whether this expr >= 0, which since we want ub > lb, we
         // rewrite as follows.
-        exprs.push_back(ub - lb - step);
+        exprs.push_back(ub - lb - step.getSExtValue());
         eqflags.push_back(false);
       }
     }

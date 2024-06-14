@@ -1086,7 +1086,8 @@ bool PolygeistMem2Reg::forwardStoreToLoad(
   if (auto MT = dyn_cast<MemRefType>(AI.getType()))
     elType = MT.getElementType();
   else
-    elType = AI.getType().cast<LLVM::LLVMPointerType>().getElementType();
+    // TODO cannot get type from opaque pointer
+    return false;
 
   std::deque<std::pair<mlir::Value, /*indexed*/ bool>> list = {{AI, false}};
 
