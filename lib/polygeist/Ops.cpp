@@ -5076,19 +5076,17 @@ template <typename T> struct BufferElimination : public OpRewritePattern<T> {
 
             assert(otherBuf.getType() == op.getType());
 
-            rewriter.replaceOpUsesWithIf(
-                op, otherBuf, nullptr, [&](OpOperand &use) {
-                  Operation *owner = use.getOwner();
-                  while (owner &&
-                         owner->getBlock() != copyIntoBuffer->getBlock()) {
-                    owner = owner->getParentOp();
-                  }
-                  if (!owner)
-                    return false;
+            rewriter.replaceOpUsesWithIf(op, otherBuf, [&](OpOperand &use) {
+              Operation *owner = use.getOwner();
+              while (owner && owner->getBlock() != copyIntoBuffer->getBlock()) {
+                owner = owner->getParentOp();
+              }
+              if (!owner)
+                return false;
 
-                  return copyIntoBuffer->isBeforeInBlock(owner) &&
-                         owner->isBeforeInBlock(copyOutOfBuffer);
-                });
+              return copyIntoBuffer->isBeforeInBlock(owner) &&
+                     owner->isBeforeInBlock(copyOutOfBuffer);
+            });
 
             rewriter.setInsertionPoint(copyOutOfBuffer);
             rewriter.clone(*copyIntoBuffer);
