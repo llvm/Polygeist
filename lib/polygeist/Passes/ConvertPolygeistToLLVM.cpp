@@ -1978,7 +1978,7 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateKernelNameConstant(
       std::string(llvm::formatv("{0}_{1}_kernel_name", moduleName, name));
   return LLVM::createGlobalString(
       loc, builder, globalName, StringRef(kernelName.data(), kernelName.size()),
-      LLVM::Linkage::Internal, /*opaquePointers*/ true);
+      LLVM::Linkage::Internal);
 }
 
 // Returns whether all operands are of LLVM type.
@@ -2089,7 +2089,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
       auto moduleName = launchOp.getKernelModuleName().getValue();
 
       OpBuilder ctorBuilder(moduleOp->getContext());
-      ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock());
+      ctorBuilder.setInsertionPointToStart(ctor.addEntryBlock(rewriter));
       SmallString<128> nameBuffer(kernelModule.getName());
       nameBuffer.append(kGpuBinaryStorageSuffix);
 
@@ -2158,7 +2158,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
         // data.setSectionAttr(moduleBuilder.getStringAttr(fatbinSectionName));
         Value data = LLVM::createGlobalString(
             loc, globalBuilder, nameBuffer.str(), binaryAttr.getValue(),
-            LLVM::Linkage::Internal, /*opaquePointers*/ true);
+            LLVM::Linkage::Internal);
         constructedStruct = globalBuilder.create<LLVM::InsertValueOp>(
             loc, fatBinWrapperType, constructedStruct, data,
             globalBuilder.getDenseI64ArrayAttr(i++));
@@ -2209,7 +2209,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
               LLVM::LLVMFunctionType::get(llvmVoidType, {}));
           {
             OpBuilder::InsertionGuard guard(rewriter);
-            rewriter.setInsertionPointToStart(stub.addEntryBlock());
+            rewriter.setInsertionPointToStart(stub.addEntryBlock(rewriter));
             rewriter.create<LLVM::ReturnOp>(loc, ValueRange());
           }
           auto aoo = ctorBuilder.create<LLVM::AddressOfOp>(loc, stub);
