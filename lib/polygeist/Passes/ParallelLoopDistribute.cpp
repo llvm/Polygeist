@@ -888,8 +888,9 @@ static LogicalResult distributeAroundBarrier(T op, BarrierOp barrier,
                                       rewriter.create<arith::IndexCastOp>(
                                           ao.getLoc(), sz.getType(), idx));
         SmallVector<Value> vec = {idx};
-        u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(), alloc,
-                                           idx));
+        u.set(rewriter.create<LLVM::GEPOp>(ao.getLoc(), ao.getType(),
+                                           ao.getType(), alloc, vec,
+                                           /*inbounds=*/true));
       }
     } else {
       assert(false && "Wrong operation type in preserveAllocas");
@@ -2704,7 +2705,7 @@ struct CPUifyPass : public SCFCPUifyBase<CPUifyPass> {
   CPUifyPass(StringRef method) { this->method.setValue(method.str()); }
   void runOnOperation() override {
     StringRef method(this->method);
-    if (method.startswith("distribute")) {
+    if (method.starts_with("distribute")) {
       {
         RewritePatternSet patterns(&getContext());
         if (method.contains("mincut"))

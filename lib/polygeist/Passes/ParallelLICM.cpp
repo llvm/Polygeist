@@ -643,7 +643,7 @@ void moveSerialLoopInvariantCode(affine::AffineForOp looplike) {
 
         // Bound is whether this expr >= 0, which since we want ub > lb, we
         // rewrite as follows.
-        exprs.push_back(ub - lb - step);
+        exprs.push_back(ub - lb - step.getSExtValue());
         eqflags.push_back(false);
       }
     }
