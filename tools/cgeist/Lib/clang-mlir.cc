@@ -2577,14 +2577,13 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
     removePassThroughAttr(Function, llvm::Attribute::NoReturn);
 }
 
-llvm::Optional<FunctionOpInterface>
+std::optional<FunctionOpInterface>
 MLIRASTConsumer::getMLIRFunction(const std::string &MangledName,
                                  InsertionContext Context) const {
   const auto Find = [MangledName](const auto &Map) {
     const auto Iter = Map.find(MangledName);
-    return Iter == Map.end()
-               ? std::nullopt
-               : llvm::Optional<FunctionOpInterface>{Iter->second};
+    return Iter == Map.end() ? std::nullopt
+                             : std::optional<FunctionOpInterface>{Iter->second};
   };
 
   switch (Context) {

@@ -130,9 +130,9 @@ public:
 
   /// Return the given attribute if the builder contains it and llvm::None
   /// otherwise.
-  llvm::Optional<mlir::NamedAttribute>
+  std::Optional<mlir::NamedAttribute>
   getAttribute(llvm::StringRef AttrName) const;
-  llvm::Optional<mlir::NamedAttribute>
+  std::Optional<mlir::NamedAttribute>
   getAttribute(llvm::Attribute::AttrKind Kind) const;
 
   /// Returns the attributes contained in the builder.
@@ -143,7 +143,7 @@ public:
   /// Returns a StringAttr of the form 'prefix.AttrName'.
   static mlir::StringAttr
   createStringAttribute(llvm::Twine AttrName,
-                        llvm::Optional<llvm::StringLiteral> Prefix,
+                        std::optional<llvm::StringLiteral> Prefix,
                         mlir::MLIRContext &Ctx);
 
 private:
@@ -157,7 +157,7 @@ private:
   /// Note: \p AddAttrPtr is used to provide a concrete implementation
   /// controlling where to add the attribute (to the 'passthrough' list or not).
   AttrBuilder &addAttributeImpl(llvm::Attribute::AttrKind Kind,
-                                llvm::Optional<llvm::StringLiteral> Dialect,
+                                std::optional<llvm::StringLiteral> Dialect,
                                 AddAttrFuncPtr AddAttrPtr);
 
   /// Add the LLVM attribute identified by \p Kind with a type given by \p Ty
@@ -165,7 +165,7 @@ private:
   /// Note: \p AddAttrPtr is used to provide a concrete implementation
   /// controlling where to add the attribute (to the 'passthrough' list or not).
   AttrBuilder &addAttributeImpl(llvm::Attribute::AttrKind Kind, mlir::Type Ty,
-                                llvm::Optional<llvm::StringLiteral> Dialect,
+                                std::optional<llvm::StringLiteral> Dialect,
                                 AddAttrFuncPtr AddAttrPtr);
 
   /// Add the LLVM attribute identified by \p Kind with a value given by \p Val

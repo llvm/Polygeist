@@ -702,7 +702,7 @@ void CodeGenTypes::constructAttributeList(
   // Some ABIs may result in additional accesses to arguments that may otherwise
   // not be present.
   auto AddPotentialArgAccess = [&]() {
-    llvm::Optional<mlir::NamedAttribute> A =
+    std::optional<mlir::NamedAttribute> A =
         FuncAttrsBuilder.getAttribute(llvm::Attribute::Memory);
     if (A) {
       IntegerAttr AA = cast<IntegerAttr>(A->getValue());

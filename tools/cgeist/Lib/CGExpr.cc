@@ -1149,10 +1149,10 @@ tryToCreateOperation(OpBuilder &builder, Location loc, StringAttr opName,
   return op;
 }
 
-llvm::Optional<sycl::SYCLMethodOpInterface>
+std::optional<sycl::SYCLMethodOpInterface>
 MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
                                 mlir::ValueRange Operands,
-                                llvm::Optional<mlir::Type> ReturnType) {
+                                std::optional<mlir::Type> ReturnType) {
   // Expecting a MemRef as the first argument, as the first operand to a method
   // call should be a pointer to `this`.
   if (Operands.empty() || !isa<MemRefType>(Operands[0].getType()))
@@ -1170,7 +1170,7 @@ MLIRScanner::createSYCLMethodOp(llvm::StringRef FunctionName,
   OperandsCpy[0] = sycl::abstractCasts(OperandsCpy[0]);
 
   auto BaseType = cast<MemRefType>(OperandsCpy[0].getType());
-  const llvm::Optional<llvm::StringRef> OptOpName = SYCLDialect->findMethod(
+  const std::optional<llvm::StringRef> OptOpName = SYCLDialect->findMethod(
       BaseType.getElementType().getTypeID(), FunctionName);
 
   if (!OptOpName) {
@@ -1412,12 +1412,12 @@ MLIRScanner::emitSYCLOps(const clang::Expr *Expr,
   if (Func) {
     if (mlirclang::getNamespaceKind(Func->getEnclosingNamespaceContext()) !=
         mlirclang::NamespaceKind::Other) {
-      auto OptFuncType = llvm::Optional<llvm::StringRef>{std::nullopt};
+      auto OptFuncType = std::optional<llvm::StringRef>{std::nullopt};
       if (const auto *RD = dyn_cast<clang::CXXRecordDecl>(Func->getParent()))
         if (!RD->getName().empty())
           OptFuncType = RD->getName();
 
-      auto OptRetType = llvm::Optional<mlir::Type>{std::nullopt};
+      auto OptRetType = std::optional<mlir::Type>{std::nullopt};
       const mlir::Type RetType =
           Glob.getTypes().getMLIRType(Func->getReturnType());
       if (!isa<mlir::NoneType>(RetType))

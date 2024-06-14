@@ -47,7 +47,7 @@ public:
   mlir::Value val;
   bool isReference;
   /// Holds the index the lvalue to a vector element refers to.
-  llvm::Optional<mlir::Value> Index{std::nullopt};
+  std::optional<mlir::Value> Index{std::nullopt};
   /// Holds the element type of memrefs or pointers. This is particularly
   /// important with opaque pointers.
   std::optional<mlir::Type> ElementType{std::nullopt};

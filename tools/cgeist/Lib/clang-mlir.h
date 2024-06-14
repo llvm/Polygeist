@@ -222,7 +222,7 @@ private:
                                      const clang::FunctionDecl &FD);
 
   /// Returns the MLIR function corresponding to \p mangledName.
-  llvm::Optional<mlir::FunctionOpInterface>
+  std::optional<mlir::FunctionOpInterface>
   getMLIRFunction(const std::string &MangledName,
                   InsertionContext Context) const;
 
@@ -341,9 +341,9 @@ private:
   ///
   /// E.g., the SYCLCallOp to the accessor member function
   /// accessor::operator[] can be represented using a SYCLAccessorSubscriptOp.
-  llvm::Optional<mlir::sycl::SYCLMethodOpInterface>
+  std::optional<mlir::sycl::SYCLMethodOpInterface>
   createSYCLMethodOp(llvm::StringRef FunctionName, mlir::ValueRange Operands,
-                     llvm::Optional<mlir::Type> ReturnType);
+                     std::optional<mlir::Type> ReturnType);
 
   /// Attempts to map a call to \param FunctionName to a math operation in the
   /// `sycl` dialect.
