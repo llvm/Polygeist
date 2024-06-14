@@ -130,9 +130,9 @@ public:
 
   /// Return the given attribute if the builder contains it and llvm::None
   /// otherwise.
-  std::Optional<mlir::NamedAttribute>
+  std::optional<mlir::NamedAttribute>
   getAttribute(llvm::StringRef AttrName) const;
-  std::Optional<mlir::NamedAttribute>
+  std::optional<mlir::NamedAttribute>
   getAttribute(llvm::Attribute::AttrKind Kind) const;
 
   /// Returns the attributes contained in the builder.

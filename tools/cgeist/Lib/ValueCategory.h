@@ -14,7 +14,6 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Value.h"
-#include "llvm/ADT/Optional.h"
 #include <type_traits>
 
 // Represents a rhs or lhs value.
