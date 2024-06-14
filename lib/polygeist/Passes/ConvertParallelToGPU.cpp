@@ -923,7 +923,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         }
         newOp = rewriter.clone(op, mapping);
       }
-      rewriter.replaceOpWithinBlock(&op, newOp->getResults(), innerBlock);
+      rewriter.replaceOpUsesWithinBlock(&op, newOp->getResults(), innerBlock);
       toErase.push_back(&op);
     }
     it++;

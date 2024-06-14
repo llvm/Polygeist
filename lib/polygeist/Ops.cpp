@@ -3702,7 +3702,8 @@ struct AffineIfSinking : public OpRewritePattern<affine::AffineIfOp> {
     rewriter.setInsertionPointToStart(newIf.getThenBlock());
     for (auto o : llvm::reverse(toSink)) {
       auto nop = rewriter.clone(*o, map);
-      rewriter.replaceOpWithinBlock(o, nop->getResults(), newIf.getThenBlock());
+      rewriter.replaceOpUsesWithinBlock(o, nop->getResults(),
+                                        newIf.getThenBlock());
     }
     for (auto i : par.getIVs()) {
       i.replaceUsesWithIf(c0, [&](OpOperand &user) {

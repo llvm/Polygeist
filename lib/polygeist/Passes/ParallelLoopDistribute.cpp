@@ -1222,8 +1222,8 @@ static void insertRecomputables(PatternRewriter &rewriter, T oldParallel,
   for (auto it = oldParallel.getBody()->begin(); dyn_cast<T2>(*it) != until;
        ++it) {
     auto newOp = rewriter.clone(*it, mapping);
-    rewriter.replaceOpWithinBlock(&*it, newOp->getResults(),
-                                  newParallel.getBody());
+    rewriter.replaceOpUsesWithinBlock(&*it, newOp->getResults(),
+                                      newParallel.getBody());
   }
 }
 
@@ -1329,7 +1329,8 @@ static void moveBodiesFor(PatternRewriter &rewriter, T op, ForType forLoop,
   for (auto it = op.getBody()->begin(); dyn_cast<ForType>(*it) != forLoop;
        ++it) {
     auto newOp = rewriter.clone(*it, mapping);
-    rewriter.replaceOpWithinBlock(&*it, newOp->getResults(), forLoop.getBody());
+    rewriter.replaceOpUsesWithinBlock(&*it, newOp->getResults(),
+                                      forLoop.getBody());
   }
   rewriter.setInsertionPointToEnd(newParallel.getBody());
   rewriter.clone(*op.getBody()->getTerminator());
