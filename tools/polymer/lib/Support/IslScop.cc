@@ -117,7 +117,7 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   o(0) << "domain: " << '"' << IslStr(isl_union_set_to_str(domain)) << '"'
        << "\n";
 
-  os << "statements:\n";
+  os << "accesses:\n";
   for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
     auto &stmt = islStmts[stmtId];
     o(2) << "- " << scopStmtNames[stmtId] << ":"
