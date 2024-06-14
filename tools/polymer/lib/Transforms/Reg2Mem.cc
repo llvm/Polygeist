@@ -500,7 +500,8 @@ cloneAffineForWithoutIterArgs(mlir::affine::AffineForOp forOp, OpBuilder &b) {
 
   mlir::affine::AffineForOp newForOp = b.create<mlir::affine::AffineForOp>(
       forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
-      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(), forOp.getStep());
+      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
+      forOp.getStep().getSExtValue());
 
   IRMapping mapping;
   mapping.map(forOp.getInductionVar(), newForOp.getInductionVar());
