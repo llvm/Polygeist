@@ -4909,7 +4909,8 @@ struct RemoveAffineParallelSingleIter
 
       affineLoop.getRegion().getBlocks().push_back(Tmp);
       if (rewriter.getListener())
-        rewriter.getListener()->notifyBlockCreated(Tmp);
+        rewriter.getListener()->notifyBlockInserted(Tmp, nullptr,
+                                                    Region::iterator());
 
       rewriter.mergeBlocks(op.getBody(), affineLoop.getBody(), replacements);
       rewriter.replaceOp(op, affineLoop->getResults());
