@@ -22,12 +22,13 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "isl/space.h"
 #include "isl/space_type.h"
-#include "isl/union_map.h"
 #include <isl/ctx.h>
+#include <isl/map.h>
 #include <isl/mat.h>
 #include <isl/set.h>
+#include <isl/space.h>
+#include <isl/union_map.h>
 #include <isl/union_set.h>
 #include <isl/val.h>
 
@@ -47,8 +48,12 @@ IslScop::IslScop() {
 //     : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
 
 IslScop::~IslScop() {
+  for (IslStmt &stmt : islStmts) {
+    for (auto &rel : stmt.accessRelations) {
+      rel = isl_basic_map_free(rel);
+    }
+  }
   isl_ctx_free(ctx);
-  // TODO ISL
 }
 
 void IslScop::print() {
@@ -90,12 +95,17 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   isl_union_set *domain = isl_union_set_empty(paramSpace);
   LLVM_DEBUG(isl_union_set_dump(domain));
   for (IslStmt &stmt : islStmts) {
-    isl_union_set *set = isl_union_set_from_basic_set(stmt.bset);
+    isl_union_set *set = isl_union_set_from_basic_set(stmt.domain);
     LLVM_DEBUG(isl_union_set_dump(set));
     domain = isl_union_set_union(set, domain);
     LLVM_DEBUG(isl_union_set_dump(domain));
   }
   LLVM_DEBUG(isl_union_set_dump(domain));
+  for (IslStmt &stmt : islStmts) {
+    for (auto rel : stmt.accessRelations) {
+      LLVM_DEBUG(isl_basic_map_dump(rel));
+    }
+  }
   domain = isl_union_set_free(domain);
 }
 
@@ -120,11 +130,11 @@ void IslScop::addDomainRelation(int stmtId,
   LLVM_DEBUG(llvm::errs() << "space: ");
   LLVM_DEBUG(isl_space_dump(space));
 
-  islStmts[stmtId].bset = isl_basic_set_from_constraint_matrices(
+  islStmts[stmtId].domain = isl_basic_set_from_constraint_matrices(
       space, eqMat, ineqMat, isl_dim_div, isl_dim_set, isl_dim_param,
       isl_dim_cst);
   LLVM_DEBUG(llvm::errs() << "bset: ");
-  LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].bset));
+  LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].domain));
 }
 
 void IslScop::addScatteringRelation(
@@ -193,16 +203,13 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   }
 
   // Create a new dim of memref and set its value to its corresponding ID.
-  memRefIdMap.try_emplace(memref, memRefIdMap.size() + 1);
-  cst.insertDimVar(0, memref);
-  cst.addBound(mlir::presburger::BoundType::EQ, 0, memRefIdMap[memref]);
-  // cst.setIdToConstant(0, memRefIdMap[memref]);
+  memRefIdMap.try_emplace(memref, "A" + std::to_string(memRefIdMap.size() + 1));
 
   isl_mat *eqMat = createConstraintRows(cst, /*isEq=*/true);
   isl_mat *ineqMat = createConstraintRows(cst, /*isEq=*/false);
 
   unsigned rows = isl_mat_rows(eqMat);
-  unsigned cols = isl_mat_cols(eqMat);
+  unsigned cols = 2 * domain.getNumDimVars();
   for (unsigned i = 0; i < rows; i++) {
     for (unsigned j = 0; j < cols; j++) {
       isl_val *val = isl_mat_get_element_val(eqMat, i, j);
@@ -222,8 +229,19 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
     llvm::errs() << "\n";
   });
 
-  isl_mat_free(eqMat);
-  isl_mat_free(ineqMat);
+  assert(cst.getNumInequalities() == 0);
+  isl_space *space =
+      isl_space_alloc(ctx, domain.getNumSymbolVars(), domain.getNumDimVars(),
+                      cst.getNumConstraints());
+  space = isl_space_set_tuple_name(space, isl_dim_in,
+                                   scopStmtNames[stmtId].c_str());
+  space =
+      isl_space_set_tuple_name(space, isl_dim_out, memRefIdMap[memref].c_str());
+
+  islStmts[stmtId].accessRelations.push_back(
+      isl_basic_map_from_constraint_matrices(space, eqMat, ineqMat, isl_dim_in,
+                                             isl_dim_div, isl_dim_out,
+                                             isl_dim_param, isl_dim_cst));
 
   return success();
 }

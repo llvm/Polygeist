@@ -179,7 +179,7 @@ class IslScop {
 public:
   using SymbolTable = llvm::StringMap<mlir::Value>;
   using ValueTable = llvm::DenseMap<mlir::Value, std::string>;
-  using MemRefToId = llvm::DenseMap<mlir::Value, unsigned>;
+  using MemRefToId = llvm::DenseMap<mlir::Value, std::string>;
   using ScopStmtMap = std::map<std::string, ScopStmt>;
   using ScopStmtNames = std::vector<std::string>;
 
@@ -274,7 +274,8 @@ public:
 
 private:
   struct IslStmt {
-    isl_basic_set *bset;
+    isl_basic_set *domain;
+    std::vector<isl_basic_map *> accessRelations;
   };
   std::vector<IslStmt> islStmts;
   isl_space *paramSpace;
