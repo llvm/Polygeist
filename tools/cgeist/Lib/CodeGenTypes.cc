@@ -1639,11 +1639,6 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
 #define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
   case BuiltinType::Id:
 #include "clang/Basic/OpenCLImageTypes.def"
-#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
-  case BuiltinType::Sampled##Id:
-#define IMAGE_WRITE_TYPE(Type, Id, Ext)
-#define IMAGE_READ_WRITE_TYPE(Type, Id, Ext)
-#include "clang/Basic/OpenCLImageTypes.def"
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) case BuiltinType::Id:
 #include "clang/Basic/OpenCLExtensionTypes.def"
   case BuiltinType::OCLSampler:
@@ -1731,11 +1726,7 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
                                                 bool IsAlloc) const {
   auto ST = dyn_cast<mlir::LLVM::LLVMStructType>(Ty);
 
-  bool IsSYCLType = isa<sycl::SYCLType>(Ty);
-  if (ST)
-    IsSYCLType |= any_of(ST.getBody(), sycl::SYCLType::classof);
-
-  if (!ST || IsSYCLType)
+  if (!ST)
     return mlir::MemRefType::get(IsAlloc ? 1 : ShapedType::kDynamic, Ty, {},
                                  AddressSpace);
   return getPointerType(Ty, AddressSpace);
@@ -1766,7 +1757,7 @@ bool CodeGenTypes::isLLVMStructABI(const clang::RecordDecl *RD,
     if (!CXRD->hasDefinition() || CXRD->getNumVBases())
       return true;
     for (const auto *M : CXRD->methods())
-      if (M->isVirtualAsWritten() || M->isPure())
+      if (M->isVirtualAsWritten() || M->isPureVirtual())
         return true;
     for (const auto &Base : CXRD->bases())
       if (Base.getType()->getAsCXXRecordDecl()->isEmpty())
