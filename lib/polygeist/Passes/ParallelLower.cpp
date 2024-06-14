@@ -792,7 +792,8 @@ void ConvertCudaRTtoCPU::runOnOperation() {
           }
           bz.create<LLVM::MemcpyOp>(
               call->getLoc(),
-              bz.create<LLVM::GEPOp>(call->getLoc(), dst.getType(), dst,
+              bz.create<LLVM::GEPOp>(call->getLoc(), dst.getType(),
+                                     dst.getType(), dst,
                                      std::vector<Value>({call->getOperand(3)})),
               src, call->getOperand(2),
               /*isVolatile*/ falsev);
