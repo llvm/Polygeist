@@ -20,6 +20,8 @@
 using namespace mlir;
 using namespace polygeist;
 
+#ifdef BUILD_CGEIST
+
 namespace {
 
 static constexpr const char todoAttr[] = "polygeist.to.opaque.todo";
@@ -283,3 +285,16 @@ struct ConvertToOpaquePtrPass
 std::unique_ptr<Pass> mlir::polygeist::createConvertToOpaquePtrPass() {
   return std::make_unique<ConvertToOpaquePtrPass>();
 }
+
+#else
+
+struct ConvertToOpaquePtrPass
+    : public ConvertToOpaquePtrPassBase<ConvertToOpaquePtrPass> {
+  void runOnOperation() override {}
+};
+
+std::unique_ptr<Pass> mlir::polygeist::createConvertToOpaquePtrPass() {
+  return std::make_unique<ConvertToOpaquePtrPass>();
+}
+
+#endif
