@@ -2476,7 +2476,7 @@ public:
         Value numElements = rewriter.create<LLVM::ConstantOp>(
             gpuFuncOp.getLoc(), int64Ty, type.getNumElements());
         Value allocated = rewriter.create<LLVM::AllocaOp>(
-            gpuFuncOp.getLoc(), ptrType, numElements, /*alignment=*/0);
+            gpuFuncOp.getLoc(), ptrType, ptrType, numElements, /*alignment=*/0);
         auto descr = MemRefDescriptor::fromStaticShape(
             rewriter, loc, *getTypeConverter(), type, allocated);
         signatureConversion.remapInput(
