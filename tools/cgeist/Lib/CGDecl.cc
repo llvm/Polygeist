@@ -12,8 +12,6 @@
 #include "clang-mlir.h"
 #include "utils.h"
 
-#include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
 #include "llvm/ADT/TypeSwitch.h"
