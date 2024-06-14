@@ -1,19 +1,20 @@
 add_mlir_dialect_library(MLIRPolygeistDialect
 PolygeistDialect.cpp
 PolygeistOps.cpp
+PolygeistTypes.cpp
 
 ADDITIONAL_HEADER_DIRS
-${PROJECT_SOURCE_DIR}/include/mlir/Dialect/Polygeist
+${POLYGEIST_SOURCE_DIR}/include/mlir/Dialect/Polygeist
 
 DEPENDS
 MLIRPolygeistOpsIncGen
 
 LINK_LIBS PUBLIC
-MLIRIR
-MLIRMemRefDialect
-MLIRLLVMDialect
-MLIROpenMPDialect
 MLIRAffineDialect
-MLIRSupport
-MLIRSCFTransforms
+MLIRDataLayoutInterfaces
+MLIRIR
+MLIRLLVMDialect
+MLIRMemRefDialect
+MLIROpenMPDialect
+MLIRSCFDialect
 )

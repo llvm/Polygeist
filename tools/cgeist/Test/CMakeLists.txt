@@ -9,11 +9,15 @@ configure_lit_site_cfg(
 )
 
 list(APPEND MLIR_CLANG_TEST_DEPS
-  llvm-config 
-  FileCheck count not
   cgeist
-  split-file
   clang
+  FileCheck count not
+  llvm-config 
+  llvm-dis
+  llvm-as
+  opt
+  split-file
+  sycl-toolchain
   )
 
 add_lit_testsuite(check-cgeist "Running the clang-to-mlir regression tests"

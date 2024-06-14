@@ -1,38 +1,40 @@
 // RUN: polygeist-opt --polygeist-mem2reg --split-input-file %s | FileCheck %s
 
-// TODO: Fix mem2reg using opaque llvm pointers
-// XFAIL: *
-
 module {
   func.func @ll(%arg0: !llvm.ptr) -> !llvm.ptr {
     %c1_i64 = arith.constant 1 : i64
     %2 = llvm.alloca %c1_i64 x !llvm.ptr : (i64) -> !llvm.ptr
     llvm.store %arg0, %2 : !llvm.ptr, !llvm.ptr
     %3 = llvm.load %2 : !llvm.ptr -> !llvm.ptr
-    return %3 : !llvm.ptr
+	return %3 : !llvm.ptr
   }
 }
 
-// TODO Stopped working after opaque pointer update
-
-// CHECK:   func.func @ll(%[[arg0:.+]]: !llvm.ptr) -> !llvm.ptr {
-// CHECK-NEXT:     %[[c1_i64:.+]] = arith.constant 1 : i64
-// CHECK-NEXT:     return %[[arg0]] : !llvm.ptr
+// CHECK:   func.func @ll(%arg0: !llvm.ptr) -> !llvm.ptr {
+// CHECK-NEXT:     %c1_i64 = arith.constant 1 : i64
+// CHECK-NEXT:     return %arg0 : !llvm.ptr
 // CHECK-NEXT:   }
 
 // -----
 
+// COM: For the following example, mem2reg should not perform promotion of the
+//      alloca, as the types of the store and load do not match the allocatd
+//      type.
 module {
-  func.func @mixed(%mr : !llvm.ptr) {
-    %2 = memref.alloc() : memref<2xf32>
-    llvm.store %2, %mr : memref<2xf32>, !llvm.ptr
-    return
+  func.func @no_promotion(%arg0 : f32) -> i32 {
+    %0 = llvm.mlir.constant(1 : i32) : i32
+    %1 = llvm.alloca %0 x !llvm.struct<"union.anon", (i32)> {alignment = 4 : i64} : (i32) -> !llvm.ptr
+    llvm.store %arg0, %1 {alignment = 4 : i64} : f32, !llvm.ptr
+    %2 = llvm.load %1 {alignment = 4 : i64} : !llvm.ptr -> i32
+    llvm.return %2 : i32
   }
 }
 
-// CHECK-LABEL:   func.func @mixed(
-// CHECK-SAME:                     %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !llvm.ptr) {
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = memref.alloc() : memref<2xf32>
-// CHECK:           llvm.store %[[VAL_1]], %[[VAL_0]] : memref<2xf32>, !llvm.ptr
-// CHECK:           return
+// CHECK-LABEL:   func.func @no_promotion(
+// CHECK-SAME:                            %[[VAL_0:.*]]: f32) -> i32 {
+// CHECK:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"union.anon", (i32)> {alignment = 4 : i64} : (i32) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_0]], %[[VAL_2]] {alignment = 4 : i64} : f32, !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.load %[[VAL_2]] {alignment = 4 : i64} : !llvm.ptr -> i32
+// CHECK:           llvm.return %[[VAL_3]] : i32
 // CHECK:         }

@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 void* calloc(unsigned long a, unsigned long b);
 
@@ -7,17 +7,12 @@ float* zmem(int n) {
     return out;
 }
 
-// CHECK:   func @zmem(%[[arg0:.+]]: i32) -> memref<?xf32>  
-// CHECK-DAG:     %[[c4:.+]] = arith.constant 4 : index
-// CHECK-DAG:     %[[cst:.+]] = arith.constant 0.000000e+00 : f32
-// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg0]] : i32 to index
-// CHECK-NEXT:     %[[V1:.+]] = arith.muli %[[V0]], %[[c4]] : index
-// CHECK-NEXT:     %[[V2:.+]] = arith.divui %[[V1]], %[[c4]] : index
-// CHECK-NEXT:     %[[V3:.+]] = memref.alloc(%[[V2]]) : memref<?xf32>
-// CHECK-NEXT:     scf.for %[[arg1:.+]] = %[[c0]] to %[[V2]] step %[[c1]] {
-// CHECK-NEXT:       memref.store %[[cst]], %[[V3]][%[[arg1]]] : memref<?xf32>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return %[[V3]] : memref<?xf32>
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @zmem(
+// CHECK-SAME:                    %[[VAL_0:.*]]: i32) -> memref<?xf32>
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 4 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = arith.extsi %[[VAL_0]] : i32 to i64
+// CHECK-NEXT:      %[[VAL_3:.*]] = call @calloc(%[[VAL_1]], %[[VAL_2]]) : (i64, i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = "polygeist.pointer2memref"(%[[VAL_3]]) : (!llvm.ptr) -> memref<?xf32>
+// CHECK-NEXT:      return %[[VAL_4]] : memref<?xf32>
+// CHECK-NEXT:    }
+// CHECK-NEXT:    func.func private @calloc(i64, i64) -> !llvm.ptr

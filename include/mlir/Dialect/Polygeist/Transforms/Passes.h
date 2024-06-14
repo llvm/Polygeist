@@ -1,135 +1,73 @@
-#ifndef POLYGEIST_DIALECT_POLYGEIST_PASSES_H
-#define POLYGEIST_DIALECT_POLYGEIST_PASSES_H
+//===- Passes.h - Transform Pass Construction and Registration --*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
+#ifndef MLIR_DIALECT_POLYGEIST_TRANSFORMS_PASSES_H
+#define MLIR_DIALECT_POLYGEIST_TRANSFORMS_PASSES_H
+
 #include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
-#include <memory>
 
-enum PolygeistAlternativesMode { PAM_Static, PAM_PGO_Profile, PAM_PGO_Opt };
-enum PolygeistGPUStructureMode {
-  PGSM_Discard,
-  PGSM_BlockThreadWrappers,
-  PGSM_ThreadNoop,
-  PGSM_BlockThreadNoops
-};
+#include <memory>
 
 namespace mlir {
 class PatternRewriter;
-class RewritePatternSet;
 class DominanceInfo;
+class LLVMTypeConverter;
 namespace polygeist {
-std::unique_ptr<Pass> createParallelLICMPass();
-std::unique_ptr<Pass> createPolygeistMem2RegPass();
-std::unique_ptr<Pass> createLoopRestructurePass();
-std::unique_ptr<Pass> createInnerSerializationPass();
-std::unique_ptr<Pass> createSerializationPass();
-std::unique_ptr<Pass> replaceAffineCFGPass();
-std::unique_ptr<Pass> createOpenMPOptPass();
-std::unique_ptr<Pass> createCanonicalizeForPass();
-std::unique_ptr<Pass> createRaiseSCFToAffinePass();
-std::unique_ptr<Pass> createCPUifyPass(StringRef method = "");
+//===----------------------------------------------------------------------===//
+// Patterns
+//===----------------------------------------------------------------------===//
+
+/// Collect a set of patterns to convert memory-related operations from the
+/// MemRef dialect to the LLVM dialect forcing a "bare pointer" calling
+/// convention.
+void populateBareMemRefToLLVMConversionPatterns(LLVMTypeConverter &converter,
+                                                RewritePatternSet &patterns);
+
+#define GEN_PASS_DECL
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+
+std::unique_ptr<Pass> createArgumentPromotionPass();
 std::unique_ptr<Pass> createBarrierRemovalContinuation();
-std::unique_ptr<Pass> detectReductionPass();
+std::unique_ptr<Pass> createCPUifyPass();
+std::unique_ptr<Pass> createCPUifyPass(const SCFCPUifyOptions &options);
+std::unique_ptr<Pass> createCanonicalizeForPass();
+std::unique_ptr<Pass> createDetectReductionPass();
+std::unique_ptr<Pass>
+createDetectReductionPass(const DetectReductionOptions &options);
+std::unique_ptr<Pass> createInnerSerializationPass();
+std::unique_ptr<Pass> createKernelDisjointSpecializationPass();
+std::unique_ptr<Pass> createKernelDisjointSpecializationPass(
+    const KernelDisjointSpecializationOptions &options);
+std::unique_ptr<Pass> createLICMPass();
+std::unique_ptr<Pass> createLICMPass(const LICMOptions &options);
+std::unique_ptr<Pass> createLegalizeForSPIRVPass();
+std::unique_ptr<Pass> createLoopInternalizationPass();
+std::unique_ptr<Pass>
+createLoopInternalizationPass(const LoopInternalizationOptions &options);
+std::unique_ptr<Pass> createLoopRestructurePass();
+std::unique_ptr<Pass> createMem2RegPass();
+std::unique_ptr<Pass> createOpenMPOptPass();
+std::unique_ptr<Pass> createParallelLowerPass();
+std::unique_ptr<Pass> createRaiseSCFToAffinePass();
 std::unique_ptr<Pass> createRemoveTrivialUsePass();
-std::unique_ptr<Pass> createParallelLowerPass(
-    bool wrapParallelOps = false,
-    PolygeistGPUStructureMode gpuKernelStructureMode = PGSM_Discard);
-std::unique_ptr<Pass> createConvertCudaRTtoCPUPass();
-std::unique_ptr<Pass> createConvertCudaRTtoGPUPass();
-std::unique_ptr<Pass> createConvertCudaRTtoHipRTPass();
-std::unique_ptr<Pass> createFixGPUFuncPass();
-std::unique_ptr<Pass> createSCFParallelLoopUnrollPass(int unrollFactor = 2);
+std::unique_ptr<Pass> createReplaceAffineCFGPass();
+std::unique_ptr<Pass> createSYCLHostRaisingPass();
 std::unique_ptr<Pass>
-createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef, bool onlyGpuModules,
-                                 std::string gpuTarget);
-std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
-std::unique_ptr<Pass> createForBreakToWhilePass();
-std::unique_ptr<Pass>
-createConvertParallelToGPUPass1(std::string arch = "sm_60");
-std::unique_ptr<Pass>
-createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
-std::unique_ptr<Pass> createMergeGPUModulesPass();
-std::unique_ptr<Pass> createConvertToOpaquePtrPass();
-std::unique_ptr<Pass> createLowerAlternativesPass();
-std::unique_ptr<Pass> createCollectKernelStatisticsPass();
-std::unique_ptr<Pass> createPolygeistCanonicalizePass();
-std::unique_ptr<Pass>
-createPolygeistCanonicalizePass(const GreedyRewriteConfig &config,
-                                ArrayRef<std::string> disabledPatterns,
-                                ArrayRef<std::string> enabledPatterns);
-std::unique_ptr<Pass> createGpuSerializeToCubinPass(
-    StringRef arch, StringRef features, int llvmOptLevel, int ptxasOptLevel,
-    std::string ptxasPath, std::string libDevicePath, bool outputIntermediate);
-std::unique_ptr<Pass>
-createGpuSerializeToHsacoPass(StringRef arch, StringRef features,
-                              int llvmOptLevel, int hsaOptLevel,
-                              std::string rocmPath, bool outputIntermediate);
+createSYCLHostRaisingPass(const SYCLRaiseHostConstructsOptions &options);
 
-void registerGpuSerializeToCubinPass();
-void registerGpuSerializeToHsacoPass();
-
-void populateForBreakToWhilePatterns(RewritePatternSet &patterns);
-} // namespace polygeist
-} // namespace mlir
-
-void fully2ComposeAffineMapAndOperands(
-    mlir::PatternRewriter &rewriter, mlir::AffineMap *map,
-    llvm::SmallVectorImpl<mlir::Value> *operands, mlir::DominanceInfo &DI);
-bool isValidIndex(mlir::Value val);
-
-namespace mlir {
-// Forward declaration from Dialect.h
-template <typename ConcreteDialect>
-void registerDialect(DialectRegistry &registry);
-
-namespace arith {
-class ArithDialect;
-} // end namespace arith
-
-namespace omp {
-class OpenMPDialect;
-} // end namespace omp
-
-namespace polygeist {
-class PolygeistDialect;
-} // end namespace polygeist
-
-namespace scf {
-class SCFDialect;
-} // end namespace scf
-
-namespace cf {
-class ControlFlowDialect;
-} // end namespace cf
-
-namespace math {
-class MathDialect;
-} // end namespace math
-
-namespace memref {
-class MemRefDialect;
-} // end namespace memref
-
-namespace func {
-class FuncDialect;
-}
-
-namespace affine {
-class AffineDialect;
-}
-
-namespace LLVM {
-class LLVMDialect;
-}
+//===----------------------------------------------------------------------===//
+// Registration
+//===----------------------------------------------------------------------===//
 
 #define GEN_PASS_REGISTRATION
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
 
-} // end namespace mlir
+} // namespace polygeist
+} // namespace mlir
 
-#endif // POLYGEIST_DIALECT_POLYGEIST_PASSES_H
+#endif // MLIR_DIALECT_POLYGEIST_TRANSFORMS_PASSES_H

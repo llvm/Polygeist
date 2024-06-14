@@ -19,38 +19,36 @@ set( LLVM_LINK_COMPONENTS
 
 add_clang_executable(cgeist
   driver.cc
-  Lib/CGStmt.cc
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
   "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
-  Lib/pragmaHandler.cc
+
   Lib/AffineUtils.cc
+  Lib/Attributes.cc
+  Lib/ConstantFolder.cc
+  Lib/CGCall.cc
+  Lib/CGDecl.cc
+  Lib/CGExpr.cc
+  Lib/CGStmt.cc
+  Lib/CodeGenTypes.cc  
+  Lib/IfScope.cc
+  Lib/pragmaHandler.cc
+  Lib/TypeUtils.cc
   Lib/ValueCategory.cc
   Lib/utils.cc
-  Lib/IfScope.cc
-  Lib/TypeUtils.cc
-  Lib/CGCall.cc 
 )
-if(POLYGEIST_ENABLE_CUDA)
-  target_compile_definitions(cgeist
-    PRIVATE
-    POLYGEIST_ENABLE_CUDA=1
-  )
-  add_dependencies(cgeist execution_engine_cuda_wrapper_binary_include)
-endif()
-if(POLYGEIST_ENABLE_ROCM)
-  target_compile_definitions(cgeist
-    PRIVATE
-    POLYGEIST_ENABLE_ROCM=1
-  )
-  add_dependencies(cgeist execution_engine_rocm_wrapper_binary_include)
-endif()
+
+option(CGEIST_DEFAULT_ALLOW_UNDEFINED_SYCL_TYPES
+  "Whether to allow undefined SYCL types by default" OFF)
+configure_file(CgeistConfig.h.in CgeistConfig.h)
+
 install(TARGETS cgeist
 EXPORT PolygeistTargets
 RUNTIME DESTINATION ${LLVM_TOOLS_INSTALL_DIR}
 COMPONENT cgeist)
 
 target_include_directories(cgeist PRIVATE
+  "${PROJECT_BINARY_DIR}"
   "${LLVM_SOURCE_DIR}/../clang/include"
   "${CMAKE_BINARY_DIR}/tools/clang/include"
 )
@@ -59,46 +57,37 @@ target_compile_definitions(cgeist PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")
 target_link_libraries(cgeist PRIVATE
   MLIRSCFTransforms
   MLIRPolygeistDialect
-  MLIRPolygeistToLLVM
 
   MLIRSupport
   MLIRIR
   MLIRAnalysis
-  MLIRLLVMDialect
-  MLIRNVVMDialect
+  MLIRBuiltinToLLVMIRTranslation
+  MLIRFuncInlinerExtension
+  MLIRSPIRVDialect
+  MLIRSYCLDialect
   MLIROpenMPDialect
-  MLIRGPUTransforms
+  MLIRGPUDialect
   MLIRTransforms
   MLIRSCFToControlFlow
   MLIRFuncToLLVM
-  MLIRFunctionInterfaces
   MLIRAffineTransforms
+  MLIRArithTransforms
   MLIRAffineToStandard
   MLIRMathToLLVM
   MLIRTargetLLVMIRImport
+  MLIRPolygeistToLLVM
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
+  MLIRReconcileUnrealizedCasts
   MLIRSCFToOpenMP
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
-  MLIRGPUToNVVMTransforms
-  MLIRGPUToGPURuntimeTransforms
-  MLIRFuncAllExtensions
-  MLIRLLVMIRToLLVMTranslation
-  MLIRFromLLVMIRTranslationRegistration
-  MLIRAffineAnalysis
-  MLIRAnalysis
-  MLIRCastInterfaces
-  MLIRDialect
-  MLIROptLib
-  MLIRParser
-  MLIRPass
-  MLIRTransforms
-  MLIRTransformUtils
-  MLIRSupport
-  MLIRIR
-  MLIRCAPIRegisterEverything
-  MLIRBuiltinToLLVMIRTranslation
+  MLIRSYCLToLLVM
+  MLIRSYCLTransforms
+  MLIRVectorDialect
+  
+  LLVMSYCLLowerIR
+  LLVMPasses
 
   clangAST
   clangBasic

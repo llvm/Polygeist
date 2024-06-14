@@ -11,13 +11,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "PassDetails.h"
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
 
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Polygeist/IR/PolygeistOps.h"
+#include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -27,8 +29,13 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Dialect/Polygeist/Utils/BarrierUtils.h"
-#include "mlir/Dialect/Polygeist/Transforms/Passes.h"
+
+namespace mlir {
+namespace polygeist {
+#define GEN_PASS_DEF_SCFBARRIERREMOVALCONTINUATION
+#include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -105,7 +112,7 @@ static void splitBlocksWithBarrier(Region &region) {
     Block *original = op->getBlock();
     Block *block = original->splitBlock(op->getNextNode());
     auto builder = OpBuilder::atBlockEnd(original);
-    builder.create<cf::BranchOp>(op.getLoc(), block);
+    builder.create<cf::BranchOp>(builder.getUnknownLoc(), block);
   }
 }
 
@@ -306,68 +313,23 @@ emitContinuationCase(Value condition, Value storage, scf::ParallelOp parallel,
   builder.setInsertionPoint(b.getInsertionBlock(), b.getInsertionPoint());
 }
 
-/// Returns the insertion point (as block pointer and itertor in it) immediately
-/// after the definition of `v`.
-static std::pair<Block *, Block::iterator> getInsertionPointAfterDef(Value v) {
-  if (Operation *op = v.getDefiningOp())
-    return {op->getBlock(), std::next(Block::iterator(op))};
-
-  BlockArgument blockArg = v.cast<BlockArgument>();
-  return {blockArg.getParentBlock(), blockArg.getParentBlock()->begin()};
-}
-
-/// Returns the insertion point that post-dominates `first` and `second`.
-static std::pair<Block *, Block::iterator>
-findNearestPostDominatingInsertionPoint(
-    const std::pair<Block *, Block::iterator> &first,
-    const std::pair<Block *, Block::iterator> &second,
-    const PostDominanceInfo &postDominanceInfo) {
-  // Same block, take the last op.
-  if (first.first == second.first)
-    return first.second->isBeforeInBlock(&*second.second) ? second : first;
-
-  // Same region, use "normal" dominance analysis.
-  if (first.first->getParent() == second.first->getParent()) {
-    Block *block =
-        postDominanceInfo.findNearestCommonDominator(first.first, second.first);
-    assert(block);
-    if (block == first.first)
-      return first;
-    if (block == second.first)
-      return second;
-    return {block, block->begin()};
+/// Emits the IR  computing the total number of iterations in the loop. We don't
+/// need to linearize them since we can allocate an nD array instead.
+static llvm::SmallVector<mlir::Value>
+emitIterationCounts(mlir::OpBuilder &rewriter, mlir::scf::ParallelOp op) {
+  using namespace mlir;
+  SmallVector<Value> iterationCounts;
+  for (auto bounds :
+       llvm::zip(op.getLowerBound(), op.getUpperBound(), op.getStep())) {
+    Value lowerBound = std::get<0>(bounds);
+    Value upperBound = std::get<1>(bounds);
+    Value step = std::get<2>(bounds);
+    Value diff =
+        rewriter.create<arith::SubIOp>(op.getLoc(), upperBound, lowerBound);
+    Value count = rewriter.create<arith::CeilDivSIOp>(op.getLoc(), diff, step);
+    iterationCounts.push_back(count);
   }
-
-  if (first.first->getParent()->isAncestor(second.first->getParent()))
-    return second;
-
-  assert(second.first->getParent()->isAncestor(first.first->getParent()) &&
-         "expected values to be defined in nested regions");
-  return first;
-}
-
-/// Returns the insertion point that post-dominates all `values`.
-static std::pair<Block *, Block::iterator>
-findNesrestPostDominatingInsertionPoint(
-    ArrayRef<Value> values, const PostDominanceInfo &postDominanceInfo) {
-  assert(!values.empty());
-  std::pair<Block *, Block::iterator> insertPoint =
-      getInsertionPointAfterDef(values[0]);
-  for (unsigned i = 1, e = values.size(); i < e; ++i)
-    insertPoint = findNearestPostDominatingInsertionPoint(
-        insertPoint, getInsertionPointAfterDef(values[i]), postDominanceInfo);
-  return insertPoint;
-}
-
-std::pair<Block *, Block::iterator>
-findInsertionPointAfterLoopOperands(scf::ParallelOp op) {
-  // Find the earliest insertion point where loop bounds are fully defined.
-  PostDominanceInfo postDominanceInfo(op->getParentOfType<func::FuncOp>());
-  SmallVector<Value> operands;
-  llvm::append_range(operands, op.getLowerBound());
-  llvm::append_range(operands, op.getUpperBound());
-  llvm::append_range(operands, op.getStep());
-  return findNesrestPostDominatingInsertionPoint(operands, postDominanceInfo);
+  return iterationCounts;
 }
 
 /// Break SSA use-def pairs that would need to communicate between different
@@ -417,8 +379,8 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
 
   // Insert allocations as early as possible, the stores immediately when the
   // value is available and the loads immediately before each use. Further
-  // polygeist-mem2reg is expected to clean up the cases where a value is stored
-  // and loaded back in the same block or subsequent blocks because there is no
+  // mem2reg is expected to clean up the cases where a value is stored and
+  // loaded back in the same block or subsequent blocks because there is no
   // guarantee that the block was not copied in another subgraph.
 
   OpBuilder accessBuilder(parallel.getContext());
@@ -427,10 +389,10 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
   for (Value value : valuesToStore) {
     assert(!value.getDefiningOp<polygeist::SubIndexOp>());
     Value allocation = allocateTemporaryBuffer<mlir::memref::AllocOp>(
-        allocaBuilder, value, iterationCounts, /*alloca*/ true);
+        allocaBuilder, value, iterationCounts);
     /*
     if
-    (allocation.getType().cast<MemRefType>().getElementType().isa<MemRefType>())
+    (isa<MemRefType>(cast<MemRefType>(allocation.getType()).getElementType()))
     { llvm::errs() << " value: " << value << " alloc: " << allocation << "\n";
         llvm_unreachable("bad allocation\n");
     }
@@ -458,7 +420,7 @@ static void reg2mem(ArrayRef<llvm::SetVector<Block *>> subgraphs,
         accessBuilder.setInsertionPoint(use.getOwner());
         auto buf = allocation;
         for (auto idx : parallel.getInductionVars()) {
-          auto mt0 = buf.getType().cast<MemRefType>();
+          auto mt0 = cast<MemRefType>(buf.getType());
           std::vector<int64_t> shape(mt0.getShape());
           shape.erase(shape.begin());
           auto mt = MemRefType::get(shape, mt0.getElementType(),
@@ -604,7 +566,8 @@ static void createContinuations(FunctionOpInterface func) {
 
 namespace {
 struct BarrierRemoval
-    : public SCFBarrierRemovalContinuationBase<BarrierRemoval> {
+    : public mlir::polygeist::impl::SCFBarrierRemovalContinuationBase<
+          BarrierRemoval> {
   void runOnOperation() override {
     auto f = getOperation();
     if (failed(convertToCFG(f)))

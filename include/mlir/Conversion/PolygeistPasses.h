@@ -1,25 +1,22 @@
-#ifndef MLIR_CONVERSION_POLYGEISTPASSES_H_
-#define MLIR_CONVERSION_POLYGEISTPASSES_H_
+//===- PolygeistPasses.h - Conversion Pass Construction and Registration --===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/LLVMCommon/LoweringOptions.h"
-#include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
-#include "mlir/Dialect/OpenMP/OpenMPDialect.h"
-#include "mlir/Pass/Pass.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "mlir/Dialect/Polygeist/IR/PolygeistDialect.h"
-#include <memory>
+#ifndef MLIR_CONVERSION_POLYGEISTPASSES_H
+#define MLIR_CONVERSION_POLYGEISTPASSES_H
+
+#include "mlir/Conversion/PolygeistToLLVM/PolygeistToLLVM.h"
 
 namespace mlir {
-class PatternRewriter;
-class RewritePatternSet;
-class DominanceInfo;
 namespace polygeist {
-std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
-std::unique_ptr<Pass>
-createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
-                                 bool useCStyleMemRef, bool onlyGpuModules,
-                                 std::string gpuTarget);
-}
-}
+/// Generate the code for registering conversion passes.
+#define GEN_PASS_REGISTRATION
+#include "mlir/Conversion/PolygeistPasses.h.inc"
+} // namespace polygeist
+} // namespace mlir
 
-#endif // POLYGEISTPASSES_H_
+#endif // MLIR_CONVERSION_POLYGEISTPASSES_H

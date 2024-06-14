@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=ll -S | FileCheck %s
+// RUN: cgeist  -O0 -w %s  --function=ll -S | FileCheck %s
 
 struct alignas(2) Half {
   unsigned short x;
@@ -17,12 +17,12 @@ float ll(void* data) {
 }
 
 // CHECK-LABEL:   func.func @ll(
-// CHECK-SAME:                  %[[VAL_0:[A-Za-z0-9_]*]]: memref<?xi8>) -> f32
-// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = memref.alloca() : memref<1x1xi16>
-// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_0]]) : (memref<?xi8>) -> !llvm.ptr
-// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> i16
-// CHECK:           affine.store %[[VAL_3]], %[[VAL_1]][0, 0] : memref<1x1xi16>
-// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = memref.cast %[[VAL_1]] : memref<1x1xi16> to memref<?x1xi16>
-// CHECK:           %[[VAL_5:[A-Za-z0-9_]*]] = call @thing(%[[VAL_4]]) : (memref<?x1xi16>) -> f32
-// CHECK:           return %[[VAL_5]] : f32
-// CHECK:         }
+// CHECK-SAME:                  %[[VAL_0:.*]]: !llvm.ptr) -> f32 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[SIZE:.*]] = arith.constant 2 : i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<(i16)> : (i64) -> !llvm.ptr
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_2]], %[[VAL_0]], %[[SIZE]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.struct<(i16)>
+// CHECK-NEXT:      %[[VAL_4:.*]] = call @thing(%[[VAL_3]]) : (!llvm.struct<(i16)>) -> f32
+// CHECK-NEXT:      return %[[VAL_4]] : f32
+// CHECK-NEXT:    }

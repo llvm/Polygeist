@@ -1,4 +1,4 @@
-// RUN: cgeist %s -S %stdinclude --function=main -memref-fullrank -O0 | FileCheck %s
+// RUN: cgeist %s -S -memref-fullrank -O0 | FileCheck %s
 
 #include <stdio.h>
 
@@ -28,6 +28,6 @@ int main() {
 // CHECK: %[[VAL0:.*]] = memref.alloca() : memref<10x20xi32>
 // CHECK: %{{.*}} = call @g(%[[VAL0]]) : (memref<10x20xi32>) -> i32
 
-// CHECK: func @g(%[[arg0:.+]]: memref<10x20xi32>) -> i32
+// CHECK: func @g(%arg0: memref<10x20xi32>) -> i32
 
-// CHECK: func @f(%[[arg0:.+]]: memref<10x20xi32>) -> i32
+// CHECK: func @f(%arg0: memref<10x20xi32>) -> i32

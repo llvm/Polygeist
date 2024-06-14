@@ -9,31 +9,54 @@
 #ifndef MLIR_TOOLS_MLIRCLANG_UTILS_H
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
-#include "mlir/IR/Builders.h"
-#include "llvm/ADT/ArrayRef.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "clang/Basic/LangOptions.h"
+#include "llvm/Support/CommandLine.h"
+
+extern llvm::cl::opt<bool> SuppressWarnings;
+
+#define CGEIST_WARNING(X)                                                      \
+  if (!SuppressWarnings) {                                                     \
+    X;                                                                         \
+  }
+
+namespace clang {
+class DeclContext;
+}
 
 namespace mlir {
+class OpBuilder;
 class Operation;
+class ModuleOp;
+class Value;
+class FunctionOpInterface;
+
 namespace func {
 class FuncOp;
 }
-class Value;
-class OpBuilder;
-class AbstractOperation;
-class Type;
+
+namespace gpu {
+class GPUModuleOp;
+}
 } // namespace mlir
 
 namespace llvm {
+class raw_ostream;
+template <typename> class SmallVectorImpl;
 class StringRef;
 } // namespace llvm
 
-namespace clang {
-class Expr;
-}
-
-class MLIRScanner;
+enum class InsertionContext;
 
 namespace mlirclang {
+
+/// Whether the parent namespace is the sycl namespace, a namespace within it or
+/// not.
+enum class NamespaceKind {
+  Other = 0,  /// namespace is not 'sycl'
+  SYCL,       /// the 'sycl' namespace
+  WithinSYCL, /// nested in the sycl namespace
+};
 
 /// Replace the given function by the operation with the given name, and use the
 /// same argument list. For example, if the function is @foo(%a, %b) and opName
@@ -41,12 +64,24 @@ namespace mlirclang {
 /// operands %a and %b. The new op will be inserted at where the insertion point
 /// of the provided OpBuilder is.
 mlir::Operation *
-replaceFuncByOperation(mlir::func::FuncOp f, llvm::StringRef opName,
-                       mlir::OpBuilder &b,
-                       llvm::SmallVectorImpl<mlir::Value> &input,
-                       llvm::SmallVectorImpl<mlir::Value> &output);
-mlir::Value castInteger(mlir::OpBuilder &, mlir::Location &, mlir::Value,
-                        mlir::Type);
+replaceFuncByOperation(mlir::func::FuncOp F, llvm::StringRef OpName,
+                       mlir::OpBuilder &B,
+                       llvm::SmallVectorImpl<mlir::Value> &Input,
+                       llvm::SmallVectorImpl<mlir::Value> &Output);
+
+NamespaceKind getNamespaceKind(const clang::DeclContext *DC);
+
+/// Return the device module in the input module.
+mlir::gpu::GPUModuleOp getDeviceModule(mlir::ModuleOp Module);
+
+/// Set the OpBuilder \p Builder insertion point depending on the given
+/// InsertionContext \p FuncContext.
+void setInsertionPoint(mlir::OpBuilder &Builder, InsertionContext FuncContext,
+                       mlir::ModuleOp Module);
+
+mlir::arith::FastMathFlagsAttr getFastMathFlags(mlir::Builder &B,
+                                                clang::FPOptions FPFeatures);
+
 } // namespace mlirclang
 
-#endif
+#endif // MLIR_TOOLS_MLIRCLANG_UTILS_H

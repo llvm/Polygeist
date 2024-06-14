@@ -1,5 +1,5 @@
-// RUN: cgeist %s --function=kernel_correlation --raise-scf-to-affine -S | FileCheck %s
-// RUN: cgeist %s --function=kernel_correlation --raise-scf-to-affine -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s -O2 --function=kernel_correlation -S -enable-attributes | FileCheck %s
+// RUN: cgeist %s -O2 --function=kernel_correlation -S --memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #define DATA_TYPE double
 
@@ -8,11 +8,11 @@
 /* Main computational kernel. The whole function will be timed,
    including the call and return. */
 void kernel_correlation(int n, double alpha, double beta,
-                    double A[28][28],
-                    double B[28][28],
-                    double tmp[28],
-                    double x[28],
-                    double y[28])
+                    double A[restrict 28][28],
+                    double B[restrict 28][28],
+                    double tmp[restrict 28],
+                    double x[restrict 28],
+                    double y[restrict 28])
 {
   int i, j;
 
@@ -30,34 +30,32 @@ void kernel_correlation(int n, double alpha, double beta,
 
 }
 
-// CHECK:   func @kernel_correlation(%[[arg0:.+]]: i32, %[[arg1:.+]]: f64, %[[arg2:.+]]: f64, %[[arg3:.+]]: memref<?x28xf64>, %[[arg4:.+]]: memref<?x28xf64>, %[[arg5:.+]]: memref<?xf64>, %[[arg6:.+]]: memref<?xf64>, %[[arg7:.+]]: memref<?xf64>)
-// CHECK-NEXT:     %[[cst:.+]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:     %[[V0:.+]] = arith.index_cast %[[arg0]] : i32 to index
-// CHECK-NEXT:     affine.for %[[arg8:.+]] = 0 to %[[V0]] {
-// CHECK-NEXT:       affine.store %[[cst]], %[[arg5]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:       affine.store %[[cst]], %[[arg7]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:       affine.for %[[arg9:.+]] = 0 to %[[V0]] {
-// CHECK-NEXT:         %[[V6:.+]] = affine.load %[[arg3]][%[[arg8]], %[[arg9]]] : memref<?x28xf64>
-// CHECK-NEXT:         %[[V7:.+]] = affine.load %[[arg6]][%[[arg9]]] : memref<?xf64>
-// CHECK-NEXT:         %[[V8:.+]] = arith.mulf %[[V6]], %[[V7]] : f64
-// CHECK-NEXT:         %[[V9:.+]] = affine.load %[[arg5]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:         %[[V10:.+]] = arith.addf %[[V8]], %[[V9]] : f64
-// CHECK-NEXT:         affine.store %[[V10]], %[[arg5]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:         %[[V11:.+]] = affine.load %[[arg4]][%[[arg8]], %[[arg9]]] : memref<?x28xf64>
-// CHECK-NEXT:         %[[V12:.+]] = affine.load %[[arg6]][%[[arg9]]] : memref<?xf64>
-// CHECK-NEXT:         %[[V13:.+]] = arith.mulf %[[V11]], %[[V12]] : f64
-// CHECK-NEXT:         %[[V14:.+]] = affine.load %[[arg7]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:         %[[V15:.+]] = arith.addf %[[V13]], %[[V14]] : f64
-// CHECK-NEXT:         affine.store %[[V15]], %[[arg7]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:       }
-// CHECK-NEXT:       %[[V1:.+]] = affine.load %[[arg5]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:       %[[V2:.+]] = arith.mulf %[[arg1]], %[[V1]] : f64
-// CHECK-NEXT:       %[[V3:.+]] = affine.load %[[arg7]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:       %[[V4:.+]] = arith.mulf %[[arg2]], %[[V3]] : f64
-// CHECK-NEXT:       %[[V5:.+]] = arith.addf %[[V2]], %[[V4]] : f64
-// CHECK-NEXT:       affine.store %[[V5]], %[[arg7]][%[[arg8]]] : memref<?xf64>
-// CHECK-NEXT:     }
-// CHECK-NEXT:     return
-// CHECK-NEXT:   }
+// CHECK-LABEL:   func.func @kernel_correlation(
+// CHECK-SAME:                                  %[[VAL_0:.*]]: i32 {llvm.noundef}, %[[VAL_1:.*]]: f64 {llvm.noundef}, %[[VAL_2:.*]]: f64 {llvm.noundef}, %[[VAL_3:.*]]: memref<?x28xf64> {llvm.noalias, llvm.noundef}, %[[VAL_4:.*]]: memref<?x28xf64> {llvm.noalias, llvm.noundef}, %[[VAL_5:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef}, %[[VAL_6:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef}, %[[VAL_7:.*]]: memref<?xf64> {llvm.noalias, llvm.noundef})
+// CHECK:           %[[VAL_8:.*]] = arith.constant 0.000000e+00 : f64
+// CHECK:           %[[VAL_9:.*]] = arith.index_cast %[[VAL_0]] : i32 to index
+// CHECK:           affine.for %[[VAL_10:.*]] = 0 to %[[VAL_9]] {
+// CHECK:             affine.store %[[VAL_8]], %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             affine.store %[[VAL_8]], %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_11:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_12:.*]] = affine.load %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_13:.*]]:2 = affine.for %[[VAL_14:.*]] = 0 to %[[VAL_9]] iter_args(%[[VAL_15:.*]] = %[[VAL_11]], %[[VAL_16:.*]] = %[[VAL_12]]) -> (f64, f64) {
+// CHECK:               %[[VAL_17:.*]] = affine.load %[[VAL_3]]{{\[}}%[[VAL_10]], %[[VAL_14]]] : memref<?x28xf64>
+// CHECK:               %[[VAL_18:.*]] = affine.load %[[VAL_6]]{{\[}}%[[VAL_14]]] : memref<?xf64>
+// CHECK:               %[[VAL_19:.*]] = math.fma %[[VAL_17]], %[[VAL_18]], %[[VAL_15]] : f64
+// CHECK:               %[[VAL_20:.*]] = affine.load %[[VAL_4]]{{\[}}%[[VAL_10]], %[[VAL_14]]] : memref<?x28xf64>
+// CHECK:               %[[VAL_21:.*]] = math.fma %[[VAL_20]], %[[VAL_18]], %[[VAL_16]] : f64
+// CHECK:               affine.yield %[[VAL_19]], %[[VAL_21]] : f64, f64
+// CHECK:             }
+// CHECK:             affine.store %[[VAL_22:.*]]#1, %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             affine.store %[[VAL_22]]#0, %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_23:.*]] = affine.load %[[VAL_5]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_24:.*]] = affine.load %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:             %[[VAL_25:.*]] = arith.mulf %[[VAL_2]], %[[VAL_24]] : f64
+// CHECK:             %[[VAL_26:.*]] = math.fma %[[VAL_1]], %[[VAL_23]], %[[VAL_25]] : f64
+// CHECK:             affine.store %[[VAL_26]], %[[VAL_7]]{{\[}}%[[VAL_10]]] : memref<?xf64>
+// CHECK:           }
+// CHECK:           return
+// CHECK:         }
 
 // FULLRANK: func @kernel_correlation(%{{.*}}: i32, %{{.*}}: f64, %{{.*}}: f64, %{{.*}}: memref<28x28xf64>, %{{.*}}: memref<28x28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>, %{{.*}}: memref<28xf64>)

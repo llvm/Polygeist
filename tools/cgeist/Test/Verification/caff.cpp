@@ -1,4 +1,4 @@
-// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist  %s --function=* -S | FileCheck %s
 
 struct AOperandInfo {
   void* data;
@@ -28,26 +28,24 @@ class ASmallVectorTemplateCommon {
 unsigned long long int div_kernel_cuda(ASmallVectorTemplateCommon<AOperandInfo> &operands) {
   return (const AOperandInfo*)operands.EndX - operands.begin();
 }
+
+
 // CHECK-LABEL:   func.func @_Z15div_kernel_cudaR26ASmallVectorTemplateCommonI12AOperandInfoE(
-// CHECK-SAME:                                                                                %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x2xmemref<?xi8>>) -> i64
-// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 1] : memref<?x2xmemref<?xi8>>
-// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?xi8>) -> !llvm.ptr
-// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%[[VAL_0]]) : (memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK:           %[[VAL_4:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_3]]) : (memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>) -> !llvm.ptr
-// CHECK-DAG:       %[[VAL_5:[A-Za-z0-9_]*]] = llvm.ptrtoint %[[VAL_2]] : !llvm.ptr to i64
-// CHECK-DAG:       %[[VAL_6:[A-Za-z0-9_]*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr to i64
-// CHECK:           %[[VAL_7:[A-Za-z0-9_]*]] = arith.subi %[[VAL_5]], %[[VAL_6]] : i64
-// CHECK:           %[[VAL_8:[A-Za-z0-9_]*]] = "polygeist.typeSize"() <{source = !llvm.struct<(memref<?xi8>, i8, i8)>}> : () -> index
-// CHECK:           %[[VAL_9:[A-Za-z0-9_]*]] = arith.index_cast %[[VAL_8]] : index to i64
-// CHECK:           %[[VAL_10:[A-Za-z0-9_]*]] = arith.divsi %[[VAL_7]], %[[VAL_9]] : i64
-// CHECK:           return %[[VAL_10]] : i64
-// CHECK:         }
+// CHECK-SAME:                                                                                %[[VAL_0:.*]]: !llvm.ptr) -> i64 attributes {llvm.linkage = #llvm.linkage<external>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = arith.constant 16 : i64
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.load %[[VAL_2]] : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_4:.*]] = call @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(%[[VAL_0]]) : (!llvm.ptr) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.ptrtoint %[[VAL_3]] : !llvm.ptr to i64
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.ptrtoint %[[VAL_4]] : !llvm.ptr to i64
+// CHECK-NEXT:      %[[VAL_7:.*]] = arith.subi %[[VAL_5]], %[[VAL_6]] : i64
+// CHECK-NEXT:      %[[VAL_8:.*]] = arith.divsi %[[VAL_7]], %[[VAL_1]] : i64
+// CHECK-NEXT:      return %[[VAL_8]] : i64
+// CHECK-NEXT:    }
 
 // CHECK-LABEL:   func.func @_ZNK26ASmallVectorTemplateCommonI12AOperandInfoE5beginEv(
-// CHECK-SAME:                                                                        %[[VAL_0:[A-Za-z0-9_]*]]: memref<?x2xmemref<?xi8>>) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK:           %[[VAL_1:[A-Za-z0-9_]*]] = affine.load %[[VAL_0]][0, 0] : memref<?x2xmemref<?xi8>>
-// CHECK:           %[[VAL_2:[A-Za-z0-9_]*]] = "polygeist.memref2pointer"(%[[VAL_1]]) : (memref<?xi8>) -> !llvm.ptr
-// CHECK:           %[[VAL_3:[A-Za-z0-9_]*]] = "polygeist.pointer2memref"(%[[VAL_2]]) : (!llvm.ptr) -> memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK:           return %[[VAL_3]] : memref<?x!llvm.struct<(memref<?xi8>, i8, i8)>>
-// CHECK:         }
-
+// CHECK-SAME:                                                                        %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr attributes {llvm.linkage = #llvm.linkage<linkonce_odr>} {
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<(ptr, ptr)>
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.load %[[VAL_1]] : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:      return %[[VAL_2]] : !llvm.ptr
+// CHECK-NEXT:    }

@@ -1,0 +1,81 @@
+// RUN: polygeist-opt --canonicalize --split-input-file %s | FileCheck %s
+
+// Ensure the functions below are not canonicalized. 
+
+// -----
+
+// CHECK:  func.func @SubIndex2([[A0:%.*]]: memref<?x!llvm.struct<(i32)>>, [[A1:%.*]]: index, [[A2:%.*]]: index) -> memref<i32> {
+// CHECK-NEXT:     [[T0:%.*]] = "polygeist.subindex"([[A0]], [[A1]]) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:     [[T1:%.*]] = "polygeist.subindex"([[T0]], [[A2]]) : (memref<?xi32>, index) -> memref<i32>
+// CHECK-NEXT:     return [[T1]] : memref<i32>
+// CHECK-NEXT:  }
+func.func @SubIndex2(%arg0: memref<?x!llvm.struct<(i32)>>, %arg1: index, %arg2: index) -> memref<i32> {
+  %0 = "polygeist.subindex"(%arg0, %arg1) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+  %1 = "polygeist.subindex"(%0, %arg2) : (memref<?xi32>, index) -> memref<i32>
+  return %1 : memref<i32>
+}
+
+// -----
+
+// CHECK:  func.func @SubToCast([[A0:%.*]]: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
+// CHECK-NEXT:     [[C0:%.*]] = arith.constant 0 : index
+// CHECK-NEXT:     [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C0]]) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:     return [[T0]] : memref<?xi32>
+// CHECK-NEXT:  }
+func.func @SubToCast(%arg0: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
+  %c0 = arith.constant 0 : index
+  %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+  return %0 : memref<?xi32>
+}
+
+// -----
+
+// CHECK:  func.func @SimplifySubIndexUsers([[A0:%.*]]: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
+// CHECK-NEXT:     [[C0:%.*]] = arith.constant 0 : index
+// CHECK-NEXT:     [[C1:%.*]] = arith.constant 0 : i32
+// CHECK-NEXT:     [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C0]]) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:     memref.store [[C1]], [[T0]][[[C0]]] : memref<?xi32>
+// CHECK-NEXT:     return [[T0]] : memref<?xi32>
+// CHECK-NEXT:  }
+func.func @SimplifySubIndexUsers(%arg0: memref<?x!llvm.struct<(i32)>>) -> memref<?xi32> {
+  %c0 = arith.constant 0 : index
+  %c0_i32 = arith.constant 0 : i32
+  %0 = "polygeist.subindex"(%arg0, %c0) : (memref<?x!llvm.struct<(i32)>>, index) -> memref<?xi32>
+  memref.store %c0_i32, %0[%c0] : memref<?xi32>
+  return %0 : memref<?xi32>
+}
+
+// -----
+
+// CHECK:  func.func @Memref2PointerIndex([[A0:%.*]]: memref<?x!llvm.struct<(i32, i32)>>) -> !llvm.ptr {
+// CHECK-NEXT:    [[C1:%.*]] = arith.constant 1 : index
+// CHECK-NEXT:    [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C1]]) : (memref<?x!llvm.struct<(i32, i32)>>, index) -> memref<?xi32>
+// CHECK-NEXT:    [[T1:%.*]] = "polygeist.memref2pointer"([[T0]]) : (memref<?xi32>) -> !llvm.ptr
+// CHECK-NEXT:    return [[T1]] : !llvm.ptr
+// CHECK-NEXT:  }
+
+func.func @Memref2PointerIndex(%arg0: memref<?x!llvm.struct<(i32, i32)>>) -> !llvm.ptr {
+  %c1 = arith.constant 1 : index
+  %0 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!llvm.struct<(i32, i32)>>, index) -> memref<?xi32>
+  %1 = "polygeist.memref2pointer"(%0) : (memref<?xi32>) -> !llvm.ptr
+  return %1 : !llvm.ptr
+}
+
+// -----
+
+// CHECK:  func.func @Memref2PointerIndexSycl([[A0:%.*]]: memref<?x!sycl_array_1_, 4>) -> !llvm.ptr<4> {
+// CHECK-NEXT:    [[C1:%.*]] = arith.constant 1 : index
+// CHECK-NEXT:    [[T0:%.*]] = "polygeist.subindex"([[A0]], [[C1]]) : (memref<?x!sycl_array_1_, 4>, index) -> memref<?xi64, 4>
+// CHECK-NEXT:    [[T1:%.*]] = "polygeist.memref2pointer"([[T0]]) : (memref<?xi64, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:    return [[T1]] : !llvm.ptr<4>
+// CHECK-NEXT:  }
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
+func.func @Memref2PointerIndexSycl(%arg0: memref<?x!sycl_array_1_, 4>) -> !llvm.ptr<4> {
+  %c1 = arith.constant 1 : index
+  %0 = "polygeist.subindex"(%arg0, %c1) : (memref<?x!sycl.array<[1], (memref<1xi64, 4>)>, 4>, index) -> memref<?xi64, 4>
+  %1 = "polygeist.memref2pointer"(%0) : (memref<?xi64, 4>) -> !llvm.ptr<4>
+  return %1 : !llvm.ptr<4>
+}
+
+// -----
