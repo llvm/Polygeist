@@ -2278,7 +2278,7 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
           moduleBuilder.getI32ArrayAttr({65535}));
       {
         OpBuilder dtorBuilder(moduleOp->getContext());
-        dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock());
+        dtorBuilder.setInsertionPointToStart(dtor.addEntryBlock(rewriter));
         auto aoo = dtorBuilder.create<LLVM::AddressOfOp>(loc, moduleGlobal);
         auto module = dtorBuilder.create<LLVM::LoadOp>(loc, aoo->getResult(0));
         rtUnregisterFatBinaryCallBuilder.create(loc, dtorBuilder,
@@ -2469,10 +2469,8 @@ public:
         // Explicitly drop memory space when lowering private memory
         // attributions since NVVM models it as `alloca`s in the default
         // memory space and does not support `alloca`s with addrspace(5).
-        auto ptrType = LLVM::LLVMPointerType::get(
-            typeConverter->convertType(type.getElementType())
-                .template cast<Type>(),
-            allocaAddrSpace);
+        auto ptrType =
+            LLVM::LLVMPointerType::get(gpuFuncOp.getContext(), allocaAddrSpace);
         Value numElements = rewriter.create<LLVM::ConstantOp>(
             gpuFuncOp.getLoc(), int64Ty, type.getNumElements());
         Value allocated = rewriter.create<LLVM::AllocaOp>(
@@ -2785,7 +2783,6 @@ struct ConvertPolygeistToLLVMPass
       options.overrideIndexBitwidth(indexBitwidth);
 
     options.dataLayout = llvm::DataLayout(this->dataLayout);
-    options.useOpaquePointers = false;
 
     // Define the type converter. Override the default behavior for memrefs if
     // requested.
@@ -2872,7 +2869,6 @@ struct ConvertPolygeistToLLVMPass
 
       // The default impls
       populateGpuToLLVMConversionPatterns(converter, patterns,
-                                          gpu::getDefaultGpuBinaryAnnotation(),
                                           kernelBarePtrCallConv);
 
       // Legality callback for operations that checks whether their operand and
