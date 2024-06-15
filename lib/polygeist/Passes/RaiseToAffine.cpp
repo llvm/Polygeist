@@ -145,8 +145,8 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
           loop.getLoc(), lbs, lbMap, ubs, ubMap, getStep(loop.getStep()),
           loop.getInits());
 
-      auto mergedReduceOp =
-          cast<scf::ReduceOp>(loop.getRegion().front().getTerminator());
+      auto mergedYieldOp =
+          cast<scf::YieldOp>(loop.getRegion().front().getTerminator());
 
       Block &newBlock = affineLoop.getRegion().front();
 
@@ -171,10 +171,10 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
       rewriter.mergeBlocks(&loop.getRegion().front(),
                            &affineLoop.getRegion().front(), vals);
 
-      rewriter.setInsertionPoint(mergedReduceOp);
-      rewriter.create<affine::AffineYieldOp>(mergedReduceOp.getLoc(),
-                                             mergedReduceOp.getOperands());
-      rewriter.eraseOp(mergedReduceOp);
+      rewriter.setInsertionPoint(mergedYieldOp);
+      rewriter.create<affine::AffineYieldOp>(mergedYieldOp.getLoc(),
+                                             mergedYieldOp.getOperands());
+      rewriter.eraseOp(mergedYieldOp);
 
       rewriter.replaceOp(loop, affineLoop.getResults());
 

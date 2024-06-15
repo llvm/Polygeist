@@ -11,7 +11,7 @@ module {
       %c1 = arith.constant 1 : index
       scf.parallel (%arg6) = (%c0_3) to (%aindex) step (%c1) {
         memref.store %cst3, %arg0[%arg6] : memref<?xf64>
-        scf.yield
+        scf.reduce
       }
       %c0_4 = arith.constant 0 : index
       memref.store %cst5, %arg1[%c0_4] : memref<?xf64>
@@ -61,7 +61,7 @@ module {
         memref.store %cst3, %arg2[%arg6] : memref<?xf64>
         scf.parallel (%arg7) = (%c0_3) to (%aindex) step (%c1) {
           memref.store %cst4, %arg0[%arg6, %arg7] : memref<?x100xf64>
-          scf.yield
+          scf.reduce
         }
       }
       %c0_4 = arith.constant 0 : index

@@ -70,9 +70,9 @@ module {
 // CHECK-NEXT:         }
 // CHECK-NEXT:         memref.alloca_scope.return %[[V1]] : i8
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:         scf.reduce
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
@@ -118,9 +118,9 @@ module {
 // CHECK-NEXT:           scf.yield
 // CHECK-NEXT:         }
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:         scf.reduce
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

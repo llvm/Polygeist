@@ -54,7 +54,7 @@ module {
 // CHECK-NEXT:       %[[i3:.+]] = memref.load %[[V0]][] : memref<f32>
 // CHECK-NEXT:       scf.parallel (%[[arg3:.+]]) = (%[[arg1]]) to (%[[arg2]]) step (%[[c1]]) {
 // CHECK-NEXT:         func.call @use(%[[i3:.+]]) : (f32) -> ()
-// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:         scf.reduce
 // CHECK-NEXT:       }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
@@ -69,7 +69,7 @@ module {
 // CHECK-NEXT:       %[[i3:.+]] = memref.load %[[V0]][] : memref<f32>
 // CHECK-NEXT:       scf.parallel (%[[arg3:.+]]) = (%[[arg1]]) to (%[[arg2]]) step (%[[c1]]) {
 // CHECK-NEXT:         func.call @use(%[[i3:.+]]) : (f32) -> ()
-// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:         scf.reduce
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
@@ -82,7 +82,7 @@ module {
 // CHECK-NEXT:       %[[i3:.+]] = memref.load %[[arg3]][] : memref<f32>
 // CHECK-NEXT:       scf.parallel (%[[arg4:.+]]) = (%[[arg1]]) to (%[[arg2]]) step (%[[c1]]) {
 // CHECK-NEXT:         func.call @use(%[[i3:.+]]) : (f32) -> ()
-// CHECK-NEXT:         scf.yield
+// CHECK-NEXT:         scf.reduce
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
@@ -96,7 +96,7 @@ module {
 // CHECK-NEXT:       memref.store %[[V1]], %[[V0]][] : memref<f32>
 // CHECK-NEXT:       %[[V2:.+]] = memref.load %[[V0]][] : memref<f32>
 // CHECK-NEXT:       func.call @use(%[[V2]]) : (f32) -> ()
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }

@@ -26,7 +26,7 @@ module {
             scf.yield %s : i1
           }
           func.call @use(%r) : (i1) -> ()
-          scf.yield
+          scf.reduce
       }
     return
   }
@@ -42,7 +42,7 @@ module {
 // CHECK-NEXT:     %[[V0:.+]] = memref.alloca() : memref<9xi1>
 // CHECK-NEXT:     scf.parallel (%[[arg4:.+]]) = (%[[c0]]) to (%[[c9]]) step (%[[c1]]) {
 // CHECK-NEXT:       memref.store %[[false]], %[[V0]][%[[arg4]]] : memref<9xi1>
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 //    TODO don't need this cache during parallel split
 // CHECK-NEXT:     %[[V1:.+]] = memref.alloca() : memref<9xi1>
@@ -52,27 +52,27 @@ module {
 // CHECK-NEXT:           %[[V2:.+]] = memref.load %[[V0]][%[[arg5]]] : memref<9xi1>
 // CHECK-NEXT:           %[[V3:.+]] = arith.xori %[[V2]], %[[true]] : i1
 // CHECK-NEXT:           memref.store %[[V3]], %[[V1]][%[[arg5]]] : memref<9xi1>
-// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:           scf.reduce
 // CHECK-NEXT:         }
 // CHECK-NEXT:         scf.parallel (%[[arg5:.+]]) = (%[[c0]]) to (%[[c9]]) step (%[[c1]]) {
 // CHECK-NEXT:           %[[V2:.+]] = memref.load %[[V1]][%[[arg5]]] : memref<9xi1>
 // CHECK-NEXT:           "test.something"() : () -> ()
 // CHECK-NEXT:           memref.store %[[V2]], %[[V0]][%[[arg5]]] : memref<9xi1>
-// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:           scf.reduce
 // CHECK-NEXT:         }
 // CHECK-NEXT:       } else {
 //    TODO don't need load/store
 // CHECK-NEXT:         scf.parallel (%[[arg5:.+]]) = (%[[c0]]) to (%[[c9]]) step (%[[c1]]) {
 // CHECK-NEXT:           %[[V2:.+]] = memref.load %[[V0]][%[[arg5]]] : memref<9xi1>
 // CHECK-NEXT:           memref.store %[[V2]], %[[V0]][%[[arg5]]] : memref<9xi1>
-// CHECK-NEXT:           scf.yield
+// CHECK-NEXT:           scf.reduce
 // CHECK-NEXT:         }
 // CHECK-NEXT:       }
 // CHECK-NEXT:     }
 // CHECK-NEXT:     scf.parallel (%[[arg4:.+]]) = (%[[c0]]) to (%[[c9]]) step (%[[c1]]) {
 // CHECK-NEXT:       %[[V2:.+]] = memref.load %[[V0]][%[[arg4]]] : memref<9xi1>
 // CHECK-NEXT:       func.call @use(%[[V2]]) : (i1) -> ()
-// CHECK-NEXT:       scf.yield
+// CHECK-NEXT:       scf.reduce
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
