@@ -844,7 +844,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       // Needed to expand `arith.ceildivui` operations introduced by
       // `-raise-scf-to-affine`
       PM3.addPass(arith::createArithExpandOpsPass());
-      // PM3.addPass(polygeist::createConvertPolygeistToLLVMPass(ConvertOptions));
+      PM3.addPass(polygeist::createConvertPolygeistToLLVMPass());
       PM3.addPass(createReconcileUnrealizedCastsPass());
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));
       // PM3.addPass(polygeist::createLegalizeForSPIRVPass());
