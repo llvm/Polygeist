@@ -126,10 +126,6 @@ static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
 static llvm::cl::opt<bool> EnableLICM("licm", llvm::cl::init(true),
                                       llvm::cl::desc("Turn on LICM"));
 
-static llvm::cl::opt<bool> EnableSYCLConstantPropagation(
-    "sycl-constant-propagation", llvm::cl::init(true),
-    llvm::cl::desc("Turn on SYCL host-device constant propagation"));
-
 static llvm::cl::opt<bool>
     EnableLoopInternalization("loop-internalization", llvm::cl::init(true),
                               llvm::cl::desc("Enable loop internalization"));
@@ -238,11 +234,6 @@ static llvm::cl::opt<std::string>
 static llvm::cl::opt<bool>
     SYCLDeviceOnly("sycl-device-only", llvm::cl::init(true),
                    llvm::cl::desc("Only emit device code in MLIR output"));
-
-static llvm::cl::opt<mlir::sycl::Implementation> SYCLImplementation(
-    llvm::cl::desc("SYCL implementation to target on lowering"),
-    llvm::cl::init(mlir::sycl::Implementation::DPCPP),
-    llvm::cl::values(clEnumVal(mlir::sycl::Implementation::DPCPP, "dpcpp")));
 
 static llvm::cl::opt<bool>
     PrintPipeline("print-pipeline", llvm::cl::init(false),

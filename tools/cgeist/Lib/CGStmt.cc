@@ -8,6 +8,7 @@
 
 #include "IfScope.h"
 #include "clang-mlir.h"
+#include "mlir/Dialect/OpenMP/OpenMPClauseOperands.h"
 #include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -454,15 +455,18 @@ ValueCategory MLIRScanner::VisitOMPForDirective(clang::OMPForDirective *Fors) {
         Loc, Builder.getIndexType(), Visit(F).getValue(Builder)));
   }
 
-  auto AffineOp = Builder.create<omp::WsloopOp>(Loc, Inits, Finals, Incs);
+  auto Wsloop = Builder.create<omp::WsloopOp>(Loc);
+  Wsloop.getRegion().push_back(new Block());
+  auto OldPoint = Builder.getInsertionPoint();
+  auto *OldBlock = Builder.getInsertionBlock();
+
+  Builder.setInsertionPoint(&Wsloop.getRegion().front(),
+                            Wsloop.getRegion().front().begin());
+  auto AffineOp = Builder.create<omp::LoopNestOp>(Loc, Inits, Finals, Incs);
   AffineOp.getRegion().push_back(new Block());
   for (auto Init : Inits)
     AffineOp.getRegion().front().addArgument(Init.getType(), Init.getLoc());
   auto Inds = AffineOp.getRegion().front().getArguments();
-
-  auto OldPoint = Builder.getInsertionPoint();
-  auto *OldBlock = Builder.getInsertionBlock();
-
   Builder.setInsertionPointToStart(&AffineOp.getRegion().front());
 
   auto ExecuteRegion =

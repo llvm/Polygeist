@@ -66,7 +66,6 @@ target_link_libraries(cgeist PRIVATE
   MLIRBuiltinToLLVMIRTranslation
   MLIRFuncInlinerExtension
   MLIRSPIRVDialect
-  MLIRSYCLDialect
   MLIROpenMPDialect
   MLIRGPUDialect
   MLIRTransforms
@@ -84,11 +83,8 @@ target_link_libraries(cgeist PRIVATE
   MLIRSCFToOpenMP
   MLIROpenMPToLLVM
   MLIROpenMPToLLVMIRTranslation
-  MLIRSYCLToLLVM
-  MLIRSYCLTransforms
   MLIRVectorDialect
   
-  LLVMSYCLLowerIR
   LLVMPasses
 
   clangAST

@@ -11,14 +11,12 @@
 #include "CodeGenTypes.h"
 #include "Options.h"
 #include "TypeUtils.h"
-#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "utils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
-#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Target/LLVMIR/Import.h"
 #include "mlir/Target/LLVMIR/TypeFromLLVM.h"
 
@@ -1104,24 +1102,6 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
 }
 
-template <typename T>
-Value MLIRScanner::SYCLCommonFieldLookup(Value V, size_t FNum,
-                                         llvm::ArrayRef<int64_t> Shape) {
-  auto MT = cast<MemRefType>(V.getType());
-  Type ElemTy = MT.getElementType();
-  assert(isa<T>(ElemTy) && "Expecting element type to be the templated type");
-  assert(isa<sycl::SYCLType>(ElemTy) && "Expecting SYCL element type");
-  auto SYCLElemTy = cast<T>(ElemTy);
-  assert(FNum < SYCLElemTy.getBody().size() && "ERROR");
-
-  const auto ElementType = SYCLElemTy.getBody()[FNum];
-  const auto ResultType = MemRefType::get(
-      Shape, ElementType, MemRefLayoutAttrInterface(), MT.getMemorySpace());
-
-  return Builder.create<polygeist::SubIndexOp>(Loc, ResultType, V,
-                                               getConstantIndex(FNum));
-}
-
 ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
                                              const clang::FieldDecl *FD,
                                              Value Val, Type ElementType,
@@ -1211,36 +1191,6 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
 
     Result = Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
                                                    getConstantIndex(FNum));
-  } else if (isa<sycl::SYCLType>(MT.getElementType())) {
-    Type ElemTy = MT.getElementType();
-    std::pair<Value, Type> ResultAndType =
-        TypeSwitch<Type, std::pair<Value, Type>>(ElemTy)
-            .Case<sycl::ArrayType>([&](sycl::ArrayType AT) {
-              assert(FNum < AT.getBody().size() && "ERROR");
-              const auto ElemType = cast<MemRefType>(AT.getBody()[FNum]);
-              const auto ResultType = MemRefType::get(
-                  ElemType.getShape(), ElemType.getElementType(),
-                  MemRefLayoutAttrInterface(), MT.getMemorySpace());
-              return std::pair<Value, Type>{
-                  Builder.create<polygeist::SubIndexOp>(Loc, ResultType, Val,
-                                                        getConstantIndex(FNum)),
-                  ElemType.getElementType()};
-            })
-            .Case<sycl::AccessorType, sycl::AccessorImplDeviceType,
-                  sycl::AccessorSubscriptType, sycl::AtomicType,
-                  sycl::GroupType, sycl::HalfType, sycl::ItemBaseType,
-                  sycl::ItemType, sycl::LocalAccessorBaseDeviceType,
-                  sycl::LocalAccessorBaseType, sycl::LocalAccessorType,
-                  sycl::MultiPtrType, sycl::NdItemType, sycl::NdRangeType,
-                  sycl::StreamType, sycl::SwizzledVecType, sycl::VecType>(
-                [&](auto ElemTy) {
-                  auto SYCLElemTy = cast<decltype(ElemTy)>(ElemTy);
-                  return std::pair<Value, Type>{
-                      SYCLCommonFieldLookup<decltype(ElemTy)>(Val, FNum, Shape),
-                      SYCLElemTy.getBody()[FNum]};
-                });
-    Result = ResultAndType.first;
-    InnerTy = ResultAndType.second;
   } else {
     auto MT0 =
         MemRefType::get(Shape, MT.getElementType(), MemRefLayoutAttrInterface(),
@@ -1262,10 +1212,6 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
         ValueCategory(Result, /*isReference*/ true, InnerTy).getValue(Builder);
 
   return ValueCategory(Result, /*isReference*/ true, InnerTy);
-}
-
-static bool isSYCLInheritType(Type Ty, Value Val) {
-  return sycl::SYCLCastOp::areCastCompatible(Val.getType(), Ty);
 }
 
 Value MLIRScanner::GetAddressOfDerivedClass(
@@ -1389,10 +1335,6 @@ Value MLIRScanner::GetAddressOfBaseClass(
     if (SubIndex) {
       if (auto MT = dyn_cast<MemRefType>(Val.getType())) {
         auto Shape = std::vector<int64_t>(MT.getShape());
-        // We do not remove dimensions for an id->array or range->array, because
-        // the later cast will be incompatible due to dimension mismatch.
-        if (!isSYCLInheritType(NT, Val))
-          Shape.erase(Shape.begin());
         auto MT0 =
             MemRefType::get(Shape, MT.getElementType(),
                             MemRefLayoutAttrInterface(), MT.getMemorySpace());
@@ -1405,7 +1347,7 @@ Value MLIRScanner::GetAddressOfBaseClass(
         auto RecTy = Glob.getTypes().getMLIRType(
             Glob.getCGM().getContext().getRecordType(RD));
         Type ET = TypeSwitch<Type, Type>(RecTy)
-                      .Case<sycl::AccessorType, LLVM::LLVMStructType>(
+                      .Case<LLVM::LLVMStructType>(
                           [FNum](auto Ty) { return Ty.getBody()[FNum]; })
                       .Case<LLVM::LLVMArrayType>([](LLVM::LLVMArrayType AT) {
                         return AT.getElementType();
@@ -1437,10 +1379,7 @@ Value MLIRScanner::GetAddressOfBaseClass(
         Val = Builder.create<polygeist::Memref2PointerOp>(Loc, PT, Val);
       } else {
         if (Val.getType() != NT) {
-          if (isSYCLInheritType(NT, Val))
-            Val = Builder.create<sycl::SYCLCastOp>(Loc, NT, Val);
-          else
-            Val = Builder.create<memref::CastOp>(Loc, NT, Val);
+          Val = Builder.create<memref::CastOp>(Loc, NT, Val);
         }
       }
     }
@@ -1759,10 +1698,7 @@ Value MLIRASTConsumer::getOrCreateGlobalLLVMString(
     OpBuilder::InsertionGuard InsertGuard(Builder);
     mlirclang::setInsertionPoint(Builder, FuncContext, *Module);
 
-    unsigned addrSpace =
-        FuncContext == InsertionContext::SYCLDevice
-            ? static_cast<unsigned>(sycl::AccessAddrSpace::GlobalAccess)
-            : 0;
+    unsigned addrSpace = 0;
 
     auto Type = LLVM::LLVMArrayType::get(
         IntegerType::get(Builder.getContext(), 8), Value.size() + 1);
@@ -1873,9 +1809,7 @@ void MLIRASTConsumer::run() {
 
     LLVM_DEBUG({
       StringRef funcKind =
-          (FD.hasAttr<clang::SYCLKernelAttr>()   ? "SYCL KERNEL"
-           : FD.hasAttr<clang::SYCLDeviceAttr>() ? "SYCL DEVICE"
-                                                 : "");
+          (FD.hasAttr<clang::SYCLKernelAttr>() ? "SYCL KERNEL" : "");
       llvm::dbgs() << "\n-- " << funcKind << " FUNCTION (" << FTE.getContext()
                    << " context) BEING EMITTED: " << FD.getNameAsString()
                    << " --\n\n";
@@ -2015,8 +1949,7 @@ bool MLIRASTConsumer::HandleTopLevelDecl(clang::DeclGroupRef DG) {
 
     if ((EmitIfFound.count("*") && Name != "fpclassify" && !FD->isStatic() &&
          ExternLinkage) ||
-        EmitIfFound.count(Name) || FD->hasAttr<clang::OpenCLKernelAttr>() ||
-        FD->hasAttr<clang::SYCLDeviceAttr>()) {
+        EmitIfFound.count(Name) || FD->hasAttr<clang::OpenCLKernelAttr>()) {
       FunctionToEmit FTE(*FD);
       LLVM_DEBUG(llvm::dbgs()
                  << __LINE__ << ": Pushing " << FTE.getContext() << " function "
@@ -2450,63 +2383,6 @@ void MLIRASTConsumer::setMLIRFunctionAttributes(FunctionOpInterface Function,
         if (Triple.isSPIR() || Triple.isSPIRV()) {
           AttrBuilder.addAttribute(spirv::getEntryPointABIAttrName(),
                                    spirv::getEntryPointABIAttr(Ctx));
-        }
-
-        if (const clang::SYCLReqdWorkGroupSizeAttr *A =
-                FD.getAttr<clang::SYCLReqdWorkGroupSizeAttr>()) {
-          std::optional<llvm::APSInt> XDimVal = A->getXDimVal();
-          std::optional<llvm::APSInt> YDimVal = A->getYDimVal();
-          std::optional<llvm::APSInt> ZDimVal = A->getZDimVal();
-          SmallVector<int64_t> AttrArgs;
-
-          // On SYCL target the dimensions are reversed if present.
-          if (ZDimVal)
-            AttrArgs.push_back(ZDimVal->getExtValue());
-          if (YDimVal)
-            AttrArgs.push_back(YDimVal->getExtValue());
-          AttrArgs.push_back(XDimVal->getExtValue());
-
-          AttrBuilder.addAttribute("reqd_work_group_size",
-                                   Builder.getI64ArrayAttr(AttrArgs));
-        }
-
-        const clang::IntelReqdSubGroupSizeAttr *ReqSubGroup =
-            FD.getAttr<clang::IntelReqdSubGroupSizeAttr>();
-
-        if (ReqSubGroup) {
-          const auto *CE = cast<clang::ConstantExpr>(ReqSubGroup->getValue());
-          std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
-          AttrBuilder.addAttribute(
-              "intel_reqd_sub_group_size",
-              Builder.getI32IntegerAttr(ArgVal->getSExtValue()));
-        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
-                   clang::LangOptions::SubGroupSizeType::Integer) {
-          AttrBuilder.addAttribute(
-              "intel_reqd_sub_group_size",
-              Builder.getI32IntegerAttr(CGM.getLangOpts().DefaultSubGroupSize));
-        }
-
-        if (const auto *A = FD.getAttr<clang::IntelNamedSubGroupSizeAttr>()) {
-          AttrBuilder.addAttribute(
-              "intel_reqd_sub_group_size",
-              Builder.getStringAttr(
-                  A->getType() == clang::IntelNamedSubGroupSizeAttr::Primary
-                      ? "primary"
-                      : "automatic"));
-        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
-                   clang::LangOptions::SubGroupSizeType::Auto) {
-          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
-                                   Builder.getStringAttr("automatic"));
-        } else if (CGM.getLangOpts().getDefaultSubGroupSizeType() ==
-                   clang::LangOptions::SubGroupSizeType::Primary) {
-          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
-                                   Builder.getStringAttr("primary"));
-        }
-
-        if (FD.hasAttr<clang::SYCLSimdAttr>()) {
-          AttrBuilder.addAttribute("sycl_explicit_simd", Builder.getUnitAttr());
-          AttrBuilder.addAttribute("intel_reqd_sub_group_size",
-                                   Builder.getI32IntegerAttr(1));
         }
       }
 

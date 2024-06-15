@@ -472,9 +472,7 @@ ValueCategory MLIRScanner::callHelper(
   castCallerArgs(ToCall, Args, Builder);
 
   /// Try to emit SYCL operations before creating a CallOp
-  Operation *Op = emitSYCLOps(Expr, Args);
-  if (!Op)
-    Op = Builder.create<func::CallOp>(Loc, ToCall, Args);
+  Operation *Op = Builder.create<func::CallOp>(Loc, ToCall, Args);
 
   if (IsArrayReturn) {
     // TODO remedy return
