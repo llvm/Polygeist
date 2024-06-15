@@ -13,7 +13,6 @@
 #ifndef CGEIST_OPTIONS_H_
 #define CGEIST_OPTIONS_H_
 
-#include "mlir/Dialect/SYCL/IR/SYCLAttributes.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Support/CommandLine.h"
