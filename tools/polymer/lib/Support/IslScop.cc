@@ -1,5 +1,8 @@
 //===- IslScop.cc -----------------------------------------------*- C++ -*-===//
 
+#include "mlir/Analysis/Presburger/PresburgerSpace.h"
+#include "mlir/Support/LLVM.h"
+#include "pluto/internal/pluto.h"
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/ScatteringUtils.h"
 #include "polymer/Support/ScopStmt.h"
@@ -19,13 +22,19 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "isl/aff_type.h"
+#include "isl/id.h"
 #include "isl/space_type.h"
+#include <isl/aff.h>
 #include <isl/ctx.h>
 #include <isl/map.h>
 #include <isl/mat.h>
+#include <isl/schedule.h>
+#include <isl/schedule_node.h>
 #include <isl/set.h>
 #include <isl/space.h>
 #include <isl/union_map.h>
@@ -38,22 +47,16 @@ using namespace llvm;
 
 #define DEBUG_TYPE "islscop"
 
-IslScop::IslScop() {
-  scatTreeRoot = std::make_unique<ScatTreeNode>();
-  ctx = isl_ctx_alloc();
-  // TODO ISL
-}
-
-// IslScop::IslScop(osl_scop *scop)
-//     : scop(scop), scatTreeRoot{std::make_unique<ScatTreeNode>()} {}
+IslScop::IslScop() { ctx = isl_ctx_alloc(); }
 
 IslScop::~IslScop() {
-  for (IslStmt &stmt : islStmts) {
+  for (auto &stmt : islStmts) {
     for (auto &rel : stmt.readRelations)
       rel = isl_basic_map_free(rel);
     for (auto &rel : stmt.writeRelations)
       rel = isl_basic_map_free(rel);
   }
+  domain = isl_union_set_free(domain);
   isl_ctx_free(ctx);
 }
 
@@ -84,8 +87,7 @@ void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   if (cst.getNumDimAndSymbolVars() > 0)
     cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolVars());
 
-  paramSpace =
-      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  paramSpace = getSpace(cst, "paramspace");
   LLVM_DEBUG(llvm::errs() << "context relation space: ");
   LLVM_DEBUG(isl_space_dump(paramSpace));
 }
@@ -102,20 +104,152 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, IslStr s) {
 }
 } // namespace
 
+void IslScop::computeDomainFromStatementDomains() {
+  assert(!domain);
+  domain = isl_union_set_empty(paramSpace);
+  for (IslStmt &stmt : islStmts) {
+    isl_union_set *set =
+        isl_union_set_from_basic_set(isl_basic_set_copy(stmt.domain));
+    domain = isl_union_set_union(set, domain);
+  }
+  assert(domain);
+}
+
+inline void islAssert(const isl_size &size) { assert(size != isl_size_error); }
+inline unsigned unsignedFromIslSize(const isl_size &size) {
+  islAssert(size);
+  return static_cast<unsigned>(size);
+}
+
+#define ISL_DEBUG(S, X)                                                        \
+  LLVM_DEBUG({                                                                 \
+    llvm::dbgs() << S;                                                         \
+    X;                                                                         \
+    llvm::dbgs() << "\n";                                                      \
+  })
+
+static isl_multi_union_pw_aff *mapToDimension(isl_union_set *uset, unsigned N) {
+  assert(!isl_union_set_is_empty(uset));
+  // assert(!isl_union_set_is_null(uset));
+  N += 1;
+
+  ISL_DEBUG("MTD USET: ", isl_union_set_dump(uset));
+  auto res = isl_union_pw_multi_aff_empty(isl_union_set_get_space(uset));
+  ISL_DEBUG("MTD RES: ", isl_union_pw_multi_aff_dump(res));
+
+  isl_set_list *bsetlist = isl_union_set_get_set_list(uset);
+  for (unsigned i = 0; i < unsignedFromIslSize(isl_set_list_size(bsetlist));
+       i++) {
+    isl_set *set = isl_set_list_get_at(bsetlist, i);
+    ISL_DEBUG("MTD SET: ", isl_set_dump(set));
+    unsigned Dim = unsignedFromIslSize(isl_set_dim(set, isl_dim_set));
+    assert(Dim >= N);
+    auto pma = isl_pw_multi_aff_project_out_map(isl_set_get_space(set),
+                                                isl_dim_set, N, Dim - N);
+    ISL_DEBUG("MTD PMA: ", isl_pw_multi_aff_dump(pma));
+    if (N > 1)
+      pma = isl_pw_multi_aff_drop_dims(pma, isl_dim_out, 0, N - 1);
+    ISL_DEBUG("MTD PMA: ", isl_pw_multi_aff_dump(pma));
+
+    res = isl_union_pw_multi_aff_add_pw_multi_aff(res, pma);
+    ISL_DEBUG("MTD RES: ", isl_union_pw_multi_aff_dump(res));
+  }
+
+  return isl_multi_union_pw_aff_from_union_pw_multi_aff(res);
+}
+
+isl_schedule *IslScop::buildForSchedule(affine::AffineForOp forOp,
+                                        unsigned depth) {
+  SmallVector<Operation *> body;
+  for (auto it = forOp.getBody()->begin();
+       it != std::next(forOp.getBody()->end(), -1); it++)
+    body.push_back(&*it);
+
+  isl_schedule *child = buildSequenceSchedule(body, depth + 1);
+  ISL_DEBUG("CHILD:\n", isl_schedule_dump(child));
+  isl_union_set *domain = isl_schedule_get_domain(child);
+  isl_schedule *schedule = isl_schedule_from_domain(domain);
+  ISL_DEBUG("MUPA dom: ", isl_union_set_dump(domain));
+  isl_multi_union_pw_aff *mupa = mapToDimension(domain, depth);
+  mupa = isl_multi_union_pw_aff_set_tuple_name(
+      mupa, isl_dim_set, ("L" + std::to_string(loopId++)).c_str());
+  ISL_DEBUG("MUPA: ", isl_multi_union_pw_aff_dump(mupa));
+  schedule = isl_schedule_insert_partial_schedule(child, mupa);
+
+  ISL_DEBUG("Created for schedule:\n", isl_schedule_dump(schedule));
+
+  return schedule;
+}
+
+isl_schedule *IslScop::buildLeafSchedule(func::CallOp callOp) {
+  // TODO check that we are really calling  a statement
+  auto &stmt = getIslStmt(callOp.getCallee().str());
+  auto *schedule = isl_schedule_from_domain(
+      isl_union_set_from_basic_set(isl_basic_set_copy(stmt.domain)));
+  LLVM_DEBUG({
+    llvm::errs() << "Created leaf schedule:\n";
+    isl_schedule_dump(schedule);
+    llvm::errs() << "\n";
+  });
+  return schedule;
+}
+
+isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
+                                             unsigned depth) {
+  auto len = ops.size();
+  if (len == 1) {
+    if (auto forOp = dyn_cast<affine::AffineForOp>(ops[0])) {
+      return buildForSchedule(forOp, depth);
+    } else if (auto callOp = dyn_cast<func::CallOp>(ops[0])) {
+      return buildLeafSchedule(callOp);
+    } else {
+      llvm_unreachable("only for ops for now");
+    }
+  }
+
+  isl_schedule *schedule = nullptr;
+  for (auto curOp : ops) {
+    isl_schedule *child;
+    if (auto forOp = dyn_cast<affine::AffineForOp>(curOp)) {
+      child = buildForSchedule(forOp, depth);
+    } else if (auto callOp = dyn_cast<func::CallOp>(curOp)) {
+      child = buildLeafSchedule(callOp);
+    } else {
+      llvm_unreachable("only for ops for now");
+    }
+
+    if (!schedule)
+      schedule = child;
+    else
+      schedule = isl_schedule_sequence(schedule, child);
+  }
+
+  LLVM_DEBUG({
+    llvm::errs() << "Created sequence schedule:\n";
+    isl_schedule_dump(schedule);
+    llvm::errs() << "\n";
+  });
+
+  return schedule;
+}
+
+IslScop::IslStmt &IslScop::getIslStmt(std::string name) {
+  auto found = std::find(scopStmtNames.begin(), scopStmtNames.end(), name);
+  assert(found != scopStmtNames.end());
+  auto id = std::distance(scopStmtNames.begin(), found);
+  return islStmts[id];
+}
+
 void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
+  LLVM_DEBUG(llvm::errs() << "Schedule:\n");
+  LLVM_DEBUG(isl_schedule_dump(schedule));
+
   auto o = [&os](unsigned n) -> llvm::raw_ostream & {
     return os << std::string(n, ' ');
   };
 
-  isl_union_set *domain = isl_union_set_empty(paramSpace);
-  for (IslStmt &stmt : islStmts) {
-    isl_union_set *set = isl_union_set_from_basic_set(stmt.domain);
-    domain = isl_union_set_union(set, domain);
-  }
-
-  o(0) << "domain: " << '"' << IslStr(isl_union_set_to_str(domain)) << '"'
-       << "\n";
+  o(0) << "schedule: " << IslStr(isl_schedule_to_str(schedule)) << "\n";
 
   os << "accesses:\n";
   for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
@@ -134,6 +268,21 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   domain = isl_union_set_free(domain);
 }
 
+isl_space *IslScop::getSpace(affine::FlatAffineValueConstraints &cst,
+                             std::string name) {
+  isl_space *space =
+      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  for (unsigned i = 0; i < cst.getNumSymbolVars(); i++) {
+    Value val =
+        cst.getValue(cst.getVarKindOffset(presburger::VarKind::Symbol) + i);
+    std::string sym = valueTable[val];
+    isl_id *id = isl_id_alloc(ctx, sym.c_str(), nullptr);
+    space = isl_space_set_dim_id(space, isl_dim_param, i, id);
+  }
+  space = isl_space_set_tuple_name(space, isl_dim_set, name.c_str());
+  return space;
+}
+
 void IslScop::addDomainRelation(int stmtId,
                                 affine::FlatAffineValueConstraints &cst) {
   SmallVector<int64_t, 8> eqs, inEqs;
@@ -148,72 +297,14 @@ void IslScop::addDomainRelation(int stmtId,
     llvm::errs() << "\n";
   });
 
-  isl_space *space =
-      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
-  space = isl_space_set_tuple_name(space, isl_dim_set,
-                                   scopStmtNames[stmtId].c_str());
+  isl_space *space = getSpace(cst, scopStmtNames[stmtId]);
   LLVM_DEBUG(llvm::errs() << "space: ");
   LLVM_DEBUG(isl_space_dump(space));
-
   islStmts[stmtId].domain = isl_basic_set_from_constraint_matrices(
       space, eqMat, ineqMat, isl_dim_div, isl_dim_set, isl_dim_param,
       isl_dim_cst);
   LLVM_DEBUG(llvm::errs() << "bset: ");
   LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].domain));
-}
-
-void IslScop::addScatteringRelation(
-    int stmtId, mlir::affine::FlatAffineValueConstraints &cst,
-    llvm::ArrayRef<mlir::Operation *> ops) {
-  // First insert the enclosing ops into the scat tree.
-  SmallVector<unsigned, 8> scats;
-  scatTreeRoot->insertScopStmt(ops, scats);
-
-  // Elements (N of them) in `scattering` are constants, and there are IVs
-  // interleaved them. Therefore, we have 2N - 1 number of scattering
-  // equalities.
-  unsigned numScatEqs = scats.size() * 2 - 1;
-  // Columns include new scattering dimensions and those from the domain.
-  unsigned numScatCols = numScatEqs + cst.getNumCols() + 1;
-
-  // Initialize contents for equalities.
-  isl_mat *eqMat = isl_mat_alloc(ctx, numScatEqs, numScatCols);
-  for (unsigned j = 0; j < numScatEqs; j++) {
-
-    // Initializing scattering dimensions by setting the diagonal to -1.
-    for (unsigned k = 0; k < numScatEqs; k++)
-      eqMat = isl_mat_set_element_si(eqMat, j, k, (k == j));
-
-    // Relating the loop IVs to the scattering dimensions. If it's the odd
-    // equality, set its scattering dimension to the loop IV; otherwise, it's
-    // scattering dimension will be set in the following constant section.
-    for (unsigned k = 0; k < cst.getNumDimVars(); k++)
-      eqMat = isl_mat_set_element_si(eqMat, j, k + numScatEqs,
-                                     (j % 2) ? (k == (j / 2)) : 0);
-
-    // TODO: consider the parameters that may appear in the scattering
-    // dimension.
-    for (unsigned k = 0; k < cst.getNumLocalVars() + cst.getNumSymbolVars();
-         k++)
-      eqMat = isl_mat_set_element_si(eqMat, j,
-                                     k + numScatEqs + cst.getNumDimVars(), 0);
-
-    // Relating the constants (the last column) to the scattering dimensions.
-    eqMat = isl_mat_set_element_si(eqMat, j, numScatCols - 2,
-                                   (j % 2) ? 0 : scats[j / 2]);
-  }
-  LLVM_DEBUG({
-    llvm::errs() << "Adding scattering relation\n";
-    llvm::errs() << " ISL eq mat:\n";
-    isl_mat_dump(eqMat);
-    llvm::errs() << "\n";
-  });
-  isl_mat_free(eqMat);
-
-  // Then put them into the scop as a SCATTERING relation.
-  // addRelation(stmtId + 1, OSL_TYPE_SCATTERING, numScatEqs, numScatCols,
-  //             numScatEqs, cst.getNumDimVars(), cst.getNumLocalVars(),
-  //             cst.getNumSymbolVars(), eqs, inEqs);
 }
 
 LogicalResult
@@ -255,13 +346,7 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   });
 
   assert(cst.getNumInequalities() == 0);
-  isl_space *space =
-      isl_space_alloc(ctx, domain.getNumSymbolVars(), domain.getNumDimVars(),
-                      cst.getNumConstraints());
-  space = isl_space_set_tuple_name(space, isl_dim_in,
-                                   scopStmtNames[stmtId].c_str());
-  space =
-      isl_space_set_tuple_name(space, isl_dim_out, memRefIdMap[memref].c_str());
+  isl_space *space = getSpace(cst, memRefIdMap[memref]);
 
   isl_basic_map *bmap = isl_basic_map_from_constraint_matrices(
       space, eqMat, ineqMat, isl_dim_in, isl_dim_div, isl_dim_out,
@@ -298,6 +383,7 @@ void IslScop::addStatementGeneric(int stmtId, llvm::StringRef tag,
 /// list of the scop.
 bool IslScop::isSymbol(llvm::StringRef name) {
   // TODO ISL
+  return true;
 }
 
 // LogicalResult IslScop::getStatement(unsigned index,
@@ -329,17 +415,7 @@ void IslScop::addParameterNames() {
   addParametersGeneric("strings", body);
 }
 
-void IslScop::addScatnamesExtension() {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  unsigned numScatnames = scatTreeRoot->getDepth();
-  numScatnames = (numScatnames - 2) * 2 + 1;
-  for (unsigned i = 0; i < numScatnames; i++)
-    ss << formatv("c{0}", i + 1) << " ";
-
-  addExtensionGeneric("scatnames", body);
-}
+void IslScop::addScatnamesExtension() {}
 
 void IslScop::addArraysExtension() {
   std::string body;
@@ -418,23 +494,29 @@ void IslScop::initializeSymbolTable(mlir::func::FuncOp f,
                                     affine::FlatAffineValueConstraints *cst) {
   symbolTable.clear();
 
-  unsigned numDimIds = cst->getNumDimVars();
-  unsigned numSymbolIds = cst->getNumDimAndSymbolVars() - numDimIds;
-
-  SmallVector<mlir::Value, 8> dimValues, symbolValues;
-  cst->getValues(0, numDimIds, &dimValues);
-  cst->getValues(numDimIds, cst->getNumDimAndSymbolVars(), &symbolValues);
-
   // Setup the symbol table.
-  for (unsigned i = 0; i < numDimIds; i++) {
-    std::string sym(formatv("i{0}", i));
-    symbolTable.insert(std::make_pair(sym, dimValues[i]));
-    valueTable.insert(std::make_pair(dimValues[i], sym));
-  }
-  for (unsigned i = 0; i < numSymbolIds; i++) {
-    std::string sym(formatv("P{0}", i));
-    symbolTable.insert(std::make_pair(sym, symbolValues[i]));
-    valueTable.insert(std::make_pair(symbolValues[i], sym));
+  for (unsigned i = 0; i < cst->getNumVars(); i++) {
+    Value val = cst->getValue(i);
+    std::string sym;
+    switch (cst->getVarKindAt(i)) {
+    case presburger::VarKind::Domain:
+      sym = "I";
+      break;
+    case presburger::VarKind::Local:
+      sym = "O";
+      break;
+    case presburger::VarKind::Symbol:
+      sym = "P";
+      break;
+    case presburger::VarKind::Range:
+      sym = "R";
+      break;
+    }
+    sym += std::to_string(i - cst->getVarKindOffset(cst->getVarKindAt(i)));
+    // symbolTable.insert(std::make_pair(sym, val));
+    // valueTable.insert(std::make_pair(val, sym));
+    valueTable[val] = sym;
+    symbolTable[sym] = val;
   }
   for (const auto &it : memRefIdMap) {
     std::string sym(formatv("A{0}", it.second));
@@ -451,13 +533,13 @@ void IslScop::initializeSymbolTable(mlir::func::FuncOp f,
     }
   }
 
-  // Setup relative fields in the OpenScop representation.
-  // Parameter names
-  addParameterNames();
-  // Scat names
-  addScatnamesExtension();
-  // Array names
-  addArraysExtension();
+  // // Setup relative fields in the OpenScop representation.
+  // // Parameter names
+  // addParameterNames();
+  // // Scat names
+  // addScatnamesExtension();
+  // // Array names
+  // addArraysExtension();
 }
 
 bool IslScop::isParameterSymbol(llvm::StringRef name) const {

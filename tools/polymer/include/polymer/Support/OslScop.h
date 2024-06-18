@@ -8,12 +8,12 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Support/LLVM.h"
+#include "polymer/Support/ScatteringUtils.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 
-#include "isl/union_map_type.h"
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -29,9 +29,13 @@ struct osl_scop;
 struct osl_statement;
 struct osl_generic;
 
+struct isl_schedule;
+struct isl_union_set;
+
 namespace mlir {
 namespace affine {
 class AffineValueMap;
+class AffineForOp;
 class FlatAffineValueConstraints;
 } // namespace affine
 struct LogicalResult;
@@ -222,10 +226,6 @@ public:
   /// Add the domain relation.
   void addDomainRelation(int stmtId,
                          mlir::affine::FlatAffineValueConstraints &cst);
-  /// Add the scattering relation.
-  void addScatteringRelation(int stmtId,
-                             mlir::affine::FlatAffineValueConstraints &cst,
-                             llvm::ArrayRef<mlir::Operation *> ops);
   /// Add the access relation.
   mlir::LogicalResult
   addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
@@ -270,7 +270,14 @@ public:
   /// Get the list of stmt names followed by their insertion order
   ScopStmtNames *getScopStmtNames();
 
+  void computeDomainFromStatementDomains();
+
   void dumpTadashi(llvm::raw_ostream &os);
+
+  void buildSchedule(llvm::SmallVector<mlir::Operation *> ops) {
+    loopId = 0;
+    schedule = buildSequenceSchedule(ops);
+  }
 
 private:
   struct IslStmt {
@@ -279,7 +286,21 @@ private:
     std::vector<isl_basic_map *> writeRelations;
   };
   std::vector<IslStmt> islStmts;
-  isl_space *paramSpace;
+  isl_space *paramSpace = nullptr;
+  isl_union_set *domain = nullptr;
+  isl_schedule *schedule = nullptr;
+  unsigned loopId = 0;
+
+  isl_schedule *buildForSchedule(mlir::affine::AffineForOp forOp,
+                                 unsigned depth);
+  isl_schedule *buildLeafSchedule(mlir::func::CallOp callOp);
+  isl_schedule *buildSequenceSchedule(llvm::SmallVector<mlir::Operation *> ops,
+                                      unsigned depth = 0);
+
+  IslStmt &getIslStmt(std::string name);
+
+  isl_space *getSpace(mlir::affine::FlatAffineValueConstraints &cst,
+                      std::string name);
 
   isl_mat *createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
                                 bool isEq);
@@ -298,8 +319,6 @@ private:
   // osl_scop *scop;
   isl_ctx *ctx;
 
-  /// The scattering tree maintained.
-  std::unique_ptr<ScatTreeNode> scatTreeRoot;
   /// Number of memrefs recorded.
   MemRefToId memRefIdMap;
   /// Symbol table for MLIR values.
@@ -307,6 +326,7 @@ private:
   ValueTable valueTable;
   ///
   ScopStmtMap scopStmtMap;
+  std::map<std::string, size_t> stmtNameToIdMap;
 
   ScopStmtNames scopStmtNames;
 };

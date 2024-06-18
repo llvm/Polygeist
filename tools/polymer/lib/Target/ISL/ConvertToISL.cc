@@ -36,7 +36,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "osl/osl.h"
+#include <isl/schedule.h>
 
 #include <memory>
 
@@ -104,6 +104,8 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
   // Build context in it.
   buildScopContext(scop.get(), scopStmtMap, ctx);
 
+  scop->initializeSymbolTable(f, &ctx);
+
   // Counter for the statement inserted.
   unsigned stmtId = 0;
   for (const auto &scopStmtName : *scopStmtNames) {
@@ -136,7 +138,6 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
     // Create a statement in IslScop and setup relations in it.
     scop->createStatement();
     scop->addDomainRelation(stmtId, domain);
-    scop->addScatteringRelation(stmtId, domain, enclosingOps);
     callee.walk([&](mlir::Operation *op) {
       if (isa<mlir::affine::AffineReadOpInterface>(op) ||
           isa<mlir::affine::AffineWriteOpInterface>(op)) {
@@ -156,10 +157,16 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
     stmtId++;
   }
 
+  scop->computeDomainFromStatementDomains();
+
+  Operation *scopLoopNest = f.getBody().front().back().getPrevNode();
+  // TODO for now we only handle single-op loop nests as scops
+  scop->buildSchedule({scopLoopNest});
+
   // Setup the symbol table within the IslScop, which builds the mapping from
   // mlir::Value to their names in the OpenScop representation, and maps them
   // backward.
-  scop->initializeSymbolTable(f, &ctx);
+  // scop->initializeSymbolTable(f, &ctx);
 
   // Insert body extension.
   // This outputs this to openscop:
