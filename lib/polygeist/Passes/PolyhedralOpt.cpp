@@ -40,7 +40,7 @@ using namespace polygeist;
 
 static llvm::cl::opt<std::string>
     UsePolyhedralOptimizerCl("use-polyhedral-optimizer",
-                             llvm::cl::init("tadashi"),
+                             llvm::cl::init("pluto"),
                              llvm::cl::desc("pluto or tadashi"));
 
 namespace {
