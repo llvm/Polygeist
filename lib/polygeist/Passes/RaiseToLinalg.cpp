@@ -215,9 +215,13 @@ affine.for {
 
 */
 
-
-LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap, lgOperands, lgMemref) {
-
+// Suppose we have a memref expression E=input[affine.map(operands)] 
+//     if input = memref.subview A[starts, offsets]
+//    can we rewrite E as A[affine.map2(operands2)]
+//    We update lgMap and lgOperands in place with this coresponding map2 and operands2 
+LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap, SmallVector<Value> &lgOperands) {
+    IRBuilder builder(loop->getContext());
+    
     while (Operation *defOp = input.getDefiningOp()) {
 
         // If the input is defined outside of the loop, we are finished.
@@ -226,67 +230,90 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap, l
         if (auto SV = dyn_cast<memref::SubViewOp>(defOp)) {
 
             // TODO update map with the new indexing from here
+            
+            //Create affine map
+            //  i. Track number of running dims and symbols 
+            // ii. shift dims and symbols to generate shifted expressions.
+            //Extract corresponding operands
+            //Use affineMap::get with numOperands and numSymbols along with shifted expressions to get a map.
+            //Use affine map simplify to simplify this
 
-            size_t numNewStartDims = 0;
-            size_t numNewStartSymbols = 0;
-            for (auto val : SV->getStarts()) {
+            SmallVector<AffineExpr> startExprs;
+            SmallVector<AffineExpr> strideExprs;
+            SmallVector<Value> dimOperands;
+            SmallVector<Value> symOperands;
+            for (auto en : llvm::enumerate({SV.getOffsets(), SV.getStrides()})) {
+                auto &exprOutput = (en.index() == 0) ? startExprs : strideExprs;
+            for (auto expr : en.value()) {
+
                 // Only support constants, symbols, or affine apply as offsets
-                if (val.getDefinigOp<ConstantInt>()) {
+                if (auto cop = val.getDefiningOp<ConstantInt>()) {
+                    exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
                     continue;
                 }
-                auto valOp = val.getDefiningOp();
-                // Defined outside loop, consider it a symbol [for now]
-                if (!valOp || !loop->isAncestor(valOp)) continue;
-                
-                if(auto index = dyn_cast<>(valOp)) {
+
+                if (auto ba = dyn_cast<BlockArgument>(val))
+                    if(isa<AffineForOp, AffineParallelOp>(ba->getParentOp())) {
+                        exprOutput.push_back(builder.getAffineDimExpr(dimOperands.size()));
+                        dimOperands.push_back(ba);
+                        continue;
+                    }
                     
-                }
-
-                //Q. If we just extract num dims and symbs-
-                // i. Won't we miss constant values in the affine map?
-                // ii. How will we know the relation between dims and syms?
-                // Eg- affine_map<(d0, d1)[s0] -> (d0 + 2 * d1 + s0, d1 - s0)>
-                //Also we need to check for unique args and only count them in numNewStartDims and Symbols.
-                if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
-                    numNewStartDims += apply.getAffineMap().getNumDims();
-                    numNewStartSymbols += apply.getAffineMap().getNumSymbols();
-                    newExpr = apply.getResults();
-                }
-
-                // unsupported index to subview
-                return failure();
-            }
-            size_t numNewStrideDims = 0;
-            size_t numNewStrideSymbols = 0;
-            for (auto val : SV->getStrides()) {
-                // Only support constants, symbols, or affine apply as offsets
-                if (val.getDefinigOp<ConstantInt>()) {
-                    continue;
-                }
                 auto valOp = val.getDefiningOp();
                 // Defined outside loop, consider it a symbol [for now]
-                if (!valOp || loop->isAncestor(defOp)) continue;
+                if (!valOp || loop->isAncestor(defOp)) {
+                    exprOutput.push_back(builder.getAffineSymbolExpr(symOperands.size()));
+                    symOperands.push_back(ba);
+                    continue;
+                }
 
                 if (auto apply = dyn_cast<AffineApplyOp>(val)) {
-                    numNewStrideDims += apply.getAffineMap().getNumDims();
-                    numNewStrideSymbols += apply.getAffineMap().getNumSymbols();
+                    auto map =  apply.getAffineMap();
+                    auto newexpr = map.
+                        .shiftDims(dimOperands.size())
+                        .shiftSymbols(symOperands.size());
+
+                    for (auto expr : newexpr.getResults()) {
+                        exprOutput.push_back(newexpr);
+                    }
+                    
+                    for (size_t i=0; i<map.getNumDims(); i++)
+                       dimOperands.push_back(apply.getOperands()[i]);
+
+                    for (size_t i=0; i<map.getNumSymbols(); i++)
+                       symOperands.push_back(apply.getOperands()[i + map.getNumDims()]);
+                    
                     continue;
                 }
 
-                // unsupported index to subview
                 return failure();
             }
-
-            SmallVector<AffineExpr> exprs = lgMap.getAffineExprs();
-
-            for (auto expr : exprs) {
-                auto newexpr = expr.compose with the start and index above
-                and also take into account new dims/symbols
             }
 
-            lgMap = AffineMap::get(exprs, num total new dims, num total new symbols);
-            input = SV.getInput();
+            SmallVector<AffineExpr> inputExprs;
+            for (auto expr : lgMap.
+                        .shiftDims(dimOperands.size())
+                        .shiftSymbols(symOperands.size());
+                        getResults()) {
+                inputExprs.push_back(newexpr);
+            }                   
+            for (size_t i=0; i<lgMap.getNumDims(); i++)
+                dimOperands.push_back(lgOperands[i]);
 
+            for (size_t i=0; i<lgMap.getNumSymbols(); i++)
+                symOperands.push_back(lgOperands[i + lgMap.getNumDims()]);
+
+
+            SmallVector<AffineExpr> mergedExprs;
+            for (auto [start, stride, idx]&& : llvm::zip(startExprs, strideExprs, inputExprs)) {
+                mergedExprs.push_back(startExprs + idx * strideExpr);
+            }
+
+            lgMap = AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs);
+            lgOperands.clear();
+            lgOperands.append(dimOperands());
+            lgOperands.append(symOperands());
+            input = SV.getInput();
         }
 
         return failure();
@@ -457,8 +484,10 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             //lgMap comes from offset of memref.subview,
             //lgOperands comes from operands of memref.subview
             AffineMap lgMap = indexingMapsAttr[idx];
-
-            auto result = getLinalgArgMap(loop, input, lgMap, lgOperands, lgMemref);
+            SmallVector<Value> lgOperands;
+            for (auto i=0; i<lgMap.getNumDims(); i++) lgOperands.push_back(builder.getAffineDim(i));
+            Value lgMemref = input;
+            auto result = getLinalgArgMap(loop, lgMemref, lgMap, lgOperands);
 
             if (!result.succeeded()) return failure();
 
@@ -481,8 +510,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
             if (conds.size() != 0) return failure();
 
             AffineMap lgMap = indexingMapsAttr[idx];
+            SmallVector<Value> lgOperands;
+            for (auto i=0; i<lgMap.getNumDims(); i++) lgOperands.push_back(builder.getAffineDim(i));
+            Value lgMemref = output;
 
-            auto result = getLinalgArgMap(loop, output, lgMap, lgOperands, lgMemref);
+            auto result = getLinalgArgMap(loop, lgMemref, lgMap, lgOperands);
             
             if (!result.succeeded()) return failure();
             
@@ -493,7 +525,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
             if (!legal) return failure();
 
-            //TODO: need to mergre previous indexing maps and new affine maps
+            //TODO: need to merge previous indexing maps and new affine maps
             affineMaps.push_back(newAffineMap);
             inputs.push_back(newMemref);
         }
