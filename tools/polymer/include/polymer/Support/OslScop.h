@@ -271,9 +271,8 @@ public:
   /// Get the list of stmt names followed by their insertion order
   ScopStmtNames *getScopStmtNames();
 
-  void computeDomainFromStatementDomains();
-
-  void dumpTadashi(llvm::raw_ostream &os);
+  void dumpSchedule(llvm::raw_ostream &os);
+  void dumpAccesses(llvm::raw_ostream &os);
 
   void buildSchedule(llvm::SmallVector<mlir::Operation *> ops) {
     loopId = 0;
@@ -292,8 +291,6 @@ private:
     std::vector<isl_basic_map *> writeRelations;
   };
   std::vector<IslStmt> islStmts;
-  isl_space *paramSpace = nullptr;
-  isl_union_set *domain = nullptr;
   isl_schedule *schedule = nullptr;
   unsigned loopId = 0;
 

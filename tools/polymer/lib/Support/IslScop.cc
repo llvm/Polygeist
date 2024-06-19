@@ -56,7 +56,7 @@ IslScop::~IslScop() {
     for (auto &rel : stmt.writeRelations)
       rel = isl_basic_map_free(rel);
   }
-  domain = isl_union_set_free(domain);
+  isl_schedule_free(schedule);
   isl_ctx_free(ctx);
 }
 
@@ -86,10 +86,6 @@ void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
     cst.projectOut(dimValue);
   if (cst.getNumDimAndSymbolVars() > 0)
     cst.removeIndependentConstraints(0, cst.getNumDimAndSymbolVars());
-
-  paramSpace = getSpace(cst, "paramspace");
-  LLVM_DEBUG(llvm::errs() << "context relation space: ");
-  LLVM_DEBUG(isl_space_dump(paramSpace));
 }
 
 namespace {
@@ -103,17 +99,6 @@ llvm::raw_ostream &operator<<(llvm::raw_ostream &os, IslStr s) {
   return os << s.str();
 }
 } // namespace
-
-void IslScop::computeDomainFromStatementDomains() {
-  assert(!domain);
-  domain = isl_union_set_empty(paramSpace);
-  for (IslStmt &stmt : islStmts) {
-    isl_union_set *set =
-        isl_union_set_from_basic_set(isl_basic_set_copy(stmt.domain));
-    domain = isl_union_set_union(set, domain);
-  }
-  assert(domain);
-}
 
 inline void islAssert(const isl_size &size) { assert(size != isl_size_error); }
 inline unsigned unsignedFromIslSize(const isl_size &size) {
@@ -273,19 +258,11 @@ IslScop::IslStmt &IslScop::getIslStmt(std::string name) {
   return islStmts[id];
 }
 
-void IslScop::dumpTadashi(llvm::raw_ostream &os) {
-  LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
-  LLVM_DEBUG(llvm::errs() << "Schedule:\n\n");
-  LLVM_DEBUG(isl_schedule_dump(schedule));
-  LLVM_DEBUG(llvm::errs() << "\n");
-
+void IslScop::dumpAccesses(llvm::raw_ostream &os) {
   auto o = [&os](unsigned n) -> llvm::raw_ostream & {
     return os << std::string(n, ' ');
   };
-
-  o(0) << "schedule: " << IslStr(isl_schedule_to_str(schedule)) << "\n";
-
-  os << "accesses:\n";
+  o(0) << "accesses:\n";
   for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
     auto &stmt = islStmts[stmtId];
     o(2) << "- " << scopStmtNames[stmtId] << ":"
@@ -299,7 +276,17 @@ void IslScop::dumpTadashi(llvm::raw_ostream &os) {
     for (auto rel : stmt.writeRelations)
       o(8) << "- " << '"' << IslStr(isl_basic_map_to_str(rel)) << '"' << "\n";
   }
-  domain = isl_union_set_free(domain);
+}
+void IslScop::dumpSchedule(llvm::raw_ostream &os) {
+  LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
+  LLVM_DEBUG(llvm::errs() << "Schedule:\n\n");
+  LLVM_DEBUG(isl_schedule_dump(schedule));
+  LLVM_DEBUG(llvm::errs() << "\n");
+
+  auto o = [&os](unsigned n) -> llvm::raw_ostream & {
+    return os << std::string(n, ' ');
+  };
+  o(0) << "schedule: " << IslStr(isl_schedule_to_str(schedule)) << "\n";
 }
 
 isl_space *IslScop::getSpace(affine::FlatAffineValueConstraints &cst,

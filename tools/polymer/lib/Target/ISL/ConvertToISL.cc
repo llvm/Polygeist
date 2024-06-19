@@ -157,8 +157,6 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
     stmtId++;
   }
 
-  scop->computeDomainFromStatementDomains();
-
   Operation *scopLoopNest = f.getBody().front().back().getPrevNode();
   // TODO for now we only handle single-op loop nests as scops
   scop->buildSchedule(scop->getSequenceScheduleOpList(
