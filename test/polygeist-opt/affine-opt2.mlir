@@ -1,5 +1,5 @@
 // XFAIL: *
-// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --affine-opt %s | FileCheck %s; fi
+// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --polyhedral-opt %s | FileCheck %s; fi
 // XFAIL: *
 
 #set = affine_set<(d0, d1, d2, d3)[s0, s1] : (-d0 - d2 * 8 + s0 - 1 >= 0, -d1 - d3 * 32 + s1 - 1 >= 0)>
