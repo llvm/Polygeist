@@ -406,12 +406,12 @@ static bool hasNestedBarrier(Operation *op, SmallVector<BlockArgument> &vals) {
           if (parallel->isAncestor(op))
             vals.push_back(ba);
         } else {
-          assert(0 && "unknown barrier arg\n");
+          llvm_unreachable("unknown barrier arg\n");
         }
       } else if (arg.getDefiningOp<ConstantIndexOp>())
         continue;
       else {
-        assert(0 && "unknown barrier arg\n");
+        llvm_unreachable("unknown barrier arg\n");
       }
     }
   });

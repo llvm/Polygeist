@@ -149,7 +149,7 @@ struct LowerAlternativesPass
         funcName = funcOp.getName();
         funcName += ".func";
       } else {
-        assert(0 && "How?");
+        llvm_unreachable("How?");
       }
       if (num.count(funcName) == 0)
         num[funcName] = 0;

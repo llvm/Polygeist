@@ -1,5 +1,6 @@
 // clang-format off
 // RUN: cgeist %s %stdinclude %cudaopts -O3 -o %s.execm && %s.execm 1 100
+// RUN: cgeist %s %stdinclude %cudaopts_polymer -O3 -o %s.execm && %s.execm 1 100
 // clang-format on
 /**
  * lu.c: This file is part of the PolyBench/C 3.2 test suite.

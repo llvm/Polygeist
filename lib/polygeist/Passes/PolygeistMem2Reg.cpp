@@ -409,7 +409,7 @@ public:
       }
       return true;
     }
-    assert(0 && "unhandled");
+    llvm_unreachable("unhandled");
   }
   Value materialize(bool full = true) {
     if (overwritten)
@@ -434,13 +434,13 @@ public:
       }
       Block *blk = valueAtStart;
       blk->dump();
-      assert(0 && "no null");
+      llvm_unreachable("no null");
     }
     if (exOp)
       return materializeEx(full);
     if (ifOp)
       return materializeIf(full);
-    assert(0 && "");
+    llvm_unreachable("");
   }
 
   Value materializeEx(bool full = true) {
@@ -927,7 +927,7 @@ void removeRedundantBlockArgs(
         llvm::errs() << *pred->getParent()->getParentOp() << "\n";
         pred->dump();
         block->dump();
-        assert(0 && "unknown branch");
+        llvm_unreachable("unknown branch");
       }
 
       assert(pval != blockArg);

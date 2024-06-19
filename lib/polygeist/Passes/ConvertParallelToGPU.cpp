@@ -894,7 +894,7 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       Operation &op = *it;
       Operation *newOp;
       if (isa<scf::ParallelOp>(&op)) {
-        assert(0 && "Unhandled case");
+        llvm_unreachable("Unhandled case");
         break;
       } else if (isa<scf::YieldOp>(&op)) {
         continue;
@@ -908,9 +908,9 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
         collectEffects(&op, effects, /*ignoreBarriers*/ false);
         if (effects.empty()) {
         } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
-          assert(0 && "??");
+          llvm_unreachable("??");
         } else if (hasEffect<MemoryEffects::Free>(effects)) {
-          assert(0 && "??");
+          llvm_unreachable("??");
         } else if (hasEffect<MemoryEffects::Write>(effects)) {
           getIf();
           assert(ifOp);
@@ -947,15 +947,15 @@ struct ParallelizeBlockOps : public OpRewritePattern<scf::ParallelOp> {
       for (; it != outerBlock->end(); ++it) {
         Operation &op = *it;
         if (isa<scf::ParallelOp>(&op)) {
-          assert(0 && "Unhandled case");
+          llvm_unreachable("Unhandled case");
           break;
         } else if (isa<scf::YieldOp>(&op)) {
           continue;
         } else if (auto alloca = dyn_cast<memref::AllocaOp>(&op)) {
-          assert(0 && "Unhandled case");
+          llvm_unreachable("Unhandled case");
           break;
         } else if (auto alloca = dyn_cast<LLVM::AllocaOp>(&op)) {
-          assert(0 && "Unhandled case");
+          llvm_unreachable("Unhandled case");
           break;
         } else {
           rewriter.clone(op, mapping);
@@ -1126,9 +1126,9 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
       } else if (hasEffect<MemoryEffects::Allocate>(effects)) {
         // I think this can actually happen if we lower a kernel with a barrier
         // and shared memory with gridDim = 1 TODO handle
-        assert(0 && "what?");
+        llvm_unreachable("what?");
       } else if (hasEffect<MemoryEffects::Free>(effects)) {
-        assert(0 && "what?");
+        llvm_unreachable("what?");
       } else if (write) {
         rewriter.setInsertionPoint(newWrapper.getBody()->getTerminator());
         cloned = rewriter.clone(*op, splitMapping)->getResults();
@@ -1210,7 +1210,7 @@ struct HandleWrapperRootOps : public OpRewritePattern<polygeist::GPUWrapperOp> {
           }
         }
       } else {
-        assert(0 && "are there other effects?");
+        llvm_unreachable("are there other effects?");
       }
       rewriter.replaceOpWithIf(op, cloned, [&](OpOperand &use) {
         Operation *owner = use.getOwner();
@@ -1339,7 +1339,8 @@ struct RemovePolygeistNoopOp : public OpRewritePattern<polygeist::NoopOp> {
                                   "must belong to the same parallel op");
             threadIndices.push_back(blockArg.getArgNumber());
           } else {
-            assert(0 && "noop block arg operands must be scf parallel op args");
+            llvm_unreachable(
+                "noop block arg operands must be scf parallel op args");
           }
         } else {
           auto cst = getConstantInteger(operand);
@@ -1583,7 +1584,7 @@ struct ParallelToGPULaunch : public OpRewritePattern<polygeist::GPUWrapperOp> {
         return gpu::Dimension::y;
       if (index == 2)
         return gpu::Dimension::z;
-      assert(0 && "Invalid index");
+      llvm_unreachable("Invalid index");
       return gpu::Dimension::z;
     };
 

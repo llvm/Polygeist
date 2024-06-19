@@ -72,6 +72,12 @@
 #include "llvm/Transforms/IPO/Internalize.h"
 #include <fstream>
 
+#ifdef POLYGEIST_ENABLE_POLYMER
+#include "polymer/Transforms/ExtractScopStmt.h"
+#include "polymer/Transforms/PlutoTransform.h"
+#include "polymer/Transforms/Reg2Mem.h"
+#endif
+
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
 
@@ -84,6 +90,10 @@ using namespace llvm;
 #define POLYGEIST_ENABLE_GPU (POLYGEIST_ENABLE_CUDA || POLYGEIST_ENABLE_ROCM)
 
 static cl::OptionCategory toolOptions("clang to mlir - tool options");
+
+static cl::opt<bool>
+    ClPolyhedralOpt("polyhedral-opt", cl::init(false),
+                    cl::desc("Use polymer to optimize affine regions"));
 
 static cl::opt<bool> CudaLower("cuda-lower", cl::init(false),
                                cl::desc("Add parallel loops around cuda"));
@@ -871,6 +881,14 @@ int main(int argc, char **argv) {
     }
     pm.addPass(mlir::createSymbolDCEPass());
 
+#ifdef POLYGEIST_ENABLE_POLYMER
+    if (ClPolyhedralOpt) {
+      pm.addPass(polygeist::createPolyhedralOptPass());
+      pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
+          canonicalizerConfig, {}, {}));
+    }
+#endif
+
     if (EmitGPU || EmitLLVM || !EmitAssembly || EmitOpenMPIR ||
         EmitLLVMDialect) {
       pm.addPass(mlir::createLowerAffinePass());
@@ -906,10 +924,7 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::createCSEPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));
-    }
-#endif
 
-    {
       mlir::OpPassManager &gpuPM = pm.nest<gpu::GPUModuleOp>();
       gpuPM.addPass(polygeist::createFixGPUFuncPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
@@ -917,6 +932,7 @@ int main(int argc, char **argv) {
       pm.addPass(polygeist::createLowerAlternativesPass());
       pm.addPass(polygeist::createCollectKernelStatisticsPass());
     }
+#endif
 
     if (mlir::failed(pm.run(module.get()))) {
       module->dump();

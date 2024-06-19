@@ -117,7 +117,7 @@ ValueCategory MLIRScanner::CallHelper(
       for (auto a : arguments) {
         std::get<1>(a)->dump();
       }
-      assert(0 && "too many arguments in calls");
+      llvm_unreachable("too many arguments in calls");
     }
     bool isReference =
         (i == 0 && a == nullptr) || a->isLValue() || a->isXValue();
@@ -367,7 +367,7 @@ ValueCategory MLIRScanner::CallHelper(
   } else
     return nullptr;
   llvm::errs() << "do not support indirecto call of " << tocall << "\n";
-  assert(0 && "no indirect");
+  llvm_unreachable("no indirect");
 }
 
 mlir::Value MLIRScanner::getLLVM(Expr *E, bool isRef) {
@@ -490,7 +490,7 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     }
     expr->dump();
     llvm::errs() << " val: " << val << " T: " << T << "\n";
-    assert(0 && "unhandled builtin addressof");
+    llvm_unreachable("unhandled builtin addressof");
   }
   case Builtin::BI__builtin_operator_new: {
     mlir::Value count = Visit(*expr->arg_begin()).getValue(loc, builder);
@@ -586,7 +586,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           args.push_back(Visit(a).getValue(loc, builder));
         }
         builder.create<gpu::ShuffleOp>(loc, );
-        assert(0 && "__shfl_up_sync unhandled");
+        llvm_unreachable("__shfl_up_sync unhandled");
         return nullptr;
       }
     }
@@ -1430,7 +1430,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
           elem->dump();
           srcSub->dump();
           mselem->dump();
-          assert(0 && "unhandled cudaMemcpy");
+          llvm_unreachable("unhandled cudaMemcpy");
           */
         }
 #endif

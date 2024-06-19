@@ -533,9 +533,9 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
           if ((t = fix(t, false))) {
             assert(isValidSymbolInt(t, /*recur*/ false));
           } else
-            assert(0 && "cannot move");
+            llvm_unreachable("cannot move");
         } else
-          assert(0 && "cannot move2");
+          llvm_unreachable("cannot move2");
       }
       if (i < numDims) {
         // b. The mathematical composition of AffineMap composes dims.

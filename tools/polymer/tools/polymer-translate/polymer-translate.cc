@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Diagnostics.h"
@@ -83,7 +84,8 @@ int main(int argc, char *argv[]) {
                            raw_ostream &os) {
     MLIRContext context;
     context.loadDialect<mlir::func::FuncDialect, mlir::affine::AffineDialect,
-                        mlir::scf::SCFDialect, mlir::LLVM::LLVMDialect>();
+                        mlir::memref::MemRefDialect, mlir::scf::SCFDialect,
+                        mlir::LLVM::LLVMDialect>();
 
     // Nothing here is threaded.  Disable synchronization overhead.
     context.disableMultithreading();

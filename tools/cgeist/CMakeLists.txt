@@ -55,9 +55,30 @@ target_include_directories(cgeist PRIVATE
   "${CMAKE_BINARY_DIR}/tools/clang/include"
 )
 
+if(POLYGEIST_ENABLE_POLYMER)
+  target_include_directories(cgeist PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../polymer/include"
+  )
+  target_link_libraries(cgeist PRIVATE
+    PolymerTransforms
+  )
+  target_compile_definitions(cgeist
+    PRIVATE
+    POLYGEIST_ENABLE_POLYMER=1
+  )
+endif()
+
+
 target_compile_definitions(cgeist PUBLIC -DLLVM_OBJ_ROOT="${LLVM_BINARY_DIR}")
-target_link_libraries(cgeist PRIVATE
-  MLIRSCFTransforms
+set(CGEIST_LIBS
+  MLIRPolygeist
+  MLIRPolygeistTransforms
+)
+if(POLYGEIST_ENABLE_POLYMER)
+        list(APPEND CGEIST_LIBS
+                PolymerTransforms)
+endif()
+list(APPEND CGEIST_LIBS
   MLIRPolygeist
 
   MLIRSupport
@@ -75,6 +96,7 @@ target_link_libraries(cgeist PRIVATE
   MLIRAffineToStandard
   MLIRMathToLLVM
   MLIRTargetLLVMIRImport
+  MLIRSCFTransforms
   MLIRPolygeistTransforms
   MLIRLLVMToLLVMIRTranslation
   MLIRSCFToOpenMP
@@ -108,5 +130,7 @@ target_link_libraries(cgeist PRIVATE
   clangLex
   clangSerialization
 )
+
+target_link_libraries(cgeist PRIVATE ${CGEIST_LIBS})
 add_dependencies(cgeist MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
 add_subdirectory(Test)

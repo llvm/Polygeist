@@ -29,6 +29,8 @@
 #include "mlir/Transforms/Passes.h"
 #include "mlir/Transforms/RegionUtils.h"
 
+#include "polymer/Support/PolymerUtils.h"
+
 #include "llvm/ADT/SetVector.h"
 
 #define DEBUG_TYPE "extract-scop-stmt"
@@ -275,12 +277,6 @@ static void getScopStmtOps(Operation *writeOp,
   return;
 }
 
-static void getCalleeName(unsigned calleeId, CalleeName &calleeName,
-                          char prefix = 'S') {
-  calleeName.push_back(prefix);
-  calleeName += std::to_string(calleeId);
-}
-
 /// Create the function definition that contains all the operations that belong
 /// to a Scop statement. The function name will be the given calleeName, its
 /// contents will be ops, and its type depends on the given list of args. This
@@ -392,10 +388,10 @@ static void removeExtractedOps(llvm::SetVector<Operation *> &opsToRemove) {
   }
 }
 
+namespace polymer {
 /// The main function that extracts scop statements as functions. Returns the
 /// number of callees extracted from this function.
-static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
-                                OpBuilder &b) {
+unsigned extractScopStmt(mlir::func::FuncOp f, OpBuilder &b) {
   // First discover those write ops that will be the "terminator" of each scop
   // statement in the given function.
   SmallVector<Operation *, 8> writeOps;
@@ -416,6 +412,14 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
 
   // Use the top-level module to locate places for new functions insertion.
   mlir::ModuleOp m = cast<mlir::ModuleOp>(f->getParentOp());
+  unsigned scopId = 0;
+  auto getName = [&]() {
+    std::string name;
+    do {
+      name = "S" + std::to_string(scopId++);
+    } while (m.lookupSymbol(name));
+    return name;
+  };
   // A writeOp will result in a new caller/callee pair.
   for (unsigned i = 0; i < numWriteOps; i++) {
     llvm::SetVector<Operation *> ops;
@@ -427,8 +431,7 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
     getScopStmtOps(writeOp, ops, args, opToCallee, calleeToCallers, f, b);
 
     // Get the name of the callee. Should be in the form of "S<id>".
-    CalleeName calleeName;
-    getCalleeName(i + numCallees, calleeName);
+    CalleeName calleeName = StringRef(getName());
 
     // Create the callee.
     mlir::func::FuncOp callee =
@@ -454,7 +457,7 @@ static unsigned extractScopStmt(mlir::func::FuncOp f, unsigned numCallees,
 
 /// Given a value, if any of its uses is a StoreOp, we try to replace other uses
 /// by a load from that store.
-static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
+void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
   SmallVector<mlir::affine::AffineStoreOp, 8> storeOps;
 
   f.walk([&](Operation *op) {
@@ -505,6 +508,7 @@ static void replaceUsesByStored(mlir::func::FuncOp f, OpBuilder &b) {
     }
   }
 }
+} // namespace polymer
 
 class ExtractScopStmtPass
     : public mlir::PassWrapper<ExtractScopStmtPass,
@@ -520,11 +524,10 @@ class ExtractScopStmtPass
       funcs.push_back(f);
     });
 
-    unsigned numCallees = 0;
     for (mlir::func::FuncOp f : funcs) {
       replaceUsesByStored(f, b);
 
-      numCallees += extractScopStmt(f, numCallees, b);
+      polymer::extractScopStmt(f, b);
     }
   }
   void getDependentDialects(::mlir::DialectRegistry &registry) const override {
@@ -539,4 +542,8 @@ void polymer::registerExtractScopStmtPass() {
         pm.addPass(std::make_unique<ExtractScopStmtPass>());
         pm.addPass(createCanonicalizerPass());
       });
+}
+
+std::unique_ptr<Pass> polymer::createExtractScopStmtPass() {
+  return std::make_unique<ExtractScopStmtPass>();
 }

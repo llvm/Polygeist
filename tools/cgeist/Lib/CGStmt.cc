@@ -1036,7 +1036,7 @@ ValueCategory MLIRScanner::VisitDeclStmt(clang::DeclStmt *decl) {
       emitError(getMLIRLocation(decl->getBeginLoc()))
           << " + visiting unknonwn sub decl stmt\n";
       sub->dump();
-      assert(0 && "unknown sub decl");
+      llvm_unreachable("unknown sub decl");
     }
   }
   return nullptr;

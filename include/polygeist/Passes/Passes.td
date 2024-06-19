@@ -4,6 +4,16 @@
 include "mlir/Pass/PassBase.td"
 include "mlir/Rewrite/PassUtil.td"
 
+def PolyhedralOpt : Pass<"polyhedral-opt"> {
+  let summary = "Optimize affine regions with pluto";
+  let constructor = "mlir::polygeist::createPolyhedralOptPass()";
+  let dependentDialects = [
+    "scf::SCFDialect",
+    "arith::ArithDialect",
+    "memref::MemRefDialect",
+  ];
+}
+
 def AffineCFG : Pass<"affine-cfg"> {
   let summary = "Replace scf.if and similar with affine.if";
   let constructor = "mlir::polygeist::replaceAffineCFGPass()";

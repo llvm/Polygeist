@@ -39,38 +39,14 @@ using namespace polymer;
 
 #define DEBUG_TYPE "pluto-opt"
 
-struct PlutoOptPipelineOptions
-    : public mlir::PassPipelineOptions<PlutoOptPipelineOptions> {
-  Option<std::string> dumpClastAfterPluto{
-      *this, "dump-clast-after-pluto",
-      llvm::cl::desc("File name for dumping the CLooG AST (clast) after Pluto "
-                     "optimization.")};
-  Option<bool> parallelize{*this, "parallelize",
-                           llvm::cl::desc("Enable parallelization from Pluto."),
-                           llvm::cl::init(false)};
-  Option<bool> debug{*this, "debug",
-                     llvm::cl::desc("Enable moredebug in Pluto."),
-                     llvm::cl::init(false)};
-  Option<bool> generateParallel{
-      *this, "gen-parallel", llvm::cl::desc("Generate parallel affine loops."),
-      llvm::cl::init(false)};
-
-  Option<int> cloogf{*this, "cloogf", cl::desc("-cloogf option."),
-                     cl::init(-1)};
-  Option<int> cloogl{*this, "cloogl", cl::desc("-cloogl option."),
-                     cl::init(-1)};
-  Option<bool> diamondTiling{*this, "diamond-tiling",
-                             cl::desc("Enable diamond tiling"),
-                             cl::init(false)};
-};
-
+namespace polymer {
 /// The main function that implements the Pluto based optimization.
 /// TODO: transform options?
-static mlir::func::FuncOp
-plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
-               std::string dumpClastAfterPluto, bool parallelize = false,
-               bool debug = false, int cloogf = -1, int cloogl = -1,
-               bool diamondTiling = false) {
+mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
+                                  std::string dumpClastAfterPluto,
+                                  bool parallelize = false, bool debug = false,
+                                  int cloogf = -1, int cloogl = -1,
+                                  bool diamondTiling = false) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 
@@ -128,6 +104,7 @@ plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
   pluto_context_free(context);
   return g;
 }
+} // namespace polymer
 
 class PlutoTransformPass
     : public mlir::PassWrapper<PlutoTransformPass,
@@ -141,7 +118,6 @@ class PlutoTransformPass
 
 public:
   PlutoTransformPass() = default;
-  PlutoTransformPass(const PlutoTransformPass &pass) {}
   PlutoTransformPass(const PlutoOptPipelineOptions &options)
       : dumpClastAfterPluto(options.dumpClastAfterPluto),
         parallelize(options.parallelize), debug(options.debug),
@@ -200,7 +176,7 @@ static mlir::affine::AffineForOp findParallelizableLoop(mlir::func::FuncOp f) {
 ///
 /// 1. It is not necessary to check whether the parentOp of a parallelizable
 /// affine.for has the AffineScop trait.
-static void plutoParallelize(mlir::affine::AffineForOp forOp, OpBuilder b) {
+void plutoParallelize(mlir::affine::AffineForOp forOp, OpBuilder b) {
   assert(forOp->hasAttr("scop.parallelizable"));
 
   OpBuilder::InsertionGuard guard(b);
@@ -247,17 +223,19 @@ static bool isBoundParallelizable(mlir::affine::AffineForOp forOp) {
          isBoundParallelizable(forOp, false);
 }
 
+namespace polymer {
 /// Iteratively replace affine.for with scop.parallelizable with
 /// affine.parallel.
-static void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
+void plutoParallelize(mlir::func::FuncOp f, OpBuilder b) {
   mlir::affine::AffineForOp forOp = nullptr;
   while ((forOp = findParallelizableLoop(f)) != nullptr) {
     if (!isBoundParallelizable(forOp))
       llvm_unreachable(
           "Loops marked as parallelizable should have parallelizable bounds.");
-    plutoParallelize(forOp, b);
+    ::plutoParallelize(forOp, b);
   }
 }
+} // namespace polymer
 
 /// Turn affine.for marked as scop.parallelizable by Pluto into actual
 /// affine.parallel operation.
@@ -272,7 +250,8 @@ struct PlutoParallelizePass
   }
 };
 
-static void dedupIndexCast(func::FuncOp f) {
+namespace polymer {
+void dedupIndexCast(func::FuncOp f) {
   if (f.getBlocks().empty())
     return;
 
@@ -296,6 +275,7 @@ static void dedupIndexCast(func::FuncOp f) {
   for (auto op : toErase)
     op->erase();
 }
+} // namespace polymer
 
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,
@@ -307,13 +287,27 @@ void polymer::registerPlutoTransformPass() {
   PassPipelineRegistration<PlutoOptPipelineOptions>(
       "pluto-opt", "Optimization implemented by PLUTO.",
       [](OpPassManager &pm, const PlutoOptPipelineOptions &pipelineOptions) {
-        pm.addPass(std::make_unique<DedupIndexCastPass>());
-        pm.addPass(createCanonicalizerPass());
-        pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
-        pm.addPass(createCanonicalizerPass());
-        if (pipelineOptions.generateParallel) {
-          pm.addPass(std::make_unique<PlutoParallelizePass>());
-          pm.addPass(createCanonicalizerPass());
-        }
+        addPlutoOpt(pm, pipelineOptions);
       });
 }
+
+void polymer::addPlutoOpt(OpPassManager &pm,
+                          const PlutoOptPipelineOptions &pipelineOptions) {
+  pm.addNestedPass<func::FuncOp>(std::make_unique<DedupIndexCastPass>());
+  pm.addPass(createCanonicalizerPass());
+  pm.addPass(std::make_unique<PlutoTransformPass>(pipelineOptions));
+  pm.addPass(createCanonicalizerPass());
+  if (pipelineOptions.generateParallel) {
+    pm.addNestedPass<func::FuncOp>(std::make_unique<PlutoParallelizePass>());
+    pm.addPass(createCanonicalizerPass());
+  }
+}
+
+namespace polymer {
+std::unique_ptr<mlir::Pass> createDedupIndexCastPass() {
+  return std::make_unique<DedupIndexCastPass>();
+}
+std::unique_ptr<mlir::Pass> createPlutoParallelizePass() {
+  return std::make_unique<PlutoParallelizePass>();
+}
+} // namespace polymer
