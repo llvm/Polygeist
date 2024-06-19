@@ -280,6 +280,11 @@ public:
     schedule = buildSequenceSchedule(ops);
   }
 
+  static llvm::SmallVector<mlir::Operation *>
+  getSequenceScheduleOpList(mlir::Operation *begin, mlir::Operation *end);
+  static llvm::SmallVector<mlir::Operation *>
+  getSequenceScheduleOpList(mlir::Block *block);
+
 private:
   struct IslStmt {
     isl_basic_set *domain;

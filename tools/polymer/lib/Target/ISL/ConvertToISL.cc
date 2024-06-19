@@ -161,7 +161,8 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
 
   Operation *scopLoopNest = f.getBody().front().back().getPrevNode();
   // TODO for now we only handle single-op loop nests as scops
-  scop->buildSchedule({scopLoopNest});
+  scop->buildSchedule(scop->getSequenceScheduleOpList(
+      scopLoopNest, scopLoopNest->getNextNode()));
 
   // Setup the symbol table within the IslScop, which builds the mapping from
   // mlir::Value to their names in the OpenScop representation, and maps them

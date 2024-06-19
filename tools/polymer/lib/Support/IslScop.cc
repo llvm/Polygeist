@@ -171,10 +171,7 @@ IslScop::buildParallelSchedule(affine::AffineParallelOp parallelOp,
 
 template <typename T>
 isl_schedule *IslScop::buildLoopSchedule(T loopOp, unsigned depth) {
-  SmallVector<Operation *> body;
-  for (auto it = loopOp.getBody()->begin();
-       it != std::next(loopOp.getBody()->end(), -1); it++)
-    body.push_back(&*it);
+  SmallVector<Operation *> body = getSequenceScheduleOpList(loopOp.getBody());
 
   isl_schedule *child = buildSequenceSchedule(body, depth + 1);
   ISL_DEBUG("CHILD:\n", isl_schedule_dump(child));
@@ -211,34 +208,49 @@ isl_schedule *IslScop::buildLeafSchedule(func::CallOp callOp) {
   return schedule;
 }
 
-isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
-                                             unsigned depth) {
-  auto len = ops.size();
-  if (len == 1) {
-    if (auto forOp = dyn_cast<affine::AffineForOp>(ops[0])) {
-      return buildForSchedule(forOp, depth);
-    } else if (auto parallelOp = dyn_cast<affine::AffineParallelOp>(ops[0])) {
-      return buildParallelSchedule(parallelOp, depth);
-    } else if (auto callOp = dyn_cast<func::CallOp>(ops[0])) {
-      return buildLeafSchedule(callOp);
+SmallVector<Operation *> IslScop::getSequenceScheduleOpList(Operation *begin,
+                                                            Operation *end) {
+  SmallVector<Operation *> ops;
+  for (auto op = begin; op != end; op = op->getNextNode()) {
+    if (auto ifOp = dyn_cast<affine::AffineIfOp>(op)) {
+      auto thenOps = getSequenceScheduleOpList(ifOp.getThenBlock());
+      if (ifOp.hasElse()) {
+        auto elseOps = getSequenceScheduleOpList(ifOp.getElseBlock());
+        ops.insert(ops.end(), elseOps.begin(), elseOps.end());
+      }
+      ops.insert(ops.end(), thenOps.begin(), thenOps.end());
     } else {
-      llvm_unreachable("only for ops for now");
+      ops.push_back(op);
     }
   }
+  return ops;
+}
+
+SmallVector<Operation *> IslScop::getSequenceScheduleOpList(Block *block) {
+  return getSequenceScheduleOpList(&block->front(), &block->back());
+}
+
+isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
+                                             unsigned depth) {
+  auto buildOpSchedule = [&](Operation *op) {
+    if (auto forOp = dyn_cast<affine::AffineForOp>(op)) {
+      return buildForSchedule(forOp, depth);
+    } else if (auto parallelOp = dyn_cast<affine::AffineParallelOp>(op)) {
+      return buildParallelSchedule(parallelOp, depth);
+    } else if (auto callOp = dyn_cast<func::CallOp>(op)) {
+      return buildLeafSchedule(callOp);
+    } else {
+      llvm_unreachable("unhandled op");
+    }
+  };
+
+  auto len = ops.size();
+  if (len == 1)
+    return buildOpSchedule(ops[0]);
 
   isl_schedule *schedule = nullptr;
   for (auto curOp : ops) {
-    isl_schedule *child;
-    if (auto forOp = dyn_cast<affine::AffineForOp>(curOp)) {
-      child = buildForSchedule(forOp, depth);
-    } else if (auto parallelOp = dyn_cast<affine::AffineParallelOp>(curOp)) {
-      child = buildParallelSchedule(parallelOp, depth);
-    } else if (auto callOp = dyn_cast<func::CallOp>(curOp)) {
-      child = buildLeafSchedule(callOp);
-    } else {
-      llvm_unreachable("only for ops for now");
-    }
-
+    isl_schedule *child = buildOpSchedule(curOp);
     if (!schedule)
       schedule = child;
     else

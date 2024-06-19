@@ -11,6 +11,7 @@ def PolyhedralOpt : Pass<"polyhedral-opt"> {
     "scf::SCFDialect",
     "arith::ArithDialect",
     "memref::MemRefDialect",
+    "affine::AffineDialect",
   ];
 }
 
