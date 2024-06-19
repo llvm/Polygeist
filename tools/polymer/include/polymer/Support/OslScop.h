@@ -6,6 +6,7 @@
 #ifndef POLYMER_SUPPORT_OSLSCOP_H
 #define POLYMER_SUPPORT_OSLSCOP_H
 
+#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Support/LLVM.h"
 #include "polymer/Support/ScatteringUtils.h"
@@ -291,6 +292,10 @@ private:
   isl_schedule *schedule = nullptr;
   unsigned loopId = 0;
 
+  template <typename T>
+  isl_schedule *buildLoopSchedule(T loopOp, unsigned depth);
+  isl_schedule *buildParallelSchedule(mlir::affine::AffineParallelOp parallelOp,
+                                      unsigned depth);
   isl_schedule *buildForSchedule(mlir::affine::AffineForOp forOp,
                                  unsigned depth);
   isl_schedule *buildLeafSchedule(mlir::func::CallOp callOp);

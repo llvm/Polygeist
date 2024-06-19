@@ -158,11 +158,22 @@ static isl_multi_union_pw_aff *mapToDimension(isl_union_set *uset, unsigned N) {
   return isl_multi_union_pw_aff_from_union_pw_multi_aff(res);
 }
 
-isl_schedule *IslScop::buildForSchedule(affine::AffineForOp forOp,
-                                        unsigned depth) {
+isl_schedule *
+IslScop::buildParallelSchedule(affine::AffineParallelOp parallelOp,
+                               unsigned depth) {
+  isl_schedule *schedule = buildLoopSchedule(parallelOp, depth);
+  isl_schedule_node *node = isl_schedule_get_root(schedule);
+  node = isl_schedule_node_first_child(node);
+  node = isl_schedule_node_band_set_permutable(node, 1);
+  schedule = isl_schedule_node_get_schedule(node);
+  return schedule;
+}
+
+template <typename T>
+isl_schedule *IslScop::buildLoopSchedule(T loopOp, unsigned depth) {
   SmallVector<Operation *> body;
-  for (auto it = forOp.getBody()->begin();
-       it != std::next(forOp.getBody()->end(), -1); it++)
+  for (auto it = loopOp.getBody()->begin();
+       it != std::next(loopOp.getBody()->end(), -1); it++)
     body.push_back(&*it);
 
   isl_schedule *child = buildSequenceSchedule(body, depth + 1);
@@ -178,6 +189,12 @@ isl_schedule *IslScop::buildForSchedule(affine::AffineForOp forOp,
 
   ISL_DEBUG("Created for schedule:\n", isl_schedule_dump(schedule));
 
+  return schedule;
+}
+
+isl_schedule *IslScop::buildForSchedule(affine::AffineForOp forOp,
+                                        unsigned depth) {
+  isl_schedule *schedule = buildLoopSchedule(forOp, depth);
   return schedule;
 }
 
@@ -200,6 +217,8 @@ isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
   if (len == 1) {
     if (auto forOp = dyn_cast<affine::AffineForOp>(ops[0])) {
       return buildForSchedule(forOp, depth);
+    } else if (auto parallelOp = dyn_cast<affine::AffineParallelOp>(ops[0])) {
+      return buildParallelSchedule(parallelOp, depth);
     } else if (auto callOp = dyn_cast<func::CallOp>(ops[0])) {
       return buildLeafSchedule(callOp);
     } else {
@@ -212,6 +231,8 @@ isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
     isl_schedule *child;
     if (auto forOp = dyn_cast<affine::AffineForOp>(curOp)) {
       child = buildForSchedule(forOp, depth);
+    } else if (auto parallelOp = dyn_cast<affine::AffineParallelOp>(curOp)) {
+      child = buildParallelSchedule(parallelOp, depth);
     } else if (auto callOp = dyn_cast<func::CallOp>(curOp)) {
       child = buildLeafSchedule(callOp);
     } else {
@@ -242,8 +263,9 @@ IslScop::IslStmt &IslScop::getIslStmt(std::string name) {
 
 void IslScop::dumpTadashi(llvm::raw_ostream &os) {
   LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
-  LLVM_DEBUG(llvm::errs() << "Schedule:\n");
+  LLVM_DEBUG(llvm::errs() << "Schedule:\n\n");
   LLVM_DEBUG(isl_schedule_dump(schedule));
+  LLVM_DEBUG(llvm::errs() << "\n");
 
   auto o = [&os](unsigned n) -> llvm::raw_ostream & {
     return os << std::string(n, ' ');
