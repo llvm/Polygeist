@@ -1033,13 +1033,29 @@ public:
     isl_id *Id = isl_ast_expr_get_id(CalleeExpr);
     const char *CalleeName = isl_id_get_name(Id);
 
-    ScopStmt &stmt = scop.scopStmtMap.at(std::string(CalleeName));
-
-    SmallVector<Value> args;
+    SmallVector<Value> ivs;
     for (int i = 0; i < isl_ast_expr_get_op_n_arg(Expr) - 1; ++i) {
       isl_ast_expr *SubExpr = isl_ast_expr_get_op_arg(Expr, i + 1);
       Value V = create(SubExpr);
-      args.push_back(V);
+      ivs.push_back(V);
+    }
+
+    ScopStmt &stmt = scop.scopStmtMap.at(std::string(CalleeName));
+    func::CallOp origCallee = stmt.getCaller();
+    SmallVector<Value> args;
+    for (Value arg : origCallee.getArgOperands()) {
+      auto ba = arg.dyn_cast<BlockArgument>();
+      if (ba) {
+        Operation *owner = ba.getOwner()->getParentOp();
+        if (isa<func::FuncOp>(owner)) {
+          args.push_back(funcArgMapping.lookup(ba));
+        } else if (isa<affine::AffineForOp, affine::AffineParallelOp>(owner)) {
+          // TODO need to rewrite old ivs to new ivs
+          llvm_unreachable("TODO iv");
+        } else {
+          llvm_unreachable("TODO arrays");
+        }
+      }
     }
 
     b.create<func::CallOp>(loc, StringRef(CalleeName), TypeRange(), args);
