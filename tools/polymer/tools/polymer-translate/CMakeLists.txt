@@ -13,7 +13,6 @@ target_link_libraries(polymer-translate
   PRIVATE
 
   PolymerTargetOpenScop
-  PolymerTargetISL
 
   MLIRFuncDialect
   MLIRLLVMDialect

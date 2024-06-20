@@ -1,7 +1,6 @@
 if(POLYGEIST_POLYMER_ENABLE_PLUTO)
   add_mlir_library(PolymerSupport
     OslScop.cc
-    IslScop.cc
     OslScopStmtOpSet.cc
     OslSymbolTable.cc
     ScopStmt.cc

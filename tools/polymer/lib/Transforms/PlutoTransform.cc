@@ -8,6 +8,7 @@
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/PolymerUtils.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/OpenScop.h"
 
@@ -44,9 +45,8 @@ namespace polymer {
 /// TODO: transform options?
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,
-                                  bool parallelize = false, bool debug = false,
-                                  int cloogf = -1, int cloogl = -1,
-                                  bool diamondTiling = false) {
+                                  bool parallelize, bool debug, int cloogf,
+                                  int cloogl, bool diamondTiling) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 
