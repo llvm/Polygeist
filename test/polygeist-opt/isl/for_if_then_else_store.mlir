@@ -14,12 +14,13 @@ module {
 
     affine.for %i = 0 to #map()[%N] {
       affine.if #set1(%i)[%S] {
-        %4 = affine.load %B[%k] : memref<?x?xf32>
-        affine.store %4, %C[%i] : memref<?x?xf32>
+        %4 = affine.load %B[%i] : memref<?xf32>
+        affine.store %4, %C[%i] : memref<?xf32>
       } else {
-        %4 = affine.load %A[%i] : memref<x?xf32>
-        affine.store %4, %C[%i] : memref<?x?xf32>
+        %4 = affine.load %A[%i] : memref<?xf32>
+        affine.store %4, %C[%i] : memref<?xf32>
       }
+      affine.store %beta, %C[%i] : memref<?xf32>
     }
     return
   }
