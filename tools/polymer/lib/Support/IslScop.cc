@@ -4,6 +4,7 @@
 #include "mlir/Analysis/Presburger/PresburgerSpace.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "polymer/Support/ScatteringUtils.h"
@@ -677,6 +678,51 @@ public:
   IDToValueTy IDToValue;
 
   Value createOp(__isl_take isl_ast_expr *Expr) {
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
+           "Expression not of type isl_ast_expr_op");
+    switch (isl_ast_expr_get_op_type(Expr)) {
+    case isl_ast_op_error:
+    case isl_ast_op_cond:
+    case isl_ast_op_call:
+    case isl_ast_op_member:
+      llvm_unreachable("Unsupported isl ast expression");
+    case isl_ast_op_access:
+      return createOpAccess(Expr);
+    case isl_ast_op_max:
+    case isl_ast_op_min:
+      return createOpNAry(Expr);
+    case isl_ast_op_add:
+    case isl_ast_op_sub:
+    case isl_ast_op_mul:
+    case isl_ast_op_div:
+    case isl_ast_op_fdiv_q: // Round towards -infty
+    case isl_ast_op_pdiv_q: // Dividend is non-negative
+    case isl_ast_op_pdiv_r: // Dividend is non-negative
+    case isl_ast_op_zdiv_r: // Result only compared against zero
+      return createOpBin(Expr);
+    case isl_ast_op_minus:
+      return createOpUnary(Expr);
+    case isl_ast_op_select:
+      return createOpSelect(Expr);
+    case isl_ast_op_and:
+    case isl_ast_op_or:
+      return createOpBoolean(Expr);
+    case isl_ast_op_and_then:
+    case isl_ast_op_or_else:
+      return createOpBooleanConditional(Expr);
+    case isl_ast_op_eq:
+    case isl_ast_op_le:
+    case isl_ast_op_lt:
+    case isl_ast_op_ge:
+    case isl_ast_op_gt:
+      return createOpICmp(Expr);
+    case isl_ast_op_address_of:
+      return createOpAddressOf(Expr);
+    }
+
+    llvm_unreachable("Unsupported isl_ast_expr_op kind.");
+  }
+  Value createOpAddressOf(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
   }
   Value createOpUnary(__isl_take isl_ast_expr *Expr) {
@@ -685,11 +731,167 @@ public:
   Value createOpAccess(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
   }
+  Value createMul(Value LHS, Value RHS, std::string Name = "") {
+    return b.create<arith::MulIOp>(loc, LHS, RHS);
+  }
+  Value createSub(Value LHS, Value RHS, std::string Name = "") {
+    return b.create<arith::SubIOp>(loc, LHS, RHS);
+  }
+  Value createAdd(Value LHS, Value RHS, std::string Name = "") {
+    return b.create<arith::AddIOp>(loc, LHS, RHS);
+  }
   Value createOpBin(__isl_take isl_ast_expr *Expr) {
-    llvm_unreachable("unimplemented");
+    Value LHS, RHS, Res;
+    Type MaxType;
+    isl_ast_op_type OpType;
+
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
+           "isl ast expression not of type isl_ast_op");
+    assert(isl_ast_expr_get_op_n_arg(Expr) == 2 &&
+           "not a binary isl ast expression");
+
+    OpType = isl_ast_expr_get_op_type(Expr);
+
+    LHS = create(isl_ast_expr_get_op_arg(Expr, 0));
+    RHS = create(isl_ast_expr_get_op_arg(Expr, 1));
+
+    Type LHSType = LHS.getType();
+    Type RHSType = RHS.getType();
+
+    MaxType = getWidestType(LHSType, RHSType);
+
+    // Take the result into account when calculating the widest type.
+    //
+    // For operations such as '+' the result may require a type larger than
+    // the type of the individual operands. For other operations such as '/',
+    // the result type cannot be larger than the type of the individual operand.
+    // isl does not calculate correct types for these operations and we
+    // consequently exclude those operations here.
+    switch (OpType) {
+    case isl_ast_op_pdiv_q:
+    case isl_ast_op_pdiv_r:
+    case isl_ast_op_div:
+    case isl_ast_op_fdiv_q:
+    case isl_ast_op_zdiv_r:
+      // Do nothing
+      break;
+    case isl_ast_op_add:
+    case isl_ast_op_sub:
+    case isl_ast_op_mul:
+      MaxType = getWidestType(MaxType, getType(Expr));
+      break;
+    default:
+      llvm_unreachable("This is no binary isl ast expression");
+    }
+
+    if (MaxType != RHS.getType())
+      RHS = b.create<arith::ExtSIOp>(loc, MaxType, RHS);
+
+    if (MaxType != LHS.getType())
+      LHS = b.create<arith::ExtSIOp>(loc, MaxType, LHS);
+
+    switch (OpType) {
+    default:
+      llvm_unreachable("This is no binary isl ast expression");
+    case isl_ast_op_add:
+      Res = createAdd(LHS, RHS);
+      break;
+    case isl_ast_op_sub:
+      Res = createSub(LHS, RHS);
+      break;
+    case isl_ast_op_mul:
+      Res = createMul(LHS, RHS);
+      break;
+    case isl_ast_op_div:
+      Res = b.create<arith::DivSIOp>(loc, LHS, RHS);
+      break;
+    case isl_ast_op_pdiv_q: // Dividend is non-negative
+      Res = b.create<arith::DivUIOp>(loc, LHS, RHS);
+      break;
+    case isl_ast_op_fdiv_q: { // Round towards -infty
+      // if (auto Const = dyn_cast<arith::ConstantIntOp>(RHS)) {
+      //   auto &Val = Const.getValue();
+      //   if (Val.isPowerOf2() && Val.isNonNegative()) {
+      //     Res = b.create<arith::ShRSIOp>(loc, LHS, Val.ceilLogBase2());
+      //     break;
+      //   }
+      // }
+
+      // TODO: Review code and check that this calculation does not yield
+      //       incorrect overflow in some edge cases.
+      //
+      // floord(n,d) ((n < 0) ? (n - d + 1) : n) / d
+      Value One = b.create<arith::ConstantIntOp>(loc, 1, MaxType);
+      Value Zero = b.create<arith::ConstantIntOp>(loc, 0, MaxType);
+      Value Sum1 = createSub(LHS, RHS, "pexp.fdiv_q.0");
+      Value Sum2 = createAdd(Sum1, One, "pexp.fdiv_q.1");
+      Value isNegative =
+          b.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt, LHS, Zero);
+      Value Dividend = b.create<arith::SelectOp>(loc, isNegative, Sum2, LHS);
+      Res = b.create<arith::DivSIOp>(loc, Dividend, RHS);
+      break;
+    }
+    case isl_ast_op_pdiv_r: // Dividend is non-negative
+      Res = b.create<arith::RemUIOp>(loc, LHS, RHS);
+      break;
+
+    case isl_ast_op_zdiv_r: // Result only compared against zero
+      Res = b.create<arith::RemSIOp>(loc, LHS, RHS);
+      break;
+    }
+
+    isl_ast_expr_free(Expr);
+    return Res;
+  }
+  Type getWidestType(Type T1, Type T2) {
+    IntegerType IT1 = T1.dyn_cast<IntegerType>();
+    IntegerType IT2 = T2.dyn_cast<IntegerType>();
+    assert(IT1 && IT2);
+
+    if (IT1.getWidth() < IT2.getWidth())
+      return T2;
+    else
+      return T1;
   }
   Value createOpNAry(__isl_take isl_ast_expr *Expr) {
-    llvm_unreachable("unimplemented");
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
+           "isl ast expression not of type isl_ast_op");
+    assert(isl_ast_expr_get_op_n_arg(Expr) >= 2 &&
+           "We need at least two operands in an n-ary operation");
+
+    std::function<Value(Value, Value)> Aggregate;
+    switch (isl_ast_expr_get_op_type(Expr)) {
+    default:
+      llvm_unreachable("This is not a an n-ary isl ast expression");
+    case isl_ast_op_max:
+      Aggregate = [&](Value x, Value y) {
+        return b.create<arith::MaxSIOp>(loc, x, y);
+      };
+      break;
+    case isl_ast_op_min:
+      Aggregate = [&](Value x, Value y) {
+        return b.create<arith::MinSIOp>(loc, x, y);
+      };
+      break;
+    }
+
+    Value V = create(isl_ast_expr_get_op_arg(Expr, 0));
+
+    for (int i = 1; i < isl_ast_expr_get_op_n_arg(Expr); ++i) {
+      Value OpV = create(isl_ast_expr_get_op_arg(Expr, i));
+      Type Ty = getWidestType(V.getType(), OpV.getType());
+
+      if (Ty != OpV.getType())
+        OpV = b.create<arith::ExtSIOp>(loc, Ty, OpV);
+
+      if (Ty != V.getType())
+        V = b.create<arith::ExtSIOp>(loc, Ty, V);
+
+      V = Aggregate(OpV, V);
+    }
+
+    isl_ast_expr_free(Expr);
+    return V;
   }
   Value createOpSelect(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
@@ -752,7 +954,6 @@ public:
     isl_ast_expr_free(Expr);
     return V;
   }
-  Value createOpAddressOf(__isl_take isl_ast_expr *Expr);
   Value create(__isl_take isl_ast_expr *Expr) {
     switch (isl_ast_expr_get_type(Expr)) {
     case isl_ast_expr_error:
@@ -798,8 +999,15 @@ public:
     ISL_DEBUG("Building Mark:\n", isl_ast_node_dump(node));
   }
 
-  void createIf(__isl_keep isl_ast_node *node) {
-    ISL_DEBUG("Building If:\n", isl_ast_node_dump(node));
+  void createIf(__isl_keep isl_ast_node *If) {
+    ISL_DEBUG("Building If:\n", isl_ast_node_dump(If));
+    isl_ast_expr *Cond = isl_ast_node_if_get_cond(If);
+
+    Value Predicate = create(Cond);
+
+    b.create<scf::IfOp>(loc, TypeRange(), Predicate,
+                        /*addThenBlock=*/true,
+                        /*addElseBlock=*/false);
   }
 
   void createBlock(__isl_keep isl_ast_node *Block) {
@@ -917,7 +1125,6 @@ public:
 
   void fillOutMapping(isl_union_set *domain) {
     isl_space *space = isl_union_set_get_space(domain);
-    isl_space_get
   }
 };
 } // namespace polymer
