@@ -32,8 +32,10 @@
 #include "polly/CodeGen/IslNodeBuilder.h"
 #include "polly/Support/GICHelper.h"
 
+#include "isl/aff_type.h"
 #include "isl/id_to_id.h"
 #include "isl/printer.h"
+#include "isl/space_type.h"
 #include <isl/aff.h>
 #include <isl/ast_build.h>
 #include <isl/ctx.h>
@@ -672,10 +674,11 @@ namespace polymer {
 class IslMLIRBuilder {
 public:
   OpBuilder &b;
+  IRMapping funcArgMapping;
   IslScop &scop;
   Location loc = b.getUnknownLoc();
   typedef llvm::MapVector<isl_id *, Value> IDToValueTy;
-  IDToValueTy IDToValue;
+  IDToValueTy IDToValue{};
 
   Value createOp(__isl_take isl_ast_expr *Expr) {
     assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
@@ -1131,6 +1134,30 @@ public:
     return Cond.get_op_arg(1);
   }
 
+  template <class... Ts> void convertToMax(Ts &&...args) {
+    SmallVector<Value *> Args({&args...});
+    IntegerType MaxType = Args[0]->getType().cast<IntegerType>();
+    unsigned MaxWidth = MaxType.getWidth();
+    for (unsigned I = 1; I < Args.size(); I++) {
+      Type Ty = Args[1]->getType();
+      if (Ty.isa<IndexType>())
+        // TODO This is temporary and we should get the target system index here
+        Ty = b.getI64Type();
+      if (Ty.cast<IntegerType>().getWidth() > MaxWidth) {
+        MaxType = Ty.cast<IntegerType>();
+        MaxWidth = MaxType.getWidth();
+      }
+    }
+    for (unsigned I = 1; I < Args.size(); I++) {
+      Type Ty = Args[1]->getType();
+      if (Ty.isa<IndexType>()) {
+        *Args[I] = b.create<arith::IndexCastOp>(loc, MaxType, *Args[I]);
+      } else if (Ty != MaxType) {
+        *Args[I] = b.create<arith::ExtSIOp>(loc, MaxType, *Args[I]);
+      }
+    }
+  }
+
   void createFor(__isl_keep isl_ast_node *For) {
     ISL_DEBUG("Building For:\n", isl_ast_node_dump(For));
     isl_ast_node *Body = isl_ast_node_for_get_body(For);
@@ -1146,6 +1173,7 @@ public:
     Value ValueLB = create(Init);
     Value ValueUB = create(UB);
     Value ValueInc = create(Inc);
+    convertToMax(ValueLB, ValueUB, ValueInc);
 
     if (Predicate == arith::CmpIPredicate::sle)
       ValueUB = b.create<arith::AddIOp>(
@@ -1187,12 +1215,21 @@ public:
 
   void fillOutMapping(isl_union_set *domain) {
     isl_space *space = isl_union_set_get_space(domain);
+
+    int nparams = isl_space_dim(space, isl_dim_param);
+    for (int i = 0; i < nparams; i++) {
+      isl_id *Id = isl_space_get_dim_id(space, isl_dim_param, i);
+      const char *paramName = isl_id_get_name(Id);
+      Value V = scop.symbolTable[paramName];
+      IDToValue[Id] = funcArgMapping.lookup(V);
+    }
   }
 };
 } // namespace polymer
 
-mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
-                                           func::FuncOp f) {
+mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
+                                           func::FuncOp f,
+                                           IRMapping funcArgMapping) {
   assert(f.getFunctionBody().getBlocks().size() == 1);
 
   // Cleanup body
@@ -1207,17 +1244,17 @@ mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
 
   OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
 
-  IslMLIRBuilder bc = {b, *this};
+  IslMLIRBuilder bc = {b, funcArgMapping, *this};
 
   LLVM_DEBUG({
     llvm::dbgs() << "Applying new schedule to scop:\n";
     isl_schedule_dump(newSchedule);
   });
-  isl_union_set *domain = isl_schedule_get_domain(schedule);
+  isl_union_set *domain = isl_schedule_get_domain(newSchedule);
   isl_ast_build *build = isl_ast_build_alloc(ctx);
   // build = isl_ast_build_set_at_each_domain(build, at_domain, id2stmt);
-  isl_ast_node *node = isl_ast_build_node_from_schedule(build, schedule);
-  isl_id_to_id *id2stmt = nullptr;
+  isl_ast_node *node =
+      isl_ast_build_node_from_schedule(build, isl_schedule_copy(newSchedule));
 
   bc.fillOutMapping(domain);
   bc.create(node);

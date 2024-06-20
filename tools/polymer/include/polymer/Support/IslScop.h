@@ -155,8 +155,9 @@ public:
 
   isl_schedule *getSchedule() { return schedule; }
 
-  mlir::LogicalResult applySchedule(isl_schedule *newSchedule,
-                                    mlir::func::FuncOp f);
+  mlir::LogicalResult applySchedule(__isl_keep isl_schedule *newSchedule,
+                                    mlir::func::FuncOp f,
+                                    mlir::IRMapping mapping);
 
 private:
   struct IslStmt {

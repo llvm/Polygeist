@@ -1,4 +1,5 @@
 
+#include "mlir/IR/Verifier.h"
 #include "polymer/Support/IslScop.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/ISL.h"
@@ -39,8 +40,6 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Tadashi transforming: \n");
   LLVM_DEBUG(f.dump());
 
-  ModuleOp m = f->getParentOfType<ModuleOp>();
-
   std::unique_ptr<IslScop> scop = createIslFromFuncOp(f);
   scop->dumpSchedule(llvm::outs());
   scop->dumpAccesses(llvm::outs());
@@ -48,6 +47,14 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   isl_schedule *newSchedule = scop->getSchedule();
   mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
       createFuncOpFromIsl(std::move(scop), f, newSchedule));
+
+  assert(mlir::verify(f).succeeded());
+
+  if (g) {
+    SmallVector<DictionaryAttr> argAttrs;
+    f.getAllArgAttrs(argAttrs);
+    g.setAllArgAttrs(argAttrs);
+  }
 
   return g;
 }

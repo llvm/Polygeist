@@ -47,8 +47,9 @@ mlir::func::FuncOp createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
                                        mlir::func::FuncOp f,
                                        isl_schedule *newSchedule) {
   OpBuilder b(f);
-  mlir::func::FuncOp g = cast<func::FuncOp>(b.clone(*f));
-  if (scop->applySchedule(newSchedule, g).succeeded())
+  IRMapping mapping;
+  mlir::func::FuncOp g = cast<func::FuncOp>(b.clone(*f, mapping));
+  if (scop->applySchedule(newSchedule, g, mapping).succeeded())
     return g;
   g->erase();
   return nullptr;
