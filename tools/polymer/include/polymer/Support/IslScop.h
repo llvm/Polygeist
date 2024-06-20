@@ -45,6 +45,7 @@ class FuncOp;
 
 namespace polymer {
 
+class IslMLIRBuilder;
 class ScopStmt;
 
 /// A wrapper for the osl_scop struct in the openscop library.
@@ -206,9 +207,10 @@ private:
   ValueTable valueTable;
   ///
   ScopStmtMap scopStmtMap;
-  std::map<std::string, size_t> stmtNameToIdMap;
 
   ScopStmtNames scopStmtNames;
+
+  friend class IslMLIRBuilder;
 };
 
 } // namespace polymer

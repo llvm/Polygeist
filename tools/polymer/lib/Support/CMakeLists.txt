@@ -45,6 +45,7 @@ elseif(POLYGEIST_POLYMER_ENABLE_ISL)
     MLIRAffineAnalysis
 
     PollyISL
+    Polly
   )
 endif()
 

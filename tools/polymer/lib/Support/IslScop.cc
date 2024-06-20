@@ -2,6 +2,9 @@
 
 #include "polymer/Support/IslScop.h"
 #include "mlir/Analysis/Presburger/PresburgerSpace.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "polymer/Support/ScatteringUtils.h"
 #include "polymer/Support/ScopStmt.h"
@@ -25,6 +28,7 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "polly/CodeGen/IslNodeBuilder.h"
 #include "polly/Support/GICHelper.h"
 
 #include "isl/id_to_id.h"
@@ -663,8 +667,14 @@ IslScop::ScopStmtMap *IslScop::getScopStmtMap() { return &scopStmtMap; }
 
 IslScop::ScopStmtNames *IslScop::getScopStmtNames() { return &scopStmtNames; }
 
-struct IslBuilder {
+namespace polymer {
+class IslMLIRBuilder {
+public:
   OpBuilder &b;
+  IslScop &scop;
+  Location loc = b.getUnknownLoc();
+  typedef llvm::MapVector<isl_id *, Value> IDToValueTy;
+  IDToValueTy IDToValue;
 
   Value createOp(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
@@ -694,31 +704,53 @@ struct IslBuilder {
     llvm_unreachable("unimplemented");
   }
   Value createId(__isl_take isl_ast_expr *Expr) {
-    llvm_unreachable("unimplemented");
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_id &&
+           "Expression not of type isl_ast_expr_ident");
+
+    isl_id *Id;
+    Value V;
+
+    Id = isl_ast_expr_get_id(Expr);
+
+    assert(IDToValue.count(Id) && "Identifier not found");
+
+    V = IDToValue[Id];
+    assert(V && "Unknown parameter id found");
+
+    isl_id_free(Id);
+    isl_ast_expr_free(Expr);
+
+    return V;
+  }
+  IntegerType getType(__isl_keep isl_ast_expr *Expr) {
+    // XXX: We assume i64 is large enough. This is often true, but in general
+    //      incorrect. Also, on 32bit architectures, it would be beneficial to
+    //      use a smaller type. We can and should directly derive this
+    //      information during code generation.
+    return IntegerType::get(b.getContext(), 64);
   }
   Value createInt(__isl_take isl_ast_expr *Expr) {
-    // assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_int &&
-    //        "Expression not of type isl_ast_expr_int");
-    // isl_val *Val;
-    // Value *V;
-    // APInt APValue;
-    // IntegerType *T;
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_int &&
+           "Expression not of type isl_ast_expr_int");
+    isl_val *Val;
+    Value V;
+    APInt APValue;
+    IntegerType T;
 
-    // Val = isl_ast_expr_get_val(Expr);
-    // APValue = polly::APIntFromVal(Val);
+    Val = isl_ast_expr_get_val(Expr);
+    APValue = polly::APIntFromVal(Val);
 
-    // auto BitWidth = APValue.getBitWidth();
-    // if (BitWidth <= 64)
-    //   T = getType(Expr);
-    // else
-    //   T = Builder.getIntNTy(BitWidth);
+    auto BitWidth = APValue.getBitWidth();
+    if (BitWidth <= 64)
+      T = getType(Expr);
+    else
+      T = b.getIntegerType(BitWidth);
 
-    // APValue = APValue.sext(T->getBitWidth());
-    // V = ConstantInt::get(T, APValue);
+    APValue = APValue.sext(T.getWidth());
+    V = b.create<arith::ConstantIntOp>(loc, APValue.getSExtValue(), T);
 
-    // isl_ast_expr_free(Expr);
-    // return V;
-    llvm_unreachable("");
+    isl_ast_expr_free(Expr);
+    return V;
   }
   Value createOpAddressOf(__isl_take isl_ast_expr *Expr);
   Value create(__isl_take isl_ast_expr *Expr) {
@@ -732,52 +764,166 @@ struct IslBuilder {
     case isl_ast_expr_int:
       return createInt(Expr);
     }
-
     llvm_unreachable("Unexpected enum value");
   }
-  void buildUser(__isl_keep isl_ast_node *node) {
-    ISL_DEBUG("Building User:\n", isl_ast_node_dump(node));
+
+  void createUser(__isl_keep isl_ast_node *User) {
+    ISL_DEBUG("Building User:\n", isl_ast_node_dump(User));
+
+    isl_ast_expr *Expr = isl_ast_node_user_get_expr(User);
+    if (isl_ast_expr_get_op_type(Expr) != isl_ast_op_call) {
+      llvm_unreachable("unexpected op type");
+    }
+    isl_ast_expr *CalleeExpr = isl_ast_expr_get_op_arg(Expr, 0);
+    isl_id *Id = isl_ast_expr_get_id(CalleeExpr);
+    const char *CalleeName = isl_id_get_name(Id);
+
+    ScopStmt &stmt = scop.scopStmtMap.at(std::string(CalleeName));
+
+    SmallVector<Value> args;
+    for (int i = 0; i < isl_ast_expr_get_op_n_arg(Expr) - 1; ++i) {
+      isl_ast_expr *SubExpr = isl_ast_expr_get_op_arg(Expr, i + 1);
+      Value V = create(SubExpr);
+      args.push_back(V);
+    }
+
+    b.create<func::CallOp>(loc, StringRef(CalleeName), TypeRange(), args);
+
+    isl_ast_expr_free(Expr);
+    isl_ast_node_free(User);
+    isl_id_free(Id);
   }
 
-  void buildFor(__isl_keep isl_ast_node *node) {
-    Location loc = b.getUnknownLoc();
-    isl_ast_expr *iter = isl_ast_node_for_get_iterator(node);
-    isl_ast_expr *init = isl_ast_node_for_get_init(node);
-    isl_ast_expr *cond = isl_ast_node_for_get_cond(node);
-    isl_ast_expr *inc = isl_ast_node_for_get_inc(node);
-    isl_ast_node *body = isl_ast_node_for_get_body(node);
+  void createMark(__isl_keep isl_ast_node *node) {
+    ISL_DEBUG("Building Mark:\n", isl_ast_node_dump(node));
+  }
 
-    Value lb = create(init);
-    Value ub = create(cond);
-    Value step = create(inc);
+  void createIf(__isl_keep isl_ast_node *node) {
+    ISL_DEBUG("Building If:\n", isl_ast_node_dump(node));
+  }
 
-    ISL_DEBUG("Building For:\n", isl_ast_node_dump(node));
-    // stmt = node_stmt(node, id2stmt);
-    // ref2expr = peek_ref2expr(node);
+  void createBlock(__isl_keep isl_ast_node *Block) {
+    ISL_DEBUG("Building Block:\n", isl_ast_node_dump(Block));
+    isl_ast_node_list *List = isl_ast_node_block_get_children(Block);
+
+    for (int i = 0; i < isl_ast_node_list_n_ast_node(List); ++i)
+      create(isl_ast_node_list_get_ast_node(List, i));
+
+    isl_ast_node_free(Block);
+    isl_ast_node_list_free(List);
+  }
+
+  isl::ast_expr getUpperBound(isl::ast_node_for For,
+                              arith::CmpIPredicate &Predicate) {
+    isl::ast_expr Cond = For.cond();
+    isl::ast_expr Iterator = For.iterator();
+    assert(isl_ast_expr_get_type(Cond.get()) == isl_ast_expr_op &&
+           "conditional expression is not an atomic upper bound");
+
+    isl_ast_op_type OpType = isl_ast_expr_get_op_type(Cond.get());
+
+    switch (OpType) {
+    case isl_ast_op_le:
+      Predicate = arith::CmpIPredicate::sle;
+      break;
+    case isl_ast_op_lt:
+      Predicate = arith::CmpIPredicate::slt;
+      break;
+    default:
+      llvm_unreachable("Unexpected comparison type in loop condition");
+    }
+
+    isl::ast_expr Arg0 = Cond.get_op_arg(0);
+
+    assert(isl_ast_expr_get_type(Arg0.get()) == isl_ast_expr_id &&
+           "conditional expression is not an atomic upper bound");
+
+    isl::id UBID = Arg0.get_id();
+
+    assert(isl_ast_expr_get_type(Iterator.get()) == isl_ast_expr_id &&
+           "Could not get the iterator");
+
+    isl::id IteratorID = Iterator.get_id();
+
+    assert(UBID.get() == IteratorID.get() &&
+           "conditional expression is not an atomic upper bound");
+
+    return Cond.get_op_arg(1);
+  }
+
+  void createFor(__isl_keep isl_ast_node *For) {
+    ISL_DEBUG("Building For:\n", isl_ast_node_dump(For));
+    isl_ast_node *Body = isl_ast_node_for_get_body(For);
+    isl_ast_expr *Init = isl_ast_node_for_get_init(For);
+    isl_ast_expr *Inc = isl_ast_node_for_get_inc(For);
+    isl_ast_expr *Iterator = isl_ast_node_for_get_iterator(For);
+    isl_id *IteratorID = isl_ast_expr_get_id(Iterator);
+    arith::CmpIPredicate Predicate;
+    isl_ast_expr *UB =
+        getUpperBound(isl::manage_copy(For).as<isl::ast_node_for>(), Predicate)
+            .release();
+
+    Value ValueLB = create(Init);
+    Value ValueUB = create(UB);
+    Value ValueInc = create(Inc);
+
+    if (Predicate == arith::CmpIPredicate::sle)
+      ValueUB = b.create<arith::AddIOp>(
+          loc, ValueUB,
+          b.create<arith::ConstantIntOp>(loc, 1, ValueUB.getType()));
+
+    auto forOp = b.create<scf::ForOp>(loc, ValueLB, ValueUB, ValueInc);
+
+    IDToValue[IteratorID] = forOp.getInductionVar();
+
+    OpBuilder::InsertionGuard g(b);
+    b.setInsertionPointToStart(forOp.getBody());
+    create(Body);
+  }
+
+  void create(__isl_take isl_ast_node *Node) {
+    switch (isl_ast_node_get_type(Node)) {
+    case isl_ast_node_error:
+      llvm_unreachable("code generation error");
+    case isl_ast_node_mark:
+      createMark(Node);
+      return;
+    case isl_ast_node_for:
+      createFor(Node);
+      return;
+    case isl_ast_node_if:
+      createIf(Node);
+      return;
+    case isl_ast_node_user:
+      createUser(Node);
+      return;
+    case isl_ast_node_block:
+      createBlock(Node);
+      return;
+    }
+
+    llvm_unreachable("Unknown isl_ast_node type");
   }
 };
-static __isl_give isl_printer *
-buildUser(__isl_take isl_printer *p, __isl_take isl_ast_print_options *options,
-          __isl_keep isl_ast_node *node, void *user) {
-  IslBuilder &bc = *reinterpret_cast<IslBuilder *>(user);
-  bc.buildUser(node);
-  return p;
-}
-
-static __isl_give isl_printer *
-buildFor(__isl_take isl_printer *p, __isl_take isl_ast_print_options *options,
-         __isl_keep isl_ast_node *for_node, void *user) {
-  IslBuilder &bc = *reinterpret_cast<IslBuilder *>(user);
-  bc.buildFor(for_node);
-  return p;
-}
+} // namespace polymer
 
 mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
                                            func::FuncOp f) {
-
   assert(f.getFunctionBody().getBlocks().size() == 1);
+
+  // Cleanup body
+  Operation *op = &f.getFunctionBody().front().front();
+  while (true) {
+    auto next = op->getNextNode();
+    if (!next)
+      break;
+    op->erase();
+    op = next;
+  }
+
   OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
-  IslBuilder bc = {b};
+
+  IslMLIRBuilder bc = {b, *this};
 
   LLVM_DEBUG({
     llvm::dbgs() << "Applying new schedule to scop:\n";
@@ -789,17 +935,18 @@ mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
   isl_ast_node *node = isl_ast_build_node_from_schedule(build, schedule);
   isl_id_to_id *id2stmt = nullptr;
 
-  ISL_DEBUG("Ast node:\n", isl_ast_node_dump(node));
+  bc.create(node);
+  LLVM_DEBUG(llvm::dbgs() << f << "\n");
 
-  isl_ast_print_options *print_options;
-  print_options = isl_ast_print_options_alloc(ctx);
-  print_options =
-      isl_ast_print_options_set_print_user(print_options, buildUser, &bc);
-  print_options =
-      isl_ast_print_options_set_print_for(print_options, buildFor, &bc);
+  // isl_ast_print_options *print_options;
+  // print_options = isl_ast_print_options_alloc(ctx);
+  // print_options =
+  //     isl_ast_print_options_set_print_user(print_options, buildUser, &bc);
+  // print_options =
+  //     isl_ast_print_options_set_print_for(print_options, buildFor, &bc);
 
-  isl_printer *p = isl_printer_to_str(ctx);
-  p = isl_ast_node_print(node, p, print_options);
+  // isl_printer *p = isl_printer_to_str(ctx);
+  // p = isl_ast_node_print(node, p, print_options);
 
   isl_ast_build_free(build);
 
