@@ -817,6 +817,16 @@ public:
                               arith::CmpIPredicate &Predicate) {
     isl::ast_expr Cond = For.cond();
     isl::ast_expr Iterator = For.iterator();
+    // The isl code generation can generate arbitrary expressions to check if
+    // the upper bound of a loop is reached, but it provides an option to
+    // enforce 'atomic' upper bounds. An 'atomic upper bound is always of the
+    // form iv <= expr, where expr is an (arbitrary) expression not containing
+    // iv.
+    //
+    // We currently only support atomic upper bounds for ease of codegen
+    //
+    // This is needed for parallel loops but maybe we can weaken the requirement
+    // for sequential loops if needed
     assert(isl_ast_expr_get_type(Cond.get()) == isl_ast_expr_op &&
            "conditional expression is not an atomic upper bound");
 
@@ -904,6 +914,11 @@ public:
 
     llvm_unreachable("Unknown isl_ast_node type");
   }
+
+  void fillOutMapping(isl_union_set *domain) {
+    isl_space *space = isl_union_set_get_space(domain);
+    isl_space_get
+  }
 };
 } // namespace polymer
 
@@ -935,6 +950,7 @@ mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
   isl_ast_node *node = isl_ast_build_node_from_schedule(build, schedule);
   isl_id_to_id *id2stmt = nullptr;
 
+  bc.fillOutMapping(domain);
   bc.create(node);
   LLVM_DEBUG(llvm::dbgs() << f << "\n");
 
