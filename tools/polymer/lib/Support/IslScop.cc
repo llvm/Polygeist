@@ -1136,6 +1136,9 @@ public:
 
   template <class... Ts> void convertToMax(Ts &&...args) {
     SmallVector<Value *> Args({&args...});
+    if (llvm::all_of(Args,
+                     [&](Value *V) { return V->getType().isa<IndexType>(); }))
+      return;
     IntegerType MaxType = Args[0]->getType().cast<IntegerType>();
     unsigned MaxWidth = MaxType.getWidth();
     for (unsigned I = 1; I < Args.size(); I++) {
