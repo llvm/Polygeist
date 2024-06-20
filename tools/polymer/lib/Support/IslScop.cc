@@ -1,9 +1,8 @@
 //===- IslScop.cc -----------------------------------------------*- C++ -*-===//
 
+#include "polymer/Support/IslScop.h"
 #include "mlir/Analysis/Presburger/PresburgerSpace.h"
 #include "mlir/Support/LLVM.h"
-#include "pluto/internal/pluto.h"
-#include "polymer/Support/OslScop.h"
 #include "polymer/Support/ScatteringUtils.h"
 #include "polymer/Support/ScopStmt.h"
 
@@ -26,11 +25,14 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "isl/aff_type.h"
-#include "isl/id.h"
-#include "isl/space_type.h"
+#include "polly/Support/GICHelper.h"
+
+#include "isl/id_to_id.h"
+#include "isl/printer.h"
 #include <isl/aff.h>
+#include <isl/ast_build.h>
 #include <isl/ctx.h>
+#include <isl/id.h>
 #include <isl/map.h>
 #include <isl/mat.h>
 #include <isl/schedule.h>
@@ -40,10 +42,14 @@
 #include <isl/union_map.h>
 #include <isl/union_set.h>
 #include <isl/val.h>
+#include <memory>
 
 using namespace polymer;
 using namespace mlir;
-using namespace llvm;
+
+using llvm::dbgs;
+using llvm::errs;
+using llvm::formatv;
 
 #define DEBUG_TYPE "islscop"
 
@@ -656,3 +662,146 @@ IslScop::MemRefToId *IslScop::getMemRefIdMap() { return &memRefIdMap; }
 IslScop::ScopStmtMap *IslScop::getScopStmtMap() { return &scopStmtMap; }
 
 IslScop::ScopStmtNames *IslScop::getScopStmtNames() { return &scopStmtNames; }
+
+struct IslBuilder {
+  OpBuilder &b;
+
+  Value createOp(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpUnary(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpAccess(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpBin(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpNAry(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpSelect(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpICmp(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpBoolean(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createOpBooleanConditional(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createId(__isl_take isl_ast_expr *Expr) {
+    llvm_unreachable("unimplemented");
+  }
+  Value createInt(__isl_take isl_ast_expr *Expr) {
+    // assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_int &&
+    //        "Expression not of type isl_ast_expr_int");
+    // isl_val *Val;
+    // Value *V;
+    // APInt APValue;
+    // IntegerType *T;
+
+    // Val = isl_ast_expr_get_val(Expr);
+    // APValue = polly::APIntFromVal(Val);
+
+    // auto BitWidth = APValue.getBitWidth();
+    // if (BitWidth <= 64)
+    //   T = getType(Expr);
+    // else
+    //   T = Builder.getIntNTy(BitWidth);
+
+    // APValue = APValue.sext(T->getBitWidth());
+    // V = ConstantInt::get(T, APValue);
+
+    // isl_ast_expr_free(Expr);
+    // return V;
+    llvm_unreachable("");
+  }
+  Value createOpAddressOf(__isl_take isl_ast_expr *Expr);
+  Value create(__isl_take isl_ast_expr *Expr) {
+    switch (isl_ast_expr_get_type(Expr)) {
+    case isl_ast_expr_error:
+      llvm_unreachable("Code generation error");
+    case isl_ast_expr_op:
+      return createOp(Expr);
+    case isl_ast_expr_id:
+      return createId(Expr);
+    case isl_ast_expr_int:
+      return createInt(Expr);
+    }
+
+    llvm_unreachable("Unexpected enum value");
+  }
+  void buildUser(__isl_keep isl_ast_node *node) {
+    ISL_DEBUG("Building User:\n", isl_ast_node_dump(node));
+  }
+
+  void buildFor(__isl_keep isl_ast_node *node) {
+    Location loc = b.getUnknownLoc();
+    isl_ast_expr *iter = isl_ast_node_for_get_iterator(node);
+    isl_ast_expr *init = isl_ast_node_for_get_init(node);
+    isl_ast_expr *cond = isl_ast_node_for_get_cond(node);
+    isl_ast_expr *inc = isl_ast_node_for_get_inc(node);
+    isl_ast_node *body = isl_ast_node_for_get_body(node);
+
+    Value lb = create(init);
+    Value ub = create(cond);
+    Value step = create(inc);
+
+    ISL_DEBUG("Building For:\n", isl_ast_node_dump(node));
+    // stmt = node_stmt(node, id2stmt);
+    // ref2expr = peek_ref2expr(node);
+  }
+};
+static __isl_give isl_printer *
+buildUser(__isl_take isl_printer *p, __isl_take isl_ast_print_options *options,
+          __isl_keep isl_ast_node *node, void *user) {
+  IslBuilder &bc = *reinterpret_cast<IslBuilder *>(user);
+  bc.buildUser(node);
+  return p;
+}
+
+static __isl_give isl_printer *
+buildFor(__isl_take isl_printer *p, __isl_take isl_ast_print_options *options,
+         __isl_keep isl_ast_node *for_node, void *user) {
+  IslBuilder &bc = *reinterpret_cast<IslBuilder *>(user);
+  bc.buildFor(for_node);
+  return p;
+}
+
+mlir::LogicalResult IslScop::applySchedule(isl_schedule *newSchedule,
+                                           func::FuncOp f) {
+
+  assert(f.getFunctionBody().getBlocks().size() == 1);
+  OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
+  IslBuilder bc = {b};
+
+  LLVM_DEBUG({
+    llvm::dbgs() << "Applying new schedule to scop:\n";
+    isl_schedule_dump(newSchedule);
+  });
+  isl_union_set *domain = isl_schedule_get_domain(schedule);
+  isl_ast_build *build = isl_ast_build_alloc(ctx);
+  // build = isl_ast_build_set_at_each_domain(build, at_domain, id2stmt);
+  isl_ast_node *node = isl_ast_build_node_from_schedule(build, schedule);
+  isl_id_to_id *id2stmt = nullptr;
+
+  ISL_DEBUG("Ast node:\n", isl_ast_node_dump(node));
+
+  isl_ast_print_options *print_options;
+  print_options = isl_ast_print_options_alloc(ctx);
+  print_options =
+      isl_ast_print_options_set_print_user(print_options, buildUser, &bc);
+  print_options =
+      isl_ast_print_options_set_print_for(print_options, buildFor, &bc);
+
+  isl_printer *p = isl_printer_to_str(ctx);
+  p = isl_ast_node_print(node, p, print_options);
+
+  isl_ast_build_free(build);
+
+  return success();
+}

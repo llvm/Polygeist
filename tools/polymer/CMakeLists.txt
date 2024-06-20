@@ -24,22 +24,38 @@ set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
 # Find whether the GMP package exists.
 find_package(GMP REQUIRED)
 
-# build pluto, openscop, cloog
-execute_process(
-  COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build_polymer_deps.sh" "${POLYGEIST_PLUTO_DIR}"
-  COMMAND_ERROR_IS_FATAL ANY
-)
-# configure the cmake variables for pluto
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
-include_directories("${PLUTO_INCLUDE_DIR}")
-message(STATUS "Will build and use Polymer-bundled Pluto")
+if(POLYGEIST_POLYMER_ENABLE_PLUTO)
+  # build pluto, openscop, cloog
+  execute_process(
+    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/build_polymer_deps.sh" "${POLYGEIST_PLUTO_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY
+  )
+  # configure the cmake variables for pluto
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AddPluto.cmake")
+  include_directories("${PLUTO_INCLUDE_DIR}")
+  message(STATUS "Will build and use Polymer-bundled Pluto")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OpenScop.cmake")
-include_directories("${OSL_INCLUDE_DIR}")
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/OpenScop.cmake")
+  include_directories("${OSL_INCLUDE_DIR}")
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
-include_directories("${CLOOG_INCLUDE_DIR}")
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/CLooG.cmake")
+  include_directories("${CLOOG_INCLUDE_DIR}")
 
+  set(POLYMER_AVAIL_TARGETS
+    PolymerTargetOpenScop
+  )
+elseif(POLYGEIST_POLYMER_ENABLE_ISL)
+  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
+  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/include)
+  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
+  include_directories(${MLIR_MAIN_SRC_DIR}/../polly/lib/External/isl/include)
+  include_directories(${LLVM_BINARY_DIR}/tools/polly/lib/External/isl/include)
+  set(POLYMER_AVAIL_TARGETS
+    PolymerTargetISL
+  )
+else()
+  message(FATAL_ERROR "Need one of POLYGEIST_POLYMER_ENABLE_PLUTO or POLYGEIST_POLYMER_ENABLE_ISL")
+endif()
 
 # ------------------------------------------------- This project
 include_directories("${POLYMER_MAIN_INCLUDE_DIR}")

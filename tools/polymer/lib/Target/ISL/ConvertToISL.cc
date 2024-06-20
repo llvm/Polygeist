@@ -5,9 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "polymer/Support/OslScop.h"
-#include "polymer/Support/OslScopStmtOpSet.h"
-#include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/IslScop.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/ISL.h"
 #include "polymer/Transforms/ExtractScopStmt.h"
@@ -334,126 +332,6 @@ void IslScopBuilder::buildScopContext(
   }
 }
 
-std::unique_ptr<IslScop>
-polymer::createIslFromFuncOp(mlir::func::FuncOp f,
-                             PolymerSymbolTable &symTable) {
+std::unique_ptr<IslScop> polymer::createIslFromFuncOp(mlir::func::FuncOp f) {
   return IslScopBuilder().build(f);
-}
-
-namespace {
-
-/// This class maintains the state of a working emitter.
-class OpenScopEmitterState {
-public:
-  explicit OpenScopEmitterState(raw_ostream &os) : os(os) {}
-
-  /// The stream to emit to.
-  raw_ostream &os;
-
-  bool encounteredError = false;
-  unsigned currentIdent = 0; // TODO: may not need this.
-
-private:
-  OpenScopEmitterState(const OpenScopEmitterState &) = delete;
-  void operator=(const OpenScopEmitterState &) = delete;
-};
-
-/// Base class for various OpenScop emitters.
-class OpenScopEmitterBase {
-public:
-  explicit OpenScopEmitterBase(OpenScopEmitterState &state)
-      : state(state), os(state.os) {}
-
-  InFlightDiagnostic emitError(Operation *op, const Twine &message) {
-    state.encounteredError = true;
-    return op->emitError(message);
-  }
-
-  InFlightDiagnostic emitOpError(Operation *op, const Twine &message) {
-    state.encounteredError = true;
-    return op->emitOpError(message);
-  }
-
-  /// All of the mutable state we are maintaining.
-  OpenScopEmitterState &state;
-
-  /// The stream to emit to.
-  raw_ostream &os;
-
-private:
-  OpenScopEmitterBase(const OpenScopEmitterBase &) = delete;
-  void operator=(const OpenScopEmitterBase &) = delete;
-};
-
-/// Emit OpenScop representation from an MLIR module.
-class ModuleEmitter : public OpenScopEmitterBase {
-public:
-  explicit ModuleEmitter(OpenScopEmitterState &state)
-      : OpenScopEmitterBase(state) {}
-
-  /// Emit OpenScop definitions for all functions in the given module.
-  void emitMLIRModule(ModuleOp module,
-                      llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops);
-
-private:
-  /// Emit a OpenScop definition for a single function.
-  LogicalResult
-  emitFuncOp(FuncOp func,
-             llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops);
-};
-
-LogicalResult ModuleEmitter::emitFuncOp(
-    mlir::func::FuncOp func,
-    llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops) {
-  PolymerSymbolTable symTable;
-  auto scop = createIslFromFuncOp(func, symTable);
-  if (scop)
-    scops.push_back(std::move(scop));
-  return success();
-}
-
-/// The entry function to the current OpenScop emitter.
-void ModuleEmitter::emitMLIRModule(
-    ModuleOp module, llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops) {
-  // Emit a single OpenScop definition for each function.
-  for (auto &op : *module.getBody()) {
-    if (auto func = dyn_cast<mlir::func::FuncOp>(op)) {
-      // Will only look at functions that are not attributed as scop.stmt
-      if (func->getAttr(SCOP_STMT_ATTR_NAME))
-        continue;
-      if (failed(emitFuncOp(func, scops))) {
-        state.encounteredError = true;
-        return;
-      }
-    }
-  }
-}
-} // namespace
-
-/// TODO: should decouple emitter and openscop builder.
-mlir::LogicalResult polymer::translateModuleToIsl(
-    mlir::ModuleOp module,
-    llvm::SmallVectorImpl<std::unique_ptr<IslScop>> &scops,
-    llvm::raw_ostream &os) {
-  OpenScopEmitterState state(os);
-  ::ModuleEmitter(state).emitMLIRModule(module, scops);
-
-  return success();
-}
-
-static LogicalResult emitISL(ModuleOp module, llvm::raw_ostream &os) {
-  llvm::SmallVector<std::unique_ptr<IslScop>, 8> scops;
-
-  if (failed(translateModuleToIsl(module, scops, os)))
-    return failure();
-
-  for (auto &scop : scops)
-    scop->print();
-
-  return success();
-}
-
-void polymer::registerToIslTranslation() {
-  static TranslateFromMLIRRegistration toOpenScop("export-isl", "Export ISL",
-                                                  emitISL);
 }

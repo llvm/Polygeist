@@ -250,33 +250,6 @@ struct PlutoParallelizePass
   }
 };
 
-namespace polymer {
-void dedupIndexCast(func::FuncOp f) {
-  if (f.getBlocks().empty())
-    return;
-
-  Block &entry = f.getBlocks().front();
-  llvm::MapVector<Value, Value> argToCast;
-  SmallVector<Operation *> toErase;
-  for (auto &op : entry) {
-    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
-      auto arg = dyn_cast<BlockArgument>(indexCast.getOperand());
-      if (argToCast.count(arg)) {
-        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
-                          << '\n');
-        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
-        toErase.push_back(indexCast);
-      } else {
-        argToCast[arg] = indexCast;
-      }
-    }
-  }
-
-  for (auto op : toErase)
-    op->erase();
-}
-} // namespace polymer
-
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,
                                OperationPass<mlir::func::FuncOp>> {
@@ -309,5 +282,8 @@ std::unique_ptr<mlir::Pass> createDedupIndexCastPass() {
 }
 std::unique_ptr<mlir::Pass> createPlutoParallelizePass() {
   return std::make_unique<PlutoParallelizePass>();
+}
+mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
+  llvm_unreachable("not compiled with isl suport");
 }
 } // namespace polymer

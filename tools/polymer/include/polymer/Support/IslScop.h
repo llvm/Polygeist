@@ -1,4 +1,4 @@
-//===- OslScop.h ------------------------------------------------*- C++ -*-===//
+//===- IslScop.h ------------------------------------------------*- C++ -*-===//
 //
 // This file declares the C++ wrapper for the Scop struct in OpenScop.
 //
@@ -22,9 +22,12 @@
 #include <unordered_map>
 #include <vector>
 
-struct osl_scop;
-struct osl_statement;
-struct osl_generic;
+#include <isl/ctx.h>
+#include <isl/mat.h>
+#include <isl/set.h>
+
+struct isl_schedule;
+struct isl_union_set;
 
 namespace mlir {
 namespace affine {
@@ -43,24 +46,23 @@ class FuncOp;
 namespace polymer {
 
 class ScopStmt;
-class ScatTreeNode;
 
 /// A wrapper for the osl_scop struct in the openscop library.
-class OslScop {
+class IslScop {
 public:
   using SymbolTable = llvm::StringMap<mlir::Value>;
   using ValueTable = llvm::DenseMap<mlir::Value, std::string>;
-  using MemRefToId = llvm::DenseMap<mlir::Value, unsigned>;
+  using MemRefToId = llvm::DenseMap<mlir::Value, std::string>;
   using ScopStmtMap = std::map<std::string, ScopStmt>;
   using ScopStmtNames = std::vector<std::string>;
 
-  OslScop();
-  OslScop(osl_scop *scop);
+  IslScop();
+  // IslScop(osl_scop *scop);
 
-  ~OslScop();
+  ~IslScop();
 
   /// Get the raw scop pointer.
-  osl_scop *get() { return scop; }
+  // osl_scop *get() { return scop; }
 
   /// Print the content of the Scop to the stdout.
   void print();
@@ -71,7 +73,9 @@ public:
   /// Simply create a new statement in the linked list scop->statement.
   void createStatement();
   /// Get statement by index.
-  mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt) const;
+  // mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt)
+  // const;
+
   /// Get the total number of statements
   unsigned getNumStatements() const;
 
@@ -91,10 +95,6 @@ public:
   /// Add the domain relation.
   void addDomainRelation(int stmtId,
                          mlir::affine::FlatAffineValueConstraints &cst);
-  /// Add the scattering relation.
-  void addScatteringRelation(int stmtId,
-                             mlir::affine::FlatAffineValueConstraints &cst,
-                             llvm::ArrayRef<mlir::Operation *> ops);
   /// Add the access relation.
   mlir::LogicalResult
   addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
@@ -114,7 +114,7 @@ public:
   bool isSymbol(llvm::StringRef name);
 
   /// Get extension by interface name
-  osl_generic *getExtension(llvm::StringRef interface) const;
+  // osl_generic *getExtension(llvm::StringRef interface) const;
 
   /// Initialize the symbol table.
   void initializeSymbolTable(mlir::func::FuncOp f,
@@ -139,12 +139,51 @@ public:
   /// Get the list of stmt names followed by their insertion order
   ScopStmtNames *getScopStmtNames();
 
+  void dumpSchedule(llvm::raw_ostream &os);
+  void dumpAccesses(llvm::raw_ostream &os);
+
+  void buildSchedule(llvm::SmallVector<mlir::Operation *> ops) {
+    loopId = 0;
+    schedule = buildSequenceSchedule(ops);
+  }
+
+  static llvm::SmallVector<mlir::Operation *>
+  getSequenceScheduleOpList(mlir::Operation *begin, mlir::Operation *end);
+  static llvm::SmallVector<mlir::Operation *>
+  getSequenceScheduleOpList(mlir::Block *block);
+
+  isl_schedule *getSchedule() { return schedule; }
+
+  mlir::LogicalResult applySchedule(isl_schedule *newSchedule,
+                                    mlir::func::FuncOp f);
+
 private:
-  /// Create a 1-d array that carries all the constraints in a relation,
-  /// arranged in the row-major order.
-  void createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
-                            llvm::SmallVectorImpl<int64_t> &eqs,
-                            bool isEq = true);
+  struct IslStmt {
+    isl_basic_set *domain;
+    std::vector<isl_basic_map *> readRelations;
+    std::vector<isl_basic_map *> writeRelations;
+  };
+  std::vector<IslStmt> islStmts;
+  isl_schedule *schedule = nullptr;
+  unsigned loopId = 0;
+
+  template <typename T>
+  isl_schedule *buildLoopSchedule(T loopOp, unsigned depth);
+  isl_schedule *buildParallelSchedule(mlir::affine::AffineParallelOp parallelOp,
+                                      unsigned depth);
+  isl_schedule *buildForSchedule(mlir::affine::AffineForOp forOp,
+                                 unsigned depth);
+  isl_schedule *buildLeafSchedule(mlir::func::CallOp callOp);
+  isl_schedule *buildSequenceSchedule(llvm::SmallVector<mlir::Operation *> ops,
+                                      unsigned depth = 0);
+
+  IslStmt &getIslStmt(std::string name);
+
+  isl_space *getSpace(mlir::affine::FlatAffineValueConstraints &cst,
+                      std::string name);
+
+  isl_mat *createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
+                                bool isEq);
 
   /// Create access relation constraints.
   mlir::LogicalResult createAccessRelationConstraints(
@@ -157,10 +196,9 @@ private:
   void addParameterNames();
 
   /// The internal storage of the Scop.
-  osl_scop *scop;
+  // osl_scop *scop;
+  isl_ctx *ctx;
 
-  /// The scattering tree maintained.
-  std::unique_ptr<ScatTreeNode> scatTreeRoot;
   /// Number of memrefs recorded.
   MemRefToId memRefIdMap;
   /// Symbol table for MLIR values.
@@ -168,6 +206,7 @@ private:
   ValueTable valueTable;
   ///
   ScopStmtMap scopStmtMap;
+  std::map<std::string, size_t> stmtNameToIdMap;
 
   ScopStmtNames scopStmtNames;
 };

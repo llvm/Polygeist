@@ -1,16 +1,9 @@
 
-#include "polymer/Support/OslScop.h"
-#include "polymer/Support/OslScopStmtOpSet.h"
-#include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/IslScop.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/ISL.h"
-#include "polymer/Target/OpenScop.h"
 #include "polymer/Transforms/ExtractScopStmt.h"
 #include "polymer/Transforms/PlutoTransform.h"
-
-#include "pluto/internal/pluto.h"
-#include "pluto/osl_pluto.h"
-#include "pluto/pluto.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
@@ -35,8 +28,9 @@
 #include "isl/schedule.h"
 
 using namespace mlir;
-using namespace llvm;
 using namespace polymer;
+
+using llvm::dbgs;
 
 #define DEBUG_TYPE "tadashi-opt"
 
@@ -45,21 +39,25 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Tadashi transforming: \n");
   LLVM_DEBUG(f.dump());
 
-  // ModuleOp m = f->getParentOfType<ModuleOp>();
+  ModuleOp m = f->getParentOfType<ModuleOp>();
 
-  PolymerSymbolTable srcTable, dstTable;
-  std::unique_ptr<IslScop> scop = createIslFromFuncOp(f, srcTable);
+  std::unique_ptr<IslScop> scop = createIslFromFuncOp(f);
   scop->dumpSchedule(llvm::outs());
   scop->dumpAccesses(llvm::outs());
 
-  // mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
-  //     createFuncOpFromIsl(std::move(scop), m, dstTable,
-  //     rewriter.getContext()));
-
-  OpBuilder::InsertionGuard guard(rewriter);
-  rewriter.setInsertionPoint(f);
-  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(rewriter.clone(*f));
+  isl_schedule *newSchedule = scop->getSchedule();
+  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
+      createFuncOpFromIsl(std::move(scop), f, newSchedule));
 
   return g;
 }
+mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f,
+                                  mlir::OpBuilder &rewriter,
+                                  std::string dumpClastAfterPluto,
+                                  bool parallelize = false, bool debug = false,
+                                  int cloogf = -1, int cloogl = -1,
+                                  bool diamondTiling = false) {
+  llvm_unreachable("not compiled with pluto support");
+}
+void registerPlutoTransformPass() {}
 } // namespace polymer

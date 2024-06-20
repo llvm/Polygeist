@@ -1,6 +1,9 @@
 #ifndef POLYMER_SUPPORT_POLYMERUTILS_H_
 #define POLYMER_SUPPORT_POLYMERUTILS_H_
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+
 namespace polymer {
 mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f,
                                     mlir::OpBuilder &rewriter);

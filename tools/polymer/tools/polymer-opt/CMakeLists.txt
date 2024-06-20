@@ -1,3 +1,4 @@
+
 set(LLVM_LINK_COMPONENTS
   Support
 )
@@ -10,8 +11,7 @@ target_link_libraries(polymer-opt
   PRIVATE
 
   PolymerTransforms
-  PolymerTargetOpenScop
-  PolymerTargetISL
+  ${POLYMER_AVAIL_TARGETS}
 
   MLIRFuncDialect
   MLIRLLVMDialect
@@ -29,4 +29,4 @@ target_link_libraries(polymer-opt
   MLIRAffineTransforms
   MLIRTranslateLib
   ${translation_libs}
-  )
+)
