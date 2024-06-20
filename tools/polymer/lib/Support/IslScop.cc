@@ -722,6 +722,7 @@ public:
 
     llvm_unreachable("Unsupported isl_ast_expr_op kind.");
   }
+
   Value createOpAddressOf(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
   }
@@ -731,6 +732,7 @@ public:
   Value createOpAccess(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
   }
+
   Value createMul(Value LHS, Value RHS, std::string Name = "") {
     return b.create<arith::MulIOp>(loc, LHS, RHS);
   }
@@ -740,6 +742,7 @@ public:
   Value createAdd(Value LHS, Value RHS, std::string Name = "") {
     return b.create<arith::AddIOp>(loc, LHS, RHS);
   }
+
   Value createOpBin(__isl_take isl_ast_expr *Expr) {
     Value LHS, RHS, Res;
     Type MaxType;
@@ -834,15 +837,14 @@ public:
     case isl_ast_op_pdiv_r: // Dividend is non-negative
       Res = b.create<arith::RemUIOp>(loc, LHS, RHS);
       break;
-
     case isl_ast_op_zdiv_r: // Result only compared against zero
       Res = b.create<arith::RemSIOp>(loc, LHS, RHS);
       break;
     }
-
     isl_ast_expr_free(Expr);
     return Res;
   }
+
   Type getWidestType(Type T1, Type T2) {
     IntegerType IT1 = T1.dyn_cast<IntegerType>();
     IntegerType IT2 = T2.dyn_cast<IntegerType>();
@@ -897,8 +899,57 @@ public:
     llvm_unreachable("unimplemented");
   }
   Value createOpICmp(__isl_take isl_ast_expr *Expr) {
-    llvm_unreachable("unimplemented");
+    assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
+           "Expected an isl_ast_expr_op expression");
+
+    Value LHS, RHS, Res;
+
+    auto *Op0 = isl_ast_expr_get_op_arg(Expr, 0);
+    auto *Op1 = isl_ast_expr_get_op_arg(Expr, 1);
+    bool HasNonAddressOfOperand =
+        isl_ast_expr_get_type(Op0) != isl_ast_expr_op ||
+        isl_ast_expr_get_type(Op1) != isl_ast_expr_op ||
+        isl_ast_expr_get_op_type(Op0) != isl_ast_op_address_of ||
+        isl_ast_expr_get_op_type(Op1) != isl_ast_op_address_of;
+
+    // TODO not sure if we would ever get pointers here
+    bool UseUnsignedCmp = !HasNonAddressOfOperand;
+
+    LHS = create(Op0);
+    RHS = create(Op1);
+
+    if (LHS.getType() != RHS.getType()) {
+      Type MaxType = LHS.getType();
+      MaxType = getWidestType(MaxType, RHS.getType());
+
+      if (MaxType != RHS.getType())
+        RHS = b.create<arith::ExtSIOp>(loc, MaxType, RHS);
+
+      if (MaxType != LHS.getType())
+        LHS = b.create<arith::ExtSIOp>(loc, MaxType, LHS);
+    }
+
+    isl_ast_op_type OpType = isl_ast_expr_get_op_type(Expr);
+    assert(OpType >= isl_ast_op_eq && OpType <= isl_ast_op_gt &&
+           "Unsupported ICmp isl ast expression");
+    static_assert(isl_ast_op_eq + 4 == isl_ast_op_gt,
+                  "Isl ast op type interface changed");
+
+    arith::CmpIPredicate Predicates[5][2] = {
+        {arith::CmpIPredicate::eq, arith::CmpIPredicate::eq},
+        {arith::CmpIPredicate::sle, arith::CmpIPredicate::ule},
+        {arith::CmpIPredicate::slt, arith::CmpIPredicate::ult},
+        {arith::CmpIPredicate::sge, arith::CmpIPredicate::uge},
+        {arith::CmpIPredicate::sgt, arith::CmpIPredicate::ugt},
+    };
+
+    Res = b.create<arith::CmpIOp>(
+        loc, Predicates[OpType - isl_ast_op_eq][UseUnsignedCmp], LHS, RHS);
+
+    isl_ast_expr_free(Expr);
+    return Res;
   }
+
   Value createOpBoolean(__isl_take isl_ast_expr *Expr) {
     llvm_unreachable("unimplemented");
   }
@@ -1005,9 +1056,20 @@ public:
 
     Value Predicate = create(Cond);
 
-    b.create<scf::IfOp>(loc, TypeRange(), Predicate,
-                        /*addThenBlock=*/true,
-                        /*addElseBlock=*/false);
+    auto ifOp = b.create<scf::IfOp>(loc, TypeRange(), Predicate,
+                                    /*addThenBlock=*/true,
+                                    /*addElseBlock=*/true);
+    OpBuilder::InsertionGuard g(b);
+
+    b.setInsertionPointToStart(&ifOp.getThenRegion().front());
+    b.create<scf::YieldOp>(loc);
+    b.setInsertionPointToStart(&ifOp.getThenRegion().front());
+    create(isl_ast_node_if_get_then(If));
+
+    b.setInsertionPointToStart(&ifOp.getElseRegion().front());
+    b.create<scf::YieldOp>(loc);
+    b.setInsertionPointToStart(&ifOp.getElseRegion().front());
+    create(isl_ast_node_if_get_else(If));
   }
 
   void createBlock(__isl_keep isl_ast_node *Block) {
