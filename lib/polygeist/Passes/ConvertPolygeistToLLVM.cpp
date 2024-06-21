@@ -2910,7 +2910,7 @@ struct ConvertPolygeistToLLVMPass
                             LLVM::PowOp, LLVM::SinOp, LLVM::SqrtOp>();
         target.addLegalOp<gpu::YieldOp, gpu::GPUModuleOp, gpu::ModuleEndOp>();
       }
-      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsloopOp>(
+      target.addDynamicallyLegalOp<omp::ParallelOp, omp::WsloopOp, omp::LoopNestOp>(
           [&](Operation *op) { return converter.isLegal(&op->getRegion(0)); });
       target.addIllegalOp<scf::ForOp, scf::IfOp, scf::ParallelOp, scf::WhileOp,
                           scf::ExecuteRegionOp, func::FuncOp>();
