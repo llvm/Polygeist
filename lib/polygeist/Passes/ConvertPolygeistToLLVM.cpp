@@ -773,7 +773,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           };
           Value next =
               rewriter.create<LLVM::GEPOp>(loc, LLVM::LLVMPointerType::get(ctx),
-                                           idx.value().getType(), alloc, idxs);
+                                           ST, alloc, idxs);
           valueMapping.map(idx.value(), rewriter.create<LLVM::LoadOp>(
                                             loc, idx.value().getType(), next));
         }
@@ -844,7 +844,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
           };
           Value next = rewriter.create<LLVM::GEPOp>(
               loc, LLVM::LLVMPointerType::get(rewriter.getContext()),
-              idx.value().getType(), alloc, idxs);
+              ST, alloc, idxs);
           rewriter.create<LLVM::StoreOp>(loc, idx.value(), next);
         }
         vals.push_back(
