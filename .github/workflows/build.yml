@@ -95,7 +95,7 @@ jobs:
       run: |
         mkdir mlir-build
         cd mlir-build
-        CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir" -DCMAKE_BUILD_TYPE=${{ matrix.mlir-build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
+        CYMBL=OFF cmake ../src/llvm-project/llvm -GNinja -DLLVM_ENABLE_PROJECTS="llvm;clang;mlir;polly" -DCMAKE_BUILD_TYPE=${{ matrix.mlir-build }} -DCMAKE_C_COMPILER=/bin/clang -DCMAKE_CXX_COMPILER=/bin/clang++ -DCMAKE_ASM_COMPILER=/bin/clang -DCMAKE_CXX_FLAGS="-Wno-c++11-narrowing"
         #cymbld & disown
         sleep 1
         CYMBL=OFF ninja
