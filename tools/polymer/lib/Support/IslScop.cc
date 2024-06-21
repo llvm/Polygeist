@@ -681,6 +681,7 @@ public:
   Location loc = b.getUnknownLoc();
   typedef llvm::MapVector<isl_id *, Value> IDToValueTy;
   IDToValueTy IDToValue{};
+  std::map<std::string, isl_ast_expr *> stmtToExpr{};
 
   Value createOp(__isl_take isl_ast_expr *Expr) {
     assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
@@ -763,40 +764,7 @@ public:
     LHS = create(isl_ast_expr_get_op_arg(Expr, 0));
     RHS = create(isl_ast_expr_get_op_arg(Expr, 1));
 
-    Type LHSType = LHS.getType();
-    Type RHSType = RHS.getType();
-
-    MaxType = getWidestType(LHSType, RHSType);
-
-    // Take the result into account when calculating the widest type.
-    //
-    // For operations such as '+' the result may require a type larger than
-    // the type of the individual operands. For other operations such as '/',
-    // the result type cannot be larger than the type of the individual operand.
-    // isl does not calculate correct types for these operations and we
-    // consequently exclude those operations here.
-    switch (OpType) {
-    case isl_ast_op_pdiv_q:
-    case isl_ast_op_pdiv_r:
-    case isl_ast_op_div:
-    case isl_ast_op_fdiv_q:
-    case isl_ast_op_zdiv_r:
-      // Do nothing
-      break;
-    case isl_ast_op_add:
-    case isl_ast_op_sub:
-    case isl_ast_op_mul:
-      MaxType = getWidestType(MaxType, getType(Expr));
-      break;
-    default:
-      llvm_unreachable("This is no binary isl ast expression");
-    }
-
-    if (MaxType != RHS.getType())
-      RHS = b.create<arith::ExtSIOp>(loc, MaxType, RHS);
-
-    if (MaxType != LHS.getType())
-      LHS = b.create<arith::ExtSIOp>(loc, MaxType, LHS);
+    MaxType = convertToMaxWidth(LHS, RHS);
 
     switch (OpType) {
     default:
@@ -886,14 +854,7 @@ public:
 
     for (int i = 1; i < isl_ast_expr_get_op_n_arg(Expr); ++i) {
       Value OpV = create(isl_ast_expr_get_op_arg(Expr, i));
-      Type Ty = getWidestType(V.getType(), OpV.getType());
-
-      if (Ty != OpV.getType())
-        OpV = b.create<arith::ExtSIOp>(loc, Ty, OpV);
-
-      if (Ty != V.getType())
-        V = b.create<arith::ExtSIOp>(loc, Ty, V);
-
+      convertToMaxWidth(V, OpV);
       V = Aggregate(OpV, V);
     }
 
@@ -924,14 +885,7 @@ public:
     RHS = create(Op1);
 
     if (LHS.getType() != RHS.getType()) {
-      Type MaxType = LHS.getType();
-      MaxType = getWidestType(MaxType, RHS.getType());
-
-      if (MaxType != RHS.getType())
-        RHS = b.create<arith::ExtSIOp>(loc, MaxType, RHS);
-
-      if (MaxType != LHS.getType())
-        LHS = b.create<arith::ExtSIOp>(loc, MaxType, LHS);
+      convertToMaxWidth(LHS, RHS);
     }
 
     isl_ast_op_type OpType = isl_ast_expr_get_op_type(Expr);
@@ -1045,15 +999,35 @@ public:
     ScopStmt &stmt = scop.scopStmtMap.at(std::string(CalleeName));
     func::CallOp origCallee = stmt.getCaller();
     SmallVector<Value> args;
-    for (Value arg : origCallee.getArgOperands()) {
-      auto ba = arg.dyn_cast<BlockArgument>();
+    for (Value origArg : origCallee.getArgOperands()) {
+      auto ba = origArg.dyn_cast<BlockArgument>();
       if (ba) {
         Operation *owner = ba.getOwner()->getParentOp();
         if (isa<func::FuncOp>(owner)) {
           args.push_back(funcArgMapping.lookup(ba));
         } else if (isa<affine::AffineForOp, affine::AffineParallelOp>(owner)) {
-          // TODO need to rewrite old ivs to new ivs
-          llvm_unreachable("TODO iv");
+          SmallVector<Operation *> enclosing;
+          stmt.getEnclosingOps(enclosing);
+          unsigned ivId = 0;
+          for (auto *op : enclosing) {
+            if (isa<affine::AffineIfOp>(op)) {
+              continue;
+            } else if (isa<affine::AffineForOp, affine::AffineParallelOp>(op)) {
+              if (owner == op)
+                break;
+              ivId++;
+            } else {
+              llvm_unreachable("non-affine enclosing op");
+            }
+          }
+          Value arg = ivs[ivId];
+          if (arg.getType() != origArg.getType()) {
+            // This can only happen to index types as we may have replaced them
+            // with the target system width
+            assert(origArg.getType().isa<IndexType>());
+            arg = b.create<arith::IndexCastOp>(loc, origArg.getType(), arg);
+          }
+          args.push_back(arg);
         } else {
           llvm_unreachable("TODO arrays");
         }
@@ -1152,15 +1126,21 @@ public:
     return Cond.get_op_arg(1);
   }
 
-  template <class... Ts> void convertToMax(Ts &&...args) {
+  template <class... Ts> Type convertToMaxWidth(Ts &&...args) {
     SmallVector<Value *> Args({&args...});
     if (llvm::all_of(Args,
                      [&](Value *V) { return V->getType().isa<IndexType>(); }))
-      return;
-    IntegerType MaxType = Args[0]->getType().cast<IntegerType>();
+      return Args[0]->getType();
+    Type MaxTypeI = Args[0]->getType();
+    IntegerType MaxType;
+    if (MaxTypeI.isa<IndexType>())
+      // TODO This is temporary and we should get the target system index here
+      MaxType = b.getI64Type();
+    else
+      MaxType = MaxTypeI.cast<IntegerType>();
     unsigned MaxWidth = MaxType.getWidth();
-    for (unsigned I = 1; I < Args.size(); I++) {
-      Type Ty = Args[1]->getType();
+    for (unsigned I = 0; I < Args.size(); I++) {
+      Type Ty = Args[I]->getType();
       if (Ty.isa<IndexType>())
         // TODO This is temporary and we should get the target system index here
         Ty = b.getI64Type();
@@ -1169,14 +1149,15 @@ public:
         MaxWidth = MaxType.getWidth();
       }
     }
-    for (unsigned I = 1; I < Args.size(); I++) {
-      Type Ty = Args[1]->getType();
+    for (unsigned I = 0; I < Args.size(); I++) {
+      Type Ty = Args[I]->getType();
       if (Ty.isa<IndexType>()) {
         *Args[I] = b.create<arith::IndexCastOp>(loc, MaxType, *Args[I]);
       } else if (Ty != MaxType) {
         *Args[I] = b.create<arith::ExtSIOp>(loc, MaxType, *Args[I]);
       }
     }
+    return MaxType;
   }
 
   void createFor(__isl_keep isl_ast_node *For) {
@@ -1194,7 +1175,7 @@ public:
     Value ValueLB = create(Init);
     Value ValueUB = create(UB);
     Value ValueInc = create(Inc);
-    convertToMax(ValueLB, ValueUB, ValueInc);
+    convertToMaxWidth(ValueLB, ValueUB, ValueInc);
 
     if (Predicate == arith::CmpIPredicate::sle)
       ValueUB = b.create<arith::AddIOp>(
@@ -1245,8 +1226,31 @@ public:
       IDToValue[Id] = funcArgMapping.lookup(V);
     }
   }
+
+  void addStmtMapping(__isl_take isl_ast_expr *expr, const char *name) {
+    stmtToExpr[name] = expr;
+  }
 };
 } // namespace polymer
+
+static __isl_give isl_ast_node *at_domain(__isl_take isl_ast_node *node,
+                                          __isl_keep isl_ast_build *build,
+                                          void *user) {
+  IslMLIRBuilder &imb = *reinterpret_cast<IslMLIRBuilder *>(user);
+  isl_map *schedule;
+  isl_pw_multi_aff *reverse;
+
+  schedule = isl_map_from_union_map(isl_ast_build_get_schedule(build));
+  ISL_DEBUG("SCHEDULE: ", isl_map_dump(schedule));
+  reverse = isl_pw_multi_aff_from_map(isl_map_reverse(schedule));
+  ISL_DEBUG("REVERSE: ", isl_pw_multi_aff_dump(reverse));
+  isl_ast_expr *expr = isl_ast_build_access_from_pw_multi_aff(build, reverse);
+  ISL_DEBUG("ISL REVERSE AST EXPR: ", isl_ast_expr_dump(expr));
+  const char *name = isl_map_get_tuple_name(schedule, isl_dim_in);
+  imb.addStmtMapping(expr, name);
+
+  return node;
+}
 
 mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
                                            func::FuncOp f,
@@ -1271,15 +1275,14 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
 
   OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
 
-  IslMLIRBuilder bc = {b, funcArgMapping, *this};
-
   LLVM_DEBUG({
     llvm::dbgs() << "Applying new schedule to scop:\n";
     isl_schedule_dump(newSchedule);
   });
   isl_union_set *domain = isl_schedule_get_domain(newSchedule);
   isl_ast_build *build = isl_ast_build_alloc(ctx);
-  // build = isl_ast_build_set_at_each_domain(build, at_domain, id2stmt);
+  IslMLIRBuilder bc = {b, funcArgMapping, *this};
+  build = isl_ast_build_set_at_each_domain(build, at_domain, &bc);
   isl_ast_node *node =
       isl_ast_build_node_from_schedule(build, isl_schedule_copy(newSchedule));
 

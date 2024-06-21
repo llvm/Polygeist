@@ -27,6 +27,8 @@
 #include "isl/id.h"
 #include "isl/id_to_id.h"
 #include "isl/schedule.h"
+#include "isl/schedule_node.h"
+#include "isl/val.h"
 
 using namespace mlir;
 using namespace polymer;
@@ -35,7 +37,16 @@ using llvm::dbgs;
 
 #define DEBUG_TYPE "tadashi-opt"
 
+static isl_schedule_node *tadashi_tile(isl_schedule_node *node, int tile_size) {
+  isl_ctx *ctx = isl_schedule_node_get_ctx(node);
+  return isl_schedule_node_band_tile(
+      node, isl_multi_val_from_val_list(
+                isl_schedule_node_band_get_space(node),
+                isl_val_list_from_val(isl_val_int_from_si(ctx, tile_size))));
+}
+
 namespace polymer {
+
 mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Tadashi transforming: \n");
   LLVM_DEBUG(f.dump());
@@ -44,11 +55,19 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   scop->dumpSchedule(llvm::outs());
   scop->dumpAccesses(llvm::outs());
 
-  isl_schedule *newSchedule = scop->getSchedule();
+  isl_schedule *newSchedule = isl_schedule_copy(scop->getSchedule());
+  isl_schedule_node *node = isl_schedule_get_root(newSchedule);
+  node = isl_schedule_node_first_child(node);
+  tadashi_tile(node, 10);
+
+  newSchedule = isl_schedule_node_get_schedule(node);
+
+  isl_schedule_dump(newSchedule);
+
   mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
       createFuncOpFromIsl(std::move(scop), f, newSchedule));
 
-  assert(mlir::verify(f).succeeded());
+  assert(mlir::verify(g).succeeded());
 
   if (g) {
     SmallVector<DictionaryAttr> argAttrs;

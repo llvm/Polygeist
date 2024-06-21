@@ -1,3 +1,4 @@
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #ifdef POLYGEIST_ENABLE_POLYMER
 
 #include "mlir/IR/Visitors.h"
@@ -188,6 +189,7 @@ void PolyhedralOptPass::runOnOperation() {
   mlir::PassManager preTransformPm(&context);
   preTransformPm.addPass(createCanonicalizerPass());
 
+  SmallVector<func::CallOp> toInline;
   AlwaysInlinerInterface interface(&getContext());
   IRRewriter b(&context);
   for (auto &pair : funcOps) {
@@ -225,8 +227,22 @@ void PolyhedralOptPass::runOnOperation() {
     // if (g && /*options.parallelize=*/true) {
     //   polymer::plutoParallelize(g, b);
     // }
-    inlineAll(call);
+    toInline.push_back(call);
   }
+
+  mlir::PassManager lowerAffine(&context);
+  lowerAffine.addPass(createLowerAffinePass());
+  lowerAffine.addPass(createCanonicalizerPass());
+
+  // Conversion from ISL emits scf so we need to lower the statements before
+  // inlining them
+  if (UsePolyhedralOptimizerCl == "tadashi" && failed(lowerAffine.run(m))) {
+    signalPassFailure();
+    return;
+  }
+
+  for (auto call : toInline)
+    inlineAll(call);
   cleanupTempFuncs(m);
 }
 
