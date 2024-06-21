@@ -73,23 +73,7 @@ IslScop::~IslScop() {
   isl_ctx_free(ctx);
 }
 
-void IslScop::print() {
-  // TODO ISL
-}
-
-bool IslScop::validate() {
-  // TODO ISL
-  return true;
-}
-
 void IslScop::createStatement() { islStmts.push_back({}); }
-
-void IslScop::addRelation(int target, int type, int numRows, int numCols,
-                          int numOutputDims, int numInputDims, int numLocalDims,
-                          int numParams, llvm::ArrayRef<int64_t> eqs,
-                          llvm::ArrayRef<int64_t> inEqs) {
-  // TODO ISL
-}
 
 void IslScop::addContextRelation(affine::FlatAffineValueConstraints cst) {
   // Project out the dim IDs in the context with only the symbol IDs left.
@@ -395,137 +379,6 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   return success();
 }
 
-void IslScop::addGeneric(int target, llvm::StringRef tag,
-                         llvm::StringRef content) {
-  // TODO ISL
-}
-
-void IslScop::addExtensionGeneric(llvm::StringRef tag,
-                                  llvm::StringRef content) {
-  addGeneric(0, tag, content);
-}
-
-void IslScop::addParametersGeneric(llvm::StringRef tag,
-                                   llvm::StringRef content) {
-  addGeneric(-1, tag, content);
-}
-
-void IslScop::addStatementGeneric(int stmtId, llvm::StringRef tag,
-                                  llvm::StringRef content) {
-  addGeneric(stmtId + 1, tag, content);
-}
-
-/// We determine whether the name refers to a symbol by looking up the parameter
-/// list of the scop.
-bool IslScop::isSymbol(llvm::StringRef name) {
-  // TODO ISL
-  return true;
-}
-
-// LogicalResult IslScop::getStatement(unsigned index,
-//                                     osl_statement **stmt) const {
-//   // TODO ISL
-// }
-
-// unsigned IslScop::getNumStatements() const {
-//   return osl_statement_number(scop->statement);
-// }
-
-// osl_generic_p IslScop::getExtension(llvm::StringRef tag) const {
-// }
-
-void IslScop::addParameterNames() {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  SmallVector<std::string, 8> names;
-
-  for (const auto &it : symbolTable)
-    if (isParameterSymbol(it.first()))
-      names.push_back(std::string(it.first()));
-
-  std::sort(names.begin(), names.end());
-  for (const auto &s : names)
-    ss << s << " ";
-
-  addParametersGeneric("strings", body);
-}
-
-void IslScop::addScatnamesExtension() {}
-
-void IslScop::addArraysExtension() {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  unsigned numArraySymbols = 0;
-  for (const auto &it : symbolTable)
-    if (isArraySymbol(it.first())) {
-      ss << it.first().drop_front() << " " << it.first() << " ";
-      numArraySymbols++;
-    }
-
-  addExtensionGeneric("arrays",
-                      std::string(formatv("{0} {1}", numArraySymbols, body)));
-}
-
-void IslScop::addBodyExtension(int stmtId, const ScopStmt &stmt) {
-  std::string body;
-  llvm::raw_string_ostream ss(body);
-
-  SmallVector<mlir::Operation *, 8> forOps;
-  stmt.getEnclosingOps(forOps, /*forOnly=*/true);
-
-  unsigned numIVs = forOps.size();
-  ss << numIVs << " ";
-
-  llvm::DenseMap<mlir::Value, unsigned> ivToId;
-  for (unsigned i = 0; i < numIVs; i++) {
-    mlir::affine::AffineForOp forOp =
-        cast<mlir::affine::AffineForOp>(forOps[i]);
-    // forOp.dump();
-    ivToId[forOp.getInductionVar()] = i;
-  }
-
-  for (unsigned i = 0; i < numIVs; i++)
-    ss << "i" << i << " ";
-
-  mlir::func::CallOp caller = stmt.getCaller();
-  mlir::func::FuncOp callee = stmt.getCallee();
-  ss << "\n" << callee.getName() << "(";
-
-  SmallVector<std::string, 8> ivs;
-  llvm::SetVector<unsigned> visited;
-  for (unsigned i = 0; i < caller.getNumOperands(); i++) {
-    mlir::Value operand = caller.getOperand(i);
-    if (ivToId.find(operand) != ivToId.end()) {
-      ivs.push_back(std::string(formatv("i{0}", ivToId[operand])));
-      visited.insert(ivToId[operand]);
-    }
-  }
-
-  for (unsigned i = 0; i < numIVs; i++)
-    if (!visited.contains(i)) {
-      visited.insert(i);
-      ivs.push_back(std::string(formatv("i{0}", i)));
-    }
-
-  for (unsigned i = 0; i < ivs.size(); i++) {
-    ss << ivs[i];
-    if (i != ivs.size() - 1)
-      ss << ", ";
-  }
-
-  // for (unsigned i = 0; i < numIVs; i++) {
-  //   ss << "i" << i;
-  //   if (i != numIVs - 1)
-  //     ss << ", ";
-  // }
-
-  ss << ")";
-
-  addGeneric(stmtId + 1, "body", body);
-}
-
 void IslScop::initializeSymbolTable(mlir::func::FuncOp f,
                                     affine::FlatAffineValueConstraints *cst) {
   symbolTable.clear();
@@ -568,30 +421,6 @@ void IslScop::initializeSymbolTable(mlir::func::FuncOp f,
       valueTable.insert(std::make_pair(arg, sym));
     }
   }
-
-  // // Setup relative fields in the OpenScop representation.
-  // // Parameter names
-  // addParameterNames();
-  // // Scat names
-  // addScatnamesExtension();
-  // // Array names
-  // addArraysExtension();
-}
-
-bool IslScop::isParameterSymbol(llvm::StringRef name) const {
-  return name.startswith("P");
-}
-
-bool IslScop::isDimSymbol(llvm::StringRef name) const {
-  return name.startswith("i");
-}
-
-bool IslScop::isArraySymbol(llvm::StringRef name) const {
-  return name.startswith("A");
-}
-
-bool IslScop::isConstantSymbol(llvm::StringRef name) const {
-  return name.startswith("C");
 }
 
 isl_mat *IslScop::createConstraintRows(affine::FlatAffineValueConstraints &cst,
@@ -681,7 +510,6 @@ public:
   Location loc = b.getUnknownLoc();
   typedef llvm::MapVector<isl_id *, Value> IDToValueTy;
   IDToValueTy IDToValue{};
-  std::map<std::string, isl_ast_expr *> stmtToExpr{};
 
   Value createOp(__isl_take isl_ast_expr *Expr) {
     assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
@@ -1226,31 +1054,8 @@ public:
       IDToValue[Id] = funcArgMapping.lookup(V);
     }
   }
-
-  void addStmtMapping(__isl_take isl_ast_expr *expr, const char *name) {
-    stmtToExpr[name] = expr;
-  }
 };
 } // namespace polymer
-
-static __isl_give isl_ast_node *at_domain(__isl_take isl_ast_node *node,
-                                          __isl_keep isl_ast_build *build,
-                                          void *user) {
-  IslMLIRBuilder &imb = *reinterpret_cast<IslMLIRBuilder *>(user);
-  isl_map *schedule;
-  isl_pw_multi_aff *reverse;
-
-  schedule = isl_map_from_union_map(isl_ast_build_get_schedule(build));
-  ISL_DEBUG("SCHEDULE: ", isl_map_dump(schedule));
-  reverse = isl_pw_multi_aff_from_map(isl_map_reverse(schedule));
-  ISL_DEBUG("REVERSE: ", isl_pw_multi_aff_dump(reverse));
-  isl_ast_expr *expr = isl_ast_build_access_from_pw_multi_aff(build, reverse);
-  ISL_DEBUG("ISL REVERSE AST EXPR: ", isl_ast_expr_dump(expr));
-  const char *name = isl_map_get_tuple_name(schedule, isl_dim_in);
-  imb.addStmtMapping(expr, name);
-
-  return node;
-}
 
 mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
                                            func::FuncOp f,
@@ -1282,7 +1087,6 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
   isl_union_set *domain = isl_schedule_get_domain(newSchedule);
   isl_ast_build *build = isl_ast_build_alloc(ctx);
   IslMLIRBuilder bc = {b, funcArgMapping, *this};
-  build = isl_ast_build_set_at_each_domain(build, at_domain, &bc);
   isl_ast_node *node =
       isl_ast_build_node_from_schedule(build, isl_schedule_copy(newSchedule));
 

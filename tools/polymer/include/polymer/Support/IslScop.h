@@ -58,38 +58,10 @@ public:
   using ScopStmtNames = std::vector<std::string>;
 
   IslScop();
-  // IslScop(osl_scop *scop);
-
   ~IslScop();
-
-  /// Get the raw scop pointer.
-  // osl_scop *get() { return scop; }
-
-  /// Print the content of the Scop to the stdout.
-  void print();
-
-  /// Validate whether the scop is well-formed.
-  bool validate();
 
   /// Simply create a new statement in the linked list scop->statement.
   void createStatement();
-  /// Get statement by index.
-  // mlir::LogicalResult getStatement(unsigned index, osl_statement **stmt)
-  // const;
-
-  /// Get the total number of statements
-  unsigned getNumStatements() const;
-
-  /// Create a new relation and initialize its contents. The new relation will
-  /// be created under the scop member.
-  /// The target here is an index:
-  /// 1) if it's 0, then it means the context;
-  /// 2) otherwise, if it is a positive number, it corresponds to a statement of
-  /// id=(target-1).
-  void addRelation(int target, int type, int numRows, int numCols,
-                   int numOutputDims, int numInputDims, int numLocalDims,
-                   int numParams, llvm::ArrayRef<int64_t> eqs,
-                   llvm::ArrayRef<int64_t> inEqs);
 
   /// Add the relation defined by cst to the context of the current scop.
   void addContextRelation(mlir::affine::FlatAffineValueConstraints cst);
@@ -102,29 +74,9 @@ public:
                     mlir::affine::AffineValueMap &vMap,
                     mlir::affine::FlatAffineValueConstraints &cst);
 
-  /// Add a new generic field to a statement. `target` gives the statement ID.
-  /// `content` specifies the data field in the generic.
-  void addGeneric(int target, llvm::StringRef tag, llvm::StringRef content);
-  void addExtensionGeneric(llvm::StringRef tag, llvm::StringRef content);
-  void addParametersGeneric(llvm::StringRef tag, llvm::StringRef content);
-  void addStatementGeneric(int stmtId, llvm::StringRef tag,
-                           llvm::StringRef content);
-  void addBodyExtension(int stmtId, const ScopStmt &stmt);
-
-  /// Check whether the name refers to a symbol.
-  bool isSymbol(llvm::StringRef name);
-
-  /// Get extension by interface name
-  // osl_generic *getExtension(llvm::StringRef interface) const;
-
   /// Initialize the symbol table.
   void initializeSymbolTable(mlir::func::FuncOp f,
                              mlir::affine::FlatAffineValueConstraints *cst);
-
-  bool isParameterSymbol(llvm::StringRef name) const;
-  bool isDimSymbol(llvm::StringRef name) const;
-  bool isArraySymbol(llvm::StringRef name) const;
-  bool isConstantSymbol(llvm::StringRef name) const;
 
   /// Get the symbol table object.
   /// TODO: maybe not expose the symbol table to the external world like this.
@@ -192,10 +144,6 @@ private:
       mlir::affine::AffineValueMap &vMap,
       mlir::affine::FlatAffineValueConstraints &cst,
       mlir::affine::FlatAffineValueConstraints &domain);
-
-  void addArraysExtension();
-  void addScatnamesExtension();
-  void addParameterNames();
 
   /// The internal storage of the Scop.
   // osl_scop *scop;
