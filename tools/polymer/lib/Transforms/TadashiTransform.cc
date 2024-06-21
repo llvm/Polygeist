@@ -40,17 +40,16 @@ using llvm::dbgs;
 #define DEBUG_TYPE "tadashi-opt"
 
 static llvm::cl::opt<std::string>
-    ClTadashiDumpSchedule("tadashi-dump-schedule", llvm::cl::init("/dev/null"),
-                          llvm::cl::desc("File to dump ISL schedule to"));
+    ClTadashiDumpSchedule("tadashi-dump-schedule",
+                          llvm::cl::desc("Directory to dump ISL schedules to"));
 
 static llvm::cl::opt<std::string>
-    ClTadashiDumpAccesses("tadashi-dump-accesses", llvm::cl::init("/dev/null"),
-                          llvm::cl::desc("File to dump ISL accesses to"));
+    ClTadashiDumpAccesses("tadashi-dump-accesses",
+                          llvm::cl::desc("Directory to dump ISL accesses to"));
 
-static llvm::cl::opt<std::string>
-    ClTadashiImportSchedule("tadashi-import-schedule",
-                            llvm::cl::init("/dev/null"),
-                            llvm::cl::desc("File to import ISL schedule from"));
+static llvm::cl::opt<std::string> ClTadashiImportSchedule(
+    "tadashi-import-schedule",
+    llvm::cl::desc("Directory to import ISL schedules from"));
 
 namespace polymer {
 
@@ -58,30 +57,39 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Tadashi transforming: \n");
   LLVM_DEBUG(f.dump());
 
+  StringRef funcName = f.getName();
+
   std::unique_ptr<IslScop> scop = createIslFromFuncOp(f);
-  std::error_code err;
-  llvm::raw_fd_ostream ScheduleOut(ClTadashiDumpSchedule, err);
-  if (err) {
-    llvm::errs() << "Can't read " << ClTadashiDumpSchedule << "\n";
-    abort();
+
+  std::error_code EC;
+  if (ClTadashiDumpSchedule.getNumOccurrences() > 0) {
+    std::string fname = (ClTadashiDumpSchedule + "/" + funcName).str();
+    llvm::raw_fd_ostream ScheduleOut(fname, EC);
+    if (EC) {
+      llvm::errs() << "Can't open " << fname << "\n";
+      abort();
+    }
+    scop->dumpSchedule(ScheduleOut);
   }
-  llvm::raw_fd_ostream AccessesOut(ClTadashiDumpAccesses, err);
-  if (err) {
-    llvm::errs() << "Can't read " << ClTadashiDumpAccesses << "\n";
-    abort();
+  if (ClTadashiDumpAccesses.getNumOccurrences() > 0) {
+    std::string fname = (ClTadashiDumpAccesses + "/" + funcName).str();
+    llvm::raw_fd_ostream AccessesOut(fname, EC);
+    if (EC) {
+      llvm::errs() << "Can't open " << fname << "\n";
+      abort();
+    }
+    scop->dumpAccesses(AccessesOut);
   }
-  scop->dumpSchedule(ScheduleOut);
-  scop->dumpAccesses(AccessesOut);
 
   isl_schedule *newSchedule;
   if (ClTadashiImportSchedule.getNumOccurrences() == 0) {
     // Do a round trip
     newSchedule = isl_schedule_copy(scop->getSchedule());
   } else {
-    auto ScheduleIn =
-        llvm::MemoryBuffer::getFileAsStream(ClTadashiImportSchedule);
+    std::string fname = (ClTadashiImportSchedule + "/" + funcName).str();
+    auto ScheduleIn = llvm::MemoryBuffer::getFileAsStream(fname);
     if (std::error_code EC = ScheduleIn.getError()) {
-      llvm::errs() << "Can't read " << ClTadashiImportSchedule << "\n";
+      llvm::errs() << "Can't open " << fname << "\n";
       abort();
     }
     newSchedule =
