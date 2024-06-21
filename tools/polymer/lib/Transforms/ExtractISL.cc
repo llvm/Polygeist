@@ -1900,7 +1900,8 @@ static void dump_isl(osl_scop_p scop, PlutoOptions *options) {
 }
 
 namespace polymer {
-mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
+mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
+                                        OpBuilder &rewriter) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 

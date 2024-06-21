@@ -5,8 +5,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 
 namespace polymer {
-mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f,
-                                    mlir::OpBuilder &rewriter);
+mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
+                                        mlir::OpBuilder &rewriter);
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f,
                                   mlir::OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,

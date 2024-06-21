@@ -269,7 +269,7 @@ void IslScop::dumpAccesses(llvm::raw_ostream &os) {
   }
 }
 void IslScop::dumpSchedule(llvm::raw_ostream &os) {
-  LLVM_DEBUG(llvm::errs() << "Dumping tadashi\n");
+  LLVM_DEBUG(llvm::errs() << "Dumping islexternal\n");
   LLVM_DEBUG(llvm::errs() << "Schedule:\n\n");
   LLVM_DEBUG(isl_schedule_dump(schedule));
   LLVM_DEBUG(llvm::errs() << "\n");

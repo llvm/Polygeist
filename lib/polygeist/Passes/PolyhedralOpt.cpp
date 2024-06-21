@@ -42,7 +42,7 @@ using namespace polygeist;
 static llvm::cl::opt<std::string>
     UsePolyhedralOptimizerCl("use-polyhedral-optimizer",
                              llvm::cl::init("pluto"),
-                             llvm::cl::desc("pluto or tadashi"));
+                             llvm::cl::desc("pluto or islexternal"));
 
 namespace {
 
@@ -212,8 +212,8 @@ void PolyhedralOptPass::runOnOperation() {
       return;
     }
     mlir::func::FuncOp g = nullptr;
-    if (UsePolyhedralOptimizerCl == "tadashi") {
-      g = polymer::tadashiTransform(f, b);
+    if (UsePolyhedralOptimizerCl == "islexternal") {
+      g = polymer::islexternalTransform(f, b);
     } else if (UsePolyhedralOptimizerCl == "pluto") {
       g = polymer::plutoTransform(f, b, "");
     }
@@ -236,7 +236,7 @@ void PolyhedralOptPass::runOnOperation() {
 
   // Conversion from ISL emits scf so we need to lower the statements before
   // inlining them
-  if (UsePolyhedralOptimizerCl == "tadashi" && failed(lowerAffine.run(m))) {
+  if (UsePolyhedralOptimizerCl == "islexternal" && failed(lowerAffine.run(m))) {
     signalPassFailure();
     return;
   }

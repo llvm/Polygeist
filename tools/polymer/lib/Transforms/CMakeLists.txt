@@ -5,7 +5,7 @@ if(POLYGEIST_POLYMER_ENABLE_PLUTO)
   )
 elseif(POLYGEIST_POLYMER_ENABLE_ISL)
   set(POLYMER_TRANSFORM_SRC
-    TadashiTransform.cc
+    IslExternalTransform.cc
   )
 endif()
 

@@ -283,7 +283,8 @@ std::unique_ptr<mlir::Pass> createDedupIndexCastPass() {
 std::unique_ptr<mlir::Pass> createPlutoParallelizePass() {
   return std::make_unique<PlutoParallelizePass>();
 }
-mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
+mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
+                                        OpBuilder &rewriter) {
   llvm_unreachable("not compiled with isl suport");
 }
 } // namespace polymer

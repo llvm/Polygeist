@@ -1,4 +1,9 @@
-// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=tadashi -debug-only=tadashi-opt,islscop %s; fi
+// RUN: [ "%polymer_enabled" == "" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal -debug-only=islexternal-opt,islscop %s
+
+// RUN: mkdir -p %t/schedules
+// RUN: mkdir -p %t/accesses
+// RUN: [ "%polymer_enabled" == "" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses -debug-only=islexternal-opt,islscop %s
+// RUN: [ "%polymer_enabled" == "" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-import-schedules=%t/schedules -debug-only=islexternal-opt,islscop %s
 
 #map = affine_map<()[s0] -> (s0)>
 #set1 = affine_set<(d0)[s0] : (-d0 + s0 -1 >= 0)>
