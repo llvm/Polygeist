@@ -225,6 +225,8 @@ SmallVector<Operation *> IslScop::getSequenceScheduleOpList(Operation *begin,
 }
 
 SmallVector<Operation *> IslScop::getSequenceScheduleOpList(Block *block) {
+  // We cannot be yielding anything
+  assert(block->back().getNumOperands() == 0);
   return getSequenceScheduleOpList(&block->front(), &block->back());
 }
 
@@ -1261,6 +1263,12 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
     op = next;
   }
 
+  // TODO we probably need to keep the arrays and only delete the scop ops, and
+  // not the reg2mem results (and anything else?)
+
+  // TODO we also need to allocate new arrays which may have been introduced,
+  // see polly::NodeBuilder::allocateNewArrays, buildAliasScopes
+
   OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
 
   IslMLIRBuilder bc = {b, funcArgMapping, *this};
@@ -1278,16 +1286,6 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
   bc.fillOutMapping(domain);
   bc.create(node);
   LLVM_DEBUG(llvm::dbgs() << f << "\n");
-
-  // isl_ast_print_options *print_options;
-  // print_options = isl_ast_print_options_alloc(ctx);
-  // print_options =
-  //     isl_ast_print_options_set_print_user(print_options, buildUser, &bc);
-  // print_options =
-  //     isl_ast_print_options_set_print_for(print_options, buildFor, &bc);
-
-  // isl_printer *p = isl_printer_to_str(ctx);
-  // p = isl_ast_node_print(node, p, print_options);
 
   isl_ast_build_free(build);
 
