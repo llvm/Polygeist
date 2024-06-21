@@ -23,6 +23,8 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/Passes.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "isl/id.h"
 #include "isl/id_to_id.h"
@@ -37,13 +39,18 @@ using llvm::dbgs;
 
 #define DEBUG_TYPE "tadashi-opt"
 
-static isl_schedule_node *tadashi_tile(isl_schedule_node *node, int tile_size) {
-  isl_ctx *ctx = isl_schedule_node_get_ctx(node);
-  return isl_schedule_node_band_tile(
-      node, isl_multi_val_from_val_list(
-                isl_schedule_node_band_get_space(node),
-                isl_val_list_from_val(isl_val_int_from_si(ctx, tile_size))));
-}
+static llvm::cl::opt<std::string>
+    ClTadashiDumpSchedule("tadashi-dump-schedule", llvm::cl::init("/dev/null"),
+                          llvm::cl::desc("File to dump ISL schedule to"));
+
+static llvm::cl::opt<std::string>
+    ClTadashiDumpAccesses("tadashi-dump-accesses", llvm::cl::init("/dev/null"),
+                          llvm::cl::desc("File to dump ISL accesses to"));
+
+static llvm::cl::opt<std::string>
+    ClTadashiImportSchedule("tadashi-import-schedule",
+                            llvm::cl::init("/dev/null"),
+                            llvm::cl::desc("File to import ISL schedule from"));
 
 namespace polymer {
 
@@ -52,20 +59,40 @@ mlir::func::FuncOp tadashiTransform(mlir::func::FuncOp f, OpBuilder &rewriter) {
   LLVM_DEBUG(f.dump());
 
   std::unique_ptr<IslScop> scop = createIslFromFuncOp(f);
-  scop->dumpSchedule(llvm::outs());
-  scop->dumpAccesses(llvm::outs());
+  std::error_code err;
+  llvm::raw_fd_ostream ScheduleOut(ClTadashiDumpSchedule, err);
+  if (err) {
+    llvm::errs() << "Can't read " << ClTadashiDumpSchedule << "\n";
+    abort();
+  }
+  llvm::raw_fd_ostream AccessesOut(ClTadashiDumpAccesses, err);
+  if (err) {
+    llvm::errs() << "Can't read " << ClTadashiDumpAccesses << "\n";
+    abort();
+  }
+  scop->dumpSchedule(ScheduleOut);
+  scop->dumpAccesses(AccessesOut);
 
-  isl_schedule *newSchedule = isl_schedule_copy(scop->getSchedule());
-  isl_schedule_node *node = isl_schedule_get_root(newSchedule);
-  node = isl_schedule_node_first_child(node);
-  tadashi_tile(node, 10);
-
-  newSchedule = isl_schedule_node_get_schedule(node);
-
-  isl_schedule_dump(newSchedule);
+  isl_schedule *newSchedule;
+  if (ClTadashiImportSchedule.getNumOccurrences() == 0) {
+    // Do a round trip
+    newSchedule = isl_schedule_copy(scop->getSchedule());
+  } else {
+    auto ScheduleIn =
+        llvm::MemoryBuffer::getFileAsStream(ClTadashiImportSchedule);
+    if (std::error_code EC = ScheduleIn.getError()) {
+      llvm::errs() << "Can't read " << ClTadashiImportSchedule << "\n";
+      abort();
+    }
+    newSchedule =
+        isl_schedule_read_from_str(isl_schedule_get_ctx(scop->getSchedule()),
+                                   ScheduleIn->get()->getBufferStart());
+  }
 
   mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
       createFuncOpFromIsl(std::move(scop), f, newSchedule));
+
+  newSchedule = isl_schedule_free(newSchedule);
 
   assert(mlir::verify(g).succeeded());
 

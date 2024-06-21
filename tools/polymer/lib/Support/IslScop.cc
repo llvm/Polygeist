@@ -282,10 +282,7 @@ void IslScop::dumpSchedule(llvm::raw_ostream &os) {
   LLVM_DEBUG(isl_schedule_dump(schedule));
   LLVM_DEBUG(llvm::errs() << "\n");
 
-  auto o = [&os](unsigned n) -> llvm::raw_ostream & {
-    return os << std::string(n, ' ');
-  };
-  o(0) << "schedule: " << IslStr(isl_schedule_to_str(schedule)) << "\n";
+  os << IslStr(isl_schedule_to_str(schedule)) << "\n";
 }
 
 isl_space *IslScop::getSpace(affine::FlatAffineValueConstraints &cst,
