@@ -165,8 +165,8 @@ func.func @store_3d_static(%arg0: memref<2x4x42xf32>, %arg1: index, %arg2: index
 // CHECK:         }
 
 // CHECK-LABEL:   llvm.func @alloc_0d() -> !llvm.ptr {
-// CHECK:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-DAG:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
+// CHECK-DAG:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(1 : index) : i64
 // CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mul %[[VAL_0]], %[[VAL_1]]  : i64
 // CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.call @malloc(%[[VAL_2]]) : (i64) -> !llvm.ptr
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
@@ -174,15 +174,15 @@ func.func @store_3d_static(%arg0: memref<2x4x42xf32>, %arg1: index, %arg2: index
 
 // CHECK-LABEL:   llvm.func @alloc_1d_dynamic(
 // CHECK-SAME:                                %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64) -> !llvm.ptr {
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
+// CHECK-DAG:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
 // CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mul %[[VAL_0]], %[[VAL_1]]  : i64
 // CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.call @malloc(%[[VAL_2]]) : (i64) -> !llvm.ptr
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
 // CHECK:         }
 
 // CHECK-LABEL:   llvm.func @alloc_1d_static() -> !llvm.ptr {
-// CHECK:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(42 : index) : i64
+// CHECK-DAG:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
+// CHECK-DAG:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(42 : index) : i64
 // CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mul %[[VAL_0]], %[[VAL_1]]  : i64
 // CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.call @malloc(%[[VAL_2]]) : (i64) -> !llvm.ptr
 // CHECK:           llvm.return %[[VAL_3]] : !llvm.ptr
@@ -199,9 +199,9 @@ func.func @store_3d_static(%arg0: memref<2x4x42xf32>, %arg1: index, %arg2: index
 // CHECK:         }
 
 // CHECK-LABEL:   llvm.func @alloc_3d_static() -> !llvm.ptr {
-// CHECK:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(2 : index) : i64
-// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(168 : index) : i64
+// CHECK-DAG:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(4 : i64) : i64
+// CHECK-DAG:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(2 : index) : i64
+// CHECK-DAG:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(168 : index) : i64
 // CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mul %[[VAL_1]], %[[VAL_2]]  : i64
 // CHECK:           %[[VAL_4:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mul %[[VAL_3]], %[[VAL_0]]  : i64
 // CHECK:           %[[VAL_5:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.call @malloc(%[[VAL_4]]) : (i64) -> !llvm.ptr

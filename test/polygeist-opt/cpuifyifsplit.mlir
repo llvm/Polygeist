@@ -257,10 +257,10 @@ module {
 // IFSPLIT-NEXT:  }
 
 // IFSPLIT:  func.func @simple_condhoist_if_split(%[[arg0:.+]]: i1, %[[arg1:.+]]: memref<i32>, %[[arg2:.+]]: memref<i32>)
-// IFSPLIT-NEXT:    %[[true:.+]] = arith.constant true
-// IFSPLIT-NEXT:    %[[c1:.+]] = arith.constant 1 : index
-// IFSPLIT-NEXT:    %[[c0:.+]] = arith.constant 0 : index
-// IFSPLIT-NEXT:    %[[c9:.+]] = arith.constant 9 : index
+// IFSPLIT-DAG:    %[[true:.+]] = arith.constant true
+// IFSPLIT-DAG:    %[[c1:.+]] = arith.constant 1 : index
+// IFSPLIT-DAG:    %[[c0:.+]] = arith.constant 0 : index
+// IFSPLIT-DAG:    %[[c9:.+]] = arith.constant 9 : index
 // IFSPLIT-NEXT:    memref.alloca_scope  {
 // IFSPLIT-NEXT:      %[[V0:.+]] = memref.alloca(%[[c9]]) : memref<?xi32>
 // IFSPLIT-NEXT:      %[[V1:.+]] = memref.alloca(%[[c9]]) : memref<?xi32>
