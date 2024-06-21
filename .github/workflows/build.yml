@@ -45,17 +45,10 @@ jobs:
         path: src
         submodules: 'recursive'
 
-    - name: define isl 0
-      if: matrix.pluto == '1'
-      run: echo isl 0
-      env:
-        isl: 0
-
     - name: define isl 1
-      if: matrix.pluto == '0'
-      run: echo isl 1
-      env:
-        isl: 1
+      id: defineisl
+      run: |
+        ( [ ${{matrix.pluto}} == 0 ] && echo "isl=1" || echo "isl=0" ) >> $GITHUB_OUTPUT
 
     - name: add dependencies
       run: sudo apt-get install -y llvm-15-tools ninja-build libbison-dev libtool libgmp-dev #libflex-dev cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
@@ -111,7 +104,7 @@ jobs:
       run: |
         cd build
         ls ../mlir-build/lib/cmake/clang
-        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.polygeist-build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}} -DPOLYGEIST_ENABLE_POLYMER=${{ matrix.polymer }} -DPOLYMER_DEP_DIR=$(pwd)/../pluto-build/ -DPOLYGEIST_POLYMER_ENABLE_PLUTO=${{matrix.pluto}} -DPOLYGEIST_POLYMER_ENABLE_ISL=${{env.isl}}
+        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.polygeist-build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}} -DPOLYGEIST_ENABLE_POLYMER=${{ matrix.polymer }} -DPOLYMER_DEP_DIR=$(pwd)/../pluto-build/ -DPOLYGEIST_POLYMER_ENABLE_PLUTO=${{matrix.pluto}} -DPOLYGEIST_POLYMER_ENABLE_ISL=${{ steps.defineisl.outputs.isl }}
 
     - name: test cgeist
       run: |
