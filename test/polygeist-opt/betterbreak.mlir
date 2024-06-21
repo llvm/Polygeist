@@ -28,12 +28,12 @@ module {
 }
 
 // CHECK:   func.func @main(%[[arg0:.+]]: memref<?xf64>, %[[arg1:.+]]: i32) -> i32 {
-// CHECK-NEXT:     %[[false:.+]] = arith.constant false
-// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
-// CHECK-NEXT:     %c-1_i32 = arith.constant -1 : i32
-// CHECK-NEXT:     %[[c0_i32:.+]] = arith.constant 0 : i32
-// CHECK-NEXT:     %[[true:.+]] = arith.constant true
+// CHECK-DAG:     %[[false:.+]] = arith.constant false
+// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-DAG:     %c-1_i32 = arith.constant -1 : i32
+// CHECK-DAG:     %[[c0_i32:.+]] = arith.constant 0 : i32
+// CHECK-DAG:     %[[true:.+]] = arith.constant true
 // CHECK-NEXT:     %[[V0:.+]] = arith.cmpi sgt, %[[arg1]], %[[c0_i32]] : i32
 // CHECK-NEXT:     %[[V1:.+]] = scf.if %[[V0]] -> (i32) {
 // CHECK-NEXT:       %[[V2:.+]] = arith.index_cast %[[arg1]] : i32 to index
@@ -47,7 +47,7 @@ module {
 // CHECK-NEXT:         } else {
 // CHECK-NEXT:           scf.yield %[[arg3]], %[[false]] : i32, i1
 // CHECK-NEXT:         }
-// CHECK-NEXT:         scf.reduce %[[V5]]#0, %[[V5]]#1 : i32, i1
+// CHECK-NEXT:         scf.yield %[[V5]]#0, %[[V5]]#1 : i32, i1
 // CHECK-NEXT:       }
 // CHECK-NEXT:       scf.yield %[[V3]]#0 : i32
 // CHECK-NEXT:     } else {

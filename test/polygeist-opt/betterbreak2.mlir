@@ -24,7 +24,7 @@ module {
       } else {
         scf.yield %arg2, %arg3, %false : i32, i32, i1
       }
-      scf.reduce %1#0, %1#1, %1#2 : i32, i32, i1
+      scf.yield %1#0, %1#1, %1#2 : i32, i32, i1
     }
     return %r#0 : i32
   }
@@ -46,7 +46,7 @@ module {
 // CHECK-NEXT:       } else {
 // CHECK-NEXT:         scf.yield %[[arg2]], %[[false]] : i32, i1
 // CHECK-NEXT:       }
-// CHECK-NEXT:       scf.reduce %[[V2]]#0, %[[V2]]#1 : i32, i1
+// CHECK-NEXT:       scf.yield %[[V2]]#0, %[[V2]]#1 : i32, i1
 // CHECK-NEXT:     }
 // CHECK-NEXT:    return %[[V0]]#0 : i32
 // CHECK-NEXT:  }
