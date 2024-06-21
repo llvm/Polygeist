@@ -49,6 +49,8 @@ llvm_config.use_default_substitutions()
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
 config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
+if config.polymer_isl_enabled_ == "0":
+    config.excludes += ['isl']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)

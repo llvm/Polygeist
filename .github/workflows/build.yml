@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build ${{ matrix.os }} ${{ matrix.compiler }} polymer=${{ matrix.polymer }} pluto ${{ matrix.pluto-build }} mlir ${{ matrix.mlir-build }} polygeist ${{ matrix.polygeist-build }}
+    name: Build ${{ matrix.os }} ${{ matrix.compiler }} polymer=${{ matrix.polymer }} pluto ${{ matrix.pluto }} ${{ matrix.pluto-build }} mlir ${{ matrix.mlir-build }} polygeist ${{ matrix.polygeist-build }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -17,7 +17,8 @@ jobs:
         pluto-build: ["Release"] # Only Release supported currently
         mlir-build: ["Release"] #, "Debug"] # "RelWithDebInfo"
         polygeist-build: ["Release", "Debug"] #, "Debug"] # "RelWithDebInfo"
-        polymer: ["0", "1"]
+        polymer: ["1"]
+        pluto: ["1", "0"]
         os: [ubuntu-22.04]
         compiler: [gcc, clang]
         cxxcompiler: [g++, clang++]
@@ -26,6 +27,15 @@ jobs:
             cxxcompiler: clang++
           - compiler: clang
             cxxcompiler: g++
+        include:
+          - pluto-build: "Release"
+            mlir-build: "Release"
+            polygeist-build: "Release"
+            polymer: "0"
+            pluto: "0"
+            os: ubuntu-22.04
+            compiler: clang
+            cxxcompiler: clang++
 
     timeout-minutes: 360
     steps:
@@ -34,6 +44,18 @@ jobs:
         fetch-depth: 1
         path: src
         submodules: 'recursive'
+
+    - name: define isl 0
+      if: matrix.pluto == '1'
+      run: echo isl 0
+      env:
+        isl: 0
+
+    - name: define isl 1
+      if: matrix.pluto == '0'
+      run: echo isl 1
+      env:
+        isl: 1
 
     - name: add dependencies
       run: sudo apt-get install -y llvm-15-tools ninja-build libbison-dev libtool libgmp-dev #libflex-dev cmake binutils-gold binutils binutils-dev ${{ matrix.compiler }} ${{ matrix.linker-pkg }}
@@ -46,13 +68,13 @@ jobs:
         key: ${{ matrix.pluto-build }}-${{ matrix.os }}-pluto-${{ matrix.polymer }}
 
     - name: Pluto build
-      if: steps.cache-pluto.outputs.cache-hit != 'true' && matrix.polymer == '1'
+      if: steps.cache-pluto.outputs.cache-hit != 'true' && matrix.polymer == '1' && matrix.pluto == '1'
       run: |
         mkdir -p pluto-build
         PATH="/usr/lib/llvm-15/bin/:$PATH" src/tools/polymer/build_polymer_deps.sh $(pwd)/pluto-build
         sleep 1s
     - uses: actions/cache/save@v3
-      if: steps.cache-pluto.outputs.cache-hit != 'true'
+      if: steps.cache-pluto.outputs.cache-hit != 'true' && matrix.polymer == '1' && matrix.pluto == '1'
       with:
         path: pluto-build
         key: ${{ matrix.pluto-build }}-${{ matrix.os }}-pluto-${{ matrix.polymer }}
@@ -89,7 +111,7 @@ jobs:
       run: |
         cd build
         ls ../mlir-build/lib/cmake/clang
-        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.polygeist-build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}} -DPOLYGEIST_ENABLE_POLYMER=${{ matrix.polymer }} -DPOLYMER_DEP_DIR=$(pwd)/../pluto-build/
+        cmake ../src/ -GNinja -DMLIR_DIR=`pwd`/../mlir-build/lib/cmake/mlir -DLLVM_EXTERNAL_LIT=`pwd`/../mlir-build/bin/llvm-lit -DClang_DIR=`pwd`/../mlir-build/lib/cmake/clang -DCMAKE_BUILD_TYPE=${{ matrix.polygeist-build }} -DCMAKE_C_COMPILER=${{matrix.compiler}} -DCMAKE_CXX_COMPILER=${{matrix.cxxcompiler}} -DPOLYGEIST_ENABLE_POLYMER=${{ matrix.polymer }} -DPOLYMER_DEP_DIR=$(pwd)/../pluto-build/ -DPOLYGEIST_POLYMER_ENABLE_PLUTO=${{matrix.pluto}} -DPOLYGEIST_POLYMER_ENABLE_ISL=${{env.isl}}
 
     - name: test cgeist
       run: |
@@ -99,7 +121,7 @@ jobs:
         ninja check-cgeist
 
     - name: test polymer
-      if: matrix.polymer == '1'
+      if: matrix.polymer == '1' && matrix.pluto == '1'
       run: |
         cd build
         ninja
