@@ -81,7 +81,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: mlir-build
-        key: ${{ matrix.mlir-build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}
+        key: ${{ matrix.mlir-build }}-${{ matrix.os }}-mlir-${{ steps.getversion.outputs.version }}-polly
 
     - name: MLIR build
       if: steps.cache-mlir.outputs.cache-hit != 'true'
