@@ -115,26 +115,18 @@ static isl_multi_union_pw_aff *mapToDimension(isl_union_set *uset, unsigned N) {
   // assert(!isl_union_set_is_null(uset));
   N += 1;
 
-  ISL_DEBUG("MTD USET: ", isl_union_set_dump(uset));
   auto res = isl_union_pw_multi_aff_empty(isl_union_set_get_space(uset));
-  ISL_DEBUG("MTD RES: ", isl_union_pw_multi_aff_dump(res));
-
   isl_set_list *bsetlist = isl_union_set_get_set_list(uset);
   for (unsigned i = 0; i < unsignedFromIslSize(isl_set_list_size(bsetlist));
        i++) {
     isl_set *set = isl_set_list_get_at(bsetlist, i);
-    ISL_DEBUG("MTD SET: ", isl_set_dump(set));
     unsigned Dim = unsignedFromIslSize(isl_set_dim(set, isl_dim_set));
     assert(Dim >= N);
     auto pma = isl_pw_multi_aff_project_out_map(isl_set_get_space(set),
                                                 isl_dim_set, N, Dim - N);
-    ISL_DEBUG("MTD PMA: ", isl_pw_multi_aff_dump(pma));
     if (N > 1)
       pma = isl_pw_multi_aff_drop_dims(pma, isl_dim_out, 0, N - 1);
-    ISL_DEBUG("MTD PMA: ", isl_pw_multi_aff_dump(pma));
-
     res = isl_union_pw_multi_aff_add_pw_multi_aff(res, pma);
-    ISL_DEBUG("MTD RES: ", isl_union_pw_multi_aff_dump(res));
   }
 
   return isl_multi_union_pw_aff_from_union_pw_multi_aff(res);
@@ -318,7 +310,7 @@ void IslScop::addDomainRelation(int stmtId,
   LLVM_DEBUG(llvm::errs() << "space: ");
   LLVM_DEBUG(isl_space_dump(space));
   islStmts[stmtId].domain = isl_basic_set_from_constraint_matrices(
-      space, eqMat, ineqMat, isl_dim_div, isl_dim_set, isl_dim_param,
+      space, eqMat, ineqMat, isl_dim_set, isl_dim_div, isl_dim_param,
       isl_dim_cst);
   LLVM_DEBUG(llvm::errs() << "bset: ");
   LLVM_DEBUG(isl_basic_set_dump(islStmts[stmtId].domain));
@@ -381,7 +373,7 @@ void IslScop::initializeSymbolTable(mlir::func::FuncOp f,
   symbolTable.clear();
 
   // Setup the symbol table.
-  for (unsigned i = 0; i < cst->getNumVars(); i++) {
+  for (unsigned i = 0; i < cst->getNumDimAndSymbolVars(); i++) {
     Value val = cst->getValue(i);
     std::string sym;
     switch (cst->getVarKindAt(i)) {
