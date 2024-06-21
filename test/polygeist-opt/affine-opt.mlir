@@ -1,4 +1,4 @@
-// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --polyhedral-opt %s 2>&1 | FileCheck %s; fi
+// RUN: if [ %polymer_pluto_enabled == 1 ]; then polygeist-opt --polyhedral-opt %s 2>&1 | FileCheck %s; fi
 
 // CHECK: <OpenScop>
 // CHECK: </OpenScop>

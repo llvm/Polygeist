@@ -39,6 +39,7 @@ config.substitutions.append(('%llvm_obj_root', config.llvm_obj_root))
 config.substitutions.append(('%polygeist_src_root', config.polygeist_src_root))
 config.substitutions.append(('%polygeist_obj_root', config.polygeist_obj_root))
 config.substitutions.append(('%polymer_enabled', config.polymer_enabled))
+config.substitutions.append(('%polymer_pluto_enabled', config.polymer_pluto_enabled))
 
 llvm_config.with_system_environment(['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
 
