@@ -68,6 +68,7 @@ IslScop::~IslScop() {
       rel = isl_basic_map_free(rel);
     for (auto &rel : stmt.writeRelations)
       rel = isl_basic_map_free(rel);
+    stmt.domain = isl_basic_set_free(stmt.domain);
   }
   isl_schedule_free(schedule);
   isl_ctx_free(ctx);
@@ -110,12 +111,12 @@ inline unsigned unsignedFromIslSize(const isl_size &size) {
     llvm::dbgs() << "\n";                                                      \
   })
 
-static isl_multi_union_pw_aff *mapToDimension(isl_union_set *uset, unsigned N) {
+static __isl_give isl_multi_union_pw_aff *
+mapToDimension(__isl_take isl_union_set *uset, unsigned N) {
   assert(!isl_union_set_is_empty(uset));
-  // assert(!isl_union_set_is_null(uset));
-  N += 1;
 
-  auto res = isl_union_pw_multi_aff_empty(isl_union_set_get_space(uset));
+  isl_union_pw_multi_aff *res =
+      isl_union_pw_multi_aff_empty(isl_union_set_get_space(uset));
   isl_set_list *bsetlist = isl_union_set_get_set_list(uset);
   for (unsigned i = 0; i < unsignedFromIslSize(isl_set_list_size(bsetlist));
        i++) {
@@ -124,10 +125,15 @@ static isl_multi_union_pw_aff *mapToDimension(isl_union_set *uset, unsigned N) {
     assert(Dim >= N);
     auto pma = isl_pw_multi_aff_project_out_map(isl_set_get_space(set),
                                                 isl_dim_set, N, Dim - N);
+    isl_set_free(set);
+
     if (N > 1)
       pma = isl_pw_multi_aff_drop_dims(pma, isl_dim_out, 0, N - 1);
     res = isl_union_pw_multi_aff_add_pw_multi_aff(res, pma);
   }
+
+  isl_set_list_free(bsetlist);
+  isl_union_set_free(uset);
 
   return isl_multi_union_pw_aff_from_union_pw_multi_aff(res);
 }
@@ -150,7 +156,6 @@ isl_schedule *IslScop::buildLoopSchedule(T loopOp, unsigned depth) {
   isl_schedule *child = buildSequenceSchedule(body, depth + 1);
   ISL_DEBUG("CHILD:\n", isl_schedule_dump(child));
   isl_union_set *domain = isl_schedule_get_domain(child);
-  isl_schedule *schedule = isl_schedule_from_domain(domain);
   ISL_DEBUG("MUPA dom: ", isl_union_set_dump(domain));
   isl_multi_union_pw_aff *mupa = mapToDimension(domain, depth);
   mupa = isl_multi_union_pw_aff_set_tuple_name(
@@ -232,6 +237,7 @@ isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
     else
       schedule = isl_schedule_sequence(schedule, child);
   }
+  assert(schedule);
 
   LLVM_DEBUG({
     llvm::errs() << "Created sequence schedule:\n";
@@ -845,14 +851,16 @@ public:
 
     isl_ast_expr_free(Expr);
     isl_ast_node_free(User);
+    isl_ast_expr_free(CalleeExpr);
     isl_id_free(Id);
   }
 
-  void createMark(__isl_keep isl_ast_node *node) {
+  void createMark(__isl_take isl_ast_node *node) {
     ISL_DEBUG("Building Mark:\n", isl_ast_node_dump(node));
+    isl_ast_node_free(node);
   }
 
-  void createIf(__isl_keep isl_ast_node *If) {
+  void createIf(__isl_take isl_ast_node *If) {
     ISL_DEBUG("Building If:\n", isl_ast_node_dump(If));
     isl_ast_expr *Cond = isl_ast_node_if_get_cond(If);
 
@@ -969,7 +977,7 @@ public:
     return MaxType;
   }
 
-  void createFor(__isl_keep isl_ast_node *For) {
+  void createFor(__isl_take isl_ast_node *For) {
     ISL_DEBUG("Building For:\n", isl_ast_node_dump(For));
     isl_ast_node *Body = isl_ast_node_for_get_body(For);
     isl_ast_expr *Init = isl_ast_node_for_get_init(For);
@@ -999,6 +1007,8 @@ public:
     b.setInsertionPointToStart(forOp.getBody());
     create(Body);
 
+    isl_ast_expr_free(Iterator);
+    isl_id_free(IteratorID);
     isl_ast_node_free(For);
   }
 
@@ -1078,6 +1088,7 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
   LLVM_DEBUG(llvm::dbgs() << f << "\n");
 
   isl_ast_build_free(build);
+  isl_union_set_free(domain);
 
   return success();
 }

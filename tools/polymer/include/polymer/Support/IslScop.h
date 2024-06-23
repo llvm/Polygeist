@@ -22,12 +22,18 @@
 #include <unordered_map>
 #include <vector>
 
-#include <isl/ctx.h>
-#include <isl/mat.h>
-#include <isl/set.h>
-
 struct isl_schedule;
 struct isl_union_set;
+struct isl_mat;
+struct isl_ctx;
+struct isl_set;
+struct isl_space;
+struct isl_basic_set;
+struct isl_basic_map;
+
+#define __isl_keep
+#define __isl_give
+#define __isl_take
 
 namespace mlir {
 namespace affine {
@@ -122,22 +128,25 @@ private:
   unsigned loopId = 0;
 
   template <typename T>
-  isl_schedule *buildLoopSchedule(T loopOp, unsigned depth);
-  isl_schedule *buildParallelSchedule(mlir::affine::AffineParallelOp parallelOp,
-                                      unsigned depth);
-  isl_schedule *buildForSchedule(mlir::affine::AffineForOp forOp,
-                                 unsigned depth);
-  isl_schedule *buildLeafSchedule(mlir::func::CallOp callOp);
-  isl_schedule *buildSequenceSchedule(llvm::SmallVector<mlir::Operation *> ops,
-                                      unsigned depth = 0);
+  __isl_give isl_schedule *buildLoopSchedule(T loopOp, unsigned depth);
+  __isl_give isl_schedule *
+  buildParallelSchedule(mlir::affine::AffineParallelOp parallelOp,
+                        unsigned depth);
+  __isl_give isl_schedule *buildForSchedule(mlir::affine::AffineForOp forOp,
+                                            unsigned depth);
+  __isl_give isl_schedule *buildLeafSchedule(mlir::func::CallOp callOp);
+  __isl_give isl_schedule *
+  buildSequenceSchedule(llvm::SmallVector<mlir::Operation *> ops,
+                        unsigned depth = 0);
 
   IslStmt &getIslStmt(std::string name);
 
-  isl_space *getSpace(mlir::affine::FlatAffineValueConstraints &cst,
-                      std::string name);
+  __isl_give isl_space *getSpace(mlir::affine::FlatAffineValueConstraints &cst,
+                                 std::string name);
 
-  isl_mat *createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
-                                bool isEq);
+  __isl_give isl_mat *
+  createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,
+                       bool isEq);
 
   /// Create access relation constraints.
   mlir::LogicalResult createAccessRelationConstraints(
