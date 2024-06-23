@@ -20,7 +20,6 @@ if(POLYGEIST_POLYMER_ENABLE_PLUTO)
   )
 elseif(POLYGEIST_POLYMER_ENABLE_ISL)
   add_mlir_translation_library(PolymerTargetISL
-    ISL/ConvertFromISL.cc
     ISL/ConvertToISL.cc
 
     ADDITIONAL_HEADER_DIRS

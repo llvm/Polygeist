@@ -1050,9 +1050,13 @@ public:
 };
 } // namespace polymer
 
-mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
-                                           func::FuncOp f,
-                                           IRMapping funcArgMapping) {
+func::FuncOp IslScop::applySchedule(isl_schedule *newSchedule,
+                                    func::FuncOp originalFunc) {
+  IRMapping oldToNewMapping;
+  OpBuilder moduleBuilder(originalFunc);
+  func::FuncOp f =
+      cast<func::FuncOp>(moduleBuilder.clone(*originalFunc, oldToNewMapping));
+
   assert(f.getFunctionBody().getBlocks().size() == 1);
 
   // Cleanup body
@@ -1079,7 +1083,7 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
   });
   isl_union_set *domain = isl_schedule_get_domain(newSchedule);
   isl_ast_build *build = isl_ast_build_alloc(ctx);
-  IslMLIRBuilder bc = {b, funcArgMapping, *this};
+  IslMLIRBuilder bc = {b, oldToNewMapping, *this};
   isl_ast_node *node =
       isl_ast_build_node_from_schedule(build, isl_schedule_copy(newSchedule));
 
@@ -1089,6 +1093,7 @@ mlir::LogicalResult IslScop::applySchedule(__isl_keep isl_schedule *newSchedule,
 
   isl_ast_build_free(build);
   isl_union_set_free(domain);
+  isl_schedule_free(newSchedule);
 
-  return success();
+  return f;
 }

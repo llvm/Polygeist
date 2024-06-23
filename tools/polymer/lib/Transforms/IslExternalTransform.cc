@@ -98,9 +98,7 @@ mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
                                    ScheduleIn->get()->getBufferStart());
   }
 
-  mlir::func::FuncOp g = cast<mlir::func::FuncOp>(
-      createFuncOpFromIsl(std::move(scop), f, newSchedule));
-
+  mlir::func::FuncOp g = scop->applySchedule(newSchedule, f);
   assert(mlir::verify(g).succeeded());
 
   if (g) {
