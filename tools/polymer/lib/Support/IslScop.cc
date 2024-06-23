@@ -143,9 +143,11 @@ IslScop::buildParallelSchedule(affine::AffineParallelOp parallelOp,
                                unsigned depth) {
   isl_schedule *schedule = buildLoopSchedule(parallelOp, depth);
   isl_schedule_node *node = isl_schedule_get_root(schedule);
+  schedule = isl_schedule_free(schedule);
   node = isl_schedule_node_first_child(node);
   node = isl_schedule_node_band_set_permutable(node, 1);
   schedule = isl_schedule_node_get_schedule(node);
+  isl_schedule_node_free(node);
   return schedule;
 }
 
