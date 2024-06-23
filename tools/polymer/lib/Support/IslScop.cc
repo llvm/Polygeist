@@ -1036,7 +1036,7 @@ public:
     llvm_unreachable("Unknown isl_ast_node type");
   }
 
-  void fillOutMapping(isl_union_set *domain) {
+  void mapParams(__isl_take isl_union_set *domain) {
     isl_space *space = isl_union_set_get_space(domain);
 
     int nparams = isl_space_dim(space, isl_dim_param);
@@ -1045,7 +1045,10 @@ public:
       const char *paramName = isl_id_get_name(Id);
       Value V = scop.symbolTable[paramName];
       IDToValue[Id] = funcArgMapping.lookup(V);
+      isl_id_free(Id);
     }
+    isl_space_free(space);
+    isl_union_set_free(domain);
   }
 };
 } // namespace polymer
@@ -1087,12 +1090,11 @@ func::FuncOp IslScop::applySchedule(isl_schedule *newSchedule,
   isl_ast_node *node =
       isl_ast_build_node_from_schedule(build, isl_schedule_copy(newSchedule));
 
-  bc.fillOutMapping(domain);
+  bc.mapParams(domain);
   bc.create(node);
   LLVM_DEBUG(llvm::dbgs() << f << "\n");
 
   isl_ast_build_free(build);
-  isl_union_set_free(domain);
   isl_schedule_free(newSchedule);
 
   return f;
