@@ -635,16 +635,6 @@ public:
     return Res;
   }
 
-  Type getWidestType(Type T1, Type T2) {
-    IntegerType IT1 = T1.dyn_cast<IntegerType>();
-    IntegerType IT2 = T2.dyn_cast<IntegerType>();
-    assert(IT1 && IT2);
-
-    if (IT1.getWidth() < IT2.getWidth())
-      return T2;
-    else
-      return T1;
-  }
   Value createOpNAry(__isl_take isl_ast_expr *Expr) {
     assert(isl_ast_expr_get_type(Expr) == isl_ast_expr_op &&
            "isl ast expression not of type isl_ast_op");
@@ -871,8 +861,8 @@ public:
     auto ifOp = b.create<scf::IfOp>(loc, TypeRange(), Predicate,
                                     /*addThenBlock=*/true,
                                     /*addElseBlock=*/true);
-    OpBuilder::InsertionGuard g(b);
 
+    OpBuilder::InsertionGuard g(b);
     b.setInsertionPointToStart(&ifOp.getThenRegion().front());
     b.create<scf::YieldOp>(loc);
     b.setInsertionPointToStart(&ifOp.getThenRegion().front());
@@ -882,6 +872,8 @@ public:
     b.create<scf::YieldOp>(loc);
     b.setInsertionPointToStart(&ifOp.getElseRegion().front());
     create(isl_ast_node_if_get_else(If));
+
+    isl_ast_node_free(If);
   }
 
   void createBlock(__isl_keep isl_ast_node *Block) {
@@ -1006,6 +998,8 @@ public:
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPointToStart(forOp.getBody());
     create(Body);
+
+    isl_ast_node_free(For);
   }
 
   void create(__isl_take isl_ast_node *Node) {
