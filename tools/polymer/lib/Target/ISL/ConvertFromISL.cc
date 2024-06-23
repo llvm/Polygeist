@@ -10,28 +10,11 @@
 #include "polymer/Support/Utils.h"
 #include "polymer/Target/ISL.h"
 
-#include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
-#include "mlir/Dialect/Affine/Analysis/AffineStructures.h"
-#include "mlir/Dialect/Affine/Analysis/LoopAnalysis.h"
-#include "mlir/Dialect/Affine/Analysis/Utils.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
-#include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Affine/LoopUtils.h"
-#include "mlir/Dialect/Affine/Utils.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dominance.h"
 #include "mlir/IR/IRMapping.h"
-#include "mlir/IR/IntegerSet.h"
-#include "mlir/IR/MLIRContext.h"
-#include "mlir/Tools/mlir-translate/Translation.h"
 
-#include "llvm/Support/Error.h"
-#include "llvm/Support/FormatVariadic.h"
-#include "llvm/Support/SourceMgr.h"
+#include "isl/schedule.h"
 
 using namespace polymer;
 using namespace mlir;
@@ -49,9 +32,11 @@ mlir::func::FuncOp createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
   OpBuilder b(f);
   IRMapping mapping;
   mlir::func::FuncOp g = cast<func::FuncOp>(b.clone(*f, mapping));
-  if (scop->applySchedule(newSchedule, g, mapping).succeeded())
-    return g;
-  g->erase();
-  return nullptr;
+  if (scop->applySchedule(newSchedule, g, mapping).failed()) {
+    g->erase();
+    g = nullptr;
+  }
+  isl_schedule_free(newSchedule);
+  return g;
 }
 } // namespace polymer

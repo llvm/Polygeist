@@ -175,9 +175,9 @@ isl_schedule *IslScop::buildForSchedule(affine::AffineForOp forOp,
 }
 
 isl_schedule *IslScop::buildLeafSchedule(func::CallOp callOp) {
-  // TODO check that we are really calling  a statement
+  // TODO check that we are really calling a statement
   auto &stmt = getIslStmt(callOp.getCallee().str());
-  auto *schedule = isl_schedule_from_domain(
+  isl_schedule *schedule = isl_schedule_from_domain(
       isl_union_set_from_basic_set(isl_basic_set_copy(stmt.domain)));
   LLVM_DEBUG({
     llvm::errs() << "Created leaf schedule:\n";

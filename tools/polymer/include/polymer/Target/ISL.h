@@ -29,6 +29,8 @@ class Value;
 
 struct isl_schedule;
 
+#define __isl_give
+
 namespace polymer {
 
 class IslScop;
@@ -40,7 +42,7 @@ std::unique_ptr<IslScop> createIslFromFuncOp(mlir::func::FuncOp funcOp);
 /// module (ModuleOp).
 mlir::func::FuncOp createFuncOpFromIsl(std::unique_ptr<IslScop> scop,
                                        mlir::func::FuncOp f,
-                                       isl_schedule *newSchedule);
+                                       __isl_give isl_schedule *newSchedule);
 
 } // namespace polymer
 
