@@ -82,7 +82,7 @@ mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
     scop->dumpAccesses(AccessesOut);
   }
 
-  isl_schedule *newSchedule;
+  isl_schedule *newSchedule = nullptr;
   if (ClIslExternalImportSchedules.getNumOccurrences() == 0) {
     // Do a round trip
     newSchedule = isl_schedule_copy(scop->getSchedule());
@@ -96,7 +96,13 @@ mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
     newSchedule =
         isl_schedule_read_from_str(isl_schedule_get_ctx(scop->getSchedule()),
                                    ScheduleIn->get()->getBufferStart());
+    if (!newSchedule) {
+      llvm::errs() << "Could not read valid isl schedule from " << fname
+                   << "\n";
+      abort();
+    }
   }
+  assert(newSchedule);
 
   mlir::func::FuncOp g = scop->applySchedule(newSchedule, f);
   assert(mlir::verify(g).succeeded());
