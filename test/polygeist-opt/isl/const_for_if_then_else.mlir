@@ -1,4 +1,5 @@
-// RUN: if [ %polymer_enabled == 1 ]; then polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal $ISL_OPT_PLACEHOLDER %s; fi
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal $ISL_OPT_PLACEHOLDER %s 2>&1 | FileCheck %s
+// CHECK-NOT: isl_ctx not freed
 
 #map = affine_map<()[s0] -> (s0)>
 #set1 = affine_set<(d0)[] : (-d0 + 50 -1 >= 0)>

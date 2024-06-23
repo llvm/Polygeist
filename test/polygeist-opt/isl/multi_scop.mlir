@@ -1,9 +1,12 @@
-// RUN: [ "%polymer_enabled" == "0" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal $ISL_OPT_PLACEHOLDER %s
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal $ISL_OPT_PLACEHOLDER %s 2>&1 | FileCheck %s
+// CHECK-NOT: isl_ctx not freed
 
 // RUN: mkdir -p %t/schedules
 // RUN: mkdir -p %t/accesses
-// RUN: [ "%polymer_enabled" == "0" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s
-// RUN: [ "%polymer_enabled" == "0" ] || polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-import-schedules=%t/schedules $ISL_OPT_PLACEHOLDER %s
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s 2>&1 | FileCheck %s
+// CHECK-NOT: isl_ctx not freed
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-import-schedules=%t/schedules $ISL_OPT_PLACEHOLDER %s 2>&1 | FileCheck %s
+// CHECK-NOT: isl_ctx not freed
 
 #map = affine_map<()[s0] -> (s0)>
 #set1 = affine_set<(d0)[s0] : (-d0 + s0 -1 >= 0)>
