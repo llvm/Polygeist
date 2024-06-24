@@ -139,6 +139,15 @@ mapToDimension(__isl_take isl_union_set *uset, unsigned N) {
   return isl_multi_union_pw_aff_from_union_pw_multi_aff(res);
 }
 
+static constexpr char parallelLoopMark[] = "parallel";
+static isl_id *getParallelLoopMark(isl_ctx *ctx) {
+  isl_id *loopMark = isl_id_alloc(ctx, parallelLoopMark, nullptr);
+  return loopMark;
+}
+static bool isParallelLoopMark(isl_id *id) {
+  return std::string(parallelLoopMark) == isl_id_get_name(id);
+}
+
 isl_schedule *
 IslScop::buildParallelSchedule(affine::AffineParallelOp parallelOp,
                                unsigned depth) {
@@ -147,6 +156,7 @@ IslScop::buildParallelSchedule(affine::AffineParallelOp parallelOp,
   schedule = isl_schedule_free(schedule);
   node = isl_schedule_node_first_child(node);
   node = isl_schedule_node_band_set_permutable(node, 1);
+  node = isl_schedule_node_insert_mark(node, getParallelLoopMark(ctx));
   schedule = isl_schedule_node_get_schedule(node);
   isl_schedule_node_free(node);
   return schedule;
@@ -858,9 +868,21 @@ public:
     isl_id_free(Id);
   }
 
-  void createMark(__isl_take isl_ast_node *node) {
-    ISL_DEBUG("Building Mark:\n", isl_ast_node_dump(node));
-    isl_ast_node_free(node);
+  void createMark(__isl_take isl_ast_node *Node) {
+    ISL_DEBUG("Building Mark:\n", isl_ast_node_dump(Node));
+
+    auto *Id = isl_ast_node_mark_get_id(Node);
+    auto Child = isl_ast_node_mark_get_node(Node);
+    isl_ast_node_free(Node);
+
+    if (isParallelLoopMark(Id)) {
+      assert(isl_ast_node_get_type(Child) == isl_ast_node_for);
+      createFor<scf::ParallelOp>(Child);
+    } else {
+      llvm_unreachable("Unknown mark");
+    }
+
+    isl_id_free(Id);
   }
 
   void createIf(__isl_take isl_ast_node *If) {
@@ -946,6 +968,17 @@ public:
     return Cond.get_op_arg(1);
   }
 
+  template <class... Ts> void convertToIndex(Ts &&...args) {
+    SmallVector<Value *> Args({&args...});
+    for (unsigned I = 0; I < Args.size(); I++) {
+      Type Ty = Args[I]->getType();
+      if (!Ty.isa<IndexType>()) {
+        *Args[I] =
+            b.create<arith::IndexCastOp>(loc, b.getIndexType(), *Args[I]);
+      }
+    }
+  }
+
   template <class... Ts> Type convertToMaxWidth(Ts &&...args) {
     SmallVector<Value *> Args({&args...});
     if (llvm::all_of(Args,
@@ -980,6 +1013,7 @@ public:
     return MaxType;
   }
 
+  template <typename ForOpTy = scf::ForOp>
   void createFor(__isl_take isl_ast_node *For) {
     ISL_DEBUG("Building For:\n", isl_ast_node_dump(For));
     isl_ast_node *Body = isl_ast_node_for_get_body(For);
@@ -1002,9 +1036,21 @@ public:
           loc, ValueUB,
           b.create<arith::ConstantIntOp>(loc, 1, ValueUB.getType()));
 
-    auto forOp = b.create<scf::ForOp>(loc, ValueLB, ValueUB, ValueInc);
+    // scf::ParallelOp only supports index as bounds
+    if constexpr (std::is_same<ForOpTy, scf::ParallelOp>::value) {
+      convertToIndex(ValueLB, ValueUB, ValueInc);
+    }
 
-    IDToValue[IteratorID] = forOp.getInductionVar();
+    auto forOp = b.create<ForOpTy>(loc, ValueLB, ValueUB, ValueInc);
+
+    if constexpr (std::is_same<ForOpTy, scf::ForOp>::value) {
+      IDToValue[IteratorID] = forOp.getInductionVar();
+    } else if constexpr (std::is_same<ForOpTy, scf::ParallelOp>::value) {
+      IDToValue[IteratorID] = forOp.getInductionVars()[0];
+    } else {
+      // static_assert(0);
+      llvm_unreachable("?");
+    }
 
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPointToStart(forOp.getBody());
