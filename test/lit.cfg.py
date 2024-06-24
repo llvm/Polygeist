@@ -50,6 +50,7 @@ llvm_config.use_default_substitutions()
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
 config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
+print(config.polymer_isl_enabled)
 if config.polymer_isl_enabled == "0":
     config.excludes += ['isl']
 
