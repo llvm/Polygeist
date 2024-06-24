@@ -19,9 +19,9 @@ module {
 }
 
 // CHECK:   func.func @foo(%[[arg0:.+]]: i32)
-// CHECK-NEXT:     %[[c32:.+]] = arith.constant 32 : index
-// CHECK-NEXT:     %[[c0:.+]] = arith.constant 0 : index
-// CHECK-NEXT:     %[[c1:.+]] = arith.constant 1 : index
+// CHECK-DAG:     %[[c32:.+]] = arith.constant 32 : index
+// CHECK-DAG:     %[[c0:.+]] = arith.constant 0 : index
+// CHECK-DAG:     %[[c1:.+]] = arith.constant 1 : index
 // CHECK-NEXT:     %[[V0:.+]] = math.ctlz %[[arg0]] : i32
 // CHECK-NEXT:     %[[V1:.+]] = arith.index_cast %[[V0]] : i32 to index
 // CHECK-NEXT:     %[[V2:.+]] = arith.subi %[[c32]], %[[V1]] : index
