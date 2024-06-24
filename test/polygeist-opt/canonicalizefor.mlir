@@ -169,7 +169,7 @@ module {
       %4 = memref.load %arg0[%arg3] : memref<?xf32>
       memref.store %4, %0[%arg2, %c0] : memref<16x16xf32>
       %5 = arith.addi %arg3, %arg1 : index
-      scf.reduce %5 : index
+      scf.yield %5 : index
     }
     return
   }
