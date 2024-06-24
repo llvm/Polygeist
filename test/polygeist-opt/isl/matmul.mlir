@@ -34,3 +34,20 @@ module {
     return
   }
 }
+// RUN: mkdir -p %t/schedules
+// RUN: mkdir -p %t/accesses
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s && find %t/schedules/ %t/accesses/ -type f -print0 | sort -z | xargs -0r cat | FileCheck --check-prefix=ISL_OUT %s
+// ISL_OUT: accesses:
+// ISL_OUT:   - S0:
+// ISL_OUT:       reads:
+// ISL_OUT:         - "[P0, P1, P2] -> { A1[i0, i1, i2, i3] : i2 = i0 and i3 = i1 }"
+// ISL_OUT:       writes:
+// ISL_OUT:         - "[P0, P1, P2] -> { A1[i0, i1, i2, i3] : i2 = i0 and i3 = i1 }"
+// ISL_OUT:   - S1:
+// ISL_OUT:       reads:
+// ISL_OUT:         - "[P0, P1, P2] -> { A1[i0, i1, i2, i3, i4] : i2 = i0 and i3 = i1 }"
+// ISL_OUT:         - "[P0, P1, P2] -> { A2[i0, i1, i2, i3, i4] : i2 = i0 and i4 = i1 }"
+// ISL_OUT:         - "[P0, P1, P2] -> { A3[i0, i1, i2, i3, i4] : i3 = i1 and i4 = i0 }"
+// ISL_OUT:       writes:
+// ISL_OUT:         - "[P0, P1, P2] -> { A1[i0, i1, i2, i3, i4] : i2 = i0 and i3 = i1 }"
+// ISL_OUT: { domain: "[P0, P1, P2] -> { S0[i0, i1] : 0 <= i0 < P2 and 0 <= i1 < P0; S1[i0, i1, i2] : 0 <= i0 < P2 and 0 <= i1 < P0 and 0 <= i2 < P1 }", child: { schedule: "[P0, P1, P2] -> L3[{ S0[i0, i1] -> [(i0)]; S1[i0, i1, i2] -> [(i0)] }]", child: { sequence: [ { filter: "[P0, P1, P2] -> { S0[i0, i1] }", child: { schedule: "[P0, P1, P2] -> L0[{ S0[i0, i1] -> [(i1)] }]" } }, { filter: "[P0, P1, P2] -> { S1[i0, i1, i2] }", child: { schedule: "[P0, P1, P2] -> L2[{ S1[i0, i1, i2] -> [(i1)] }]", child: { schedule: "[P0, P1, P2] -> L1[{ S1[i0, i1, i2] -> [(i2)] }]" } } } ] } } }

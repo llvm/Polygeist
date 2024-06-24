@@ -16,3 +16,12 @@ module {
     return
   }
 }
+// RUN: mkdir -p %t/schedules
+// RUN: mkdir -p %t/accesses
+// RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s && find %t/schedules/ %t/accesses/ -type f -print0 | sort -z | xargs -0r cat | FileCheck --check-prefix=ISL_OUT %s
+// ISL_OUT: accesses:
+// ISL_OUT:   - S0:
+// ISL_OUT:       reads:
+// ISL_OUT:       writes:
+// ISL_OUT:         - "[P0] -> { A1[i0, i1] :  }"
+// ISL_OUT: { domain: "[P0] -> { S0[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S0[i0] -> [(i0)] }]" } }
