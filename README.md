@@ -1,23 +1,23 @@
-## Build instructions
+# Build instructions
 
-### Requirements 
+## Requirements 
 - Working C and C++ toolchains(compiler, linker)
 - cmake
 - make or ninja
 
-### 1. Clone Polygeist
+## 1. Clone Polygeist
 ```sh
 git clone --recursive https://github.com/llvm/Polygeist
 cd Polygeist
 ```
 
-### 2. Install LLVM, MLIR, Clang, and Polygeist
+## 2. Install LLVM, MLIR, Clang, and Polygeist
 
-#### Option 1: Using pre-built LLVM, MLIR, and Clang
+### Option 1: Using pre-built LLVM, MLIR, and Clang
 
 Polygeist can be built by providing paths to a pre-built MLIR and Clang toolchain.
 
-1. Build LLVM, MLIR, and Clang:
+#### 1. Build LLVM, MLIR, and Clang:
 ```sh
 mkdir llvm-project/build
 cd llvm-project/build
@@ -34,9 +34,11 @@ To enable compilation to cuda add `-DMLIR_ENABLE_CUDA_RUNNER=1` and remove `-DLL
 
 To enable the ROCM backend add `-DMLIR_ENABLE_ROCM_RUNNER=1` and remove `-DLLVM_TARGETS_TO_BUILD="host"` from the cmake arguments. (You may need to specify `-DHIP_CLANG_INCLUDE_PATH`, and/or `ROCM_PATH`)
 
+For ISL-enabled polymer, `polly` must be added to the `LLVM_ENABLE_PROJECTS` variable.
+
 For faster compilation we recommend using `-DLLVM_USE_LINKER=lld`.
 
-2. Build Polygeist:
+#### 2. Build Polygeist:
 ```sh
 mkdir build
 cd build
@@ -52,23 +54,31 @@ ninja check-polygeist-opt && ninja check-cgeist
 
 For faster compilation we recommend using `-DPOLYGEIST_USE_LINKER=lld`.
 
-    1. GPU backends
+##### GPU backends
 
 To enable the CUDA backend add `-DPOLYGEIST_ENABLE_CUDA=1`
 
 To enable the ROCM backend add `-DPOLYGEIST_ENABLE_ROCM=1`
 
-    2. Polymer
+##### Polymer
 
 To enable polymer, add `-DPOLYGEIST_ENABLE_POLYMER=1`
 
+There are two configurations of polymer that can be built - one with Pluto and one with ISL. 
+
+###### Pluto
+Add `-DPOLYGEIST_POLYMER_ENABLE_PLUTO=1`
 This will cause the cmake invokation to pull and build the dependencies for polymer. To specify a custom directory for the dependencies, specify `-DPOLYMER_DEP_DIR=<absolute-dir>`. The dependencies will be build using the `tools/polymer/build_polymer_deps.sh`.
 
-To run the polymer tests, use `ninja check-polymer`.
+To run the polymer pluto tests, use `ninja check-polymer`.
+
+###### ISL
+
+Add `-DPOLYGEIST_POLYMER_ENABLE_ISL=1`
+This requires an `llvm-project` build with `polly` enabled as a subproject.
 
 
-
-#### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
+### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
 
 Polygeist can also be built as an external LLVM project using [LLVM_EXTERNAL_PROJECTS](https://llvm.org/docs/CMake.html#llvm-related-variables).
 
@@ -90,7 +100,7 @@ ninja check-polygeist-opt && ninja check-cgeist
 `ninja check-polygeist-opt` runs the tests in `Polygeist/test/polygeist-opt`
 `ninja check-cgeist` runs the tests in `Polygeist/tools/cgeist/Test`
 
-## Citing Polygeist
+# Citing Polygeist
 
 If you use Polygeist, please consider citing the relevant publications:
 
