@@ -13,7 +13,7 @@ module {
         } else {
           scf.yield %false : i1
         }
-        scf.reduce %7 : i1
+        scf.yield %7 : i1
       }
     return %6 : i1
   }
