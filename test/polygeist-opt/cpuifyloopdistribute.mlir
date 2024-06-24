@@ -133,7 +133,7 @@ module {
       func.call @use(%a1) : (i32) -> ()
       func.call @use(%a2) : (i32) -> ()
       func.call @use(%a3) : (i32) -> ()
-      scf.yield
+      scf.reduce
     }
     return
   }
