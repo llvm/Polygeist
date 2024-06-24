@@ -19,7 +19,7 @@ func.func @main(%arg0 : index) -> memref<1000xi32> {
 
   func.func @fold2ref(%arg0 : !llvm.ptr) -> memref<?xi32> {
         %c0_i32 = arith.constant 0 : i32
-        %11 = llvm.getelementptr %arg0[%c0_i32, 0] {elem_type = !llvm.struct<(i32, i32)>} : (!llvm.ptr, i32) -> !llvm.ptr
+        %11 = llvm.getelementptr %arg0[%c0_i32, 0] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<(i32, i32)>
         %12 = "polygeist.pointer2memref"(%11) : (!llvm.ptr) -> memref<?xi32>
     return %12 : memref<?xi32>
   }
@@ -31,7 +31,7 @@ func.func @main(%arg0 : index) -> memref<1000xi32> {
 
   func.func @nofold2ref(%arg0 : !llvm.ptr) -> memref<?xi32> {
         %c0_i32 = arith.constant 0 : i32
-        %11 = llvm.getelementptr %arg0[%c0_i32, 1] {elem_type = !llvm.struct<(i32, i32)>} : (!llvm.ptr, i32) -> !llvm.ptr
+        %11 = llvm.getelementptr %arg0[%c0_i32, 1] : (!llvm.ptr, i32) -> !llvm.ptr, !llvm.struct<(i32, i32)>
         %12 = "polygeist.pointer2memref"(%11) : (!llvm.ptr) -> memref<?xi32>
     return %12 : memref<?xi32>
   }
