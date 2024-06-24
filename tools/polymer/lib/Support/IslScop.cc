@@ -114,6 +114,7 @@ inline unsigned unsignedFromIslSize(const isl_size &size) {
 static __isl_give isl_multi_union_pw_aff *
 mapToDimension(__isl_take isl_union_set *uset, unsigned N) {
   assert(!isl_union_set_is_empty(uset));
+  N += 1;
 
   isl_union_pw_multi_aff *res =
       isl_union_pw_multi_aff_empty(isl_union_set_get_space(uset));
