@@ -20,10 +20,10 @@ module {
 }
 
 // CHECK-LABEL:   llvm.func @get_neighbor_index() -> i1 {
-// CHECK:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(true) : i1
-// CHECK:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(0 : index) : i64
-// CHECK:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(1 : index) : i64
-// CHECK:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(10 : index) : i64
+// CHECK-DAG:           %[[VAL_0:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(true) : i1
+// CHECK-DAG:           %[[VAL_1:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(0 : index) : i64
+// CHECK-DAG:           %[[VAL_2:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(1 : index) : i64
+// CHECK-DAG:           %[[VAL_3:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]] = llvm.mlir.constant(10 : index) : i64
 // CHECK:           llvm.cond_br %[[VAL_0]], ^bb1(%[[VAL_1]] : i64), ^bb3(%[[VAL_0]] : i1)
 // CHECK:         ^bb1(%[[VAL_4:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: i64):
 // CHECK:           llvm.br ^bb2
