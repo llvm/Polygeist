@@ -281,18 +281,20 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
       SmallVector<AffineExpr> strideExprs;
       SmallVector<Value> dimOperands;
       SmallVector<Value> symOperands;
-      for (auto en : llvm::enumerate(SV.getOffsets(), SV.getStrides())) {
-        auto &exprOutput = (en.index() == 0) ? startExprs : strideExprs;
-        for (auto expr : en.value()) {
-          auto val = en.value();
+      for (auto &&[first, second] : llvm::zip(SV.getOffsets(), SV.getStrides())) {
+        for (auto &&[index, val] : llvm::enumerate(SmallVector<Value>({first, second}))) {
+          auto &exprOutput = (index == 0) ? startExprs : strideExprs;
           // Only support constants, symbols, or affine apply as offsets
-          if (auto cop = val.getDefiningOp<ConstantInt>()) {
+          if (auto cop = val.getDefiningOp<arith::ConstantIntOp>()) {
+            exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
+            continue;
+          } else if (auto cop = val.getDefiningOp<arith::ConstantIndexOp>()) {
             exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
             continue;
           }
 
           if (auto ba = dyn_cast<BlockArgument>(val))
-            if (isa<AffineForOp, AffineParallelOp>(ba->getParentOp())) {
+            if (isa<AffineForOp, AffineParallelOp>(ba.getParentOp())) {
               exprOutput.push_back(
                   builder.getAffineDimExpr(dimOperands.size()));
               dimOperands.push_back(ba);
@@ -334,7 +336,7 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
       for (auto expr : lgMap.shiftDims(dimOperands.size())
                            .shiftSymbols(symOperands.size());
            getResults()) {
-        inputExprs.push_back(newexpr);
+        inputExprs.push_back(expr);
       }
       for (size_t i = 0; i < lgMap.getNumDims(); i++)
         dimOperands.push_back(lgOperands[i]);
