@@ -227,6 +227,7 @@ def LoopRestructure : Pass<"loop-restructure"> {
   let constructor = "mlir::polygeist::createLoopRestructurePass()";
   let dependentDialects = [
     "scf::SCFDialect",
+    "cf::ControlFlowDialect",
     "polygeist::PolygeistDialect",
   ];
 }
