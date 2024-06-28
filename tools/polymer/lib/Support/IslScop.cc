@@ -296,10 +296,9 @@ void IslScop::dumpSchedule(llvm::raw_ostream &os) {
   os << IslStr(isl_schedule_to_str(schedule)) << "\n";
 }
 
-isl_space *IslScop::getSpace(affine::FlatAffineValueConstraints &cst,
-                             std::string name) {
-  isl_space *space =
-      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+isl_space *IslScop::setupSpace(isl_space *space,
+                               affine::FlatAffineValueConstraints &cst,
+                               std::string name) {
   for (unsigned i = 0; i < cst.getNumSymbolVars(); i++) {
     Value val =
         cst.getValue(cst.getVarKindOffset(presburger::VarKind::Symbol) + i);
@@ -325,7 +324,9 @@ void IslScop::addDomainRelation(int stmtId,
     llvm::errs() << "\n";
   });
 
-  isl_space *space = getSpace(cst, scopStmtNames[stmtId]);
+  isl_space *space =
+      isl_space_set_alloc(ctx, cst.getNumSymbolVars(), cst.getNumDimVars());
+  space = setupSpace(space, cst, scopStmtNames[stmtId]);
   LLVM_DEBUG(llvm::errs() << "space: ");
   LLVM_DEBUG(isl_space_dump(space));
   islStmts[stmtId].domain = isl_basic_set_from_constraint_matrices(
@@ -352,16 +353,6 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   isl_mat *eqMat = createConstraintRows(cst, /*isEq=*/true);
   isl_mat *ineqMat = createConstraintRows(cst, /*isEq=*/false);
 
-  unsigned rows = isl_mat_rows(eqMat);
-  unsigned cols = 2 * domain.getNumDimVars();
-  for (unsigned i = 0; i < rows; i++) {
-    for (unsigned j = 0; j < cols; j++) {
-      isl_val *val = isl_mat_get_element_val(eqMat, i, j);
-      val = isl_val_neg(val);
-      eqMat = isl_mat_set_element_val(eqMat, i, j, val);
-    }
-  }
-
   LLVM_DEBUG({
     llvm::errs() << "Adding access relation\n";
     dbgs() << "Resolved MLIR access constraints:\n";
@@ -374,10 +365,13 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   });
 
   assert(cst.getNumInequalities() == 0);
-  isl_space *space = getSpace(cst, memRefIdMap[memref]);
+  isl_space *space = isl_space_alloc(ctx, cst.getNumSymbolVars(),
+                                     cst.getNumDimVars() - vMap.getNumResults(),
+                                     vMap.getNumResults());
+  space = setupSpace(space, cst, memRefIdMap[memref]);
 
   isl_basic_map *bmap = isl_basic_map_from_constraint_matrices(
-      space, eqMat, ineqMat, isl_dim_in, isl_dim_div, isl_dim_out,
+      space, eqMat, ineqMat, isl_dim_out, isl_dim_in, isl_dim_div,
       isl_dim_param, isl_dim_cst);
   if (isRead)
     islStmts[stmtId].readRelations.push_back(bmap);

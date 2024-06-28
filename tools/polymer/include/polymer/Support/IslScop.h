@@ -140,8 +140,9 @@ private:
 
   IslStmt &getIslStmt(std::string name);
 
-  __isl_give isl_space *getSpace(mlir::affine::FlatAffineValueConstraints &cst,
-                                 std::string name);
+  __isl_give isl_space *
+  setupSpace(__isl_take isl_space *space,
+             mlir::affine::FlatAffineValueConstraints &cst, std::string name);
 
   __isl_give isl_mat *
   createConstraintRows(mlir::affine::FlatAffineValueConstraints &cst,

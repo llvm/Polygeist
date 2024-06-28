@@ -6,12 +6,20 @@
 module {
   func.func @gemm(%alpha: f32, %beta: f32,
             %C: memref<?xf32>,
-            %A: memref<?xf32>,
+            %A: memref<?x?xf32>,
             %B: memref<?xf32>,
             %S: index,
             %N: index) {
     affine.for %i = 0 to #map()[%N] {
       affine.store %beta, %C[%i] : memref<?xf32>
+    }
+    affine.for %i = 0 to #map()[%N] step 7 {
+      affine.store %beta, %A[%i + 1, - 999 * %i + 666 * %N + 42] : memref<?x?xf32>
+    }
+    affine.for %i = 0 to #map()[%N] step 5 {
+      affine.for %j = 0 to #map()[%N] {
+        affine.store %beta, %B[%i + %j + 43] : memref<?xf32>
+      }
     }
     return
   }
