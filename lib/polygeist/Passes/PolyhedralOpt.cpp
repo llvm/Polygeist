@@ -48,13 +48,19 @@ namespace {
 
 #define POLYGEIST_OUTLINED_AFFINE_ATTR "polygeist.outlined_affine"
 
-static SmallVector<Operation *> findAffineRegions(Operation *root) {
-  SmallVector<Operation *> affineRegions;
+struct Scop {
+  Operation *begin;
+  Operation *end;
+};
+
+static SmallVector<Scop> findScops(Operation *root) {
+  SmallVector<Operation *> affineLoops;
+  SmallVector<Scop> scops;
   root->walk<mlir::WalkOrder::PreOrder>([&](Operation *loop) {
     if (!(isa<affine::AffineForOp>(loop) ||
           isa<affine::AffineParallelOp>(loop)))
       return;
-    if (!affineRegions.empty() && affineRegions.back()->isAncestor(loop))
+    if (!affineLoops.empty() && affineLoops.back()->isAncestor(loop))
       return;
 
     auto result = loop->walk<WalkOrder::PreOrder>([&](Operation *op) {
@@ -77,22 +83,34 @@ static SmallVector<Operation *> findAffineRegions(Operation *root) {
     if (!result.wasInterrupted()) {
       LLVM_DEBUG(llvm::dbgs() << DEBUG_LABEL << "Found affine region\n"
                               << *loop << "\n");
-      affineRegions.push_back(loop);
+      affineLoops.push_back(loop);
     }
   });
-  return affineRegions;
+  size_t size = affineLoops.size();
+  for (size_t i = 0; i < size; i++) {
+    Operation *loop = affineLoops[i];
+    Scop scop = {.begin = loop, .end = loop->getNextNode()};
+    while (i + 1 < size && scop.end == affineLoops[i + 1])
+      scop.end = affineLoops[++i]->getNextNode();
+    scops.push_back(scop);
+  }
+  return scops;
 }
 
 static FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
-                                         Operation *op, StringRef funcName,
+                                         Scop scop, StringRef funcName,
                                          func::CallOp *callOp) {
   assert(!funcName.empty() && "funcName cannot be empty");
 
   OpBuilder::InsertionGuard g(rewriter);
-  rewriter.setInsertionPoint(op);
+  rewriter.setInsertionPoint(scop.begin);
   auto executeOp = rewriter.create<scf::ExecuteRegionOp>(loc, TypeRange());
   rewriter.createBlock(&executeOp.getRegion());
-  rewriter.clone(*op);
+  auto cur = scop.begin;
+  while (cur != scop.end) {
+    rewriter.clone(*cur);
+    cur = cur->getNextNode();
+  }
   rewriter.create<scf::YieldOp>(loc);
   auto ret = outlineSingleBlockRegion(rewriter, loc, executeOp.getRegion(),
                                       funcName, callOp);
@@ -102,15 +120,20 @@ static FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
   }
   (*ret)->setAttr(POLYGEIST_OUTLINED_AFFINE_ATTR, rewriter.getUnitAttr());
   rewriter.eraseOp(executeOp.getRegion().front().getTerminator());
-  rewriter.inlineBlockBefore(&executeOp.getRegion().front(), op);
+  rewriter.inlineBlockBefore(&executeOp.getRegion().front(), scop.begin);
   rewriter.eraseOp(executeOp);
-  rewriter.eraseOp(op);
+  cur = scop.begin;
+  while (cur != scop.end) {
+    auto tmp = cur;
+    cur = cur->getNextNode();
+    rewriter.eraseOp(tmp);
+  }
   return ret;
 }
 
 static SmallVector<std::pair<func::FuncOp, func::CallOp>>
 outlineAffineRegions(Operation *root) {
-  auto affineRegions = findAffineRegions(root);
+  auto scops = findScops(root);
   auto m = isa<ModuleOp>(root) ? cast<ModuleOp>(root)
                                : root->getParentOfType<ModuleOp>();
   auto loc = root->getLoc();
@@ -125,9 +148,9 @@ outlineAffineRegions(Operation *root) {
   };
   SmallVector<std::pair<func::FuncOp, func::CallOp>> funcs;
   IRRewriter rewriter(root->getContext());
-  for (Operation *op : affineRegions) {
+  for (Scop scop : scops) {
     func::CallOp callOp;
-    auto ret = outlineOp(rewriter, loc, op, getName(), &callOp);
+    auto ret = outlineOp(rewriter, loc, scop, getName(), &callOp);
     if (failed(ret)) {
       llvm::errs() << "Outlining affine region failed\n" << *root;
       abort();
@@ -190,7 +213,7 @@ void PolyhedralOptPass::runOnOperation() {
   preTransformPm.addPass(createCanonicalizerPass());
 
   SmallVector<func::CallOp> toInline;
-  AlwaysInlinerInterface interface(&getContext());
+
   IRRewriter b(&context);
   for (auto &pair : funcOps) {
     mlir::func::FuncOp f = pair.first;
