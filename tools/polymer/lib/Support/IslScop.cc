@@ -3,6 +3,7 @@
 #include "polymer/Support/IslScop.h"
 #include "mlir/Analysis/Presburger/PresburgerSpace.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
@@ -33,6 +34,7 @@
 #include "polly/Support/GICHelper.h"
 
 #include "isl/aff_type.h"
+#include "isl/ast.h"
 #include "isl/id_to_id.h"
 #include "isl/printer.h"
 #include "isl/space_type.h"
@@ -888,9 +890,10 @@ public:
 
     Value Predicate = create(Cond);
 
+    bool hasElse = isl_ast_node_if_has_else(If);
     auto ifOp = b.create<scf::IfOp>(loc, TypeRange(), Predicate,
                                     /*addThenBlock=*/true,
-                                    /*addElseBlock=*/true);
+                                    /*addElseBlock=*/hasElse);
 
     OpBuilder::InsertionGuard g(b);
     b.setInsertionPointToStart(&ifOp.getThenRegion().front());
@@ -898,10 +901,12 @@ public:
     b.setInsertionPointToStart(&ifOp.getThenRegion().front());
     create(isl_ast_node_if_get_then(If));
 
-    b.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    b.create<scf::YieldOp>(loc);
-    b.setInsertionPointToStart(&ifOp.getElseRegion().front());
-    create(isl_ast_node_if_get_else(If));
+    if (hasElse) {
+      b.setInsertionPointToStart(&ifOp.getElseRegion().front());
+      b.create<scf::YieldOp>(loc);
+      b.setInsertionPointToStart(&ifOp.getElseRegion().front());
+      create(isl_ast_node_if_get_else(If));
+    }
 
     isl_ast_node_free(If);
   }
