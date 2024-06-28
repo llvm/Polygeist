@@ -235,6 +235,8 @@ isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
       return buildParallelSchedule(parallelOp, depth);
     } else if (auto callOp = dyn_cast<func::CallOp>(op)) {
       return buildLeafSchedule(callOp);
+    } else if (auto alloca = dyn_cast<memref::AllocaOp>(op)) {
+      return (isl_schedule *)nullptr;
     } else {
       llvm_unreachable("unhandled op");
     }
@@ -247,6 +249,8 @@ isl_schedule *IslScop::buildSequenceSchedule(SmallVector<Operation *> ops,
   isl_schedule *schedule = nullptr;
   for (auto curOp : ops) {
     isl_schedule *child = buildOpSchedule(curOp);
+    if (!child)
+      continue;
     if (!schedule)
       schedule = child;
     else

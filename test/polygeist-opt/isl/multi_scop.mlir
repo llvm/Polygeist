@@ -46,14 +46,12 @@ module {
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
 // ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 1 + i0 }"
-// ISL_OUT: domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0 }"
+// ISL_OUT: domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0; S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S1:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
 // ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 2 + i0 }"
-// ISL_OUT: domain: "[P0] -> { S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }"
-// ISL_OUT: accesses:
 // ISL_OUT:   - S2:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
@@ -65,6 +63,6 @@ module {
 // ISL_OUT:       writes:
 // ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 4 + i0 }"
 // ISL_OUT: { domain: "[P0] -> { S0[i0] : 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S0[i0] -> [(i0)] }]" } }
-// ISL_OUT: { domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S1[i0] -> [(i0)] }]" } }
-// ISL_OUT: { domain: "[P0] -> { S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S2[i0] -> [(i0)] }]" } }
+// ISL_OUT: { domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0; S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }", child: { sequence: [ { filter: "[P0] -> { S1[i0] }", child: { schedule: "[P0] -> L0[{ S1[i0] -> [(i0)] }]" } }, { filter: "[P0] -> { S2[i0] }", child: { schedule: "[P0] -> L1[{ S2[i0] -> [(i0)] }]" } } ] } }
 // ISL_OUT: { domain: "[P0] -> { S3[i0] : (i0) mod 4 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S3[i0] -> [(i0)] }]" } }
+

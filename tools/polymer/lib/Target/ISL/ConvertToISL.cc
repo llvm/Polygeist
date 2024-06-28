@@ -155,10 +155,8 @@ std::unique_ptr<IslScop> IslScopBuilder::build(mlir::func::FuncOp f) {
     stmtId++;
   }
 
-  Operation *scopLoopNest = f.getBody().front().back().getPrevNode();
-  // TODO for now we only handle single-op loop nests as scops
   scop->buildSchedule(scop->getSequenceScheduleOpList(
-      scopLoopNest, scopLoopNest->getNextNode()));
+      &f.getBody().front().front(), &f.getBody().front().back()));
 
   return scop;
 }

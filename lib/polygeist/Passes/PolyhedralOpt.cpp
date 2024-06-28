@@ -132,7 +132,7 @@ static FailureOr<func::FuncOp> outlineOp(RewriterBase &rewriter, Location loc,
 }
 
 static SmallVector<std::pair<func::FuncOp, func::CallOp>>
-outlineAffineRegions(Operation *root) {
+outlineScops(Operation *root) {
   auto scops = findScops(root);
   auto m = isa<ModuleOp>(root) ? cast<ModuleOp>(root)
                                : root->getParentOfType<ModuleOp>();
@@ -208,7 +208,7 @@ void PolyhedralOptPass::runOnOperation() {
   ModuleOp m = cast<ModuleOp>(SymbolTable::getNearestSymbolTable(op));
   auto &context = *op->getContext();
 
-  auto funcOps = outlineAffineRegions(op);
+  auto funcOps = outlineScops(op);
   mlir::PassManager preTransformPm(&context);
   preTransformPm.addPass(createCanonicalizerPass());
 
