@@ -383,6 +383,8 @@ IslScop::addAccessRelation(int stmtId, bool isRead, mlir::Value memref,
   else
     islStmts[stmtId].writeRelations.push_back(bmap);
 
+  ISL_DEBUG("Created relation: ", isl_basic_map_dump(bmap));
+
   return success();
 }
 
@@ -512,7 +514,7 @@ namespace polymer {
 class IslMLIRBuilder {
 public:
   OpBuilder &b;
-  IRMapping funcArgMapping;
+  IRMapping funcMapping;
   IslScop &scop;
   Location loc = b.getUnknownLoc();
   typedef llvm::MapVector<isl_id *, Value> IDToValueTy;
@@ -822,14 +824,14 @@ public:
     }
 
     ScopStmt &stmt = scop.scopStmtMap.at(std::string(CalleeName));
-    func::CallOp origCallee = stmt.getCaller();
+    func::CallOp origCaller = stmt.getCaller();
     SmallVector<Value> args;
-    for (Value origArg : origCallee.getArgOperands()) {
+    for (Value origArg : origCaller.getArgOperands()) {
       auto ba = origArg.dyn_cast<BlockArgument>();
       if (ba) {
         Operation *owner = ba.getOwner()->getParentOp();
         if (isa<func::FuncOp>(owner)) {
-          args.push_back(funcArgMapping.lookup(ba));
+          args.push_back(funcMapping.lookup(ba));
         } else if (isa<affine::AffineForOp, affine::AffineParallelOp>(owner)) {
           SmallVector<Operation *> enclosing;
           stmt.getEnclosingOps(enclosing);
@@ -854,7 +856,17 @@ public:
           }
           args.push_back(arg);
         } else {
-          llvm_unreachable("TODO arrays");
+          llvm_unreachable("unexpected");
+        }
+      } else {
+        Operation *op = origArg.getDefiningOp();
+        assert(op);
+        if (auto alloca = dyn_cast<memref::AllocaOp>(op)) {
+          assert(alloca->getAttr("scop.scratchpad"));
+          auto newAlloca = funcMapping.lookup(op)->getResult(0);
+          args.push_back(newAlloca);
+        } else {
+          assert("unexpected");
         }
       }
     }
@@ -1095,7 +1107,7 @@ public:
       isl_id *Id = isl_space_get_dim_id(space, isl_dim_param, i);
       const char *paramName = isl_id_get_name(Id);
       Value V = scop.symbolTable[paramName];
-      IDToValue[Id] = funcArgMapping.lookup(V);
+      IDToValue[Id] = funcMapping.lookup(V);
       isl_id_free(Id);
     }
     isl_space_free(space);
@@ -1113,23 +1125,29 @@ func::FuncOp IslScop::applySchedule(isl_schedule *newSchedule,
 
   assert(f.getFunctionBody().getBlocks().size() == 1);
 
-  // Cleanup body
+  // Cleanup body. Leave only scratchpad allocations and tarminator.
+  // TODO is there anything else we need to keep?
   Operation *op = &f.getFunctionBody().front().front();
   while (true) {
+    if (auto alloca = dyn_cast<memref::AllocaOp>(op)) {
+      assert(alloca->getAttr("scop.scratchpad"));
+      op = op->getNextNode();
+      continue;
+    }
     auto next = op->getNextNode();
     if (!next)
       break;
+    // TODO should check it is a stmt call and not some random one
+    assert(isa<affine::AffineDialect>(op->getDialect()) ||
+           isa<func::CallOp>(op));
     op->erase();
     op = next;
   }
 
-  // TODO we probably need to keep the arrays and only delete the scop ops, and
-  // not the reg2mem results (and anything else?)
-
   // TODO we also need to allocate new arrays which may have been introduced,
   // see polly::NodeBuilder::allocateNewArrays, buildAliasScopes
 
-  OpBuilder b = OpBuilder::atBlockBegin(&f.getFunctionBody().front());
+  OpBuilder b(f.getFunctionBody().front().getTerminator());
 
   LLVM_DEBUG({
     llvm::dbgs() << "Applying new schedule to scop:\n";

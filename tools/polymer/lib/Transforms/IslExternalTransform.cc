@@ -115,6 +115,7 @@ mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
 
   return g;
 }
+
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f,
                                   mlir::OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,
