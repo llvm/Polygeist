@@ -40,26 +40,30 @@ module {
 // RUN: mkdir -p %t/schedules
 // RUN: mkdir -p %t/accesses
 // RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s && find %t/schedules/ %t/accesses/ -type f -print0 | sort -z | xargs -0r cat | FileCheck --check-prefix=ISL_OUT %s
+// ISL_OUT: domain: "[P0] -> { S0[i0] : 0 <= i0 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S0:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1] : i1 = 1 + i0 }"
+// ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 1 + i0 }"
+// ISL_OUT: domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S1:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1] :  }"
+// ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 2 + i0 }"
+// ISL_OUT: domain: "[P0] -> { S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S2:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1] :  }"
+// ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 3 + i0 }"
+// ISL_OUT: domain: "[P0] -> { S3[i0] : (i0) mod 4 = 0 and 0 <= i0 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S3:
 // ISL_OUT:       reads:
 // ISL_OUT:       writes:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1] :  }"
+// ISL_OUT:         - "[P0] -> { [i0] -> A1[o0] : o0 = 4 + i0 }"
 // ISL_OUT: { domain: "[P0] -> { S0[i0] : 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S0[i0] -> [(i0)] }]" } }
 // ISL_OUT: { domain: "[P0] -> { S1[i0] : (i0) mod 2 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S1[i0] -> [(i0)] }]" } }
 // ISL_OUT: { domain: "[P0] -> { S2[i0] : (i0) mod 3 = 0 and 0 <= i0 < P0 }", child: { schedule: "[P0] -> L0[{ S2[i0] -> [(i0)] }]" } }

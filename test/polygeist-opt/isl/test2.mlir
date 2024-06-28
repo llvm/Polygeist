@@ -17,11 +17,12 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<#dlti.dl_entry<i64, dense<64> : 
 // RUN: mkdir -p %t/schedules
 // RUN: mkdir -p %t/accesses
 // RUN:  polygeist-opt --polyhedral-opt --use-polyhedral-optimizer=islexternal --islexternal-dump-schedules=%t/schedules --islexternal-dump-accesses=%t/accesses $ISL_OPT_PLACEHOLDER %s && find %t/schedules/ %t/accesses/ -type f -print0 | sort -z | xargs -0r cat | FileCheck --check-prefix=ISL_OUT %s
+// ISL_OUT: domain: "[P0] -> { S0[i0, i1] : 0 < i0 < P0 and 0 <= i1 < P0 }"
 // ISL_OUT: accesses:
 // ISL_OUT:   - S0:
 // ISL_OUT:       reads:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1, i2, i3] : i2 = i0 and i3 = i1 }"
-// ISL_OUT:         - "[P0] -> { A1[i0, i1, i2, i3] : i2 = -1 + i0 and i3 = i1 }"
+// ISL_OUT:         - "[P0] -> { [i0, i1] -> A1[o0, o1] : o0 = i0 and o1 = i1 }"
+// ISL_OUT:         - "[P0] -> { [i0, i1] -> A1[o0, o1] : o0 = -1 + i0 and o1 = i1 }"
 // ISL_OUT:       writes:
-// ISL_OUT:         - "[P0] -> { A1[i0, i1, i2, i3] : i2 = i0 and i3 = 42 + P0 + i1 }"
+// ISL_OUT:         - "[P0] -> { [i0, i1] -> A1[o0, o1] : o0 = i0 and o1 = 42 + P0 + i1 }"
 // ISL_OUT: { domain: "[P0] -> { S0[i0, i1] : 0 < i0 < P0 and 0 <= i1 < P0 }", child: { schedule: "[P0] -> L1[{ S0[i0, i1] -> [(i0)] }]", child: { schedule: "[P0] -> L0[{ S0[i0, i1] -> [(i1)] }]" } } }

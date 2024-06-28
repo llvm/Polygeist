@@ -272,6 +272,9 @@ void IslScop::dumpAccesses(llvm::raw_ostream &os) {
   auto o = [&os](unsigned n) -> llvm::raw_ostream & {
     return os << std::string(n, ' ');
   };
+  isl_union_set *domain = isl_schedule_get_domain(schedule);
+  o(0) << "domain: \"" << IslStr(isl_union_set_to_str(domain)) << "\"\n";
+  domain = isl_union_set_free(domain);
   o(0) << "accesses:\n";
   for (unsigned stmtId = 0; stmtId < islStmts.size(); stmtId++) {
     auto &stmt = islStmts[stmtId];
