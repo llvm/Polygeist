@@ -292,7 +292,6 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
             exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
             continue;
           }
-
           if (auto ba = dyn_cast<BlockArgument>(val))
             if (isa<AffineForOp, AffineParallelOp>(ba.getParentOp())) {
               exprOutput.push_back(
@@ -312,11 +311,11 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
 
           if (auto apply = dyn_cast<AffineApplyOp>(val)) {
             auto map = apply.getAffineMap();
-            auto newexpr = map..shiftDims(dimOperands.size())
+            auto newexpr = map.shiftDims(dimOperands.size())
                                .shiftSymbols(symOperands.size());
 
             for (auto expr : newexpr.getResults()) {
-              exprOutput.push_back(newexpr);
+              exprOutput.push_back(expr);
             }
 
             for (size_t i = 0; i < map.getNumDims(); i++)
@@ -345,9 +344,9 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
         symOperands.push_back(lgOperands[i + lgMap.getNumDims()]);
 
       SmallVector<AffineExpr> mergedExprs;
-      for (auto [start, stride, idx] && :
+      for (auto && [start, stride, idx] :
            llvm::zip(startExprs, strideExprs, inputExprs)) {
-        mergedExprs.push_back(startExprs + idx * strideExpr);
+        mergedExprs.push_back(start + idx * stride);
       }
 
       lgMap =
@@ -711,7 +710,6 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         inverted[i] = nullptr;
         rewriter.replaceOp(tmp, arg);
       }
-    }
 
     SmallVector<Value> toreturn;
 
