@@ -120,7 +120,7 @@ AffineMap shiftDimsDown1(AffineMap expr, unsigned numDim, unsigned offset) {
 std::pair<Value, AffineMap>
 remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
                     Value val, Value idx, Value idx_size, int loopLowerBound,
-                    int loopStepSize, mlir::OperandRange vals) {
+                    int loopStepSize, ValueRange vals) {
   // First we need to remove any dependence on the loop index from the affine
   // map
   SmallVector<Value> vals_without_idx;
@@ -286,30 +286,33 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
           auto &exprOutput = (index == 0) ? startExprs : strideExprs;
           // Only support constants, symbols, or affine apply as offsets
           if (auto cop = val.getDefiningOp<arith::ConstantIntOp>()) {
-            exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
+            exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
             continue;
           } else if (auto cop = val.getDefiningOp<arith::ConstantIndexOp>()) {
-            exprOutput.push_back(builder.getAffineConstantExpr(cop.getValue()));
+            exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
             continue;
           }
-          if (auto ba = dyn_cast<BlockArgument>(val))
-            if (isa<AffineForOp, AffineParallelOp>(ba.getParentOp())) {
+          if (auto ba = dyn_cast<BlockArgument>(val)) {
+            Block *parentBlock = ba.getOwner();
+            if (isa<AffineForOp, AffineParallelOp>(parentBlock->getParentOp())) {
               exprOutput.push_back(
                   builder.getAffineDimExpr(dimOperands.size()));
               dimOperands.push_back(ba);
               continue;
+
             }
+          }
 
           auto valOp = val.getDefiningOp();
           // Defined outside loop, consider it a symbol [for now]
           if (!valOp || loop->isAncestor(defOp)) {
             exprOutput.push_back(
                 builder.getAffineSymbolExpr(symOperands.size()));
-            symOperands.push_back(ba);
+            symOperands.push_back(val);
             continue;
           }
 
-          if (auto apply = dyn_cast<AffineApplyOp>(val)) {
+          if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
             auto map = apply.getAffineMap();
             auto newexpr = map.shiftDims(dimOperands.size())
                                .shiftSymbols(symOperands.size());
@@ -333,8 +336,7 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
 
       SmallVector<AffineExpr> inputExprs;
       for (auto expr : lgMap.shiftDims(dimOperands.size())
-                           .shiftSymbols(symOperands.size());
-           getResults()) {
+                           .shiftSymbols(symOperands.size()).getResults()) {
         inputExprs.push_back(expr);
       }
       for (size_t i = 0; i < lgMap.getNumDims(); i++)
@@ -350,11 +352,11 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
       }
 
       lgMap =
-          AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs);
+          AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs, loop->getContext());
       lgOperands.clear();
-      lgOperands.append(dimOperands());
-      lgOperands.append(symOperands());
-      input = SV.getInput();
+      lgOperands.insert(lgOperands.begin(), dimOperands.begin(), dimOperands.end());
+      lgOperands.insert(lgOperands.begin(), symOperands.begin(), symOperands.end());
+      input = SV.getSource();
     }
 
     return failure();
@@ -541,10 +543,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         // TODO: Implement this
         // lgMap comes from offset of memref.subview,
         // lgOperands comes from operands of memref.subview
-        AffineMap lgMap = indexingMapsAttr[idx];
+        AffineMap lgMap = cast<AffineMapAttr>(indexingMapsAttr[idx]).getAffineMap();
         SmallVector<Value> lgOperands;
-        for (auto i = 0; i < lgMap.getNumDims(); i++)
-          lgOperands.push_back(builder.getAffineDim(i));
+        lgOperands.push_back(input);
+        // for (auto i = 0; i < lgMap.getNumDims(); i++)
+        //   lgOperands.push_back(lgMap.getOperands()[i]);
         Value lgMemref = input;
         auto result = getLinalgArgMap(loop, lgMemref, lgMap, lgOperands);
 
@@ -572,10 +575,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         if (conds.size() != 0)
           return failure();
 
-        AffineMap lgMap = indexingMapsAttr[idx];
+        AffineMap lgMap = cast<AffineMapAttr>(indexingMapsAttr[idx]).getAffineMap();
         SmallVector<Value> lgOperands;
-        for (auto i = 0; i < lgMap.getNumDims(); i++)
-          lgOperands.push_back(builder.getAffineDim(i));
+        lgOperands.push_back(output);
+        // for (auto i = 0; i < lgMap.getNumDims(); i++)
+        //   lgOperands.push_back(lgMap.getSubMap(i));
         Value lgMemref = output;
 
         auto result = getLinalgArgMap(loop, lgMemref, lgMap, lgOperands);
@@ -651,11 +655,11 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO presently  if linalg generic exists, assert there are no load/stores
     if (!((linalgGenerics.size() > 0) &&
           ((loads.size() == 0) && (stores.size() == 0))))
-      return failure;
+      return failure();
 
     // TODO assert only zero or one linalg generic exists
     if (!(linalgGenerics.size() == 1 || linalgGenerics.size() == 0))
-      return failure;
+      return failure();
 
     SmallVector<utils::IteratorType> iteratorTypes;
     // TODO if linalg generic exists, make this iterator type prepend to the
@@ -710,6 +714,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         inverted[i] = nullptr;
         rewriter.replaceOp(tmp, arg);
       }
+    }
 
     SmallVector<Value> toreturn;
 
