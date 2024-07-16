@@ -238,16 +238,73 @@ f(%memref )
 
 affine.for {
 
-
     %inp = .. subview %memref [ ... ]
 
     linalg.generic %inp #map {
-
+      body()
     }
 }
 
 
+->
+
+
+affine.for j {
+
+    linalg.generic %memref #map2(j) {
+      body()
+    }
+}
+
+
+
+
 #map2 = #map with the indexing done to %inp
+
+
+
+
+
+%memref = .. subview %memref_base [ ... ]
+
+linalg.generic %[[[memref]]] [[[[#map]]]]([[[[operands]]]]) {
+  body()
+}
+
+->
+
+
+output_memref = memref_base
+output_map    = subvmap()
+
+ compose 
+# uts are memref, map, and operands
+# outputs are o
+memref[map(operands)] ==== output_memref[output_map(output_operands)]
+
+
+
+bas= memref<40x40>
+
+B
+
+u
+
+tput_memref, output_map and output_operands
+# possible intermediate is ...
+
+getLinalgArgMap(memref, map, operands to map [e.g. input symbols/dims])
+  if memref is alloca/unknown/etc
+    return memref/map/operands
+  else
+    memref = subview memref_base[map2(operands2)]
+
+    return memref_base   and a new output_map such that
+      memref_base[output_map(output_operands)] === memref[map(operands)]
+
+
+
+
 
 */
 
@@ -305,13 +362,16 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
 
           auto valOp = val.getDefiningOp();
           // Defined outside loop, consider it a symbol [for now]
-          if (!valOp || loop->isAncestor(defOp)) {
+          //if (!valOp || loop->isAncestor(defOp)) {
+          if (valOp&&!loop->isAncestor(defOp)) {
             exprOutput.push_back(
                 builder.getAffineSymbolExpr(symOperands.size()));
             symOperands.push_back(val);
             continue;
           }
 
+          //TODO: Maybe it's a case to add, but are we sure we need it for starts and offsets
+          // and not for operands
           if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
             auto map = apply.getAffineMap();
             auto newexpr = map.shiftDims(dimOperands.size())
@@ -330,7 +390,7 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
             continue;
           }
 
-          return failure();
+          //return failure();
         }
       }
 
@@ -345,6 +405,7 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
       for (size_t i = 0; i < lgMap.getNumSymbols(); i++)
         symOperands.push_back(lgOperands[i + lgMap.getNumDims()]);
 
+
       SmallVector<AffineExpr> mergedExprs;
       for (auto && [start, stride, idx] :
            llvm::zip(startExprs, strideExprs, inputExprs)) {
@@ -355,11 +416,12 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
           AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs, loop->getContext());
       lgOperands.clear();
       lgOperands.insert(lgOperands.begin(), dimOperands.begin(), dimOperands.end());
-      lgOperands.insert(lgOperands.begin(), symOperands.begin(), symOperands.end());
+      lgOperands.insert(lgOperands.begin()+lgOperands.size(), symOperands.begin(), symOperands.end());
       input = SV.getSource();
+      break;
     }
 
-    return failure();
+    //return failure();
   }
   return success();
 }
@@ -369,6 +431,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
   LogicalResult matchAndRewrite(affine::AffineForOp loop,
                                 PatternRewriter &rewriter) const final {
+    
+    auto module = loop->getParentOfType<ModuleOp>();
 
     // Don't handle accumulations in registers for the moment, we can have
     // a separate pattern move them into memref's
@@ -549,6 +613,12 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         // for (auto i = 0; i < lgMap.getNumDims(); i++)
         //   lgOperands.push_back(lgMap.getOperands()[i]);
         Value lgMemref = input;
+        
+        // At input, this contains, current input (i.e. probably a subview)
+        // an  lgMap which is obtained from LG's indexing map for corresponding input
+        // lgOperands contains current input (i.e probably a subview)
+
+        // Gives output ...
         auto result = getLinalgArgMap(loop, lgMemref, lgMap, lgOperands);
 
         if (!result.succeeded())
@@ -556,6 +626,19 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
         bool legal = true;
 
+        // Takes input's/output's, affineMap of load/store (here lgMap ?), 
+        // induction variable corresponding to the loop
+        // Memref corresponding the the memory accessed (in this case subview ?)
+        // loopSize, lower and upper bounds
+        // Get operands for load/store (here ?) to find dependent dim
+
+        // Gives output newMemref which is a subviewOp,
+        // newAffineMap which is the LG's indexing map corresponding this inp/output
+        
+        // This takes load and store maps and then creates affine.apply+subview+linalg.generic
+        // For this case: LG within ForOp -
+        // Inputs should be : load map extracted from subviewOp
+        // Returns LG with indexingMap and subview  with affine.apply - which are correct 
         auto &&[newMemref, newAffineMap] = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize,
             lbConst.getValue(), step, lgOperands);
@@ -653,8 +736,8 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO Push all of the outputs to the linalg generics
 
     // TODO presently  if linalg generic exists, assert there are no load/stores
-    if (!((linalgGenerics.size() > 0) &&
-          ((loads.size() == 0) && (stores.size() == 0))))
+    if ((linalgGenerics.size() > 0) &&
+          ((loads.size() == 0) && (stores.size() == 0)))
       return failure();
 
     // TODO assert only zero or one linalg generic exists
