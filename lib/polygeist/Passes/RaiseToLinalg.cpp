@@ -108,22 +108,24 @@ AffineMap shiftDimsDown1(AffineMap expr, unsigned numDim, unsigned offset) {
 }
 
 // Given an affine map `oldmap`, memref `val`, and corresponding input values
-// (which are a list of indicies, then symbols), and a loop index `ind` produce
+// (which are a list of indicies, then symbols), and a set of loop indices `indices` produce
 // the following:
 //  1. A (potentially new) memref value `newval` which does not have any
-//  dependence on `ind`
+//  dependence on `indncides`
 //     and
-//  2. an affine map `newmap` which takes a single index (`ind`) and produces
+//  2. an affine map `newmap` which takes size(indices) values (`indices`) and produces
 //  indices into `newval` such that
-//     indexing `newval[map(ind)]` produces the same result as indexing the
+//     indexing `newval[map(indices)]` produces the same result as indexing the
 //     original map.
 std::pair<Value, AffineMap>
 remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
-                    Value val, Value idx, Value idx_size, int loopLowerBound,
+                    Value val, SmallVectorImpl<Value>& indices, SmallVector<Value> idx_sizes, int loopLowerBound,
                     int loopStepSize, ValueRange vals) {
   // First we need to remove any dependence on the loop index from the affine
   // map
-  SmallVector<Value> vals_without_idx;
+  SmallVector<size_t> dims;
+
+  for (auto idx : indices) {
   // This tracks the index corresponding to the for loop if present in
   // load/store operands else it's -1
   ssize_t dim_idx = -1;
@@ -139,40 +141,59 @@ remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
       dim_idx = i;
       continue;
     }
-    vals_without_idx.push_back(v);
   }
 
   if (dim_idx != -1 && !isLinearInIndex(oldmap, dim_idx)) {
     legal = false;
     return {val, oldmap};
   }
+  dims.push_back(dim_idx);
+  }
 
-  // Evaluate offsets as oldmap replacing idx with 0, and evaluating at the
+  SmallVector<Value> vals_without_indices;
+  for (auto v : vals) {
+    if (!llvm::is_contained(indices, v))
+    vals_without_indices.push_back(v);
+  }
+
+  // Evaluate offsets as oldmap replacing all indices with 0, and evaluating at the
   // remaining variables
-
-  // Instead of lower bound we are using 0 (assumption as the lower bound)
   AffineMap offsetMap = oldmap;
-  if (dim_idx != -1) {
-    offsetMap =
-        oldmap.replace(builder.getAffineDimExpr(dim_idx),
-                       builder.getAffineConstantExpr(loopLowerBound),
-                       offsetMap.getNumDims(), offsetMap.getNumSymbols());
-    offsetMap = shiftDimsDown1(offsetMap, oldmap.getNumDims(), dim_idx);
+  for (auto dim_idx : dims) {
+    if (dim_idx != -1) {
+      offsetMap =
+          oldmap.replace(builder.getAffineDimExpr(dim_idx),
+                        builder.getAffineConstantExpr(loopLowerBound),
+                        offsetMap.getNumDims(), offsetMap.getNumSymbols());
+      offsetMap = shiftDimsDown1(offsetMap, oldmap.getNumDims(), dim_idx);
+    }
   }
 
-  // Instead of using loop step we are using 1 (Assumption as the stride size)
-  AffineMap strideMap = oldmap;
-  if (dim_idx != -1) {
-    strideMap = oldmap.replace(
-        builder.getAffineDimExpr(dim_idx),
-        builder.getAffineConstantExpr(loopLowerBound + loopStepSize),
-        strideMap.getNumDims(), strideMap.getNumSymbols());
-    strideMap = shiftDimsDown1(strideMap, oldmap.getNumDims(), dim_idx);
-  }
+  SmallVector<AffineMap> strideMaps;
 
-  // Subtracting maps of stride and offset, gives you the offset value in the
-  // result of the map
-  {
+  // For each dimension `outer_dim_idx` we want to keep,
+  // create a new affine map equal to the map(dim=1, other dims=0)
+  for (auto outer_dim_idx : dims) {
+    AffineMap strideMap = oldmap;
+    if (outer_dim_idx != -1) {
+      strideMap = oldmap.replace(
+          builder.getAffineDimExpr(outer_dim_idx),
+          builder.getAffineConstantExpr(loopLowerBound + loopStepSize),
+          strideMap.getNumDims(), strideMap.getNumSymbols());
+      strideMap = shiftDimsDown1(strideMap, oldmap.getNumDims(), outer_dim_idx);
+    }
+    for (auto dim_idx : dims) {
+      if (dim_idx == outer_dim_idx || dim_idx == -1) continue;
+
+      offsetMap =
+          oldmap.replace(builder.getAffineDimExpr(dim_idx),
+                        builder.getAffineConstantExpr(loopLowerBound),
+                        offsetMap.getNumDims(), offsetMap.getNumSymbols());
+      offsetMap = shiftDimsDown1(offsetMap, oldmap.getNumDims(), dim_idx);
+    }
+
+    // Subtracting maps of stride and offset, gives you the offset value in the
+    // result of the map
     SmallVector<AffineExpr> subtracts;
     for (auto &&[lhs, rhs] :
          llvm::zip(strideMap.getResults(), offsetMap.getResults())) {
@@ -181,40 +202,61 @@ remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
     strideMap =
         AffineMap::get(offsetMap.getNumDims(), offsetMap.getNumSymbols(),
                        subtracts, builder.getContext());
+    strideMaps.push_back(strideMap);
   }
 
-  // Expression to index into the generated subview given the loop index
-  SmallVector<AffineExpr> loop_idxs;
 
   // List of starting offsets into the subview
   SmallVector<Value> offsets;
-  SmallVector<Value> sizes;
-  SmallVector<Value> strides;
-
-  for (auto &&[expr, offset_expr, stride_expr] :
-       llvm::zip(oldmap.getResults(), offsetMap.getResults(),
-                 strideMap.getResults())) {
+  for (auto &&[expr, offset_expr] : llvm::zip(oldmap.getResults(), offsetMap.getResults())) {
     offsets.push_back(builder.create<affine::AffineApplyOp>(
         val.getLoc(),
         AffineMap::get(offsetMap.getNumDims(), offsetMap.getNumSymbols(),
                        offset_expr, builder.getContext()),
-        vals_without_idx)); // What is there are symbols in the expression?
-    strides.push_back(builder.create<affine::AffineApplyOp>(
-        val.getLoc(),
-        AffineMap::get(strideMap.getNumDims(), strideMap.getNumSymbols(),
-                       stride_expr, builder.getContext()),
-        vals_without_idx)); // What is there are symbols in the expression?
-    if (!expr.isFunctionOfDim(dim_idx)) {
+        vals_without_indices)); // What is there are symbols in the expression?
+  }
+  
+  SmallVector<Value> sizes;
+  SmallVector<Value> strides;
+
+  // Expression to index into the generated subview given the loop index
+  SmallVector<AffineExpr> loop_idxs;
+  SmallVector<AffineExpr> sizes;
+  for (auto &&[dim_idx, idx_size] : llvm::zip(dims, idx_sizes)) {
+    if (!oldmap.isFunctionOfDim(dim_idx)) {
       loop_idxs.push_back(builder.getAffineConstantExpr(0));
       sizes.push_back(builder.create<arith::ConstantIndexOp>(val.getLoc(), 1));
     } else {
-      loop_idxs.push_back(builder.getAffineDimExpr(0));
+      loop_idxs.push_back(builder.getAffineConstantExpr(0));
+    }
+  }
+
+  for (auto &&[i, expr] :
+       llvm::enumerate(oldmap.getResults())) {
+    
+    AffineExpr stride_expr = nullptr;
+    for (auto strideMap : strideMaps) {
+      auto subexpr = strideMap.getResult(i);
+      if (stride_expr == nullptr) stride_expr = subexpr;
+      else stride_expr = stride_expr + subexpr;
+    }
+      
+    strides.push_back(builder.create<affine::AffineApplyOp>(
+        val.getLoc(),
+        AffineMap::get(offsetMap.getNumDims(), offsetMap.getNumSymbols(),
+                       stride_expr, builder.getContext()),
+        vals_without_indices)); // What is there are symbols in the expression?
+
+    // These need to be properly computed
+    // This is the remainign hard part to factor
+    if (!expr.isFunctionOfDim(dim_idx)) {
+      sizes.push_back(builder.create<arith::ConstantIndexOp>(val.getLoc(), 1));
+    } else {
       sizes.push_back(idx_size);
     }
   }
 
-  auto newval = builder.create<memref::SubViewOp>(val.getLoc(), val, offsets,
-                                                  sizes, strides);
+  auto newval = builder.create<polygeist::SubMapOp>(val.getLoc(), val, remap, vals_without_indices, sizes);
   legal = true;
   // Does this need fix? Here we are constraining to dims as 1 and symbols as 0,
   // should it be, original
@@ -374,6 +416,11 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
           // and not for operands
           if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
             auto map = apply.getAffineMap();
+            auto *scope = affine::getAffineScope(valOp)->getParentOp();
+            DominanceInfo DI(scope);
+            auto map_operands = apply.getOperands();
+            //fully2ComposeAffineMapAndOperands(builder, &map, &map_operands, DI);
+  // Instead of using loop step we are using 1 (Assumption as the stride size)
             auto newexpr = map.shiftDims(dimOperands.size())
                                .shiftSymbols(symOperands.size());
 
