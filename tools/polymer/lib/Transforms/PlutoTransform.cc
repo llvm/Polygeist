@@ -8,6 +8,7 @@
 #include "polymer/Support/OslScop.h"
 #include "polymer/Support/OslScopStmtOpSet.h"
 #include "polymer/Support/OslSymbolTable.h"
+#include "polymer/Support/PolymerUtils.h"
 #include "polymer/Support/ScopStmt.h"
 #include "polymer/Target/OpenScop.h"
 
@@ -44,14 +45,13 @@ namespace polymer {
 /// TODO: transform options?
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f, OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,
-                                  bool parallelize = false, bool debug = false,
-                                  int cloogf = -1, int cloogl = -1,
-                                  bool diamondTiling = false) {
+                                  bool parallelize, bool debug, int cloogf,
+                                  int cloogl, bool diamondTiling) {
   LLVM_DEBUG(dbgs() << "Pluto transforming: \n");
   LLVM_DEBUG(f.dump());
 
   PlutoContext *context = pluto_context_alloc();
-  OslSymbolTable srcTable, dstTable;
+  PolymerSymbolTable srcTable, dstTable;
 
   std::unique_ptr<OslScop> scop = createOpenScopFromFuncOp(f, srcTable);
   if (!scop)
@@ -250,33 +250,6 @@ struct PlutoParallelizePass
   }
 };
 
-namespace polymer {
-void dedupIndexCast(func::FuncOp f) {
-  if (f.getBlocks().empty())
-    return;
-
-  Block &entry = f.getBlocks().front();
-  llvm::MapVector<Value, Value> argToCast;
-  SmallVector<Operation *> toErase;
-  for (auto &op : entry) {
-    if (auto indexCast = dyn_cast<arith::IndexCastOp>(&op)) {
-      auto arg = dyn_cast<BlockArgument>(indexCast.getOperand());
-      if (argToCast.count(arg)) {
-        LLVM_DEBUG(dbgs() << "Found duplicated index_cast: " << indexCast
-                          << '\n');
-        indexCast.replaceAllUsesWith(argToCast.lookup(arg));
-        toErase.push_back(indexCast);
-      } else {
-        argToCast[arg] = indexCast;
-      }
-    }
-  }
-
-  for (auto op : toErase)
-    op->erase();
-}
-} // namespace polymer
-
 struct DedupIndexCastPass
     : public mlir::PassWrapper<DedupIndexCastPass,
                                OperationPass<mlir::func::FuncOp>> {
@@ -309,5 +282,9 @@ std::unique_ptr<mlir::Pass> createDedupIndexCastPass() {
 }
 std::unique_ptr<mlir::Pass> createPlutoParallelizePass() {
   return std::make_unique<PlutoParallelizePass>();
+}
+mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
+                                        OpBuilder &rewriter) {
+  llvm_unreachable("not compiled with isl suport");
 }
 } // namespace polymer

@@ -1,3 +1,4 @@
+if(POLYGEIST_POLYMER_ENABLE_PLUTO)
 set(LLVM_LINK_COMPONENTS
   Support
 )
@@ -28,3 +29,4 @@ target_link_libraries(polymer-translate
   MLIRTranslateLib
   MLIRToLLVMIRTranslationRegistration
   )
+endif()

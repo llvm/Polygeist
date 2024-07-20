@@ -59,7 +59,7 @@ typedef llvm::StringMap<mlir::Value> SymbolTable;
 /// TODO: manage the priviledge.
 class AffineExprBuilder {
 public:
-  AffineExprBuilder(MLIRContext *context, OslSymbolTable *symTable,
+  AffineExprBuilder(MLIRContext *context, PolymerSymbolTable *symTable,
                     SymbolTable *symbolTable, OslScop *scop,
                     CloogOptions *options)
       : b(context), context(context), scop(scop), symTable(symTable),
@@ -95,7 +95,7 @@ public:
   /// The OslScop of the whole program.
   OslScop *scop;
   /// TODO: keep only one of them
-  OslSymbolTable *symTable;
+  PolymerSymbolTable *symTable;
   SymbolTable *symbolTable;
   ///
   CloogOptions *options;
@@ -427,7 +427,7 @@ namespace {
 /// Import MLIR code from the clast AST.
 class Importer {
 public:
-  Importer(MLIRContext *context, ModuleOp module, OslSymbolTable *symTable,
+  Importer(MLIRContext *context, ModuleOp module, PolymerSymbolTable *symTable,
            OslScop *scop, CloogOptions *options);
 
   LogicalResult processStmtList(clast_stmt *s);
@@ -488,7 +488,7 @@ private:
   /// The OpenScop object pointer.
   OslScop *scop;
   /// The symbol table for labels in the OpenScop input (to be deprecated).
-  OslSymbolTable *symTable;
+  PolymerSymbolTable *symTable;
   /// The symbol table that will be built on the fly.
   SymbolTable symbolTable;
 
@@ -512,7 +512,7 @@ private:
 } // namespace
 
 Importer::Importer(MLIRContext *context, ModuleOp module,
-                   OslSymbolTable *symTable, OslScop *scop,
+                   PolymerSymbolTable *symTable, OslScop *scop,
                    CloogOptions *options)
     : b(context), context(context), module(module), scop(scop),
       symTable(symTable), options(options) {
@@ -821,7 +821,7 @@ void Importer::createCalleeAndCallerArgs(
       Value memref = symTable->getValue(args[i]);
       if (!memref) {
         memref = entryBlock.addArgument(memType, b.getUnknownLoc());
-        symTable->setValue(args[i], memref, OslSymbolTable::Memref);
+        symTable->setValue(args[i], memref, PolymerSymbolTable::Memref);
       }
       callerArgs.push_back(memref);
       i++;
@@ -841,7 +841,7 @@ void Importer::createCalleeAndCallerArgs(
         // We should set the symbol table for args[i], otherwise we cannot
         // build a correct mapping from the original symbol table (only
         // args[i] exists in it).
-        symTable->setValue(args[i], iv, OslSymbolTable::LoopIV);
+        symTable->setValue(args[i], iv, PolymerSymbolTable::LoopIV);
       } else {
         llvm::errs() << "Cannot find the scatname " << newArgName
                      << " as a valid loop IV.\n";
@@ -1270,7 +1270,7 @@ LogicalResult Importer::processStmt(clast_for *forStmt) {
          "affine.for should only have one block argument (iv).");
 
   symTable->setValue(forStmt->iterator, entryBlock.getArgument(0),
-                     OslSymbolTable::LoopIV);
+                     PolymerSymbolTable::LoopIV);
 
   // Symbol table is mutable.
   // TODO: is there a better way to improve this? Not very safe.
@@ -1487,9 +1487,11 @@ static void transformClastByPlutoProg(clast_stmt *root, const PlutoProg *prog,
     markParallel(root, prog, cloogOptions);
 }
 
-mlir::Operation *polymer::createFuncOpFromOpenScop(
-    std::unique_ptr<OslScop> scop, ModuleOp module, OslSymbolTable &symTable,
-    MLIRContext *context, PlutoProg *prog, const char *dumpClastAfterPluto) {
+mlir::Operation *
+polymer::createFuncOpFromOpenScop(std::unique_ptr<OslScop> scop,
+                                  ModuleOp module, PolymerSymbolTable &symTable,
+                                  MLIRContext *context, PlutoProg *prog,
+                                  const char *dumpClastAfterPluto) {
   // TODO: turn these C struct into C++ classes.
   CloogState *state = cloog_state_malloc();
   CloogOptions *options = cloog_options_malloc(state);
@@ -1555,7 +1557,7 @@ polymer::translateOpenScopToModule(std::unique_ptr<OslScop> scop,
   OwningOpRef<ModuleOp> module(ModuleOp::create(
       FileLineColLoc::get(context, "", /*line=*/0, /*column=*/0)));
 
-  OslSymbolTable symTable;
+  PolymerSymbolTable symTable;
   if (!createFuncOpFromOpenScop(std::move(scop), module.get(), symTable,
                                 context))
     return {};

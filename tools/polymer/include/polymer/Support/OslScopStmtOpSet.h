@@ -22,13 +22,13 @@ namespace polymer {
 
 /// This class contains a set of operations that will correspond to a single
 /// OpenScop statement body. The underlying data structure is SetVector.
-class OslScopStmtOpSet {
+class ScopStmtOpSet {
 public:
   using Set = llvm::SetVector<mlir::Operation *>;
   using iterator = Set::iterator;
   using reverse_iterator = Set::reverse_iterator;
 
-  OslScopStmtOpSet() {}
+  ScopStmtOpSet() {}
 
   /// The core store op. There should be only one of it.
   mlir::Operation *getStoreOp() { return storeOp; }

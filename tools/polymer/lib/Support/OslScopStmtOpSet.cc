@@ -21,7 +21,7 @@ using namespace llvm;
 using namespace mlir;
 using namespace polymer;
 
-void OslScopStmtOpSet::insert(mlir::Operation *op) {
+void ScopStmtOpSet::insert(mlir::Operation *op) {
   opSet.insert(op);
   if (isa<mlir::affine::AffineStoreOp>(op)) {
     assert(!storeOp &&
@@ -30,7 +30,7 @@ void OslScopStmtOpSet::insert(mlir::Operation *op) {
   }
 }
 
-LogicalResult OslScopStmtOpSet::getEnclosingOps(
+LogicalResult ScopStmtOpSet::getEnclosingOps(
     SmallVectorImpl<mlir::Operation *> &enclosingOps) {
   SmallVector<Operation *, 8> ops;
   SmallPtrSet<Operation *, 8> visited;
@@ -51,13 +51,13 @@ LogicalResult OslScopStmtOpSet::getEnclosingOps(
 }
 
 LogicalResult
-OslScopStmtOpSet::getDomain(affine::FlatAffineValueConstraints &domain,
-                            SmallVectorImpl<mlir::Operation *> &enclosingOps) {
+ScopStmtOpSet::getDomain(affine::FlatAffineValueConstraints &domain,
+                         SmallVectorImpl<mlir::Operation *> &enclosingOps) {
   return getIndexSet(enclosingOps, &domain);
 }
 
 LogicalResult
-OslScopStmtOpSet::getDomain(affine::FlatAffineValueConstraints &domain) {
+ScopStmtOpSet::getDomain(affine::FlatAffineValueConstraints &domain) {
   SmallVector<Operation *, 8> enclosingOps;
   if (failed(getEnclosingOps(enclosingOps)))
     return failure();

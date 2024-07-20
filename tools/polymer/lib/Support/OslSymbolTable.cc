@@ -16,7 +16,7 @@ using namespace llvm;
 
 namespace polymer {
 
-Value OslSymbolTable::getValue(StringRef key) {
+Value PolymerSymbolTable::getValue(StringRef key) {
   // Key is a loop IV.
   if (nameToLoopIV.find(key) != nameToLoopIV.end())
     return nameToLoopIV.lookup(key);
@@ -27,14 +27,14 @@ Value OslSymbolTable::getValue(StringRef key) {
   return nullptr;
 }
 
-OslSymbolTable::OpSet OslSymbolTable::getOpSet(StringRef key) {
+PolymerSymbolTable::OpSet PolymerSymbolTable::getOpSet(StringRef key) {
   // If key corresponds to an Op of a statement.
   assert(nameToStmtOpSet.find(key) != nameToStmtOpSet.end() &&
          "Key is not found.");
   return nameToStmtOpSet.lookup(key);
 }
 
-void OslSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
+void PolymerSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
   switch (type) {
   case LoopIV:
     nameToLoopIV[key] = val;
@@ -47,7 +47,7 @@ void OslSymbolTable::setValue(StringRef key, Value val, SymbolType type) {
   }
 }
 
-void OslSymbolTable::setOpSet(StringRef key, OpSet val, SymbolType type) {
+void PolymerSymbolTable::setOpSet(StringRef key, OpSet val, SymbolType type) {
   switch (type) {
   case StmtOpSet:
     nameToStmtOpSet[key] = val;
@@ -57,7 +57,7 @@ void OslSymbolTable::setOpSet(StringRef key, OpSet val, SymbolType type) {
   }
 }
 
-unsigned OslSymbolTable::getNumValues(SymbolType type) {
+unsigned PolymerSymbolTable::getNumValues(SymbolType type) {
   switch (type) {
   case LoopIV:
     return nameToLoopIV.size();
@@ -68,7 +68,7 @@ unsigned OslSymbolTable::getNumValues(SymbolType type) {
   }
 }
 
-unsigned OslSymbolTable::getNumOpSets(SymbolType type) {
+unsigned PolymerSymbolTable::getNumOpSets(SymbolType type) {
   switch (type) {
   case StmtOpSet:
     return nameToStmtOpSet.size();
@@ -77,7 +77,7 @@ unsigned OslSymbolTable::getNumOpSets(SymbolType type) {
   }
 }
 
-void OslSymbolTable::getValueSymbols(SmallVectorImpl<StringRef> &symbols) {
+void PolymerSymbolTable::getValueSymbols(SmallVectorImpl<StringRef> &symbols) {
   symbols.reserve(getNumValues(Memref) + getNumValues(LoopIV));
 
   for (auto &it : nameToLoopIV)
@@ -85,7 +85,7 @@ void OslSymbolTable::getValueSymbols(SmallVectorImpl<StringRef> &symbols) {
   for (auto &it : nameToMemref)
     symbols.push_back(it.first());
 }
-void OslSymbolTable::getOpSetSymbols(SmallVectorImpl<StringRef> &symbols) {
+void PolymerSymbolTable::getOpSetSymbols(SmallVectorImpl<StringRef> &symbols) {
   symbols.reserve(getNumOpSets(StmtOpSet));
 
   for (auto &it : nameToStmtOpSet)

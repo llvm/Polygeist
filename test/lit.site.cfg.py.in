@@ -37,6 +37,8 @@ config.polygeist_tools_dir = "@POLYGEIST_TOOLS_DIR@"
 config.polygeist_shlib_dir = "@LLVM_LIBRARY_OUTPUT_INTDIR@"
 config.verilator_path = "@VERILATOR_PATH@"
 config.polymer_enabled = "@POLYGEIST_ENABLE_POLYMER@"
+config.polymer_pluto_enabled = "@POLYGEIST_POLYMER_ENABLE_PLUTO@"
+config.polymer_isl_enabled = "@POLYGEIST_POLYMER_ENABLE_ISL@"
 
 # Support substitution of the tools_dir with user parameters. This is
 # used when we can't determine the tool dir at configuration time.

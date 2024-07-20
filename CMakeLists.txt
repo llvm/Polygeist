@@ -6,6 +6,8 @@ set(POLYGEIST_ENABLE_CUDA 0 CACHE BOOL "Enable CUDA frontend and backend")
 set(POLYGEIST_ENABLE_ROCM 0 CACHE BOOL "Enable ROCM backend")
 
 set(POLYGEIST_ENABLE_POLYMER 0 CACHE BOOL "Enable Polymer")
+set(POLYGEIST_POLYMER_ENABLE_ISL 0 CACHE BOOL "Enable Polymer isl")
+set(POLYGEIST_POLYMER_ENABLE_PLUTO 0 CACHE BOOL "Enable Polymer pluto")
 
 set(POLYMER_DEP_DIR "" CACHE STRING "Pluto build root directory")
 

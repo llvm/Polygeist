@@ -9,8 +9,15 @@ def PolyhedralOpt : Pass<"polyhedral-opt"> {
   let constructor = "mlir::polygeist::createPolyhedralOptPass()";
   let dependentDialects = [
     "scf::SCFDialect",
+    "func::FuncDialect",
     "arith::ArithDialect",
     "memref::MemRefDialect",
+    "affine::AffineDialect",
+    // This vector dialect is needed because lower-affine needs it. We launch
+    // a pass manager to use lower-affine from this pass itself, and that
+    // causes the multi-threaded mlir context to try to load the vector dialect
+    // which is unsupported. Instead we preload it here.
+    "vector::VectorDialect",
   ];
 }
 

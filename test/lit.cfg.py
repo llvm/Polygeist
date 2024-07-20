@@ -39,6 +39,8 @@ config.substitutions.append(('%llvm_obj_root', config.llvm_obj_root))
 config.substitutions.append(('%polygeist_src_root', config.polygeist_src_root))
 config.substitutions.append(('%polygeist_obj_root', config.polygeist_obj_root))
 config.substitutions.append(('%polymer_enabled', config.polymer_enabled))
+config.substitutions.append(('%polymer_pluto_enabled', config.polymer_pluto_enabled))
+config.substitutions.append(('%polymer_isl_enabled', config.polymer_isl_enabled))
 
 llvm_config.with_system_environment(['HOME', 'INCLUDE', 'LIB', 'TMP', 'TEMP'])
 
@@ -48,6 +50,8 @@ llvm_config.use_default_substitutions()
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.
 config.excludes = ['Inputs', 'CMakeLists.txt', 'README.txt', 'LICENSE.txt']
+if config.polymer_isl_enabled == "0" or config.polymer_enabled == "0":
+    config.excludes += ['isl']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)

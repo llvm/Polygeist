@@ -28,7 +28,10 @@
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "isl/ctx.h"
 #include <vector>
+
+#include <isl/mat.h>
 
 using namespace polymer;
 using namespace mlir;

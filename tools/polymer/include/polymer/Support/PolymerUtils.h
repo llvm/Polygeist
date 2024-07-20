@@ -1,7 +1,12 @@
 #ifndef POLYMER_SUPPORT_POLYMERUTILS_H_
 #define POLYMER_SUPPORT_POLYMERUTILS_H_
 
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
+
 namespace polymer {
+mlir::func::FuncOp islexternalTransform(mlir::func::FuncOp f,
+                                        mlir::OpBuilder &rewriter);
 mlir::func::FuncOp plutoTransform(mlir::func::FuncOp f,
                                   mlir::OpBuilder &rewriter,
                                   std::string dumpClastAfterPluto,

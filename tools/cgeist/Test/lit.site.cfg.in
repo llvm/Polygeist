@@ -11,6 +11,8 @@ config.llvm_obj_root = path(r"@LLVM_BINARY_DIR@")
 config.polygeist_enable_cuda = "@POLYGEIST_ENABLE_CUDA@"
 config.cudart_static_path = "@CUDA_cudart_static_LIBRARY@"
 config.polygeist_enable_rocm = "@POLYGEIST_ENABLE_ROCM@"
+config.polymer_enabled = "@POLYGEIST_ENABLE_POLYMER@"
+config.polymer_pluto_enabled = "@POLYGEIST_POLYMER_ENABLE_PLUTO@"
 
 # Support substitution of the tools and build_mode with user parameters.
 # This is used when we can't determine the tool dir at configuration time.
