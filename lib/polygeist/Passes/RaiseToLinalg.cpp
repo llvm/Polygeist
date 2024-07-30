@@ -119,13 +119,14 @@ AffineMap shiftDimsDown1(AffineMap expr, unsigned numDim, unsigned offset) {
 //     original map.
 
 Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
-                    Value val, Value index, Value bound, int firstNDims, ValueRange vals) {
-
-  SmallVector<Value> vals_without_indices;
+                    Value memref_val, Value index, Value bound, int firstNDims, ValueRange oldmap_operands) {
+  
+  //Operands which don't correspond to indices
+  SmallVector<Value> operands_without_indices;
   ssize_t dimidx = -1;
-  for (auto [i, v] : llvm::enumerate(vals)) {
+  for (auto [i, v] : llvm::enumerate(oldmap_operands)) {
     if (v != index)
-      vals_without_indices.push_back(v);
+      operands_without_indices.push_back(v);
     else
       dimidx = i;
   }
@@ -139,6 +140,7 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
     } else if (i == dimidx) {
       dimReplacements.push_back(builder.getAffineDimExpr(dimReplacements.size()));
     } else {
+      // TODO: Why are we using symbol here instead of dim?
       dimReplacements.push_back(builder.getAffineSymbolExpr(validx));
       validx++;
     }
@@ -149,21 +151,23 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
     symReplacements.push_back(builder.getAffineSymbolExpr(validx));
     validx++;
   }
-  assert(validx == vals_without_indices.size());
-  auto map2 = oldmap.replaceDimsAndSymbols(dimReplacements, symReplacements, firstNDims+1, vals_without_indices.size());
+  assert(validx == operands_without_indices.size());
+  auto map2 = oldmap.replaceDimsAndSymbols(dimReplacements, symReplacements, firstNDims+1, operands_without_indices.size());
 
   SmallVector<Value> idx_sizes;
   for (size_t i=0; i<firstNDims; i++) {
-    idx_sizes.push_back(builder.create<memref::DimOp>(val.getLoc(), val, i));
+    idx_sizes.push_back(builder.create<memref::DimOp>(memref_val.getLoc(), memref_val, i));
   }
   idx_sizes.push_back(bound);
 
   legal = true;
-  SmallVector<int64_t> sizes(idx_sizes.size(), -1);
+  // TODO: Cannot be negative size, are we trying to initialize it with any size, or do we want to calcualte size from 
+  // loop bounds?
+  SmallVector<int64_t> sizes(idx_sizes.size(), 1);
   for (auto sz : idx_sizes)
-    vals_without_indices.push_back(sz);
-  auto ty = MemRefType::get(sizes, cast<MemRefType>(val.getType()).getElementType());
-  return builder.create<polygeist::SubmapOp>(val.getLoc(), ty, val, vals_without_indices, map2);
+    operands_without_indices.push_back(sz);
+  auto ty = MemRefType::get(sizes, cast<MemRefType>(memref_val.getType()).getElementType());
+  return builder.create<polygeist::SubmapOp>(memref_val.getLoc(), ty, memref_val, operands_without_indices, map2);
 }
 
 // store A[...]
@@ -292,108 +296,108 @@ LogicalResult getLinalgArgMap(Operation *loop, Value &input, AffineMap &lgMap,
       continue;
     }
 
-    if (auto SV = dyn_cast<memref::SubViewOp>(defOp)) {
+    //if (auto SV = dyn_cast<memref::SubViewOp>(defOp)) {
 
-      // TODO update map with the new indexing from here
+    //  // TODO update map with the new indexing from here
 
-      // Create affine map
-      //   i. Track number of running dims and symbols
-      //  ii. shift dims and symbols to generate shifted expressions.
-      // Extract corresponding operands
-      // Use affineMap::get with numOperands and numSymbols along with shifted
-      // expressions to get a map. Use affine map simplify to simplify this
+    //  // Create affine map
+    //  //   i. Track number of running dims and symbols
+    //  //  ii. shift dims and symbols to generate shifted expressions.
+    //  // Extract corresponding operands
+    //  // Use affineMap::get with numOperands and numSymbols along with shifted
+    //  // expressions to get a map. Use affine map simplify to simplify this
 
-      SmallVector<AffineExpr> startExprs;
-      SmallVector<AffineExpr> strideExprs;
-      SmallVector<Value> dimOperands;
-      SmallVector<Value> symOperands;
-      for (auto &&[first, second] : llvm::zip(SV.getOffsets(), SV.getStrides())) {
-        for (auto &&[index, val] : llvm::enumerate(SmallVector<Value>({first, second}))) {
-          auto &exprOutput = (index == 0) ? startExprs : strideExprs;
-          // Only support constants, symbols, or affine apply as offsets
-          if (auto cop = val.getDefiningOp<arith::ConstantIntOp>()) {
-            exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
-            continue;
-          } else if (auto cop = val.getDefiningOp<arith::ConstantIndexOp>()) {
-            exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
-            continue;
-          }
-          if (auto ba = dyn_cast<BlockArgument>(val)) {
-            Block *parentBlock = ba.getOwner();
-            if (isa<AffineForOp, AffineParallelOp>(parentBlock->getParentOp())) {
-              exprOutput.push_back(
-                  builder.getAffineDimExpr(dimOperands.size()));
-              dimOperands.push_back(ba);
-              continue;
+    //  SmallVector<AffineExpr> startExprs;
+    //  SmallVector<AffineExpr> strideExprs;
+    //  SmallVector<Value> dimOperands;
+    //  SmallVector<Value> symOperands;
+    //  for (auto &&[first, second] : llvm::zip(SV.getOffsets(), SV.getStrides())) {
+    //    for (auto &&[index, val] : llvm::enumerate(SmallVector<Value>({first, second}))) {
+    //      auto &exprOutput = (index == 0) ? startExprs : strideExprs;
+    //      // Only support constants, symbols, or affine apply as offsets
+    //      if (auto cop = val.getDefiningOp<arith::ConstantIntOp>()) {
+    //        exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
+    //        continue;
+    //      } else if (auto cop = val.getDefiningOp<arith::ConstantIndexOp>()) {
+    //        exprOutput.push_back(builder.getAffineConstantExpr(cop.value()));
+    //        continue;
+    //      }
+    //      if (auto ba = dyn_cast<BlockArgument>(val)) {
+    //        Block *parentBlock = ba.getOwner();
+    //        if (isa<AffineForOp, AffineParallelOp>(parentBlock->getParentOp())) {
+    //          exprOutput.push_back(
+    //              builder.getAffineDimExpr(dimOperands.size()));
+    //          dimOperands.push_back(ba);
+    //          continue;
 
-            }
-          }
+    //        }
+    //      }
 
-          auto valOp = val.getDefiningOp();
-          // Defined outside loop, consider it a symbol [for now]
-          //if (!valOp || loop->isAncestor(defOp)) {
-          if (valOp&&!loop->isAncestor(defOp)) {
-            exprOutput.push_back(
-                builder.getAffineSymbolExpr(symOperands.size()));
-            symOperands.push_back(val);
-            continue;
-          }
+    //      auto valOp = val.getDefiningOp();
+    //      // Defined outside loop, consider it a symbol [for now]
+    //      //if (!valOp || loop->isAncestor(defOp)) {
+    //      if (valOp&&!loop->isAncestor(defOp)) {
+    //        exprOutput.push_back(
+    //            builder.getAffineSymbolExpr(symOperands.size()));
+    //        symOperands.push_back(val);
+    //        continue;
+    //      }
 
-          //TODO: Maybe it's a case to add, but are we sure we need it for starts and offsets
-          // and not for operands
-          if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
-            auto map = apply.getAffineMap();
-            auto *scope = affine::getAffineScope(valOp)->getParentOp();
-            DominanceInfo DI(scope);
-            auto map_operands = apply.getOperands();
-            //fully2ComposeAffineMapAndOperands(builder, &map, &map_operands, DI);
-  // Instead of using loop step we are using 1 (Assumption as the stride size)
-            auto newexpr = map.shiftDims(dimOperands.size())
-                               .shiftSymbols(symOperands.size());
+    //      //TODO: Maybe it's a case to add, but are we sure we need it for starts and offsets
+    //      // and not for operands
+    //      if (auto apply = dyn_cast<AffineApplyOp>(valOp)) {
+    //        auto map = apply.getAffineMap();
+    //        auto *scope = affine::getAffineScope(valOp)->getParentOp();
+    //        DominanceInfo DI(scope);
+    //        auto map_operands = apply.getOperands();
+    //        //fully2ComposeAffineMapAndOperands(builder, &map, &map_operands, DI);
+  //// Instead of using loop step we are using 1 (Assumption as the stride size)
+    //        auto newexpr = map.shiftDims(dimOperands.size())
+    //                           .shiftSymbols(symOperands.size());
 
-            for (auto expr : newexpr.getResults()) {
-              exprOutput.push_back(expr);
-            }
+    //        for (auto expr : newexpr.getResults()) {
+    //          exprOutput.push_back(expr);
+    //        }
 
-            for (size_t i = 0; i < map.getNumDims(); i++)
-              dimOperands.push_back(apply.getOperands()[i]);
+    //        for (size_t i = 0; i < map.getNumDims(); i++)
+    //          dimOperands.push_back(apply.getOperands()[i]);
 
-            for (size_t i = 0; i < map.getNumSymbols(); i++)
-              symOperands.push_back(apply.getOperands()[i + map.getNumDims()]);
+    //        for (size_t i = 0; i < map.getNumSymbols(); i++)
+    //          symOperands.push_back(apply.getOperands()[i + map.getNumDims()]);
 
-            continue;
-          }
+    //        continue;
+    //      }
 
-          //return failure();
-        }
-      }
+    //      //return failure();
+    //    }
+    //  }
 
-      SmallVector<AffineExpr> inputExprs;
-      for (auto expr : lgMap.shiftDims(dimOperands.size())
-                           .shiftSymbols(symOperands.size()).getResults()) {
-        inputExprs.push_back(expr);
-      }
-      for (size_t i = 0; i < lgMap.getNumDims(); i++)
-        dimOperands.push_back(lgOperands[i]);
+    //  SmallVector<AffineExpr> inputExprs;
+    //  for (auto expr : lgMap.shiftDims(dimOperands.size())
+    //                       .shiftSymbols(symOperands.size()).getResults()) {
+    //    inputExprs.push_back(expr);
+    //  }
+    //  for (size_t i = 0; i < lgMap.getNumDims(); i++)
+    //    dimOperands.push_back(lgOperands[i]);
 
-      for (size_t i = 0; i < lgMap.getNumSymbols(); i++)
-        symOperands.push_back(lgOperands[i + lgMap.getNumDims()]);
+    //  for (size_t i = 0; i < lgMap.getNumSymbols(); i++)
+    //    symOperands.push_back(lgOperands[i + lgMap.getNumDims()]);
 
 
-      SmallVector<AffineExpr> mergedExprs;
-      for (auto && [start, stride, idx] :
-           llvm::zip(startExprs, strideExprs, inputExprs)) {
-        mergedExprs.push_back(start + idx * stride);
-      }
+    //  SmallVector<AffineExpr> mergedExprs;
+    //  for (auto && [start, stride, idx] :
+    //       llvm::zip(startExprs, strideExprs, inputExprs)) {
+    //    mergedExprs.push_back(start + idx * stride);
+    //  }
 
-      lgMap =
-          AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs, loop->getContext());
-      lgOperands.clear();
-      lgOperands.insert(lgOperands.begin(), dimOperands.begin(), dimOperands.end());
-      lgOperands.insert(lgOperands.begin()+lgOperands.size(), symOperands.begin(), symOperands.end());
-      input = SV.getSource();
-      break;
-    }
+    //  lgMap =
+    //      AffineMap::get(dimOperands.size(), symOperands.size(), mergedExprs, loop->getContext());
+    //  lgOperands.clear();
+    //  lgOperands.insert(lgOperands.begin(), dimOperands.begin(), dimOperands.end());
+    //  lgOperands.insert(lgOperands.begin()+lgOperands.size(), symOperands.begin(), symOperands.end());
+    //  input = SV.getSource();
+    //  break;
+    //}
 
     //return failure();
   }
@@ -691,6 +695,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         return failure();
 
       auto newAffineMap = rewriter.getMultiDimIdentityMap(firstNDims+1);
+      affineMaps.push_back(newAffineMap);
       inputs.push_back(newMemref);
     }
     // TODO Push all of the inputs to the linalg generics (modifying maps as
