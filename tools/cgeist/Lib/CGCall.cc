@@ -567,6 +567,17 @@ MLIRScanner::EmitClangBuiltinCallExpr(clang::CallExpr *expr) {
     return success(
         ValueCategory(castInteger(builder, loc, res, postTy), /*isRef*/ false));
   }
+  case Builtin::BI__builtin_ctzs:
+  case Builtin::BI__builtin_ctz:
+  case Builtin::BI__builtin_ctzl:
+  case Builtin::BI__builtin_ctzll: {
+    auto v = Visit(expr->getArg(0));
+    assert(!v.isReference);
+    Value res = builder.create<math::CountTrailingZerosOp>(loc, v.val);
+    auto postTy = getMLIRType(expr->getType()).cast<mlir::IntegerType>();
+    return success(
+        ValueCategory(castInteger(builder, loc, res, postTy), /*isRef*/ false));
+  }
   default:
     break;
   }
