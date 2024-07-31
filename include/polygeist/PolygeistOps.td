@@ -270,8 +270,8 @@ def SubmapOp : Polygeist_Op<"submap", [Pure, ViewLikeOpInterface]> {
   let hasCanonicalizer = 1;
 
   let extraClassDeclaration = [{
-    ::mlir::ValueRange getSymbols() { return getOperands().slice(0, getMap().getNumSymbols()); }
-    ::mlir::ValueRange getSizes() { return getOperands().slice(getMap().getNumSymbols(), getMap().getNumSymbols() + getType().getShape().size()); }
+    ::mlir::ValueRange getSymbols() { return getOperands().slice(1, getMap().getNumSymbols()+1); }
+    ::mlir::ValueRange getSizes() { return getOperands().slice(getMap().getNumSymbols()+1, getMap().getNumSymbols() + getType().getShape().size()+1); }
     ::mlir::Value getViewSource() { return getMemref(); }
   }];
 }
