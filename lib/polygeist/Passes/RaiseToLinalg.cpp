@@ -472,7 +472,6 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         while (cur != loop) {
           auto ifstmt = dyn_cast<AffineIfOp>(cur);
           if (!ifstmt) {
-            llvm::errs() << "internal cur which prevents hoising: " << *cur << "\n";
             return WalkResult::interrupt();
           }
           bool ifTrue =
@@ -494,7 +493,6 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
       if (isReadNone(op)) {
         return WalkResult::advance();
       }
-      llvm::errs() << "internal op which prevents hoising: " << *op << "\n";
       return WalkResult::interrupt();
     });
 
@@ -539,7 +537,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // We're going to need to upgrade the defn of mayAlias for subviews (aka
     // mayAlias(subview, x) -> mayAlias(operand(subview), x))
 
-    SmallVector<Value> inputs;
+    SmallVector<Value> inputs, outputs;
     SmallVector<AffineMap> affineMaps;
     SmallVector<AffineMap> indexingMaps;
 
@@ -705,7 +703,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         auto newAffineMap = rewriter.getMultiDimIdentityMap(firstNDims+1);
         // TODO: need to merge previous indexing maps and new affine maps
         affineMaps.push_back(newAffineMap);
-        inputs.push_back(newMemref);
+        outputs.push_back(newMemref);
       }
     }
 
@@ -738,7 +736,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
     // TODO Push all of the inputs to the linalg generics (modifying maps as
     // needed)
 
-    SmallVector<Value> outputs;
+    //SmallVector<Value> outputs;
     // Store we may need to reindex into a splat potentially later, but for now
     // we'll be lazy
     for (auto &&[conds, store] : stores) {
