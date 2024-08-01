@@ -332,7 +332,7 @@ AffineApplyNormalizer::AffineApplyNormalizer(AffineMap map,
              isValidSymbolInt(t.getDefiningOp()->getOperand(1))) &&
             (!(fix(t.getDefiningOp()->getOperand(0), false) &&
                fix(t.getDefiningOp()->getOperand(1), false)))) ||
-           (t.getDefiningOp<DivSIOp>() &&
+           ((t.getDefiningOp<DivUIOp>() || t.getDefiningOp<DivSIOp>()) &&
             (isValidIndex(t.getDefiningOp()->getOperand(0)) &&
              isValidSymbolInt(t.getDefiningOp()->getOperand(1)))) ||
            (t.getDefiningOp<RemUIOp>() &&
