@@ -2566,7 +2566,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
     auto prevTy = res.getType().cast<mlir::IntegerType>();
     auto postTy = getMLIRType(BO->getType()).cast<mlir::IntegerType>();
     bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
+    if (auto bit =
+            dyn_cast<clang::BuiltinType>(&*BO->getType().getCanonicalType())) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())
@@ -2692,7 +2693,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   }
   // TODO note assumptions made here about unsigned / unordered
   bool signedType = true;
-  if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
+  if (auto bit =
+          dyn_cast<clang::BuiltinType>(&*BO->getType().getCanonicalType())) {
     if (bit->isUnsignedInteger())
       signedType = false;
     if (bit->isSignedInteger())
@@ -2765,7 +2767,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
   case clang::BinaryOperator::Opcode::BO_EQ:
   case clang::BinaryOperator::Opcode::BO_NE: {
     signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getLHS()->getType())) {
+    if (auto bit = dyn_cast<clang::BuiltinType>(
+            &*BO->getLHS()->getType().getCanonicalType())) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())
@@ -3000,7 +3003,8 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
       if (auto prevTy = dyn_cast<mlir::IntegerType>(tostore.getType())) {
         if (auto postTy = dyn_cast<mlir::IntegerType>(subType)) {
           bool signedType = true;
-          if (auto bit = dyn_cast<clang::BuiltinType>(&*BO->getType())) {
+          if (auto bit = dyn_cast<clang::BuiltinType>(
+                  &*BO->getType().getCanonicalType())) {
             if (bit->isUnsignedInteger())
               signedType = false;
             if (bit->isSignedInteger())
@@ -4176,7 +4180,8 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
     }
     auto prevTy = scalar.getType().cast<mlir::IntegerType>();
     bool signedType = true;
-    if (auto bit = dyn_cast<clang::BuiltinType>(&*E->getSubExpr()->getType())) {
+    if (auto bit = dyn_cast<clang::BuiltinType>(
+            &*E->getSubExpr()->getType().getCanonicalType())) {
       if (bit->isUnsignedInteger())
         signedType = false;
       if (bit->isSignedInteger())
