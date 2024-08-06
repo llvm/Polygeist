@@ -137,30 +137,34 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
   }
   
   SmallVector<AffineExpr> dimReplacements;
-  size_t validx = 0;
+  size_t validSims = 0;
+  size_t validDims = 0;
   for (int i=0; i<oldmap.getNumDims(); i++) {
     if (i < firstNDims) {
       assert(i != dimidx);
-      dimReplacements.push_back(builder.getAffineDimExpr(dimReplacements.size()));
+      dimReplacements.push_back(builder.getAffineDimExpr(validDims));
+      validDims++;
     } else if (i == dimidx) {
-      dimReplacements.push_back(builder.getAffineDimExpr(dimReplacements.size()));
+      dimReplacements.push_back(builder.getAffineDimExpr(validDims));
+      validDims++;
     } else {
       // TODO: Why are we using symbol here instead of dim?
-      dimReplacements.push_back(builder.getAffineSymbolExpr(validx));
-      validx++;
+      dimReplacements.push_back(builder.getAffineSymbolExpr(validSims));
+      validSims++;
     }
   }
 
   SmallVector<AffineExpr> symReplacements;
   for (int i=0; i<oldmap.getNumSymbols(); i++) {
     if (i + oldmap.getNumDims() == dimidx) {
-      symReplacements.push_back(builder.getAffineDimExpr(dimReplacements.size()));
+      symReplacements.push_back(builder.getAffineDimExpr(validDims));
+      validDims++;
     } else {
-      symReplacements.push_back(builder.getAffineSymbolExpr(validx));
-      validx++;
+      symReplacements.push_back(builder.getAffineSymbolExpr(validSims));
+      validSims++;
     }
   }
-  if (validx != operands_without_indices.size()) {
+  if (validSims != operands_without_indices.size()) {
     llvm::errs() << " oldmap: " << oldmap << "\n";
     llvm::errs() << " dimidx=" << dimidx << "\n";
     llvm::errs() << " index: " << index << "\n";
@@ -172,13 +176,13 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
         llvm::errs() << "  -" << "null" << " &nullptr\n";
       }
     }
-    llvm::errs() << " validx: " << validx << "\n";
+    llvm::errs() << " validSims: " << validSims << "\n";
     llvm::errs() << " operands_without_indices: size=" << operands_without_indices.size() << "\n";
     for (auto op : operands_without_indices) {
       llvm::errs() << "  -" << op << " &" << op.getAsOpaquePointer() << "\n";
     }
   }
-  assert(validx == operands_without_indices.size());
+  assert(validSims == operands_without_indices.size());
   auto map2 = oldmap.replaceDimsAndSymbols(dimReplacements, symReplacements, firstNDims+1, operands_without_indices.size());
 
   SmallVector<Value> idx_sizes;
