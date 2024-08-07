@@ -532,12 +532,12 @@ module @for_3_levels_4{
     affine.for %arg3 = 0 to 21 {
       affine.for %arg4 = 0 to 17 {
         affine.for %arg5 = 0 to 21 {
-          %ld1 = affine.load %18[%arg3+%arg4] : memref<?xf32>
-          %ld2 = affine.load %20[%arg4+%arg5] : memref<?xf32>
-          %ld3 = affine.load %20[%arg5+%arg3] : memref<?xf32>
+          %ld1 = affine.load %18[%arg3+4*%arg4+3] : memref<?xf32>
+          %ld2 = affine.load %20[7*%arg4+%arg5+2] : memref<?xf32>
+          %ld3 = affine.load %20[%arg5+2*%arg3] : memref<?xf32>
           %mul = arith.mulf %ld1, %ld2 : f32
           %mul2 = arith.mulf %mul, %ld3 : f32
-          affine.store %mul, %19[%arg4] : memref<?xf32>
+          affine.store %mul2, %19[%arg4] : memref<?xf32>
         }
       }
     }
@@ -599,7 +599,7 @@ module @parallel_fors_inside_for {
   }
 }
 
-//matrix-mul iter arg
+////matrix-mul iter arg
 //module @matmul_1 {
 //  memref.global @out : memref<32x8xi32> = uninitialized
 //  memref.global @im2 : memref<8x8xi32> = uninitialized
@@ -624,33 +624,33 @@ module @parallel_fors_inside_for {
 //    return %c0_i32 : i32
 //  }
 //}
-//
-////matrix-mul alias issue
-//module @matmul_2 {
-//  memref.global @out : memref<128x32xi32> = uninitialized
-//  memref.global @im2 : memref<64x32xi32> = uninitialized
-//  memref.global @im1 : memref<128x64xi32> = uninitialized
-//  func.func @main() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-//    %c0_i32 = arith.constant 0 : i32
-//    %0 = memref.get_global @im1 : memref<128x64xi32>
-//    %1 = memref.get_global @im2 : memref<64x32xi32>
-//    %2 = memref.get_global @out : memref<128x32xi32>
-//    affine.for %arg0 = 0 to 128 {
-//      affine.for %arg1 = 0 to 32 {
-//        affine.for %arg2 = 0 to 64 {
-//          %3 = affine.load %0[%arg0, %arg2] : memref<128x64xi32>
-//          %4 = affine.load %1[%arg2, %arg1] : memref<64x32xi32>
-//          %5 = arith.muli %3, %4 : i32
-//          %6 = affine.load %2[%arg0, %arg1] : memref<128x32xi32>
-//          %7 = arith.addi %6, %5 : i32
-//          affine.store %7, %2[%arg0, %arg1] : memref<128x32xi32>
-//        }
-//      }
-//    }
-//    return %c0_i32 : i32
-//  }
-//}
-//
+
+//matrix-mul extra load-store variant
+module @matmul_2 {
+  memref.global @out : memref<128x32xi32> = uninitialized
+  memref.global @im2 : memref<64x32xi32> = uninitialized
+  memref.global @im1 : memref<128x64xi32> = uninitialized
+  func.func @main() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+    %c0_i32 = arith.constant 0 : i32
+    %0 = memref.get_global @im1 : memref<128x64xi32>
+    %1 = memref.get_global @im2 : memref<64x32xi32>
+    %2 = memref.get_global @out : memref<128x32xi32>
+    affine.for %arg0 = 0 to 128 {
+      affine.for %arg1 = 0 to 32 {
+        affine.for %arg2 = 0 to 64 {
+          %3 = affine.load %0[%arg0, %arg2] : memref<128x64xi32>
+          %4 = affine.load %1[%arg2, %arg1] : memref<64x32xi32>
+          %5 = arith.muli %3, %4 : i32
+          %6 = affine.load %2[%arg0, %arg1] : memref<128x32xi32>
+          %7 = arith.addi %6, %5 : i32
+          affine.store %7, %2[%arg0, %arg1] : memref<128x32xi32>
+        }
+      }
+    }
+    return %c0_i32 : i32
+  }
+}
+
 ////conv (with inner loop accumulate)
 ////How to deal with IR in outer loops as well?
 //module @conv_1{
@@ -681,31 +681,31 @@ module @parallel_fors_inside_for {
 //  }
 //}
 //
-////conv (direct store)
-//module @conv_2 {
-//  memref.global @out : memref<512x64xi32> = uninitialized
-//  memref.global @filter : memref<4x4xi32> = uninitialized
-//  memref.global @im : memref<515x67xi32> = uninitialized
-//  func.func @main() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-//    %c0_i32 = arith.constant 0 : i32
-//    %0 = memref.get_global @im : memref<515x67xi32>
-//    %1 = memref.get_global @filter : memref<4x4xi32>
-//    %2 = memref.get_global @out : memref<512x64xi32>
-//    affine.for %arg0 = 0 to 512 {
-//      affine.for %arg1 = 0 to 64 {
-//        affine.for %arg2 = 0 to 4 {
-//          affine.for %arg3 = 0 to 4 {
-//            %3 = affine.load %0[%arg0 + %arg2, %arg1 + %arg3] : memref<515x67xi32>
-//            %4 = affine.load %1[%arg2, %arg3] : memref<4x4xi32>
-//            %5 = arith.muli %3, %4 : i32
-//            %6 = affine.load %2[%arg0, %arg1] : memref<512x64xi32>
-//            %7 = arith.addi %6, %5 : i32
-//            affine.store %7, %2[%arg0, %arg1] : memref<512x64xi32>
-//          }
-//        }
-//      }
-//    }
-//    return %c0_i32 : i32
-//  }
-//} 
+//conv (direct store)
+module @conv_2 {
+  memref.global @out : memref<512x64xi32> = uninitialized
+  memref.global @filter : memref<4x4xi32> = uninitialized
+  memref.global @im : memref<515x67xi32> = uninitialized
+  func.func @main() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
+    %c0_i32 = arith.constant 0 : i32
+    %0 = memref.get_global @im : memref<515x67xi32>
+    %1 = memref.get_global @filter : memref<4x4xi32>
+    %2 = memref.get_global @out : memref<512x64xi32>
+    affine.for %arg0 = 0 to 512 {
+      affine.for %arg1 = 0 to 64 {
+        affine.for %arg2 = 0 to 4 {
+          affine.for %arg3 = 0 to 4 {
+            %3 = affine.load %0[%arg0 + %arg2, %arg1 + %arg3] : memref<515x67xi32>
+            %4 = affine.load %1[%arg2, %arg3] : memref<4x4xi32>
+            %5 = arith.muli %3, %4 : i32
+            %6 = affine.load %2[%arg0, %arg1] : memref<512x64xi32>
+            %7 = arith.addi %6, %5 : i32
+            affine.store %7, %2[%arg0, %arg1] : memref<512x64xi32>
+          }
+        }
+      }
+    }
+    return %c0_i32 : i32
+  }
+} 
     
