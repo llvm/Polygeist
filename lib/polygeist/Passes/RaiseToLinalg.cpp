@@ -187,13 +187,12 @@ Value remap_in_affine_dim(bool &legal, OpBuilder &builder, AffineMap oldmap,
 
   SmallVector<Value> idx_sizes;
   for (size_t i=0; i<firstNDims; i++) {
+    //memref.dimOp captures the size of the memref
     idx_sizes.push_back(builder.create<memref::DimOp>(memref_val.getLoc(), memref_val, i));
   }
   idx_sizes.push_back(bound);
 
   legal = true;
-  // TODO: Cannot be negative size, are we trying to initialize it with any size, or do we want to calcualte size from 
-  // loop bounds?
   SmallVector<int64_t> sizes(idx_sizes.size(), mlir::ShapedType::kDynamic);
   for (auto sz : idx_sizes)
     operands_without_indices.push_back(sz);
@@ -658,7 +657,10 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
         // For this case: LG within ForOp -
         // Inputs should be : load map extracted from subviewOp
         // Returns LG with indexingMap and subview  with affine.apply - which are correct 
-        size_t firstNDims = lgMap.getResults().size();
+        
+        //TODO: Or is it num dims?
+        //size_t firstNDims = lgMap.getResults().size();
+        size_t firstNDims = lgMap.getNumDims();
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize,
             firstNDims, ValueRange(lgOperands));
@@ -697,7 +699,7 @@ struct AffineForOpRaising : public OpRewritePattern<affine::AffineForOp> {
 
         bool legal = true;
 
-        size_t firstNDims = lgMap.getResults().size();
+        size_t firstNDims = lgMap.getNumDims();
         auto newMemref = remap_in_affine_dim(
             legal, rewriter, lgMap, lgMemref, loop.getInductionVar(), loopSize, firstNDims, ValueRange(lgOperands));
 
