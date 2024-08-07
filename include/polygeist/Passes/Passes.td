@@ -157,6 +157,7 @@ def AffineRaiseToLinalg : Pass<"raise-affine-to-linalg"> {
   let dependentDialects = [
     "affine::AffineDialect",
     "linalg::LinalgDialect",
+    "polygeist::PolygeistDialect",
   ];
 }
 
