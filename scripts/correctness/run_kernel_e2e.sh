@@ -75,13 +75,17 @@ fi
 # Step 4: standard MLIR lowering to LLVM dialect.
 # The debuferize path emits `bufferization.to_tensor` that one-shot-bufferize
 # needs `restrict` on. LinalgDebufferize doesn't emit it; patch via sed.
+# Also: one-shot-bufferize doesn't handle `affine.for` with tensor iter_args,
+# which debuferize emits for time-stepping kernels. Convert affine.for ->
+# scf.for first (via --lower-affine) so bufferize sees only scf.for.
 if [ -n "$DEBUF" ]; then
   sed -i 's|bufferization\.to_tensor \(%[^ ]*\) :|bufferization.to_tensor \1 restrict :|g' $OUT/std.mlir
-  EXTRA="--one-shot-bufferize=bufferize-function-boundaries"
+  EXTRA="--lower-affine --empty-tensor-to-alloc-tensor --one-shot-bufferize=bufferize-function-boundaries"
 else
   EXTRA=""
 fi
-$MLIR_OPT $EXTRA --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
+$MLIR_OPT $EXTRA --expand-strided-metadata \
+  --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
   --convert-arith-to-llvm --convert-math-to-llvm \
   --finalize-memref-to-llvm \
   --convert-func-to-llvm --reconcile-unrealized-casts \

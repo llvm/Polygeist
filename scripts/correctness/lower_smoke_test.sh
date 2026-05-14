@@ -6,8 +6,10 @@ MLIR_OPT=/home/arjaiswal/Polygeist/llvm-project/build/bin/mlir-opt
 OUT_DIR="/tmp/lowering_test"
 mkdir -p "$OUT_DIR"
 
-LOWERING_PIPE="--convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
-  --convert-arith-to-llvm --finalize-memref-to-llvm \
+LOWERING_PIPE="--expand-strided-metadata \
+  --convert-linalg-to-loops --lower-affine --convert-scf-to-cf \
+  --convert-arith-to-llvm --convert-math-to-llvm \
+  --finalize-memref-to-llvm \
   --convert-func-to-llvm --reconcile-unrealized-casts"
 
 # Reuse the kernel list from /tmp/run_polybench.sh

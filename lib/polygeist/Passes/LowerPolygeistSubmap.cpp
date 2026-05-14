@@ -30,40 +30,176 @@ namespace {
 // least one DimExpr (allows `d0`, `d0 + const`, etc.; rejects pure-symbol or
 // pure-constant slots). Symbol-bearing or constant-only forms are handled by
 // the Subview/ExtractSlice patterns separately.
+// Decompose a submap's affine map into a per-base-dim structure. Each base-
+// dim is classified as either "live" (the view contributes data along this
+// dim; passes through into the subview's result shape) or "dead" (the view
+// reduces this base-dim to a single element via a fixed offset; subview
+// rank-reduces it).
+//
+// Each result expression of submap.map must be one of:
+//   d_i              → live, offset 0,           view_dim = d_i
+//   d_i + const      → live, offset const,       view_dim = d_i
+//   const + d_i      → live, offset const,       view_dim = d_i
+//   d_i + symbol     → live, offset symbol,      view_dim = d_i
+//   symbol + d_i     → live, offset symbol,      view_dim = d_i
+//   symbol           → dead, offset symbol value
+//   const            → dead, offset constant value
+//
+// The "live view_dim" tells the caller which iter-dim of the consumer linalg
+// maps to this base-dim AFTER the subview rank-reduction. The offsets feed
+// memref.subview's offsets. "dead" base-dims rank-reduce out — they don't
+// appear in the consumer linalg's new indexing_map for this operand.
+struct PerBaseDim {
+  bool live;
+  OpFoldResult offset;   // for !live, the fixed offset; for live, the base offset (0 or symbol/const)
+  unsigned viewDim;      // only valid when live
+};
+struct DecomposedMap {
+  SmallVector<PerBaseDim> base; // one per result of submap.map (= base rank)
+};
+
+static std::optional<DecomposedMap>
+decomposeMapForLowering(AffineMap m, ValueRange symbols,
+                        OpBuilder &builder) {
+  DecomposedMap d;
+  d.base.reserve(m.getNumResults());
+  unsigned numDims = m.getNumDims();
+  OpFoldResult zeroAttr = builder.getIndexAttr(0);
+  for (unsigned k = 0; k < m.getNumResults(); ++k) {
+    AffineExpr e = m.getResult(k);
+    // Pure DimExpr.
+    if (auto dim = e.dyn_cast<AffineDimExpr>()) {
+      if (dim.getPosition() >= numDims) return std::nullopt;
+      d.base.push_back(PerBaseDim{true, zeroAttr, dim.getPosition()});
+      continue;
+    }
+    // Pure SymbolExpr.
+    if (auto sym = e.dyn_cast<AffineSymbolExpr>()) {
+      unsigned si = sym.getPosition();
+      if (si >= symbols.size()) return std::nullopt;
+      d.base.push_back(PerBaseDim{false, symbols[si], 0});
+      continue;
+    }
+    // Pure ConstantExpr.
+    if (auto c = e.dyn_cast<AffineConstantExpr>()) {
+      d.base.push_back(PerBaseDim{false, builder.getIndexAttr(c.getValue()), 0});
+      continue;
+    }
+    // AffineBinaryOpExpr: dim + (const|symbol).
+    if (auto add = e.dyn_cast<AffineBinaryOpExpr>()) {
+      if (add.getKind() != AffineExprKind::Add) return std::nullopt;
+      AffineExpr lhs = add.getLHS(), rhs = add.getRHS();
+      AffineExpr dimSide, offSide;
+      if (lhs.isa<AffineDimExpr>()) {
+        dimSide = lhs; offSide = rhs;
+      } else if (rhs.isa<AffineDimExpr>()) {
+        dimSide = rhs; offSide = lhs;
+      } else {
+        return std::nullopt;
+      }
+      auto dimExpr = dimSide.cast<AffineDimExpr>();
+      if (dimExpr.getPosition() >= numDims) return std::nullopt;
+      OpFoldResult off;
+      if (auto c = offSide.dyn_cast<AffineConstantExpr>()) {
+        off = builder.getIndexAttr(c.getValue());
+      } else if (auto s = offSide.dyn_cast<AffineSymbolExpr>()) {
+        unsigned si = s.getPosition();
+        if (si >= symbols.size()) return std::nullopt;
+        off = symbols[si];
+      } else {
+        return std::nullopt;
+      }
+      d.base.push_back(PerBaseDim{true, off, dimExpr.getPosition()});
+      continue;
+    }
+    return std::nullopt;
+  }
+  return d;
+}
+
+// Returns true iff any base-dim has a non-zero static offset (signaling that
+// a subview is structurally required because base.dim values can't directly
+// serve as the iteration bound — they'd let the loop run past the original
+// submap's smaller view).
+static bool hasAnyNonZeroOffset(const DecomposedMap &d) {
+  for (const auto &b : d.base) {
+    if (!b.live) return true; // rank-reduced — needs subview
+    if (auto attr = b.offset.dyn_cast<Attribute>())
+      if (auto i = attr.dyn_cast<IntegerAttr>())
+        if (i.getInt() != 0) return true;
+    if (b.offset.is<Value>()) return true; // symbol offset — needs subview
+  }
+  return false;
+}
+
+// Rewrites a linalg.generic's submap-defined operands. For each operand
+// defined by a polygeist.submap whose map decomposes via
+// decomposeMapForLowering:
+//   - Emit a memref.subview when needed (any offset is non-zero, or any
+//     base-dim is rank-reduced/broadcast). The subview rank-reduces dead
+//     base-dims and uses the offsets/sizes from the decomp.
+//   - Compose the surviving live view-dims into the consumer linalg's
+//     indexing_map for that operand: the new map's results are
+//     (perm[live_0], perm[live_1], ...) in original-base-dim order. For
+//     broadcasts (a view-dim doesn't appear in any live base-dim), the
+//     consumer linalg simply omits that iter-dim from this operand's map.
 struct ComposeSubmapIntoLinalgGeneric
     : public OpRewritePattern<linalg::GenericOp> {
   using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
 
-  static bool isComposable(SubmapOp s) {
-    if (s.getMap().getNumSymbols() != 0) return false;
-    for (AffineExpr e : s.getMap().getResults()) {
-      bool foundDim = false;
-      e.walk([&](AffineExpr sub) { if (sub.isa<AffineDimExpr>()) foundDim = true; });
-      if (!foundDim) return false;
-    }
-    return true;
-  }
-
   LogicalResult matchAndRewrite(linalg::GenericOp genOp,
                                 PatternRewriter &rewriter) const final {
-    // Identify operands defined by composable submaps.
     SmallVector<AffineMap> newIndexingMaps(genOp.getIndexingMapsArray());
-    SmallVector<std::pair<unsigned, SubmapOp>> toRewrite;
+    struct WorkItem {
+      unsigned operandIdx;
+      SubmapOp submap;
+      DecomposedMap decomp;
+      bool needsSubview;
+    };
+    SmallVector<WorkItem> work;
+
     for (OpOperand &opd : genOp->getOpOperands()) {
       auto submap = opd.get().getDefiningOp<SubmapOp>();
       if (!submap) continue;
-      if (!isComposable(submap)) continue;
-      unsigned mapIdx = opd.getOperandNumber();
-      newIndexingMaps[mapIdx] = submap.getMap().compose(newIndexingMaps[mapIdx]);
-      toRewrite.emplace_back(mapIdx, submap);
+      auto decomp = decomposeMapForLowering(submap.getMap(),
+                                             submap.getSymbols(),
+                                             rewriter);
+      if (!decomp) continue;
+      work.push_back(WorkItem{opd.getOperandNumber(), submap, *decomp,
+                              /*needsSubview=*/false});
     }
-    if (toRewrite.empty()) return failure();
+    if (work.empty()) return failure();
 
-    // Check the new collective indexing_maps still cover every iter dim
-    // (otherwise the linalg becomes ill-defined).
+    // Decide which work items need a subview. A subview is needed for any
+    // operand that has rank-reducing dead base-dims (broadcasts / fixed
+    // offsets) or non-zero offsets. Additionally, if ANY operand in the
+    // group needs one, force a subview for all of them so iter-bounds are
+    // consistent across the linalg.
+    bool anyNeeds = false;
+    for (auto &w : work)
+      if (hasAnyNonZeroOffset(w.decomp)) { anyNeeds = true; break; }
+    for (auto &w : work)
+      w.needsSubview = anyNeeds;
+
+    // Build the new indexing_map for each operand upfront so we can
+    // validate iter-dim coverage before any IR mutation. The new map's
+    // results are, per live base-dim in order, d_(view_dim).
+    MLIRContext *ctx = genOp.getContext();
+    SmallVector<AffineMap> tentativeMaps(newIndexingMaps);
+    for (auto &w : work) {
+      SmallVector<AffineExpr> liveResults;
+      for (const auto &b : w.decomp.base) {
+        if (!b.live) continue;
+        liveResults.push_back(getAffineDimExpr(b.viewDim, ctx));
+      }
+      AffineMap permMap = AffineMap::get(
+          w.submap.getMap().getNumDims(), 0, liveResults, ctx);
+      tentativeMaps[w.operandIdx] =
+          permMap.compose(tentativeMaps[w.operandIdx]);
+    }
     unsigned numIterDims = genOp.getNumLoops();
     SmallVector<bool, 8> dimCovered(numIterDims, false);
-    for (AffineMap m : newIndexingMaps) {
+    for (AffineMap m : tentativeMaps) {
       for (AffineExpr e : m.getResults()) {
         e.walk([&](AffineExpr sub) {
           if (auto d = sub.dyn_cast<AffineDimExpr>())
@@ -72,15 +208,45 @@ struct ComposeSubmapIntoLinalgGeneric
         });
       }
     }
-    for (bool b : dimCovered) {
+    for (bool b : dimCovered)
       if (!b) return failure();
-    }
 
-    // Apply: switch operands to bases, install new indexing_maps.
-    for (auto &p : toRewrite) {
-      genOp->setOperand(p.first, p.second.getBase());
+    // Apply the rewrite.
+    for (auto &w : work) {
+      Value newOperand;
+      if (w.needsSubview) {
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPointAfter(w.submap);
+        auto baseTy = cast<MemRefType>(w.submap.getBase().getType());
+        ValueRange submapSizes = w.submap.getSizes();
+        SmallVector<OpFoldResult> offsets, sizes, strides;
+        OpFoldResult oneAttr = rewriter.getIndexAttr(1);
+        SmallVector<int64_t> resultShape;
+        for (const auto &b : w.decomp.base) {
+          offsets.push_back(b.offset);
+          if (b.live) {
+            if (b.viewDim >= submapSizes.size()) return failure();
+            sizes.push_back(submapSizes[b.viewDim]);
+            resultShape.push_back(ShapedType::kDynamic);
+          } else {
+            sizes.push_back(oneAttr);
+            // dead base-dim — gets rank-reduced.
+          }
+          strides.push_back(oneAttr);
+        }
+        MemRefType subTy = cast<MemRefType>(
+            memref::SubViewOp::inferRankReducedResultType(
+                resultShape, baseTy, offsets, sizes, strides));
+        auto subview = rewriter.create<memref::SubViewOp>(
+            w.submap.getLoc(), subTy, w.submap.getBase(), offsets, sizes,
+            strides);
+        newOperand = subview.getResult();
+      } else {
+        newOperand = w.submap.getBase();
+      }
+      genOp->setOperand(w.operandIdx, newOperand);
     }
-    genOp.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(newIndexingMaps));
+    genOp.setIndexingMapsAttr(rewriter.getAffineMapArrayAttr(tentativeMaps));
     return success();
   }
 };
