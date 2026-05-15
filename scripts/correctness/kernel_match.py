@@ -727,6 +727,46 @@ def _trmm_masked() -> CompositionEntry:
     )
 
 
+def _copy_input() -> CompositionEntry:
+    """out[i] = in[i]  — vector copy (adi/doitgen final write-back)."""
+    body = Term.In(0)
+    return CompositionEntry(
+        name="cublasDcopy",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _axpby() -> CompositionEntry:
+    """out = α*in0 + β*out  — gesummv combine step (cublasDaxpby)."""
+    body = T_cap("%alpha") * Term.In(0) + T_cap("%beta") * Term.Out(0)
+    return CompositionEntry(
+        name="cublasDaxpby",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _fma3() -> CompositionEntry:
+    """out = in0*in1 + in2  — fused-multiply-add over 3 inputs (adi solve step)."""
+    body = Term.In(0) * Term.In(1) + Term.In(2)
+    return CompositionEntry(
+        name="elemwise_fma3",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
+def _sub_from_out() -> CompositionEntry:
+    """out -= in0  — vector-from-broadcast subtract (covariance centering)."""
+    body = Term.Out(0) - Term.In(0)
+    return CompositionEntry(
+        name="elemwise_sub_from_out",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                reduction_dim_count=0)],
+    )
+
+
 def _rank_two_update() -> CompositionEntry:
     """A[i,j] += u1[i]*v1[j] + u2[i]*v2[j]  — gemver A-update stage.
 
@@ -751,6 +791,7 @@ def composition_library() -> list[CompositionEntry]:
         # 1-step BLAS with α capture.
         _gemm_alpha_only(),
         _gemv_alpha_accumulate(),
+        _axpby(),               # α*in + β*out  — most specific 2-cap form
         _axpy(),
         _scal_1d(),
         _scal_2d(),
@@ -767,8 +808,11 @@ def composition_library() -> list[CompositionEntry]:
         _asum(),
         _reduce_sum_axis(),     # 1 in, 1 out, P=1+R=1: separate from gemv (2 ins)
         _vector_add_no_alpha(), # P=1+R=0
+        _copy_input(),          # out = in0 (1 in, 1 out)
+        _fma3(),                # in0*in1 + in2 (3 ins)
         _divf_scalar(),
         _subf_inputs(),
+        _sub_from_out(),
 
         # Fill patterns.
         _fill_zero_1d(),
