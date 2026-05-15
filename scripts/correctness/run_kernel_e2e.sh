@@ -2,11 +2,15 @@
 # Run an end-to-end correctness test for one PolyBench kernel.
 #
 # Usage:
-#   run_kernel_e2e.sh <kernel_dir> <kernel_name> [--debuf]
+#   run_kernel_e2e.sh <kernel_dir> <kernel_name> [--debuf] [--match]
 #
 # Example:
 #   run_kernel_e2e.sh tools/cgeist/Test/polybench/linear-algebra/blas/gemm gemm
 #   run_kernel_e2e.sh ... gemm --debuf       # also run --linalg-debufferize
+#   run_kernel_e2e.sh ... gemm --debuf --match  # also exercise the
+#                                              # kernel.launch round-trip
+#                                              # (kernel_match_rewrite.py +
+#                                              # kernel_launch_lower.py)
 #
 # Returns 0 on PASS, non-zero on any failure or output mismatch.
 set -e
@@ -23,7 +27,13 @@ fi
 KERNEL_DIR="$1"
 KERNEL="$2"   # short name, e.g. "gemm", "mvt"
 DEBUF=""
-[ "${3:-}" = "--debuf" ] && DEBUF="1"
+MATCH=""
+MATCH_CANONICAL=""
+for arg in "${@:3}"; do
+  [ "$arg" = "--debuf" ] && DEBUF=1
+  [ "$arg" = "--match" ] && { DEBUF=1; MATCH=1; }
+  [ "$arg" = "--match-canonical" ] && { DEBUF=1; MATCH_CANONICAL=1; }
+done
 
 # PolyBench source files: <dir>/<short>.c. Kernel function is
 # `kernel_<short>` with hyphens replaced by underscores (heat-3d → kernel_heat_3d).
@@ -37,6 +47,8 @@ UTIL=$POLYBENCH_DIR/utilities
 
 TAG="$KERNEL"
 [ -n "$DEBUF" ] && TAG="${KERNEL}_debuf"
+[ -n "$MATCH" ] && TAG="${KERNEL}_match"
+[ -n "$MATCH_CANONICAL" ] && TAG="${KERNEL}_p2"
 OUT=/tmp/e2e_${TAG}
 mkdir -p $OUT
 
@@ -70,6 +82,44 @@ polygeist-opt "${PIPELINE_OPTS[@]}" $OUT/orig.mlir -o $OUT/std.mlir 2>$OUT/raise
 if grep -qE "polygeist\.(submap|submapInverse)" $OUT/std.mlir; then
   echo "$TAG: PARTIAL_LOWER (polygeist ops remain)"
   exit 3
+fi
+
+# Optional: run the kernel matcher + reverse lowering. The matcher rewrites
+# recognised linalg.generic spans to kernel.launch (with markers stashing the
+# original); the lowerer restores it. End result must be bit-exact to the
+# input for the round-trip to be correctness-preserving.
+if [ -n "$MATCH" ]; then
+  PY=/home/arjaiswal/slacker/.venv/bin/python3
+  SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+  $PY $SCRIPTS/kernel_match_rewrite.py --with-roundtrip-markers \
+    $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
+  N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  N_MARK=$(grep -c '// POLYGEIST-MATCH-BEGIN-' $OUT/matched.mlir 2>/dev/null || echo 0)
+  $PY $SCRIPTS/kernel_launch_lower.py $OUT/matched.mlir \
+    -o $OUT/std.mlir 2>$OUT/lower.err
+  # Note: $OUT/std.mlir is now the restored IR. If matcher had no matches,
+  # std.mlir is unchanged. If it matched, restoration is bit-exact (asserted
+  # implicitly by the downstream parse + execute + diff).
+  echo "$TAG: kernel-match emitted $N_LAUNCH kernel.launch op(s) ($N_MARK markers)"
+fi
+
+# Phase-2: run matcher, inject canonical kernel library, then
+# --lower-kernel-launch to inline canonical defn bodies in place of each
+# kernel.launch. This validates the matcher's *labels* — a wrongly-labeled
+# launch produces different numerics than the user's source and fails the
+# e2e diff.
+if [ -n "$MATCH_CANONICAL" ]; then
+  PY=/home/arjaiswal/slacker/.venv/bin/python3
+  SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
+  LIB=/home/arjaiswal/Polygeist/generic_solver/kernel_library_phase2.mlir
+  $PY $SCRIPTS/kernel_match_rewrite.py $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
+  N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  if [ "$N_LAUNCH" -gt 0 ]; then
+    $PY $SCRIPTS/inject_kernel_library.py $OUT/matched.mlir $LIB -o $OUT/combined.mlir 2>$OUT/inject.err
+    polygeist-opt --lower-kernel-launch $OUT/combined.mlir -o $OUT/std.mlir 2>$OUT/lower.err || {
+      echo "$TAG: PHASE2_LOWER_FAIL"; cat $OUT/lower.err >&2; exit 5; }
+  fi
+  echo "$TAG: phase-2 matched $N_LAUNCH kernel.launch op(s)"
 fi
 
 # Step 4: standard MLIR lowering to LLVM dialect.

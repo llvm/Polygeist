@@ -16,6 +16,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   RaiseToLinalg.cpp
   LinalgDebufferize.cpp
   LowerPolygeistSubmap.cpp
+  LowerKernelLaunch.cpp
   LinalgToKernel.cpp
   ParallelLower.cpp
   TrivialUse.cpp

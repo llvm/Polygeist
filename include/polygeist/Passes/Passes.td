@@ -184,6 +184,39 @@ def LowerPolygeistSubmap : Pass<"lower-polygeist-submap"> {
   ];
 }
 
+def LowerKernelLaunch : Pass<"lower-kernel-launch", "::mlir::ModuleOp"> {
+  let summary = "Inline kernel.defn bodies in place of kernel.launch ops";
+  let description = [{
+    For each `kernel.launch @<name>(operands)` op, finds the `kernel.defn
+    @<name>` symbol (either in the same module or in a separately-loaded
+    library file, controlled by the `kernel-library-path` option), clones the
+    defn's body into the launch's parent block with block-arg-to-operand
+    substitution, and erases the launch. The defn body's terminating
+    `kernel.yield` is replaced by remapping the launch's result SSA to the
+    yielded value.
+
+    Phase-2 of the kernel-match pipeline. Replaces the Phase-1 comment-marker
+    roundtrip lowering with a real canonical-implementation substitution, so
+    a wrongly-labeled kernel.launch produces different numerics from the
+    user's original code and fails e2e correctness diffs.
+  }];
+  let constructor = "mlir::polygeist::createLowerKernelLaunchPass()";
+  let options = [
+    Option<"kernelLibraryPath", "kernel-library-path", "std::string",
+           /*default=*/"\"\"",
+           "Optional path to an MLIR file with `kernel.defn` entries. When "
+           "set, defns are loaded from the file and looked up by symbol "
+           "name. When unset, defns are expected in the input module.">
+  ];
+  let dependentDialects = [
+    "arith::ArithDialect",
+    "linalg::LinalgDialect",
+    "tensor::TensorDialect",
+    "math::MathDialect",
+    "polygeist::kernel::KernelDialect",
+  ];
+}
+
 def LinalgDebufferize : Pass<"linalg-debufferize"> {
   let summary = "Raise affine to linalg";
   let constructor = "mlir::polygeist::createLinalgDebufferizePass()";
