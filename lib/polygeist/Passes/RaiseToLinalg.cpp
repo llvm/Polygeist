@@ -1236,6 +1236,260 @@ struct PrivatizeScratchAllocaForLoop
   }
 };
 
+//===----------------------------------------------------------------------===//
+// PrivatizeRowScratchAllocaForLoop
+//
+// Rank-1 (1-D row) extension of PrivatizeScratchAllocaForLoop. Recognises
+// per-iteration scratch row buffers ("scratch row carries"): an outer
+// `affine.for L` has a `memref.alloca` of static rank-1 `memref<N x T>`
+// defined OUTSIDE L, where each iteration of L writes the full row before
+// any read and nothing outside L observes the buffer.
+//
+// Canonical example (NPB MG psinv/resid/rprj3):
+//     %r1 = memref.alloca() : memref<35xf64>     // outside both loops
+//     affine.for %i3 ... {
+//       affine.for %i2 ... {                     // <-- L (this pattern)
+//         affine.for %i1 = 0 to N { affine.store v, %r1[%i1] }   // fill
+//         affine.for %i1 = 1 to N-1 { ... %r1[%i1-1] + %r1[%i1] + %r1[%i1+1] ... }
+//       }
+//     }
+// Rewrite expands `r1` to `memref<? x N x T>` sized by L's trip count
+// and emits ONE `memref.subview new[%iv, 0] [1, N] [1, 1] -> rank-1`
+// at L's body entry that all in-loop users share. Each iteration of L
+// then writes a disjoint slice, the dep check sees no cross-iteration
+// conflict, and downstream Distribute / AffineForOpRaising can lift L.
+//
+// KNOWN PIPELINE INTEGRATION ISSUE: the strided result type of
+// `memref.subview` (with dynamic offset) makes `AffineForOpRaising`'s
+// polyhedral analysis blow up in practical time on mg_psinv-shaped
+// inputs. See [[row-scratch-privatization-attempt]] for diagnosis. The
+// pattern is enabled here to surface the failure modes for diagnosis,
+// not as a finished feature.
+//===----------------------------------------------------------------------===//
+
+#define PRIV_ROW_DBG(X) llvm::errs() << "[PrivRow] " << X << "\n"
+
+namespace {
+// Walk `body` recursively in pre-order and return the first op that
+// substantively touches `alloca` — reads or writes. View-creation ops
+// (memref.subview, polygeist.submap) are skipped because they only
+// reshape the address.
+static Operation *firstTouchInBody(Value alloca, Region &body) {
+  Operation *found = nullptr;
+  body.walk<WalkOrder::PreOrder>([&](Operation *op) {
+    if (found) return WalkResult::interrupt();
+    if (isa<memref::SubViewOp, polygeist::SubmapOp>(op))
+      return WalkResult::advance();
+    for (Value v : op->getOperands()) {
+      if (v == alloca) { found = op; return WalkResult::interrupt(); }
+    }
+    return WalkResult::advance();
+  });
+  return found;
+}
+
+// Returns true iff `op` writes `alloca` (store / affine.store / a
+// linalg.generic that has `alloca` in its `outs`).
+static bool isWriteOfAlloca(Operation *op, Value alloca) {
+  if (auto s = dyn_cast<affine::AffineStoreOp>(op))
+    return s.getMemref() == alloca;
+  if (auto s = dyn_cast<memref::StoreOp>(op))
+    return s.getMemref() == alloca;
+  if (auto g = dyn_cast<linalg::GenericOp>(op))
+    for (Value o : g.getOutputs())
+      if (o == alloca) return true;
+  return false;
+}
+} // anonymous namespace
+
+struct PrivatizeRowScratchAllocaForLoop
+    : public OpRewritePattern<affine::AffineForOp> {
+  using OpRewritePattern<affine::AffineForOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(affine::AffineForOp forOp,
+                                PatternRewriter &rewriter) const final {
+    if (forOp.getNumResults() != 0) return failure();
+    // Pattern-firing marker: once we've privatized for this loop, don't
+    // re-fire — the new alloca is rank-2 and wouldn't match anyway, but
+    // this short-circuits the candidate walk on every greedy re-visit.
+    if (forOp->hasAttr("polygeist.row_privatized")) return failure();
+
+    Block *body = forOp.getBody();
+    Value iv = forOp.getInductionVar();
+
+    // Collect rank-1 static allocas defined outside this loop.
+    SmallVector<memref::AllocaOp> candidates;
+    DenseSet<Operation *> seen;
+    body->walk([&](Operation *op) {
+      for (Value v : op->getOperands()) {
+        auto allocaOp = v.getDefiningOp<memref::AllocaOp>();
+        if (!allocaOp) continue;
+        if (forOp->isAncestor(allocaOp)) continue;
+        if (!seen.insert(allocaOp).second) continue;
+        auto mrt = dyn_cast<MemRefType>(allocaOp.getType());
+        if (!mrt || mrt.getRank() != 1) continue;
+        if (mrt.isDynamicDim(0)) continue;
+        if (allocaOp->getNumOperands() != 0) continue;
+        candidates.push_back(allocaOp);
+      }
+    });
+    if (candidates.empty()) return failure();
+
+    // Helper: innermost-enclosing-loop check.
+    auto innerContainsAllUses = [&](affine::AffineForOp inner,
+                                     Value alloca) -> bool {
+      for (Operation *user : alloca.getUsers())
+        if (!inner->isAncestor(user)) return false;
+      return true;
+    };
+
+    SmallVector<memref::AllocaOp> good;
+    for (memref::AllocaOp a : candidates) {
+      Operation *firstUse = firstTouchInBody(a.getResult(),
+                                               forOp.getRegion());
+      if (!firstUse) continue;
+      if (!isWriteOfAlloca(firstUse, a.getResult())) continue;
+      if (!noUsesAfterLoop(a, forOp)) continue;
+
+      bool allHandled = true;
+      for (Operation *user : a->getUsers()) {
+        if (!forOp->isAncestor(user)) continue;
+        if (!isa<linalg::GenericOp, memref::SubViewOp, polygeist::SubmapOp,
+                 affine::AffineLoadOp, affine::AffineStoreOp,
+                 memref::LoadOp, memref::StoreOp>(user)) {
+          allHandled = false;
+          break;
+        }
+      }
+      if (!allHandled) continue;
+
+      // Innermost-loop check: defer to nested affine.for if it already
+      // contains every user of alloca.
+      bool isInnermost = true;
+      forOp.getBody()->walk([&](affine::AffineForOp inner) {
+        if (inner == forOp) return WalkResult::advance();
+        if (innerContainsAllUses(inner, a.getResult())) {
+          isInnermost = false;
+          return WalkResult::interrupt();
+        }
+        return WalkResult::advance();
+      });
+      if (!isInnermost) continue;
+
+      good.push_back(a);
+    }
+    if (good.empty()) return failure();
+
+    for (memref::AllocaOp oldAlloca : good) {
+      Block *allocaBlock = oldAlloca->getBlock();
+      Operation *insertionAnchor = forOp.getOperation();
+      while (insertionAnchor && insertionAnchor->getBlock() != allocaBlock)
+        insertionAnchor = insertionAnchor->getParentOp();
+      if (!insertionAnchor) continue;
+      rewriter.setInsertionPoint(insertionAnchor);
+
+      Value tripCount;
+      if (forOp.hasConstantUpperBound()) {
+        tripCount = rewriter.create<arith::ConstantIndexOp>(
+            forOp.getLoc(), forOp.getConstantUpperBound());
+      } else {
+        tripCount = rewriter.create<affine::AffineApplyOp>(
+            forOp.getLoc(), forOp.getUpperBoundMap(),
+            SmallVector<Value>(forOp.getUpperBoundOperands()));
+      }
+
+      MemRefType oldTy = cast<MemRefType>(oldAlloca.getType());
+      int64_t N = oldTy.getShape()[0];
+      auto newTy = MemRefType::get({ShapedType::kDynamic, N},
+                                    oldTy.getElementType());
+      auto newAlloca = rewriter.create<memref::AllocaOp>(
+          oldAlloca.getLoc(), newTy, tripCount);
+
+      // ONE subview at forOp's body entry, shared by all in-loop users.
+      Value rowView;
+      {
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPointToStart(forOp.getBody());
+        SmallVector<OpFoldResult> offsets;
+        offsets.push_back(iv);
+        offsets.push_back(rewriter.getIndexAttr(0));
+        SmallVector<OpFoldResult> sizes;
+        sizes.push_back(rewriter.getIndexAttr(1));
+        sizes.push_back(rewriter.getIndexAttr(N));
+        SmallVector<OpFoldResult> strides;
+        strides.push_back(rewriter.getIndexAttr(1));
+        strides.push_back(rewriter.getIndexAttr(1));
+        auto resTy = memref::SubViewOp::inferRankReducedResultType(
+            {N}, newTy, offsets, sizes, strides).cast<MemRefType>();
+        rowView = rewriter.create<memref::SubViewOp>(
+            oldAlloca.getLoc(), resTy, newAlloca, offsets, sizes, strides);
+      }
+
+      // Rewrite every in-loop user.
+      SmallVector<Operation *> users(oldAlloca->getUsers().begin(),
+                                      oldAlloca->getUsers().end());
+      for (Operation *user : users) {
+        if (!forOp->isAncestor(user)) continue;
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPoint(user);
+
+        if (auto gen = dyn_cast<linalg::GenericOp>(user)) {
+          rewriter.startRootUpdate(gen);
+          for (auto &operand : gen->getOpOperands())
+            if (operand.get() == oldAlloca.getResult())
+              operand.set(rowView);
+          rewriter.finalizeRootUpdate(gen);
+          continue;
+        }
+        if (auto sv = dyn_cast<memref::SubViewOp>(user)) {
+          auto newSv = rewriter.create<memref::SubViewOp>(
+              sv.getLoc(), sv.getType(), rowView,
+              sv.getMixedOffsets(), sv.getMixedSizes(), sv.getMixedStrides());
+          rewriter.replaceOp(sv, newSv.getResult());
+          continue;
+        }
+        if (auto sm = dyn_cast<polygeist::SubmapOp>(user)) {
+          rewriter.startRootUpdate(sm);
+          sm->setOperand(0, rowView);
+          rewriter.finalizeRootUpdate(sm);
+          continue;
+        }
+        if (auto load = dyn_cast<affine::AffineLoadOp>(user)) {
+          rewriter.replaceOp(load,
+              rewriter.create<affine::AffineLoadOp>(
+                  load.getLoc(), rowView, load.getAffineMap(),
+                  load.getMapOperands()).getResult());
+          continue;
+        }
+        if (auto store = dyn_cast<affine::AffineStoreOp>(user)) {
+          rewriter.create<affine::AffineStoreOp>(
+              store.getLoc(), store.getValue(), rowView,
+              store.getAffineMap(), store.getMapOperands());
+          rewriter.eraseOp(store);
+          continue;
+        }
+        if (auto load = dyn_cast<memref::LoadOp>(user)) {
+          rewriter.replaceOp(load,
+              rewriter.create<memref::LoadOp>(
+                  load.getLoc(), rowView, load.getIndices()).getResult());
+          continue;
+        }
+        if (auto store = dyn_cast<memref::StoreOp>(user)) {
+          rewriter.create<memref::StoreOp>(store.getLoc(), store.getValue(),
+                                             rowView, store.getIndices());
+          rewriter.eraseOp(store);
+          continue;
+        }
+        llvm_unreachable("unhandled user in row-scratch privatization");
+      }
+      rewriter.eraseOp(oldAlloca);
+    }
+
+    forOp->setAttr("polygeist.row_privatized", rewriter.getUnitAttr());
+    return success();
+  }
+};
+
 // Shift every `linalg.index` op nested in `region` by `shift`. Used when an
 // outer loop is being raised and prepends `shift` new iterator dims to an
 // inner linalg's iteration space: each existing `linalg.index N` becomes
@@ -2222,6 +2476,16 @@ void RaiseAffineToLinalg::runOnOperation() {
     LLVM_DEBUG(llvm::dbgs() << "### Step 3: Applying Distribute + AffineForOpRaising ###\n");
     RewritePatternSet raisingPatterns(&getContext());
     raisingPatterns.add<PrivatizeScratchAllocaForLoop>(&getContext(), /*benefit=*/3);
+    // NOT REGISTERED: PrivatizeRowScratchAllocaForLoop is implemented above
+    // but is currently not wired into the pipeline because its rewrite
+    // (memref.subview-based row selection) causes AffineForOpRaising to
+    // stall on the strided dynamic-offset result type. See
+    // notes/row_scratch_privatization_failures.md and
+    // memory/row_scratch_privatization_attempt.md for the diagnosis and
+    // the planned fix (switch to polygeist.submap-based row selection,
+    // mirroring the rank-0 sibling). When that fix lands, uncomment the
+    // line below to re-enable.
+    // raisingPatterns.add<PrivatizeRowScratchAllocaForLoop>(&getContext(), /*benefit=*/3);
     raisingPatterns.add<DistributeAffineForOnLinalgGeneric>(&getContext(), /*benefit=*/2);
     raisingPatterns.add<AffineForOpRaising>(&getContext(), /*benefit=*/1);
     if (failed(applyPatternsAndFoldGreedily(getOperation(), std::move(raisingPatterns), config))) {
