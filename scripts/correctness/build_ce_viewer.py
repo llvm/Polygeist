@@ -28,9 +28,86 @@ from pathlib import Path
 POLYBENCH_TEST_DIR = Path("/home/arjaiswal/Polygeist/tools/cgeist/Test/polybench")
 POLYBENCH_UTILS = POLYBENCH_TEST_DIR / "utilities"
 MLIR_DIR = Path("/tmp/polybench_new")
+MACHSUITE_ROOT = Path("/home/arjaiswal/Polygeist/third_party/MachSuite")
+MACHSUITE_MLIR_DIR = Path("/tmp/machsuite_mlir")
+NPB_ROOT = Path("/home/arjaiswal/Polygeist/third_party/NPB-polybenchified")
+NPB_MLIR_DIR = Path("/tmp/npb_mlir")
 OUTPUT_DIR = Path("/tmp/ir_viewer")
 REWRITER = Path("/home/arjaiswal/Polygeist/scripts/correctness/kernel_match_rewrite.py")
 PYTHON = "/home/arjaiswal/slacker/.venv/bin/python3"
+
+# MachSuite tag → (relative subdir under third_party/MachSuite, kernel function).
+# The tag is what the viewer uses for filenames and as the display name.
+MACHSUITE_KERNELS: dict[str, tuple[str, str]] = {
+    "aes":           ("aes/aes",              "aes256_encrypt_ecb"),
+    "backprop":      ("backprop/backprop",    "backprop"),
+    "bfs-bulk":      ("bfs/bulk",             "bfs"),
+    "bfs-queue":     ("bfs/queue",            "bfs"),
+    "fft-strided":   ("fft/strided",          "fft"),
+    "fft-transpose": ("fft/transpose",        "fft1D_512"),
+    "gemm-ncubed":   ("gemm/ncubed",          "gemm"),
+    "gemm-blocked":  ("gemm/blocked",         "bbgemm"),
+    "kmp":           ("kmp/kmp",              "kmp"),
+    "md-grid":       ("md/grid",              "md"),
+    "md-knn":        ("md/knn",               "md_kernel"),
+    "nw":            ("nw/nw",                "needwun"),
+    "sort-merge":    ("sort/merge",           "ms_mergesort"),
+    "sort-radix":    ("sort/radix",           "ss_sort"),
+    "spmv-crs":      ("spmv/crs",             "spmv"),
+    "spmv-ellpack":  ("spmv/ellpack",         "ellpack"),
+    "stencil2d":     ("stencil/stencil2d",    "stencil"),
+    "stencil3d":     ("stencil/stencil3d",    "stencil3d"),
+    "viterbi":       ("viterbi/viterbi",      "viterbi"),
+}
+
+# PolyBench-extracted NPB kernels (one .c per kernel in NPB-polybenchified/).
+# These were manually carved out of the monolithic per-benchmark .c files
+# in NPB3.0-omp-C; the kernel functions had their static-global dependencies
+# converted to explicit array parameters so the pipeline can isolate them
+# without the extraction issues the whole-file sweep hit.
+NPB_KERNELS: dict[str, tuple[str, str]] = {
+    "bt-add":      ("bt_add.c",      "bt_add"),
+    "ft-evolve":   ("ft_evolve.c",   "ft_evolve"),
+    "lu-l2norm":   ("lu_l2norm.c",   "lu_l2norm"),
+    "mg-psinv":    ("mg_psinv.c",    "mg_psinv"),
+    "mg-resid":    ("mg_resid.c",    "mg_resid"),
+    "mg-norm2u3":  ("mg_norm2u3.c",  "mg_norm2u3"),
+    "mg-rprj3":    ("mg_rprj3.c",    "mg_rprj3"),
+}
+
+# Per-NPB-kernel parallelism + characterisation notes.
+NPB_NOTES: dict[str, tuple[str, str]] = {
+    "bt-add":      ("highly parallel",   "BT vector add over 4D field — pure elemwise, fully parallel"),
+    "ft-evolve":   ("highly parallel",   "FT timestep multiply — parallel but uses ex[indexmap[...]] gather; raise refuses indirect index"),
+    "lu-l2norm":   ("highly parallel",   "LU L2 norm over 4D field — reduction over the spatial axes"),
+    "mg-psinv":    ("highly parallel",   "MG smoother — 27-point stencil via per-row r1/r2 scratch arrays; outer i3/i2 hold scratch state"),
+    "mg-resid":    ("highly parallel",   "MG residual r = v - Au — same 27-point stencil shape as psinv"),
+    "mg-norm2u3":  ("highly parallel",   "MG L2 + L∞ combined norm — mixed sum+max reductions in one loop; raise pass can't fuse"),
+    "mg-rprj3":    ("highly parallel",   "MG restriction (trilinear FE projection) — coarse-grid 2x downsample"),
+}
+
+# Per-MachSuite-kernel parallelism + characterisation notes.
+MACHSUITE_NOTES: dict[str, tuple[str, str]] = {
+    "gemm-ncubed":   ("highly parallel",   "textbook 3-loop gemm with flat 1D indexing — lifts to single linalg.generic"),
+    "gemm-blocked":  ("highly parallel",   "tiled gemm; blocking collapses, still matches GEMM"),
+    "stencil2d":     ("highly parallel",   "9-tap 2D conv (3x3 filter), not jacobi-shaped — no matcher template yet"),
+    "stencil3d":     ("highly parallel",   "3D stencil — 7-tap-ish, mostly matches"),
+    "backprop":      ("partial parallel",  "neural-net backprop; many small generics, body shapes outside our library"),
+    "nw":            ("serial",            "Needleman-Wunsch DP; row-by-row dependencies"),
+    "fft-strided":   ("serial",            "bit-reversal addressing; outer shift loop non-affine"),
+    "fft-transpose": ("partial parallel",  "transpose-based FFT; some stages parallel, others not"),
+    "kmp":           ("serial",            "KMP string matching; backtracking, control-flow heavy"),
+    "bfs-bulk":      ("serial",            "bulk-synchronous BFS; queue-based, non-affine"),
+    "bfs-queue":     ("serial",            "queue-based BFS; non-affine indirect access"),
+    "spmv-crs":      ("partial parallel",  "sparse matvec CRS — indirect indexing not raisable today"),
+    "spmv-ellpack":  ("partial parallel",  "sparse matvec ELLPACK — same"),
+    "sort-merge":    ("serial",            "merge sort; control flow heavy"),
+    "sort-radix":    ("partial parallel",  "radix sort; counting + scatter; some stages affine"),
+    "aes":           ("serial",            "byte-oriented AES; bit ops + sbox lookup; not numerical"),
+    "md-grid":       ("highly parallel",   "molecular dynamics with cell-grid neighbour list"),
+    "md-knn":        ("highly parallel",   "molecular dynamics with k-NN neighbour list"),
+    "viterbi":       ("serial",            "Viterbi DP + arg-max; sequential along time"),
+}
 
 CE_BASE = "http://localhost:10240/"
 CGEIST_NAME = "cgeist_aff"
@@ -121,8 +198,28 @@ KERNEL_NOTES: dict[str, tuple[str, str]] = {
 }
 
 
-def find_kernel_c(name: str) -> Path | None:
-    """Find <name>.c under polybench/, excluding utilities and *.orig.c."""
+def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
+    """Find <name>.c. Dispatches per kernel-set."""
+    if kset == "machsuite":
+        info = MACHSUITE_KERNELS.get(name)
+        if not info:
+            return None
+        subdir, _fn = info
+        # The kernel .c is the only .c in the subdir that's not local_support
+        # or generate (per MachSuite layout convention).
+        for p in (MACHSUITE_ROOT / subdir).glob("*.c"):
+            if p.name in ("local_support.c", "generate.c"):
+                continue
+            return p
+        return None
+    if kset == "npb":
+        info = NPB_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = NPB_ROOT / srcname
+        return p if p.exists() else None
+    # polybench
     for p in POLYBENCH_TEST_DIR.rglob(f"{name}.c"):
         if "/utilities/" in str(p):
             continue
@@ -132,11 +229,20 @@ def find_kernel_c(name: str) -> Path | None:
     return None
 
 
-def discover_kernels() -> list[str]:
-    return sorted(
-        f.stem.replace("_debuf", "")
-        for f in MLIR_DIR.glob("*_debuf.mlir")
-    )
+def discover_kernels(mlir_dir: Path = MLIR_DIR) -> list[str]:
+    """Return kernel tags present in `mlir_dir`. A kernel is "present" if
+    it has any of <tag>.mlir / <tag>_linalg.mlir / <tag>_debuf.mlir /
+    <tag>_debuf_mr.mlir — so kernels that fail one stage still show up
+    in the index with a partial set of tabs."""
+    tags: set[str] = set()
+    for f in mlir_dir.glob("*.mlir"):
+        name = f.stem
+        for suffix in ("_debuf_mr", "_debuf", "_linalg"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+        tags.add(name)
+    return sorted(tags)
 
 
 def build_ce_state(c_src: str, c_kernel_dir: Path, mlir_src: str) -> dict:
@@ -238,10 +344,11 @@ def build_ce_state(c_src: str, c_kernel_dir: Path, mlir_src: str) -> dict:
     }
 
 
-def ce_link(kernel: str) -> str | None:
+def ce_link(kernel: str, mlir_dir: Path = MLIR_DIR,
+            kset: str = "polybench") -> str | None:
     """Construct the CE deep-link URL for a kernel; None if sources missing."""
-    c_path = find_kernel_c(kernel)
-    mlir_path = MLIR_DIR / f"{kernel}.mlir"
+    c_path = find_kernel_c(kernel, kset=kset)
+    mlir_path = mlir_dir / f"{kernel}.mlir"
     if not c_path or not mlir_path.exists():
         return None
     c_src = c_path.read_text()
@@ -327,10 +434,12 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
     return out, [("launches", n_launch), ("residual_lg", n_lg)]
 
 
-def build_kernel_page(kernel: str) -> dict:
-    raised = MLIR_DIR / f"{kernel}_linalg.mlir"
-    debuf = MLIR_DIR / f"{kernel}_debuf.mlir"
-    debuf_mr = MLIR_DIR / f"{kernel}_debuf_mr.mlir"
+def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
+                       kset: str = "polybench",
+                       file_prefix: str = "") -> dict:
+    raised = mlir_dir / f"{kernel}_linalg.mlir"
+    debuf = mlir_dir / f"{kernel}_debuf.mlir"
+    debuf_mr = mlir_dir / f"{kernel}_debuf_mr.mlir"
 
     pages: dict[str, str] = {}
     css = ""
@@ -353,7 +462,7 @@ def build_kernel_page(kernel: str) -> dict:
         html, css = syntax_highlight(debuf_mr.read_text())
         pages["debuf_mr"] = html
 
-    ce_url = ce_link(kernel)
+    ce_url = ce_link(kernel, mlir_dir=mlir_dir, kset=kset)
     open_link = (f'<a href="{ce_url}" target="_blank" '
                  f'style="margin-left:12px; color:#0366d6;">'
                  f'open in Compiler Explorer →</a>') if ce_url else ''
@@ -391,32 +500,27 @@ def build_kernel_page(kernel: str) -> dict:
             f'<div class="container">{pages[stage]}</div>'
         )
     body = header + "\n".join(body_blocks)
-    OUTPUT_DIR.joinpath(f"{kernel}.html").write_text(render_html(kernel, body, css))
+    OUTPUT_DIR.joinpath(f"{file_prefix}{kernel}.html").write_text(render_html(kernel, body, css))
     return {
         "launches": report[0][1],
         "residual": report[1][1],
         "residual_for": n_for,
         "ce_url": ce_url,
+        "page_filename": f"{file_prefix}{kernel}.html",
     }
 
 
-def build_index(kernel_stats: dict[str, dict]) -> str:
+def _render_section_rows(kernel_stats: dict[str, dict],
+                          notes: dict[str, tuple[str, str]]) -> str:
     rows = []
     for k, s in sorted(kernel_stats.items()):
         l = s["launches"]; r = s["residual"]; f = s["residual_for"]
-        # FULL = every linalg.generic was matched AND no imperative for-loop
-        # remains (so the kernel is entirely in kernel.launch + arith/SSA form).
-        # PARTIAL = matcher fired at least once but something is left behind
-        # (either a residual linalg.generic or an outer for-loop the raise
-        # pass never lifted).
-        # NONE   = matcher never fired.
         if l > 0 and r == 0 and f == 0:
             cls = "pass"; status = "FULL"
         elif l > 0:
             cls = "partial"; status = "PARTIAL"
         else:
             cls = "none"; status = "NONE"
-        # Highlight high-loop-residual kernels as imperative-form holdouts.
         for_cls = "none" if f > 0 else "pass"
 
         if s["ce_url"]:
@@ -424,8 +528,7 @@ def build_index(kernel_stats: dict[str, dict]) -> str:
         else:
             kernel_link = f'<span class="nope">{k} (no source)</span>'
 
-        note_tag, note_blurb = KERNEL_NOTES.get(k, ("", ""))
-        # Colour-code the parallelism tag.
+        note_tag, note_blurb = notes.get(k, ("", ""))
         tag_cls = {
             "highly parallel":   "pass",
             "parallel + T loop": "partial",
@@ -438,19 +541,46 @@ def build_index(kernel_stats: dict[str, dict]) -> str:
             if note_tag else '<td></td><td></td>'
         )
 
+        page_file = s.get("page_filename", f"{k}.html")
         rows.append(
             f'<tr>'
             f'<td>{kernel_link}'
-            f'<a class="viewer" href="{k}.html" style="margin-left:12px">[IR preview]</a>'
+            f'<a class="viewer" href="{page_file}" style="margin-left:12px">[IR preview]</a>'
             f'</td>'
             f'<td>{l}</td><td>{r}</td><td class="{for_cls}">{f}</td>'
             f'<td class="{cls}">{status}</td>'
             f'{note_cell}'
             f'</tr>'
         )
-    body = (
-        '<div class="header"><h1>Polygeist — PolyBench IR explorer</h1></div>'
-        '<div class="intro">'
+    return "\n".join(rows)
+
+
+def _build_section(title: str, anchor: str, blurb: str,
+                    kernel_stats: dict[str, dict],
+                    notes: dict[str, tuple[str, str]]) -> str:
+    """Render one benchmark-suite section: a section header, blurb, then table."""
+    rows_html = _render_section_rows(kernel_stats, notes)
+    return (
+        f'<a name="{anchor}"></a>'
+        f'<div class="section-header"><h2 class="section-title">{title}</h2></div>'
+        f'<div class="intro">{blurb}</div>'
+        '<table><thead><tr>'
+        '<th>kernel</th><th>kernel.launches</th>'
+        '<th>residual linalg.generic</th>'
+        '<th>residual for-loops</th>'
+        '<th>match status</th>'
+        '<th>parallelism</th>'
+        '<th>notes</th>'
+        '</tr></thead><tbody>'
+        + rows_html +
+        '</tbody></table>'
+    )
+
+
+def build_index(polybench_stats: dict[str, dict],
+                 machsuite_stats: dict[str, dict],
+                 npb_stats: dict[str, dict]) -> str:
+    common_legend = (
         '  Click a kernel name to open the full Polygeist pipeline in '
         '  Compiler Explorer: C source on the left feeds cgeist; the affine '
         '  MLIR on the right feeds <code>polygeist-opt</code> with an '
@@ -471,30 +601,132 @@ def build_index(kernel_stats: dict[str, dict]) -> str:
         '  reductions / serial steps), <span class="none"><b>serial</b></span> '
         '  (cross-iter dependencies, poor naive GPU fit — factorizations, '
         '  recurrences, DPs).'
-        '</div>'
-        '<table><thead><tr>'
-        '<th>kernel</th><th>kernel.launches</th>'
-        '<th>residual linalg.generic</th>'
-        '<th>residual for-loops</th>'
-        '<th>match status</th>'
-        '<th>parallelism</th>'
-        '<th>notes</th>'
-        '</tr></thead><tbody>'
-        + "\n".join(rows) +
-        '</tbody></table>'
     )
-    return render_html("Polygeist IR explorer", body, "")
+
+    polybench_section = _build_section(
+        title="PolyBench/C 4.2.1",
+        anchor="polybench",
+        blurb=(
+            "30 numerical kernels from the PolyBench/C 4.2.1 benchmark — "
+            "dense linear algebra, stencils, and data-mining bodies. " +
+            common_legend
+        ),
+        kernel_stats=polybench_stats,
+        notes=KERNEL_NOTES,
+    )
+    machsuite_section = _build_section(
+        title="MachSuite",
+        anchor="machsuite",
+        blurb=(
+            "19 kernels from the MachSuite accelerator-research benchmark — "
+            "wider coverage than PolyBench (AES, sorting, FFT bit-reversal, "
+            "SpMV, BFS, KMP, MD, Viterbi) at the cost of more kernels that "
+            "fall outside the pipeline's affine sweet spot. Kernels marked "
+            "<span class=\"nope\">(no source)</span> failed at the cgeist "
+            "front-end (typically due to pointer- or bit-heavy C that cgeist "
+            "doesn't model)."
+        ),
+        kernel_stats=machsuite_stats,
+        notes=MACHSUITE_NOTES,
+    )
+    npb_section = _build_section(
+        title="NPB (polybenchified)",
+        anchor="npb",
+        blurb=(
+            "Selected kernels from NPB3.0-omp-C extracted into PolyBench-"
+            "style single-file form (third_party/NPB-polybenchified/). The "
+            "original NPB is one giant .c per benchmark with module-level "
+            "static globals — cgeist can't isolate a single function from "
+            "that layout. Each kernel here had its array dependencies "
+            "rewritten as parameters so the pipeline can lift it. The "
+            "results surface gaps that whole-file NPB didn't expose: "
+            "indirect indexing (ft-evolve), scratch-row carries (MG "
+            "stencils), and mixed sum+max reductions (norm2u3)."
+        ),
+        kernel_stats=npb_stats,
+        notes=NPB_NOTES,
+    )
+
+    body = (
+        '<div class="header"><h1>Polygeist IR explorer</h1>'
+        '<div style="margin-top:6px; font-size:13px;">'
+        '  Jump to: '
+        '  <a href="#polybench">PolyBench</a> &middot; '
+        '  <a href="#machsuite">MachSuite</a> &middot; '
+        '  <a href="#npb">NPB (polybenchified)</a>'
+        '</div></div>'
+        + polybench_section
+        + machsuite_section
+        + npb_section
+    )
+    # Extra CSS for section headers.
+    extra_css = (
+        '.section-header { background: #eaeefa; padding: 8px 20px; '
+        'border-top: 2px solid #c4cce0; border-bottom: 1px solid #c4cce0; '
+        'margin-top: 24px; } '
+        '.section-title { margin: 0; font-size: 16px; color: #1f2d3d; }'
+    )
+    return render_html("Polygeist IR explorer", body, extra_css)
 
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    kernels = discover_kernels()
-    print(f"Rendering {len(kernels)} kernels into {OUTPUT_DIR}...", flush=True)
-    stats = {}
-    for i, k in enumerate(kernels, 1):
-        print(f"  [{i:2d}/{len(kernels)}] {k}", flush=True)
-        stats[k] = build_kernel_page(k)
-    OUTPUT_DIR.joinpath("index.html").write_text(build_index(stats))
+
+    # PolyBench set.
+    pb_kernels = discover_kernels(MLIR_DIR)
+    print(f"Rendering {len(pb_kernels)} PolyBench kernels...", flush=True)
+    pb_stats = {}
+    for i, k in enumerate(pb_kernels, 1):
+        print(f"  [PB {i:2d}/{len(pb_kernels)}] {k}", flush=True)
+        pb_stats[k] = build_kernel_page(k, mlir_dir=MLIR_DIR,
+                                         kset="polybench", file_prefix="")
+
+    # MachSuite set.
+    ms_kernels_from_files = discover_kernels(MACHSUITE_MLIR_DIR)
+    # Also include kernels that have NO MLIR (cgeist failed) so they show as
+    # "(no source)" entries with the explanatory parallelism note. We still
+    # need them in the index to be honest about what the pipeline did/didn't
+    # eat. They get an empty stats record below.
+    ms_kernels = sorted(set(ms_kernels_from_files) | set(MACHSUITE_KERNELS.keys()))
+    print(f"Rendering {len(ms_kernels)} MachSuite kernels...", flush=True)
+    ms_stats = {}
+    for i, k in enumerate(ms_kernels, 1):
+        print(f"  [MS {i:2d}/{len(ms_kernels)}] {k}", flush=True)
+        # If the kernel produced no MLIR files at all, fabricate a zero-stat
+        # record so it still appears in the index (with no CE link).
+        has_any = any((MACHSUITE_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            ms_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                            "ce_url": None, "page_filename": ""}
+            continue
+        ms_stats[k] = build_kernel_page(
+            k, mlir_dir=MACHSUITE_MLIR_DIR, kset="machsuite",
+            file_prefix="ms_",
+        )
+
+    # NPB-polybenchified set.
+    npb_kernels_from_files = discover_kernels(NPB_MLIR_DIR)
+    npb_kernels = sorted(set(npb_kernels_from_files) | set(NPB_KERNELS.keys()))
+    print(f"Rendering {len(npb_kernels)} NPB kernels...", flush=True)
+    npb_stats = {}
+    for i, k in enumerate(npb_kernels, 1):
+        print(f"  [NPB {i:2d}/{len(npb_kernels)}] {k}", flush=True)
+        has_any = any((NPB_MLIR_DIR / f"{k}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            npb_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                             "ce_url": None, "page_filename": ""}
+            continue
+        npb_stats[k] = build_kernel_page(
+            k, mlir_dir=NPB_MLIR_DIR, kset="npb",
+            file_prefix="npb_",
+        )
+
+    OUTPUT_DIR.joinpath("index.html").write_text(
+        build_index(pb_stats, ms_stats, npb_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 
