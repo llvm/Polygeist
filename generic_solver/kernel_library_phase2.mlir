@@ -237,4 +237,609 @@ module {
     } -> tensor<?x?xf64>
     kernel.yield %result : tensor<?x?xf64>
   }
+
+  // MEMSET-CONST-1D: fill the diagonal of a 2D tensor with 1.0.
+  // The matcher names this "1D" because the iter space is 1D (single d0) —
+  // the tensor is 2D but accessed at (d0, d0). Used in correlation's
+  // diagonal initialization. NOTE: the constant value is HARD-CODED to 1.0
+  // because the matcher's Cap binding for the literal isn't currently
+  // propagated through render_launch. A different caller wanting a
+  // different fill value would need a separate library entry.
+  kernel.defn @memset_const_1D(%A: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %one = arith.constant 1.000000e+00 : f64
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0, d0)>],
+      iterator_types = ["parallel"]
+    } outs(%A : tensor<?x?xf64>) {
+    ^bb0(%out: f64):
+      linalg.yield %one : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
+
+  // ELEMWISE-DIV-SCALAR: y[i] = y[i] / s.
+  kernel.defn @elemwise_div_scalar(%y: tensor<?xf64>, %s: f64) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [affine_map<(d0) -> (d0)>],
+      iterator_types = ["parallel"]
+    } outs(%y : tensor<?xf64>) {
+    ^bb0(%out: f64):
+      %t = arith.divf %out, %s : f64
+      linalg.yield %t : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  // REDUCE-SUM-AXIS: out[j] = sum over the *other* axis of a 2D tensor.
+  // The 1D output's length matches the parallel axis of the 2D input.
+  // Indexing maps mirror what correlation's raise step produces.
+  kernel.defn @reduce_sum_axis(%X: tensor<?x?xf64>, %y: tensor<?xf64>)
+                                -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%X : tensor<?x?xf64>) outs(%y : tensor<?xf64>) {
+    ^bb0(%in: f64, %out: f64):
+      %s = arith.addf %out, %in : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  // SYRK: C[j<=i] = beta*C[j<=i] + alpha*A*A^T  (symmetric rank-k update).
+  //
+  // Two-step canonical body matching what RaiseToLinalg emits for PolyBench
+  // syrk: masked beta-scale of C on the lower triangle, then masked
+  // alpha-A*A^T-accumulate. The mask is recomputed from linalg.index +
+  // affine.apply inside each linalg.generic so the defn body is
+  // self-contained — no external mask SSA is threaded as an operand.
+  //
+  // Operand order (matches matcher emit): two A-views (the matcher passes
+  // both ins of the gemm-shape linalg, which is the same A twice), C, beta,
+  // alpha.
+  kernel.defn @cublasDsyrk(%A: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
+                            %C: tensor<?x?xf64>,
+                            %beta: f64, %alpha: f64) -> tensor<?x?xf64> {
+    %scaled = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d1, d0)>],
+      iterator_types = ["parallel", "parallel"]
+    } outs(%C : tensor<?x?xf64>) {
+    ^bb0(%out: f64):
+      %i = linalg.index 0 : index
+      %j = linalg.index 1 : index
+      %i1 = affine.apply affine_map<(d0) -> (d0 + 1)>(%i)
+      %cond = arith.cmpi slt, %j, %i1 : index
+      %scaled_val = arith.mulf %out, %beta : f64
+      %r = arith.select %cond, %scaled_val, %out : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d2, d1)>,
+        affine_map<(d0, d1, d2) -> (d0, d1)>,
+        affine_map<(d0, d1, d2) -> (d2, d0)>
+      ],
+      iterator_types = ["parallel", "reduction", "parallel"]
+    } ins(%A, %A2 : tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%scaled : tensor<?x?xf64>) {
+    ^bb0(%a: f64, %a_t: f64, %out: f64):
+      %i = linalg.index 0 : index
+      %j = linalg.index 2 : index
+      %scaled_a = arith.mulf %alpha, %a : f64
+      %p = arith.mulf %scaled_a, %a_t : f64
+      %s = arith.addf %out, %p : f64
+      %i1 = affine.apply affine_map<(d0) -> (d0 + 1)>(%i)
+      %cond = arith.cmpi slt, %j, %i1 : index
+      %r = arith.select %cond, %s, %out : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
+
+  // SYR2K: C[j<=i] = beta*C[j<=i] + alpha*(A*B^T + B*A^T)  (rank-2k update).
+  //
+  // Five tensor operands: (A1, B1, B2, A2, C) — the matcher's body splits
+  // the rank-2 update across four ins to the second linalg.generic. Maps
+  // and iter ordering replicate exactly what RaiseToLinalg emits.
+  kernel.defn @cublasDsyr2k(%A1: tensor<?x?xf64>, %B1: tensor<?x?xf64>,
+                             %B2: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
+                             %C: tensor<?x?xf64>,
+                             %beta: f64, %alpha: f64) -> tensor<?x?xf64> {
+    %scaled = linalg.generic {
+      indexing_maps = [affine_map<(d0, d1) -> (d1, d0)>],
+      iterator_types = ["parallel", "parallel"]
+    } outs(%C : tensor<?x?xf64>) {
+    ^bb0(%out: f64):
+      %i = linalg.index 0 : index
+      %j = linalg.index 1 : index
+      %i1 = affine.apply affine_map<(d0) -> (d0 + 1)>(%i)
+      %cond = arith.cmpi slt, %j, %i1 : index
+      %scaled_val = arith.mulf %out, %beta : f64
+      %r = arith.select %cond, %scaled_val, %out : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1)>,
+        affine_map<(d0, d1, d2) -> (d2, d1)>,
+        affine_map<(d0, d1, d2) -> (d0, d1)>,
+        affine_map<(d0, d1, d2) -> (d2, d1)>,
+        affine_map<(d0, d1, d2) -> (d2, d0)>
+      ],
+      iterator_types = ["parallel", "reduction", "parallel"]
+    } ins(%A1, %B1, %B2, %A2
+          : tensor<?x?xf64>, tensor<?x?xf64>,
+            tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%scaled : tensor<?x?xf64>) {
+    ^bb0(%a1: f64, %b1: f64, %b2: f64, %a2: f64, %out: f64):
+      %i = linalg.index 0 : index
+      %j = linalg.index 2 : index
+      %t1 = arith.mulf %a1, %alpha : f64
+      %t2 = arith.mulf %t1, %b1 : f64
+      %t3 = arith.mulf %b2, %alpha : f64
+      %t4 = arith.mulf %t3, %a2 : f64
+      %t5 = arith.addf %t2, %t4 : f64
+      %t6 = arith.addf %out, %t5 : f64
+      %i1 = affine.apply affine_map<(d0) -> (d0 + 1)>(%i)
+      %cond = arith.cmpi slt, %j, %i1 : index
+      %r = arith.select %cond, %t6, %out : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %result : tensor<?x?xf64>
+  }
+
+  // ========================================================================
+  // Stencils (Bucket 2). These bodies operate on memref-form linalg.generic
+  // because the surrounding time-stepping loop holds a memref iter, so
+  // --linalg-debufferize never lifts them to tensor form. The defns mirror
+  // the strided memref types that RaiseToLinalg emits for PolyBench stencils.
+  // Constants are hard-coded to PolyBench's values (1/3, 1/5, 1/8, etc.) —
+  // a Cap-bound literal would be passed as a runtime operand for general
+  // callers; we don't do that yet (matcher's Cap-binds-to-Lit means the
+  // launch operand list drops the literal).
+  // ========================================================================
+
+  // JACOBI 1D 3-point: out[i] = (a[i] + b[i+1] + c[i+2]) / 3
+  // The "shift" is baked into the subview offsets (the linalg body sees
+  // identity-accessed memrefs at different base offsets).
+  kernel.defn @jacobi_1d_3pt(
+      %a: memref<?xf64, strided<[1]>>,
+      %b: memref<?xf64, strided<[1], offset: 1>>,
+      %c: memref<?xf64, strided<[1], offset: 2>>,
+      %out: memref<?xf64, strided<[1], offset: 1>>) {
+    %cst = arith.constant 0.33333333333333331 : f64
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%a, %b, %c
+          : memref<?xf64, strided<[1]>>,
+            memref<?xf64, strided<[1], offset: 1>>,
+            memref<?xf64, strided<[1], offset: 2>>)
+      outs(%out : memref<?xf64, strided<[1], offset: 1>>) {
+    ^bb0(%av: f64, %bv: f64, %cv: f64, %outv: f64):
+      %s1 = arith.addf %av, %bv : f64
+      %s2 = arith.addf %s1, %cv : f64
+      %r  = arith.mulf %s2, %cst : f64
+      linalg.yield %r : f64
+    }
+    kernel.yield
+  }
+
+  // JACOBI 2D 5-point: out[i,j] = (c + n + s + w + e) / 5
+  kernel.defn @jacobi_2d_5pt(
+      %a0: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a1: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a2: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a3: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a4: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %out: memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    %cst = arith.constant 0.20000000000000001 : f64
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1, d0)>,
+        affine_map<(d0, d1) -> (d1, d0)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3, %a4
+          : memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>)
+      outs(%out : memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %v4: f64, %ov: f64):
+      %s1 = arith.addf %v0, %v1 : f64
+      %s2 = arith.addf %s1, %v2 : f64
+      %s3 = arith.addf %s2, %v3 : f64
+      %s4 = arith.addf %s3, %v4 : f64
+      %r  = arith.mulf %s4, %cst : f64
+      linalg.yield %r : f64
+    }
+    kernel.yield
+  }
+
+  // HEAT 3D 7-point: out = c + (l-2c+r + d-2c+u + b-2c+f)/8.
+  // Operand order from matcher: x-pair (a0,a2), center (a1), y-pair (a3,a4),
+  // z-pair (a5,a6).
+  kernel.defn @heat_3d_7pt(
+      %a0: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a1: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a2: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a3: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a4: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a5: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %a6: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+      %out: memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>) {
+    %coef = arith.constant 0.125 : f64
+    %two  = arith.constant 2.000000e+00 : f64
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3, %a4, %a5, %a6
+          : memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>,
+            memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>)
+      outs(%out : memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %v4: f64,
+         %v5: f64, %v6: f64, %ov: f64):
+      %t2c = arith.mulf %v1, %two : f64
+      %x_diff = arith.subf %v0, %t2c : f64
+      %x_lap  = arith.addf %x_diff, %v2 : f64
+      %x_sc   = arith.mulf %x_lap, %coef : f64
+      %y_diff = arith.subf %v3, %t2c : f64
+      %y_lap  = arith.addf %y_diff, %v4 : f64
+      %y_sc   = arith.mulf %y_lap, %coef : f64
+      %z_diff = arith.subf %v5, %t2c : f64
+      %z_lap  = arith.addf %z_diff, %v6 : f64
+      %z_sc   = arith.mulf %z_lap, %coef : f64
+      %xy     = arith.addf %x_sc, %y_sc : f64
+      %xyz    = arith.addf %xy, %z_sc : f64
+      %r      = arith.addf %xyz, %v1 : f64
+      linalg.yield %r : f64
+    }
+    kernel.yield
+  }
+
+  // FDTD-2D H-field update: out -= 0.5 * (in0 - in1).
+  kernel.defn @fdtd_update_2in(
+      %a0: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a1: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %out: memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    %coef = arith.constant 5.000000e-01 : f64
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1
+          : memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>)
+      outs(%out : memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    ^bb0(%v0: f64, %v1: f64, %ov: f64):
+      %diff = arith.subf %v0, %v1 : f64
+      %sc   = arith.mulf %diff, %coef : f64
+      %r    = arith.subf %ov, %sc : f64
+      linalg.yield %r : f64
+    }
+    kernel.yield
+  }
+
+  // FDTD-2D E-field update: out -= 0.7 * (in0 - in1 + in2 - in3).
+  kernel.defn @fdtd_E_update(
+      %a0: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a1: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a2: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %a3: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %out: memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    %coef = arith.constant 6.999999999999999e-01 : f64
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3
+          : memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>,
+            memref<?x?xf64, strided<[?, 1], offset: ?>>)
+      outs(%out : memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %ov: f64):
+      %d1   = arith.subf %v0, %v1 : f64
+      %a    = arith.addf %d1, %v2 : f64
+      %d2   = arith.subf %a, %v3 : f64
+      %sc   = arith.mulf %d2, %coef : f64
+      %r    = arith.subf %ov, %sc : f64
+      linalg.yield %r : f64
+    }
+    kernel.yield
+  }
+
+  // FDTD-2D source-injection: out[j] = source (broadcast 0-D memref over 1D).
+  // Matcher emits this when the input's indexing map is `() -> ()` (scalar
+  // access).
+  kernel.defn @broadcast_scalar_to_vec(
+      %src: memref<f64, strided<[], offset: ?>>,
+      %out: memref<?xf64, strided<[1], offset: ?>>) {
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> ()>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%src : memref<f64, strided<[], offset: ?>>)
+      outs(%out : memref<?xf64, strided<[1], offset: ?>>) {
+    ^bb0(%sv: f64, %ov: f64):
+      linalg.yield %sv : f64
+    }
+    kernel.yield
+  }
+
+  // cublasDcopy: 1D-to-1D identity copy (out[i] = in[i]). Used by doitgen
+  // for write-back of the scratch buffer.
+  kernel.defn @cublasDcopy(
+      %src: memref<?xf64, strided<[1]>>,
+      %out: memref<?xf64, strided<[1], offset: ?>>) {
+    linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%src : memref<?xf64, strided<[1]>>)
+      outs(%out : memref<?xf64, strided<[1], offset: ?>>) {
+    ^bb0(%sv: f64, %ov: f64):
+      linalg.yield %sv : f64
+    }
+    kernel.yield
+  }
+
+  // CENTERED-SUM-SQUARES: out[j] = sum_i (X[i,j] - mean[j])^2.
+  // Variance accumulation (without the 1/N division — that's a separate
+  // elemwise_div_scalar in correlation).
+  kernel.defn @centered_sum_squares(%X: tensor<?x?xf64>,
+                                     %mean: tensor<?xf64>,
+                                     %y: tensor<?xf64>) -> tensor<?xf64> {
+    %result = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d1)>,
+        affine_map<(d0, d1) -> (d1)>
+      ],
+      iterator_types = ["parallel", "reduction"]
+    } ins(%X, %mean : tensor<?x?xf64>, tensor<?xf64>)
+      outs(%y : tensor<?xf64>) {
+    ^bb0(%in: f64, %m: f64, %out: f64):
+      %d = arith.subf %in, %m : f64
+      %p = arith.mulf %d, %d : f64
+      %s = arith.addf %out, %p : f64
+      linalg.yield %s : f64
+    } -> tensor<?xf64>
+    kernel.yield %result : tensor<?xf64>
+  }
+
+  // ============================================================
+  // Tensor-form stencil defns (multi-root debufferize emits these).
+  // Identical bodies to the memref-form stencils above, but with plain
+  // `tensor<?...xf64>` operand/result types — the polygeist.submap chain
+  // that encodes the offsets is opaque to the lowerer, so the defns can
+  // treat each input as a plain tensor of the same rank.
+  // ============================================================
+
+  // JACOBI 1D 3-point, tensor form.
+  kernel.defn @jacobi_1d_3pt_tensor(
+      %a: tensor<?xf64>, %b: tensor<?xf64>, %c: tensor<?xf64>,
+      %out_init: tensor<?xf64>) -> tensor<?xf64> {
+    %cst = arith.constant 0.33333333333333331 : f64
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>, affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%a, %b, %c : tensor<?xf64>, tensor<?xf64>, tensor<?xf64>)
+      outs(%out_init : tensor<?xf64>) {
+    ^bb0(%av: f64, %bv: f64, %cv: f64, %ov: f64):
+      %s1 = arith.addf %av, %bv : f64
+      %s2 = arith.addf %s1, %cv : f64
+      %r  = arith.mulf %s2, %cst : f64
+      linalg.yield %r : f64
+    } -> tensor<?xf64>
+    kernel.yield %r : tensor<?xf64>
+  }
+
+  // JACOBI 2D 5-point, tensor form.
+  kernel.defn @jacobi_2d_5pt_tensor(
+      %a0: tensor<?x?xf64>, %a1: tensor<?x?xf64>, %a2: tensor<?x?xf64>,
+      %a3: tensor<?x?xf64>, %a4: tensor<?x?xf64>,
+      %out_init: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %cst = arith.constant 0.20000000000000001 : f64
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3, %a4
+          : tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>,
+            tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%out_init : tensor<?x?xf64>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %v4: f64, %ov: f64):
+      %s1 = arith.addf %v0, %v1 : f64
+      %s2 = arith.addf %s1, %v2 : f64
+      %s3 = arith.addf %s2, %v3 : f64
+      %s4 = arith.addf %s3, %v4 : f64
+      %r  = arith.mulf %s4, %cst : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %r : tensor<?x?xf64>
+  }
+
+  // HEAT 3D 7-point, tensor form.
+  kernel.defn @heat_3d_7pt_tensor(
+      %a0: tensor<?x?x?xf64>, %a1: tensor<?x?x?xf64>, %a2: tensor<?x?x?xf64>,
+      %a3: tensor<?x?x?xf64>, %a4: tensor<?x?x?xf64>, %a5: tensor<?x?x?xf64>,
+      %a6: tensor<?x?x?xf64>,
+      %out_init: tensor<?x?x?xf64>) -> tensor<?x?x?xf64> {
+    %coef = arith.constant 0.125 : f64
+    %two  = arith.constant 2.000000e+00 : f64
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>,
+        affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+      ],
+      iterator_types = ["parallel", "parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3, %a4, %a5, %a6
+          : tensor<?x?x?xf64>, tensor<?x?x?xf64>, tensor<?x?x?xf64>,
+            tensor<?x?x?xf64>, tensor<?x?x?xf64>, tensor<?x?x?xf64>,
+            tensor<?x?x?xf64>)
+      outs(%out_init : tensor<?x?x?xf64>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %v4: f64,
+         %v5: f64, %v6: f64, %ov: f64):
+      %t2c = arith.mulf %v1, %two : f64
+      %x_diff = arith.subf %v0, %t2c : f64
+      %x_lap  = arith.addf %x_diff, %v2 : f64
+      %x_sc   = arith.mulf %x_lap, %coef : f64
+      %y_diff = arith.subf %v3, %t2c : f64
+      %y_lap  = arith.addf %y_diff, %v4 : f64
+      %y_sc   = arith.mulf %y_lap, %coef : f64
+      %z_diff = arith.subf %v5, %t2c : f64
+      %z_lap  = arith.addf %z_diff, %v6 : f64
+      %z_sc   = arith.mulf %z_lap, %coef : f64
+      %xy     = arith.addf %x_sc, %y_sc : f64
+      %xyz    = arith.addf %xy, %z_sc : f64
+      %r      = arith.addf %xyz, %v1 : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?x?xf64>
+    kernel.yield %r : tensor<?x?x?xf64>
+  }
+
+  // FDTD-2D H-field update, tensor form.
+  kernel.defn @fdtd_update_2in_tensor(
+      %a0: tensor<?x?xf64>, %a1: tensor<?x?xf64>,
+      %out_init: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %coef = arith.constant 5.000000e-01 : f64
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1 : tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%out_init : tensor<?x?xf64>) {
+    ^bb0(%v0: f64, %v1: f64, %ov: f64):
+      %diff = arith.subf %v0, %v1 : f64
+      %sc   = arith.mulf %diff, %coef : f64
+      %r    = arith.subf %ov, %sc : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %r : tensor<?x?xf64>
+  }
+
+  // Broadcast a 0-D tensor (scalar) over a 1D tensor — tensor-form twin
+  // of @broadcast_scalar_to_vec. Used by multi-root fdtd-2d's source-
+  // injection step where polygeist.submap produces a rank-0 tensor<f64>.
+  kernel.defn @broadcast_scalar_to_vec_tensor(
+      %src: tensor<f64>,
+      %out_init: tensor<?xf64>) -> tensor<?xf64> {
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> ()>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%src : tensor<f64>)
+      outs(%out_init : tensor<?xf64>) {
+    ^bb0(%sv: f64, %ov: f64):
+      linalg.yield %sv : f64
+    } -> tensor<?xf64>
+    kernel.yield %r : tensor<?xf64>
+  }
+
+  // cublasDcopy, tensor form (1D identity copy). Used by multi-root
+  // fdtd-2d's source-injection step.
+  kernel.defn @cublasDcopy_tensor(
+      %src: tensor<?xf64>,
+      %out_init: tensor<?xf64>) -> tensor<?xf64> {
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0) -> (d0)>,
+        affine_map<(d0) -> (d0)>
+      ],
+      iterator_types = ["parallel"]
+    } ins(%src : tensor<?xf64>)
+      outs(%out_init : tensor<?xf64>) {
+    ^bb0(%sv: f64, %ov: f64):
+      linalg.yield %sv : f64
+    } -> tensor<?xf64>
+    kernel.yield %r : tensor<?xf64>
+  }
+
+  // FDTD-2D E-field update, tensor form.
+  kernel.defn @fdtd_E_update_tensor(
+      %a0: tensor<?x?xf64>, %a1: tensor<?x?xf64>,
+      %a2: tensor<?x?xf64>, %a3: tensor<?x?xf64>,
+      %out_init: tensor<?x?xf64>) -> tensor<?x?xf64> {
+    %coef = arith.constant 6.999999999999999e-01 : f64
+    %r = linalg.generic {
+      indexing_maps = [
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>,
+        affine_map<(d0, d1) -> (d0, d1)>
+      ],
+      iterator_types = ["parallel", "parallel"]
+    } ins(%a0, %a1, %a2, %a3
+          : tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>, tensor<?x?xf64>)
+      outs(%out_init : tensor<?x?xf64>) {
+    ^bb0(%v0: f64, %v1: f64, %v2: f64, %v3: f64, %ov: f64):
+      %d1   = arith.subf %v0, %v1 : f64
+      %a    = arith.addf %d1, %v2 : f64
+      %d2   = arith.subf %a, %v3 : f64
+      %sc   = arith.mulf %d2, %coef : f64
+      %r    = arith.subf %ov, %sc : f64
+      linalg.yield %r : f64
+    } -> tensor<?x?xf64>
+    kernel.yield %r : tensor<?x?xf64>
+  }
 }

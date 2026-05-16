@@ -231,7 +231,12 @@ def LinalgDebufferize : Pass<"linalg-debufferize"> {
   let options = [
     Option<"useRecursive", "use-recursive", "bool", /*default=*/"true",
            "Use the region-recursive (v2) debufferization implementation. "
-           "Set to false to fall back to the legacy v1 pattern.">
+           "Set to false to fall back to the legacy v1 pattern.">,
+    Option<"useMultiRoot", "use-multi-root", "bool", /*default=*/"false",
+           "Use the experimental multi-root walker that processes ALL memref "
+           "args of a function jointly. Handles double-buffer stencils, trmm, "
+           "symm, etc. where a single linalg.generic touches operands from "
+           "multiple memref roots. Overrides useRecursive when set.">
   ];
 }
 

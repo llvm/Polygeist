@@ -29,10 +29,12 @@ KERNEL="$2"   # short name, e.g. "gemm", "mvt"
 DEBUF=""
 MATCH=""
 MATCH_CANONICAL=""
+MULTIROOT=""
 for arg in "${@:3}"; do
   [ "$arg" = "--debuf" ] && DEBUF=1
   [ "$arg" = "--match" ] && { DEBUF=1; MATCH=1; }
   [ "$arg" = "--match-canonical" ] && { DEBUF=1; MATCH_CANONICAL=1; }
+  [ "$arg" = "--multi-root" ] && { DEBUF=1; MULTIROOT=1; }
 done
 
 # PolyBench source files: <dir>/<short>.c. Kernel function is
@@ -49,6 +51,7 @@ TAG="$KERNEL"
 [ -n "$DEBUF" ] && TAG="${KERNEL}_debuf"
 [ -n "$MATCH" ] && TAG="${KERNEL}_match"
 [ -n "$MATCH_CANONICAL" ] && TAG="${KERNEL}_p2"
+[ -n "$MULTIROOT" ] && TAG="${TAG}_mr"
 OUT=/tmp/e2e_${TAG}
 mkdir -p $OUT
 
@@ -65,7 +68,11 @@ PIPELINE_OPTS=(
   --lower-polygeist-submap
 )
 if [ -n "$DEBUF" ]; then
-  PIPELINE_OPTS+=(--linalg-debufferize)
+  if [ -n "$MULTIROOT" ]; then
+    PIPELINE_OPTS+=('--linalg-debufferize=use-multi-root=true')
+  else
+    PIPELINE_OPTS+=(--linalg-debufferize)
+  fi
 fi
 
 # Step 1: build the reference exe.
@@ -113,7 +120,11 @@ if [ -n "$MATCH_CANONICAL" ]; then
   SCRIPTS=/home/arjaiswal/Polygeist/scripts/correctness
   LIB=/home/arjaiswal/Polygeist/generic_solver/kernel_library_phase2.mlir
   $PY $SCRIPTS/kernel_match_rewrite.py $OUT/std.mlir > $OUT/matched.mlir 2>$OUT/match.err
-  N_LAUNCH=$(grep -c '= kernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  # Count both forms: `%X = kernel.launch ...` (tensor) and bare `kernel.launch ...`
+  # (memref, void-returning). grep -c returns exit code 1 when zero matches, so
+  # `|| echo 0` keeps us alive under `set -e`.
+  N_LAUNCH=$(grep -cE '\bkernel\.launch ' $OUT/matched.mlir 2>/dev/null || echo 0)
+  N_LAUNCH=${N_LAUNCH:-0}
   if [ "$N_LAUNCH" -gt 0 ]; then
     $PY $SCRIPTS/inject_kernel_library.py $OUT/matched.mlir $LIB -o $OUT/combined.mlir 2>$OUT/inject.err
     polygeist-opt --lower-kernel-launch $OUT/combined.mlir -o $OUT/std.mlir 2>$OUT/lower.err || {
@@ -154,7 +165,12 @@ objcopy --weaken-symbol=$FN $OUT/full.o $OUT/nokernel.o
 $CLANG -c $CFLAGS $UTIL/polybench.c -o $OUT/polybench.o
 $CLANG -c $OUT/wrapper.c -o $OUT/wrapper.o
 $CLANG -c $OUT/kernel.ll -o $OUT/kernel.o
+# Link in mlir_c_runner_utils when memref.copy survived lowering (multi-root
+# debuferize emits to_memref+memref.copy that one-shot-bufferize can't always
+# collapse). Harmless when not needed.
+MLIR_LIBDIR=/home/arjaiswal/Polygeist/llvm-project/build/lib
 $CLANG $OUT/nokernel.o $OUT/wrapper.o $OUT/kernel.o $OUT/polybench.o -lm \
+  -L$MLIR_LIBDIR -Wl,-rpath,$MLIR_LIBDIR -lmlir_c_runner_utils \
   -o $OUT/test_exe
 
 # Step 8: run both, diff. Tolerate a non-zero exit on test_exe — some

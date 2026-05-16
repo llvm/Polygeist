@@ -3,8 +3,9 @@
 
 For each kernel we expose:
   1. raised-linalg (memref form, before debuferize)
-  2. debuferized (tensor form, the input to the matcher)
-  3. kernel-launches (the matcher's rewritten output)
+  2. debuferized (tensor form, the input to the matcher) — default v2 path
+  3. debuferized — multi-root (--linalg-debufferize=use-multi-root=true)
+  4. kernel-launches (the matcher's rewritten output)
 
 Plus an index page that links to all kernels and shows match stats.
 """
@@ -75,9 +76,10 @@ def run_rewriter(path: Path) -> tuple[str, list[tuple]]:
 
 
 def build_kernel_page(kernel: str) -> dict:
-    """Build all three stage pages plus return summary stats."""
+    """Build all four stage pages plus return summary stats."""
     raised = POLYBENCH_DIR / f"{kernel}_linalg.mlir"
     debuf = POLYBENCH_DIR / f"{kernel}_debuf.mlir"
+    debuf_mr = POLYBENCH_DIR / f"{kernel}_debuf_mr.mlir"
 
     pages: dict[str, str] = {}
     css = ""
@@ -94,6 +96,9 @@ def build_kernel_page(kernel: str) -> dict:
         pages["matched"] = html
     else:
         report = [("launches", 0), ("residual_lg", 0)]
+    if debuf_mr.exists():
+        html, css = syntax_highlight(debuf_mr.read_text())
+        pages["debuf_mr"] = html
 
     # Combine into one tabs page.
     header = (
@@ -103,9 +108,10 @@ def build_kernel_page(kernel: str) -> dict:
     tabs_html = '<div class="tabs">'
     body_html_blocks = []
     for stage, title in [
-        ("raised", "raised (memref linalg)"),
-        ("debuf",  "debuferized (tensor linalg, matcher input)"),
-        ("matched","kernel.launch (matcher output)"),
+        ("raised",   "raised (memref linalg)"),
+        ("debuf",    "debuferized (tensor linalg, matcher input)"),
+        ("debuf_mr", "debuferized — multi-root"),
+        ("matched",  "kernel.launch (matcher output)"),
     ]:
         if stage not in pages:
             continue

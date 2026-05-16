@@ -510,9 +510,18 @@ class CompositionEntry:
     optional shape gates (num_ins, num_outs, reduction_dim_count) rule out
     same-body shapes that differ in linalg-level metadata (e.g. gemv vs
     axpy vs dot all share the body `out + a*b` but differ in iter types).
+
+    `form` gates whether the entry fires on tensor-form linalg.generic
+    (the default, what `--linalg-debufferize` produces), memref-form (used
+    by stencils + other ops where debufferize doesn't lift due to outer
+    time-stepping loops), or both. The canonical library defn for each
+    entry only operates on one of those forms — matching the wrong form
+    causes the lowering pass to fail with a type mismatch. Setting `form`
+    here keeps the matcher honest.
     """
     name: str
     steps: list[CompositionStep]
+    form: str = "tensor"   # "tensor" | "memref" | "any"
 
 
 # Canonical body templates. Cap names are template wildcards — they bind
@@ -727,13 +736,217 @@ def _trmm_masked() -> CompositionEntry:
     )
 
 
+def _syrk_composition() -> CompositionEntry:
+    """C[j<=i] = β*C[j<=i] + α*A*A^T  (symmetric rank-k update, triangular).
+
+    Two-step: masked beta-scale then masked alpha-gemm-accumulate. The mask
+    predicate is a per-step Cap because the encoder treats `arith.cmpi +
+    linalg.index + affine.apply` as opaque — and each step's predicate has a
+    *distinct* SSA name (e.g. %9 in step 1, %11 in step 2). Use per-step
+    capture names so the cross-step binding merge in match_composition
+    doesn't try to unify them.
+    """
+    s1 = CompositionStep(
+        body=Term.Select(T_cap("%mask1"),
+                         Term.Out(0) * T_cap("%beta"),
+                         Term.Out(0)),
+        num_ins=0, num_outs=1, parallel_dim_count=2, reduction_dim_count=0,
+    )
+    s2 = CompositionStep(
+        body=Term.Select(T_cap("%mask2"),
+                         Term.Out(0) + (T_cap("%alpha") * Term.In(0)) * Term.In(1),
+                         Term.Out(0)),
+        num_ins=2, num_outs=1, parallel_dim_count=2, reduction_dim_count=1,
+    )
+    return CompositionEntry(name="cublasDsyrk", steps=[s1, s2])
+
+
+def _jacobi_1d_3pt() -> CompositionEntry:
+    """Jacobi 1D 3-point smoother: out[i] = (a + b + c) * coef
+    where a, b, c are the left/center/right neighbors (encoded via subview
+    offsets, so the linalg body just sees three identity-accessed inputs)."""
+    body = (Term.In(0) + Term.In(1) + Term.In(2)) * T_cap("%coef")
+    return CompositionEntry(
+        name="jacobi_1d_3pt",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+# Tensor-form variants of the stencils. Multi-root debufferize lifts these
+# kernels to tensor-form linalg.generic (with polygeist.submap doing the
+# offset work that memref.subview did in the memref form). The body is
+# identical, only the operand/result types change — hence a separate entry
+# per stencil pointing to a tensor-typed canonical defn in the library.
+def _jacobi_1d_3pt_tensor() -> CompositionEntry:
+    body = (Term.In(0) + Term.In(1) + Term.In(2)) * T_cap("%coef")
+    return CompositionEntry(
+        name="jacobi_1d_3pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=3, num_outs=1,
+                                parallel_dim_count=1, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _jacobi_2d_5pt() -> CompositionEntry:
+    """Jacobi 2D 5-point stencil: out[i,j] = (n + s + w + e + c) * coef."""
+    body = ((((Term.In(0) + Term.In(1)) + Term.In(2))
+              + Term.In(3)) + Term.In(4)) * T_cap("%coef")
+    return CompositionEntry(
+        name="jacobi_2d_5pt",
+        steps=[CompositionStep(body=body, num_ins=5, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _jacobi_2d_5pt_tensor() -> CompositionEntry:
+    body = ((((Term.In(0) + Term.In(1)) + Term.In(2))
+              + Term.In(3)) + Term.In(4)) * T_cap("%coef")
+    return CompositionEntry(
+        name="jacobi_2d_5pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=5, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _heat_3d_7pt() -> CompositionEntry:
+    """Heat 3D 7-point Laplacian update:
+        out = (l - 2*c + r)*coef + (d - 2*c + u)*coef + (b - 2*c + f)*coef + c
+    where c = In(1) is the center; the other 6 ins are the axial neighbors.
+    The encoder pairs ins by subview-offset order: x-neighbors (In(0),In(2)),
+    y-neighbors (In(3),In(4)), z-neighbors (In(5),In(6)).
+    """
+    c = Term.In(1)
+    two = T_cap("%two")
+    coef = T_cap("%coef")
+    dx = (Term.In(0) - c * two + Term.In(2)) * coef
+    dy = (Term.In(3) - c * two + Term.In(4)) * coef
+    dz = (Term.In(5) - c * two + Term.In(6)) * coef
+    body = ((dx + dy) + dz) + c
+    return CompositionEntry(
+        name="heat_3d_7pt",
+        steps=[CompositionStep(body=body, num_ins=7, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _heat_3d_7pt_tensor() -> CompositionEntry:
+    c = Term.In(1)
+    two = T_cap("%two")
+    coef = T_cap("%coef")
+    dx = (Term.In(0) - c * two + Term.In(2)) * coef
+    dy = (Term.In(3) - c * two + Term.In(4)) * coef
+    dz = (Term.In(5) - c * two + Term.In(6)) * coef
+    body = ((dx + dy) + dz) + c
+    return CompositionEntry(
+        name="heat_3d_7pt_tensor",
+        steps=[CompositionStep(body=body, num_ins=7, num_outs=1,
+                                parallel_dim_count=3, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _fdtd_update_2in() -> CompositionEntry:
+    """FDTD H-field update: out -= coef * (in0 - in1).
+    Used for both H_x and H_y in fdtd-2d's per-time-step body."""
+    body = Term.Out(0) - (Term.In(0) - Term.In(1)) * T_cap("%coef")
+    return CompositionEntry(
+        name="fdtd_update_2in",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _fdtd_update_2in_tensor() -> CompositionEntry:
+    body = Term.Out(0) - (Term.In(0) - Term.In(1)) * T_cap("%coef")
+    return CompositionEntry(
+        name="fdtd_update_2in_tensor",
+        steps=[CompositionStep(body=body, num_ins=2, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _fdtd_E_update() -> CompositionEntry:
+    """FDTD E-field update: out -= coef * (in0 - in1 + in2 - in3).
+    The four ins are paired (curl_x, curl_y) contributions."""
+    body = Term.Out(0) - (
+        ((Term.In(0) - Term.In(1)) + Term.In(2)) - Term.In(3)
+    ) * T_cap("%coef")
+    return CompositionEntry(
+        name="fdtd_E_update",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _fdtd_E_update_tensor() -> CompositionEntry:
+    body = Term.Out(0) - (
+        ((Term.In(0) - Term.In(1)) + Term.In(2)) - Term.In(3)
+    ) * T_cap("%coef")
+    return CompositionEntry(
+        name="fdtd_E_update_tensor",
+        steps=[CompositionStep(body=body, num_ins=4, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
+def _syr2k_composition() -> CompositionEntry:
+    """C[j<=i] = β*C[j<=i] + α*(A*B^T + B*A^T)  (symmetric rank-2k update)."""
+    s1 = CompositionStep(
+        body=Term.Select(T_cap("%mask1"),
+                         Term.Out(0) * T_cap("%beta"),
+                         Term.Out(0)),
+        num_ins=0, num_outs=1, parallel_dim_count=2, reduction_dim_count=0,
+    )
+    # Build the body in the same right-associative shape the encoder
+    # produces: Out + (part1 + part2). Python's `+` is left-associative, so
+    # without these parens we'd build (Out + part1) + part2 — structurally
+    # different from the body even though mathematically equivalent.
+    part1 = (T_cap("%alpha") * Term.In(0)) * Term.In(1)
+    part2 = (T_cap("%alpha") * Term.In(2)) * Term.In(3)
+    s2 = CompositionStep(
+        body=Term.Select(T_cap("%mask2"),
+                         Term.Out(0) + (part1 + part2),
+                         Term.Out(0)),
+        num_ins=4, num_outs=1, parallel_dim_count=2, reduction_dim_count=1,
+    )
+    return CompositionEntry(name="cublasDsyr2k", steps=[s1, s2])
+
+
 def _copy_input() -> CompositionEntry:
-    """out[i] = in[i]  — vector copy (adi/doitgen final write-back)."""
+    """out[i] = in[i]  — vector copy.
+
+    Tagged memref-form because the canonical defn in kernel_library_phase2.mlir
+    is authored for memref operands (used by fdtd-2d's source-injection step
+    where a scalar memref broadcasts to a 1D output row). The tensor-form
+    twin below handles the multi-root debufferize variant.
+    """
     body = Term.In(0)
     return CompositionEntry(
         name="cublasDcopy",
         steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
                                 reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _copy_input_tensor() -> CompositionEntry:
+    """Tensor-form variant of cublasDcopy — used by multi-root fdtd-2d's
+    source-injection step."""
+    body = Term.In(0)
+    return CompositionEntry(
+        name="cublasDcopy_tensor",
+        steps=[CompositionStep(body=body, num_ins=1, num_outs=1,
+                                reduction_dim_count=0)],
+        form="tensor",
     )
 
 
@@ -797,9 +1010,26 @@ def composition_library() -> list[CompositionEntry]:
         _scal_2d(),
 
         # Triangular / masked / specialty (must come before generic gemm/gemv).
+        _syr2k_composition(),
+        _syrk_composition(),
         _trmm_masked(),
         _rank_two_update(),
         _centered_sum_squares(),
+
+        # Stencils (Bucket 2) — memref form (default v2 debufferize).
+        _heat_3d_7pt(),       # 7 ins
+        _fdtd_E_update(),     # 4 ins
+        _jacobi_2d_5pt(),     # 5 ins
+        _jacobi_1d_3pt(),     # 3 ins
+        _fdtd_update_2in(),   # 2 ins — checked AFTER more-specific 2D shapes
+
+        # Stencils — tensor form (multi-root debufferize).
+        _heat_3d_7pt_tensor(),
+        _fdtd_E_update_tensor(),
+        _jacobi_2d_5pt_tensor(),
+        _jacobi_1d_3pt_tensor(),
+        _fdtd_update_2in_tensor(),
+        _copy_input_tensor(),
 
         # 1-step BLAS, no α.
         _gemv_accumulate(),
@@ -1052,17 +1282,28 @@ def match_composition(
     body_terms: list[Term],
     compositions: list[CompositionEntry],
     start: int = 0,
+    body_forms: list[str] | None = None,
 ) -> Optional[tuple[CompositionEntry, int, dict]]:
     """If a contiguous run of generics starting at index `start` matches a
     composition's full sequence (body + shape gates), return (entry,
     start, bindings). Otherwise None.
 
     Greedy: tries longest compositions first.
+
+    `body_forms` (optional): per-body "tensor" / "memref" tag. If given, an
+    entry only fires when every step's form is compatible (entry.form ==
+    body_form, or entry.form == "any"). Keeps the matcher from picking a
+    tensor-only library entry for a memref-form body (which would later
+    fail in --lower-kernel-launch with a type mismatch).
     """
     for entry in compositions:
         n = len(entry.steps)
         if start + n > len(body_objs):
             continue
+        if body_forms is not None and entry.form != "any":
+            forms_in_run = body_forms[start : start + n]
+            if any(f != entry.form for f in forms_in_run):
+                continue
         merged: dict = {}
         ok = True
         for j in range(n):

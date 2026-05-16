@@ -1538,8 +1538,33 @@ static bool canHandle(Value root) {
   return hasMemoryOp;
 }
 
+// SubviewChainInfo + tracer — used by regionWritesRoot below; the
+// builder/inverse helpers are defined later (they need WalkCtx).
+struct SubviewChainInfo {
+  Value rootMemref;
+  SmallVector<memref::SubViewOp> subviews;
+  bool isEmpty() const { return subviews.empty(); }
+};
+
+static SubviewChainInfo traceSubviewChainToRoot(Value memref) {
+  SubviewChainInfo info;
+  Value current = memref;
+  while (auto sv = current.getDefiningOp<memref::SubViewOp>()) {
+    info.subviews.push_back(sv);
+    current = sv.getSource();
+  }
+  info.rootMemref = current;
+  std::reverse(info.subviews.begin(), info.subviews.end());
+  return info;
+}
+
 // Does anything inside `r` *write* to `root` (via store/affine.store/
-// linalg.generic with root in outs)?
+// linalg.generic with root in outs) — AND, for linalg.generic, can we
+// fully rewrite that op (all its memref operands trace to `root`)?
+// This second condition prevents handleScfFor/handleAffineFor from
+// speculatively rebuilding the loop with a tensor iter_arg in cases
+// where the body's writes can't actually be rewritten — which would
+// produce a dangling iter_arg and re-trigger the pattern indefinitely.
 static bool regionWritesRoot(Region &r, Value root) {
   bool writes = false;
   r.walk([&](Operation *op) {
@@ -1624,6 +1649,72 @@ static Value applySubmapInverseChain(Value baseTensor, Value sliceTensor,
   return current;
 }
 
+// =========================================================================
+// Subview chain support (mirrors the submap chain helpers above).
+//
+// A `memref.subview` is a "view" op like polygeist.submap but expressed in
+// terms of static/dynamic offsets, sizes, and strides. For debufferize we
+// treat it as another link in the view chain — the tensor-side equivalent
+// is `tensor.extract_slice` (forward) and `tensor.insert_slice` (inverse).
+// `SubviewChainInfo` + `traceSubviewChainToRoot` are defined earlier in
+// this namespace (regionWritesRoot needs them); the builder/inverse
+// helpers below complete the set.
+// =========================================================================
+
+// Re-emit a subview chain on the tensor side as a sequence of
+// tensor.extract_slice ops. Each slice carries the same offsets/sizes/
+// strides as the corresponding memref.subview, and its result type is
+// derived from the subview's result memref type (preserving rank-reduction
+// if the subview was rank-reducing).
+static Value buildTensorSubviewChain(Value baseTensor,
+                                     const SubviewChainInfo &chain,
+                                     PatternRewriter &rewriter) {
+  Value t = baseTensor;
+  for (memref::SubViewOp sv : chain.subviews) {
+    auto resMemref = sv.getResult().getType().cast<MemRefType>();
+    auto resTensor = RankedTensorType::get(resMemref.getShape(),
+                                           resMemref.getElementType());
+    auto extracted = rewriter.create<tensor::ExtractSliceOp>(
+        sv.getLoc(), resTensor, t,
+        sv.getMixedOffsets(), sv.getMixedSizes(), sv.getMixedStrides());
+    t = extracted.getResult();
+  }
+  return t;
+}
+
+// Scatter `sliceTensor` back through a subview chain via tensor.insert_slice
+// ops, mirroring `applySubmapInverseChain` for submaps.
+static Value applySubviewInverseChain(Value baseTensor, Value sliceTensor,
+                                      const SubviewChainInfo &chain,
+                                      Location loc,
+                                      PatternRewriter &rewriter) {
+  if (chain.isEmpty()) return sliceTensor;
+  // Build intermediate tensor bases via forward extract_slice up to depth N-1.
+  SmallVector<Value> bases;
+  bases.push_back(baseTensor);
+  for (size_t i = 0; i + 1 < chain.subviews.size(); ++i) {
+    memref::SubViewOp sv = chain.subviews[i];
+    auto resMemref = sv.getResult().getType().cast<MemRefType>();
+    auto resTensor = RankedTensorType::get(resMemref.getShape(),
+                                           resMemref.getElementType());
+    auto fwd = rewriter.create<tensor::ExtractSliceOp>(
+        sv.getLoc(), resTensor, bases.back(),
+        sv.getMixedOffsets(), sv.getMixedSizes(), sv.getMixedStrides());
+    bases.push_back(fwd.getResult());
+  }
+  // Unwind leaf-first via insert_slice.
+  Value current = sliceTensor;
+  for (int i = static_cast<int>(chain.subviews.size()) - 1; i >= 0; --i) {
+    memref::SubViewOp sv = chain.subviews[i];
+    Value base = bases[i];
+    auto inserted = rewriter.create<tensor::InsertSliceOp>(
+        loc, current, base,
+        sv.getMixedOffsets(), sv.getMixedSizes(), sv.getMixedStrides());
+    current = inserted.getResult();
+  }
+  return current;
+}
+
 // Forward declarations
 struct WalkCtx;
 static void walkBlock(WalkCtx &ctx, Block &block);
@@ -1645,6 +1736,17 @@ struct WalkCtx {
   bool didRewrite = false;
 };
 
+// Holds whichever kind of view chain routed an operand back to the root
+// memref. Exactly one of `submap` or `subview` is non-empty; both empty
+// means the operand IS the root directly (no view at all).
+struct RoutedChain {
+  SubmapChainInfo  submap;
+  SubviewChainInfo subview;
+  bool isEmpty() const { return submap.isEmpty() && subview.isEmpty(); }
+  bool isSubmap()  const { return !submap.isEmpty(); }
+  bool isSubview() const { return !subview.isEmpty(); }
+};
+
 static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic) {
   Value root = ctx.root;
   PatternRewriter &rewriter = *ctx.rewriter;
@@ -1652,15 +1754,30 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
   SmallVector<Value> newInputs, newOutputs;
   SmallVector<Type> resultTypes;
   int outRootIdx = -1;
-  SubmapChainInfo outRootChain;
+  RoutedChain outRootChain;
 
-  auto routeOperand = [&](Value v) -> std::pair<Value, std::optional<SubmapChainInfo>> {
-    if (v == root) return {ctx.currentTensor, SubmapChainInfo{root, {}}};
+  auto routeOperand = [&](Value v) -> std::pair<Value, std::optional<RoutedChain>> {
+    if (v == root)
+      return {ctx.currentTensor, RoutedChain{SubmapChainInfo{root, {}}, {}}};
     if (!v.getType().isa<MemRefType>()) return {v, std::nullopt};
-    SubmapChainInfo chain = traceSubmapChainToRoot(v);
-    if (chain.rootMemref != root) return {v, std::nullopt};
-    if (chain.isEmpty()) return {ctx.currentTensor, chain};
-    return {buildTensorSubmapChain(ctx.currentTensor, chain, rewriter), chain};
+
+    // Try submap chain first (legacy raise path).
+    SubmapChainInfo subChain = traceSubmapChainToRoot(v);
+    if (subChain.rootMemref == root) {
+      if (subChain.isEmpty())
+        return {ctx.currentTensor, RoutedChain{subChain, {}}};
+      return {buildTensorSubmapChain(ctx.currentTensor, subChain, rewriter),
+              RoutedChain{subChain, {}}};
+    }
+    // Then memref.subview chain (stencils / trmm / symm / doitgen path).
+    SubviewChainInfo svChain = traceSubviewChainToRoot(v);
+    if (svChain.rootMemref == root) {
+      if (svChain.isEmpty())
+        return {ctx.currentTensor, RoutedChain{SubmapChainInfo{root, {}}, {}}};
+      return {buildTensorSubviewChain(ctx.currentTensor, svChain, rewriter),
+              RoutedChain{{}, svChain}};
+    }
+    return {v, std::nullopt};
   };
 
   for (Value in : generic.getInputs()) {
@@ -1691,9 +1808,14 @@ static void rewriteLinalgGenericForRoot(WalkCtx &ctx, linalg::GenericOp generic)
     Value resultSlice = newGeneric.getResult(outRootIdx);
     if (outRootChain.isEmpty()) {
       ctx.currentTensor = resultSlice;
-    } else {
+    } else if (outRootChain.isSubmap()) {
       ctx.currentTensor = applySubmapInverseChain(
-          ctx.currentTensor, resultSlice, outRootChain, generic.getLoc(), rewriter);
+          ctx.currentTensor, resultSlice, outRootChain.submap,
+          generic.getLoc(), rewriter);
+    } else {
+      ctx.currentTensor = applySubviewInverseChain(
+          ctx.currentTensor, resultSlice, outRootChain.subview,
+          generic.getLoc(), rewriter);
     }
   }
 
@@ -2076,6 +2198,8 @@ static void walkBlock(WalkCtx &ctx, Block &block) {
       }
     } else if (isa<polygeist::SubmapOp>(&op)) {
       // NOOP — re-emitted at linalg.generic time.
+    } else if (isa<memref::SubViewOp>(&op)) {
+      // NOOP — re-emitted as tensor.extract_slice at linalg.generic time.
     } else if (auto forOp = dyn_cast<scf::ForOp>(&op)) {
       handleScfFor(ctx, forOp);
     } else if (auto ifOp = dyn_cast<scf::IfOp>(&op)) {
@@ -2128,6 +2252,561 @@ static LogicalResult handleRoot(Value root, Block *body,
 
 } // namespace v2
 
+// =========================================================================
+// Multi-root debufferize (experimental).
+//
+// Unlike v2 which processes one memref root at a time, this walker tracks
+// the current tensor state for ALL memref roots of a function simultaneously.
+// That handles cases where one linalg.generic op reads from root A and
+// writes to root B (PolyBench stencils' double-buffer pattern, trmm's
+// "read from A, write to B" pattern, etc.), which the single-root path
+// can't lift because the in-progress IR would have mixed tensor+memref
+// operand types and the verifier rejects them mid-rewrite.
+//
+// Key design:
+//   * MultiRootCtx::rootToTensor maps each tracked memref root → its
+//     current tensor SSA value (the "live" version after previous reads
+//     and writes have been applied).
+//   * Loops thread *all* written roots through iter_args. The set of
+//     written roots is computed up front by scanning the body.
+//   * Every memref-typed operand to a linalg.generic / load / store must
+//     trace (through polygeist.submap / memref.subview) to one of the
+//     tracked roots; otherwise we refuse to handle the function.
+// =========================================================================
+namespace multiroot {
+
+// SubmapChainInfo and traceSubmapChainToRoot are at global scope (early in
+// the file). The rest live in namespace v2.
+using v2::buildTensorSubmapChain;
+using v2::applySubmapInverseChain;
+using v2::SubviewChainInfo;
+using v2::traceSubviewChainToRoot;
+using v2::buildTensorSubviewChain;
+using v2::applySubviewInverseChain;
+
+struct MultiRootCtx {
+  // Per-root current tensor state.
+  DenseMap<Value, Value> rootToTensor;
+  // Initial to_tensor SSA per root (for "did anything change" comparisons).
+  DenseMap<Value, Value> rootInitial;
+  PatternRewriter *rewriter;
+  bool didRewrite = false;
+};
+
+// Walk back through submap / subview ops to find the underlying root memref.
+// Returns the original value if no view ops are encountered.
+static Value findRoot(Value v) {
+  Value cur = v;
+  while (true) {
+    if (auto sm = cur.getDefiningOp<polygeist::SubmapOp>()) {
+      cur = sm.getViewSource();
+      continue;
+    }
+    if (auto sv = cur.getDefiningOp<memref::SubViewOp>()) {
+      cur = sv.getSource();
+      continue;
+    }
+    return cur;
+  }
+}
+
+// Forward declarations for the mutual recursion through loop/if handlers.
+struct MultiRootCtx;
+static void walkBlock(MultiRootCtx &ctx, Block &block);
+static void rewriteLinalgGeneric(MultiRootCtx &ctx, linalg::GenericOp generic);
+static void handleScfFor(MultiRootCtx &ctx, scf::ForOp forOp);
+static void handleAffineFor(MultiRootCtx &ctx, affine::AffineForOp forOp);
+
+// Compute the set of tracked roots that any op inside `region` writes to.
+// "Writes" = a store, affine.store, or linalg.generic with that root in outs.
+static SetVector<Value>
+collectWrittenRoots(Region &region,
+                    const DenseMap<Value, Value> &rootToTensor) {
+  SetVector<Value> written;
+  auto pickRoot = [&](Value v) {
+    if (!v.getType().isa<MemRefType>()) return;
+    Value r = findRoot(v);
+    if (rootToTensor.contains(r)) written.insert(r);
+  };
+  region.walk([&](Operation *op) {
+    if (auto store = dyn_cast<memref::StoreOp>(op))
+      pickRoot(store.getMemRef());
+    else if (auto astore = dyn_cast<affine::AffineStoreOp>(op))
+      pickRoot(astore.getMemRef());
+    else if (auto generic = dyn_cast<linalg::GenericOp>(op))
+      for (Value o : generic.getOutputs()) pickRoot(o);
+  });
+  return written;
+}
+
+// Build a tensor "view" of `v` for use as an operand to the new
+// linalg.generic. If v traces to a tracked root, follow its submap /
+// subview chain on the current tensor side. If v itself IS a root, just
+// return its current tensor. Returns std::nullopt if v doesn't trace to
+// any tracked root.
+static std::optional<std::pair<Value, std::variant<std::monostate,
+                                                    SubmapChainInfo,
+                                                    SubviewChainInfo>>>
+routeOperand(MultiRootCtx &ctx, Value v) {
+  if (!v.getType().isa<MemRefType>()) return std::nullopt;
+  Value root = findRoot(v);
+  auto it = ctx.rootToTensor.find(root);
+  if (it == ctx.rootToTensor.end()) return std::nullopt;
+  Value cur = it->second;
+  // Direct root reference: return current tensor.
+  if (v == root) return std::make_pair(cur, std::monostate{});
+  // Submap chain?
+  SubmapChainInfo sm = traceSubmapChainToRoot(v);
+  if (!sm.isEmpty() && sm.rootMemref == root) {
+    Value chained = buildTensorSubmapChain(cur, sm, *ctx.rewriter);
+    return std::make_pair(chained, std::variant<std::monostate, SubmapChainInfo,
+                                                  SubviewChainInfo>{sm});
+  }
+  // Subview chain?
+  SubviewChainInfo sv = traceSubviewChainToRoot(v);
+  if (!sv.isEmpty() && sv.rootMemref == root) {
+    Value chained = buildTensorSubviewChain(cur, sv, *ctx.rewriter);
+    return std::make_pair(chained, std::variant<std::monostate, SubmapChainInfo,
+                                                  SubviewChainInfo>{sv});
+  }
+  return std::nullopt;
+}
+
+static void rewriteLinalgGeneric(MultiRootCtx &ctx,
+                                  linalg::GenericOp generic) {
+  PatternRewriter &rewriter = *ctx.rewriter;
+  rewriter.setInsertionPoint(generic);
+
+  SmallVector<Value> newInputs, newOutputs;
+  SmallVector<Type> resultTypes;
+  // Track each output's routing so we can write back into rootToTensor.
+  struct OutInfo {
+    Value root;
+    std::variant<std::monostate, SubmapChainInfo, SubviewChainInfo> chain;
+  };
+  SmallVector<OutInfo> outRouting;
+
+  for (Value in : generic.getInputs()) {
+    auto r = routeOperand(ctx, in);
+    if (!r.has_value()) {
+      // Operand doesn't trace to a tracked root — abort: would emit
+      // a mixed tensor/memref op.
+      return;
+    }
+    newInputs.push_back(r->first);
+  }
+  for (Value out : generic.getOutputs()) {
+    auto r = routeOperand(ctx, out);
+    if (!r.has_value()) return;
+    newOutputs.push_back(r->first);
+    resultTypes.push_back(r->first.getType());
+    outRouting.push_back({findRoot(out), r->second});
+  }
+
+  rewriter.setInsertionPointAfter(generic);
+  StringAttr empty = StringAttr::get(generic.getContext());
+  auto newGeneric = rewriter.create<linalg::GenericOp>(
+      generic.getLoc(), ArrayRef<Type>(resultTypes), newInputs, newOutputs,
+      generic.getIndexingMaps(), generic.getIteratorTypes(), empty, empty);
+  rewriter.cloneRegionBefore(generic.getRegion(), newGeneric.getRegion(),
+                             newGeneric.getRegion().end());
+
+  // For each output: apply inverse chain into the root's current tensor.
+  for (auto [idx, info] : llvm::enumerate(outRouting)) {
+    Value resultSlice = newGeneric.getResult(idx);
+    Value base = ctx.rootToTensor[info.root];
+    Value updated;
+    if (std::holds_alternative<std::monostate>(info.chain)) {
+      // Direct root write — no chain, the result IS the new tensor state.
+      updated = resultSlice;
+    } else if (auto *sm = std::get_if<SubmapChainInfo>(&info.chain)) {
+      updated = applySubmapInverseChain(base, resultSlice, *sm,
+                                         generic.getLoc(), rewriter);
+    } else {
+      auto *sv = std::get_if<SubviewChainInfo>(&info.chain);
+      updated = applySubviewInverseChain(base, resultSlice, *sv,
+                                          generic.getLoc(), rewriter);
+    }
+    ctx.rootToTensor[info.root] = updated;
+  }
+
+  for (auto [oldR, newR] :
+       llvm::zip(generic.getResults(), newGeneric.getResults()))
+    oldR.replaceAllUsesWith(newR);
+  rewriter.eraseOp(generic);
+  ctx.didRewrite = true;
+}
+
+static void handleScfFor(MultiRootCtx &ctx, scf::ForOp forOp) {
+  PatternRewriter &rewriter = *ctx.rewriter;
+  // Which roots does the body write?
+  SetVector<Value> written = collectWrittenRoots(forOp.getRegion(),
+                                                  ctx.rootToTensor);
+  if (written.empty()) {
+    // Read-only: walk inline without rebuilding the loop.
+    auto saved = ctx.rootToTensor;
+    walkBlock(ctx, forOp.getRegion().front());
+    ctx.rootToTensor = saved;
+    return;
+  }
+
+  rewriter.setInsertionPoint(forOp);
+  SmallVector<Value> newInits(forOp.getInitArgs());
+  SmallVector<Value> writtenRootsList(written.begin(), written.end());
+  for (Value r : writtenRootsList) newInits.push_back(ctx.rootToTensor[r]);
+
+  auto newFor = rewriter.create<scf::ForOp>(
+      forOp.getLoc(), forOp.getLowerBound(), forOp.getUpperBound(),
+      forOp.getStep(), newInits);
+  newFor->setAttrs(forOp.getOperation()->getAttrs());
+
+  Block *oldBody = forOp.getBody();
+  Block *newBody = newFor.getBody();
+  if (!newBody->empty()) rewriter.eraseOp(newBody->getTerminator());
+  rewriter.mergeBlocks(oldBody, newBody,
+                        newBody->getArguments().drop_back(written.size()));
+
+  // Inside the new loop body, the tracked roots that are written get their
+  // new iter_args as their currentTensor.
+  auto saved = ctx.rootToTensor;
+  unsigned argOff = newBody->getNumArguments() - written.size();
+  for (auto [i, r] : llvm::enumerate(writtenRootsList))
+    ctx.rootToTensor[r] = newBody->getArgument(argOff + i);
+  walkBlock(ctx, *newBody);
+
+  auto yield = cast<scf::YieldOp>(newBody->getTerminator());
+  SmallVector<Value> newYields(yield.getOperands());
+  for (Value r : writtenRootsList) newYields.push_back(ctx.rootToTensor[r]);
+  rewriter.setInsertionPoint(yield);
+  rewriter.replaceOpWithNewOp<scf::YieldOp>(yield, newYields);
+
+  for (auto [oldR, newR] : llvm::zip(forOp.getResults(),
+                                      newFor.getResults().drop_back(written.size())))
+    oldR.replaceAllUsesWith(newR);
+  rewriter.eraseOp(forOp);
+
+  // After the loop, the root's tensor state is the corresponding result.
+  ctx.rootToTensor = saved;
+  unsigned resOff = newFor.getNumResults() - written.size();
+  for (auto [i, r] : llvm::enumerate(writtenRootsList))
+    ctx.rootToTensor[r] = newFor.getResult(resOff + i);
+  ctx.didRewrite = true;
+}
+
+static void handleAffineFor(MultiRootCtx &ctx, affine::AffineForOp forOp) {
+  PatternRewriter &rewriter = *ctx.rewriter;
+  SetVector<Value> written = collectWrittenRoots(forOp.getRegion(),
+                                                  ctx.rootToTensor);
+  if (written.empty()) {
+    auto saved = ctx.rootToTensor;
+    walkBlock(ctx, forOp.getRegion().front());
+    ctx.rootToTensor = saved;
+    return;
+  }
+
+  rewriter.setInsertionPoint(forOp);
+  SmallVector<Value> newInits(forOp.getInits());
+  SmallVector<Value> writtenRootsList(written.begin(), written.end());
+  for (Value r : writtenRootsList) newInits.push_back(ctx.rootToTensor[r]);
+
+  auto newFor = rewriter.create<affine::AffineForOp>(
+      forOp.getLoc(), forOp.getLowerBoundOperands(), forOp.getLowerBoundMap(),
+      forOp.getUpperBoundOperands(), forOp.getUpperBoundMap(),
+      forOp.getStep(), newInits);
+
+  Block *oldBody = forOp.getBody();
+  Block *newBody = newFor.getBody();
+  if (!newBody->empty()) rewriter.eraseOp(newBody->getTerminator());
+  rewriter.mergeBlocks(oldBody, newBody,
+                        newBody->getArguments().drop_back(written.size()));
+
+  auto saved = ctx.rootToTensor;
+  unsigned argOff = newBody->getNumArguments() - written.size();
+  for (auto [i, r] : llvm::enumerate(writtenRootsList))
+    ctx.rootToTensor[r] = newBody->getArgument(argOff + i);
+  walkBlock(ctx, *newBody);
+
+  auto yield = cast<affine::AffineYieldOp>(newBody->getTerminator());
+  SmallVector<Value> newYields(yield.getOperands());
+  for (Value r : writtenRootsList) newYields.push_back(ctx.rootToTensor[r]);
+  rewriter.setInsertionPoint(yield);
+  rewriter.replaceOpWithNewOp<affine::AffineYieldOp>(yield, newYields);
+
+  for (auto [oldR, newR] : llvm::zip(forOp.getResults(),
+                                      newFor.getResults().drop_back(written.size())))
+    oldR.replaceAllUsesWith(newR);
+  rewriter.eraseOp(forOp);
+
+  ctx.rootToTensor = saved;
+  unsigned resOff = newFor.getNumResults() - written.size();
+  for (auto [i, r] : llvm::enumerate(writtenRootsList))
+    ctx.rootToTensor[r] = newFor.getResult(resOff + i);
+  ctx.didRewrite = true;
+}
+
+static void walkBlock(MultiRootCtx &ctx, Block &block) {
+  for (auto it = block.begin(), end = block.end(); it != end;) {
+    Operation &op = *it++;
+    if (auto load = dyn_cast<memref::LoadOp>(&op)) {
+      Value root = findRoot(load.getMemRef());
+      auto rit = ctx.rootToTensor.find(root);
+      if (rit == ctx.rootToTensor.end()) continue;
+      // For simplicity only handle direct loads of a tracked root.
+      if (load.getMemRef() != root) continue;
+      ctx.rewriter->setInsertionPoint(load);
+      auto extract = ctx.rewriter->create<tensor::ExtractOp>(
+          load.getLoc(), rit->second, load.getIndices());
+      load.getResult().replaceAllUsesWith(extract.getResult());
+      ctx.rewriter->eraseOp(load);
+      ctx.didRewrite = true;
+    } else if (auto store = dyn_cast<memref::StoreOp>(&op)) {
+      Value root = findRoot(store.getMemRef());
+      auto rit = ctx.rootToTensor.find(root);
+      if (rit == ctx.rootToTensor.end()) continue;
+      if (store.getMemRef() != root) continue;
+      ctx.rewriter->setInsertionPoint(store);
+      auto insert = ctx.rewriter->create<tensor::InsertOp>(
+          store.getLoc(), store.getValueToStore(), rit->second,
+          store.getIndices());
+      ctx.rootToTensor[root] = insert.getResult();
+      ctx.rewriter->eraseOp(store);
+      ctx.didRewrite = true;
+    } else if (auto aload = dyn_cast<affine::AffineLoadOp>(&op)) {
+      Value root = findRoot(aload.getMemRef());
+      auto rit = ctx.rootToTensor.find(root);
+      if (rit == ctx.rootToTensor.end()) continue;
+      if (aload.getMemRef() != root) continue;
+      ctx.rewriter->setInsertionPoint(aload);
+      AffineMap map = aload.getAffineMap();
+      SmallVector<Value> mapOperands(aload.getMapOperands());
+      SmallVector<Value> idx;
+      for (unsigned i = 0; i < map.getNumResults(); ++i) {
+        auto apply = ctx.rewriter->create<affine::AffineApplyOp>(
+            aload.getLoc(), map.getSubMap({i}), mapOperands);
+        idx.push_back(apply.getResult());
+      }
+      auto extract = ctx.rewriter->create<tensor::ExtractOp>(
+          aload.getLoc(), rit->second, idx);
+      aload.getResult().replaceAllUsesWith(extract.getResult());
+      ctx.rewriter->eraseOp(aload);
+      ctx.didRewrite = true;
+    } else if (auto astore = dyn_cast<affine::AffineStoreOp>(&op)) {
+      Value root = findRoot(astore.getMemRef());
+      auto rit = ctx.rootToTensor.find(root);
+      if (rit == ctx.rootToTensor.end()) continue;
+      if (astore.getMemRef() != root) continue;
+      ctx.rewriter->setInsertionPoint(astore);
+      AffineMap map = astore.getAffineMap();
+      SmallVector<Value> mapOperands(astore.getMapOperands());
+      SmallVector<Value> idx;
+      for (unsigned i = 0; i < map.getNumResults(); ++i) {
+        auto apply = ctx.rewriter->create<affine::AffineApplyOp>(
+            astore.getLoc(), map.getSubMap({i}), mapOperands);
+        idx.push_back(apply.getResult());
+      }
+      auto insert = ctx.rewriter->create<tensor::InsertOp>(
+          astore.getLoc(), astore.getValueToStore(), rit->second, idx);
+      ctx.rootToTensor[root] = insert.getResult();
+      ctx.rewriter->eraseOp(astore);
+      ctx.didRewrite = true;
+    } else if (auto generic = dyn_cast<linalg::GenericOp>(&op)) {
+      // Check that every memref-typed operand traces to a tracked root.
+      bool allTracked = true;
+      bool touchesAny = false;
+      for (Value v : generic->getOperands()) {
+        if (!v.getType().isa<MemRefType>()) continue;
+        Value r = findRoot(v);
+        if (ctx.rootToTensor.contains(r)) { touchesAny = true; continue; }
+        allTracked = false; break;
+      }
+      if (allTracked && touchesAny) {
+        rewriteLinalgGeneric(ctx, generic);
+      }
+    } else if (isa<polygeist::SubmapOp, memref::SubViewOp>(&op)) {
+      // NOOP — re-emitted on the tensor side at linalg.generic time.
+    } else if (auto forOp = dyn_cast<scf::ForOp>(&op)) {
+      handleScfFor(ctx, forOp);
+    } else if (auto affFor = dyn_cast<affine::AffineForOp>(&op)) {
+      handleAffineFor(ctx, affFor);
+    }
+    // Other ops (arith, math, return, etc.): leave alone.
+  }
+}
+
+// Returns true if `op` is *under* an op whose region we don't recurse into
+// (affine.if, scf.if, scf.while, etc.). Used to refuse functions whose
+// memref work lives inside un-traversed regions — otherwise we'd loop
+// forever wrapping the outer loop in fresh iter_args without ever
+// converting the inner ops.
+static bool isUnderUnhandledRegion(Operation *op) {
+  Operation *parent = op->getParentOp();
+  while (parent && !isa<func::FuncOp>(parent)) {
+    if (!isa<scf::ForOp, affine::AffineForOp, func::FuncOp>(parent))
+      return true;
+    parent = parent->getParentOp();
+  }
+  return false;
+}
+
+// Check that all memref-using ops in funcOp can be handled by the
+// multi-root walker, AND that there's at least one MEMREF-FORM op that
+// references a tracked root (load/store/affine.load/affine.store with
+// memref operand, OR linalg.generic with at least one memref operand).
+// The "has memref work to do" requirement prevents the pattern driver
+// from re-firing endlessly on already-converted IR. We also refuse if
+// any memref op on a tracked root lives under an unhandled region (if,
+// while, etc.) — see isUnderUnhandledRegion.
+static bool canHandle(func::FuncOp funcOp,
+                       const DenseMap<Value, Value> &rootToTensor) {
+  bool ok = true;
+  bool hasMemrefWork = false;
+  funcOp.walk([&](Operation *op) {
+    if (!ok) return WalkResult::interrupt();
+    if (isa<func::FuncOp, func::ReturnOp,
+            polygeist::SubmapOp, memref::SubViewOp,
+            scf::ForOp, affine::AffineForOp,
+            scf::YieldOp, affine::AffineYieldOp,
+            memref::AllocaOp, memref::AllocOp, memref::DeallocOp,
+            bufferization::ToTensorOp, bufferization::ToMemrefOp,
+            memref::CopyOp, arith::ConstantOp, arith::AddIOp, arith::SubIOp,
+            arith::MulIOp, arith::IndexCastOp, affine::AffineApplyOp>(op))
+      return WalkResult::advance();
+    auto checkValTracked = [&](Value v) {
+      if (!v.getType().isa<MemRefType>()) return true;
+      Value r = findRoot(v);
+      return rootToTensor.contains(r);
+    };
+    auto valTouchesTrackedMemref = [&](Value v) {
+      if (!v.getType().isa<MemRefType>()) return false;
+      Value r = findRoot(v);
+      return rootToTensor.contains(r);
+    };
+    if (auto load = dyn_cast<memref::LoadOp>(op)) {
+      if (!checkValTracked(load.getMemRef())) { ok = false; return WalkResult::interrupt(); }
+      if (valTouchesTrackedMemref(load.getMemRef())) {
+        if (isUnderUnhandledRegion(op)) { ok = false; return WalkResult::interrupt(); }
+        hasMemrefWork = true;
+      }
+      return WalkResult::advance();
+    }
+    if (auto store = dyn_cast<memref::StoreOp>(op)) {
+      if (!checkValTracked(store.getMemRef())) { ok = false; return WalkResult::interrupt(); }
+      if (valTouchesTrackedMemref(store.getMemRef())) {
+        if (isUnderUnhandledRegion(op)) { ok = false; return WalkResult::interrupt(); }
+        hasMemrefWork = true;
+      }
+      return WalkResult::advance();
+    }
+    if (auto aload = dyn_cast<affine::AffineLoadOp>(op)) {
+      if (!checkValTracked(aload.getMemRef())) { ok = false; return WalkResult::interrupt(); }
+      if (valTouchesTrackedMemref(aload.getMemRef())) {
+        if (isUnderUnhandledRegion(op)) { ok = false; return WalkResult::interrupt(); }
+        hasMemrefWork = true;
+      }
+      return WalkResult::advance();
+    }
+    if (auto astore = dyn_cast<affine::AffineStoreOp>(op)) {
+      if (!checkValTracked(astore.getMemRef())) { ok = false; return WalkResult::interrupt(); }
+      if (valTouchesTrackedMemref(astore.getMemRef())) {
+        if (isUnderUnhandledRegion(op)) { ok = false; return WalkResult::interrupt(); }
+        hasMemrefWork = true;
+      }
+      return WalkResult::advance();
+    }
+    if (auto generic = dyn_cast<linalg::GenericOp>(op)) {
+      bool hasMemref = false;
+      for (Value v : generic->getOperands()) {
+        if (!checkValTracked(v)) { ok = false; return WalkResult::interrupt(); }
+        if (v.getType().isa<MemRefType>()) hasMemref = true;
+      }
+      if (hasMemref) {
+        if (isUnderUnhandledRegion(op)) { ok = false; return WalkResult::interrupt(); }
+        hasMemrefWork = true;
+      }
+      return WalkResult::advance();
+    }
+    // Any other op: as long as it doesn't have memref operands tied to
+    // a tracked root, it's fine.
+    for (Value v : op->getOperands()) {
+      if (v.getType().isa<MemRefType>()) {
+        Value r = findRoot(v);
+        if (rootToTensor.contains(r)) { ok = false; return WalkResult::interrupt(); }
+      }
+    }
+    return WalkResult::advance();
+  });
+  return ok && hasMemrefWork;
+}
+
+static LogicalResult handleAllRoots(func::FuncOp funcOp,
+                                     PatternRewriter &rewriter) {
+  // Collect all roots: function-arg memrefs + local allocs.
+  SmallVector<Value> roots;
+  for (auto arg : funcOp.getArguments())
+    if (arg.getType().isa<MemRefType>()) roots.push_back(arg);
+  funcOp.walk([&](memref::AllocaOp op) { roots.push_back(op.getResult()); });
+  funcOp.walk([&](memref::AllocOp op) { roots.push_back(op.getResult()); });
+  if (roots.empty()) return failure();
+
+  // Feasibility check WITHOUT touching the IR. Build a "would-be" root
+  // set so canHandle can answer questions about it, but don't insert any
+  // ops yet. This prevents the create-then-erase ping-pong that re-fires
+  // the pattern driver indefinitely when nothing's actually convertible.
+  DenseMap<Value, Value> rootSet;
+  for (Value r : roots) rootSet[r] = r;  // placeholder values
+  if (!canHandle(funcOp, rootSet)) return failure();
+
+  // Now we know we have memref work to do. Create the to_tensor ops.
+  rewriter.setInsertionPointToStart(&funcOp.getBody().front());
+  MultiRootCtx ctx;
+  ctx.rewriter = &rewriter;
+  SmallVector<bufferization::ToTensorOp> initial;
+  for (Value root : roots) {
+    if (auto alloc = root.getDefiningOp())
+      rewriter.setInsertionPointAfter(alloc);
+    auto memrefType = root.getType().cast<MemRefType>();
+    auto tensorType = RankedTensorType::get(memrefType.getShape(),
+                                             memrefType.getElementType());
+    auto t = rewriter.create<bufferization::ToTensorOp>(
+        root.getLoc(), tensorType, root);
+    ctx.rootToTensor[root] = t.getResult();
+    ctx.rootInitial[root] = t.getResult();
+    initial.push_back(t);
+  }
+
+  walkBlock(ctx, funcOp.getBody().front());
+
+  if (!ctx.didRewrite) {
+    for (auto t : initial)
+      if (t.getResult().use_empty()) rewriter.eraseOp(t);
+    return failure();
+  }
+
+  // Write back any roots whose tensor state diverged from the initial.
+  for (auto [root, curT] : ctx.rootToTensor) {
+    if (curT == ctx.rootInitial[root]) continue;
+    rewriter.setInsertionPointAfterValue(curT);
+    auto memrefType = root.getType().cast<MemRefType>();
+    auto toMr = rewriter.create<bufferization::ToMemrefOp>(
+        root.getLoc(), memrefType, curT);
+    rewriter.create<memref::CopyOp>(root.getLoc(), toMr, root);
+  }
+  return success();
+}
+
+} // namespace multiroot
+
+struct LinalgDebufferizationMultiRoot
+    : public OpRewritePattern<func::FuncOp> {
+  using OpRewritePattern<func::FuncOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(func::FuncOp funcOp,
+                                PatternRewriter &rewriter) const final {
+    if (funcOp.isExternal() || funcOp.empty()) return failure();
+    if (!llvm::hasSingleElement(funcOp.getBody())) return failure();
+    return multiroot::handleAllRoots(funcOp, rewriter);
+  }
+};
+
 struct LinalgDebufferizationRecursive : public OpRewritePattern<func::FuncOp> {
   using OpRewritePattern<func::FuncOp>::OpRewritePattern;
 
@@ -2162,7 +2841,9 @@ struct LinalgDebufferize : public LinalgDebufferizeBase<LinalgDebufferize> {
 void LinalgDebufferize::runOnOperation() {
   auto module = getOperation()->getParentOfType<ModuleOp>();
   RewritePatternSet patterns(&getContext());
-  if (useRecursive) {
+  if (useMultiRoot) {
+    patterns.insert<LinalgDebufferizationMultiRoot>(&getContext());
+  } else if (useRecursive) {
     patterns.insert<LinalgDebufferizationRecursive>(&getContext());
   } else {
     patterns.insert<LinalgDebufferization>(&getContext());

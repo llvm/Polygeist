@@ -30,13 +30,17 @@ from kernel_match import (
 
 
 # Match each linalg.generic at the IR level, capturing the full block so
-# we can substitute it with a `kernel.launch`.
+# we can substitute it with a `kernel.launch`. Handles BOTH:
+#   - tensor form: `%X = linalg.generic {...} ins(...) outs(...) {body} -> T`
+#   - memref form: `linalg.generic {...} ins(...) outs(...) {body}`
+# (no SSA prefix, no return type; the op is void and mutates `outs` in place).
+# The leading SSA `%X =` and the trailing `-> type` are both optional.
 _GENERIC_BLOCK_RE = re.compile(
-    r"(\s*)(%[\w_]+)\s*=\s*linalg\.generic\s*\{[^}]*\}\s*"
+    r"(\s*)(?:(%[\w_]+)\s*=\s*)?linalg\.generic\s*\{[^}]*\}\s*"
     r"(?:ins\(([^)]*)\)\s*)?"
     r"outs\(([^)]*)\)\s*"
-    r"\{\s*\^bb0\([^)]*\)\s*:.*?linalg\.yield\s+%[\w_]+\s*:[^}]*\}\s*"
-    r"->\s*([^\n]+)",
+    r"\{\s*\^bb0\([^)]*\)\s*:.*?linalg\.yield\s+%[\w_]+\s*:[^}]*\}"
+    r"(?:\s*->\s*([^\n]+))?",
     re.DOTALL,
 )
 
@@ -44,12 +48,12 @@ _GENERIC_BLOCK_RE = re.compile(
 @dataclass
 class LinalgInstance:
     """A single linalg.generic op extracted from the MLIR text."""
-    result_ssa: str       # %12 etc.
-    ins_part: str         # "%10, %11 : tensor<?x...>, tensor<...>"
-    outs_part: str        # "%9 : tensor<...>"
-    result_type: str      # the type after `->`
-    span: tuple[int, int] # offset range in the source text
-    indent: str           # leading whitespace before the SSA def
+    result_ssa: str | None  # %12 etc., or None for memref-form (void)
+    ins_part: str           # "%10, %11 : tensor<?x...>, tensor<...>"
+    outs_part: str          # "%9 : tensor<...>" or "%9 : memref<...>"
+    result_type: str | None # the type after `->`, or None for memref-form
+    span: tuple[int, int]   # offset range in the source text
+    indent: str             # leading whitespace before the op
 
 
 def _extract_ssa_names(operands_part: str) -> list[str]:
@@ -117,28 +121,37 @@ def collect_generics_with_spans(text: str) -> list[LinalgInstance]:
             result_ssa=result_ssa,
             ins_part=(ins or "").strip(),
             outs_part=outs.strip(),
-            result_type=rty.strip(),
+            result_type=rty.strip() if rty else None,
             span=m.span(),
             indent=indent,
         ))
     return out
 
 
-def render_launch(name: str, result_ssa: str, result_type: str,
+def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
                   operand_types: list[str] | None = None,
                   scalar_type_map: dict[str, str] | None = None) -> str:
     """Build a `kernel.launch` op line in MLIR text.
 
+    When `result_ssa` and `result_type` are None, emit a void-returning
+    launch (`-> ()`) — used for memref-form linalg.generic where the
+    output is mutated in place rather than returned as an SSA.
+
     operand_types : explicit types for the tensor `operands` list (same order).
     scalar_type_map : SSA→type lookup for Cap-bound scalars.
-    If types are unknown we fall back to `!any` which is unparseable — that's
-    intentional, so callers see the breakage.
     """
     scalar_ssas: list[str] = []
     for tmpl_name, bound in bindings.items():
         if isinstance(bound, tuple) and len(bound) == 2 and bound[0] == "Cap":
+            # Mask Caps (template names like "%mask", "%mask1", ...) bind to
+            # internal cmpi result SSAs that aren't real scalar arguments —
+            # they're an artifact of the encoder treating arith.cmpi as opaque.
+            # Skip them; the canonical kernel.defn body reconstructs the mask
+            # from its own linalg.index + cmpi.
+            if tmpl_name.startswith("%mask"):
+                continue
             scalar_ssas.append(bound[1])
     all_operands = operands + scalar_ssas
     operand_str = ", ".join(all_operands)
@@ -155,9 +168,11 @@ def render_launch(name: str, result_ssa: str, result_type: str,
         else:
             sig_types.append("!any")
 
-    return (f"{indent}{result_ssa} = kernel.launch @{name}"
-            f"({operand_str}) : ({', '.join(sig_types)}) "
-            f"-> {result_type}")
+    sig = f"({', '.join(sig_types)})"
+    if result_ssa is None or result_type is None:
+        # Memref-form / void launch.
+        return f"{indent}kernel.launch @{name}({operand_str}) : {sig} -> ()"
+    return f"{indent}{result_ssa} = kernel.launch @{name}({operand_str}) : {sig} -> {result_type}"
 
 
 def rewrite_mlir(
@@ -190,6 +205,11 @@ def rewrite_mlir(
         except Exception:
             body_terms.append(None)
 
+    # Per-body form ("tensor" / "memref"), aligned with `instances`. The
+    # form is determined by whether the linalg.generic has an SSA result —
+    # tensor-form returns an SSA, memref-form is void with side effects.
+    body_forms = ["tensor" if inst.result_ssa else "memref" for inst in instances]
+
     comps = composition_library()
 
     # Walk bodies front-to-back, greedy-match compositions.
@@ -201,7 +221,8 @@ def rewrite_mlir(
             report.append(("encoder_fail", i, "?"))
             i += 1
             continue
-        m = match_composition(bodies, body_terms, comps, start=i)
+        m = match_composition(bodies, body_terms, comps, start=i,
+                              body_forms=body_forms)
         if m is None:
             report.append(("no_match", i, "?"))
             i += 1
@@ -251,8 +272,36 @@ def rewrite_mlir(
             operand_types = list(sorted_types) + outs0_types
         # The launch's result is the LAST generic's result SSA + type.
         last = instances[i + n - 1]
+
+        # Symbol-name override: same body shape can come from different
+        # operand-rank patterns that need different canonical defns. The
+        # only case today: `cublasDcopy` body = In(0) fires on both
+        #   - 1D-to-1D identity copy (doitgen)
+        #   - scalar broadcast to 1D (fdtd-2d source-inject)
+        # Distinguish by the input operand type: if it's a 0-D memref
+        # (rank-0, written as `memref<<elem-type>, strided<...>>`), emit
+        # `@broadcast_scalar_to_vec` instead. We use the operand type
+        # rather than the indexing_map because parse_generics doesn't
+        # resolve `#map` symbol references (only inline affine_map).
+        emit_name = entry.name
+        if entry.name == "cublasDcopy" and n == 1:
+            in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
+            # rank-0 memref: starts with `memref<` and the chunk before the
+            # outermost `,` or `>` contains no `x` (i.e. just the elem type).
+            if in0_ty.startswith("memref<"):
+                inside = in0_ty[len("memref<"):].split(",", 1)[0]
+                if "x" not in inside:
+                    emit_name = "broadcast_scalar_to_vec"
+        # Tensor-form twin of the same dispatch (multi-root debufferize).
+        if entry.name == "cublasDcopy_tensor" and n == 1:
+            in0_ty = all_tensor_in_types[0] if all_tensor_in_types else ""
+            if in0_ty.startswith("tensor<"):
+                inside = in0_ty[len("tensor<"):].split(",", 1)[0]
+                if "x" not in inside:
+                    emit_name = "broadcast_scalar_to_vec_tensor"
+
         launch_line = render_launch(
-            entry.name, last.result_ssa, last.result_type,
+            emit_name, last.result_ssa, last.result_type,
             operands, last.indent, binds, [],
             operand_types=operand_types,
             scalar_type_map=scalar_types,
