@@ -115,6 +115,69 @@ POPT_NAME = "popt_full"
 POPT_DISPLAY = "polygeist-opt: full (raise + lower-submap + debuferize)"
 
 
+# =====================================================================
+# Algorithm-blocker taxonomy: WHY each kernel ends up at FULL / PARTIAL /
+# NONE. Derived from the per-kernel investigations done across sessions
+# (see memory: scratch-row-carries, row-scratch-privatization-attempt,
+# raise-to-linalg-gaps, raise-status-after-privatize). Each kernel below
+# is tagged with one primary blocker. Tags:
+#
+#   none              — kernel fully lifts and matches; no blocker.
+#   matcher-gap       — lifts to linalg.generic cleanly but the body
+#                       shape isn't in the matcher library (fixable:
+#                       add a CompositionEntry + kernel.defn).
+#   t-loop            — body is parallel; outer "for t = 0..T" timestep
+#                       loop is genuinely serial (stencils — body of one
+#                       timestep reads the previous timestep's output).
+#                       Correct partial-lift; no fix needed.
+#   serial-recurrence — outer k/i loop carries data across iterations
+#                       (factorizations, DPs, recurrences). Fundamentally
+#                       non-parallel; can't be lifted further.
+#   scratch-carry     — hand-CSE'd rank-1 scratch row used to share
+#                       cross-axis arithmetic between two sibling inner
+#                       loops within one outer iteration. The outer
+#                       loops are parallel in principle; the shared
+#                       scratch hides that from the raise pass. FIXABLE
+#                       — see docs/row_scratch_privatization_failures.md.
+#   indirect-index    — data-dependent array index (e.g.
+#                       `ex[t * indexmap[k]]`). Needs gather semantics
+#                       in linalg.generic; not supported today.
+#   mixed-reductions  — single loop computes two reductions with
+#                       different operators (e.g. sum + max). The
+#                       raise pass currently rejects.
+#   non-affine        — bit-shift loops, sparse indirect indexing,
+#                       backtracking, control-flow-heavy code.
+#                       Genuinely outside the affine model.
+#   cgeist-frontend   — cgeist itself fails to parse / emit MLIR. Out
+#                       of pipeline scope.
+#   debuf-bug         — known dominance-class bug in the debufferize
+#                       pass (gramschmidt-class).
+# =====================================================================
+
+BLOCKER_TAXONOMY: dict[str, tuple[str, str]] = {
+    # tag → (one-liner label, longer explanation)
+    "none":              ("clean lift",
+                          "fully lifts to kernel.launch (or to linalg.generic + matched library entry)"),
+    "matcher-gap":       ("matcher library gap",
+                          "lifts to linalg.generic, but the body shape isn't in the matcher library yet"),
+    "t-loop":            ("serial T loop",
+                          "stencil-style: body parallel, outer time/step loop must be sequential"),
+    "serial-recurrence": ("serial recurrence",
+                          "factorization / DP / recurrence — outer iterations have genuine cross-iter data dependencies"),
+    "scratch-carry":     ("scratch row carry (FIXABLE)",
+                          "hand-CSE'd rank-1 row scratch shared between sibling inner loops; needs the row-privatization pass to land"),
+    "indirect-index":    ("data-dependent index (FIXABLE)",
+                          "indirect array index like ex[t*indexmap[i]]; needs gather support in linalg.generic"),
+    "mixed-reductions":  ("mixed sum+max reductions",
+                          "outer loop computes two reductions with different operators in one nest"),
+    "non-affine":        ("non-affine access",
+                          "bit-shift loop / sparse indirect / control-flow heavy — genuinely outside the affine model"),
+    "cgeist-frontend":   ("cgeist front-end limit",
+                          "cgeist itself doesn't parse the C cleanly (bit-heavy / struct-heavy / fn-pointer code)"),
+    "debuf-bug":         ("debuf dominance bug",
+                          "raise OK but debufferize hits the gramschmidt-class tensor.empty dominance issue"),
+}
+
 # Per-kernel parallelism notes — how well the kernel's algorithm maps to GPU.
 # Categories used in the index column:
 #   highly parallel    — every iteration independent; embarrassingly parallel
@@ -195,6 +258,76 @@ KERNEL_NOTES: dict[str, tuple[str, str]] = {
     "deriche":       ("serial",
                       "recursive IIR filter — output sample y[i] depends on "
                       "y[i-1..i-k]; sequential along the filter axis"),
+}
+
+
+# Per-kernel blocker classification: which BLOCKER_TAXONOMY tag applies,
+# plus a kernel-specific one-liner. Used to render the "Blocker" column
+# in the index and to power the taxonomy panel at the top of each section.
+# Kernels not listed default to "none".
+POLYBENCH_BLOCKERS: dict[str, tuple[str, str]] = {
+    "gemm":          ("none",              ""),
+    "syr2k":         ("none",              ""),
+    "syrk":          ("none",              ""),
+    "gesummv":       ("none",              ""),
+    "gemver":        ("none",              ""),
+    "symm":          ("matcher-gap",       "lifts, but one residual linalg.generic shape (symm-edge) isn't in library"),
+    "trmm":          ("matcher-gap",       "lifts cleanly to cublasDtrmm; one residual triangular-edge body unmatched"),
+    "atax":          ("none",              ""),
+    "bicg":          ("none",              ""),
+    "mvt":           ("none",              ""),
+    "2mm":           ("none",              ""),
+    "3mm":           ("none",              ""),
+    "doitgen":       ("matcher-gap",       "lifts; the per-iter scratch-copy body isn't in the library"),
+    "cholesky":      ("serial-recurrence", "lower-triangular factorization — column k modifies columns 0..k-1, k+1..N-1 depends on them"),
+    "gramschmidt":   ("serial-recurrence", "column-by-column modified Gram-Schmidt — column k+1 reads what column k just wrote"),
+    "lu":            ("serial-recurrence", "LU factorization — pivot row k modifies rows >k that subsequent iterations consume"),
+    "trisolv":       ("serial-recurrence", "triangular solve — y[i] depends on y[0..i-1]"),
+    "ludcmp":        ("serial-recurrence", "LU + triangular solve — both phases have row-by-row carry"),
+    "durbin":        ("serial-recurrence", "Levinson-Durbin recurrence — alpha/beta scalars carried across outer k iterations"),
+    "heat-3d":       ("t-loop",            "7-point 3D Laplacian update; T-step outer loop is serial, inner 3D body parallel"),
+    "jacobi-2d":     ("t-loop",            "5-point 2D smoother; T steps serial, inner 2D parallel"),
+    "jacobi-1d":     ("t-loop",            "3-point 1D smoother; T steps serial, inner 1D parallel"),
+    "fdtd-2d":       ("t-loop",            "Yee FDTD E/H field update; T steps serial, per-step body parallel"),
+    "seidel-2d":     ("serial-recurrence", "Gauss-Seidel — in-place writes within one sweep; current cell reads values updated earlier in SAME sweep"),
+    "adi":           ("t-loop",            "ADI (alternating direction implicit) — T-step outer, direction sweeps inside"),
+    "floyd-warshall":("none",              ""),
+    "deriche":       ("serial-recurrence", "recursive IIR filter — y[i] depends on y[i-1..i-k] along the filter axis"),
+    "nussinov":      ("serial-recurrence", "RNA folding DP — diagonal sweep, each cell reads from prior diagonals"),
+    "correlation":   ("scratch-carry",     "row-mean + variance accumulation; residual is the cross-pass scratch in cov-style outer loops"),
+    "covariance":    ("scratch-carry",     "mean-centred outer product; residual is the cross-pass scratch state"),
+}
+
+MACHSUITE_BLOCKERS: dict[str, tuple[str, str]] = {
+    "aes":           ("cgeist-frontend",   "byte-oriented AES with 256-entry sbox lookups; cgeist crashes parsing"),
+    "backprop":      ("matcher-gap",       "lifts 36 linalg.generic ops; neural-net body shapes (matmul+bias+sigmoid) not in library"),
+    "bfs-bulk":      ("cgeist-frontend",   "bulk-synchronous BFS with struct/queue manipulation; cgeist crashes"),
+    "bfs-queue":     ("non-affine",        "queue-based BFS; level/horizon-driven iteration not affine"),
+    "fft-strided":   ("non-affine",        "bit-reversal addressing: `for (span = N/2; span; span >>= 1)` — not affine"),
+    "fft-transpose": ("non-affine",        "FFT butterflies with bit-reversed access patterns; partial body lifts but FFT shape outside model"),
+    "gemm-ncubed":   ("none",              ""),
+    "gemm-blocked":  ("matcher-gap",       "tiled gemm; collapses to a single linalg.generic but extra tiling loops survive"),
+    "kmp":           ("non-affine",        "KMP string matching — backtracking on failure, control-flow heavy"),
+    "md-grid":       ("cgeist-frontend",   "molecular dynamics with neighbour-list structs; cgeist crashes"),
+    "md-knn":        ("debuf-bug",         "raises cleanly; debufferize hits the gramschmidt-class dominance bug"),
+    "nw":            ("serial-recurrence", "Needleman-Wunsch alignment DP; row depends on previous row's cells"),
+    "sort-merge":    ("cgeist-frontend",   "recursive merge sort; cgeist's analysis doesn't handle the recursion"),
+    "sort-radix":    ("non-affine",        "radix sort with counting buckets; some bucket fills lift but the sort itself is non-affine"),
+    "spmv-crs":      ("non-affine",        "sparse matvec CRS — indirect `cols[]` index into the values array"),
+    "spmv-ellpack":  ("non-affine",        "same — sparse indirect addressing"),
+    "stencil2d":     ("matcher-gap",       "9-tap 3x3 conv2d body; lifts cleanly but matcher has no conv2d-3x3 template"),
+    "stencil3d":     ("none",              ""),
+    "viterbi":       ("cgeist-frontend",   "Viterbi DP + arg-max; cgeist crashes on the array-of-struct probability table"),
+}
+
+NPB_BLOCKERS: dict[str, tuple[str, str]] = {
+    "bt-add":        ("matcher-gap",       "4D elementwise add lifts cleanly; matcher's add templates are only 1D/2D today"),
+    "ft-evolve":     ("indirect-index",    "ex[t*indexmap[k][j][i]] is a data-dependent index — raise pass refuses"),
+    "lu-l2norm":     ("matcher-gap",       "inner sum-of-squares reduction lifts + matches; outer init loop is unmatched"),
+    "mg-psinv":      ("scratch-carry",     "27-stencil via per-row r1/r2 scratch buffers; the scaffolded row-privatization pass would unblock"),
+    "mg-resid":      ("scratch-carry",     "same shape as psinv"),
+    "mg-rprj3":      ("scratch-carry",     "restriction operator with x1/y1 row scratch; same shape"),
+    "mg-norm2u3":    ("mixed-reductions",  "combined L2 sum + L∞ max in one loop nest; raise rejects the dual-reduction iter_arg"),
 }
 
 
@@ -510,8 +643,28 @@ def build_kernel_page(kernel: str, mlir_dir: Path = MLIR_DIR,
     }
 
 
+# Map blocker tag to a CSS class so the table cell can be colour-coded.
+# "FIXABLE" categories (scratch-carry, indirect-index, mixed-reductions,
+# matcher-gap, debuf-bug) -> partial (yellow). Fundamental blockers
+# (serial-recurrence, t-loop, non-affine, cgeist-frontend) -> none (red).
+# "none" -> pass (green).
+_BLOCKER_CSS = {
+    "none":              "pass",
+    "matcher-gap":       "partial",
+    "scratch-carry":     "partial",
+    "indirect-index":    "partial",
+    "mixed-reductions":  "partial",
+    "debuf-bug":         "partial",
+    "t-loop":            "none",
+    "serial-recurrence": "none",
+    "non-affine":        "none",
+    "cgeist-frontend":   "none",
+}
+
+
 def _render_section_rows(kernel_stats: dict[str, dict],
-                          notes: dict[str, tuple[str, str]]) -> str:
+                          notes: dict[str, tuple[str, str]],
+                          blockers: dict[str, tuple[str, str]]) -> str:
     rows = []
     for k, s in sorted(kernel_stats.items()):
         l = s["launches"]; r = s["residual"]; f = s["residual_for"]
@@ -541,6 +694,22 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             if note_tag else '<td></td><td></td>'
         )
 
+        block_tag, block_blurb = blockers.get(k, ("none", ""))
+        block_label = BLOCKER_TAXONOMY.get(block_tag, ("", ""))[0]
+        block_cls = _BLOCKER_CSS.get(block_tag, "")
+        if block_tag == "none":
+            block_cell = (
+                '<td class="pass" style="white-space:nowrap; font-size:12px">—</td>'
+                '<td style="font-size:12px; color:#555"></td>'
+            )
+        else:
+            block_cell = (
+                f'<td class="{block_cls}" style="white-space:nowrap; font-size:12px">'
+                f'<a href="#taxonomy" style="color:inherit; text-decoration:none">'
+                f'<b>{block_label}</b></a></td>'
+                f'<td style="font-size:12px; color:#555">{block_blurb}</td>'
+            )
+
         page_file = s.get("page_filename", f"{k}.html")
         rows.append(
             f'<tr>'
@@ -550,6 +719,7 @@ def _render_section_rows(kernel_stats: dict[str, dict],
             f'<td>{l}</td><td>{r}</td><td class="{for_cls}">{f}</td>'
             f'<td class="{cls}">{status}</td>'
             f'{note_cell}'
+            f'{block_cell}'
             f'</tr>'
         )
     return "\n".join(rows)
@@ -557,9 +727,10 @@ def _render_section_rows(kernel_stats: dict[str, dict],
 
 def _build_section(title: str, anchor: str, blurb: str,
                     kernel_stats: dict[str, dict],
-                    notes: dict[str, tuple[str, str]]) -> str:
+                    notes: dict[str, tuple[str, str]],
+                    blockers: dict[str, tuple[str, str]]) -> str:
     """Render one benchmark-suite section: a section header, blurb, then table."""
-    rows_html = _render_section_rows(kernel_stats, notes)
+    rows_html = _render_section_rows(kernel_stats, notes, blockers)
     return (
         f'<a name="{anchor}"></a>'
         f'<div class="section-header"><h2 class="section-title">{title}</h2></div>'
@@ -570,9 +741,43 @@ def _build_section(title: str, anchor: str, blurb: str,
         '<th>residual for-loops</th>'
         '<th>match status</th>'
         '<th>parallelism</th>'
-        '<th>notes</th>'
+        '<th>parallelism notes</th>'
+        '<th>blocker</th>'
+        '<th>blocker notes</th>'
         '</tr></thead><tbody>'
         + rows_html +
+        '</tbody></table>'
+    )
+
+
+def _build_taxonomy_panel() -> str:
+    """A top-of-page explainer for the per-kernel `blocker` column.
+    Categories link from each row's blocker cell to the right entry here."""
+    rows = []
+    for tag, (label, longer) in BLOCKER_TAXONOMY.items():
+        cls = _BLOCKER_CSS.get(tag, "")
+        rows.append(
+            f'<tr><td class="{cls}" style="white-space:nowrap; font-size:13px">'
+            f'<b>{label}</b></td>'
+            f'<td style="font-size:13px; color:#444">{longer}</td></tr>'
+        )
+    return (
+        '<a name="taxonomy"></a>'
+        '<div class="section-header" style="background:#f0e6ff; border-color:#c9b8e0">'
+        '  <h2 class="section-title">Algorithm-blocker taxonomy</h2>'
+        '</div>'
+        '<div class="intro">'
+        '  Each kernel below carries a <em>blocker</em> tag describing what '
+        '  prevents it from lifting fully (or matching to a kernel.launch). '
+        '  Green tags are wins (no blocker); yellow tags are <b>fixable</b> '
+        '  gaps in our raise / matcher / debufferize passes; red tags are '
+        '  <b>fundamental</b> — the algorithm has cross-iteration data '
+        '  dependencies that no transformation can remove. Categories:'
+        '</div>'
+        '<table><thead><tr>'
+        '<th>category</th><th>meaning</th>'
+        '</tr></thead><tbody>'
+        + "\n".join(rows) +
         '</tbody></table>'
     )
 
@@ -593,6 +798,10 @@ def build_index(polybench_stats: dict[str, dict],
         '  <code>scf.parallel</code>) still present after raise + lower-submap '
         '  + debuferize — a measure of how much of the kernel remains '
         '  imperative rather than expressed as linalg / kernel.launch.'
+        '  The <em>blocker</em> column links to the '
+        '  <a href="#taxonomy">algorithm taxonomy</a>: yellow tags are '
+        '  fixable pipeline gaps, red tags are fundamental cross-iteration '
+        '  dependencies that no transformation can remove.'
         '  The <em>parallelism</em> column classifies the kernel by its GPU '
         '  suitability: <span class="pass"><b>highly parallel</b></span> '
         '  (every iter independent), <span class="partial"><b>parallel + T '
@@ -613,6 +822,7 @@ def build_index(polybench_stats: dict[str, dict],
         ),
         kernel_stats=polybench_stats,
         notes=KERNEL_NOTES,
+        blockers=POLYBENCH_BLOCKERS,
     )
     machsuite_section = _build_section(
         title="MachSuite",
@@ -628,6 +838,7 @@ def build_index(polybench_stats: dict[str, dict],
         ),
         kernel_stats=machsuite_stats,
         notes=MACHSUITE_NOTES,
+        blockers=MACHSUITE_BLOCKERS,
     )
     npb_section = _build_section(
         title="NPB (polybenchified)",
@@ -645,16 +856,19 @@ def build_index(polybench_stats: dict[str, dict],
         ),
         kernel_stats=npb_stats,
         notes=NPB_NOTES,
+        blockers=NPB_BLOCKERS,
     )
 
     body = (
         '<div class="header"><h1>Polygeist IR explorer</h1>'
         '<div style="margin-top:6px; font-size:13px;">'
         '  Jump to: '
+        '  <a href="#taxonomy">Algorithm taxonomy</a> &middot; '
         '  <a href="#polybench">PolyBench</a> &middot; '
         '  <a href="#machsuite">MachSuite</a> &middot; '
         '  <a href="#npb">NPB (polybenchified)</a>'
         '</div></div>'
+        + _build_taxonomy_panel()
         + polybench_section
         + machsuite_section
         + npb_section
