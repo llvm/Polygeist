@@ -111,6 +111,57 @@ void polygeist_cudnn_conv2d_3x3_f32(
     float w6, float w7, float w8,
     const float *A, float *B);
 
+// FP16 / BF16 variants. The shim args use compiler-provided half-precision
+// types (`_Float16` for IEEE half, `__bf16` for brain-float) because MLIR's
+// `f16` / `bf16` lower to LLVM `half` / `bfloat` and use the FP-register ABI
+// on both x86-64 (XMM) and aarch64 (V regs). Passing them via uint16_t would
+// route through GP regs and corrupt the call.
+//   * f16  → CUDNN_DATA_HALF      (cuDNN tensor-core path on Ampere+)
+//   * bf16 → CUDNN_DATA_BFLOAT16  (tensor-core path on Ampere+)
+// Guarded on compiler-defined feature macros: __FLT16_MAX__ for `_Float16`
+// and __BFLT16_MAX__ for `__bf16`. Both are defined unconditionally on
+// aarch64 (Jetson) and on x86-64 when the appropriate -m flags are set
+// (-mavx512fp16 / -mavx512bf16). If a build target lacks the macro the
+// declaration is skipped — callers can't accidentally link to a missing
+// symbol because the shim implementation file is guarded the same way.
+#if defined(__FLT16_MAX__)
+void polygeist_cudnn_conv2d_3x3_f16(
+    int32_t M, int32_t N,
+    _Float16 w0, _Float16 w1, _Float16 w2,
+    _Float16 w3, _Float16 w4, _Float16 w5,
+    _Float16 w6, _Float16 w7, _Float16 w8,
+    const _Float16 *A, _Float16 *B);
+#endif
+
+#if defined(__BFLT16_MAX__) || defined(__ARM_FEATURE_BF16) || \
+    defined(__ARM_FEATURE_BF16_SCALAR_ARITHMETIC) || defined(__BF16__)
+void polygeist_cudnn_conv2d_3x3_bf16(
+    int32_t M, int32_t N,
+    __bf16 w0, __bf16 w1, __bf16 w2,
+    __bf16 w3, __bf16 w4, __bf16 w5,
+    __bf16 w6, __bf16 w7, __bf16 w8,
+    const __bf16 *A, __bf16 *B);
+#endif
+
+// INT32 / INT16 variants. cuDNN supports INT32 natively via CUDNN_DATA_INT32
+// (no tensor-core path — just integer correctness). INT16 is NOT supported
+// directly by cuDNN; the shim upcasts inputs to INT32, runs the conv, and
+// downcasts back. This is correctness-only — INT16 has no perf advantage on
+// any current NVIDIA GPU.
+void polygeist_cudnn_conv2d_3x3_i32(
+    int32_t M, int32_t N,
+    int32_t w0, int32_t w1, int32_t w2,
+    int32_t w3, int32_t w4, int32_t w5,
+    int32_t w6, int32_t w7, int32_t w8,
+    const int32_t *A, int32_t *B);
+
+void polygeist_cudnn_conv2d_3x3_i16(
+    int32_t M, int32_t N,
+    int16_t w0, int16_t w1, int16_t w2,
+    int16_t w3, int16_t w4, int16_t w5,
+    int16_t w6, int16_t w7, int16_t w8,
+    const int16_t *A, int16_t *B);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

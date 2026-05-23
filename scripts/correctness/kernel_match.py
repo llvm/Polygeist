@@ -314,8 +314,11 @@ def parse_generics(mlir_text: str,
         for in_arg in ins:
             constant_ssas: list[str] = []
             for ln in body_lines:
+                # Match arith.mulf OR arith.muli — same surfacing logic applies
+                # to integer-typed weighted stencils (the conv2d_i32 / i16
+                # bodies) as to float ones.
                 m_mul = re.match(
-                    r"%[\w_]+\s*=\s*arith\.mulf\s+(\S+?)\s*,\s*(\S+?)\s*:",
+                    r"%[\w_]+\s*=\s*arith\.mul[fi]\s+(\S+?)\s*,\s*(\S+?)\s*:",
                     ln.strip(),
                 )
                 if not m_mul:
@@ -360,9 +363,19 @@ _OP_PATTERNS = {
     "arith.addf": "add",
     "arith.subf": "sub",
     "arith.divf": "div",
+    # Integer counterparts. The encoder collapses int and float arith into
+    # the same algebraic Term (mul/add/sub/div) so one library template
+    # matches both dtypes. The dtype-suffix dispatch in the rewriter picks
+    # the right canonical defn and shim per element type.
+    "arith.muli": "mul",
+    "arith.addi": "add",
+    "arith.subi": "sub",
+    "arith.divsi": "div",
     "math.sqrt": "sqrt",
     "math.absf": "abs",
+    "math.absi": "abs",
     "arith.cmpf": "cmpf",
+    "arith.cmpi": "cmpi",
     "arith.select": "select",
 }
 

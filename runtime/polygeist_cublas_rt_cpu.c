@@ -103,6 +103,124 @@ void polygeist_cudnn_conv2d_3x3_f32(
   }
 }
 
+// FP16 / BF16: accumulate in float to avoid catastrophic precision loss in
+// 9-tap stencils (half's 11-bit mantissa is not enough for sums of nine
+// products). Inputs/outputs/weights stay in the half precision type so the
+// ABI matches MLIR's f16 / bf16 lowering. Guarded the same way as the
+// header declarations — see polygeist_cublas_rt.h.
+#if defined(__FLT16_MAX__)
+void polygeist_cudnn_conv2d_3x3_f16(
+    int32_t M, int32_t N,
+    _Float16 w0, _Float16 w1, _Float16 w2,
+    _Float16 w3, _Float16 w4, _Float16 w5,
+    _Float16 w6, _Float16 w7, _Float16 w8,
+    const _Float16 *A, _Float16 *B) {
+  const float w[9] = { (float)w0, (float)w1, (float)w2,
+                       (float)w3, (float)w4, (float)w5,
+                       (float)w6, (float)w7, (float)w8 };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      float acc = 0.0f;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += w[(dy + 1) * 3 + (dx + 1)] *
+                 (float)A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = (_Float16)acc;
+    }
+  }
+}
+#endif  // __FLT16_MAX__
+
+#if defined(__BFLT16_MAX__) || defined(__ARM_FEATURE_BF16) || \
+    defined(__ARM_FEATURE_BF16_SCALAR_ARITHMETIC) || defined(__BF16__)
+// GCC's aarch64 `__bf16` doesn't permit direct casts to/from float, so we
+// do the bf16↔float conversion via bit reinterpretation: bf16 is the top
+// 16 bits of an IEEE-754 fp32 (truncate-to-zero rounding). This is the
+// portable trick that NVIDIA uses internally too.
+static inline float _bf16_to_float(__bf16 b) {
+  uint16_t bits;
+  __builtin_memcpy(&bits, &b, sizeof(bits));
+  uint32_t f_bits = ((uint32_t)bits) << 16;
+  float f;
+  __builtin_memcpy(&f, &f_bits, sizeof(f));
+  return f;
+}
+static inline __bf16 _float_to_bf16(float f) {
+  uint32_t f_bits;
+  __builtin_memcpy(&f_bits, &f, sizeof(f_bits));
+  // Round-to-nearest-even bias before truncating low 16 bits.
+  uint32_t rounded = f_bits + 0x7FFF + ((f_bits >> 16) & 1);
+  uint16_t bits = (uint16_t)(rounded >> 16);
+  __bf16 out;
+  __builtin_memcpy(&out, &bits, sizeof(out));
+  return out;
+}
+
+void polygeist_cudnn_conv2d_3x3_bf16(
+    int32_t M, int32_t N,
+    __bf16 w0, __bf16 w1, __bf16 w2,
+    __bf16 w3, __bf16 w4, __bf16 w5,
+    __bf16 w6, __bf16 w7, __bf16 w8,
+    const __bf16 *A, __bf16 *B) {
+  const float w[9] = {
+      _bf16_to_float(w0), _bf16_to_float(w1), _bf16_to_float(w2),
+      _bf16_to_float(w3), _bf16_to_float(w4), _bf16_to_float(w5),
+      _bf16_to_float(w6), _bf16_to_float(w7), _bf16_to_float(w8) };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      float acc = 0.0f;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += w[(dy + 1) * 3 + (dx + 1)] *
+                 _bf16_to_float(A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)]);
+      B[(size_t)i * (size_t)N + (size_t)j] = _float_to_bf16(acc);
+    }
+  }
+}
+#endif  // bf16 support
+
+// INT32 / INT16: simple integer accumulation. cuDNN INT32 has no tensor-core
+// path, but is bit-exact integer correctness; INT16 here mirrors what the
+// CUDA shim does (upcast to INT32 internally). Wraparound semantics follow
+// 2's-complement; overflow is undefined per C but in practice ints wrap.
+void polygeist_cudnn_conv2d_3x3_i32(
+    int32_t M, int32_t N,
+    int32_t w0, int32_t w1, int32_t w2,
+    int32_t w3, int32_t w4, int32_t w5,
+    int32_t w6, int32_t w7, int32_t w8,
+    const int32_t *A, int32_t *B) {
+  const int32_t w[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      int64_t acc = 0;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += (int64_t)w[(dy + 1) * 3 + (dx + 1)] *
+                 (int64_t)A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = (int32_t)acc;
+    }
+  }
+}
+
+void polygeist_cudnn_conv2d_3x3_i16(
+    int32_t M, int32_t N,
+    int16_t w0, int16_t w1, int16_t w2,
+    int16_t w3, int16_t w4, int16_t w5,
+    int16_t w6, int16_t w7, int16_t w8,
+    const int16_t *A, int16_t *B) {
+  const int32_t w[9] = { w0, w1, w2, w3, w4, w5, w6, w7, w8 };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      int64_t acc = 0;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += (int64_t)w[(dy + 1) * 3 + (dx + 1)] *
+                 (int64_t)A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = (int16_t)acc;
+    }
+  }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

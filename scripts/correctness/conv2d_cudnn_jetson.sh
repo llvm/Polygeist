@@ -65,10 +65,15 @@ $CLANG --target=aarch64-linux-gnu --gcc-toolchain=/usr \
     -O3 -c $OUT/kernel.ll -o $OUT/kernel.o 2>&1 | tail -1
 
 echo "[conv2d/$SIZE] (7) cross-compile harness + wrapper + runtimes"
-aarch64-linux-gnu-gcc -O3 -DNI=$SIZE -DNJ=$SIZE -c $SCRIPTS/conv2d_main_harness.c -o $OUT/main.o
-aarch64-linux-gnu-gcc -O3 -c $SCRIPTS/conv2d_jetson_wrapper.c -o $OUT/wrapper.o
-aarch64-linux-gnu-gcc -O3 -I$CUDA/include -I$CUDNN_INC -c $RT/polygeist_cublas_rt_cuda.c -o $OUT/rt_cuda.o
-aarch64-linux-gnu-gcc -O3 -c $RT/polygeist_cublas_rt_cpu.c -o $OUT/rt_cpu.o
+# -march=armv8.2-a+fp16+bf16: Jetson Orin (Cortex-A78AE) is ARMv8.2-A
+# baseline; we add +fp16 + +bf16 to enable scalar _Float16 / __bf16 support
+# in the runtime so the f16/bf16 conv shims compile. cuDNN itself handles
+# the hardware-acceleration path on the GPU side.
+ARCH_FLAGS="-march=armv8.2-a+fp16+bf16"
+aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -DNI=$SIZE -DNJ=$SIZE -c $SCRIPTS/conv2d_main_harness.c -o $OUT/main.o
+aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -c $SCRIPTS/conv2d_jetson_wrapper.c -o $OUT/wrapper.o
+aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -I$CUDA/include -I$CUDNN_INC -c $RT/polygeist_cublas_rt_cuda.c -o $OUT/rt_cuda.o
+aarch64-linux-gnu-gcc -O3 $ARCH_FLAGS -c $RT/polygeist_cublas_rt_cpu.c -o $OUT/rt_cpu.o
 
 echo "[conv2d/$SIZE] (8) link CUDA binary"
 aarch64-linux-gnu-gcc -O2 \

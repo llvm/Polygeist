@@ -74,6 +74,14 @@ static StringRef shimSymbolFor(StringRef libSym) {
     return "polygeist_cudnn_conv2d_polybench9tap";
   if (libSym == "cudnnConvolution2D_9tap_f32")
     return "polygeist_cudnn_conv2d_3x3_f32";
+  if (libSym == "cudnnConvolution2D_9tap_f16")
+    return "polygeist_cudnn_conv2d_3x3_f16";
+  if (libSym == "cudnnConvolution2D_9tap_bf16")
+    return "polygeist_cudnn_conv2d_3x3_bf16";
+  if (libSym == "cudnnConvolution2D_9tap_i32")
+    return "polygeist_cudnn_conv2d_3x3_i32";
+  if (libSym == "cudnnConvolution2D_9tap_i16")
+    return "polygeist_cudnn_conv2d_3x3_i16";
   return StringRef();
 }
 
@@ -399,9 +407,15 @@ static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module,
     return launch.emitError(
         "cudnnConvolution2D_9tap: operand 0 must be a 2D memref");
   Type elemTy = firstMr.getElementType();
-  if (!(elemTy.isF64() || elemTy.isF32()))
+  bool isSupportedInt = false;
+  if (auto intTy = dyn_cast<IntegerType>(elemTy)) {
+    unsigned w = intTy.getWidth();
+    isSupportedInt = (w == 32 || w == 16);
+  }
+  if (!(elemTy.isF64() || elemTy.isF32() || elemTy.isF16() ||
+        elemTy.isBF16() || isSupportedInt))
     return launch.emitError(
-        "cudnnConvolution2D_9tap: element type must be f64 or f32 (got ") << elemTy << ")";
+        "cudnnConvolution2D_9tap: element type must be f64/f32/f16/bf16/i32/i16 (got ") << elemTy << ")";
   for (unsigned i = 0; i < 10; ++i) {
     auto mr = dyn_cast<MemRefType>(launch.getOperand(i).getType());
     if (!mr || mr.getRank() != 2 || mr.getElementType() != elemTy)
@@ -552,7 +566,11 @@ struct LowerKernelLaunchToCuBLASPass
       } else if (libSym == "memset_zero_2D") {
         r = lowerMemsetZero2D(launch, module);
       } else if (libSym == "cudnnConvolution2D_9tap" ||
-                 libSym == "cudnnConvolution2D_9tap_f32") {
+                 libSym == "cudnnConvolution2D_9tap_f32" ||
+                 libSym == "cudnnConvolution2D_9tap_f16" ||
+                 libSym == "cudnnConvolution2D_9tap_bf16" ||
+                 libSym == "cudnnConvolution2D_9tap_i32" ||
+                 libSym == "cudnnConvolution2D_9tap_i16") {
         r = lowerCudnnConv2D9tap(launch, module, shim);
       } else {
         launch.emitError("internal: shimSymbolFor recognised @")

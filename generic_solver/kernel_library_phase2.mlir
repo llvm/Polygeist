@@ -899,4 +899,72 @@ module {
       %w6: f32, %w7: f32, %w8: f32) {
     kernel.yield
   }
+
+  kernel.defn @cudnnConvolution2D_9tap_f16(
+      %A0: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xf16, strided<[?, 1], offset: ?>>,
+      %w0: f16, %w1: f16, %w2: f16,
+      %w3: f16, %w4: f16, %w5: f16,
+      %w6: f16, %w7: f16, %w8: f16) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_9tap_bf16(
+      %A0: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xbf16, strided<[?, 1], offset: ?>>,
+      %w0: bf16, %w1: bf16, %w2: bf16,
+      %w3: bf16, %w4: bf16, %w5: bf16,
+      %w6: bf16, %w7: bf16, %w8: bf16) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_9tap_i32(
+      %A0: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xi32, strided<[?, 1], offset: ?>>,
+      %w0: i32, %w1: i32, %w2: i32,
+      %w3: i32, %w4: i32, %w5: i32,
+      %w6: i32, %w7: i32, %w8: i32) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_9tap_i16(
+      %A0: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xi16, strided<[?, 1], offset: ?>>,
+      %w0: i16, %w1: i16, %w2: i16,
+      %w3: i16, %w4: i16, %w5: i16,
+      %w6: i16, %w7: i16, %w8: i16) {
+    kernel.yield
+  }
 }
