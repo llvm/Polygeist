@@ -842,4 +842,34 @@ module {
     } -> tensor<?x?xf64>
     kernel.yield %r : tensor<?x?xf64>
   }
+
+  // Conv2D 9-tap weighted (3x3 stencil).
+  // Operands: 9 input subviews (memref form) of one source tensor (one per
+  // 3x3 neighbour position) + 1 output subview. The 9 scalar weights live
+  // *inside* the matched linalg.generic body, not in the kernel.launch
+  // operand list — surfacing them is a matcher-extension TODO. For the
+  // --lower-kernel-launch-to-cublas dispatch this defn is just a symbol
+  // carrier (the cuDNN runtime shim hardcodes the polybench weights);
+  // body is no-op so the verifier passes.
+  kernel.defn @cudnnConvolution2D_9tap(
+      %A0: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A1: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A2: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A3: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A4: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A5: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A6: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A7: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %A8: memref<?x?xf64, strided<[?, 1], offset: ?>>,
+      %C:  memref<?x?xf64, strided<[?, 1], offset: ?>>) {
+    kernel.yield
+  }
+
+  kernel.defn @cudnnConvolution2D_9tap_tensor(
+      %A0: tensor<?x?xf64>, %A1: tensor<?x?xf64>, %A2: tensor<?x?xf64>,
+      %A3: tensor<?x?xf64>, %A4: tensor<?x?xf64>, %A5: tensor<?x?xf64>,
+      %A6: tensor<?x?xf64>, %A7: tensor<?x?xf64>, %A8: tensor<?x?xf64>,
+      %C:  tensor<?x?xf64>) -> tensor<?x?xf64> {
+    kernel.yield %C : tensor<?x?xf64>
+  }
 }

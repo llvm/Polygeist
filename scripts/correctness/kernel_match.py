@@ -761,6 +761,42 @@ def _syrk_composition() -> CompositionEntry:
     return CompositionEntry(name="cublasDsyrk", steps=[s1, s2])
 
 
+def _conv2d_9pt_weighted() -> CompositionEntry:
+    """2D 9-tap weighted convolution: out = sum_{k=0..8} w_k * in_k.
+
+    Each in_k is a strided subview of the same source tensor — one per
+    3×3 neighbour position. After our `bake_polybenchgpu_extracted_mlir.sh`
+    pulls the kernel out of its TU (breaking the init constant-fold chain),
+    polybenchGpu's convolution-2d lifts to exactly this shape.
+
+    Body is a left-fold sum of products, matching MLIR's natural CSE/folding
+    of the polybench-style straight-line C code.
+    """
+    body = Term.In(0) * T_cap("%w0")
+    for i in range(1, 9):
+        body = body + Term.In(i) * T_cap(f"%w{i}")
+    return CompositionEntry(
+        name="cudnnConvolution2D_9tap",
+        steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="memref",
+    )
+
+
+def _conv2d_9pt_weighted_tensor() -> CompositionEntry:
+    """Tensor-form sibling of _conv2d_9pt_weighted — fires after the
+    multi-root debufferize on the same body."""
+    body = Term.In(0) * T_cap("%w0")
+    for i in range(1, 9):
+        body = body + Term.In(i) * T_cap(f"%w{i}")
+    return CompositionEntry(
+        name="cudnnConvolution2D_9tap_tensor",
+        steps=[CompositionStep(body=body, num_ins=9, num_outs=1,
+                                parallel_dim_count=2, reduction_dim_count=0)],
+        form="tensor",
+    )
+
+
 def _jacobi_1d_3pt() -> CompositionEntry:
     """Jacobi 1D 3-point smoother: out[i] = (a + b + c) * coef
     where a, b, c are the left/center/right neighbors (encoded via subview
@@ -1017,6 +1053,9 @@ def composition_library() -> list[CompositionEntry]:
         _centered_sum_squares(),
 
         # Stencils (Bucket 2) — memref form (default v2 debufferize).
+        _conv2d_9pt_weighted(), # 9 ins — most specific 2D conv shape; must
+                                #         come before jacobi_2d_5pt (5 ins)
+                                #         since both target 2D parallel iter.
         _heat_3d_7pt(),       # 7 ins
         _fdtd_E_update(),     # 4 ins
         _jacobi_2d_5pt(),     # 5 ins
@@ -1024,6 +1063,7 @@ def composition_library() -> list[CompositionEntry]:
         _fdtd_update_2in(),   # 2 ins — checked AFTER more-specific 2D shapes
 
         # Stencils — tensor form (multi-root debufferize).
+        _conv2d_9pt_weighted_tensor(),
         _heat_3d_7pt_tensor(),
         _fdtd_E_update_tensor(),
         _jacobi_2d_5pt_tensor(),

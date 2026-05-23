@@ -70,6 +70,8 @@ static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
   if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
   if (libSym == "memset_zero_2D") return "polygeist_cublas_memset_zero_2d";
+  if (libSym == "cudnnConvolution2D_9tap")
+    return "polygeist_cudnn_conv2d_polybench9tap";
   return StringRef();
 }
 
@@ -359,6 +361,67 @@ static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+// @cudnnConvolution2D_9tap(in0..in8, out) — memref-form, no result.
+// 10 operands: 9 input subviews (all aliases of the same source memref
+// with different strided offsets — the 3x3 neighbour positions) + 1 output
+// subview. The 9 scalar weights stay embedded in the original
+// linalg.generic body; surfacing them as launch operands is a matcher TODO.
+// For now the cuDNN runtime shim has the polybench weights hardcoded.
+//
+// We extract:
+//   - A_ptr = aligned-ptr of input 0 (= source memref's data start)
+//   - B_ptr = aligned-ptr of output  (= dest memref's data start)
+//   - M = dim(output, 0) + 2   (output is interior, source is +2 in each axis)
+//   - N = dim(output, 1) + 2
+static LogicalResult lowerCudnnConv2D9tap(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 10)
+    return launch.emitError("cudnnConvolution2D_9tap: expected 10 operands "
+                            "(9 input subviews + 1 output), got ")
+           << launch.getNumOperands();
+  if (launch.getNumResults() != 0)
+    return launch.emitError("cudnnConvolution2D_9tap: expected memref-form "
+                            "(void) launch; got ")
+           << launch.getNumResults() << " result(s)";
+
+  for (Value op : launch.getOperands()) {
+    auto mr = dyn_cast<MemRefType>(op.getType());
+    if (!mr || mr.getRank() != 2 || !mr.getElementType().isF64())
+      return launch.emitError("cudnnConvolution2D_9tap: all operands must "
+                              "be 2D f64 memrefs (subviews of the source)");
+  }
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value A_subview = launch.getOperand(0);
+  Value B_subview = launch.getOperand(9);
+
+  Value A_ptr = memrefBasePtr(b, loc, A_subview);
+  Value B_ptr = memrefBasePtr(b, loc, B_subview);
+
+  // Derive M, N from the output subview's dynamic sizes (interior = (M-2)*(N-2))
+  // and add 2 to recover the source dims. memref.dim returns index; cast to i32.
+  Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1 = b.create<arith::ConstantIndexOp>(loc, 1);
+  Value c2_i32 = b.create<arith::ConstantOp>(loc, b.getI32Type(),
+                                              b.getI32IntegerAttr(2));
+  Value h_idx = b.create<memref::DimOp>(loc, B_subview, c0);
+  Value w_idx = b.create<memref::DimOp>(loc, B_subview, c1);
+  Value h_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), h_idx);
+  Value w_i32 = b.create<arith::IndexCastOp>(loc, b.getI32Type(), w_idx);
+  Value M = b.create<arith::AddIOp>(loc, h_i32, c2_i32);
+  Value N = b.create<arith::AddIOp>(loc, w_i32, c2_i32);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                 ptrTy, ptrTy};
+  func::FuncOp shim = ensureShimDecl(
+      module, "polygeist_cudnn_conv2d_polybench9tap", argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{M, N, A_ptr, B_ptr});
+
+  launch.erase();
+  return success();
+}
+
 // @memset_zero_2D(%M : tensor<?x?xf64>) -> tensor<?x?xf64>
 static LogicalResult lowerMemsetZero2D(LaunchOp launch, ModuleOp module) {
   if (launch.getNumOperands() != 1)
@@ -435,6 +498,8 @@ struct LowerKernelLaunchToCuBLASPass
         r = lowerDgeamScale2D(launch, module);
       } else if (libSym == "memset_zero_2D") {
         r = lowerMemsetZero2D(launch, module);
+      } else if (libSym == "cudnnConvolution2D_9tap") {
+        r = lowerCudnnConv2D9tap(launch, module);
       } else {
         launch.emitError("internal: shimSymbolFor recognised @")
             << libSym << " but no lowering branch dispatched";

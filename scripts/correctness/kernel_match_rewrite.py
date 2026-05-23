@@ -128,6 +128,53 @@ def collect_generics_with_spans(text: str) -> list[LinalgInstance]:
     return out
 
 
+_STRIDED_2D_TARGET = "memref<?x?xf64, strided<[?, 1], offset: ?>>"
+_STRIDED_3D_TARGET = "memref<?x?x?xf64, strided<[?, ?, 1], offset: ?>>"
+
+
+def _normalize_memref_operands(
+    operands: list[str], operand_types: list[str] | None, indent: str
+) -> tuple[list[str], list[str], list[str]]:
+    """For each memref operand whose stride/offset is more-specific than the
+    canonical defn target type, emit a `memref.cast` to the target type.
+
+    Returns (cast_lines, new_operand_ssas, new_operand_types). For non-memref
+    operands or operands already at the target type, the original SSA/type is
+    kept and no cast is emitted. This lets the matcher emit launches whose
+    operand types match the canonical kernel.defn declarations even when the
+    original linalg.generic had subviews with static offsets / no offset.
+
+    Heuristic: target = strided<[?, 1], offset: ?> for 2D f64 memrefs;
+    strided<[?, ?, 1], offset: ?> for 3D. Operands not matching the f64 +
+    contiguous-inner-stride pattern are passed through unchanged.
+    """
+    if operand_types is None or len(operand_types) != len(operands):
+        return [], operands, operand_types or []
+    cast_lines: list[str] = []
+    new_ssas: list[str] = []
+    new_types: list[str] = []
+    for ssa, ty in zip(operands, operand_types):
+        if "f64" not in ty or not ty.startswith("memref<"):
+            new_ssas.append(ssa); new_types.append(ty); continue
+        # Pick the canonical target by rank.
+        if ty.startswith("memref<?x?xf64") and "strided<[" in ty:
+            target = _STRIDED_2D_TARGET
+        elif ty.startswith("memref<?x?x?xf64") and "strided<[" in ty:
+            target = _STRIDED_3D_TARGET
+        else:
+            new_ssas.append(ssa); new_types.append(ty); continue
+        if ty == target:
+            new_ssas.append(ssa); new_types.append(ty); continue
+        # SSA name for the cast result. Reuse SSA's leading char and append _c.
+        cast_ssa = ssa + "_c"
+        cast_lines.append(
+            f"{indent}{cast_ssa} = memref.cast {ssa} : {ty} to {target}"
+        )
+        new_ssas.append(cast_ssa)
+        new_types.append(target)
+    return cast_lines, new_ssas, new_types
+
+
 def render_launch(name: str, result_ssa: str | None, result_type: str | None,
                   operands: list[str], indent: str,
                   bindings: dict, captures_per_step: list[list[str]],
@@ -142,6 +189,14 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
     operand_types : explicit types for the tensor `operands` list (same order).
     scalar_type_map : SSA→type lookup for Cap-bound scalars.
     """
+    # First: normalize strided memref operand types via memref.cast so they
+    # match the canonical kernel.defn signature (which uses dynamic-stride
+    # placeholders like `strided<[?, 1], offset: ?>` to accept any concrete
+    # subview shape).
+    cast_lines, operands, operand_types = _normalize_memref_operands(
+        operands, operand_types, indent
+    )
+
     scalar_ssas: list[str] = []
     for tmpl_name, bound in bindings.items():
         if isinstance(bound, tuple) and len(bound) == 2 and bound[0] == "Cap":
@@ -169,10 +224,11 @@ def render_launch(name: str, result_ssa: str | None, result_type: str | None,
             sig_types.append("!any")
 
     sig = f"({', '.join(sig_types)})"
+    cast_prefix = "\n".join(cast_lines) + ("\n" if cast_lines else "")
     if result_ssa is None or result_type is None:
         # Memref-form / void launch.
-        return f"{indent}kernel.launch @{name}({operand_str}) : {sig} -> ()"
-    return f"{indent}{result_ssa} = kernel.launch @{name}({operand_str}) : {sig} -> {result_type}"
+        return f"{cast_prefix}{indent}kernel.launch @{name}({operand_str}) : {sig} -> ()"
+    return f"{cast_prefix}{indent}{result_ssa} = kernel.launch @{name}({operand_str}) : {sig} -> {result_type}"
 
 
 def rewrite_mlir(

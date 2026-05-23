@@ -62,6 +62,23 @@ void polygeist_cublas_memset_zero_2d(
 void polygeist_cublas_dscal_2d(
     int32_t M, int32_t N, double scale, double *A, int32_t lda);
 
+// cuDNN 9-tap conv2d (3x3 stencil) with PolyBench's hardcoded weights.
+// Input A is MxN row-major f64; output B is MxN row-major f64; the
+// interior B[1..M-2][1..N-2] is filled with the convolved result,
+// border rows/cols are untouched. CUDA backend calls cudnnConvolutionForward
+// with a 1×1×M×N input descriptor and a 1×1×3×3 filter descriptor.
+// CPU stub does the same math in a 3-loop reference for validation.
+//
+// Weights baked in (matches polybenchGpu/OpenMP/stencils/convolution-2d/):
+//   [[ 0.2, 0.5, -0.8],
+//    [-0.3, 0.6, -0.9],
+//    [ 0.4, 0.7,  0.1]]
+//
+// Generalising the weights to arbitrary filter coefficients is a TODO
+// once the matcher surfaces the 9 scalar weights as launch operands.
+void polygeist_cudnn_conv2d_polybench9tap(
+    int32_t M, int32_t N, const double *A, double *B);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

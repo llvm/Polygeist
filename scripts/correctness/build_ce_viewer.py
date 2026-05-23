@@ -34,6 +34,8 @@ NPB_ROOT = Path("/home/arjaiswal/Polygeist/third_party/NPB-polybenchified")
 NPB_MLIR_DIR = Path("/tmp/npb_mlir")
 POLYBENCHGPU_ROOT = Path("/home/arjaiswal/Polygeist/third_party/polybenchGpu/OpenMP")
 POLYBENCHGPU_MLIR_DIR = Path("/tmp/pbgpu_mlir")
+POLYBENCHGPU_EXTRACTED_ROOT = Path("/home/arjaiswal/Polygeist/third_party/polybenchGpu-extracted")
+POLYBENCHGPU_EXTRACTED_MLIR_DIR = Path("/tmp/pbgpu_extracted_mlir")
 LLAMA2C_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llama2.c")
 LLAMA2C_MLIR_DIR = Path("/tmp/llama2c_mlir")
 LLMC_ROOT = Path("/home/arjaiswal/Polygeist/third_party/llm.c")
@@ -128,6 +130,15 @@ LLAMA2C_KERNELS: dict[str, tuple[str, str]] = {
     "matmul":   ("run.c", "matmul"),
 }
 
+# polybenchGpu-extracted: standalone .c files containing ONLY the kernel
+# function (no main, no init), so cgeist can't inline init's
+# A[i,j]=(i+j)/nj formula and constant-fold the conv body away. Compare
+# their lift to the polybenchGpu (full file) entries above to see the fix.
+POLYBENCHGPU_EXTRACTED_KERNELS: dict[str, tuple[str, str]] = {
+    "conv2d-extracted":  ("conv2d.c", "kernel_conv2d"),
+    "conv3d-extracted":  ("conv3d.c", "kernel_conv2d"),
+}
+
 # llm.c (karpathy/llm.c) leaf forward/backward kernels in train_gpt2.c. These
 # are the building blocks of GPT-2 inference + training. Skip the tiled
 # matmul_forward in favour of matmul_forward_naive (the 4-loop reference).
@@ -203,6 +214,23 @@ LLAMA2C_NOTES: dict[str, tuple[str, str]] = {
     "matmul":   ("highly parallel",   "dense gemv (W·x = xout); single linalg.generic after raise"),
     "rmsnorm":  ("highly parallel",   "ss = mean(x²) + eps then o = weight·x/√ss; reduction + parallel scale"),
     "softmax":  ("partial parallel",  "max-shift then exp + sum then divide; three reduction/parallel phases"),
+}
+
+# polybenchGpu-extracted parallelism notes — same algorithms as the
+# polybenchGpu entries, just lifted from a clean TU. Listed separately
+# so the IR explorer can show the difference side-by-side.
+POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
+    "conv2d-extracted": ("highly parallel",
+                          "9-tap 3x3 stencil; kernel function extracted from polybenchGpu .c so init+main don't constant-fold the conv body"),
+    "conv3d-extracted": ("highly parallel",
+                          "11-tap 3x3x3 stencil (upstream has 3 duplicate index expressions); extracted to break the init-fold chain"),
+}
+
+POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
+    "conv2d-extracted": ("matcher-gap",
+                          "lifts to 1 linalg.generic with 9 strided-subview inputs (one per 3x3 neighbour); matcher needs a conv2d-9pt template + a @cudnnConvolution2D library defn before this matches"),
+    "conv3d-extracted": ("matcher-gap",
+                          "same shape in 3D, 11 distinct inputs"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
@@ -581,6 +609,13 @@ def find_kernel_c(name: str, kset: str = "polybench") -> Path | None:
             return None
         srcname, _fn = info
         p = LLAMA2C_ROOT / srcname
+        return p if p.exists() else None
+    if kset == "polybenchgpu_extracted":
+        info = POLYBENCHGPU_EXTRACTED_KERNELS.get(name)
+        if not info:
+            return None
+        srcname, _fn = info
+        p = POLYBENCHGPU_EXTRACTED_ROOT / srcname
         return p if p.exists() else None
     if kset == "llmc":
         info = LLMC_KERNELS.get(name)
@@ -1035,6 +1070,7 @@ def build_index(polybench_stats: dict[str, dict],
                  machsuite_stats: dict[str, dict],
                  npb_stats: dict[str, dict],
                  polybenchgpu_stats: dict[str, dict],
+                 polybenchgpu_extracted_stats: dict[str, dict],
                  llama2c_stats: dict[str, dict],
                  llmc_stats: dict[str, dict]) -> str:
     common_legend = (
@@ -1129,6 +1165,26 @@ def build_index(polybench_stats: dict[str, dict],
         notes=POLYBENCHGPU_NOTES,
         blockers=POLYBENCHGPU_BLOCKERS,
     )
+    polybenchgpu_extracted_section = _build_section(
+        title="polybenchGpu (kernel-extracted)",
+        anchor="polybenchgpu-extracted",
+        blurb=(
+            "Subset of polybenchGpu kernels extracted into standalone .c "
+            "files (third_party/polybenchGpu-extracted/) — kernel function "
+            "only, no main, no init. Solves the constant-folding issue "
+            "where cgeist inlined main→init→kernel, then the optimizer "
+            "constant-folded init's <code>A[i,j]=(i+j)/nj</code> formula "
+            "into the conv body — leaving a linalg.generic with no "
+            "<code>ins(A)</code> that the matcher couldn't fingerprint as "
+            "conv2d/conv3d. The extracted form lifts cleanly with N "
+            "strided-subview inputs (one per stencil neighbour) and is "
+            "ready for matching to <code>@cudnnConvolution2D</code>."
+        ),
+        kernel_stats=polybenchgpu_extracted_stats,
+        notes=POLYBENCHGPU_EXTRACTED_NOTES,
+        blockers=POLYBENCHGPU_EXTRACTED_BLOCKERS,
+    )
+
     llama2c_section = _build_section(
         title="llama2.c (karpathy/llama2.c)",
         anchor="llama2c",
@@ -1175,6 +1231,7 @@ def build_index(polybench_stats: dict[str, dict],
         '  <a href="#machsuite">MachSuite</a> &middot; '
         '  <a href="#npb">NPB (polybenchified)</a> &middot; '
         '  <a href="#polybenchgpu">polybenchGpu</a> &middot; '
+        '  <a href="#polybenchgpu-extracted">polybenchGpu (extracted)</a> &middot; '
         '  <a href="#llama2c">llama2.c</a> &middot; '
         '  <a href="#llmc">llm.c</a>'
         '</div></div>'
@@ -1183,6 +1240,7 @@ def build_index(polybench_stats: dict[str, dict],
         + machsuite_section
         + npb_section
         + polybenchgpu_section
+        + polybenchgpu_extracted_section
         + llama2c_section
         + llmc_section
     )
@@ -1290,6 +1348,38 @@ def main():
             file_prefix="llama_",
         )
 
+    # polybenchGpu-extracted set.
+    pbgpu_x_kernels_from_files = discover_kernels(POLYBENCHGPU_EXTRACTED_MLIR_DIR)
+    pbgpu_x_kernels = sorted(set(pbgpu_x_kernels_from_files) | set(POLYBENCHGPU_EXTRACTED_KERNELS.keys()))
+    # discover_kernels returns the bare 'conv2d' (no '-extracted' suffix) since
+    # the bake names the files conv2d_*.mlir. Map back to the registered names.
+    file_to_reg = {"conv2d": "conv2d-extracted", "conv3d": "conv3d-extracted"}
+    pbgpu_x_kernels = sorted({file_to_reg.get(k, k) for k in pbgpu_x_kernels})
+    print(f"Rendering {len(pbgpu_x_kernels)} polybenchGpu-extracted kernels...", flush=True)
+    pbgpu_x_stats = {}
+    for i, k in enumerate(pbgpu_x_kernels, 1):
+        print(f"  [PBGPU-X {i:2d}/{len(pbgpu_x_kernels)}] {k}", flush=True)
+        # File-name basis (strip the -extracted tag back off)
+        file_base = k.replace("-extracted", "")
+        has_any = any((POLYBENCHGPU_EXTRACTED_MLIR_DIR / f"{file_base}{suf}").exists()
+                      for suf in (".mlir", "_linalg.mlir", "_debuf.mlir",
+                                   "_debuf_mr.mlir"))
+        if not has_any:
+            pbgpu_x_stats[k] = {"launches": 0, "residual": 0, "residual_for": 0,
+                                 "ce_url": None, "page_filename": ""}
+            continue
+        # build_kernel_page expects the file-base name to find _linalg.mlir
+        # etc.; pass file_base instead of the registered name.
+        stats = build_kernel_page(
+            file_base, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
+            kset="polybenchgpu_extracted", file_prefix="pbgpux_",
+        )
+        # ce_link uses the registered name to find the source .c — patch it.
+        ce_url = ce_link(k, mlir_dir=POLYBENCHGPU_EXTRACTED_MLIR_DIR,
+                          kset="polybenchgpu_extracted")
+        stats["ce_url"] = ce_url
+        pbgpu_x_stats[k] = stats
+
     # llm.c set.
     llmc_kernels_from_files = discover_kernels(LLMC_MLIR_DIR)
     llmc_kernels = sorted(set(llmc_kernels_from_files) | set(LLMC_KERNELS.keys()))
@@ -1310,7 +1400,8 @@ def main():
         )
 
     OUTPUT_DIR.joinpath("index.html").write_text(
-        build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats, llama_stats, llmc_stats))
+        build_index(pb_stats, ms_stats, npb_stats, pbgpu_stats,
+                    pbgpu_x_stats, llama_stats, llmc_stats))
     print(f"\nDone. Open {OUTPUT_DIR}/index.html.")
 
 

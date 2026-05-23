@@ -50,6 +50,27 @@ void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
   }
 }
 
+// Reference CPU impl of the polybench 3x3 9-tap conv2d. Same weights as the
+// upstream kernel_conv2d in third_party/polybenchGpu/OpenMP/stencils/.
+void polygeist_cudnn_conv2d_polybench9tap(
+    int32_t M, int32_t N, const double *A, double *B) {
+  static const double w[9] = {
+     0.2,  0.5, -0.8,
+    -0.3,  0.6, -0.9,
+     0.4,  0.7,  0.1,
+  };
+  for (int32_t i = 1; i < M - 1; ++i) {
+    for (int32_t j = 1; j < N - 1; ++j) {
+      double acc = 0.0;
+      for (int32_t dy = -1; dy <= 1; ++dy)
+        for (int32_t dx = -1; dx <= 1; ++dx)
+          acc += w[(dy + 1) * 3 + (dx + 1)] *
+                 A[(size_t)(i + dy) * (size_t)N + (size_t)(j + dx)];
+      B[(size_t)i * (size_t)N + (size_t)j] = acc;
+    }
+  }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

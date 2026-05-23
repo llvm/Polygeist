@@ -23,11 +23,13 @@
 
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
+#include <cudnn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static cublasHandle_t g_handle;
+static cudnnHandle_t  g_cudnn = NULL;
 static cudaStream_t   g_stream;
 static cudaEvent_t    g_ev_begin;
 static cudaEvent_t    g_ev_end;
@@ -50,6 +52,21 @@ static int            g_initialized = 0;
       abort();                                                               \
     }                                                                        \
   } while (0)
+
+#define CUDNN_CHECK(call) do {                                               \
+    cudnnStatus_t s = (call);                                                \
+    if (s != CUDNN_STATUS_SUCCESS) {                                         \
+      fprintf(stderr, "%s:%d cudnn error: %s\n", __FILE__, __LINE__,         \
+              cudnnGetErrorString(s));                                       \
+      abort();                                                               \
+    }                                                                        \
+  } while (0)
+
+static void ensure_cudnn(void) {
+  if (g_cudnn) return;
+  CUDNN_CHECK(cudnnCreate(&g_cudnn));
+  CUDNN_CHECK(cudnnSetStream(g_cudnn, g_stream));
+}
 
 void polygeist_cublas_init(void) {
   if (g_initialized) return;
@@ -139,6 +156,100 @@ void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
     double *row = &A[(size_t)i * (size_t)lda];
     for (int32_t j = 0; j < N; ++j) row[j] *= scale;
   }
+}
+
+// cuDNN 9-tap conv2d (PolyBench filter hardcoded). Single-image,
+// single-channel, FP64, 3x3 no-padding stride-1.
+void polygeist_cudnn_conv2d_polybench9tap(
+    int32_t M, int32_t N, const double *A, double *B) {
+  polygeist_cublas_init();
+  ensure_cudnn();
+
+  // PolyBench's 3x3 weight matrix (matches kernel_conv2d in
+  // third_party/polybenchGpu/OpenMP/stencils/convolution-2d/).
+  static const double filter_h[9] = {
+     0.2,  0.5, -0.8,
+    -0.3,  0.6, -0.9,
+     0.4,  0.7,  0.1,
+  };
+
+  cudnnTensorDescriptor_t      in_desc, out_desc;
+  cudnnFilterDescriptor_t      f_desc;
+  cudnnConvolutionDescriptor_t conv_desc;
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&in_desc));
+  CUDNN_CHECK(cudnnCreateTensorDescriptor(&out_desc));
+  CUDNN_CHECK(cudnnCreateFilterDescriptor(&f_desc));
+  CUDNN_CHECK(cudnnCreateConvolutionDescriptor(&conv_desc));
+
+  // 1 batch, 1 channel, M×N input; FP64 NCHW
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(in_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_DOUBLE, 1, 1, M, N));
+  // Filter: 1 out-ch, 1 in-ch, 3×3, FP64 NCHW
+  CUDNN_CHECK(cudnnSetFilter4dDescriptor(f_desc, CUDNN_DATA_DOUBLE,
+                                          CUDNN_TENSOR_NCHW, 1, 1, 3, 3));
+  // No padding, stride 1, dilation 1; use CROSS_CORRELATION (no flip)
+  // since polybench's body matches cross-correlation semantics.
+  CUDNN_CHECK(cudnnSetConvolution2dDescriptor(
+      conv_desc, /*pad_h=*/0, /*pad_w=*/0, /*stride_h=*/1, /*stride_w=*/1,
+      /*dilation_h=*/1, /*dilation_w=*/1,
+      CUDNN_CROSS_CORRELATION, CUDNN_DATA_DOUBLE));
+  // Output: 1 batch, 1 channel, (M-2)×(N-2)
+  CUDNN_CHECK(cudnnSetTensor4dDescriptor(out_desc, CUDNN_TENSOR_NCHW,
+                                          CUDNN_DATA_DOUBLE, 1, 1, M - 2, N - 2));
+
+  // Device allocations
+  size_t bytes_in   = (size_t)M * (size_t)N * sizeof(double);
+  size_t bytes_f    = 9 * sizeof(double);
+  size_t bytes_out  = (size_t)(M - 2) * (size_t)(N - 2) * sizeof(double);
+  double *dA = NULL, *dF = NULL, *dB = NULL;
+  CUDA_CHECK(cudaMalloc((void**)&dA, bytes_in));
+  CUDA_CHECK(cudaMalloc((void**)&dF, bytes_f));
+  CUDA_CHECK(cudaMalloc((void**)&dB, bytes_out));
+  CUDA_CHECK(cudaMemcpyAsync(dA, A, bytes_in, cudaMemcpyHostToDevice, g_stream));
+  CUDA_CHECK(cudaMemcpyAsync(dF, filter_h, bytes_f, cudaMemcpyHostToDevice, g_stream));
+
+  // Algorithm choice: ask cuDNN for the best fwd algo it can serve.
+  cudnnConvolutionFwdAlgoPerf_t algo_perf;
+  int n_returned = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardAlgorithm_v7(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc,
+      /*requestedAlgoCount=*/1, &n_returned, &algo_perf));
+  if (n_returned < 1) {
+    fprintf(stderr, "cuDNN: no fwd algo available for this shape\n");
+    abort();
+  }
+
+  // Workspace
+  size_t ws_size = 0;
+  CUDNN_CHECK(cudnnGetConvolutionForwardWorkspaceSize(
+      g_cudnn, in_desc, f_desc, conv_desc, out_desc, algo_perf.algo, &ws_size));
+  void *dWS = NULL;
+  if (ws_size > 0) CUDA_CHECK(cudaMalloc(&dWS, ws_size));
+
+  // Run
+  double alpha = 1.0, beta = 0.0;
+  CUDNN_CHECK(cudnnConvolutionForward(
+      g_cudnn, &alpha, in_desc, dA, f_desc, dF, conv_desc,
+      algo_perf.algo, dWS, ws_size, &beta, out_desc, dB));
+
+  // The output (M-2)×(N-2) needs to be copied back into the *interior* of
+  // B (i.e. B[1..M-2][1..N-2]) — that's what polybench's kernel writes to.
+  // Copy row by row (N-2 doubles per row, into B + (i+1)*N + 1).
+  for (int32_t i = 0; i < M - 2; ++i) {
+    CUDA_CHECK(cudaMemcpyAsync(
+        B + (size_t)(i + 1) * (size_t)N + 1,
+        dB + (size_t)i * (size_t)(N - 2),
+        (size_t)(N - 2) * sizeof(double),
+        cudaMemcpyDeviceToHost, g_stream));
+  }
+  CUDA_CHECK(cudaStreamSynchronize(g_stream));
+
+  cudaFree(dA);  cudaFree(dF);  cudaFree(dB);
+  if (dWS) cudaFree(dWS);
+  cudnnDestroyTensorDescriptor(in_desc);
+  cudnnDestroyTensorDescriptor(out_desc);
+  cudnnDestroyFilterDescriptor(f_desc);
+  cudnnDestroyConvolutionDescriptor(conv_desc);
 }
 
 void polygeist_cublas_time_begin(void) {
