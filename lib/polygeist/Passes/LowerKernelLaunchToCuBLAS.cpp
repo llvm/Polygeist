@@ -66,6 +66,10 @@ struct ShimDecl {
 
 static StringRef shimSymbolFor(StringRef libSym) {
   if (libSym == "cublasDgemm") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgemm_simple") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgemm_alpha_only") return "polygeist_cublas_dgemm";
+  if (libSym == "cublasDgeam_scale2D") return "polygeist_cublas_dscal_2d";
+  if (libSym == "memset_zero_2D") return "polygeist_cublas_memset_zero_2d";
   return StringRef();
 }
 
@@ -242,6 +246,148 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
   return success();
 }
 
+// Shared helper: lower a gemm-shape launch with optionally-implicit
+// alpha/beta. Variants:
+//   @cublasDgemm           operands (A, B, C, beta, alpha)        — full form
+//   @cublasDgemm_simple    operands (A, B, C)                     — α=1, β=1
+//   @cublasDgemm_alpha_only operands (A, B, C, alpha)             — β=1
+// All three lower to the same polygeist_cublas_dgemm runtime call.
+static LogicalResult lowerDgemmVariant(LaunchOp launch, ModuleOp module,
+                                          StringRef variant) {
+  unsigned expected = (variant == "cublasDgemm") ? 5
+                    : (variant == "cublasDgemm_alpha_only") ? 4
+                    : 3;
+  if (launch.getNumOperands() != expected)
+    return launch.emitError(variant)
+           << " lowering: expected " << expected
+           << " operands, got " << launch.getNumOperands();
+  if (launch.getNumResults() != 1)
+    return launch.emitError(variant) << " lowering: expected 1 result";
+
+  Value A = launch.getOperand(0);
+  Value B = launch.getOperand(1);
+  Value C = launch.getOperand(2);
+  Value beta, alpha;
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value one = b.create<arith::ConstantOp>(loc, b.getF64Type(),
+                                          b.getF64FloatAttr(1.0));
+  if (variant == "cublasDgemm") {
+    beta = launch.getOperand(3);
+    alpha = launch.getOperand(4);
+  } else if (variant == "cublasDgemm_alpha_only") {
+    beta = one;
+    alpha = launch.getOperand(3);
+  } else {  // _simple
+    beta = one;
+    alpha = one;
+  }
+
+  auto At = dyn_cast<RankedTensorType>(A.getType());
+  auto Bt = dyn_cast<RankedTensorType>(B.getType());
+  auto Ct = dyn_cast<RankedTensorType>(C.getType());
+  if (!At || !Bt || !Ct || At.getRank() != 2 || Bt.getRank() != 2 ||
+      Ct.getRank() != 2)
+    return launch.emitError(variant)
+           << " lowering: A/B/C must be 2D ranked tensors";
+  if (!At.getElementType().isF64() || !Bt.getElementType().isF64() ||
+      !Ct.getElementType().isF64())
+    return launch.emitError(variant)
+           << " lowering: only f64 supported";
+
+  Value A_mr = tensorToMemref(b, loc, A);
+  Value B_mr = tensorToMemref(b, loc, B);
+  Value C_mr = tensorToMemref(b, loc, C);
+  Value M = memrefDimAsI32(b, loc, A_mr, 0);
+  Value K = memrefDimAsI32(b, loc, A_mr, 1);
+  Value N = memrefDimAsI32(b, loc, B_mr, 1);
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value B_ptr = memrefBasePtr(b, loc, B_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {
+      b.getI32Type(), b.getI32Type(), b.getI32Type(),
+      b.getF64Type(),
+      ptrTy, b.getI32Type(),
+      ptrTy, b.getI32Type(),
+      b.getF64Type(),
+      ptrTy, b.getI32Type(),
+  };
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemm",
+                                       argTypes, b);
+  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, K /*lda*/,
+                                     B_ptr, N /*ldb*/, beta, C_ptr,
+                                     N /*ldc*/};
+  b.create<func::CallOp>(loc, shim, callOperands);
+
+  Value resultTensor = memrefToTensor(b, loc, C_mr,
+                                       launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(resultTensor);
+  launch.erase();
+  return success();
+}
+
+// @cublasDgeam_scale2D(%M : tensor<?x?xf64>, %scale : f64) -> tensor<?x?xf64>
+// Diagonal/scale-only geam: M = scale * M, in place.
+static LogicalResult lowerDgeamScale2D(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 2)
+    return launch.emitError("cublasDgeam_scale2D: expected 2 operands");
+  Value M = launch.getOperand(0);
+  Value scale = launch.getOperand(1);
+  auto Mt = dyn_cast<RankedTensorType>(M.getType());
+  if (!Mt || Mt.getRank() != 2 || !Mt.getElementType().isF64())
+    return launch.emitError("cublasDgeam_scale2D: M must be 2D f64 tensor");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M_mr = tensorToMemref(b, loc, M);
+  Value rows = memrefDimAsI32(b, loc, M_mr, 0);
+  Value cols = memrefDimAsI32(b, loc, M_mr, 1);
+  Value M_ptr = memrefBasePtr(b, loc, M_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(),
+                                 b.getF64Type(), ptrTy, b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dscal_2d",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{rows, cols, scale, M_ptr, cols});
+
+  Value out = memrefToTensor(b, loc, M_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
+// @memset_zero_2D(%M : tensor<?x?xf64>) -> tensor<?x?xf64>
+static LogicalResult lowerMemsetZero2D(LaunchOp launch, ModuleOp module) {
+  if (launch.getNumOperands() != 1)
+    return launch.emitError("memset_zero_2D: expected 1 operand");
+  Value M = launch.getOperand(0);
+  auto Mt = dyn_cast<RankedTensorType>(M.getType());
+  if (!Mt || Mt.getRank() != 2 || !Mt.getElementType().isF64())
+    return launch.emitError("memset_zero_2D: M must be 2D f64 tensor");
+
+  OpBuilder b(launch);
+  Location loc = launch.getLoc();
+  Value M_mr = tensorToMemref(b, loc, M);
+  Value rows = memrefDimAsI32(b, loc, M_mr, 0);
+  Value cols = memrefDimAsI32(b, loc, M_mr, 1);
+  Value M_ptr = memrefBasePtr(b, loc, M_mr);
+
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  SmallVector<Type> argTypes = {b.getI32Type(), b.getI32Type(), ptrTy,
+                                 b.getI32Type()};
+  func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_memset_zero_2d",
+                                       argTypes, b);
+  b.create<func::CallOp>(loc, shim, ValueRange{rows, cols, M_ptr, cols});
+
+  Value out = memrefToTensor(b, loc, M_mr, launch.getResult(0).getType());
+  launch.getResult(0).replaceAllUsesWith(out);
+  launch.erase();
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // The pass
 //===----------------------------------------------------------------------===//
@@ -282,6 +428,13 @@ struct LowerKernelLaunchToCuBLASPass
       LogicalResult r = failure();
       if (libSym == "cublasDgemm") {
         r = lowerDgemm(launch, module);
+      } else if (libSym == "cublasDgemm_simple" ||
+                 libSym == "cublasDgemm_alpha_only") {
+        r = lowerDgemmVariant(launch, module, libSym);
+      } else if (libSym == "cublasDgeam_scale2D") {
+        r = lowerDgeamScale2D(launch, module);
+      } else if (libSym == "memset_zero_2D") {
+        r = lowerMemsetZero2D(launch, module);
       } else {
         launch.emitError("internal: shimSymbolFor recognised @")
             << libSym << " but no lowering branch dispatched";
@@ -292,14 +445,15 @@ struct LowerKernelLaunchToCuBLASPass
       loweredSymbols.insert(libSym);
     }
 
-    // Remove kernel.defn declarations whose symbol we just lowered. They
-    // were carrying the symbol that the launches referenced; now that the
-    // launches are gone, the defns are dead and downstream LLVM lowering
-    // would choke on them.
+    // Remove any kernel.defn that is now use-empty. After lowering, the
+    // stub defns we injected to satisfy the verifier are dead — and
+    // downstream LLVM lowering doesn't know what kernel.defn is.
+    // (Don't filter by loweredSymbols: scripts often inject stubs for
+    // every symbol the matcher might produce, only some of which the
+    // input actually used.)
     SmallVector<DefnOp> deadDefns;
     module.walk([&](DefnOp d) {
-      if (loweredSymbols.contains(d.getSymName()) &&
-          SymbolTable::symbolKnownUseEmpty(d, module))
+      if (SymbolTable::symbolKnownUseEmpty(d, module))
         deadDefns.push_back(d);
     });
     for (DefnOp d : deadDefns)

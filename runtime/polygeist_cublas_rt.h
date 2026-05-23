@@ -48,6 +48,20 @@ void polygeist_cublas_dgemm(
     double beta,
     double *C, int32_t ldc);
 
+// memset a 2D row-major MxN block to zero. Used by matcher's
+// @memset_zero_2D op. Trivial host-side memset; data is host-resident
+// between launches in the current no-hoisting model.
+void polygeist_cublas_memset_zero_2d(
+    int32_t M, int32_t N, double *A, int32_t lda);
+
+// In-place 2D scale: A = scale * A, row-major MxN with leading dim lda.
+// Used by matcher's @cublasDgeam_scale2D op (the diagonal/scale-only
+// variant of geam where the second operand is zero so the add collapses
+// to a scale). CUDA backend uses cublasDscal on the flattened buffer
+// when contiguous (lda==N), else loops row-wise.
+void polygeist_cublas_dscal_2d(
+    int32_t M, int32_t N, double scale, double *A, int32_t lda);
+
 // Per-call CUDA-event timing (CUDA backend only — CPU stub returns 0.0).
 // Pair with polygeist_cublas_time_begin / polygeist_cublas_time_end around
 // a sequence of kernel calls.

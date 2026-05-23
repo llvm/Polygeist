@@ -34,6 +34,22 @@ void polygeist_cublas_dgemm(
   }
 }
 
+void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
+                                       double *A, int32_t lda) {
+  for (int32_t i = 0; i < M; ++i) {
+    double *row = &A[(size_t)i * (size_t)lda];
+    for (int32_t j = 0; j < N; ++j) row[j] = 0.0;
+  }
+}
+
+void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
+                                 double *A, int32_t lda) {
+  for (int32_t i = 0; i < M; ++i) {
+    double *row = &A[(size_t)i * (size_t)lda];
+    for (int32_t j = 0; j < N; ++j) row[j] *= scale;
+  }
+}
+
 // CPU stub timing — wall-clock via clock_gettime(CLOCK_MONOTONIC). Useful
 // for sanity but not for GPU perf numbers.
 

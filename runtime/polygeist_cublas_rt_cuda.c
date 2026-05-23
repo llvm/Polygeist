@@ -25,6 +25,7 @@
 #include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static cublasHandle_t g_handle;
 static cudaStream_t   g_stream;
@@ -112,6 +113,32 @@ void polygeist_cublas_dgemm(
   cudaFree(dA);
   cudaFree(dB);
   cudaFree(dC);
+}
+
+// Host-side memset. In the current no-hoisting model the array lives on
+// host between launches; pulling it to device just to zero is wasteful.
+void polygeist_cublas_memset_zero_2d(int32_t M, int32_t N,
+                                       double *A, int32_t lda) {
+  if (lda == N) {
+    // Contiguous: one memset.
+    memset(A, 0, (size_t)M * (size_t)N * sizeof(double));
+  } else {
+    for (int32_t i = 0; i < M; ++i) {
+      memset(&A[(size_t)i * (size_t)lda], 0,
+             (size_t)N * sizeof(double));
+    }
+  }
+}
+
+// Host-side scale. Could use cublasDscal but the H↔D copy overhead would
+// dominate this O(MN) op; do it on the CPU side. Future device-residency
+// hoisting will make this a GPU op.
+void polygeist_cublas_dscal_2d(int32_t M, int32_t N, double scale,
+                                 double *A, int32_t lda) {
+  for (int32_t i = 0; i < M; ++i) {
+    double *row = &A[(size_t)i * (size_t)lda];
+    for (int32_t j = 0; j < N; ++j) row[j] *= scale;
+  }
 }
 
 void polygeist_cublas_time_begin(void) {
