@@ -244,6 +244,7 @@ def LowerKernelLaunchToCuBLAS
     "arith::ArithDialect",
     "bufferization::BufferizationDialect",
     "func::FuncDialect",
+    "LLVM::LLVMDialect",
     "memref::MemRefDialect",
     "tensor::TensorDialect",
     "polygeist::kernel::KernelDialect",

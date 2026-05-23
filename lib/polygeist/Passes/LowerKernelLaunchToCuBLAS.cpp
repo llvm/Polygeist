@@ -35,6 +35,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/IR/Builders.h"
@@ -115,6 +116,31 @@ static Value memrefToTensor(OpBuilder &b, Location loc, Value m, Type tensorType
   return t.getResult();
 }
 
+// Extract a raw `!llvm.ptr` to the FIRST DATA ELEMENT of a memref.
+// Sequence: aligned_ptr (as index) -> i64 -> add offset*sizeof(elt) -> ptr.
+// For freshly bufferised memrefs offset=0 so the +offset is a no-op, but
+// we emit it anyway to be safe.
+static Value memrefBasePtr(OpBuilder &b, Location loc, Value m) {
+  auto mrTy = cast<MemRefType>(m.getType());
+  auto eltTy = mrTy.getElementType();
+  // Aligned pointer base (ignores offset).
+  Value alignedIdx = b.create<memref::ExtractAlignedPointerAsIndexOp>(loc, m);
+  Value alignedI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), alignedIdx);
+  // Strided metadata for the offset.
+  auto md = b.create<memref::ExtractStridedMetadataOp>(loc, m);
+  Value offsetIdx = md.getOffset();
+  Value offsetI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), offsetIdx);
+  // sizeof(elt) in bytes.
+  unsigned bits = eltTy.getIntOrFloatBitWidth();
+  Value eltBytes = b.create<arith::ConstantOp>(
+      loc, b.getI64Type(), b.getI64IntegerAttr(bits / 8));
+  Value byteOff = b.create<arith::MulIOp>(loc, offsetI64, eltBytes);
+  Value byteAddr = b.create<arith::AddIOp>(loc, alignedI64, byteOff);
+  // i64 -> !llvm.ptr.
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
+  return b.create<LLVM::IntToPtrOp>(loc, ptrTy, byteAddr);
+}
+
 //===----------------------------------------------------------------------===//
 // Per-library lowerings
 //===----------------------------------------------------------------------===//
@@ -183,20 +209,30 @@ static LogicalResult lowerDgemm(LaunchOp launch, ModuleOp module) {
   Value ldb = N;
   Value ldc = N;
 
-  // Forward-declare the shim function with this exact arg-type vector.
+  // CRITICAL: do NOT pass memrefs to the C shim — MLIR's --convert-func-to-llvm
+  // would expand each memref into 7 LLVM args (alloc-ptr, aligned-ptr, offset,
+  // sizes×2, strides×2), but the C shim signature is (M,N,K,alpha,A*,lda,...)
+  // with one pointer per matrix. The reg/stack layouts would not match and the
+  // shim would read garbage. Extract raw `!llvm.ptr` and pass those.
+  Value A_ptr = memrefBasePtr(b, loc, A_mr);
+  Value B_ptr = memrefBasePtr(b, loc, B_mr);
+  Value C_ptr = memrefBasePtr(b, loc, C_mr);
+
+  // Forward-declare the shim function with raw-pointer arg types.
+  auto ptrTy = LLVM::LLVMPointerType::get(b.getContext());
   SmallVector<Type> argTypes = {
       b.getI32Type(), b.getI32Type(), b.getI32Type(),  // M, N, K
       b.getF64Type(),                                   // alpha
-      A_mr.getType(), b.getI32Type(),                   // A, lda
-      B_mr.getType(), b.getI32Type(),                   // B, ldb
+      ptrTy, b.getI32Type(),                            // A*, lda
+      ptrTy, b.getI32Type(),                            // B*, ldb
       b.getF64Type(),                                   // beta
-      C_mr.getType(), b.getI32Type(),                   // C, ldc
+      ptrTy, b.getI32Type(),                            // C*, ldc
   };
   func::FuncOp shim = ensureShimDecl(module, "polygeist_cublas_dgemm",
                                        argTypes, b);
 
-  SmallVector<Value> callOperands = {M, N, K, alpha, A_mr, lda, B_mr, ldb,
-                                     beta, C_mr, ldc};
+  SmallVector<Value> callOperands = {M, N, K, alpha, A_ptr, lda, B_ptr, ldb,
+                                     beta, C_ptr, ldc};
   b.create<func::CallOp>(loc, shim, callOperands);
 
   // Recover the result tensor SSA from C_mr (C was updated in place).
