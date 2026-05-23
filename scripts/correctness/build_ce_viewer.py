@@ -227,10 +227,10 @@ POLYBENCHGPU_EXTRACTED_NOTES: dict[str, tuple[str, str]] = {
 }
 
 POLYBENCHGPU_EXTRACTED_BLOCKERS: dict[str, tuple[str, str]] = {
-    "conv2d-extracted": ("matcher-gap",
-                          "lifts to 1 linalg.generic with 9 strided-subview inputs (one per 3x3 neighbour); matcher needs a conv2d-9pt template + a @cudnnConvolution2D library defn before this matches"),
+    "conv2d-extracted": ("none",
+                          ""),
     "conv3d-extracted": ("matcher-gap",
-                          "same shape in 3D, 11 distinct inputs"),
+                          "lifts to 1 linalg.generic but upstream's body has 3 duplicate index expressions (`A[i-1][j-1][k-1]` appearing with coefficients 2, 5, -8) — needs a matcher template that handles repeated-input multiplications. conv2d-extracted now matches @cudnnConvolution2D_9tap; conv3d would need an analogous _conv3d_15mul_11in template"),
 }
 
 # llm.c kernel notes — GPT-2 building blocks. Most fwd kernels are highly
